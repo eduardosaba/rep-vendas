@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///A:/RepVendas/src/app/layout.tsx"],"sourcesContent":["import './globals.css'\r\nimport { Metadata } from 'next'\r\n\r\nexport const metadata: Metadata = {\r\n  title: 'Rep-Vendas',\r\n  description: 'Sistema SaaS para catálogo virtual e dashboard de vendas',\r\n  icons: {\r\n    icon: '/favicon.svg',\r\n  },\r\n}\r\n\r\ninterface RootLayoutProps {\r\n  children: React.ReactNode\r\n}\r\n\r\nexport default function RootLayout({ children }: RootLayoutProps) {\r\n  return (\r\n    <html lang=\"pt-br\">\r\n      <body>{children}</body>\r\n    </html>\r\n  )\r\n}"],"names":[],"mappings":";;;;;;;;;AAGO,MAAM,WAAqB;IAChC,OAAO;IACP,aAAa;IACb,OAAO;QACL,MAAM;IACR;AACF;AAMe,SAAS,WAAW,EAAE,QAAQ,EAAmB;IAC9D,qBACE,6VAAC;QAAK,MAAK;kBACT,cAAA,6VAAC;sBAAM;;;;;;;;;;;AAGb","debugId":null}},
+    {"offset": {"line": 40, "column": 0}, "map": {"version":3,"sources":["file:///A:/RepVendas/node_modules/.pnpm/next%4016.0.2_%40babel%2Bcore%407.2_ac612d167d9caedc69b237559ab43d82/node_modules/next/src/server/route-modules/app-page/vendored/rsc/react-jsx-dev-runtime.ts"],"sourcesContent":["module.exports = (\n  require('../../module.compiled') as typeof import('../../module.compiled')\n).vendored['react-rsc']!.ReactJsxDevRuntime\n"],"names":["module","exports","require","vendored","ReactJsxDevRuntime"],"mappings":"AAAAA,OAAOC,OAAO,GACZC,QAAQ,4MACRC,QAAQ,CAAC,YAAY,CAAEC,kBAAkB","ignoreList":[0],"debugId":null}}]
+}

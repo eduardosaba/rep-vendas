@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":["file:///A:/RepVendas/node_modules/.pnpm/next%4016.0.2_%40babel%2Bcore%407.2_ac612d167d9caedc69b237559ab43d82/node_modules/next/app.js"],"sourcesContent":["module.exports = require('./dist/pages/_app')\n"],"names":[],"mappings":"AAAA,OAAO,OAAO","ignoreList":[0],"debugId":null}}]
+}

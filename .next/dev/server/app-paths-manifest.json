@@ -1,0 +1,9 @@
+{
+  "/catalog/[userId]/page": "app/catalog/[userId]/page.js",
+  "/dashboard/clients/page": "app/dashboard/clients/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/products/page": "app/dashboard/products/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/settings/page": "app/settings/page.js"
+}

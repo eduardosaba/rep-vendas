@@ -1,0 +1,59 @@
+[00:00:08.933] Server  LOG      ✓ Ready in 6.2s
+[00:00:12.422] Server  LOG      ○ Compiling /catalog/[userId] ...
+[00:03:38.250] Server  LOG      ○ Compiling /login ...
+[00:03:48.363] Server  LOG      ○ Compiling /dashboard ...
+[00:04:53.828] Browser ERROR   `value` prop on `%s` should not be null. Consider using an empty string to clear the component or `undefined` for uncontrolled components. input
+[00:04:53.828] Browser ERROR   A component is changing a controlled input to be uncontrolled. This is likely caused by the value changing from a defined to undefined, which should not happen. Decide between using a controlled or uncontrolled input element for the lifetime of the component. More info: https://react.dev/link/controlled-components
+[00:05:36.890] Browser ERROR   A component is changing an uncontrolled input to be controlled. This is likely caused by the value changing from undefined to a defined value, which should not happen. Decide between using a controlled or uncontrolled input element for the lifetime of the component. More info: https://react.dev/link/controlled-components
+[00:05:40.091] Server  LOG      ✓ Compiled in 1879ms
+[00:05:52.809] Browser ERROR   Erro ao salvar configurações: {"code":"PGRST204","details":null,"hint":null,"message":"Could not find the 'hide_delivery_address' column of 'settings' in the schema cache"}
+[00:07:02.922] Server  LOG      ✓ Compiled in 2.2s
+[00:07:46.074] Server  LOG      ○ Compiling /dashboard/clients ...
+[00:07:59.038] Server  LOG      ✓ Compiled in 8.3s
+[00:08:10.308] Server  LOG      ✓ Compiled in 3.6s
+[00:08:25.832] Server  LOG      ✓ Compiled in 5.2s
+[00:08:34.479] Server  LOG      ✓ Compiled in 4.2s
+[00:08:40.567] Server  LOG      ✓ Compiled in 1517ms
+[00:08:46.482] Server  LOG      ✓ Compiled in 1249ms
+[00:08:51.731] Server  LOG      ✓ Compiled in 1422ms
+[00:09:00.371] Server  LOG      ✓ Compiled in 2.8s
+[00:11:03.570] Server  LOG      ✓ Compiled in 2.2s
+[00:11:12.785] Server  LOG      ✓ Compiled in 3s
+[00:11:23.218] Server  LOG      ✓ Compiled in 6.6s
+[00:11:33.984] Server  LOG      ✓ Compiled in 2.4s
+[00:13:03.160] Server  LOG      ✓ Compiled in 4s
+[00:14:37.680] Server  LOG      ✓ Compiled in 3.9s
+[00:15:06.471] Server  LOG      ✓ Compiled in 2.5s
+[00:15:17.316] Server  LOG      ✓ Compiled in 7.6s
+[00:15:22.705] Server  LOG      ✓ Compiled in 1335ms
+[00:17:01.428] Browser ERROR   Erro ao salvar configurações: {"code":"PGRST204","details":null,"hint":null,"message":"Could not find the 'show_delivery_address' column of 'settings' in the schema cache"}
+[00:18:54.951] Server  LOG      ✓ Compiled in 2.2s
+[00:22:03.717] Browser LOG     Salvando configurações: {"show_delivery_address":false,"show_installments_checkout":false}
+[00:22:04.098] Browser LOG     Atualizando registro existente
+[00:22:04.597] Browser ERROR   Erro do Supabase: {"code":"PGRST204","details":null,"hint":null,"message":"Could not find the 'show_installments' column of 'settings' in the schema cache"}
+[00:22:04.597] Browser ERROR   Erro ao salvar configurações: {"code":"PGRST204","details":null,"hint":null,"message":"Could not find the 'show_installments' column of 'settings' in the schema cache"}
+[00:29:00.892] Server  LOG      ✓ Compiled in 1428ms
+[00:30:32.001] Server  LOG      ✓ Compiled in 1758ms
+[00:30:48.470] Server  LOG      ✓ Compiled in 933ms
+[00:31:10.630] Server  LOG      ✓ Compiled in 4.7s
+[00:32:51.748] Server  LOG      ✓ Compiled in 1794ms
+[00:36:01.115] Server  LOG      ✓ Compiled in 9.7s
+[00:36:11.212] Server  LOG      ✓ Compiled in 5.7s
+[00:36:32.073] Server  LOG      ✓ Compiled in 9.1s
+[00:36:53.541] Server  LOG      ✓ Compiled in 6.2s
+[00:37:12.434] Server  LOG      ✓ Compiled in 10.2s
+[00:37:36.410] Server  LOG      ✓ Compiled in 6.5s
+[00:37:53.773] Server  LOG      ✓ Compiled in 8.2s
+[00:38:05.689] Server  LOG      ✓ Compiled in 2s
+[00:38:10.105] Server  LOG      ✓ Compiled in 1384ms
+[00:38:15.080] Server  LOG      ✓ Compiled in 1152ms
+[00:38:18.476] Server  LOG      ✓ Compiled in 800ms
+[00:40:21.320] Browser ERROR   Erro ao salvar configurações: {"code":"PGRST204","details":null,"hint":null,"message":"Could not find the 'show_discount' column of 'settings' in the schema cache"}
+[00:42:07.932] Browser ERROR   Erro ao salvar configurações: {"code":"42703","details":null,"hint":null,"message":"record \"new\" has no field \"updated_at\""}
+[00:42:19.197] Browser ERROR   Erro ao salvar configurações: {"code":"42703","details":null,"hint":null,"message":"record \"new\" has no field \"updated_at\""}
+[00:42:52.371] Server  LOG      ✓ Compiled in 1381ms
+[00:42:59.057] Server  LOG      ✓ Compiled in 1460ms
+[00:43:03.339] Server  LOG      ✓ Compiled in 978ms
+[00:45:46.660] Server  LOG      ✓ Compiled in 1154ms
+[00:46:03.104] Server  LOG      ✓ Compiled in 1429ms
+[00:46:07.263] Server  LOG      ✓ Compiled in 1383ms
