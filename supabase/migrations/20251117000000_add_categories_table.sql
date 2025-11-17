@@ -14,22 +14,57 @@ CREATE TABLE IF NOT EXISTS categories (
 -- Habilitar RLS para categories
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 
--- Políticas RLS para categories
-CREATE POLICY "Users can view their own categories" ON categories
-  FOR SELECT USING (auth.uid() = user_id);
+-- Políticas RLS para categories (verificar se já existem antes de criar)
+DO $$
+BEGIN
+  -- Política de SELECT
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'categories' AND policyname = 'Users can view their own categories'
+  ) THEN
+    CREATE POLICY "Users can view their own categories" ON categories
+      FOR SELECT USING (auth.uid() = user_id);
+  END IF;
 
-CREATE POLICY "Users can insert their own categories" ON categories
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  -- Política de INSERT
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'categories' AND policyname = 'Users can insert their own categories'
+  ) THEN
+    CREATE POLICY "Users can insert their own categories" ON categories
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
 
-CREATE POLICY "Users can update their own categories" ON categories
-  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  -- Política de UPDATE
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'categories' AND policyname = 'Users can update their own categories'
+  ) THEN
+    CREATE POLICY "Users can update their own categories" ON categories
+      FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  END IF;
 
-CREATE POLICY "Users can delete their own categories" ON categories
-  FOR DELETE USING (auth.uid() = user_id);
+  -- Política de DELETE
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'categories' AND policyname = 'Users can delete their own categories'
+  ) THEN
+    CREATE POLICY "Users can delete their own categories" ON categories
+      FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
--- Trigger para updated_at
-CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Verificar se o trigger já existe antes de criar
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'update_categories_updated_at'
+  ) THEN
+    CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;
 
 -- Adicionar coluna category_id na tabela products (se não existir)
 DO $$

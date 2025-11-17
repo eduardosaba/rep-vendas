@@ -183,6 +183,37 @@ export default memo(function CatalogPage() {
 
                 {/* Controles de Ordenação e Filtro Mobile */}
                 <div className="flex items-center space-x-4">
+                  {/* Controle de Preços */}
+                  <div className="flex items-center space-x-2">
+                    {checkPriceAccess() ? (
+                      <div className="flex items-center space-x-2 bg-green-50 border border-green-200 rounded-lg px-3 py-1">
+                        <span className="text-sm text-green-700 font-medium">
+                          ✅ Preços visíveis
+                        </span>
+                        <button
+                          onClick={() => {
+                            // Limpar acesso aos preços
+                            localStorage.removeItem("priceAccessGranted");
+                            localStorage.removeItem("priceAccessExpiresAt");
+                            window.location.reload(); // Recarregar para limpar estado
+                          }}
+                          className="text-xs text-green-600 hover:text-green-800 underline"
+                          title="Ocultar preços"
+                        >
+                          Ocultar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleRequestPriceAccess}
+                        className="flex items-center space-x-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        title="Solicitar acesso aos preços"
+                      >
+                        <span>🔒 Ver Preços</span>
+                      </button>
+                    )}
+                  </div>
+
                   <div className="flex items-center space-x-2">
                     <label
                       htmlFor="sort-select"
@@ -297,7 +328,6 @@ export default memo(function CatalogPage() {
                           userId={userId}
                           formatPrice={formatPrice}
                           hasPriceAccess={checkPriceAccess()}
-                          onRequestPriceAccess={handleRequestPriceAccess}
                         />
                       ) : (
                         <MemoizedProductCardList
@@ -311,7 +341,6 @@ export default memo(function CatalogPage() {
                           userId={userId}
                           formatPrice={formatPrice}
                           hasPriceAccess={checkPriceAccess()}
-                          onRequestPriceAccess={handleRequestPriceAccess}
                         />
                       ),
                     )}

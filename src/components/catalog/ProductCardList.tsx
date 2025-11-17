@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { Heart, X } from "lucide-react";
 import { Product, Settings, ProductCardProps } from "@/lib/types";
 
-interface ProductCardListProps extends ProductCardProps {
+interface ProductCardListProps extends Omit<ProductCardProps, 'onToggleFavorite' | 'onAddToCart'> {
   hasPriceAccess: boolean;
-  onRequestPriceAccess: () => void;
 }
 
 export const ProductCardList: React.FC<ProductCardListProps> = ({
@@ -20,7 +19,6 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
   userId,
   formatPrice,
   hasPriceAccess,
-  onRequestPriceAccess,
 }) => {
   const router = useRouter();
   const [showImageModal, setShowImageModal] = useState(false);
@@ -143,12 +141,9 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
                   </>
                 ) : (
                   <div className="mb-1">
-                    <button
-                      onClick={onRequestPriceAccess}
-                      className="text-sm text-blue-600 hover:text-blue-800 font-medium underline"
-                    >
-                      Solicitar acesso aos preços
-                    </button>
+                    <span className="text-sm text-gray-500 italic">
+                      Preço disponível mediante solicitação
+                    </span>
                   </div>
                 )}
                 {hasPriceAccess && settings?.show_shipping && (

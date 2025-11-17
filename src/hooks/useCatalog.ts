@@ -71,6 +71,7 @@ interface Settings {
   show_filter_category?: boolean;
   show_filter_bestseller?: boolean;
   show_filter_new?: boolean;
+  price_access_password?: string;
 }
 
 export interface UseCatalogReturn {
@@ -115,6 +116,15 @@ export interface UseCatalogReturn {
   setShowOnlyNew: (show: boolean) => void;
   requestPriceAccess: (password: string) => Promise<boolean>;
   checkPriceAccess: () => boolean;
+
+  // Funções de interação
+  toggleFavorite: (productId: string) => void;
+  addToCart: (productId: string, quantity: number) => void;
+  clearFilters: () => void;
+
+  // Utilitários
+  formatPrice: (price: number) => string;
+};
 
 export const useCatalog = (): UseCatalogReturn => {
   const params = useParams();
