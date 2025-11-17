@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient";
+import { supabase } from './supabaseClient';
 
 interface UploadResult {
   success: boolean;
@@ -16,10 +16,10 @@ export const uploadImage = async (
   file: File,
   bucket: string,
   userId: string,
-  customFileName: string | null = null,
+  customFileName: string | null = null
 ): Promise<UploadResult> => {
   try {
-    const fileExt = file.name.split(".").pop();
+    const fileExt = file.name.split('.').pop();
     const fileName = customFileName || `${userId}_${Date.now()}.${fileExt}`;
     const filePath = `${bucket}/${fileName}`;
 
@@ -39,7 +39,7 @@ export const uploadImage = async (
       filePath: filePath,
     };
   } catch (error) {
-    console.error("Erro ao fazer upload:", error);
+    console.error('Erro ao fazer upload:', error);
     return {
       success: false,
       error: (error as Error).message,
@@ -49,7 +49,7 @@ export const uploadImage = async (
 
 export const deleteImage = async (
   bucket: string,
-  filePath: string,
+  filePath: string
 ): Promise<DeleteResult> => {
   try {
     const { error } = await supabase.storage.from(bucket).remove([filePath]);
@@ -60,7 +60,7 @@ export const deleteImage = async (
 
     return { success: true };
   } catch (error) {
-    console.error("Erro ao deletar imagem:", error);
+    console.error('Erro ao deletar imagem:', error);
     return {
       success: false,
       error: (error as Error).message,

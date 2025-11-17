@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { X, Lock, Eye, EyeOff } from "lucide-react";
+import { useState } from 'react';
+import { X, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface PriceAccessModalProps {
   isOpen: boolean;
@@ -16,29 +16,29 @@ export const PriceAccessModal: React.FC<PriceAccessModalProps> = ({
   onSubmit,
   isLoading = false,
 }) => {
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
 
     if (!password.trim()) {
-      setError("Digite a senha para continuar");
+      setError('Digite a senha para continuar');
       return;
     }
 
     const success = await onSubmit(password.trim());
     if (success) {
-      setPassword("");
+      setPassword('');
       onClose();
     }
   };
 
   const handleClose = () => {
-    setPassword("");
-    setError("");
+    setPassword('');
+    setError('');
     setShowPassword(false);
     onClose();
   };
@@ -46,13 +46,13 @@ export const PriceAccessModal: React.FC<PriceAccessModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between border-b border-gray-200 p-6">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-full">
-              <Lock className="w-6 h-6 text-blue-600" />
+            <div className="rounded-full bg-blue-100 p-2">
+              <Lock className="h-6 w-6 text-blue-600" />
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
@@ -65,10 +65,10 @@ export const PriceAccessModal: React.FC<PriceAccessModalProps> = ({
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 transition-colors hover:text-gray-600"
             aria-label="Fechar modal"
           >
-            <X className="w-6 h-6" />
+            <X className="h-6 w-6" />
           </button>
         </div>
 
@@ -78,18 +78,18 @@ export const PriceAccessModal: React.FC<PriceAccessModalProps> = ({
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="mb-2 block text-sm font-medium text-gray-700"
               >
                 Senha de Acesso
               </label>
               <div className="relative">
                 <input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    error ? "border-red-300" : "border-gray-300"
+                  className={`w-full rounded-lg border px-4 py-3 transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500 ${
+                    error ? 'border-red-300' : 'border-gray-300'
                   }`}
                   placeholder="Digite a senha..."
                   disabled={isLoading}
@@ -98,25 +98,23 @@ export const PriceAccessModal: React.FC<PriceAccessModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transform text-gray-500 hover:text-gray-700"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
+                    <EyeOff className="h-5 w-5" />
                   ) : (
-                    <Eye className="w-5 h-5" />
+                    <Eye className="h-5 w-5" />
                   )}
                 </button>
               </div>
-              {error && (
-                <p className="text-sm text-red-600 mt-1">{error}</p>
-              )}
+              {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
             </div>
 
-            <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="rounded-lg bg-blue-50 p-4">
               <div className="flex items-start space-x-3">
                 <div className="flex-shrink-0">
-                  <Lock className="w-5 h-5 text-blue-600" />
+                  <Lock className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="text-sm text-blue-800">
                   <p className="font-medium">Informações importantes:</p>
@@ -131,27 +129,27 @@ export const PriceAccessModal: React.FC<PriceAccessModalProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex space-x-3 mt-6">
+          <div className="mt-6 flex space-x-3">
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="flex-1 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-200"
               disabled={isLoading}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={isLoading || !password.trim()}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                   <span>Verificando...</span>
                 </div>
               ) : (
-                "Acessar Preços"
+                'Acessar Preços'
               )}
             </button>
           </div>

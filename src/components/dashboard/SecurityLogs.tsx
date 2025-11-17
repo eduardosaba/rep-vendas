@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Shield, AlertTriangle, CheckCircle, Clock, X } from "lucide-react";
-import { SecurityLog } from "@/lib/types";
+import { useState } from 'react';
+import { Shield, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react';
+import { SecurityLog } from '@/lib/types';
 
 interface SecurityLogsProps {
   logs: SecurityLog[];
@@ -12,7 +12,7 @@ interface SecurityLogsProps {
 export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
   const [filter, setFilter] = useState<'all' | 'success' | 'error'>('all');
 
-  const filteredLogs = logs.filter(log => {
+  const filteredLogs = logs.filter((log) => {
     if (filter === 'all') return true;
     return filter === 'success' ? log.success : !log.success;
   });
@@ -45,12 +45,14 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="mx-4 max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 p-6">
           <div className="flex items-center space-x-3">
             <Shield className="h-6 w-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Logs de Segurança</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Logs de Segurança
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -62,10 +64,10 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
 
         <div className="p-6">
           {/* Filtros */}
-          <div className="flex space-x-2 mb-4">
+          <div className="mb-4 flex space-x-2">
             <button
               onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
+              className={`rounded-full px-3 py-1 text-sm font-medium ${
                 filter === 'all'
                   ? 'bg-blue-100 text-blue-800'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -75,31 +77,31 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
             </button>
             <button
               onClick={() => setFilter('success')}
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
+              className={`rounded-full px-3 py-1 text-sm font-medium ${
                 filter === 'success'
                   ? 'bg-green-100 text-green-800'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              Sucesso ({logs.filter(l => l.success).length})
+              Sucesso ({logs.filter((l) => l.success).length})
             </button>
             <button
               onClick={() => setFilter('error')}
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
+              className={`rounded-full px-3 py-1 text-sm font-medium ${
                 filter === 'error'
                   ? 'bg-red-100 text-red-800'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              Erros ({logs.filter(l => !l.success).length})
+              Erros ({logs.filter((l) => !l.success).length})
             </button>
           </div>
 
           {/* Lista de logs */}
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="max-h-96 space-y-3 overflow-y-auto">
             {filteredLogs.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Shield className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <div className="py-8 text-center text-gray-500">
+                <Shield className="mx-auto mb-4 h-12 w-12 text-gray-300" />
                 <p>Nenhum log encontrado para o filtro selecionado.</p>
               </div>
             ) : (
@@ -108,34 +110,38 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
                 .map((log) => (
                   <div
                     key={log.id}
-                    className={`flex items-start space-x-3 p-4 rounded-lg ${getActionColor(log.action, log.success)}`}
+                    className={`flex items-start space-x-3 rounded-lg p-4 ${getActionColor(log.action, log.success)}`}
                   >
-                    <div className="flex-shrink-0 mt-0.5">
+                    <div className="mt-0.5 flex-shrink-0">
                       {log.success ? (
                         <CheckCircle className="h-5 w-5 text-green-600" />
                       ) : (
                         <AlertTriangle className="h-5 w-5 text-red-600" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center space-x-2">
                         {getActionIcon(log.action)}
                         <p className="text-sm font-medium text-gray-900">
-                          {log.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          {log.action
+                            .replace(/_/g, ' ')
+                            .replace(/\b\w/g, (l) => l.toUpperCase())}
                         </p>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          log.success
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            log.success
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
                           {log.success ? 'Sucesso' : 'Erro'}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="mt-1 text-sm text-gray-600">
                         {new Date(log.timestamp).toLocaleString('pt-BR')}
                       </p>
                       {log.details && (
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="mt-1 text-sm text-gray-500">
                           {log.details}
                         </p>
                       )}
@@ -146,10 +152,10 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+        <div className="flex justify-end space-x-3 border-t border-gray-200 p-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             Fechar
           </button>

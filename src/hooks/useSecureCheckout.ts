@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useToast } from "@/hooks/useToast";
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/useToast';
 
 // Tipos para checkout seguro
 export interface SecureCheckoutState {
@@ -52,15 +52,23 @@ export interface UseSecureCheckoutReturn {
   logout: () => void;
 
   // Ações de pedido
-  saveDraftOrder: (order: Omit<DraftOrder, 'id' | 'createdAt' | 'lastModified'>) => void;
+  saveDraftOrder: (
+    order: Omit<DraftOrder, 'id' | 'createdAt' | 'lastModified'>
+  ) => void;
   loadDraftOrder: () => DraftOrder | null;
   clearDraftOrder: () => void;
-  submitOrder: (orderData: any) => Promise<{ success: boolean; orderId?: string; error?: string }>;
+  submitOrder: (
+    orderData: any
+  ) => Promise<{ success: boolean; orderId?: string; error?: string }>;
 
   // Utilitários
   encryptSensitiveData: (data: any) => string;
   decryptSensitiveData: (encryptedData: string) => any;
-  logSecurityEvent: (action: string, success: boolean, details?: string) => void;
+  logSecurityEvent: (
+    action: string,
+    success: boolean,
+    details?: string
+  ) => void;
   getSecurityLogs: () => SecurityLog[];
 }
 
@@ -110,37 +118,52 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
 
       if (savedDraft) {
         const draft = JSON.parse(savedDraft);
-        setState(prev => ({ ...prev, draftOrder: draft }));
+        setState((prev) => ({ ...prev, draftOrder: draft }));
       }
 
       if (savedLogs) {
         const logs = JSON.parse(savedLogs);
-        setState(prev => ({ ...prev, securityLogs: logs }));
+        setState((prev) => ({ ...prev, securityLogs: logs }));
       }
 
       // Validar sessão atual
       const isValid = await validateSession();
       if (isValid) {
-        logSecurityEvent('session_restored', true, 'Sessão restaurada com sucesso');
+        logSecurityEvent(
+          'session_restored',
+          true,
+          'Sessão restaurada com sucesso'
+        );
       }
     } catch (error) {
       console.error('Erro ao inicializar estado seguro:', error);
-      logSecurityEvent('initialization_error', false, error instanceof Error ? error.message : 'Erro desconhecido');
+      logSecurityEvent(
+        'initialization_error',
+        false,
+        error instanceof Error ? error.message : 'Erro desconhecido'
+      );
     }
   }, []);
 
   // Validação de sessão
   const validateSession = useCallback(async (): Promise<boolean> => {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
       if (error || !session) {
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           isAuthenticated: false,
-          sessionToken: null
+          sessionToken: null,
         }));
-        logSecurityEvent('session_validation', false, 'Sessão inválida ou inexistente');
+        logSecurityEvent(
+          'session_validation',
+          false,
+          'Sessão inválida ou inexistente'
+        );
         return false;
       }
 
@@ -149,27 +172,31 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
 
       if (now >= expiresAt) {
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           isAuthenticated: false,
-          sessionToken: null
+          sessionToken: null,
         }));
         logSecurityEvent('session_validation', false, 'Token expirado');
         return false;
       }
 
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         isAuthenticated: true,
         sessionToken: session.access_token,
-        lastActivity: now
+        lastActivity: now,
       }));
 
       logSecurityEvent('session_validation', true, 'Sessão válida');
       return true;
     } catch (error) {
       console.error('Erro ao validar sessão:', error);
-      logSecurityEvent('session_validation', false, error instanceof Error ? error.message : 'Erro desconhecido');
+      logSecurityEvent(
+        'session_validation',
+        false,
+        error instanceof Error ? error.message : 'Erro desconhecido'
+      );
       return false;
     }
   }, []);
@@ -180,34 +207,42 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       const { data, error } = await supabase.auth.refreshSession();
 
       if (error || !data.session) {
-        logSecurityEvent('session_refresh', false, error?.message || 'Falha ao renovar sessão');
+        logSecurityEvent(
+          'session_refresh',
+          false,
+          error?.message || 'Falha ao renovar sessão'
+        );
         return false;
       }
 
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         isAuthenticated: true,
         sessionToken: data.session?.access_token || null,
         lastActivity: Date.now(),
-        retryCount: 0
+        retryCount: 0,
       }));
 
       logSecurityEvent('session_refresh', true, 'Sessão renovada com sucesso');
       return true;
     } catch (error) {
       console.error('Erro ao renovar sessão:', error);
-      logSecurityEvent('session_refresh', false, error instanceof Error ? error.message : 'Erro desconhecido');
+      logSecurityEvent(
+        'session_refresh',
+        false,
+        error instanceof Error ? error.message : 'Erro desconhecido'
+      );
       return false;
     }
   }, []);
 
   // Logout seguro
   const logout = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       isAuthenticated: false,
       sessionToken: null,
-      draftOrder: null
+      draftOrder: null,
     }));
 
     // Limpar dados locais
@@ -219,46 +254,57 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
 
   // Manipulação de timeout de sessão
   const handleSessionTimeout = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       isAuthenticated: false,
-      sessionToken: null
+      sessionToken: null,
     }));
 
     addToast({
       title: 'Sessão expirada',
       message: 'Sua sessão expirou por inatividade. Faça login novamente.',
-      type: 'warning'
+      type: 'warning',
     });
 
-    logSecurityEvent('session_timeout', true, 'Sessão expirada por inatividade');
+    logSecurityEvent(
+      'session_timeout',
+      true,
+      'Sessão expirada por inatividade'
+    );
   }, [addToast]);
 
   // Salvamento de rascunho de pedido
-  const saveDraftOrder = useCallback((order: Omit<DraftOrder, 'id' | 'createdAt' | 'lastModified'>) => {
-    try {
-      const draft: DraftOrder = {
-        ...order,
-        id: `draft_${Date.now()}`,
-        createdAt: Date.now(),
-        lastModified: Date.now()
-      };
+  const saveDraftOrder = useCallback(
+    (order: Omit<DraftOrder, 'id' | 'createdAt' | 'lastModified'>) => {
+      try {
+        const draft: DraftOrder = {
+          ...order,
+          id: `draft_${Date.now()}`,
+          createdAt: Date.now(),
+          lastModified: Date.now(),
+        };
 
-      // Criptografar dados sensíveis
-      const encryptedDraft = {
-        ...draft,
-        clientData: encryptSensitiveData(draft.clientData)
-      };
+        // Criptografar dados sensíveis
+        const encryptedDraft = {
+          ...draft,
+          clientData: encryptSensitiveData(draft.clientData),
+        };
 
-      localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(encryptedDraft));
-      setState(prev => ({ ...prev, draftOrder: draft }));
+        localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(encryptedDraft));
+        setState((prev) => ({ ...prev, draftOrder: draft }));
 
-      logSecurityEvent('draft_saved', true, 'Rascunho de pedido salvo');
-    } catch (error) {
-      console.error('Erro ao salvar rascunho:', error);
-      logSecurityEvent('draft_saved', false, error instanceof Error ? error.message : 'Erro desconhecido');
-    }
-  }, []);
+        logSecurityEvent('draft_saved', true, 'Rascunho de pedido salvo');
+      } catch (error) {
+        console.error('Erro ao salvar rascunho:', error);
+        logSecurityEvent(
+          'draft_saved',
+          false,
+          error instanceof Error ? error.message : 'Erro desconhecido'
+        );
+      }
+    },
+    []
+  );
 
   // Carregamento de rascunho
   const loadDraftOrder = useCallback((): DraftOrder | null => {
@@ -271,15 +317,19 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       // Descriptografar dados sensíveis
       const draft: DraftOrder = {
         ...encryptedDraft,
-        clientData: decryptSensitiveData(encryptedDraft.clientData)
+        clientData: decryptSensitiveData(encryptedDraft.clientData),
       };
 
-      setState(prev => ({ ...prev, draftOrder: draft }));
+      setState((prev) => ({ ...prev, draftOrder: draft }));
       logSecurityEvent('draft_loaded', true, 'Rascunho de pedido carregado');
       return draft;
     } catch (error) {
       console.error('Erro ao carregar rascunho:', error);
-      logSecurityEvent('draft_loaded', false, error instanceof Error ? error.message : 'Erro desconhecido');
+      logSecurityEvent(
+        'draft_loaded',
+        false,
+        error instanceof Error ? error.message : 'Erro desconhecido'
+      );
       return null;
     }
   }, []);
@@ -287,83 +337,121 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
   // Limpar rascunho
   const clearDraftOrder = useCallback(() => {
     localStorage.removeItem(DRAFT_ORDER_KEY);
-    setState(prev => ({ ...prev, draftOrder: null }));
+    setState((prev) => ({ ...prev, draftOrder: null }));
     logSecurityEvent('draft_cleared', true, 'Rascunho de pedido removido');
   }, []);
 
   // Submissão de pedido com retry
-  const submitOrder = useCallback(async (orderData: any): Promise<{ success: boolean; orderId?: string; error?: string }> => {
-    setState(prev => ({ ...prev, isProcessing: true }));
+  const submitOrder = useCallback(
+    async (
+      orderData: any
+    ): Promise<{ success: boolean; orderId?: string; error?: string }> => {
+      setState((prev) => ({ ...prev, isProcessing: true }));
 
-    try {
-      // Validar sessão antes de submeter
-      const isValidSession = await validateSession();
-      if (!isValidSession) {
-        // Tentar refresh da sessão
-        const refreshed = await refreshSession();
-        if (!refreshed) {
-          logSecurityEvent('order_submit', false, 'Falha na validação de sessão');
-          return { success: false, error: 'Sessão inválida. Faça login novamente.' };
+      try {
+        // Validar sessão antes de submeter
+        const isValidSession = await validateSession();
+        if (!isValidSession) {
+          // Tentar refresh da sessão
+          const refreshed = await refreshSession();
+          if (!refreshed) {
+            logSecurityEvent(
+              'order_submit',
+              false,
+              'Falha na validação de sessão'
+            );
+            return {
+              success: false,
+              error: 'Sessão inválida. Faça login novamente.',
+            };
+          }
         }
-      }
 
-      // Tentar submeter com retry
-      let lastError: string = '';
-      for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
-        try {
-          setState(prev => ({ ...prev, retryCount: attempt }));
+        // Tentar submeter com retry
+        let lastError: string = '';
+        for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+          try {
+            setState((prev) => ({ ...prev, retryCount: attempt }));
 
-          const result = await performOrderSubmission(orderData);
+            const result = await performOrderSubmission(orderData);
 
-          if (result.success) {
-            setState(prev => ({
-              ...prev,
-              isProcessing: false,
-              retryCount: 0,
-              lastActivity: Date.now()
-            }));
+            if (result.success) {
+              setState((prev) => ({
+                ...prev,
+                isProcessing: false,
+                retryCount: 0,
+                lastActivity: Date.now(),
+              }));
 
-            // Limpar rascunho após sucesso
-            clearDraftOrder();
+              // Limpar rascunho após sucesso
+              clearDraftOrder();
 
-            logSecurityEvent('order_submit', true, `Pedido ${result.orderId} criado com sucesso`);
-            return result;
-          } else {
-            lastError = result.error || 'Erro desconhecido';
-            logSecurityEvent('order_submit_attempt', false, `Tentativa ${attempt}: ${lastError}`);
+              logSecurityEvent(
+                'order_submit',
+                true,
+                `Pedido ${result.orderId} criado com sucesso`
+              );
+              return result;
+            } else {
+              lastError = result.error || 'Erro desconhecido';
+              logSecurityEvent(
+                'order_submit_attempt',
+                false,
+                `Tentativa ${attempt}: ${lastError}`
+              );
+
+              if (attempt < MAX_RETRY_ATTEMPTS) {
+                // Aguardar antes do próximo retry
+                await new Promise((resolve) =>
+                  setTimeout(resolve, 1000 * attempt)
+                );
+                continue;
+              }
+            }
+          } catch (error) {
+            lastError =
+              error instanceof Error ? error.message : 'Erro desconhecido';
+            logSecurityEvent(
+              'order_submit_attempt',
+              false,
+              `Tentativa ${attempt}: ${lastError}`
+            );
 
             if (attempt < MAX_RETRY_ATTEMPTS) {
-              // Aguardar antes do próximo retry
-              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 * attempt)
+              );
               continue;
             }
           }
-        } catch (error) {
-          lastError = error instanceof Error ? error.message : 'Erro desconhecido';
-          logSecurityEvent('order_submit_attempt', false, `Tentativa ${attempt}: ${lastError}`);
-
-          if (attempt < MAX_RETRY_ATTEMPTS) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-            continue;
-          }
         }
+
+        setState((prev) => ({ ...prev, isProcessing: false }));
+        logSecurityEvent(
+          'order_submit',
+          false,
+          `Falhou após ${MAX_RETRY_ATTEMPTS} tentativas: ${lastError}`
+        );
+        return { success: false, error: lastError };
+      } catch (error) {
+        setState((prev) => ({ ...prev, isProcessing: false }));
+        const errorMessage =
+          error instanceof Error ? error.message : 'Erro desconhecido';
+        logSecurityEvent('order_submit', false, errorMessage);
+        return { success: false, error: errorMessage };
       }
-
-      setState(prev => ({ ...prev, isProcessing: false }));
-      logSecurityEvent('order_submit', false, `Falhou após ${MAX_RETRY_ATTEMPTS} tentativas: ${lastError}`);
-      return { success: false, error: lastError };
-
-    } catch (error) {
-      setState(prev => ({ ...prev, isProcessing: false }));
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      logSecurityEvent('order_submit', false, errorMessage);
-      return { success: false, error: errorMessage };
-    }
-  }, [validateSession, refreshSession, clearDraftOrder]);
+    },
+    [validateSession, refreshSession, clearDraftOrder]
+  );
 
   // Função auxiliar para submissão do pedido
-  const performOrderSubmission = async (orderData: any): Promise<{ success: boolean; orderId?: string; error?: string }> => {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const performOrderSubmission = async (
+    orderData: any
+  ): Promise<{ success: boolean; orderId?: string; error?: string }> => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
     if (userError || !user) {
       throw new Error('Usuário não autenticado');
     }
@@ -430,7 +518,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       let encrypted = '';
       for (let i = 0; i < jsonString.length; i++) {
         encrypted += String.fromCharCode(
-          jsonString.charCodeAt(i) ^ ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length)
+          jsonString.charCodeAt(i) ^
+            ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length)
         );
       }
       return btoa(encrypted); // Base64
@@ -446,7 +535,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       let decrypted = '';
       for (let i = 0; i < encrypted.length; i++) {
         decrypted += String.fromCharCode(
-          encrypted.charCodeAt(i) ^ ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length)
+          encrypted.charCodeAt(i) ^
+            ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length)
         );
       }
       return JSON.parse(decrypted);
@@ -457,21 +547,24 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
   }, []);
 
   // Logging de segurança
-  const logSecurityEvent = useCallback((action: string, success: boolean, details?: string) => {
-    const log: SecurityLog = {
-      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      action,
-      timestamp: Date.now(),
-      success,
-      details
-    };
+  const logSecurityEvent = useCallback(
+    (action: string, success: boolean, details?: string) => {
+      const log: SecurityLog = {
+        id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        action,
+        timestamp: Date.now(),
+        success,
+        details,
+      };
 
-    setState(prev => {
-      const newLogs = [...prev.securityLogs, log].slice(-100); // Manter apenas os últimos 100 logs
-      localStorage.setItem(SECURITY_LOGS_KEY, JSON.stringify(newLogs));
-      return { ...prev, securityLogs: newLogs };
-    });
-  }, []);
+      setState((prev) => {
+        const newLogs = [...prev.securityLogs, log].slice(-100); // Manter apenas os últimos 100 logs
+        localStorage.setItem(SECURITY_LOGS_KEY, JSON.stringify(newLogs));
+        return { ...prev, securityLogs: newLogs };
+      });
+    },
+    []
+  );
 
   // Obter logs de segurança
   const getSecurityLogs = useCallback((): SecurityLog[] => {

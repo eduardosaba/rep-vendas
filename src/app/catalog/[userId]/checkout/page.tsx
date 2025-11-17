@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { supabase } from "../../../../lib/supabaseClient";
-import { useRouter, useParams } from "next/navigation";
-import { useCatalog } from "../../../../hooks/useCatalog";
-import { generateOrderPDF, OrderData } from "../../../../lib/pdfGenerator";
+import { useEffect, useState } from 'react';
+import { supabase } from '../../../../lib/supabaseClient';
+import { useRouter, useParams } from 'next/navigation';
+import { useCatalog } from '../../../../hooks/useCatalog';
+import { generateOrderPDF, OrderData } from '../../../../lib/pdfGenerator';
 import {
   ShoppingCart,
   CheckCircle,
@@ -23,7 +23,7 @@ import {
   Minus,
   Trash2,
   Lock,
-} from "lucide-react";
+} from 'lucide-react';
 
 interface Product {
   id: string;
@@ -77,30 +77,38 @@ export default function Checkout() {
   const params = useParams();
   const userId = params.userId as string;
   const router = useRouter();
-  const { settings, cart, secureCheckout, formatPrice, priceAccessGranted, checkPriceAccess } = useCatalog();
+  const {
+    settings,
+    cart,
+    secureCheckout,
+    formatPrice,
+    priceAccessGranted,
+    checkPriceAccess,
+  } = useCatalog();
 
   // Estados locais
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClient, setSelectedClient] = useState<string>("");
+  const [selectedClient, setSelectedClient] = useState<string>('');
   const [completed, setCompleted] = useState(false);
-  const [completedOrderData, setCompletedOrderData] = useState<OrderData | null>(null);
+  const [completedOrderData, setCompletedOrderData] =
+    useState<OrderData | null>(null);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [loading, setLoading] = useState(true);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authPassword, setAuthPassword] = useState("");
+  const [authPassword, setAuthPassword] = useState('');
   const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
-    client_name: "",
-    client_email: "",
-    client_phone: "",
-    delivery_address: "",
-    payment_method: "boleto",
-    notes: "",
+    client_name: '',
+    client_email: '',
+    client_phone: '',
+    delivery_address: '',
+    payment_method: 'boleto',
+    notes: '',
   });
 
   useEffect(() => {
@@ -128,7 +136,7 @@ export default function Checkout() {
           phone: formData.client_phone,
           address: formData.delivery_address,
         },
-        items: cartItems.map(item => ({
+        items: cartItems.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
           unitPrice: item.product.price,
@@ -154,27 +162,27 @@ export default function Checkout() {
       const draftOrder = secureCheckout.loadDraftOrder();
       if (draftOrder) {
         setFormData({
-          client_name: draftOrder.clientData.name || "",
-          client_email: draftOrder.clientData.email || "",
-          client_phone: draftOrder.clientData.phone || "",
-          delivery_address: draftOrder.clientData.address || "",
-          payment_method: draftOrder.paymentMethod || "boleto",
-          notes: draftOrder.notes || "",
+          client_name: draftOrder.clientData.name || '',
+          client_email: draftOrder.clientData.email || '',
+          client_phone: draftOrder.clientData.phone || '',
+          delivery_address: draftOrder.clientData.address || '',
+          payment_method: draftOrder.paymentMethod || 'boleto',
+          notes: draftOrder.notes || '',
         });
       }
 
       await loadClients();
     } catch (error) {
-      console.error("Erro ao carregar dados iniciais:", error);
+      console.error('Erro ao carregar dados iniciais:', error);
     }
   };
 
   const loadCartItems = async () => {
     const productIds = Object.keys(cart);
     const { data: products } = await supabase
-      .from("products")
-      .select("*")
-      .in("id", productIds);
+      .from('products')
+      .select('*')
+      .in('id', productIds);
 
     if (products) {
       const items: CartItem[] = products.map((product) => ({
@@ -192,10 +200,10 @@ export default function Checkout() {
     } = await supabase.auth.getUser();
     if (user) {
       const { data: clientsData } = await supabase
-        .from("clients")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("name");
+        .from('clients')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
 
       setClients(clientsData || []);
     }
@@ -208,9 +216,9 @@ export default function Checkout() {
       setFormData((prev) => ({
         ...prev,
         client_name: client.name,
-        client_email: client.email || "",
-        client_phone: client.phone || "",
-        delivery_address: client.address || "",
+        client_email: client.email || '',
+        client_phone: client.phone || '',
+        delivery_address: client.address || '',
       }));
     }
   };
@@ -218,7 +226,7 @@ export default function Checkout() {
   const getTotalValue = () => {
     return cartItems.reduce(
       (total, item) => total + item.product.price * item.quantity,
-      0,
+      0
     );
   };
 
@@ -248,7 +256,10 @@ export default function Checkout() {
 
     setAuthLoading(true);
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
       if (error || !user) {
         alert('Usuário não encontrado. Faça login novamente.');
         router.push(`/login?redirect=/catalog/${userId}/checkout`);
@@ -268,9 +279,8 @@ export default function Checkout() {
       // Atualizar estado de autenticação
       await secureCheckout.validateSession();
       setShowAuthModal(false);
-      setAuthPassword("");
+      setAuthPassword('');
       setShowAuthPassword(false);
-
     } catch (error) {
       console.error('Erro na reautenticação:', error);
       alert('Erro ao verificar senha. Tente novamente.');
@@ -287,13 +297,11 @@ export default function Checkout() {
 
     const newCart = { ...cart };
     newCart[productId] = newQuantity;
-    localStorage.setItem("cart", JSON.stringify(newCart));
+    localStorage.setItem('cart', JSON.stringify(newCart));
 
     // Atualizar estado local
-    const updatedItems = cartItems.map(item =>
-      item.product.id === productId
-        ? { ...item, quantity: newQuantity }
-        : item
+    const updatedItems = cartItems.map((item) =>
+      item.product.id === productId ? { ...item, quantity: newQuantity } : item
     );
     setCartItems(updatedItems);
   };
@@ -301,10 +309,12 @@ export default function Checkout() {
   const removeCartItem = (productId: string) => {
     const newCart = { ...cart };
     delete newCart[productId];
-    localStorage.setItem("cart", JSON.stringify(newCart));
+    localStorage.setItem('cart', JSON.stringify(newCart));
 
     // Atualizar estado local
-    const updatedItems = cartItems.filter(item => item.product.id !== productId);
+    const updatedItems = cartItems.filter(
+      (item) => item.product.id !== productId
+    );
     setCartItems(updatedItems);
   };
 
@@ -318,16 +328,16 @@ export default function Checkout() {
 
   const createNotification = async (orderId: string) => {
     try {
-      await fetch("/api/notifications", {
-        method: "POST",
+      await fetch('/api/notifications', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           userId: userId,
-          title: "Novo Pedido Recebido",
+          title: 'Novo Pedido Recebido',
           message: `Pedido #${orderId.slice(-8).toUpperCase()} foi criado com sucesso. Valor: R$ ${getTotalValue().toFixed(2)}`,
-          type: "success",
+          type: 'success',
           data: {
             orderId: orderId,
             orderNumber: orderId.slice(-8).toUpperCase(),
@@ -337,7 +347,7 @@ export default function Checkout() {
         }),
       });
     } catch (notificationError) {
-      console.error("Erro ao criar notificação:", notificationError);
+      console.error('Erro ao criar notificação:', notificationError);
     }
   };
 
@@ -352,9 +362,9 @@ export default function Checkout() {
           <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
             <h3>Detalhes do Pedido:</h3>
             <p><strong>Número do Pedido:</strong> #${orderId.slice(-8).toUpperCase()}</p>
-            <p><strong>Data:</strong> ${new Date().toLocaleDateString("pt-BR")}</p>
+            <p><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
             <p><strong>Valor Total:</strong> R$ ${getTotalValue().toFixed(2)}</p>
-            <p><strong>Forma de Pagamento:</strong> ${formData.payment_method === "boleto" ? "Boleto Bancário" : formData.payment_method === "pix" ? "PIX" : "Cartão de Crédito"}</p>
+            <p><strong>Forma de Pagamento:</strong> ${formData.payment_method === 'boleto' ? 'Boleto Bancário' : formData.payment_method === 'pix' ? 'PIX' : 'Cartão de Crédito'}</p>
           </div>
 
           <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
@@ -366,9 +376,9 @@ export default function Checkout() {
                 <p><strong>${item.product.name}</strong></p>
                 <p>Quantidade: ${item.quantity} | Preço: R$ ${item.product.price.toFixed(2)} | Total: R$ ${(item.product.price * item.quantity).toFixed(2)}</p>
               </div>
-            `,
+            `
               )
-              .join("")}
+              .join('')}
           </div>
 
           ${
@@ -379,7 +389,7 @@ export default function Checkout() {
               <p>${formData.delivery_address}</p>
             </div>
           `
-              : ""
+              : ''
           }
 
           ${
@@ -390,11 +400,11 @@ export default function Checkout() {
               <p>${formData.notes}</p>
             </div>
           `
-              : ""
+              : ''
           }
 
           <p>Em breve entraremos em contato para confirmar os detalhes do pedido.</p>
-          <p>Atenciosamente,<br>Equipe ${settings?.name || "Rep-Vendas"}</p>
+          <p>Atenciosamente,<br>Equipe ${settings?.name || 'Rep-Vendas'}</p>
         </div>
       `;
 
@@ -407,43 +417,43 @@ export default function Checkout() {
 
         Detalhes do Pedido:
         Número do Pedido: #${orderId.slice(-8).toUpperCase()}
-        Data: ${new Date().toLocaleDateString("pt-BR")}
+        Data: ${new Date().toLocaleDateString('pt-BR')}
         Valor Total: R$ ${getTotalValue().toFixed(2)}
-        Forma de Pagamento: ${formData.payment_method === "boleto" ? "Boleto Bancário" : formData.payment_method === "pix" ? "PIX" : "Cartão de Crédito"}
+        Forma de Pagamento: ${formData.payment_method === 'boleto' ? 'Boleto Bancário' : formData.payment_method === 'pix' ? 'PIX' : 'Cartão de Crédito'}
 
         Itens do Pedido:
-        ${cartItems.map((item) => `- ${item.product.name} (Qtd: ${item.quantity}) - R$ ${(item.product.price * item.quantity).toFixed(2)}`).join("\n")}
+        ${cartItems.map((item) => `- ${item.product.name} (Qtd: ${item.quantity}) - R$ ${(item.product.price * item.quantity).toFixed(2)}`).join('\n')}
 
         ${
           settings?.show_delivery_address
             ? `Endereço de Entrega:
         ${formData.delivery_address}`
-            : ""
+            : ''
         }
 
-        ${formData.notes ? `Observações: ${formData.notes}` : ""}
+        ${formData.notes ? `Observações: ${formData.notes}` : ''}
 
         Em breve entraremos em contato para confirmar os detalhes do pedido.
 
         Atenciosamente,
-        Equipe ${settings?.name || "Rep-Vendas"}
+        Equipe ${settings?.name || 'Rep-Vendas'}
       `;
 
-      await fetch("/api/send-email", {
-        method: "POST",
+      await fetch('/api/send-email', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           to: formData.client_email,
-          subject: `Pedido #${orderId.slice(-8).toUpperCase()} - ${settings?.name || "Rep-Vendas"}`,
+          subject: `Pedido #${orderId.slice(-8).toUpperCase()} - ${settings?.name || 'Rep-Vendas'}`,
           html: emailHtml,
           text: emailText,
           userId: userId,
         }),
       });
     } catch (emailError) {
-      console.error("Erro ao enviar email:", emailError);
+      console.error('Erro ao enviar email:', emailError);
     }
   };
 
@@ -461,7 +471,7 @@ export default function Checkout() {
           phone: formData.client_phone,
           address: formData.delivery_address,
         },
-        items: cartItems.map(item => ({
+        items: cartItems.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
           unitPrice: item.product.price,
@@ -487,7 +497,7 @@ export default function Checkout() {
           deliveryAddress: formData.delivery_address,
           paymentMethod: formData.payment_method,
           notes: formData.notes,
-          items: cartItems.map(item => ({
+          items: cartItems.map((item) => ({
             name: item.product.name,
             brand: item.product.brand,
             quantity: item.quantity,
@@ -502,7 +512,7 @@ export default function Checkout() {
         setCompletedOrderData(orderDataForPDF);
 
         // Limpar carrinho e rascunho
-        localStorage.removeItem("cart");
+        localStorage.removeItem('cart');
         secureCheckout.clearDraftOrder();
 
         // Criar notificação
@@ -518,16 +528,16 @@ export default function Checkout() {
         alert(`Erro ao finalizar pedido: ${result.error}`);
       }
     } catch (error) {
-      console.error("Erro ao finalizar pedido:", error);
-      alert("Erro ao finalizar pedido. Tente novamente.");
+      console.error('Erro ao finalizar pedido:', error);
+      alert('Erro ao finalizar pedido. Tente novamente.');
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
           <p className="mt-4 text-gray-600">Carregando checkout...</p>
         </div>
       </div>
@@ -537,19 +547,19 @@ export default function Checkout() {
   if (cartItems.length === 0 && !completed) {
     return (
       <div className="min-h-screen bg-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center py-16">
-            <ShoppingCart className="h-24 w-24 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-900 mb-2">
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="py-16 text-center">
+            <ShoppingCart className="mx-auto mb-4 h-24 w-24 text-gray-300" />
+            <h3 className="mb-2 text-xl font-medium text-gray-900">
               Carrinho vazio
             </h3>
-            <p className="text-gray-600 mb-6">
+            <p className="mb-6 text-gray-600">
               Adicione produtos ao carrinho antes de finalizar o pedido.
             </p>
             <button
               onClick={() => router.push(`/catalog/${userId}`)}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-              style={{ backgroundColor: settings?.primary_color || "#3B82F6" }}
+              className="rounded-lg bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700"
+              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
             >
               Voltar ao Catálogo
             </button>
@@ -561,13 +571,13 @@ export default function Checkout() {
 
   if (completed) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-          <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
+        <div className="w-full max-w-md rounded-lg bg-white p-8 text-center shadow-lg">
+          <CheckCircle className="mx-auto mb-4 h-16 w-16 text-green-500" />
+          <h2 className="mb-2 text-2xl font-bold text-gray-900">
             Pedido Finalizado!
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="mb-6 text-gray-600">
             Seu pedido foi criado com sucesso e está sendo processado.
           </p>
           <div className="space-y-3">
@@ -575,16 +585,16 @@ export default function Checkout() {
               <button
                 onClick={handleGeneratePDF}
                 disabled={generatingPDF}
-                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className="flex w-full items-center justify-center rounded-lg bg-green-600 px-4 py-3 text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {generatingPDF ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                     Gerando PDF...
                   </>
                 ) : (
                   <>
-                    <Download className="h-4 w-4 mr-2" />
+                    <Download className="mr-2 h-4 w-4" />
                     Baixar Recibo em PDF
                   </>
                 )}
@@ -592,7 +602,7 @@ export default function Checkout() {
             )}
             <button
               onClick={() => router.push(`/catalog/${userId}`)}
-              className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-200 transition-colors"
+              className="w-full rounded-lg bg-gray-100 px-4 py-3 text-gray-700 transition-colors hover:bg-gray-200"
             >
               Continuar Comprando
             </button>
@@ -605,20 +615,22 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Security Status Header */}
-      <div className="bg-blue-50 border-b border-blue-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+      <div className="border-b border-blue-200 bg-blue-50">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Shield className={`h-5 w-5 ${secureCheckout.state.isAuthenticated ? 'text-green-500' : 'text-red-500'}`} />
+              <Shield
+                className={`h-5 w-5 ${secureCheckout.state.isAuthenticated ? 'text-green-500' : 'text-red-500'}`}
+              />
               <div>
                 <p className="text-sm font-medium text-blue-900">
-                  Checkout Seguro {secureCheckout.state.isAuthenticated ? 'Ativo' : 'Inativo'}
+                  Checkout Seguro{' '}
+                  {secureCheckout.state.isAuthenticated ? 'Ativo' : 'Inativo'}
                 </p>
                 <p className="text-xs text-blue-700">
                   {secureCheckout.state.isAuthenticated
                     ? `Sessão válida até ${new Date(secureCheckout.state.lastActivity + 30 * 60 * 1000).toLocaleTimeString('pt-BR')}`
-                    : 'Faça login para continuar'
-                  }
+                    : 'Faça login para continuar'}
                 </p>
               </div>
             </div>
@@ -633,18 +645,18 @@ export default function Checkout() {
       </div>
       {/* Header */}
       <header
-        className="bg-white border-b border-gray-200"
-        style={{ backgroundColor: settings?.header_color || "#FFFFFF" }}
+        className="border-b border-gray-200 bg-white"
+        style={{ backgroundColor: settings?.header_color || '#FFFFFF' }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center space-x-8">
               <button
                 onClick={() => router.back()}
                 className="flex items-center text-gray-600 hover:text-gray-900"
-                style={{ color: settings?.icon_color || "#4B5563" }}
+                style={{ color: settings?.icon_color || '#4B5563' }}
               >
-                <ArrowLeft className="h-5 w-5 mr-2" />
+                <ArrowLeft className="mr-2 h-5 w-5" />
                 Voltar
               </button>
               {settings?.logo_url ? (
@@ -657,11 +669,11 @@ export default function Checkout() {
                 <h1
                   className="text-2xl font-bold text-gray-900"
                   style={{
-                    color: settings?.title_color || "#111827",
-                    fontFamily: settings?.font_family || "Inter, sans-serif",
+                    color: settings?.title_color || '#111827',
+                    fontFamily: settings?.font_family || 'Inter, sans-serif',
                   }}
                 >
-                  {settings?.name || "Rep-Vendas"}
+                  {settings?.name || 'Rep-Vendas'}
                 </h1>
               )}
             </div>
@@ -670,39 +682,39 @@ export default function Checkout() {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="mb-2 text-3xl font-bold text-gray-900">
             Finalizar Pedido
           </h1>
           <p className="text-gray-600">
-            {getTotalItems()} produto{getTotalItems() > 1 ? "s" : ""} • Total:
+            {getTotalItems()} produto{getTotalItems() > 1 ? 's' : ''} • Total:
             R$ {getTotalValue().toFixed(2)}
           </p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+          className="grid grid-cols-1 gap-8 lg:grid-cols-2"
         >
           {/* Left Column - Order Details */}
           <div className="space-y-6">
             {/* Client Selection */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                <User className="h-5 w-5 mr-2" />
+            <div className="rounded-lg bg-white p-6 shadow-sm">
+              <h2 className="mb-4 flex items-center text-lg font-medium text-gray-900">
+                <User className="mr-2 h-5 w-5" />
                 Dados do Cliente
               </h2>
 
               {clients.length > 0 && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Selecionar cliente existente
                   </label>
                   <select
                     value={selectedClient}
                     onChange={(e) => handleClientSelect(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full rounded border border-gray-300 px-3 py-2"
                   >
                     <option value="">Novo cliente</option>
                     {clients.map((client) => (
@@ -714,9 +726,9 @@ export default function Checkout() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Nome *
                   </label>
                   <input
@@ -729,12 +741,12 @@ export default function Checkout() {
                         client_name: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="Nome completo"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Email
                   </label>
                   <input
@@ -746,12 +758,12 @@ export default function Checkout() {
                         client_email: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="email@exemplo.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Telefone
                   </label>
                   <input
@@ -763,7 +775,7 @@ export default function Checkout() {
                         client_phone: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="(11) 99999-9999"
                   />
                 </div>
@@ -772,9 +784,9 @@ export default function Checkout() {
 
             {/* Delivery Address */}
             {!settings?.show_delivery_address && (
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                  <MapPin className="h-5 w-5 mr-2" />
+              <div className="rounded-lg bg-white p-6 shadow-sm">
+                <h2 className="mb-4 flex items-center text-lg font-medium text-gray-900">
+                  <MapPin className="mr-2 h-5 w-5" />
                   Endereço de Entrega
                 </h2>
                 <div>
@@ -787,7 +799,7 @@ export default function Checkout() {
                         delivery_address: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2 h-24"
+                    className="h-24 w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="Endereço completo para entrega"
                   />
                 </div>
@@ -795,9 +807,9 @@ export default function Checkout() {
             )}
 
             {/* Payment Method */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                <CreditCard className="h-5 w-5 mr-2" />
+            <div className="rounded-lg bg-white p-6 shadow-sm">
+              <h2 className="mb-4 flex items-center text-lg font-medium text-gray-900">
+                <CreditCard className="mr-2 h-5 w-5" />
                 Forma de Pagamento
               </h2>
               <div className="space-y-2">
@@ -805,7 +817,7 @@ export default function Checkout() {
                   <input
                     type="radio"
                     value="boleto"
-                    checked={formData.payment_method === "boleto"}
+                    checked={formData.payment_method === 'boleto'}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
@@ -820,7 +832,7 @@ export default function Checkout() {
                   <input
                     type="radio"
                     value="pix"
-                    checked={formData.payment_method === "pix"}
+                    checked={formData.payment_method === 'pix'}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
@@ -835,7 +847,7 @@ export default function Checkout() {
                   <input
                     type="radio"
                     value="cartao"
-                    checked={formData.payment_method === "cartao"}
+                    checked={formData.payment_method === 'cartao'}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
@@ -850,8 +862,8 @@ export default function Checkout() {
             </div>
 
             {/* Notes */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
+            <div className="rounded-lg bg-white p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-medium text-gray-900">
                 Observações
               </h2>
               <textarea
@@ -859,7 +871,7 @@ export default function Checkout() {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, notes: e.target.value }))
                 }
-                className="w-full border border-gray-300 rounded px-3 py-2 h-24"
+                className="h-24 w-full rounded border border-gray-300 px-3 py-2"
                 placeholder="Observações adicionais sobre o pedido"
               />
             </div>
@@ -868,26 +880,26 @@ export default function Checkout() {
           {/* Right Column - Order Summary */}
           <div className="space-y-6">
             {/* Order Items */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
+            <div className="rounded-lg bg-white p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-medium text-gray-900">
                 Itens do Pedido
               </h2>
               <div className="space-y-4">
                 {cartItems.map((item) => (
                   <div
                     key={item.product.id}
-                    className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg"
+                    className="flex items-center space-x-4 rounded-lg border border-gray-200 p-4"
                   >
-                    <div className="w-16 h-16 flex-shrink-0">
+                    <div className="h-16 w-16 flex-shrink-0">
                       {item.product.image_url ? (
                         <img
                           src={item.product.image_url}
                           alt={item.product.name}
-                          className="w-full h-full object-cover rounded"
+                          className="h-full w-full rounded object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center">
-                          <span className="text-gray-400 text-xs">
+                        <div className="flex h-full w-full items-center justify-center rounded bg-gray-100">
+                          <span className="text-xs text-gray-400">
                             Sem imagem
                           </span>
                         </div>
@@ -898,28 +910,38 @@ export default function Checkout() {
                         {item.product.name}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        {item.product.brand || "Marca"}
+                        {item.product.brand || 'Marca'}
                       </p>
-                      <div className="flex items-center space-x-2 mt-2">
+                      <div className="mt-2 flex items-center space-x-2">
                         <button
-                          onClick={() => updateCartItemQuantity(item.product.id, item.quantity - 1)}
-                          className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                          onClick={() =>
+                            updateCartItemQuantity(
+                              item.product.id,
+                              item.quantity - 1
+                            )
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
                           disabled={item.quantity <= 1}
                         >
                           <Minus className="h-4 w-4 text-gray-600" />
                         </button>
-                        <span className="text-sm font-medium min-w-[2rem] text-center">
+                        <span className="min-w-[2rem] text-center text-sm font-medium">
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => updateCartItemQuantity(item.product.id, item.quantity + 1)}
-                          className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                          onClick={() =>
+                            updateCartItemQuantity(
+                              item.product.id,
+                              item.quantity + 1
+                            )
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
                         >
                           <Plus className="h-4 w-4 text-gray-600" />
                         </button>
                         <button
                           onClick={() => removeCartItem(item.product.id)}
-                          className="w-8 h-8 flex items-center justify-center bg-red-100 hover:bg-red-200 rounded-full transition-colors ml-2"
+                          className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-red-100 transition-colors hover:bg-red-200"
                           title="Remover item"
                         >
                           <Trash2 className="h-4 w-4 text-red-600" />
@@ -938,8 +960,10 @@ export default function Checkout() {
                         </>
                       ) : (
                         <div className="text-center">
-                          <Lock className="h-4 w-4 text-gray-400 mx-auto mb-1" />
-                          <p className="text-xs text-gray-500">Preço protegido</p>
+                          <Lock className="mx-auto mb-1 h-4 w-4 text-gray-400" />
+                          <p className="text-xs text-gray-500">
+                            Preço protegido
+                          </p>
                         </div>
                       )}
                     </div>
@@ -947,16 +971,16 @@ export default function Checkout() {
                 ))}
               </div>
               {cartItems.length === 0 && (
-                <div className="text-center py-8">
-                  <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <div className="py-8 text-center">
+                  <ShoppingCart className="mx-auto mb-4 h-12 w-12 text-gray-300" />
                   <p className="text-gray-500">Nenhum item no carrinho</p>
                 </div>
               )}
             </div>
 
             {/* Order Total */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
+            <div className="rounded-lg bg-white p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-medium text-gray-900">
                 Resumo do Pedido
               </h2>
               <div className="space-y-2">
@@ -970,7 +994,7 @@ export default function Checkout() {
                     </span>
                   ) : (
                     <div className="flex items-center">
-                      <Lock className="h-4 w-4 text-gray-400 mr-1" />
+                      <Lock className="mr-1 h-4 w-4 text-gray-400" />
                       <span className="text-gray-500">Protegido</span>
                     </div>
                   )}
@@ -988,7 +1012,7 @@ export default function Checkout() {
                       </span>
                     ) : (
                       <div className="flex items-center">
-                        <Lock className="h-5 w-5 text-gray-400 mr-1" />
+                        <Lock className="mr-1 h-5 w-5 text-gray-400" />
                         <span className="text-gray-500">Protegido</span>
                       </div>
                     )}
@@ -999,9 +1023,9 @@ export default function Checkout() {
               <button
                 type="submit"
                 disabled={secureCheckout.state.isProcessing}
-                className="w-full mt-6 bg-blue-600 text-white py-3 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
-                  backgroundColor: settings?.primary_color || "#3B82F6",
+                  backgroundColor: settings?.primary_color || '#3B82F6',
                 }}
                 onClick={(e) => {
                   if (!secureCheckout.state.isAuthenticated) {
@@ -1012,19 +1036,18 @@ export default function Checkout() {
               >
                 {secureCheckout.state.isProcessing ? (
                   <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                     {secureCheckout.state.retryCount > 0
                       ? `Tentativa ${secureCheckout.state.retryCount + 1}...`
-                      : 'Processando...'
-                    }
+                      : 'Processando...'}
                   </div>
                 ) : !secureCheckout.state.isAuthenticated ? (
                   <div className="flex items-center justify-center">
-                    <Shield className="h-4 w-4 mr-2" />
+                    <Shield className="mr-2 h-4 w-4" />
                     Confirmar Senha para Finalizar
                   </div>
                 ) : (
-                  "Finalizar Pedido"
+                  'Finalizar Pedido'
                 )}
               </button>
             </div>
@@ -1034,17 +1057,17 @@ export default function Checkout() {
 
       {/* Authentication Modal */}
       {showAuthModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                <Shield className="h-5 w-5 mr-2 text-blue-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center text-lg font-semibold text-gray-900">
+                <Shield className="mr-2 h-5 w-5 text-blue-600" />
                 Confirmação de Segurança
               </h3>
               <button
                 onClick={() => {
                   setShowAuthModal(false);
-                  setAuthPassword("");
+                  setAuthPassword('');
                   setShowAuthPassword(false);
                 }}
                 className="text-gray-400 hover:text-gray-600"
@@ -1053,23 +1076,23 @@ export default function Checkout() {
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="mb-4 text-sm text-gray-600">
               Para finalizar o pedido, confirme sua senha:
             </p>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
                 Senha
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <Shield className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  type={showAuthPassword ? "text" : "password"}
+                  type={showAuthPassword ? 'text' : 'password'}
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="block w-full rounded-lg border border-gray-300 py-3 pl-10 pr-10 transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                   placeholder="Digite sua senha"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
@@ -1079,7 +1102,7 @@ export default function Checkout() {
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3"
                   onClick={() => setShowAuthPassword(!showAuthPassword)}
                 >
                   {showAuthPassword ? (
@@ -1095,26 +1118,26 @@ export default function Checkout() {
               <button
                 onClick={() => {
                   setShowAuthModal(false);
-                  setAuthPassword("");
+                  setAuthPassword('');
                   setShowAuthPassword(false);
                 }}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors"
+                className="flex-1 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-200"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleReauth}
                 disabled={authLoading || !authPassword.trim()}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                className="flex flex-1 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {authLoading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                     Verificando...
                   </>
                 ) : (
                   <>
-                    <Shield className="h-4 w-4 mr-2" />
+                    <Shield className="mr-2 h-4 w-4" />
                     Confirmar
                   </>
                 )}

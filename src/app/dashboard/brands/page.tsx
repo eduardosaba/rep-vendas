@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState, FormEvent } from "react";
-import { supabase } from "../../../lib/supabaseClient";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, FormEvent } from 'react';
+import { supabase } from '../../../lib/supabaseClient';
+import { useRouter } from 'next/navigation';
 import {
   Plus,
   Edit,
@@ -12,8 +12,8 @@ import {
   X,
   Save,
   Percent,
-} from "lucide-react";
-import { uploadImage } from "../../../lib/storage";
+} from 'lucide-react';
+import { uploadImage } from '../../../lib/storage';
 
 interface User {
   id: string;
@@ -42,9 +42,9 @@ export default function BrandsPage() {
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState<BrandFormData>({
-    name: "",
-    logo_url: "",
-    commission_percentage: "0",
+    name: '',
+    logo_url: '',
+    commission_percentage: '0',
   });
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function BrandsPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login");
+        router.push('/login');
       } else {
         setUser(user);
         loadBrands(user.id);
@@ -64,10 +64,10 @@ export default function BrandsPage() {
 
   const loadBrands = async (userId: string) => {
     const { data, error } = await supabase
-      .from("brands")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name", { ascending: true });
+      .from('brands')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true });
 
     if (data && !error) {
       setBrands(data);
@@ -75,12 +75,12 @@ export default function BrandsPage() {
   };
 
   const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
     if (file && user) {
       setUploading(true);
-      const result = await uploadImage(file, "marcas", user.id);
+      const result = await uploadImage(file, 'marcas', user.id);
       if (result.success && result.publicUrl) {
         setFormData((prev) => ({
           ...prev,
@@ -106,15 +106,15 @@ export default function BrandsPage() {
       if (editingBrand) {
         // Atualizar marca existente
         const { error } = await supabase
-          .from("brands")
+          .from('brands')
           .update(brandData)
-          .eq("id", editingBrand.id)
-          .eq("user_id", user.id);
+          .eq('id', editingBrand.id)
+          .eq('user_id', user.id);
 
         if (error) throw error;
       } else {
         // Criar nova marca
-        const { error } = await supabase.from("brands").insert(brandData);
+        const { error } = await supabase.from('brands').insert(brandData);
 
         if (error) throw error;
       }
@@ -124,15 +124,15 @@ export default function BrandsPage() {
 
       // Resetar formulário
       setFormData({
-        name: "",
-        logo_url: "",
-        commission_percentage: "0",
+        name: '',
+        logo_url: '',
+        commission_percentage: '0',
       });
       setEditingBrand(null);
       setShowModal(false);
     } catch (error) {
-      console.error("Erro ao salvar marca:", error);
-      alert("Erro ao salvar marca. Tente novamente.");
+      console.error('Erro ao salvar marca:', error);
+      alert('Erro ao salvar marca. Tente novamente.');
     }
   };
 
@@ -140,7 +140,7 @@ export default function BrandsPage() {
     setEditingBrand(brand);
     setFormData({
       name: brand.name,
-      logo_url: brand.logo_url || "",
+      logo_url: brand.logo_url || '',
       commission_percentage: brand.commission_percentage.toString(),
     });
     setShowModal(true);
@@ -149,32 +149,32 @@ export default function BrandsPage() {
   const handleDelete = async (brandId: string) => {
     if (!user) return;
 
-    if (!confirm("Tem certeza que deseja excluir esta marca?")) {
+    if (!confirm('Tem certeza que deseja excluir esta marca?')) {
       return;
     }
 
     try {
       const { error } = await supabase
-        .from("brands")
+        .from('brands')
         .delete()
-        .eq("id", brandId)
-        .eq("user_id", user.id);
+        .eq('id', brandId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       loadBrands(user.id);
     } catch (error) {
-      console.error("Erro ao excluir marca:", error);
-      alert("Erro ao excluir marca. Tente novamente.");
+      console.error('Erro ao excluir marca:', error);
+      alert('Erro ao excluir marca. Tente novamente.');
     }
   };
 
   const openModal = () => {
     setEditingBrand(null);
     setFormData({
-      name: "",
-      logo_url: "",
-      commission_percentage: "0",
+      name: '',
+      logo_url: '',
+      commission_percentage: '0',
     });
     setShowModal(true);
   };
@@ -187,7 +187,7 @@ export default function BrandsPage() {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
               Gerenciar Marcas
@@ -196,27 +196,27 @@ export default function BrandsPage() {
           </div>
           <div className="flex space-x-4">
             <button
-              onClick={() => router.push("/dashboard")}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              onClick={() => router.push('/dashboard')}
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Voltar ao Dashboard
             </button>
             <button
               onClick={openModal}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+              className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="mr-2 h-5 w-5" />
               Nova Marca
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           {/* Stats */}
           <div className="mb-8">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="overflow-hidden rounded-lg bg-white shadow">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -224,7 +224,7 @@ export default function BrandsPage() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
+                      <dt className="truncate text-sm font-medium text-gray-500">
                         Total de Marcas
                       </dt>
                       <dd className="text-lg font-medium text-gray-900">
@@ -238,35 +238,35 @@ export default function BrandsPage() {
           </div>
 
           {/* Brands Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {brands.map((brand) => (
               <div
                 key={brand.id}
-                className="bg-white overflow-hidden shadow rounded-lg"
+                className="overflow-hidden rounded-lg bg-white shadow"
               >
                 <div className="p-6">
-                  <div className="flex items-center justify-center mb-4">
+                  <div className="mb-4 flex items-center justify-center">
                     {brand.logo_url ? (
                       <img
                         src={brand.logo_url}
                         alt={brand.name}
-                        className="w-20 h-20 object-contain"
+                        className="h-20 w-20 object-contain"
                       />
                     ) : (
-                      <div className="w-20 h-20 bg-gray-100 flex items-center justify-center rounded">
+                      <div className="flex h-20 w-20 items-center justify-center rounded bg-gray-100">
                         <Building2 className="h-8 w-8 text-gray-400" />
                       </div>
                     )}
                   </div>
                   <div className="text-center">
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    <h3 className="mb-2 text-lg font-medium text-gray-900">
                       {brand.name}
                     </h3>
-                    <div className="flex items-center justify-center text-sm text-gray-600 mb-4">
-                      <Percent className="h-4 w-4 mr-1" />
+                    <div className="mb-4 flex items-center justify-center text-sm text-gray-600">
+                      <Percent className="mr-1 h-4 w-4" />
                       Comissão: {brand.commission_percentage}%
                     </div>
-                    <div className="flex space-x-2 justify-center">
+                    <div className="flex justify-center space-x-2">
                       <button
                         onClick={() => handleEdit(brand)}
                         className="p-2 text-gray-400 hover:text-gray-600"
@@ -287,19 +287,19 @@ export default function BrandsPage() {
           </div>
 
           {brands.length === 0 && (
-            <div className="text-center py-16">
-              <Building2 className="h-24 w-24 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-medium text-gray-900 mb-2">
+            <div className="py-16 text-center">
+              <Building2 className="mx-auto mb-4 h-24 w-24 text-gray-300" />
+              <h3 className="mb-2 text-xl font-medium text-gray-900">
                 Nenhuma marca cadastrada
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="mb-6 text-gray-600">
                 Comece adicionando sua primeira marca ao catálogo.
               </p>
               <button
                 onClick={openModal}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                <Plus className="h-5 w-5 mr-2" />
+                <Plus className="mr-2 h-5 w-5" />
                 Adicionar Primeira Marca
               </button>
             </div>
@@ -309,12 +309,12 @@ export default function BrandsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 z-50 h-full w-full overflow-y-auto bg-gray-600 bg-opacity-50">
+          <div className="relative top-20 mx-auto w-full max-w-2xl rounded-md border bg-white p-5 shadow-lg">
             <div className="mt-3">
-              <div className="flex justify-between items-center mb-4">
+              <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">
-                  {editingBrand ? "Editar Marca" : "Nova Marca"}
+                  {editingBrand ? 'Editar Marca' : 'Nova Marca'}
                 </h3>
                 <button
                   onClick={() => setShowModal(false)}
@@ -325,9 +325,9 @@ export default function BrandsPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Nome da Marca *
                     </label>
                     <input
@@ -340,12 +340,12 @@ export default function BrandsPage() {
                           name: e.target.value,
                         }))
                       }
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="w-full rounded border border-gray-300 px-3 py-2"
                       placeholder="Nome da marca"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Percentual de Comissão (%)
                     </label>
                     <input
@@ -360,14 +360,14 @@ export default function BrandsPage() {
                           commission_percentage: e.target.value,
                         }))
                       }
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="w-full rounded border border-gray-300 px-3 py-2"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Logo da Marca
                   </label>
                   {formData.logo_url && (
@@ -375,14 +375,14 @@ export default function BrandsPage() {
                       <img
                         src={formData.logo_url}
                         alt="Preview"
-                        className="w-32 h-32 object-contain rounded border"
+                        className="h-32 w-32 rounded border object-contain"
                       />
                     </div>
                   )}
                   <div className="flex items-center justify-center space-x-4">
-                    <label className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer">
-                      <Upload className="h-4 w-4 mr-2" />
-                      {uploading ? "Enviando..." : "Escolher logo"}
+                    <label className="flex cursor-pointer items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+                      <Upload className="mr-2 h-4 w-4" />
+                      {uploading ? 'Enviando...' : 'Escolher logo'}
                       <input
                         type="file"
                         accept="image/*"
@@ -395,11 +395,11 @@ export default function BrandsPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          setFormData((prev) => ({ ...prev, logo_url: "" }))
+                          setFormData((prev) => ({ ...prev, logo_url: '' }))
                         }
-                        className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                        className="flex items-center rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
                       >
-                        <X className="h-4 w-4 mr-2" />
+                        <X className="mr-2 h-4 w-4" />
                         Remover
                       </button>
                     )}
@@ -410,16 +410,16 @@ export default function BrandsPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                    className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                    className="flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                   >
-                    <Save className="h-4 w-4 mr-2" />
-                    {editingBrand ? "Atualizar" : "Salvar"} Marca
+                    <Save className="mr-2 h-4 w-4" />
+                    {editingBrand ? 'Atualizar' : 'Salvar'} Marca
                   </button>
                 </div>
               </form>

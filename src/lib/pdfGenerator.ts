@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -100,7 +100,11 @@ export const generateOrderPDF = async (orderData: OrderData): Promise<void> => {
     yPosition += 6;
     pdf.text(`Data: ${orderData.createdAt}`, 20, yPosition);
     yPosition += 6;
-    pdf.text(`Forma de Pagamento: ${getPaymentMethodLabel(orderData.paymentMethod)}`, 20, yPosition);
+    pdf.text(
+      `Forma de Pagamento: ${getPaymentMethodLabel(orderData.paymentMethod)}`,
+      20,
+      yPosition
+    );
     yPosition += 10;
 
     // Informações do cliente
@@ -134,7 +138,10 @@ export const generateOrderPDF = async (orderData: OrderData): Promise<void> => {
       pdf.setFont('helvetica', 'normal');
 
       // Quebrar endereço em linhas se necessário
-      const addressLines = pdf.splitTextToSize(orderData.deliveryAddress, pageWidth - 40);
+      const addressLines = pdf.splitTextToSize(
+        orderData.deliveryAddress,
+        pageWidth - 40
+      );
       addressLines.forEach((line: string) => {
         pdf.text(line, 20, yPosition);
         yPosition += 6;
@@ -177,15 +184,26 @@ export const generateOrderPDF = async (orderData: OrderData): Promise<void> => {
       }
 
       // Nome do produto (com quebra de linha se necessário)
-      const productName = item.brand ? `${item.name} (${item.brand})` : item.name;
+      const productName = item.brand
+        ? `${item.name} (${item.brand})`
+        : item.name;
       const nameLines = pdf.splitTextToSize(productName, 80);
 
       nameLines.forEach((line: string, index: number) => {
         if (index === 0) {
           pdf.text(line, 22, yPosition);
           pdf.text(item.quantity.toString(), pageWidth - 80, yPosition);
-          pdf.text(`R$ ${item.unitPrice.toFixed(2)}`, pageWidth - 60, yPosition);
-          pdf.text(`R$ ${item.totalPrice.toFixed(2)}`, pageWidth - 25, yPosition, { align: 'right' });
+          pdf.text(
+            `R$ ${item.unitPrice.toFixed(2)}`,
+            pageWidth - 60,
+            yPosition
+          );
+          pdf.text(
+            `R$ ${item.totalPrice.toFixed(2)}`,
+            pageWidth - 25,
+            yPosition,
+            { align: 'right' }
+          );
         } else {
           pdf.text(line, 22, yPosition);
         }
@@ -207,7 +225,9 @@ export const generateOrderPDF = async (orderData: OrderData): Promise<void> => {
 
     // Subtotal
     pdf.text('Subtotal:', pageWidth - 60, yPosition);
-    pdf.text(`R$ ${orderData.subtotal.toFixed(2)}`, pageWidth - 25, yPosition, { align: 'right' });
+    pdf.text(`R$ ${orderData.subtotal.toFixed(2)}`, pageWidth - 25, yPosition, {
+      align: 'right',
+    });
     yPosition += 6;
 
     // Frete (sempre grátis por enquanto)
@@ -222,7 +242,12 @@ export const generateOrderPDF = async (orderData: OrderData): Promise<void> => {
 
     pdf.setFontSize(12);
     pdf.text('TOTAL:', pageWidth - 60, yPosition);
-    pdf.text(`R$ ${orderData.totalValue.toFixed(2)}`, pageWidth - 25, yPosition, { align: 'right' });
+    pdf.text(
+      `R$ ${orderData.totalValue.toFixed(2)}`,
+      pageWidth - 25,
+      yPosition,
+      { align: 'right' }
+    );
 
     // Observações
     if (orderData.notes) {
@@ -252,13 +277,22 @@ export const generateOrderPDF = async (orderData: OrderData): Promise<void> => {
     const footerY = pageHeight - 20;
     pdf.setFontSize(8);
     pdf.setFont('helvetica', 'italic');
-    pdf.text('Este documento foi gerado automaticamente pelo sistema Rep-Vendas', pageWidth / 2, footerY, { align: 'center' });
-    pdf.text(`Data de geração: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, footerY + 5, { align: 'center' });
+    pdf.text(
+      'Este documento foi gerado automaticamente pelo sistema Rep-Vendas',
+      pageWidth / 2,
+      footerY,
+      { align: 'center' }
+    );
+    pdf.text(
+      `Data de geração: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`,
+      pageWidth / 2,
+      footerY + 5,
+      { align: 'center' }
+    );
 
     // Salvar o PDF
     const fileName = `Pedido_${orderData.orderNumber}_${new Date().toISOString().split('T')[0]}.pdf`;
     pdf.save(fileName);
-
   } catch (error) {
     console.error('Erro ao gerar PDF:', error);
     throw new Error('Não foi possível gerar o PDF do pedido');
@@ -280,7 +314,10 @@ const getPaymentMethodLabel = (method: string): string => {
 };
 
 // Função para gerar PDF a partir de um elemento HTML (opcional, para versões futuras)
-export const generatePDFFromElement = async (elementId: string, fileName: string): Promise<void> => {
+export const generatePDFFromElement = async (
+  elementId: string,
+  fileName: string
+): Promise<void> => {
   try {
     const element = document.getElementById(elementId);
     if (!element) {

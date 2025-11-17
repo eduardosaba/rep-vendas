@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState, FormEvent } from "react";
-import { supabase } from "../../../lib/supabaseClient";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, FormEvent } from 'react';
+import { supabase } from '../../../lib/supabaseClient';
+import { useRouter } from 'next/navigation';
 import {
   Plus,
   Edit,
@@ -14,7 +14,7 @@ import {
   MapPin,
   Save,
   X,
-} from "lucide-react";
+} from 'lucide-react';
 
 interface User {
   id: string;
@@ -45,10 +45,10 @@ export default function ClientsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientFormData>({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
   });
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function ClientsPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login");
+        router.push('/login');
       } else {
         setUser(user);
         loadClients(user.id);
@@ -68,10 +68,10 @@ export default function ClientsPage() {
 
   const loadClients = async (userId: string) => {
     const { data, error } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .from('clients')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
     if (data && !error) {
       setClients(data);
@@ -94,15 +94,15 @@ export default function ClientsPage() {
       if (editingClient) {
         // Atualizar cliente existente
         const { error } = await supabase
-          .from("clients")
+          .from('clients')
           .update(clientData)
-          .eq("id", editingClient.id)
-          .eq("user_id", user.id);
+          .eq('id', editingClient.id)
+          .eq('user_id', user.id);
 
         if (error) throw error;
       } else {
         // Criar novo cliente
-        const { error } = await supabase.from("clients").insert(clientData);
+        const { error } = await supabase.from('clients').insert(clientData);
 
         if (error) throw error;
       }
@@ -112,16 +112,16 @@ export default function ClientsPage() {
 
       // Resetar formulário
       setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        address: "",
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
       });
       setEditingClient(null);
       setShowModal(false);
     } catch (error) {
-      console.error("Erro ao salvar cliente:", error);
-      alert("Erro ao salvar cliente. Tente novamente.");
+      console.error('Erro ao salvar cliente:', error);
+      alert('Erro ao salvar cliente. Tente novamente.');
     }
   };
 
@@ -129,9 +129,9 @@ export default function ClientsPage() {
     setEditingClient(client);
     setFormData({
       name: client.name,
-      email: client.email || "",
-      phone: client.phone || "",
-      address: client.address || "",
+      email: client.email || '',
+      phone: client.phone || '',
+      address: client.address || '',
     });
     setShowModal(true);
   };
@@ -139,33 +139,33 @@ export default function ClientsPage() {
   const handleDelete = async (clientId: string) => {
     if (!user) return;
 
-    if (!confirm("Tem certeza que deseja excluir este cliente?")) {
+    if (!confirm('Tem certeza que deseja excluir este cliente?')) {
       return;
     }
 
     try {
       const { error } = await supabase
-        .from("clients")
+        .from('clients')
         .delete()
-        .eq("id", clientId)
-        .eq("user_id", user.id);
+        .eq('id', clientId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       loadClients(user.id);
     } catch (error) {
-      console.error("Erro ao excluir cliente:", error);
-      alert("Erro ao excluir cliente. Tente novamente.");
+      console.error('Erro ao excluir cliente:', error);
+      alert('Erro ao excluir cliente. Tente novamente.');
     }
   };
 
   const openModal = () => {
     setEditingClient(null);
     setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      address: "",
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
     });
     setShowModal(true);
   };
@@ -178,7 +178,7 @@ export default function ClientsPage() {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
               Gerenciar Clientes
@@ -187,27 +187,27 @@ export default function ClientsPage() {
           </div>
           <div className="flex space-x-4">
             <button
-              onClick={() => router.push("/dashboard")}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              onClick={() => router.push('/dashboard')}
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Voltar ao Dashboard
             </button>
             <button
               onClick={openModal}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+              className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="mr-2 h-5 w-5" />
               Novo Cliente
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           {/* Stats */}
           <div className="mb-8">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="overflow-hidden rounded-lg bg-white shadow">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -215,7 +215,7 @@ export default function ClientsPage() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
+                      <dt className="truncate text-sm font-medium text-gray-500">
                         Total de Clientes
                       </dt>
                       <dd className="text-lg font-medium text-gray-900">
@@ -229,7 +229,7 @@ export default function ClientsPage() {
           </div>
 
           {/* Clients Table */}
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <div className="overflow-hidden bg-white shadow sm:rounded-md">
             <ul className="divide-y divide-gray-200">
               {clients.map((client) => (
                 <li key={client.id}>
@@ -237,7 +237,7 @@ export default function ClientsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <div className="flex-shrink-0">
-                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
                             <User className="h-5 w-5 text-gray-500" />
                           </div>
                         </div>
@@ -247,23 +247,23 @@ export default function ClientsPage() {
                               {client.name}
                             </h3>
                           </div>
-                          <div className="flex items-center space-x-4 mt-1">
+                          <div className="mt-1 flex items-center space-x-4">
                             {client.email && (
                               <div className="flex items-center text-sm text-gray-500">
-                                <Mail className="h-4 w-4 mr-1" />
+                                <Mail className="mr-1 h-4 w-4" />
                                 {client.email}
                               </div>
                             )}
                             {client.phone && (
                               <div className="flex items-center text-sm text-gray-500">
-                                <Phone className="h-4 w-4 mr-1" />
+                                <Phone className="mr-1 h-4 w-4" />
                                 {client.phone}
                               </div>
                             )}
                           </div>
                           {client.address && (
-                            <div className="flex items-center text-sm text-gray-500 mt-1">
-                              <MapPin className="h-4 w-4 mr-1" />
+                            <div className="mt-1 flex items-center text-sm text-gray-500">
+                              <MapPin className="mr-1 h-4 w-4" />
                               {client.address}
                             </div>
                           )}
@@ -272,13 +272,13 @@ export default function ClientsPage() {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleEdit(client)}
-                          className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                          className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(client.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100"
+                          className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -290,19 +290,19 @@ export default function ClientsPage() {
             </ul>
 
             {clients.length === 0 && (
-              <div className="text-center py-16">
-                <Users className="h-24 w-24 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-medium text-gray-900 mb-2">
+              <div className="py-16 text-center">
+                <Users className="mx-auto mb-4 h-24 w-24 text-gray-300" />
+                <h3 className="mb-2 text-xl font-medium text-gray-900">
                   Nenhum cliente cadastrado
                 </h3>
-                <p className="text-gray-600 mb-6">
+                <p className="mb-6 text-gray-600">
                   Comece adicionando seu primeiro cliente.
                 </p>
                 <button
                   onClick={openModal}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                  className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700"
                 >
-                  <Plus className="h-5 w-5 mr-2" />
+                  <Plus className="mr-2 h-5 w-5" />
                   Adicionar Primeiro Cliente
                 </button>
               </div>
@@ -313,12 +313,12 @@ export default function ClientsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 z-50 h-full w-full overflow-y-auto bg-gray-600 bg-opacity-50">
+          <div className="relative top-20 mx-auto w-full max-w-lg rounded-md border bg-white p-5 shadow-lg">
             <div className="mt-3">
-              <div className="flex justify-between items-center mb-4">
+              <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">
-                  {editingClient ? "Editar Cliente" : "Novo Cliente"}
+                  {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
                 </h3>
                 <button
                   onClick={() => setShowModal(false)}
@@ -330,7 +330,7 @@ export default function ClientsPage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Nome do Cliente *
                   </label>
                   <input
@@ -340,13 +340,13 @@ export default function ClientsPage() {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, name: e.target.value }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="Nome completo do cliente"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Email
                   </label>
                   <input
@@ -358,13 +358,13 @@ export default function ClientsPage() {
                         email: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="cliente@email.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Telefone
                   </label>
                   <input
@@ -376,13 +376,13 @@ export default function ClientsPage() {
                         phone: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2"
+                    className="w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="(11) 99999-9999"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Endereço
                   </label>
                   <textarea
@@ -393,7 +393,7 @@ export default function ClientsPage() {
                         address: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2 h-20"
+                    className="h-20 w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="Endereço completo"
                   />
                 </div>
@@ -402,16 +402,16 @@ export default function ClientsPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                    className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                    className="flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                   >
-                    <Save className="h-4 w-4 mr-2" />
-                    {editingClient ? "Atualizar" : "Salvar"} Cliente
+                    <Save className="mr-2 h-4 w-4" />
+                    {editingClient ? 'Atualizar' : 'Salvar'} Cliente
                   </button>
                 </div>
               </form>

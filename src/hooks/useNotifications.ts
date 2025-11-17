@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 
 interface Notification {
   id: string;
   userId: string;
   title: string;
   message: string;
-  type: "info" | "success" | "warning" | "error";
+  type: 'info' | 'success' | 'warning' | 'error';
   data?: any;
   read: boolean;
   createdAt: string;
@@ -37,14 +37,14 @@ export function useNotifications(userId?: string): UseNotificationsReturn {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Erro ao buscar notificações");
+        throw new Error(data.error || 'Erro ao buscar notificações');
       }
 
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (err) {
       setError((err as Error).message);
-      console.error("Erro ao buscar notificações:", err);
+      console.error('Erro ao buscar notificações:', err);
     } finally {
       setLoading(false);
     }
@@ -55,10 +55,10 @@ export function useNotifications(userId?: string): UseNotificationsReturn {
       if (!userId) return;
 
       try {
-        const response = await fetch("/api/notifications", {
-          method: "PATCH",
+        const response = await fetch('/api/notifications', {
+          method: 'PATCH',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             notificationId,
@@ -69,22 +69,22 @@ export function useNotifications(userId?: string): UseNotificationsReturn {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || "Erro ao marcar notificação como lida");
+          throw new Error(data.error || 'Erro ao marcar notificação como lida');
         }
 
         // Atualizar estado local
         setNotifications((prev) =>
           prev.map((notif) =>
-            notif.id === notificationId ? { ...notif, read: true } : notif,
-          ),
+            notif.id === notificationId ? { ...notif, read: true } : notif
+          )
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
       } catch (err) {
         setError((err as Error).message);
-        console.error("Erro ao marcar notificação como lida:", err);
+        console.error('Erro ao marcar notificação como lida:', err);
       }
     },
-    [userId],
+    [userId]
   );
 
   const refreshNotifications = useCallback(async () => {

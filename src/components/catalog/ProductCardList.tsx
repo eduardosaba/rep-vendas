@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Heart, X } from "lucide-react";
-import { Product, Settings, ProductCardProps } from "@/lib/types";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Heart, X } from 'lucide-react';
+import { Product, Settings, ProductCardProps } from '@/lib/types';
 
 interface ProductCardListProps extends ProductCardProps {
   hasPriceAccess: boolean;
@@ -30,29 +30,29 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
 
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
         <div className="flex flex-col sm:flex-row">
-          <div className="relative w-full sm:w-48 h-48 flex-shrink-0">
+          <div className="relative h-48 w-full flex-shrink-0 sm:w-48">
             {product.images && product.images.length > 0 ? (
               <img
                 src={product.images[0]}
                 alt={product.name}
-                className="w-full h-full object-cover rounded-t-lg sm:rounded-l-lg sm:rounded-t-none cursor-pointer"
+                className="h-full w-full cursor-pointer rounded-t-lg object-cover sm:rounded-l-lg sm:rounded-t-none"
                 onClick={() => setShowImageModal(true)}
               />
             ) : (
-              <div className="w-full h-full bg-gray-100 rounded-t-lg sm:rounded-l-lg sm:rounded-t-none flex items-center justify-center">
-                <span className="text-gray-400 text-sm">Sem imagem</span>
+              <div className="flex h-full w-full items-center justify-center rounded-t-lg bg-gray-100 sm:rounded-l-lg sm:rounded-t-none">
+                <span className="text-sm text-gray-400">Sem imagem</span>
               </div>
             )}
 
             {/* Overlay de zoom */}
             {product.images && product.images.length > 0 && (
               <div
-                className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center opacity-0 hover:opacity-100 cursor-pointer"
+                className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black bg-opacity-0 opacity-0 transition-all duration-200 hover:bg-opacity-20 hover:opacity-100"
                 onClick={() => setShowImageModal(true)}
               >
-                <div className="bg-white bg-opacity-90 rounded-full p-2">
+                <div className="rounded-full bg-white bg-opacity-90 p-2">
                   <svg
                     className="h-6 w-6 text-gray-700"
                     fill="none"
@@ -72,53 +72,53 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
 
             {/* Badge de Bestseller */}
             {product.bestseller && (
-              <div className="absolute top-2 left-2 bg-yellow-400 text-yellow-900 px-2 py-1 rounded text-xs font-bold flex items-center">
+              <div className="absolute left-2 top-2 flex items-center rounded bg-yellow-400 px-2 py-1 text-xs font-bold text-yellow-900">
                 ⭐ Bestseller
               </div>
             )}
 
             {/* Badge de Lançamento */}
             {product.is_launch && (
-              <div className="absolute top-2 right-2 bg-green-400 text-green-900 px-2 py-1 rounded text-xs font-bold">
+              <div className="absolute right-2 top-2 rounded bg-green-400 px-2 py-1 text-xs font-bold text-green-900">
                 Lançamento
               </div>
             )}
 
             <button
               onClick={() => onToggleFavorite(product.id)}
-              className="absolute top-2 right-2 p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
+              className="absolute right-2 top-2 rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
             >
               <Heart
                 className={`h-5 w-5 ${
-                  isFavorite ? "text-red-500 fill-current" : "text-gray-400"
+                  isFavorite ? 'fill-current text-red-500' : 'text-gray-400'
                 }`}
               />
             </button>
           </div>
 
-          <div className="flex-1 p-4 flex flex-col justify-between">
+          <div className="flex flex-1 flex-col justify-between p-4">
             <div>
               <div className="mb-2">
-                <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded">
-                  {product.brand || "Marca"}
+                <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
+                  {product.brand || 'Marca'}
                 </span>
               </div>
               <h3
-                className="text-lg font-medium text-gray-900 mb-2 hover:text-blue-600 cursor-pointer line-clamp-2"
+                className="mb-2 line-clamp-2 cursor-pointer text-lg font-medium text-gray-900 hover:text-blue-600"
                 onClick={handleProductClick}
               >
                 {product.name}
               </h3>
-              <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                {product.description || "Sem descrição disponível"}
+              <p className="mb-2 line-clamp-2 text-sm text-gray-600">
+                {product.description || 'Sem descrição disponível'}
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-between sm:items-end mt-4">
+            <div className="mt-4 flex flex-col justify-between sm:flex-row sm:items-end">
               <div className="mb-3 sm:mb-0">
                 {hasPriceAccess ? (
                   <>
-                    <div className="flex items-baseline space-x-2 mb-1">
+                    <div className="mb-1 flex items-baseline space-x-2">
                       <span className="text-xl font-bold text-gray-900">
                         R$ {formatPrice(product.price)}
                       </span>
@@ -128,28 +128,28 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
                         </span>
                       )}
                       {settings?.show_discount && (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs font-medium text-green-600">
                           17% OFF
                         </span>
                       )}
                     </div>
                     {settings?.show_installments && (
-                      <div className="text-xs text-green-600 mt-1">
+                      <div className="mt-1 text-xs text-green-600">
                         12x de R$ {formatPrice(product.price / 12)} sem juros
                       </div>
                     )}
                   </>
                 ) : (
                   <div className="mb-1">
-                    <span className="text-sm text-gray-500 italic">
+                    <span className="text-sm italic text-gray-500">
                       Preço disponível mediante solicitação
                     </span>
                   </div>
                 )}
                 {hasPriceAccess && settings?.show_shipping && (
-                  <div className="flex items-center text-xs text-gray-600 mt-1">
+                  <div className="mt-1 flex items-center text-xs text-gray-600">
                     <svg
-                      className="h-3 w-3 mr-1"
+                      className="mr-1 h-3 w-3"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -177,13 +177,13 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
                     onChange={(e) =>
                       setQuantity(Math.max(1, parseInt(e.target.value) || 1))
                     }
-                    className="w-16 border border-gray-300 rounded px-2 py-1 text-center"
+                    className="w-16 rounded border border-gray-300 px-2 py-1 text-center"
                   />
                 </div>
                 <button
                   onClick={() => onAddToCart(product.id, quantity)}
-                  className="bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                  style={{ backgroundColor: primaryColor || "#3B82F6" }}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                  style={{ backgroundColor: primaryColor || '#3B82F6' }}
                 >
                   Adicionar ao Carrinho
                 </button>
@@ -196,21 +196,21 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
       {/* Modal de imagem ampliada */}
       {showImageModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4"
           onClick={() => setShowImageModal(false)}
         >
           <div
-            className="relative max-w-4xl max-h-full"
+            className="relative max-h-full max-w-4xl"
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={product.images?.[0] || ""}
+              src={product.images?.[0] || ''}
               alt={product.name}
-              className="max-w-full max-h-[90vh] object-contain"
+              className="max-h-[90vh] max-w-full object-contain"
             />
             <button
               onClick={() => setShowImageModal(false)}
-              className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-full p-2 hover:bg-opacity-100 transition-all"
+              className="absolute right-4 top-4 rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
             >
               <X className="h-6 w-6 text-gray-700" />
             </button>

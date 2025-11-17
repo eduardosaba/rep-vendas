@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useState, FormEvent, useMemo } from "react";
-import { supabase } from "../../../lib/supabaseClient";
-import { useRouter } from "next/navigation";
-import { Plus, Edit, Trash2, Package, Upload, X, Save } from "lucide-react";
-import { uploadImage } from "../../../lib/storage";
+import { useEffect, useState, FormEvent, useMemo } from 'react';
+import { supabase } from '../../../lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+import { Plus, Edit, Trash2, Package, Upload, X, Save } from 'lucide-react';
+import { uploadImage } from '../../../lib/storage';
 
 interface User {
   id: string;
@@ -50,15 +50,15 @@ export default function ProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [filterBrand, setFilterBrand] = useState<string>("");
-  const [filterBestseller, setFilterBestseller] = useState<string>("");
-  const [filterLaunch, setFilterLaunch] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterBrand, setFilterBrand] = useState<string>('');
+  const [filterBestseller, setFilterBestseller] = useState<string>('');
+  const [filterLaunch, setFilterLaunch] = useState<string>('');
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const matchesSearch =
-        searchTerm === "" ||
+        searchTerm === '' ||
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.reference_code
@@ -66,17 +66,17 @@ export default function ProductsPage() {
           .includes(searchTerm.toLowerCase()) ||
         product.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesBrand = filterBrand === "" || product.brand === filterBrand;
+      const matchesBrand = filterBrand === '' || product.brand === filterBrand;
 
       const matchesBestseller =
-        filterBestseller === "" ||
-        (filterBestseller === "true" && product.bestseller) ||
-        (filterBestseller === "false" && !product.bestseller);
+        filterBestseller === '' ||
+        (filterBestseller === 'true' && product.bestseller) ||
+        (filterBestseller === 'false' && !product.bestseller);
 
       const matchesLaunch =
-        filterLaunch === "" ||
-        (filterLaunch === "true" && product.is_launch) ||
-        (filterLaunch === "false" && !product.is_launch);
+        filterLaunch === '' ||
+        (filterLaunch === 'true' && product.is_launch) ||
+        (filterLaunch === 'false' && !product.is_launch);
 
       return (
         matchesSearch && matchesBrand && matchesBestseller && matchesLaunch
@@ -85,12 +85,12 @@ export default function ProductsPage() {
   }, [products, searchTerm, filterBrand, filterBestseller, filterLaunch]);
 
   const [formData, setFormData] = useState<ProductFormData>({
-    name: "",
-    brand: "",
-    reference_code: "",
-    description: "",
-    price: "",
-    image_url: "",
+    name: '',
+    brand: '',
+    reference_code: '',
+    description: '',
+    price: '',
+    image_url: '',
     bestseller: false,
     is_launch: false,
   });
@@ -100,7 +100,7 @@ export default function ProductsPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login");
+        router.push('/login');
       } else {
         setUser(user);
         loadProducts(user.id);
@@ -112,10 +112,10 @@ export default function ProductsPage() {
 
   const loadBrands = async (userId: string) => {
     const { data, error } = await supabase
-      .from("brands")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name", { ascending: true });
+      .from('brands')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true });
 
     if (data && !error) {
       setBrands(data);
@@ -124,10 +124,10 @@ export default function ProductsPage() {
 
   const loadProducts = async (userId: string) => {
     const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name", { ascending: true });
+      .from('products')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true });
 
     if (data && !error) {
       setProducts(data);
@@ -135,12 +135,12 @@ export default function ProductsPage() {
   };
 
   const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
     if (file && user) {
       setUploading(true);
-      const result = await uploadImage(file, "produtos", user.id);
+      const result = await uploadImage(file, 'produtos', user.id);
       if (result.success && result.publicUrl) {
         setFormData((prev) => ({
           ...prev,
@@ -171,15 +171,15 @@ export default function ProductsPage() {
       if (editingProduct) {
         // Atualizar produto existente
         const { error } = await supabase
-          .from("products")
+          .from('products')
           .update(productData)
-          .eq("id", editingProduct.id)
-          .eq("user_id", user.id);
+          .eq('id', editingProduct.id)
+          .eq('user_id', user.id);
 
         if (error) throw error;
       } else {
         // Criar novo produto
-        const { error } = await supabase.from("products").insert(productData);
+        const { error } = await supabase.from('products').insert(productData);
 
         if (error) throw error;
       }
@@ -189,20 +189,20 @@ export default function ProductsPage() {
 
       // Resetar formulário
       setFormData({
-        name: "",
-        brand: "",
-        reference_code: "",
-        description: "",
-        price: "",
-        image_url: "",
+        name: '',
+        brand: '',
+        reference_code: '',
+        description: '',
+        price: '',
+        image_url: '',
         bestseller: false,
         is_launch: false,
       });
       setEditingProduct(null);
       setShowModal(false);
     } catch (error) {
-      console.error("Erro ao salvar produto:", error);
-      alert("Erro ao salvar produto. Tente novamente.");
+      console.error('Erro ao salvar produto:', error);
+      alert('Erro ao salvar produto. Tente novamente.');
     }
   };
 
@@ -210,11 +210,11 @@ export default function ProductsPage() {
     setEditingProduct(product);
     setFormData({
       name: product.name,
-      brand: product.brand || "",
-      reference_code: product.reference_code || "",
-      description: product.description || "",
+      brand: product.brand || '',
+      reference_code: product.reference_code || '',
+      description: product.description || '',
       price: product.price.toString(),
-      image_url: product.image_url || "",
+      image_url: product.image_url || '',
       bestseller: product.bestseller || false,
       is_launch: product.is_launch || false,
     });
@@ -224,35 +224,35 @@ export default function ProductsPage() {
   const handleDelete = async (productId: string) => {
     if (!user) return;
 
-    if (!confirm("Tem certeza que deseja excluir este produto?")) {
+    if (!confirm('Tem certeza que deseja excluir este produto?')) {
       return;
     }
 
     try {
       const { error } = await supabase
-        .from("products")
+        .from('products')
         .delete()
-        .eq("id", productId)
-        .eq("user_id", user.id);
+        .eq('id', productId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
       loadProducts(user.id);
     } catch (error) {
-      console.error("Erro ao excluir produto:", error);
-      alert("Erro ao excluir produto. Tente novamente.");
+      console.error('Erro ao excluir produto:', error);
+      alert('Erro ao excluir produto. Tente novamente.');
     }
   };
 
   const openModal = () => {
     setEditingProduct(null);
     setFormData({
-      name: "",
-      brand: "",
-      reference_code: "",
-      description: "",
-      price: "",
-      image_url: "",
+      name: '',
+      brand: '',
+      reference_code: '',
+      description: '',
+      price: '',
+      image_url: '',
       bestseller: false,
       is_launch: false,
     });
@@ -267,7 +267,7 @@ export default function ProductsPage() {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
               Gerenciar Produtos
@@ -276,27 +276,27 @@ export default function ProductsPage() {
           </div>
           <div className="flex space-x-4">
             <button
-              onClick={() => router.push("/dashboard")}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              onClick={() => router.push('/dashboard')}
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Voltar ao Dashboard
             </button>
             <button
               onClick={openModal}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+              className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="mr-2 h-5 w-5" />
               Novo Produto
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           {/* Stats */}
           <div className="mb-8">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="overflow-hidden rounded-lg bg-white shadow">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -304,7 +304,7 @@ export default function ProductsPage() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
+                      <dt className="truncate text-sm font-medium text-gray-500">
                         Total de Produtos
                       </dt>
                       <dd className="text-lg font-medium text-gray-900">
@@ -318,10 +318,10 @@ export default function ProductsPage() {
           </div>
 
           {/* Filters and Search */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-            <div className="flex flex-col md:flex-row gap-4">
+          <div className="mb-6 rounded-lg border bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Buscar produtos
                 </label>
                 <input
@@ -329,21 +329,21 @@ export default function ProductsPage() {
                   placeholder="Nome, marca, código ou descrição..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="w-full rounded border border-gray-300 px-3 py-2"
                 />
               </div>
               <div className="md:w-48">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Filtrar por marca
                 </label>
                 <select
                   value={filterBrand}
                   onChange={(e) => setFilterBrand(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="w-full rounded border border-gray-300 px-3 py-2"
                 >
                   <option value="">Todas as marcas</option>
                   {Array.from(
-                    new Set(products.map((p) => p.brand).filter(Boolean)),
+                    new Set(products.map((p) => p.brand).filter(Boolean))
                   ).map((brand) => (
                     <option key={brand} value={brand}>
                       {brand}
@@ -352,13 +352,13 @@ export default function ProductsPage() {
                 </select>
               </div>
               <div className="md:w-48">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Bestseller
                 </label>
                 <select
                   value={filterBestseller}
                   onChange={(e) => setFilterBestseller(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="w-full rounded border border-gray-300 px-3 py-2"
                 >
                   <option value="">Todos</option>
                   <option value="true">Apenas bestsellers</option>
@@ -366,13 +366,13 @@ export default function ProductsPage() {
                 </select>
               </div>
               <div className="md:w-48">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Lançamento
                 </label>
                 <select
                   value={filterLaunch}
                   onChange={(e) => setFilterLaunch(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="w-full rounded border border-gray-300 px-3 py-2"
                 >
                   <option value="">Todos</option>
                   <option value="true">Apenas lançamentos</option>
@@ -390,10 +390,10 @@ export default function ProductsPage() {
                 </span>
                 <button
                   onClick={() => {
-                    setSearchTerm("");
-                    setFilterBrand("");
-                    setFilterBestseller("");
-                    setFilterLaunch("");
+                    setSearchTerm('');
+                    setFilterBrand('');
+                    setFilterBestseller('');
+                    setFilterLaunch('');
                   }}
                   className="text-sm text-blue-600 hover:text-blue-800"
                 >
@@ -404,52 +404,52 @@ export default function ProductsPage() {
           </div>
 
           {/* Products Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
-                className="bg-white overflow-hidden shadow rounded-lg"
+                className="overflow-hidden rounded-lg bg-white shadow"
               >
                 <div className="relative">
                   {product.image_url ? (
                     <img
                       src={product.image_url}
                       alt={product.name}
-                      className="w-full h-48 object-cover"
+                      className="h-48 w-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
+                    <div className="flex h-48 w-full items-center justify-center bg-gray-100">
                       <Package className="h-12 w-12 text-gray-400" />
                     </div>
                   )}
                   {product.bestseller && (
-                    <div className="absolute top-2 left-2 bg-yellow-400 text-yellow-900 px-2 py-1 rounded text-xs font-bold">
+                    <div className="absolute left-2 top-2 rounded bg-yellow-400 px-2 py-1 text-xs font-bold text-yellow-900">
                       Bestseller
                     </div>
                   )}
                   {product.is_launch && (
-                    <div className="absolute top-2 right-2 bg-green-400 text-green-900 px-2 py-1 rounded text-xs font-bold">
+                    <div className="absolute right-2 top-2 rounded bg-green-400 px-2 py-1 text-xs font-bold text-green-900">
                       Lançamento
                     </div>
                   )}
                 </div>
                 <div className="p-4">
-                  <div className="flex justify-between items-start">
+                  <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-900 mb-1">
+                      <h3 className="mb-1 text-sm font-medium text-gray-900">
                         {product.name}
                       </h3>
-                      <p className="text-sm text-gray-500 mb-1">
+                      <p className="mb-1 text-sm text-gray-500">
                         {product.brand}
                       </p>
-                      <p className="text-sm text-gray-500 mb-2">
+                      <p className="mb-2 text-sm text-gray-500">
                         {product.reference_code}
                       </p>
                       <p className="text-lg font-bold text-gray-900">
                         R$ {product.price?.toFixed(2)}
                       </p>
                     </div>
-                    <div className="flex space-x-2 ml-2">
+                    <div className="ml-2 flex space-x-2">
                       <button
                         onClick={() => handleEdit(product)}
                         className="p-1 text-gray-400 hover:text-gray-600"
@@ -470,22 +470,22 @@ export default function ProductsPage() {
           </div>
 
           {filteredProducts.length === 0 && products.length > 0 && (
-            <div className="text-center py-16">
-              <Package className="h-24 w-24 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-medium text-gray-900 mb-2">
+            <div className="py-16 text-center">
+              <Package className="mx-auto mb-4 h-24 w-24 text-gray-300" />
+              <h3 className="mb-2 text-xl font-medium text-gray-900">
                 Nenhum produto encontrado
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="mb-6 text-gray-600">
                 Tente ajustar sua busca ou filtros.
               </p>
               <button
                 onClick={() => {
-                  setSearchTerm("");
-                  setFilterBrand("");
-                  setFilterBestseller("");
-                  setFilterLaunch("");
+                  setSearchTerm('');
+                  setFilterBrand('');
+                  setFilterBestseller('');
+                  setFilterLaunch('');
                 }}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Limpar Filtros
               </button>
@@ -493,19 +493,19 @@ export default function ProductsPage() {
           )}
 
           {products.length === 0 && (
-            <div className="text-center py-16">
-              <Package className="h-24 w-24 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-medium text-gray-900 mb-2">
+            <div className="py-16 text-center">
+              <Package className="mx-auto mb-4 h-24 w-24 text-gray-300" />
+              <h3 className="mb-2 text-xl font-medium text-gray-900">
                 Nenhum produto cadastrado
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="mb-6 text-gray-600">
                 Comece adicionando seu primeiro produto ao catálogo.
               </p>
               <button
                 onClick={openModal}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                <Plus className="h-5 w-5 mr-2" />
+                <Plus className="mr-2 h-5 w-5" />
                 Adicionar Primeiro Produto
               </button>
             </div>
@@ -515,12 +515,12 @@ export default function ProductsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 z-50 h-full w-full overflow-y-auto bg-gray-600 bg-opacity-50">
+          <div className="relative top-20 mx-auto w-full max-w-2xl rounded-md border bg-white p-5 shadow-lg">
             <div className="mt-3">
-              <div className="flex justify-between items-center mb-4">
+              <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">
-                  {editingProduct ? "Editar Produto" : "Novo Produto"}
+                  {editingProduct ? 'Editar Produto' : 'Novo Produto'}
                 </h3>
                 <button
                   onClick={() => setShowModal(false)}
@@ -531,9 +531,9 @@ export default function ProductsPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Nome do Produto *
                     </label>
                     <input
@@ -546,12 +546,12 @@ export default function ProductsPage() {
                           name: e.target.value,
                         }))
                       }
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="w-full rounded border border-gray-300 px-3 py-2"
                       placeholder="Nome do produto"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Marca
                     </label>
                     <select
@@ -562,7 +562,7 @@ export default function ProductsPage() {
                           brand: e.target.value,
                         }))
                       }
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="w-full rounded border border-gray-300 px-3 py-2"
                     >
                       <option value="">Selecione uma marca</option>
                       {brands.map((brand) => (
@@ -571,11 +571,11 @@ export default function ProductsPage() {
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Não encontra a marca?{" "}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Não encontra a marca?{' '}
                       <button
                         type="button"
-                        onClick={() => router.push("/dashboard/brands")}
+                        onClick={() => router.push('/dashboard/brands')}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         Gerenciar marcas
@@ -583,7 +583,7 @@ export default function ProductsPage() {
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Código de Referência
                     </label>
                     <input
@@ -595,12 +595,12 @@ export default function ProductsPage() {
                           reference_code: e.target.value,
                         }))
                       }
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="w-full rounded border border-gray-300 px-3 py-2"
                       placeholder="Código interno"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
                       Preço (R$) *
                     </label>
                     <input
@@ -615,14 +615,14 @@ export default function ProductsPage() {
                           price: e.target.value,
                         }))
                       }
-                      className="w-full border border-gray-300 rounded px-3 py-2"
+                      className="w-full rounded border border-gray-300 px-3 py-2"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Descrição
                   </label>
                   <textarea
@@ -633,13 +633,13 @@ export default function ProductsPage() {
                         description: e.target.value,
                       }))
                     }
-                    className="w-full border border-gray-300 rounded px-3 py-2 h-24"
+                    className="h-24 w-full rounded border border-gray-300 px-3 py-2"
                     placeholder="Descrição detalhada do produto"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Imagem do Produto
                   </label>
                   {formData.image_url && (
@@ -647,14 +647,14 @@ export default function ProductsPage() {
                       <img
                         src={formData.image_url}
                         alt="Preview"
-                        className="w-32 h-32 object-cover rounded border"
+                        className="h-32 w-32 rounded border object-cover"
                       />
                     </div>
                   )}
                   <div className="flex items-center space-x-4">
-                    <label className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer">
-                      <Upload className="h-4 w-4 mr-2" />
-                      {uploading ? "Enviando..." : "Escolher imagem"}
+                    <label className="flex cursor-pointer items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+                      <Upload className="mr-2 h-4 w-4" />
+                      {uploading ? 'Enviando...' : 'Escolher imagem'}
                       <input
                         type="file"
                         accept="image/*"
@@ -667,11 +667,11 @@ export default function ProductsPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          setFormData((prev) => ({ ...prev, image_url: "" }))
+                          setFormData((prev) => ({ ...prev, image_url: '' }))
                         }
-                        className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                        className="flex items-center rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
                       >
-                        <X className="h-4 w-4 mr-2" />
+                        <X className="mr-2 h-4 w-4" />
                         Remover
                       </button>
                     )}
@@ -689,7 +689,7 @@ export default function ProductsPage() {
                         bestseller: e.target.checked,
                       }))
                     }
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <label
                     htmlFor="bestseller"
@@ -710,7 +710,7 @@ export default function ProductsPage() {
                         is_launch: e.target.checked,
                       }))
                     }
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <label
                     htmlFor="is_launch"
@@ -724,16 +724,16 @@ export default function ProductsPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                    className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                    className="flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                   >
-                    <Save className="h-4 w-4 mr-2" />
-                    {editingProduct ? "Atualizar" : "Salvar"} Produto
+                    <Save className="mr-2 h-4 w-4" />
+                    {editingProduct ? 'Atualizar' : 'Salvar'} Produto
                   </button>
                 </div>
               </form>

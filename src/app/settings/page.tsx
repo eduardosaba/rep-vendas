@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useState, ChangeEvent, FormEvent } from "react";
-import { supabase } from "../../lib/supabaseClient";
-import { uploadImage, deleteImage } from "../../lib/storage";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, ChangeEvent, FormEvent } from 'react';
+import { supabase } from '../../lib/supabaseClient';
+import { uploadImage, deleteImage } from '../../lib/storage';
+import { useRouter } from 'next/navigation';
 import {
   Upload,
   Image,
@@ -13,7 +13,7 @@ import {
   Plus,
   Tag,
   Package,
-} from "lucide-react";
+} from 'lucide-react';
 
 interface User {
   id: string;
@@ -75,20 +75,20 @@ export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const [settings, setSettings] = useState<Settings>({
-    name: "",
-    email: "",
-    phone: "",
-    logo_url: "",
-    banner_url: "",
-    primary_color: "#3B82F6", // blue-500
-    secondary_color: "#6B7280", // gray-500
-    header_color: "#FFFFFF", // white
-    font_family: "Inter, sans-serif",
-    title_color: "#111827", // gray-900
-    icon_color: "#4B5563", // gray-600
-    email_provider: "resend",
-    email_api_key: "",
-    email_from: "",
+    name: '',
+    email: '',
+    phone: '',
+    logo_url: '',
+    banner_url: '',
+    primary_color: '#3B82F6', // blue-500
+    secondary_color: '#6B7280', // gray-500
+    header_color: '#FFFFFF', // white
+    font_family: 'Inter, sans-serif',
+    title_color: '#111827', // gray-900
+    icon_color: '#4B5563', // gray-600
+    email_provider: 'resend',
+    email_api_key: '',
+    email_from: '',
     show_shipping: true,
     show_installments: true,
     show_delivery_address: true,
@@ -108,14 +108,14 @@ export default function SettingsPage() {
     product: false,
     brand: false,
   });
-  const [message, setMessage] = useState<string>("");
+  const [message, setMessage] = useState<string>('');
   const [brands, setBrands] = useState<Brand[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [newBrandName, setNewBrandName] = useState<string>("");
-  const [newCategoryName, setNewCategoryName] = useState<string>("");
+  const [newBrandName, setNewBrandName] = useState<string>('');
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [newCategoryDescription, setNewCategoryDescription] =
-    useState<string>("");
-  const [newCategoryColor, setNewCategoryColor] = useState<string>("#3B82F6");
+    useState<string>('');
+  const [newCategoryColor, setNewCategoryColor] = useState<string>('#3B82F6');
 
   useEffect(() => {
     const getUser = async () => {
@@ -123,7 +123,7 @@ export default function SettingsPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login");
+        router.push('/login');
       } else {
         setUser(user);
         loadSettings(user.id);
@@ -136,28 +136,28 @@ export default function SettingsPage() {
 
   const loadSettings = async (userId: string) => {
     const { data, error } = await supabase
-      .from("settings")
-      .select("*")
-      .eq("user_id", userId)
+      .from('settings')
+      .select('*')
+      .eq('user_id', userId)
       .single();
 
     if (data && !error) {
       // Garantir que todos os valores sejam strings ou valores apropriados
       setSettings({
-        name: data.name || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        logo_url: data.logo_url || "",
-        banner_url: data.banner_url || "",
-        primary_color: data.primary_color || "#3B82F6",
-        secondary_color: data.secondary_color || "#6B7280",
-        header_color: data.header_color || "#FFFFFF",
-        font_family: data.font_family || "Inter, sans-serif",
-        title_color: data.title_color || "#111827",
-        icon_color: data.icon_color || "#4B5563",
-        email_provider: data.email_provider || "resend",
-        email_api_key: data.email_api_key || "",
-        email_from: data.email_from || "",
+        name: data.name || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        logo_url: data.logo_url || '',
+        banner_url: data.banner_url || '',
+        primary_color: data.primary_color || '#3B82F6',
+        secondary_color: data.secondary_color || '#6B7280',
+        header_color: data.header_color || '#FFFFFF',
+        font_family: data.font_family || 'Inter, sans-serif',
+        title_color: data.title_color || '#111827',
+        icon_color: data.icon_color || '#4B5563',
+        email_provider: data.email_provider || 'resend',
+        email_api_key: data.email_api_key || '',
+        email_from: data.email_from || '',
         show_shipping:
           data.show_shipping !== undefined ? data.show_shipping : true,
         show_installments:
@@ -200,10 +200,10 @@ export default function SettingsPage() {
 
   const loadBrands = async (userId: string) => {
     const { data, error } = await supabase
-      .from("brands")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name");
+      .from('brands')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name');
 
     if (data && !error) {
       setBrands(data);
@@ -212,10 +212,10 @@ export default function SettingsPage() {
 
   const loadCategories = async (userId: string) => {
     const { data, error } = await supabase
-      .from("categories")
-      .select("*")
-      .eq("user_id", userId)
-      .order("name");
+      .from('categories')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name');
 
     if (data && !error) {
       setCategories(data);
@@ -227,7 +227,7 @@ export default function SettingsPage() {
 
     try {
       const { data, error } = await supabase
-        .from("brands")
+        .from('brands')
         .insert({
           name: newBrandName.trim(),
           user_id: user.id,
@@ -238,10 +238,10 @@ export default function SettingsPage() {
       if (error) throw error;
 
       setBrands([...brands, data]);
-      setNewBrandName("");
-      setMessage("Marca criada com sucesso!");
+      setNewBrandName('');
+      setMessage('Marca criada com sucesso!');
     } catch (error) {
-      console.error("Erro ao criar marca:", error);
+      console.error('Erro ao criar marca:', error);
       setMessage(`Erro ao criar marca: ${(error as Error).message}`);
     }
   };
@@ -249,16 +249,16 @@ export default function SettingsPage() {
   const deleteBrand = async (brandId: string) => {
     try {
       const { error } = await supabase
-        .from("brands")
+        .from('brands')
         .delete()
-        .eq("id", brandId);
+        .eq('id', brandId);
 
       if (error) throw error;
 
       setBrands(brands.filter((brand) => brand.id !== brandId));
-      setMessage("Marca removida com sucesso!");
+      setMessage('Marca removida com sucesso!');
     } catch (error) {
-      console.error("Erro ao remover marca:", error);
+      console.error('Erro ao remover marca:', error);
       setMessage(`Erro ao remover marca: ${(error as Error).message}`);
     }
   };
@@ -268,7 +268,7 @@ export default function SettingsPage() {
 
     try {
       const { data, error } = await supabase
-        .from("categories")
+        .from('categories')
         .insert({
           name: newCategoryName.trim(),
           description: newCategoryDescription.trim() || null,
@@ -281,12 +281,12 @@ export default function SettingsPage() {
       if (error) throw error;
 
       setCategories([...categories, data]);
-      setNewCategoryName("");
-      setNewCategoryDescription("");
-      setNewCategoryColor("#3B82F6");
-      setMessage("Categoria criada com sucesso!");
+      setNewCategoryName('');
+      setNewCategoryDescription('');
+      setNewCategoryColor('#3B82F6');
+      setMessage('Categoria criada com sucesso!');
     } catch (error) {
-      console.error("Erro ao criar categoria:", error);
+      console.error('Erro ao criar categoria:', error);
       setMessage(`Erro ao criar categoria: ${(error as Error).message}`);
     }
   };
@@ -294,18 +294,18 @@ export default function SettingsPage() {
   const deleteCategory = async (categoryId: string) => {
     try {
       const { error } = await supabase
-        .from("categories")
+        .from('categories')
         .delete()
-        .eq("id", categoryId);
+        .eq('id', categoryId);
 
       if (error) throw error;
 
       setCategories(
-        categories.filter((category) => category.id !== categoryId),
+        categories.filter((category) => category.id !== categoryId)
       );
-      setMessage("Categoria removida com sucesso!");
+      setMessage('Categoria removida com sucesso!');
     } catch (error) {
-      console.error("Erro ao remover categoria:", error);
+      console.error('Erro ao remover categoria:', error);
       setMessage(`Erro ao remover categoria: ${(error as Error).message}`);
     }
   };
@@ -313,19 +313,19 @@ export default function SettingsPage() {
   const uploadImageToBucket = async (
     file: File,
     bucket: string,
-    field: keyof UploadingState,
+    field: keyof UploadingState
   ) => {
     if (!user) return;
 
     setUploading((prev) => ({ ...prev, [field]: true }));
-    setMessage("");
+    setMessage('');
 
     const result = await uploadImage(file, bucket, user.id);
 
     if (result.success) {
-      if (field === "logo") {
+      if (field === 'logo') {
         setSettings((prev) => ({ ...prev, logo_url: result.publicUrl }));
-      } else if (field === "banner") {
+      } else if (field === 'banner') {
         setSettings((prev) => ({ ...prev, banner_url: result.publicUrl }));
       }
       setMessage(`Imagem enviada com sucesso para ${bucket}!`);
@@ -339,7 +339,7 @@ export default function SettingsPage() {
   const handleFileUpload = (
     event: React.ChangeEvent<HTMLInputElement>,
     bucket: string,
-    field: keyof UploadingState,
+    field: keyof UploadingState
   ) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -353,29 +353,29 @@ export default function SettingsPage() {
     try {
       // Primeiro, tentar atualizar se já existe
       const { data: existing } = await supabase
-        .from("settings")
-        .select("id")
-        .eq("user_id", user.id)
+        .from('settings')
+        .select('id')
+        .eq('user_id', user.id)
         .single();
 
       let result;
       if (existing) {
         // Atualizar registro existente
         result = await supabase
-          .from("settings")
+          .from('settings')
           .update({
             name: settings.name || null,
             email: settings.email || null,
             phone: settings.phone || null,
             logo_url: settings.logo_url || null,
             banner_url: settings.banner_url || null,
-            primary_color: settings.primary_color || "#3B82F6",
-            secondary_color: settings.secondary_color || "#6B7280",
-            header_color: settings.header_color || "#FFFFFF",
-            font_family: settings.font_family || "Inter, sans-serif",
-            title_color: settings.title_color || "#111827",
-            icon_color: settings.icon_color || "#4B5563",
-            email_provider: settings.email_provider || "resend",
+            primary_color: settings.primary_color || '#3B82F6',
+            secondary_color: settings.secondary_color || '#6B7280',
+            header_color: settings.header_color || '#FFFFFF',
+            font_family: settings.font_family || 'Inter, sans-serif',
+            title_color: settings.title_color || '#111827',
+            icon_color: settings.icon_color || '#4B5563',
+            email_provider: settings.email_provider || 'resend',
             email_api_key: settings.email_api_key || null,
             email_from: settings.email_from || null,
             show_shipping:
@@ -427,23 +427,23 @@ export default function SettingsPage() {
                 ? settings.show_payment_method_checkout
                 : true,
           })
-          .eq("user_id", user.id);
+          .eq('user_id', user.id);
       } else {
         // Inserir novo registro
-        result = await supabase.from("settings").insert({
+        result = await supabase.from('settings').insert({
           user_id: user.id,
           name: settings.name || null,
           email: settings.email || null,
           phone: settings.phone || null,
           logo_url: settings.logo_url || null,
           banner_url: settings.banner_url || null,
-          primary_color: settings.primary_color || "#3B82F6",
-          secondary_color: settings.secondary_color || "#6B7280",
-          header_color: settings.header_color || "#FFFFFF",
-          font_family: settings.font_family || "Inter, sans-serif",
-          title_color: settings.title_color || "#111827",
-          icon_color: settings.icon_color || "#4B5563",
-          email_provider: settings.email_provider || "resend",
+          primary_color: settings.primary_color || '#3B82F6',
+          secondary_color: settings.secondary_color || '#6B7280',
+          header_color: settings.header_color || '#FFFFFF',
+          font_family: settings.font_family || 'Inter, sans-serif',
+          title_color: settings.title_color || '#111827',
+          icon_color: settings.icon_color || '#4B5563',
+          email_provider: settings.email_provider || 'resend',
           email_api_key: settings.email_api_key || null,
           email_from: settings.email_from || null,
           show_shipping:
@@ -499,9 +499,9 @@ export default function SettingsPage() {
 
       if (result.error) throw result.error;
 
-      setMessage("Configurações salvas com sucesso!");
+      setMessage('Configurações salvas com sucesso!');
     } catch (error) {
-      console.error("Erro ao salvar configurações:", error);
+      console.error('Erro ao salvar configurações:', error);
       setMessage(`Erro ao salvar configurações: ${(error as Error).message}`);
     }
   };
@@ -519,24 +519,24 @@ export default function SettingsPage() {
     currentUrl?: string;
     description: string;
   }) => (
-    <div className="bg-white p-6 rounded-lg shadow-sm border">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
-      <p className="text-sm text-gray-600 mb-4">{description}</p>
+    <div className="rounded-lg border bg-white p-6 shadow-sm">
+      <h3 className="mb-4 text-lg font-medium text-gray-900">{title}</h3>
+      <p className="mb-4 text-sm text-gray-600">{description}</p>
 
-      {currentUrl && currentUrl.trim() !== "" && (
+      {currentUrl && currentUrl.trim() !== '' && (
         <div className="mb-4">
           <img
             src={currentUrl}
             alt={title}
-            className="w-full h-40 object-cover rounded"
+            className="h-40 w-full rounded object-cover"
           />
         </div>
       )}
 
       <div className="flex items-center space-x-4">
-        <label className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer">
-          <Upload className="h-4 w-4 mr-2" />
-          {uploading[field] ? "Enviando..." : "Escolher imagem"}
+        <label className="flex cursor-pointer items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+          <Upload className="mr-2 h-4 w-4" />
+          {uploading[field] ? 'Enviando...' : 'Escolher imagem'}
           <input
             type="file"
             accept="image/*"
@@ -545,18 +545,18 @@ export default function SettingsPage() {
             disabled={uploading[field]}
           />
         </label>
-        {currentUrl && currentUrl.trim() !== "" && (
+        {currentUrl && currentUrl.trim() !== '' && (
           <button
             onClick={() => {
-              if (field === "logo") {
-                setSettings((prev) => ({ ...prev, logo_url: "" }));
-              } else if (field === "banner") {
-                setSettings((prev) => ({ ...prev, banner_url: "" }));
+              if (field === 'logo') {
+                setSettings((prev) => ({ ...prev, logo_url: '' }));
+              } else if (field === 'banner') {
+                setSettings((prev) => ({ ...prev, banner_url: '' }));
               }
             }}
-            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="flex items-center rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
           >
-            <X className="h-4 w-4 mr-2" />
+            <X className="mr-2 h-4 w-4" />
             Remover
           </button>
         )}
@@ -572,10 +572,10 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <Settings className="h-8 w-8 text-gray-600 mr-3" />
+              <Settings className="mr-3 h-8 w-8 text-gray-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
                   Configurações
@@ -586,8 +586,8 @@ export default function SettingsPage() {
               </div>
             </div>
             <button
-              onClick={() => router.push("/dashboard")}
-              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+              onClick={() => router.push('/dashboard')}
+              className="rounded-lg bg-gray-600 px-4 py-2 text-white hover:bg-gray-700"
             >
               Voltar ao Dashboard
             </button>
@@ -595,34 +595,34 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {message && (
           <div
-            className={`mb-6 p-4 rounded-lg ${message.includes("Erro") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+            className={`mb-6 rounded-lg p-4 ${message.includes('Erro') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
           >
             {message}
           </div>
         )}
 
         {/* Configurações de Email */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="mb-6 rounded-lg border bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-medium text-gray-900">
             Configurações de Email
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Provedor de Email
               </label>
               <select
-                value={settings.email_provider || "resend"}
+                value={settings.email_provider || 'resend'}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     email_provider: e.target.value,
                   }))
                 }
-                className="w-full border border-gray-300 rounded px-3 py-2"
+                className="w-full rounded border border-gray-300 px-3 py-2"
               >
                 <option value="resend">Resend (Recomendado)</option>
                 <option value="sendgrid">SendGrid</option>
@@ -632,39 +632,39 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Email do Remetente
               </label>
               <input
                 type="email"
-                value={settings.email_from || ""}
+                value={settings.email_from || ''}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     email_from: e.target.value,
                   }))
                 }
-                className="w-full border border-gray-300 rounded px-3 py-2"
+                className="w-full rounded border border-gray-300 px-3 py-2"
                 placeholder="noreply@suaempresa.com"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Chave API
               </label>
               <input
                 type="password"
-                value={settings.email_api_key || ""}
+                value={settings.email_api_key || ''}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     email_api_key: e.target.value,
                   }))
                 }
-                className="w-full border border-gray-300 rounded px-3 py-2"
+                className="w-full rounded border border-gray-300 px-3 py-2"
                 placeholder="Sua chave API do provedor de email"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="mt-1 text-xs text-gray-500">
                 A chave API é armazenada de forma segura e usada apenas para
                 envio de emails.
               </p>
@@ -672,167 +672,167 @@ export default function SettingsPage() {
           </div>
           <button
             onClick={saveSettings}
-            className="mt-4 flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="mt-4 flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="mr-2 h-4 w-4" />
             Salvar Configurações de Email
           </button>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="mb-6 rounded-lg border bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-medium text-gray-900">
             Informações Básicas
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Nome da Empresa
               </label>
               <input
                 type="text"
-                value={settings.name || ""}
+                value={settings.name || ''}
                 onChange={(e) =>
                   setSettings((prev) => ({ ...prev, name: e.target.value }))
                 }
-                className="w-full border border-gray-300 rounded px-3 py-2"
+                className="w-full rounded border border-gray-300 px-3 py-2"
                 placeholder="Nome da sua empresa"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Email
               </label>
               <input
                 type="email"
-                value={settings.email || ""}
+                value={settings.email || ''}
                 onChange={(e) =>
                   setSettings((prev) => ({ ...prev, email: e.target.value }))
                 }
-                className="w-full border border-gray-300 rounded px-3 py-2"
+                className="w-full rounded border border-gray-300 px-3 py-2"
                 placeholder="seu@email.com"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Telefone
               </label>
               <input
                 type="tel"
-                value={settings.phone || ""}
+                value={settings.phone || ''}
                 onChange={(e) =>
                   setSettings((prev) => ({ ...prev, phone: e.target.value }))
                 }
-                className="w-full border border-gray-300 rounded px-3 py-2"
+                className="w-full rounded border border-gray-300 px-3 py-2"
                 placeholder="(11) 99999-9999"
               />
             </div>
           </div>
           <button
             onClick={saveSettings}
-            className="mt-4 flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="mt-4 flex items-center rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="mr-2 h-4 w-4" />
             Salvar Configurações
           </button>
         </div>
 
         {/* Personalização do Tema */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="mb-6 rounded-lg border bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-medium text-gray-900">
             Personalização do Tema
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Cor Primária (Botões)
               </label>
               <input
                 type="color"
-                value={settings.primary_color || "#3B82F6"}
+                value={settings.primary_color || '#3B82F6'}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     primary_color: e.target.value,
                   }))
                 }
-                className="w-full h-10 border border-gray-300 rounded"
+                className="h-10 w-full rounded border border-gray-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Cor Secundária
               </label>
               <input
                 type="color"
-                value={settings.secondary_color || "#6B7280"}
+                value={settings.secondary_color || '#6B7280'}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     secondary_color: e.target.value,
                   }))
                 }
-                className="w-full h-10 border border-gray-300 rounded"
+                className="h-10 w-full rounded border border-gray-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Cor do Cabeçalho
               </label>
               <input
                 type="color"
-                value={settings.header_color || "#FFFFFF"}
+                value={settings.header_color || '#FFFFFF'}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     header_color: e.target.value,
                   }))
                 }
-                className="w-full h-10 border border-gray-300 rounded"
+                className="h-10 w-full rounded border border-gray-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Cor do Título
               </label>
               <input
                 type="color"
-                value={settings.title_color || "#111827"}
+                value={settings.title_color || '#111827'}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     title_color: e.target.value,
                   }))
                 }
-                className="w-full h-10 border border-gray-300 rounded"
+                className="h-10 w-full rounded border border-gray-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Cor dos Ícones
               </label>
               <input
                 type="color"
-                value={settings.icon_color || "#4B5563"}
+                value={settings.icon_color || '#4B5563'}
                 onChange={(e) =>
                   setSettings((prev) => ({
                     ...prev,
                     icon_color: e.target.value,
                   }))
                 }
-                className="w-full h-10 border border-gray-300 rounded"
+                className="h-10 w-full rounded border border-gray-300"
               />
             </div>
           </div>
           <button
             onClick={saveSettings}
-            className="mt-4 flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="mt-4 flex items-center rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="mr-2 h-4 w-4" />
             Salvar Tema
           </button>
         </div>
 
         {/* Upload de Imagens */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <ImageUploadCard
             title="Logo da Empresa"
             bucket="logos"
@@ -851,8 +851,8 @@ export default function SettingsPage() {
         </div>
 
         {/* Configurações de Catálogo */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="mb-6 rounded-lg border bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-medium text-gray-900">
             Configurações de Catálogo
           </h2>
           <div className="space-y-4">
@@ -871,7 +871,7 @@ export default function SettingsPage() {
                     show_filter_price: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_filter_price"
@@ -895,7 +895,7 @@ export default function SettingsPage() {
                     show_filter_category: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_filter_category"
@@ -919,7 +919,7 @@ export default function SettingsPage() {
                     show_filter_bestseller: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_filter_bestseller"
@@ -943,7 +943,7 @@ export default function SettingsPage() {
                     show_filter_new: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_filter_new"
@@ -955,16 +955,16 @@ export default function SettingsPage() {
           </div>
           <button
             onClick={saveSettings}
-            className="mt-4 flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="mt-4 flex items-center rounded-lg bg-purple-600 px-4 py-2 text-white hover:bg-purple-700"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="mr-2 h-4 w-4" />
             Salvar Configurações de Catálogo
           </button>
         </div>
 
         {/* Configurações de Checkout */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="mb-6 rounded-lg border bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-medium text-gray-900">
             Configurações de Checkout
           </h2>
           <div className="space-y-4">
@@ -983,7 +983,7 @@ export default function SettingsPage() {
                     show_shipping: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_shipping"
@@ -1007,7 +1007,7 @@ export default function SettingsPage() {
                     show_installments: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_installments"
@@ -1031,7 +1031,7 @@ export default function SettingsPage() {
                     show_delivery_address: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_delivery_address"
@@ -1055,7 +1055,7 @@ export default function SettingsPage() {
                     show_installments_checkout: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_installments_checkout"
@@ -1079,7 +1079,7 @@ export default function SettingsPage() {
                     show_discount: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_discount"
@@ -1103,7 +1103,7 @@ export default function SettingsPage() {
                     show_old_price: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_old_price"
@@ -1127,7 +1127,7 @@ export default function SettingsPage() {
                     show_delivery_address_checkout: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_delivery_address_checkout"
@@ -1151,7 +1151,7 @@ export default function SettingsPage() {
                     show_payment_method_checkout: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label
                 htmlFor="show_payment_method_checkout"
@@ -1163,44 +1163,44 @@ export default function SettingsPage() {
           </div>
           <button
             onClick={saveSettings}
-            className="mt-4 flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+            className="mt-4 flex items-center rounded-lg bg-orange-600 px-4 py-2 text-white hover:bg-orange-700"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="mr-2 h-4 w-4" />
             Salvar Configurações de Checkout
           </button>
         </div>
 
         {/* Gerenciamento de Marcas e Categorias */}
         <div className="mt-8 space-y-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
+          <h2 className="mb-4 text-xl font-bold text-gray-900">
             Gerenciamento de Marcas e Categorias
           </h2>
 
           {/* Marcas */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex justify-between items-center mb-4">
+          <div className="rounded-lg border bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center">
-                <Package className="h-6 w-6 text-gray-600 mr-3" />
+                <Package className="mr-3 h-6 w-6 text-gray-600" />
                 <h3 className="text-lg font-medium text-gray-900">Marcas</h3>
               </div>
             </div>
 
             {/* Adicionar nova marca */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="mb-6 rounded-lg bg-gray-50 p-4">
               <div className="flex items-center space-x-4">
                 <input
                   type="text"
                   value={newBrandName}
                   onChange={(e) => setNewBrandName(e.target.value)}
                   placeholder="Nome da marca"
-                  className="flex-1 border border-gray-300 rounded px-3 py-2"
+                  className="flex-1 rounded border border-gray-300 px-3 py-2"
                 />
                 <button
                   onClick={createBrand}
                   disabled={!newBrandName.trim()}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="mr-2 h-4 w-4" />
                   Adicionar Marca
                 </button>
               </div>
@@ -1209,21 +1209,21 @@ export default function SettingsPage() {
             {/* Lista de marcas */}
             <div className="space-y-3">
               {brands.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">
+                <p className="py-4 text-center text-gray-500">
                   Nenhuma marca cadastrada ainda.
                 </p>
               ) : (
                 brands.map((brand) => (
                   <div
                     key={brand.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50"
+                    className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4"
                   >
                     <div className="flex items-center space-x-3">
                       {brand.logo_url && (
                         <img
                           src={brand.logo_url}
                           alt={brand.name}
-                          className="w-8 h-8 object-cover rounded"
+                          className="h-8 w-8 rounded object-cover"
                         />
                       )}
                       <div>
@@ -1231,7 +1231,7 @@ export default function SettingsPage() {
                           {brand.name}
                         </span>
                         {brand.commission_percentage > 0 && (
-                          <span className="text-sm text-gray-600 ml-2">
+                          <span className="ml-2 text-sm text-gray-600">
                             Comissão: {brand.commission_percentage}%
                           </span>
                         )}
@@ -1239,7 +1239,7 @@ export default function SettingsPage() {
                     </div>
                     <button
                       onClick={() => deleteBrand(brand.id)}
-                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                      className="rounded p-2 text-red-600 hover:bg-red-50 hover:text-red-800"
                       title="Remover marca"
                     >
                       <X className="h-5 w-5" />
@@ -1251,10 +1251,10 @@ export default function SettingsPage() {
           </div>
 
           {/* Categorias */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex justify-between items-center mb-4">
+          <div className="rounded-lg border bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center">
-                <Tag className="h-6 w-6 text-gray-600 mr-3" />
+                <Tag className="mr-3 h-6 w-6 text-gray-600" />
                 <h3 className="text-lg font-medium text-gray-900">
                   Categorias
                 </h3>
@@ -1262,35 +1262,35 @@ export default function SettingsPage() {
             </div>
 
             {/* Adicionar nova categoria */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="mb-6 rounded-lg bg-gray-50 p-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <input
                   type="text"
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder="Nome da categoria"
-                  className="border border-gray-300 rounded px-3 py-2"
+                  className="rounded border border-gray-300 px-3 py-2"
                 />
                 <input
                   type="text"
                   value={newCategoryDescription}
                   onChange={(e) => setNewCategoryDescription(e.target.value)}
                   placeholder="Descrição (opcional)"
-                  className="border border-gray-300 rounded px-3 py-2"
+                  className="rounded border border-gray-300 px-3 py-2"
                 />
                 <div className="flex items-center space-x-2">
                   <input
                     type="color"
                     value={newCategoryColor}
                     onChange={(e) => setNewCategoryColor(e.target.value)}
-                    className="w-12 h-10 border border-gray-300 rounded"
+                    className="h-10 w-12 rounded border border-gray-300"
                   />
                   <button
                     onClick={createCategory}
                     disabled={!newCategoryName.trim()}
-                    className="flex-1 flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex flex-1 items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="mr-2 h-4 w-4" />
                     Adicionar Categoria
                   </button>
                 </div>
@@ -1300,18 +1300,18 @@ export default function SettingsPage() {
             {/* Lista de categorias */}
             <div className="space-y-3">
               {categories.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">
+                <p className="py-4 text-center text-gray-500">
                   Nenhuma categoria cadastrada ainda.
                 </p>
               ) : (
                 categories.map((category) => (
                   <div
                     key={category.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50"
+                    className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4"
                   >
                     <div className="flex items-center space-x-3">
                       <div
-                        className="w-4 h-4 rounded-full"
+                        className="h-4 w-4 rounded-full"
                         style={{ backgroundColor: category.color }}
                       ></div>
                       <div>
@@ -1327,7 +1327,7 @@ export default function SettingsPage() {
                     </div>
                     <button
                       onClick={() => deleteCategory(category.id)}
-                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                      className="rounded p-2 text-red-600 hover:bg-red-50 hover:text-red-800"
                       title="Remover categoria"
                     >
                       <X className="h-5 w-5" />
@@ -1339,12 +1339,12 @@ export default function SettingsPage() {
           </div>
 
           {/* Gerenciamento de Imagens */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="rounded-lg border bg-white p-6 shadow-sm">
+              <h3 className="mb-4 text-lg font-medium text-gray-900">
                 Imagens de Produtos
               </h3>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="mb-4 text-sm text-gray-600">
                 Faça upload de imagens de produtos no bucket "produtos". As
                 imagens são associadas aos produtos no cadastro.
               </p>
@@ -1355,11 +1355,11 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <div className="rounded-lg border bg-white p-6 shadow-sm">
+              <h3 className="mb-4 text-lg font-medium text-gray-900">
                 Logos de Marcas
               </h3>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="mb-4 text-sm text-gray-600">
                 Faça upload dos logos das marcas no bucket "marcas". Os logos
                 aparecem nas categorias do catálogo.
               </p>

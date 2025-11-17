@@ -6,7 +6,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from "recharts";
+} from 'recharts';
 
 interface SalesData {
   name: string;
@@ -19,8 +19,8 @@ interface SalesBarChartProps {
 
 export default function SalesBarChart({ data = [] }: SalesBarChartProps) {
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">
+    <div className="rounded-lg bg-white p-6 shadow">
+      <h3 className="mb-4 text-lg font-medium text-gray-900">
         Vendas por Marca
       </h3>
       <ResponsiveContainer width="100%" height={300}>

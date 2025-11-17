@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "../../../lib/supabaseClient";
+import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '../../../lib/supabaseClient';
 
 // Simulação de notificações em memória (em produção, use Redis ou database)
 let notifications: any[] = [];
@@ -7,12 +7,12 @@ let notifications: any[] = [];
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    const userId = searchParams.get('userId');
 
     if (!userId) {
       return NextResponse.json(
-        { error: "userId é obrigatório" },
-        { status: 400 },
+        { error: 'userId é obrigatório' },
+        { status: 400 }
       );
     }
 
@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
       unreadCount: userNotifications.filter((n) => !n.read).length,
     });
   } catch (error) {
-    console.error("Erro ao buscar notificações:", error);
+    console.error('Erro ao buscar notificações:', error);
     return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 },
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
     );
   }
 }
@@ -38,14 +38,14 @@ export async function POST(request: NextRequest) {
       userId,
       title,
       message,
-      type = "info",
+      type = 'info',
       data,
     } = await request.json();
 
     if (!userId || !title || !message) {
       return NextResponse.json(
-        { error: "Campos obrigatórios: userId, title, message" },
-        { status: 400 },
+        { error: 'Campos obrigatórios: userId, title, message' },
+        { status: 400 }
       );
     }
 
@@ -68,26 +68,26 @@ export async function POST(request: NextRequest) {
       const oldestNotifications = userNotifications
         .sort(
           (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         )
         .slice(0, userNotifications.length - 100);
 
       notifications = notifications.filter(
-        (n) => !oldestNotifications.includes(n),
+        (n) => !oldestNotifications.includes(n)
       );
     }
 
-    console.log("🔔 Notificação criada:", notification);
+    console.log('🔔 Notificação criada:', notification);
 
     return NextResponse.json({
       success: true,
       notification,
     });
   } catch (error) {
-    console.error("Erro ao criar notificação:", error);
+    console.error('Erro ao criar notificação:', error);
     return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 },
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
     );
   }
 }
@@ -98,19 +98,19 @@ export async function PATCH(request: NextRequest) {
 
     if (!notificationId || !userId) {
       return NextResponse.json(
-        { error: "Campos obrigatórios: notificationId, userId" },
-        { status: 400 },
+        { error: 'Campos obrigatórios: notificationId, userId' },
+        { status: 400 }
       );
     }
 
     const notificationIndex = notifications.findIndex(
-      (n) => n.id === notificationId && n.userId === userId,
+      (n) => n.id === notificationId && n.userId === userId
     );
 
     if (notificationIndex === -1) {
       return NextResponse.json(
-        { error: "Notificação não encontrada" },
-        { status: 404 },
+        { error: 'Notificação não encontrada' },
+        { status: 404 }
       );
     }
 
@@ -121,10 +121,10 @@ export async function PATCH(request: NextRequest) {
       notification: notifications[notificationIndex],
     });
   } catch (error) {
-    console.error("Erro ao marcar notificação como lida:", error);
+    console.error('Erro ao marcar notificação como lida:', error);
     return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 },
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
     );
   }
 }

@@ -60,14 +60,14 @@ public      | settings   | t           | 4
 ```javascript
 // Verificar autenticação
 const { data } = await supabase.auth.getUser();
-console.log("User:", data.user?.id);
+console.log('User:', data.user?.id);
 
 // Testar settings
 const { data: settings, error } = await supabase
-  .from("settings")
-  .select("*")
-  .eq("user_id", data.user?.id);
-console.log("Settings:", settings, "Error:", error);
+  .from('settings')
+  .select('*')
+  .eq('user_id', data.user?.id);
+console.log('Settings:', settings, 'Error:', error);
 ```
 
 ## 📋 SCRIPTS DISPONÍVEIS

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { supabase } from "../../../../../lib/supabaseClient";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { supabase } from '../../../../../lib/supabaseClient';
+import { useRouter, useParams } from 'next/navigation';
 import {
   Heart,
   ShoppingCart,
@@ -12,12 +12,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
-} from "lucide-react";
-import { useToast } from "../../../../../hooks/useToast";
+} from 'lucide-react';
+import { useToast } from '../../../../../hooks/useToast';
 
 // Função para formatar preços no formato brasileiro
 const formatPrice = (price: number): string => {
-  return price.toLocaleString("pt-BR", {
+  return price.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -87,21 +87,21 @@ export default function ProductDetailPage() {
   const loadProduct = async () => {
     try {
       const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("id", productId)
-        .eq("user_id", userId)
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .eq('user_id', userId)
         .single();
 
       if (error) throw error;
 
       setProduct(data);
     } catch (error) {
-      console.error("Erro ao carregar produto:", error);
+      console.error('Erro ao carregar produto:', error);
       addToast({
-        title: "Erro",
-        message: "Produto não encontrado.",
-        type: "error",
+        title: 'Erro',
+        message: 'Produto não encontrado.',
+        type: 'error',
       });
       router.push(`/catalog/${userId}`);
     } finally {
@@ -111,13 +111,13 @@ export default function ProductDetailPage() {
 
   const loadUserData = async () => {
     // Carregar favoritos do localStorage
-    const savedFavorites = localStorage.getItem("favorites");
+    const savedFavorites = localStorage.getItem('favorites');
     if (savedFavorites) {
       setFavorites(new Set(JSON.parse(savedFavorites)));
     }
 
     // Carregar carrinho do localStorage
-    const savedCart = localStorage.getItem("cart");
+    const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setCart(JSON.parse(savedCart));
     }
@@ -125,16 +125,16 @@ export default function ProductDetailPage() {
     // Carregar configurações do usuário
     try {
       const { data: userSettings, error } = await supabase
-        .from("settings")
-        .select("*")
-        .eq("user_id", userId)
+        .from('settings')
+        .select('*')
+        .eq('user_id', userId)
         .single();
 
       if (userSettings && !error) {
         setSettings(userSettings);
       }
     } catch (error) {
-      console.error("Erro ao carregar configurações:", error);
+      console.error('Erro ao carregar configurações:', error);
     }
   };
 
@@ -146,7 +146,7 @@ export default function ProductDetailPage() {
       newFavorites.add(productId);
     }
     setFavorites(newFavorites);
-    localStorage.setItem("favorites", JSON.stringify([...newFavorites]));
+    localStorage.setItem('favorites', JSON.stringify([...newFavorites]));
   };
 
   const addToCart = (productId: string, quantity: number) => {
@@ -154,19 +154,19 @@ export default function ProductDetailPage() {
     const existingQuantity = newCart[productId] || 0;
     newCart[productId] = existingQuantity + quantity;
     setCart(newCart);
-    localStorage.setItem("cart", JSON.stringify(newCart));
+    localStorage.setItem('cart', JSON.stringify(newCart));
 
     addToast({
-      title: "Produto adicionado!",
-      message: `${quantity}x ${product?.name || "Produto"} adicionado ao carrinho`,
-      type: "success",
+      title: 'Produto adicionado!',
+      message: `${quantity}x ${product?.name || 'Produto'} adicionado ao carrinho`,
+      type: 'success',
     });
   };
 
   const nextImage = () => {
     if (product?.images && product.images.length > 0) {
       setCurrentImageIndex((prev) =>
-        prev === product.images!.length - 1 ? 0 : prev + 1,
+        prev === product.images!.length - 1 ? 0 : prev + 1
       );
     }
   };
@@ -174,7 +174,7 @@ export default function ProductDetailPage() {
   const prevImage = () => {
     if (product?.images && product.images.length > 0) {
       setCurrentImageIndex((prev) =>
-        prev === 0 ? product.images!.length - 1 : prev - 1,
+        prev === 0 ? product.images!.length - 1 : prev - 1
       );
     }
   };
@@ -186,9 +186,9 @@ export default function ProductDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
           <p className="mt-4 text-gray-600">Carregando produto...</p>
         </div>
       </div>
@@ -197,15 +197,15 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <div className="text-center">
-          <div className="text-6xl mb-4">🔍</div>
-          <h3 className="text-xl font-medium text-gray-900 mb-2">
+          <div className="mb-4 text-6xl">🔍</div>
+          <h3 className="mb-2 text-xl font-medium text-gray-900">
             Produto não encontrado
           </h3>
           <button
             onClick={() => router.push(`/catalog/${userId}`)}
-            className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            className="mt-4 rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
           >
             Voltar ao catálogo
           </button>
@@ -218,14 +218,14 @@ export default function ProductDetailPage() {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header
-        className="bg-white border-b border-gray-200"
-        style={{ backgroundColor: settings?.header_color || "#FFFFFF" }}
+        className="border-b border-gray-200 bg-white"
+        style={{ backgroundColor: settings?.header_color || '#FFFFFF' }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Top Bar */}
           <div
             className="flex items-center justify-between py-2 text-sm"
-            style={{ color: settings?.icon_color || "#4B5563" }}
+            style={{ color: settings?.icon_color || '#4B5563' }}
           >
             <div className="flex items-center space-x-4">
               {settings?.phone && (
@@ -251,27 +251,27 @@ export default function ProductDetailPage() {
                 <h1
                   className="text-2xl font-bold text-gray-900"
                   style={{
-                    color: settings?.title_color || "#111827",
-                    fontFamily: settings?.font_family || "Inter, sans-serif",
+                    color: settings?.title_color || '#111827',
+                    fontFamily: settings?.font_family || 'Inter, sans-serif',
                   }}
                 >
-                  {settings?.name || "Rep-Vendas"}
+                  {settings?.name || 'Rep-Vendas'}
                 </h1>
               )}
             </div>
 
-            <div className="flex-1 max-w-2xl mx-8">
+            <div className="mx-8 max-w-2xl flex-1">
               <div className="relative">
                 <input
                   type="text"
                   placeholder="Buscar produtos..."
-                  className="w-full pl-4 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  className="w-full rounded-lg border border-gray-300 py-3 pl-4 pr-12 text-lg focus:border-transparent focus:ring-2 focus:ring-blue-500"
                   onClick={() => router.push(`/catalog/${userId}`)}
                 />
                 <button
-                  className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="absolute right-2 top-2 rounded bg-blue-600 p-2 text-white hover:bg-blue-700"
                   style={{
-                    backgroundColor: settings?.primary_color || "#3B82F6",
+                    backgroundColor: settings?.primary_color || '#3B82F6',
                   }}
                   onClick={() => router.push(`/catalog/${userId}`)}
                 >
@@ -282,9 +282,9 @@ export default function ProductDetailPage() {
 
             <div className="flex items-center space-x-6">
               <button
-                onClick={() => router.push("/favorites")}
+                onClick={() => router.push('/favorites')}
                 className="flex flex-col items-center text-gray-600 hover:text-gray-900"
-                style={{ color: settings?.icon_color || "#4B5563" }}
+                style={{ color: settings?.icon_color || '#4B5563' }}
               >
                 <Heart className="h-6 w-6" />
                 <span className="text-xs">Favoritos ({favorites.size})</span>
@@ -292,7 +292,7 @@ export default function ProductDetailPage() {
               <button
                 onClick={() => router.push(`/catalog/${userId}/checkout`)}
                 className="flex flex-col items-center text-gray-600 hover:text-gray-900"
-                style={{ color: settings?.icon_color || "#4B5563" }}
+                style={{ color: settings?.icon_color || '#4B5563' }}
               >
                 <ShoppingCart className="h-6 w-6" />
                 <span className="text-xs">
@@ -301,9 +301,9 @@ export default function ProductDetailPage() {
                 </span>
               </button>
               <button
-                onClick={() => router.push("/login")}
+                onClick={() => router.push('/login')}
                 className="flex flex-col items-center text-gray-600 hover:text-gray-900"
-                style={{ color: settings?.icon_color || "#4B5563" }}
+                style={{ color: settings?.icon_color || '#4B5563' }}
               >
                 <LogIn className="h-6 w-6" />
                 <span className="text-xs">Entrar</span>
@@ -314,14 +314,14 @@ export default function ProductDetailPage() {
       </header>
 
       {/* Breadcrumb */}
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <nav className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center space-x-2 py-4">
             <button
               onClick={() => router.push(`/catalog/${userId}`)}
               className="flex items-center text-gray-600 hover:text-gray-900"
             >
-              <ArrowLeft className="h-4 w-4 mr-1" />
+              <ArrowLeft className="mr-1 h-4 w-4" />
               Voltar ao catálogo
             </button>
             <span className="text-gray-400">/</span>
@@ -331,18 +331,18 @@ export default function ProductDetailPage() {
       </nav>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Product Images */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="relative bg-white rounded-lg overflow-hidden shadow-sm">
+            <div className="relative overflow-hidden rounded-lg bg-white shadow-sm">
               {product.images && product.images.length > 0 ? (
                 <>
                   <img
                     src={product.images[currentImageIndex]}
                     alt={product.name}
-                    className="w-full h-96 object-cover cursor-pointer"
+                    className="h-96 w-full cursor-pointer object-cover"
                     onClick={() => openImageModal(currentImageIndex)}
                   />
                   {/* Navigation arrows */}
@@ -350,13 +350,13 @@ export default function ProductDetailPage() {
                     <>
                       <button
                         onClick={prevImage}
-                        className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 rounded-full p-2 hover:bg-opacity-100 transition-all"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 transform rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
                       >
                         <ChevronLeft className="h-5 w-5 text-gray-700" />
                       </button>
                       <button
                         onClick={nextImage}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 rounded-full p-2 hover:bg-opacity-100 transition-all"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 transform rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
                       >
                         <ChevronRight className="h-5 w-5 text-gray-700" />
                       </button>
@@ -364,21 +364,21 @@ export default function ProductDetailPage() {
                   )}
                   {/* Badge de Bestseller */}
                   {product.bestseller && (
-                    <div className="absolute top-4 left-4 bg-yellow-400 text-yellow-900 px-3 py-1 rounded text-sm font-bold flex items-center">
-                      <Star className="h-4 w-4 mr-1 fill-current" />
+                    <div className="absolute left-4 top-4 flex items-center rounded bg-yellow-400 px-3 py-1 text-sm font-bold text-yellow-900">
+                      <Star className="mr-1 h-4 w-4 fill-current" />
                       Bestseller
                     </div>
                   )}
                   {/* Badge de Lançamento */}
                   {product.is_launch && (
-                    <div className="absolute top-4 right-4 bg-green-400 text-green-900 px-3 py-1 rounded text-sm font-bold">
+                    <div className="absolute right-4 top-4 rounded bg-green-400 px-3 py-1 text-sm font-bold text-green-900">
                       Lançamento
                     </div>
                   )}
                 </>
               ) : (
-                <div className="w-full h-96 bg-gray-100 flex items-center justify-center">
-                  <span className="text-gray-400 text-lg">Sem imagem</span>
+                <div className="flex h-96 w-full items-center justify-center bg-gray-100">
+                  <span className="text-lg text-gray-400">Sem imagem</span>
                 </div>
               )}
             </div>
@@ -390,16 +390,16 @@ export default function ProductDetailPage() {
                   <button
                     key={index}
                     onClick={() => setCurrentImageIndex(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded border-2 overflow-hidden ${
+                    className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded border-2 ${
                       index === currentImageIndex
-                        ? "border-blue-500"
-                        : "border-gray-300"
+                        ? 'border-blue-500'
+                        : 'border-gray-300'
                     }`}
                   >
                     <img
                       src={image}
                       alt={`${product.name} ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                     />
                   </button>
                 ))}
@@ -411,8 +411,8 @@ export default function ProductDetailPage() {
           <div className="space-y-6">
             {/* Brand */}
             <div>
-              <span className="text-sm text-blue-600 font-medium bg-blue-50 px-3 py-1 rounded">
-                {product.brand || "Marca"}
+              <span className="rounded bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600">
+                {product.brand || 'Marca'}
               </span>
             </div>
 
@@ -438,7 +438,7 @@ export default function ProductDetailPage() {
                   </span>
                 )}
                 {settings?.show_discount && (
-                  <span className="text-lg text-green-600 font-medium">
+                  <span className="text-lg font-medium text-green-600">
                     17% OFF
                   </span>
                 )}
@@ -454,7 +454,7 @@ export default function ProductDetailPage() {
             {settings?.show_shipping && (
               <div className="flex items-center text-gray-600">
                 <svg
-                  className="h-5 w-5 mr-2"
+                  className="mr-2 h-5 w-5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -473,15 +473,15 @@ export default function ProductDetailPage() {
             {/* Quantity and Add to Cart */}
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
-                <label className="text-gray-700 font-medium">Quantidade:</label>
-                <div className="flex items-center border border-gray-300 rounded">
+                <label className="font-medium text-gray-700">Quantidade:</label>
+                <div className="flex items-center rounded border border-gray-300">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
                     className="px-3 py-2 text-gray-600 hover:text-gray-900"
                   >
                     -
                   </button>
-                  <span className="px-4 py-2 border-x border-gray-300">
+                  <span className="border-x border-gray-300 px-4 py-2">
                     {quantity}
                   </span>
                   <button
@@ -496,23 +496,23 @@ export default function ProductDetailPage() {
               <div className="flex space-x-4">
                 <button
                   onClick={() => addToCart(product.id, quantity)}
-                  className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
+                  className="flex flex-1 items-center justify-center rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700"
                   style={{
-                    backgroundColor: settings?.primary_color || "#3B82F6",
+                    backgroundColor: settings?.primary_color || '#3B82F6',
                   }}
                 >
-                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  <ShoppingCart className="mr-2 h-5 w-5" />
                   Adicionar ao Carrinho
                 </button>
                 <button
                   onClick={() => toggleFavorite(product.id)}
-                  className={`p-3 border border-gray-300 rounded-lg hover:bg-gray-50 ${
-                    favorites.has(product.id) ? "text-red-500" : "text-gray-400"
+                  className={`rounded-lg border border-gray-300 p-3 hover:bg-gray-50 ${
+                    favorites.has(product.id) ? 'text-red-500' : 'text-gray-400'
                   }`}
                 >
                   <Heart
                     className={`h-5 w-5 ${
-                      favorites.has(product.id) ? "fill-current" : ""
+                      favorites.has(product.id) ? 'fill-current' : ''
                     }`}
                   />
                 </button>
@@ -522,10 +522,10 @@ export default function ProductDetailPage() {
             {/* Description */}
             {product.description && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="mb-2 text-lg font-semibold text-gray-900">
                   Descrição
                 </h3>
-                <p className="text-gray-700 leading-relaxed">
+                <p className="leading-relaxed text-gray-700">
                   {product.description}
                 </p>
               </div>
@@ -534,11 +534,11 @@ export default function ProductDetailPage() {
             {/* Technical Specifications */}
             {product.technical_specs && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="mb-2 text-lg font-semibold text-gray-900">
                   Ficha Técnica
                 </h3>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <pre className="text-sm text-gray-700 whitespace-pre-wrap">
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700">
                     {product.technical_specs}
                   </pre>
                 </div>
@@ -551,30 +551,30 @@ export default function ProductDetailPage() {
       {/* Image Modal */}
       {showImageModal && product.images && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-4"
           onClick={() => setShowImageModal(false)}
         >
           <div
-            className="relative max-w-5xl max-h-full"
+            className="relative max-h-full max-w-5xl"
             onClick={(e) => e.stopPropagation()}
           >
             <img
               src={product.images[currentImageIndex]}
               alt={product.name}
-              className="max-w-full max-h-full object-contain"
+              className="max-h-full max-w-full object-contain"
             />
             {/* Navigation in modal */}
             {product.images.length > 1 && (
               <>
                 <button
                   onClick={prevImage}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 rounded-full p-3 hover:bg-opacity-100 transition-all"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 transform rounded-full bg-white bg-opacity-90 p-3 transition-all hover:bg-opacity-100"
                 >
                   <ChevronLeft className="h-6 w-6 text-gray-700" />
                 </button>
                 <button
                   onClick={nextImage}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 rounded-full p-3 hover:bg-opacity-100 transition-all"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 transform rounded-full bg-white bg-opacity-90 p-3 transition-all hover:bg-opacity-100"
                 >
                   <ChevronRight className="h-6 w-6 text-gray-700" />
                 </button>
@@ -582,12 +582,12 @@ export default function ProductDetailPage() {
             )}
             <button
               onClick={() => setShowImageModal(false)}
-              className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-full p-2 hover:bg-opacity-100 transition-all"
+              className="absolute right-4 top-4 rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
             >
               <X className="h-6 w-6 text-gray-700" />
             </button>
             {/* Image counter */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transform rounded bg-black bg-opacity-50 px-3 py-1 text-white">
               {currentImageIndex + 1} / {product.images.length}
             </div>
           </div>

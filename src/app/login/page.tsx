@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState, FormEvent, useEffect } from "react";
-import { supabase } from "../../lib/supabaseClient";
-import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { useState, FormEvent, useEffect } from 'react';
+import { supabase } from '../../lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -17,14 +17,14 @@ export default function Login() {
     const fetchLogo = async () => {
       try {
         const { data: sets } = await supabase
-          .from("settings")
-          .select("logo_url")
+          .from('settings')
+          .select('logo_url')
           .limit(1);
         if (sets && sets.length > 0 && sets[0].logo_url) {
           setLogoUrl(sets[0].logo_url);
         }
       } catch (error) {
-        console.error("Erro ao carregar logo:", error);
+        console.error('Erro ao carregar logo:', error);
       }
     };
 
@@ -41,35 +41,35 @@ export default function Login() {
     if (error) {
       alert(error.message);
     } else {
-      router.push("/dashboard");
+      router.push('/dashboard');
     }
     setLoading(false);
   };
 
   const handleForgotPassword = () => {
     // TODO: Implementar funcionalidade de recuperação de senha
-    alert("Funcionalidade de recuperação de senha será implementada em breve.");
+    alert('Funcionalidade de recuperação de senha será implementada em breve.');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white rounded-2xl shadow-xl p-8">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-xl">
         {/* Logo Section */}
         <div className="text-center">
           {logoUrl ? (
-            <div className="mx-auto h-32 w-32 mb-4">
+            <div className="mx-auto mb-4 h-32 w-32">
               <img
                 src={logoUrl}
                 alt="Logo do Sistema"
-                className="h-full w-full object-contain rounded-lg"
+                className="h-full w-full rounded-lg object-contain"
               />
             </div>
           ) : (
-            <div className="mx-auto h-16 w-16 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-full flex items-center justify-center mb-4">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-blue-600">
               <Lock className="h-8 w-8 text-white" />
             </div>
           )}
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="mb-2 text-3xl font-bold text-gray-900">
             Bem-vindo de volta
           </h2>
           <p className="text-gray-600">Entre na sua conta para continuar</p>
@@ -81,12 +81,12 @@ export default function Login() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="mb-2 block text-sm font-medium text-gray-700"
             >
               Email
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                 <Mail className="h-5 w-5 text-gray-400" />
               </div>
               <input
@@ -97,7 +97,7 @@ export default function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 bg-gray-50 focus:bg-white"
+                className="block w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-3 transition-colors duration-200 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500"
                 placeholder="seu@email.com"
               />
             </div>
@@ -107,28 +107,28 @@ export default function Login() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="mb-2 block text-sm font-medium text-gray-700"
             >
               Senha
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                 <Lock className="h-5 w-5 text-gray-400" />
               </div>
               <input
                 id="password"
                 name="password"
-                type={showPassword ? "text" : "password"}
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 bg-gray-50 focus:bg-white"
+                className="block w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-10 transition-colors duration-200 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500"
                 placeholder="Digite sua senha"
               />
               <button
                 type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                className="absolute inset-y-0 right-0 flex items-center pr-3"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
@@ -145,7 +145,7 @@ export default function Login() {
             <button
               type="button"
               onClick={handleForgotPassword}
-              className="text-sm text-indigo-600 hover:text-indigo-500 font-medium transition-colors duration-200"
+              className="text-sm font-medium text-indigo-600 transition-colors duration-200 hover:text-indigo-500"
             >
               Esqueceu a senha?
             </button>
@@ -155,17 +155,17 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="group relative w-full flex justify-center items-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+            className="group relative flex w-full items-center justify-center rounded-lg border border-transparent bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-3 text-sm font-medium text-white shadow-lg transition-all duration-200 hover:from-indigo-700 hover:to-blue-700 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <div className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                 Entrando...
               </div>
             ) : (
               <div className="flex items-center">
                 Entrar
-                <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform duration-200" />
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
               </div>
             )}
           </button>

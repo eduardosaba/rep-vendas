@@ -1,14 +1,17 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { useToast } from "@/hooks/useToast";
-import { supabase } from "@/lib/supabaseClient";
-import { useSecureCheckout, UseSecureCheckoutReturn } from "@/hooks/useSecureCheckout";
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { useToast } from '@/hooks/useToast';
+import { supabase } from '@/lib/supabaseClient';
+import {
+  useSecureCheckout,
+  UseSecureCheckoutReturn,
+} from '@/hooks/useSecureCheckout';
 
 // Função para formatar preços no formato brasileiro
 const formatPrice = (price: number): string => {
-  return price.toLocaleString("pt-BR", {
+  return price.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -84,12 +87,12 @@ export interface UseCatalogReturn {
   selectedCategory: string;
   priceRange: [number, number];
   showFilters: boolean;
-  viewMode: "grid" | "list";
+  viewMode: 'grid' | 'list';
   favorites: Set<string>;
   cart: { [key: string]: number };
   selectedBrands: string[];
   sortBy: string;
-  sortOrder: "asc" | "desc";
+  sortOrder: 'asc' | 'desc';
   currentPage: number;
   totalProducts: number;
   loading: boolean;
@@ -107,10 +110,10 @@ export interface UseCatalogReturn {
   setSelectedCategory: (category: string) => void;
   setPriceRange: (range: [number, number]) => void;
   setShowFilters: (show: boolean) => void;
-  setViewMode: (mode: "grid" | "list") => void;
+  setViewMode: (mode: 'grid' | 'list') => void;
   setSelectedBrands: (brands: string[]) => void;
   setSortBy: (sort: string) => void;
-  setSortOrder: (order: "asc" | "desc") => void;
+  setSortOrder: (order: 'asc' | 'desc') => void;
   setCurrentPage: (page: number) => void;
   setItemsPerPage: (items: number) => void;
   setShowOnlyBestsellers: (show: boolean) => void;
@@ -128,7 +131,7 @@ export interface UseCatalogReturn {
 
   // Utilitários
   formatPrice: (price: number) => string;
-};
+}
 
 export const useCatalog = (): UseCatalogReturn => {
   const params = useParams();
@@ -140,22 +143,22 @@ export const useCatalog = (): UseCatalogReturn => {
   // Estados
   const [settings, setSettings] = useState<Settings | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("Todos");
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [showFilters, setShowFilters] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<string>("name");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortBy, setSortBy] = useState<string>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalProducts, setTotalProducts] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [bestsellerProducts, setBestsellerProducts] = useState<Product[]>([]);
   const [itemsPerPage, setItemsPerPage] = useState<number>(
-    DEFAULT_ITEMS_PER_PAGE,
+    DEFAULT_ITEMS_PER_PAGE
   );
   const [allBrands, setAllBrands] = useState<string[]>([]);
   const [showOnlyBestsellers, setShowOnlyBestsellers] =
@@ -164,13 +167,15 @@ export const useCatalog = (): UseCatalogReturn => {
 
   // Estados de proteção de preços
   const [priceAccessGranted, setPriceAccessGranted] = useState<boolean>(false);
-  const [priceAccessExpiresAt, setPriceAccessExpiresAt] = useState<number | null>(null);
+  const [priceAccessExpiresAt, setPriceAccessExpiresAt] = useState<
+    number | null
+  >(null);
 
   // Debounce da busca
   const debouncedSearch = useDebounce(searchTerm, 300);
 
   // Computed states
-  const categories = ["Todos", ...allBrands];
+  const categories = ['Todos', ...allBrands];
 
   // Efeitos
   useEffect(() => {
@@ -192,7 +197,7 @@ export const useCatalog = (): UseCatalogReturn => {
         sortBy,
         sortOrder,
         showOnlyBestsellers,
-        showOnlyNew,
+        showOnlyNew
       );
     }
   }, [
@@ -228,79 +233,79 @@ export const useCatalog = (): UseCatalogReturn => {
   // Funções de carregamento de dados
   const loadUserData = async () => {
     // Carregar favoritos do localStorage
-    const savedFavorites = localStorage.getItem("favorites");
+    const savedFavorites = localStorage.getItem('favorites');
     if (savedFavorites) {
       setFavorites(new Set(JSON.parse(savedFavorites)));
     }
 
     // Carregar carrinho do localStorage
-    const savedCart = localStorage.getItem("cart");
+    const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setCart(JSON.parse(savedCart));
     }
 
     // Carregar preferência de items por página
-    const savedItemsPerPage = localStorage.getItem("itemsPerPage");
+    const savedItemsPerPage = localStorage.getItem('itemsPerPage');
     if (savedItemsPerPage) {
       setItemsPerPage(parseInt(savedItemsPerPage, 10));
     }
 
     // Carregar acesso aos preços
-    const savedPriceAccess = localStorage.getItem("priceAccessGranted");
-    const savedPriceExpiresAt = localStorage.getItem("priceAccessExpiresAt");
+    const savedPriceAccess = localStorage.getItem('priceAccessGranted');
+    const savedPriceExpiresAt = localStorage.getItem('priceAccessExpiresAt');
 
-    if (savedPriceAccess === "true" && savedPriceExpiresAt) {
+    if (savedPriceAccess === 'true' && savedPriceExpiresAt) {
       const expiresAt = parseInt(savedPriceExpiresAt, 10);
       if (Date.now() < expiresAt) {
         setPriceAccessGranted(true);
         setPriceAccessExpiresAt(expiresAt);
       } else {
         // Acesso expirou, limpar
-        localStorage.removeItem("priceAccessGranted");
-        localStorage.removeItem("priceAccessExpiresAt");
+        localStorage.removeItem('priceAccessGranted');
+        localStorage.removeItem('priceAccessExpiresAt');
       }
     }
 
     // Carregar configurações do usuário
     try {
       const { data: userSettings, error } = await supabase
-        .from("settings")
-        .select("*")
-        .eq("user_id", userId)
+        .from('settings')
+        .select('*')
+        .eq('user_id', userId)
         .single();
 
       if (userSettings && !error) {
         setSettings(userSettings);
       }
     } catch (error) {
-      console.error("Erro ao carregar configurações:", error);
+      console.error('Erro ao carregar configurações:', error);
     }
   };
 
   const loadBestsellerProducts = async () => {
     try {
       const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("bestseller", true)
+        .from('products')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('bestseller', true)
         .limit(10);
 
       if (error) throw error;
 
       setBestsellerProducts(data || []);
     } catch (error) {
-      console.error("Erro ao carregar produtos best sellers:", error);
+      console.error('Erro ao carregar produtos best sellers:', error);
     }
   };
 
   const loadAllBrands = async () => {
     try {
       const { data, error } = await supabase
-        .from("products")
-        .select("brand")
-        .eq("user_id", userId)
-        .not("brand", "is", null);
+        .from('products')
+        .select('brand')
+        .eq('user_id', userId)
+        .not('brand', 'is', null);
 
       if (error) throw error;
 
@@ -309,7 +314,7 @@ export const useCatalog = (): UseCatalogReturn => {
       ] as string[];
       setAllBrands(uniqueBrands.sort());
     } catch (error) {
-      console.error("Erro ao carregar marcas:", error);
+      console.error('Erro ao carregar marcas:', error);
     }
   };
 
@@ -320,52 +325,52 @@ export const useCatalog = (): UseCatalogReturn => {
     brands: string[],
     price: [number, number],
     sort: string,
-    order: "asc" | "desc",
+    order: 'asc' | 'desc',
     onlyBestsellers: boolean,
-    onlyNew: boolean,
+    onlyNew: boolean
   ) => {
     setLoading(true);
     try {
       let query = supabase
-        .from("products")
-        .select("*", { count: "exact" })
-        .eq("user_id", userId);
+        .from('products')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId);
 
       // 1. Filtro de Busca (ILike)
       if (search.trim()) {
-        query = query.ilike("name", `%${search.trim()}%`);
+        query = query.ilike('name', `%${search.trim()}%`);
       }
 
       // 2. Filtro de Categoria (Navbar)
-      if (category !== "Todos") {
-        query = query.eq("brand", category);
+      if (category !== 'Todos') {
+        query = query.eq('brand', category);
       }
 
       // 3. Filtro de Marcas (Sidebar)
       if (brands.length > 0) {
-        query = query.in("brand", brands);
+        query = query.in('brand', brands);
       }
 
       // 4. Filtro de Preço
-      query = query.gte("price", price[0]).lte("price", price[1]);
+      query = query.gte('price', price[0]).lte('price', price[1]);
 
       // 5. Filtro de Bestsellers
       if (onlyBestsellers) {
-        query = query.eq("bestseller", true);
+        query = query.eq('bestseller', true);
       }
 
       // 6. Filtro de Novos Lançamentos
       if (onlyNew) {
-        query = query.eq("is_launch", true);
+        query = query.eq('is_launch', true);
       }
 
       // 7. Ordenação
       let sortField = sort;
-      if (sort === "name") sortField = "name";
-      if (sort === "price") sortField = "price";
-      if (sort === "brand") sortField = "brand";
+      if (sort === 'name') sortField = 'name';
+      if (sort === 'price') sortField = 'price';
+      if (sort === 'brand') sortField = 'brand';
 
-      query = query.order(sortField, { ascending: order === "asc" });
+      query = query.order(sortField, { ascending: order === 'asc' });
 
       // 6. Paginação
       const from = (page - 1) * itemsPerPage;
@@ -379,11 +384,11 @@ export const useCatalog = (): UseCatalogReturn => {
       setProducts(data || []);
       setTotalProducts(count || 0);
     } catch (error) {
-      console.error("Erro ao carregar produtos:", error);
+      console.error('Erro ao carregar produtos:', error);
       addToast({
-        title: "Erro",
-        message: "Não foi possível carregar os produtos.",
-        type: "error",
+        title: 'Erro',
+        message: 'Não foi possível carregar os produtos.',
+        type: 'error',
       });
     } finally {
       setLoading(false);
@@ -399,7 +404,7 @@ export const useCatalog = (): UseCatalogReturn => {
       newFavorites.add(productId);
     }
     setFavorites(newFavorites);
-    localStorage.setItem("favorites", JSON.stringify([...newFavorites]));
+    localStorage.setItem('favorites', JSON.stringify([...newFavorites]));
   };
 
   const addToCart = (productId: string, quantity: number) => {
@@ -407,7 +412,7 @@ export const useCatalog = (): UseCatalogReturn => {
     const existingQuantity = newCart[productId] || 0;
     newCart[productId] = existingQuantity + quantity;
     setCart(newCart);
-    localStorage.setItem("cart", JSON.stringify(newCart));
+    localStorage.setItem('cart', JSON.stringify(newCart));
 
     // Encontrar o produto para mostrar o nome no toast
     // Verificar tanto na lista principal quanto nos bestsellers
@@ -416,61 +421,61 @@ export const useCatalog = (): UseCatalogReturn => {
       bestsellerProducts.find((p) => p.id === productId);
 
     addToast({
-      title: "Produto adicionado!",
+      title: 'Produto adicionado!',
       message: `${quantity}x ${
-        product?.name || "Produto"
+        product?.name || 'Produto'
       } adicionado ao carrinho`,
-      type: "success",
+      type: 'success',
     });
   };
 
   const clearFilters = () => {
-    setSearchTerm("");
-    setSelectedCategory("Todos");
+    setSearchTerm('');
+    setSelectedCategory('Todos');
     setPriceRange([0, 10000]);
     setSelectedBrands([]);
     setShowOnlyBestsellers(false);
     setShowOnlyNew(false);
-    setSortBy("name");
-    setSortOrder("asc");
+    setSortBy('name');
+    setSortOrder('asc');
   };
 
   // Funções de proteção de preços
   const requestPriceAccess = async (password: string): Promise<boolean> => {
     try {
       // Verificar senha (por enquanto hardcoded, depois pode vir das settings)
-      const correctPassword = settings?.price_access_password || "123456";
+      const correctPassword = settings?.price_access_password || '123456';
 
       if (password === correctPassword) {
-        const expiresAt = Date.now() + (30 * 60 * 1000); // 30 minutos
+        const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutos
         setPriceAccessGranted(true);
         setPriceAccessExpiresAt(expiresAt);
 
         // Salvar no localStorage
-        localStorage.setItem("priceAccessGranted", "true");
-        localStorage.setItem("priceAccessExpiresAt", expiresAt.toString());
+        localStorage.setItem('priceAccessGranted', 'true');
+        localStorage.setItem('priceAccessExpiresAt', expiresAt.toString());
 
         addToast({
-          title: "Acesso concedido!",
-          message: "Você pode visualizar os preços por 30 minutos.",
-          type: "success",
+          title: 'Acesso concedido!',
+          message: 'Você pode visualizar os preços por 30 minutos.',
+          type: 'success',
         });
 
         return true;
       } else {
         addToast({
-          title: "Senha incorreta",
-          message: "Verifique a senha e tente novamente.",
-          type: "error",
+          title: 'Senha incorreta',
+          message: 'Verifique a senha e tente novamente.',
+          type: 'error',
         });
         return false;
       }
     } catch (error) {
-      console.error("Erro ao verificar senha:", error);
+      console.error('Erro ao verificar senha:', error);
       addToast({
-        title: "Erro",
-        message: "Não foi possível verificar a senha.",
-        type: "error",
+        title: 'Erro',
+        message: 'Não foi possível verificar a senha.',
+        type: 'error',
       });
       return false;
     }
@@ -485,13 +490,13 @@ export const useCatalog = (): UseCatalogReturn => {
       // Acesso expirou
       setPriceAccessGranted(false);
       setPriceAccessExpiresAt(null);
-      localStorage.removeItem("priceAccessGranted");
-      localStorage.removeItem("priceAccessExpiresAt");
+      localStorage.removeItem('priceAccessGranted');
+      localStorage.removeItem('priceAccessExpiresAt');
 
       addToast({
-        title: "Acesso expirado",
-        message: "O acesso aos preços expirou. Solicite novamente.",
-        type: "warning",
+        title: 'Acesso expirado',
+        message: 'O acesso aos preços expirou. Solicite novamente.',
+        type: 'warning',
       });
 
       return false;
@@ -503,7 +508,7 @@ export const useCatalog = (): UseCatalogReturn => {
   // Handlers para setters que precisam de lógica adicional
   const handleSetItemsPerPage = (items: number) => {
     setItemsPerPage(items);
-    localStorage.setItem("itemsPerPage", items.toString());
+    localStorage.setItem('itemsPerPage', items.toString());
   };
 
   return {

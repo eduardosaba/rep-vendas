@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Settings } from "../../lib/types";
+import { Settings } from '../../lib/types';
 
 interface NavCategoriesProps {
   categories: string[];
@@ -16,8 +16,8 @@ export const NavCategories: React.FC<NavCategoriesProps> = ({
   settings,
 }) => {
   return (
-    <nav className="bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="border-b border-gray-200 bg-white">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between py-4">
           <div className="flex items-center space-x-8">
             <span className="text-lg font-semibold text-gray-900">
@@ -28,10 +28,10 @@ export const NavCategories: React.FC<NavCategoriesProps> = ({
                 <button
                   key={category}
                   onClick={() => onSelectCategory(category)}
-                  className={`text-sm whitespace-nowrap font-medium ${
+                  className={`whitespace-nowrap text-sm font-medium ${
                     selectedCategory === category
-                      ? "text-blue-600 border-b-2 border-blue-600 pb-1"
-                      : "text-gray-700 hover:text-gray-900"
+                      ? 'border-b-2 border-blue-600 pb-1 text-blue-600'
+                      : 'text-gray-700 hover:text-gray-900'
                   }`}
                 >
                   {category}

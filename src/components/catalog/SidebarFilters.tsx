@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Settings } from "../../lib/types";
+import { Settings } from '../../lib/types';
 
 interface SidebarFiltersProps {
   settings: Settings | null;
@@ -41,13 +41,13 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
   }
 
   return (
-    <aside className={`w-64 pr-6 ${showFilters ? "block" : "hidden"} md:block`}>
-      <div className="bg-white p-4 rounded shadow-sm">
-        <h3 className="font-medium text-gray-900 mb-4">Filtros</h3>
+    <aside className={`w-64 pr-6 ${showFilters ? 'block' : 'hidden'} md:block`}>
+      <div className="rounded bg-white p-4 shadow-sm">
+        <h3 className="mb-4 font-medium text-gray-900">Filtros</h3>
 
         {settings?.show_filter_price !== false && (
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700">
               Preço
             </label>
             <div className="space-y-2">
@@ -71,10 +71,10 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
 
         {settings?.show_filter_category !== false && (
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700">
               Marcas
             </label>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
+            <div className="max-h-60 space-y-2 overflow-y-auto">
               {allBrands.map((brand) => (
                 <label key={brand} className="flex items-center">
                   <input
@@ -85,7 +85,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                         onBrandChange([...selectedBrands, brand]);
                       } else {
                         onBrandChange(
-                          selectedBrands.filter((b) => b !== brand),
+                          selectedBrands.filter((b) => b !== brand)
                         );
                       }
                     }}
@@ -100,7 +100,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
 
         {settings?.show_filter_bestseller !== false && (
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700">
               Destaques
             </label>
             <div className="space-y-2">
@@ -111,7 +111,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                   onChange={(e) => onBestsellerChange(e.target.checked)}
                   className="mr-2"
                 />
-                <span className="text-sm text-gray-700 flex items-center">
+                <span className="flex items-center text-sm text-gray-700">
                   ⭐ Bestsellers
                 </span>
               </label>
@@ -122,7 +122,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                   onChange={(e) => onNewChange(e.target.checked)}
                   className="mr-2"
                 />
-                <span className="text-sm text-gray-700 flex items-center">
+                <span className="flex items-center text-sm text-gray-700">
                   🆕 Novos Lançamentos
                 </span>
               </label>
@@ -132,7 +132,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
 
         <button
           onClick={onClearFilters}
-          className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded hover:bg-gray-200"
+          className="w-full rounded bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200"
         >
           Limpar Filtros
         </button>

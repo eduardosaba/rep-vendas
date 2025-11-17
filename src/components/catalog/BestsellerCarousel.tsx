@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { Heart, Star } from "lucide-react";
-import { Product, Settings } from "../../lib/types";
+import { useRouter } from 'next/navigation';
+import { Heart, Star } from 'lucide-react';
+import { Product, Settings } from '../../lib/types';
 
 interface BestsellerCarouselProps {
   products: Product[];
@@ -31,8 +31,8 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
 
   return (
     <div className="mb-8 mt-16">
-      <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-        <Star className="h-5 w-5 text-yellow-500 mr-2 fill-current" />
+      <h3 className="mb-4 flex items-center text-xl font-bold text-gray-900">
+        <Star className="mr-2 h-5 w-5 fill-current text-yellow-500" />
         Best Sellers
       </h3>
       <div className="overflow-x-auto">
@@ -40,7 +40,7 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
           {products.map((product) => (
             <div
               key={product.id}
-              className="flex-shrink-0 w-64 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              className="w-64 flex-shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
               onClick={() =>
                 router.push(`/catalog/${userId}/product/${product.id}`)
               }
@@ -50,26 +50,26 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
                   <img
                     src={product.images[0]}
                     alt={product.name}
-                    className="w-full h-40 object-cover rounded-t-lg"
+                    className="h-40 w-full rounded-t-lg object-cover"
                   />
                 ) : (
-                  <div className="w-full h-40 bg-gray-100 rounded-t-lg flex items-center justify-center">
-                    <span className="text-gray-400 text-sm">Sem imagem</span>
+                  <div className="flex h-40 w-full items-center justify-center rounded-t-lg bg-gray-100">
+                    <span className="text-sm text-gray-400">Sem imagem</span>
                   </div>
                 )}
-                <div className="absolute top-2 right-2">
+                <div className="absolute right-2 top-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onToggleFavorite(product.id);
                     }}
-                    className="p-1 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all"
+                    className="rounded-full bg-white bg-opacity-90 p-1 transition-all hover:bg-opacity-100"
                   >
                     <Heart
                       className={`h-4 w-4 ${
                         favorites.has(product.id)
-                          ? "text-red-500 fill-current"
-                          : "text-gray-400"
+                          ? 'fill-current text-red-500'
+                          : 'text-gray-400'
                       }`}
                     />
                   </button>
@@ -77,14 +77,14 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
               </div>
               <div className="p-4">
                 <div className="mb-2">
-                  <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded">
-                    {product.brand || "Marca"}
+                  <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
+                    {product.brand || 'Marca'}
                   </span>
                 </div>
-                <h4 className="text-sm font-medium text-gray-900 mb-2 line-clamp-2">
+                <h4 className="mb-2 line-clamp-2 text-sm font-medium text-gray-900">
                   {product.name}
                 </h4>
-                <div className="flex items-baseline space-x-2 mb-2">
+                <div className="mb-2 flex items-baseline space-x-2">
                   <span className="text-lg font-bold text-gray-900">
                     R$ {formatPrice(product.price)}
                   </span>
@@ -99,9 +99,9 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
                     e.stopPropagation();
                     onAddToCart(product.id, 1);
                   }}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+                  className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                   style={{
-                    backgroundColor: settings?.primary_color || "#3B82F6",
+                    backgroundColor: settings?.primary_color || '#3B82F6',
                   }}
                 >
                   Adicionar
