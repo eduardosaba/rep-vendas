@@ -1,18 +1,28 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 interface SalesData {
-  name: string
-  vendas: number
+  name: string;
+  vendas: number;
 }
 
 interface SalesBarChartProps {
-  data: SalesData[]
+  data: SalesData[];
 }
 
 export default function SalesBarChart({ data = [] }: SalesBarChartProps) {
   return (
     <div className="bg-white p-6 rounded-lg shadow">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">Vendas por Marca</h3>
+      <h3 className="text-lg font-medium text-gray-900 mb-4">
+        Vendas por Marca
+      </h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -23,5 +33,5 @@ export default function SalesBarChart({ data = [] }: SalesBarChartProps) {
         </BarChart>
       </ResponsiveContainer>
     </div>
-  )
+  );
 }

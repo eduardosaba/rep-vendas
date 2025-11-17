@@ -32,6 +32,7 @@ Sistema SaaS para catálogo virtual e dashboard de vendas.
 ## Estrutura do Banco de Dados
 
 As tabelas são criadas via SQL em `SQL/supabase_schema.sql`:
+
 - clients, products, orders, order_items, settings
 
 ## Como Usar

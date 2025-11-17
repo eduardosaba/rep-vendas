@@ -98,10 +98,10 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ToastCo
 ;
 ;
 const metadata = {
-    title: 'Rep-Vendas',
-    description: 'Sistema SaaS para catálogo virtual e dashboard de vendas',
+    title: "Rep-Vendas",
+    description: "Sistema SaaS para catálogo virtual e dashboard de vendas",
     icons: {
-        icon: '/favicon.svg'
+        icon: "/favicon.svg"
     }
 };
 function RootLayout({ children }) {

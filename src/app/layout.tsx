@@ -1,18 +1,18 @@
-import './globals.css'
-import { Metadata } from 'next'
-import { ToastProvider } from '../hooks/useToast'
-import { ToastContainer } from '../components/ToastContainer'
+import "./globals.css";
+import { Metadata } from "next";
+import { ToastProvider } from "../hooks/useToast";
+import { ToastContainer } from "../components/ToastContainer";
 
 export const metadata: Metadata = {
-  title: 'Rep-Vendas',
-  description: 'Sistema SaaS para catálogo virtual e dashboard de vendas',
+  title: "Rep-Vendas",
+  description: "Sistema SaaS para catálogo virtual e dashboard de vendas",
   icons: {
-    icon: '/favicon.svg',
+    icon: "/favicon.svg",
   },
-}
+};
 
 interface RootLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export default function RootLayout({ children }: RootLayoutProps) {
@@ -25,5 +25,5 @@ export default function RootLayout({ children }: RootLayoutProps) {
         </ToastProvider>
       </body>
     </html>
-  )
+  );
 }

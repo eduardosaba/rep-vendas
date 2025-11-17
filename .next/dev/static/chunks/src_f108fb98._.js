@@ -9,8 +9,8 @@ __turbopack_context__.s([
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = /*#__PURE__*/ __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.0.2_@babel+core@7.2_ac612d167d9caedc69b237559ab43d82/node_modules/next/dist/build/polyfills/process.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f40$supabase$2b$supabase$2d$js$40$2$2e$81$2e$1$2f$node_modules$2f40$supabase$2f$supabase$2d$js$2f$dist$2f$module$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/@supabase+supabase-js@2.81.1/node_modules/@supabase/supabase-js/dist/module/index.js [app-client] (ecmascript) <locals>");
 ;
-const supabaseUrl = ("TURBOPACK compile-time value", "https://aawghxjbipcqefmikwby.supabase.co") || 'YOUR_SUPABASE_URL';
-const supabaseAnonKey = ("TURBOPACK compile-time value", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhd2doeGpiaXBjcWVmbWlrd2J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NjI3NTgsImV4cCI6MjA3ODUzODc1OH0.Ml1sIc2rpkXAh-DuILaNKwFRmI6-COOeZY-HoBILJUw") || 'YOUR_SUPABASE_ANON_KEY';
+const supabaseUrl = ("TURBOPACK compile-time value", "https://aawghxjbipcqefmikwby.supabase.co") || "YOUR_SUPABASE_URL";
+const supabaseAnonKey = ("TURBOPACK compile-time value", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhd2doeGpiaXBjcWVmbWlrd2J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NjI3NTgsImV4cCI6MjA3ODUzODc1OH0.Ml1sIc2rpkXAh-DuILaNKwFRmI6-COOeZY-HoBILJUw") || "YOUR_SUPABASE_ANON_KEY";
 const supabase = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f40$supabase$2b$supabase$2d$js$40$2$2e$81$2e$1$2f$node_modules$2f40$supabase$2f$supabase$2d$js$2f$dist$2f$module$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["createClient"])(supabaseUrl, supabaseAnonKey);
 if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {
     __turbopack_context__.k.registerExports(__turbopack_context__.m, globalThis.$RefreshHelpers$);
@@ -31,7 +31,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient
 ;
 const uploadImage = async (file, bucket, userId, customFileName = null)=>{
     try {
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split(".").pop();
         const fileName = customFileName || `${userId}_${Date.now()}.${fileExt}`;
         const filePath = `${bucket}/${fileName}`;
         const { error: uploadError } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].storage.from(bucket).upload(filePath, file);
@@ -45,7 +45,7 @@ const uploadImage = async (file, bucket, userId, customFileName = null)=>{
             filePath: filePath
         };
     } catch (error) {
-        console.error('Erro ao fazer upload:', error);
+        console.error("Erro ao fazer upload:", error);
         return {
             success: false,
             error: error.message
@@ -64,7 +64,7 @@ const deleteImage = async (bucket, filePath)=>{
             success: true
         };
     } catch (error) {
-        console.error('Erro ao deletar imagem:', error);
+        console.error("Erro ao deletar imagem:", error);
         return {
             success: false,
             error: error.message
@@ -97,7 +97,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$lu
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$lucide$2d$react$40$0$2e$553$2e$0_react$40$19$2e$2$2e$0$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/lucide-react@0.553.0_react@19.2.0/node_modules/lucide-react/dist/esm/icons/x.js [app-client] (ecmascript) <export default as X>");
 ;
 var _s = __turbopack_context__.k.signature();
-'use client';
+"use client";
 ;
 ;
 ;
@@ -108,26 +108,32 @@ function SettingsPage() {
     const [user, setUser] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     const router = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"])();
     const [settings, setSettings] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])({
-        name: '',
-        email: '',
-        phone: '',
-        logo_url: '',
-        banner_url: '',
-        primary_color: '#3B82F6',
-        secondary_color: '#6B7280',
-        header_color: '#FFFFFF',
-        font_family: 'Inter, sans-serif',
-        title_color: '#111827',
-        icon_color: '#4B5563',
-        email_provider: 'resend',
-        email_api_key: '',
-        email_from: '',
+        name: "",
+        email: "",
+        phone: "",
+        logo_url: "",
+        banner_url: "",
+        primary_color: "#3B82F6",
+        secondary_color: "#6B7280",
+        header_color: "#FFFFFF",
+        font_family: "Inter, sans-serif",
+        title_color: "#111827",
+        icon_color: "#4B5563",
+        email_provider: "resend",
+        email_api_key: "",
+        email_from: "",
         show_shipping: true,
         show_installments: true,
         show_delivery_address: true,
         show_installments_checkout: true,
         show_discount: true,
-        show_old_price: true
+        show_old_price: true,
+        show_filter_price: true,
+        show_filter_category: true,
+        show_filter_bestseller: true,
+        show_filter_new: true,
+        show_delivery_address_checkout: true,
+        show_payment_method_checkout: true
     });
     const [uploading, setUploading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])({
         logo: false,
@@ -135,14 +141,14 @@ function SettingsPage() {
         product: false,
         brand: false
     });
-    const [message, setMessage] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])('');
+    const [message, setMessage] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "SettingsPage.useEffect": ()=>{
             const getUser = {
                 "SettingsPage.useEffect.getUser": async ()=>{
                     const { data: { user } } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].auth.getUser();
                     if (!user) {
-                        router.push('/login');
+                        router.push("/login");
                     } else {
                         setUser(user);
                         loadSettings(user.id);
@@ -155,30 +161,36 @@ function SettingsPage() {
         router
     ]);
     const loadSettings = async (userId)=>{
-        const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('settings').select('*').eq('user_id', userId).single();
+        const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from("settings").select("*").eq("user_id", userId).single();
         if (data && !error) {
             // Garantir que todos os valores sejam strings ou valores apropriados
             setSettings({
-                name: data.name || '',
-                email: data.email || '',
-                phone: data.phone || '',
-                logo_url: data.logo_url || '',
-                banner_url: data.banner_url || '',
-                primary_color: data.primary_color || '#3B82F6',
-                secondary_color: data.secondary_color || '#6B7280',
-                header_color: data.header_color || '#FFFFFF',
-                font_family: data.font_family || 'Inter, sans-serif',
-                title_color: data.title_color || '#111827',
-                icon_color: data.icon_color || '#4B5563',
-                email_provider: data.email_provider || 'resend',
-                email_api_key: data.email_api_key || '',
-                email_from: data.email_from || '',
+                name: data.name || "",
+                email: data.email || "",
+                phone: data.phone || "",
+                logo_url: data.logo_url || "",
+                banner_url: data.banner_url || "",
+                primary_color: data.primary_color || "#3B82F6",
+                secondary_color: data.secondary_color || "#6B7280",
+                header_color: data.header_color || "#FFFFFF",
+                font_family: data.font_family || "Inter, sans-serif",
+                title_color: data.title_color || "#111827",
+                icon_color: data.icon_color || "#4B5563",
+                email_provider: data.email_provider || "resend",
+                email_api_key: data.email_api_key || "",
+                email_from: data.email_from || "",
                 show_shipping: data.show_shipping !== undefined ? data.show_shipping : true,
                 show_installments: data.show_installments !== undefined ? data.show_installments : true,
                 show_delivery_address: data.show_delivery_address !== undefined ? data.show_delivery_address : true,
                 show_installments_checkout: data.show_installments_checkout !== undefined ? data.show_installments_checkout : true,
                 show_discount: data.show_discount !== undefined ? data.show_discount : true,
-                show_old_price: data.show_old_price !== undefined ? data.show_old_price : true
+                show_old_price: data.show_old_price !== undefined ? data.show_old_price : true,
+                show_filter_price: data.show_filter_price !== undefined ? data.show_filter_price : true,
+                show_filter_category: data.show_filter_category !== undefined ? data.show_filter_category : true,
+                show_filter_bestseller: data.show_filter_bestseller !== undefined ? data.show_filter_bestseller : true,
+                show_filter_new: data.show_filter_new !== undefined ? data.show_filter_new : true,
+                show_delivery_address_checkout: data.show_delivery_address_checkout !== undefined ? data.show_delivery_address_checkout : true,
+                show_payment_method_checkout: data.show_payment_method_checkout !== undefined ? data.show_payment_method_checkout : true
             });
         }
     };
@@ -188,15 +200,15 @@ function SettingsPage() {
                 ...prev,
                 [field]: true
             }));
-        setMessage('');
+        setMessage("");
         const result = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$storage$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["uploadImage"])(file, bucket, user.id);
         if (result.success) {
-            if (field === 'logo') {
+            if (field === "logo") {
                 setSettings((prev)=>({
                         ...prev,
                         logo_url: result.publicUrl
                     }));
-            } else if (field === 'banner') {
+            } else if (field === "banner") {
                 setSettings((prev)=>({
                         ...prev,
                         banner_url: result.publicUrl
@@ -221,23 +233,23 @@ function SettingsPage() {
         if (!user) return;
         try {
             // Primeiro, tentar atualizar se já existe
-            const { data: existing } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('settings').select('id').eq('user_id', user.id).single();
+            const { data: existing } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from("settings").select("id").eq("user_id", user.id).single();
             let result;
             if (existing) {
                 // Atualizar registro existente
-                result = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('settings').update({
+                result = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from("settings").update({
                     name: settings.name || null,
                     email: settings.email || null,
                     phone: settings.phone || null,
                     logo_url: settings.logo_url || null,
                     banner_url: settings.banner_url || null,
-                    primary_color: settings.primary_color || '#3B82F6',
-                    secondary_color: settings.secondary_color || '#6B7280',
-                    header_color: settings.header_color || '#FFFFFF',
-                    font_family: settings.font_family || 'Inter, sans-serif',
-                    title_color: settings.title_color || '#111827',
-                    icon_color: settings.icon_color || '#4B5563',
-                    email_provider: settings.email_provider || 'resend',
+                    primary_color: settings.primary_color || "#3B82F6",
+                    secondary_color: settings.secondary_color || "#6B7280",
+                    header_color: settings.header_color || "#FFFFFF",
+                    font_family: settings.font_family || "Inter, sans-serif",
+                    title_color: settings.title_color || "#111827",
+                    icon_color: settings.icon_color || "#4B5563",
+                    email_provider: settings.email_provider || "resend",
                     email_api_key: settings.email_api_key || null,
                     email_from: settings.email_from || null,
                     show_shipping: settings.show_shipping !== undefined ? settings.show_shipping : true,
@@ -245,24 +257,30 @@ function SettingsPage() {
                     show_delivery_address: settings.show_delivery_address !== undefined ? settings.show_delivery_address : true,
                     show_installments_checkout: settings.show_installments_checkout !== undefined ? settings.show_installments_checkout : true,
                     show_discount: settings.show_discount !== undefined ? settings.show_discount : true,
-                    show_old_price: settings.show_old_price !== undefined ? settings.show_old_price : true
-                }).eq('user_id', user.id);
+                    show_old_price: settings.show_old_price !== undefined ? settings.show_old_price : true,
+                    show_filter_price: settings.show_filter_price !== undefined ? settings.show_filter_price : true,
+                    show_filter_category: settings.show_filter_category !== undefined ? settings.show_filter_category : true,
+                    show_filter_bestseller: settings.show_filter_bestseller !== undefined ? settings.show_filter_bestseller : true,
+                    show_filter_new: settings.show_filter_new !== undefined ? settings.show_filter_new : true,
+                    show_delivery_address_checkout: settings.show_delivery_address_checkout !== undefined ? settings.show_delivery_address_checkout : true,
+                    show_payment_method_checkout: settings.show_payment_method_checkout !== undefined ? settings.show_payment_method_checkout : true
+                }).eq("user_id", user.id);
             } else {
                 // Inserir novo registro
-                result = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('settings').insert({
+                result = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from("settings").insert({
                     user_id: user.id,
                     name: settings.name || null,
                     email: settings.email || null,
                     phone: settings.phone || null,
                     logo_url: settings.logo_url || null,
                     banner_url: settings.banner_url || null,
-                    primary_color: settings.primary_color || '#3B82F6',
-                    secondary_color: settings.secondary_color || '#6B7280',
-                    header_color: settings.header_color || '#FFFFFF',
-                    font_family: settings.font_family || 'Inter, sans-serif',
-                    title_color: settings.title_color || '#111827',
-                    icon_color: settings.icon_color || '#4B5563',
-                    email_provider: settings.email_provider || 'resend',
+                    primary_color: settings.primary_color || "#3B82F6",
+                    secondary_color: settings.secondary_color || "#6B7280",
+                    header_color: settings.header_color || "#FFFFFF",
+                    font_family: settings.font_family || "Inter, sans-serif",
+                    title_color: settings.title_color || "#111827",
+                    icon_color: settings.icon_color || "#4B5563",
+                    email_provider: settings.email_provider || "resend",
                     email_api_key: settings.email_api_key || null,
                     email_from: settings.email_from || null,
                     show_shipping: settings.show_shipping !== undefined ? settings.show_shipping : true,
@@ -270,13 +288,19 @@ function SettingsPage() {
                     show_delivery_address: settings.show_delivery_address !== undefined ? settings.show_delivery_address : true,
                     show_installments_checkout: settings.show_installments_checkout !== undefined ? settings.show_installments_checkout : true,
                     show_discount: settings.show_discount !== undefined ? settings.show_discount : true,
-                    show_old_price: settings.show_old_price !== undefined ? settings.show_old_price : true
+                    show_old_price: settings.show_old_price !== undefined ? settings.show_old_price : true,
+                    show_filter_price: settings.show_filter_price !== undefined ? settings.show_filter_price : true,
+                    show_filter_category: settings.show_filter_category !== undefined ? settings.show_filter_category : true,
+                    show_filter_bestseller: settings.show_filter_bestseller !== undefined ? settings.show_filter_bestseller : true,
+                    show_filter_new: settings.show_filter_new !== undefined ? settings.show_filter_new : true,
+                    show_delivery_address_checkout: settings.show_delivery_address_checkout !== undefined ? settings.show_delivery_address_checkout : true,
+                    show_payment_method_checkout: settings.show_payment_method_checkout !== undefined ? settings.show_payment_method_checkout : true
                 });
             }
             if (result.error) throw result.error;
-            setMessage('Configurações salvas com sucesso!');
+            setMessage("Configurações salvas com sucesso!");
         } catch (error) {
-            console.error('Erro ao salvar configurações:', error);
+            console.error("Erro ao salvar configurações:", error);
             setMessage(`Erro ao salvar configurações: ${error.message}`);
         }
     };
@@ -288,7 +312,7 @@ function SettingsPage() {
                     children: title
                 }, void 0, false, {
                     fileName: "[project]/src/app/settings/page.tsx",
-                    lineNumber: 238,
+                    lineNumber: 378,
                     columnNumber: 7
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -296,10 +320,10 @@ function SettingsPage() {
                     children: description
                 }, void 0, false, {
                     fileName: "[project]/src/app/settings/page.tsx",
-                    lineNumber: 239,
+                    lineNumber: 379,
                     columnNumber: 7
                 }, this),
-                currentUrl && currentUrl.trim() !== '' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                currentUrl && currentUrl.trim() !== "" && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "mb-4",
                     children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
                         src: currentUrl,
@@ -307,12 +331,12 @@ function SettingsPage() {
                         className: "w-full h-40 object-cover rounded"
                     }, void 0, false, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 243,
+                        lineNumber: 383,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/settings/page.tsx",
-                    lineNumber: 242,
+                    lineNumber: 382,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -325,10 +349,10 @@ function SettingsPage() {
                                     className: "h-4 w-4 mr-2"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/settings/page.tsx",
-                                    lineNumber: 249,
+                                    lineNumber: 393,
                                     columnNumber: 11
                                 }, this),
-                                uploading[field] ? 'Enviando...' : 'Escolher imagem',
+                                uploading[field] ? "Enviando..." : "Escolher imagem",
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                     type: "file",
                                     accept: "image/*",
@@ -337,26 +361,26 @@ function SettingsPage() {
                                     disabled: uploading[field]
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/settings/page.tsx",
-                                    lineNumber: 251,
+                                    lineNumber: 395,
                                     columnNumber: 11
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/settings/page.tsx",
-                            lineNumber: 248,
+                            lineNumber: 392,
                             columnNumber: 9
                         }, this),
-                        currentUrl && currentUrl.trim() !== '' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        currentUrl && currentUrl.trim() !== "" && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                             onClick: ()=>{
-                                if (field === 'logo') {
+                                if (field === "logo") {
                                     setSettings((prev)=>({
                                             ...prev,
-                                            logo_url: ''
+                                            logo_url: ""
                                         }));
-                                } else if (field === 'banner') {
+                                } else if (field === "banner") {
                                     setSettings((prev)=>({
                                             ...prev,
-                                            banner_url: ''
+                                            banner_url: ""
                                         }));
                                 }
                             },
@@ -366,26 +390,26 @@ function SettingsPage() {
                                     className: "h-4 w-4 mr-2"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/settings/page.tsx",
-                                    lineNumber: 270,
+                                    lineNumber: 414,
                                     columnNumber: 13
                                 }, this),
                                 "Remover"
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/settings/page.tsx",
-                            lineNumber: 260,
+                            lineNumber: 404,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/settings/page.tsx",
-                    lineNumber: 247,
+                    lineNumber: 391,
                     columnNumber: 7
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/src/app/settings/page.tsx",
-            lineNumber: 237,
+            lineNumber: 377,
             columnNumber: 5
         }, this);
     if (!user) {
@@ -393,7 +417,7 @@ function SettingsPage() {
             children: "Carregando..."
         }, void 0, false, {
             fileName: "[project]/src/app/settings/page.tsx",
-            lineNumber: 279,
+            lineNumber: 423,
             columnNumber: 12
         }, this);
     }
@@ -414,7 +438,7 @@ function SettingsPage() {
                                         className: "h-8 w-8 text-gray-600 mr-3"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 289,
+                                        lineNumber: 433,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -424,7 +448,7 @@ function SettingsPage() {
                                                 children: "Configurações"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 291,
+                                                lineNumber: 435,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -432,55 +456,55 @@ function SettingsPage() {
                                                 children: "Gerencie suas imagens e configurações"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 292,
+                                                lineNumber: 438,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 290,
+                                        lineNumber: 434,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 288,
+                                lineNumber: 432,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                                onClick: ()=>router.push('/dashboard'),
+                                onClick: ()=>router.push("/dashboard"),
                                 className: "bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700",
                                 children: "Voltar ao Dashboard"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 295,
+                                lineNumber: 443,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 287,
+                        lineNumber: 431,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/settings/page.tsx",
-                    lineNumber: 286,
+                    lineNumber: 430,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/settings/page.tsx",
-                lineNumber: 285,
+                lineNumber: 429,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                 className: "max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8",
                 children: [
                     message && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                        className: `mb-6 p-4 rounded-lg ${message.includes('Erro') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`,
+                        className: `mb-6 p-4 rounded-lg ${message.includes("Erro") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`,
                         children: message
                     }, void 0, false, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 307,
+                        lineNumber: 455,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -491,7 +515,7 @@ function SettingsPage() {
                                 children: "Configurações de Email"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 314,
+                                lineNumber: 464,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -504,11 +528,11 @@ function SettingsPage() {
                                                 children: "Provedor de Email"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 317,
+                                                lineNumber: 469,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("select", {
-                                                value: settings.email_provider || 'resend',
+                                                value: settings.email_provider || "resend",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             email_provider: e.target.value
@@ -520,7 +544,7 @@ function SettingsPage() {
                                                         children: "Resend (Recomendado)"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 323,
+                                                        lineNumber: 482,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -528,7 +552,7 @@ function SettingsPage() {
                                                         children: "SendGrid"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 324,
+                                                        lineNumber: 483,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -536,7 +560,7 @@ function SettingsPage() {
                                                         children: "Mailgun"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 325,
+                                                        lineNumber: 484,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -544,7 +568,7 @@ function SettingsPage() {
                                                         children: "AWS SES"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 326,
+                                                        lineNumber: 485,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -552,19 +576,19 @@ function SettingsPage() {
                                                         children: "SMTP Personalizado"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 327,
+                                                        lineNumber: 486,
                                                         columnNumber: 17
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 318,
+                                                lineNumber: 472,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 316,
+                                        lineNumber: 468,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -574,12 +598,12 @@ function SettingsPage() {
                                                 children: "Email do Remetente"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 331,
+                                                lineNumber: 490,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "email",
-                                                value: settings.email_from || '',
+                                                value: settings.email_from || "",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             email_from: e.target.value
@@ -588,13 +612,13 @@ function SettingsPage() {
                                                 placeholder: "noreply@suaempresa.com"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 332,
+                                                lineNumber: 493,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 330,
+                                        lineNumber: 489,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -605,12 +629,12 @@ function SettingsPage() {
                                                 children: "Chave API"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 341,
+                                                lineNumber: 507,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "password",
-                                                value: settings.email_api_key || '',
+                                                value: settings.email_api_key || "",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             email_api_key: e.target.value
@@ -619,7 +643,7 @@ function SettingsPage() {
                                                 placeholder: "Sua chave API do provedor de email"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 342,
+                                                lineNumber: 510,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -627,19 +651,19 @@ function SettingsPage() {
                                                 children: "A chave API é armazenada de forma segura e usada apenas para envio de emails."
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 349,
+                                                lineNumber: 522,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 340,
+                                        lineNumber: 506,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 315,
+                                lineNumber: 467,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -650,20 +674,20 @@ function SettingsPage() {
                                         className: "h-4 w-4 mr-2"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 358,
+                                        lineNumber: 532,
                                         columnNumber: 13
                                     }, this),
                                     "Salvar Configurações de Email"
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 354,
+                                lineNumber: 528,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 313,
+                        lineNumber: 463,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -674,7 +698,7 @@ function SettingsPage() {
                                 children: "Informações Básicas"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 363,
+                                lineNumber: 537,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -687,12 +711,12 @@ function SettingsPage() {
                                                 children: "Nome da Empresa"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 366,
+                                                lineNumber: 542,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "text",
-                                                value: settings.name || '',
+                                                value: settings.name || "",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             name: e.target.value
@@ -701,13 +725,13 @@ function SettingsPage() {
                                                 placeholder: "Nome da sua empresa"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 367,
+                                                lineNumber: 545,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 365,
+                                        lineNumber: 541,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -717,12 +741,12 @@ function SettingsPage() {
                                                 children: "Email"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 376,
+                                                lineNumber: 556,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "email",
-                                                value: settings.email || '',
+                                                value: settings.email || "",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             email: e.target.value
@@ -731,13 +755,13 @@ function SettingsPage() {
                                                 placeholder: "seu@email.com"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 377,
+                                                lineNumber: 559,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 375,
+                                        lineNumber: 555,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -747,12 +771,12 @@ function SettingsPage() {
                                                 children: "Telefone"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 386,
+                                                lineNumber: 570,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "tel",
-                                                value: settings.phone || '',
+                                                value: settings.phone || "",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             phone: e.target.value
@@ -761,19 +785,19 @@ function SettingsPage() {
                                                 placeholder: "(11) 99999-9999"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 387,
+                                                lineNumber: 573,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 385,
+                                        lineNumber: 569,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 364,
+                                lineNumber: 540,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -784,20 +808,20 @@ function SettingsPage() {
                                         className: "h-4 w-4 mr-2"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 400,
+                                        lineNumber: 588,
                                         columnNumber: 13
                                     }, this),
                                     "Salvar Configurações"
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 396,
+                                lineNumber: 584,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 362,
+                        lineNumber: 536,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -808,7 +832,7 @@ function SettingsPage() {
                                 children: "Personalização do Tema"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 407,
+                                lineNumber: 595,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -821,12 +845,12 @@ function SettingsPage() {
                                                 children: "Cor Primária (Botões)"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 410,
+                                                lineNumber: 600,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "color",
-                                                value: settings.primary_color || '#3B82F6',
+                                                value: settings.primary_color || "#3B82F6",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             primary_color: e.target.value
@@ -834,13 +858,13 @@ function SettingsPage() {
                                                 className: "w-full h-10 border border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 411,
+                                                lineNumber: 603,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 409,
+                                        lineNumber: 599,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -850,12 +874,12 @@ function SettingsPage() {
                                                 children: "Cor Secundária"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 419,
+                                                lineNumber: 616,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "color",
-                                                value: settings.secondary_color || '#6B7280',
+                                                value: settings.secondary_color || "#6B7280",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             secondary_color: e.target.value
@@ -863,13 +887,13 @@ function SettingsPage() {
                                                 className: "w-full h-10 border border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 420,
+                                                lineNumber: 619,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 418,
+                                        lineNumber: 615,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -879,12 +903,12 @@ function SettingsPage() {
                                                 children: "Cor do Cabeçalho"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 428,
+                                                lineNumber: 632,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "color",
-                                                value: settings.header_color || '#FFFFFF',
+                                                value: settings.header_color || "#FFFFFF",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             header_color: e.target.value
@@ -892,13 +916,13 @@ function SettingsPage() {
                                                 className: "w-full h-10 border border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 429,
+                                                lineNumber: 635,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 427,
+                                        lineNumber: 631,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -908,12 +932,12 @@ function SettingsPage() {
                                                 children: "Cor do Título"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 437,
+                                                lineNumber: 648,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "color",
-                                                value: settings.title_color || '#111827',
+                                                value: settings.title_color || "#111827",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             title_color: e.target.value
@@ -921,13 +945,13 @@ function SettingsPage() {
                                                 className: "w-full h-10 border border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 438,
+                                                lineNumber: 651,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 436,
+                                        lineNumber: 647,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -937,12 +961,12 @@ function SettingsPage() {
                                                 children: "Cor dos Ícones"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 446,
+                                                lineNumber: 664,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "color",
-                                                value: settings.icon_color || '#4B5563',
+                                                value: settings.icon_color || "#4B5563",
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
                                                             icon_color: e.target.value
@@ -950,19 +974,19 @@ function SettingsPage() {
                                                 className: "w-full h-10 border border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 447,
+                                                lineNumber: 667,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 445,
+                                        lineNumber: 663,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 408,
+                                lineNumber: 598,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -973,20 +997,20 @@ function SettingsPage() {
                                         className: "h-4 w-4 mr-2"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 459,
+                                        lineNumber: 684,
                                         columnNumber: 13
                                     }, this),
                                     "Salvar Tema"
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 455,
+                                lineNumber: 680,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 406,
+                        lineNumber: 594,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1000,7 +1024,7 @@ function SettingsPage() {
                                 description: "Logo que aparece no catálogo e cabeçalho"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 466,
+                                lineNumber: 691,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(ImageUploadCard, {
@@ -1011,13 +1035,13 @@ function SettingsPage() {
                                 description: "Banner exibido no topo do catálogo"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 474,
+                                lineNumber: 699,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 465,
+                        lineNumber: 690,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1025,10 +1049,10 @@ function SettingsPage() {
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                                 className: "text-lg font-medium text-gray-900 mb-4",
-                                children: "Configurações do Catálogo"
+                                children: "Configurações de Catálogo"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 485,
+                                lineNumber: 710,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1039,31 +1063,31 @@ function SettingsPage() {
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "checkbox",
-                                                id: "show_shipping",
-                                                checked: settings.show_shipping !== undefined ? settings.show_shipping : true,
+                                                id: "show_filter_price",
+                                                checked: settings.show_filter_price !== undefined ? settings.show_filter_price : true,
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
-                                                            show_shipping: e.target.checked
+                                                            show_filter_price: e.target.checked
                                                         })),
                                                 className: "h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 488,
+                                                lineNumber: 715,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                htmlFor: "show_shipping",
+                                                htmlFor: "show_filter_price",
                                                 className: "ml-2 block text-sm text-gray-900",
-                                                children: "Mostrar informações de frete nos cards dos produtos"
+                                                children: "Mostrar filtro de preço no catálogo"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 495,
+                                                lineNumber: 731,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 487,
+                                        lineNumber: 714,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1071,31 +1095,31 @@ function SettingsPage() {
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "checkbox",
-                                                id: "show_installments",
-                                                checked: settings.show_installments !== undefined ? settings.show_installments : true,
+                                                id: "show_filter_category",
+                                                checked: settings.show_filter_category !== undefined ? settings.show_filter_category : true,
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
-                                                            show_installments: e.target.checked
+                                                            show_filter_category: e.target.checked
                                                         })),
                                                 className: "h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 500,
+                                                lineNumber: 739,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                htmlFor: "show_installments",
+                                                htmlFor: "show_filter_category",
                                                 className: "ml-2 block text-sm text-gray-900",
-                                                children: "Mostrar informações de parcelamento nos cards dos produtos"
+                                                children: "Mostrar filtro de categoria/marca no catálogo"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 507,
+                                                lineNumber: 755,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 499,
+                                        lineNumber: 738,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1103,31 +1127,31 @@ function SettingsPage() {
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "checkbox",
-                                                id: "show_delivery_address",
-                                                checked: settings.show_delivery_address !== undefined ? settings.show_delivery_address : true,
+                                                id: "show_filter_bestseller",
+                                                checked: settings.show_filter_bestseller !== undefined ? settings.show_filter_bestseller : true,
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
-                                                            show_delivery_address: e.target.checked
+                                                            show_filter_bestseller: e.target.checked
                                                         })),
                                                 className: "h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 512,
+                                                lineNumber: 763,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                htmlFor: "show_delivery_address",
+                                                htmlFor: "show_filter_bestseller",
                                                 className: "ml-2 block text-sm text-gray-900",
-                                                children: "Mostrar campo de endereço de entrega no checkout"
+                                                children: "Mostrar filtro de produtos bestseller no catálogo"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 519,
+                                                lineNumber: 779,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 511,
+                                        lineNumber: 762,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1135,125 +1159,61 @@ function SettingsPage() {
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
                                                 type: "checkbox",
-                                                id: "show_installments_checkout",
-                                                checked: settings.show_installments_checkout !== undefined ? settings.show_installments_checkout : true,
+                                                id: "show_filter_new",
+                                                checked: settings.show_filter_new !== undefined ? settings.show_filter_new : true,
                                                 onChange: (e)=>setSettings((prev)=>({
                                                             ...prev,
-                                                            show_installments_checkout: e.target.checked
+                                                            show_filter_new: e.target.checked
                                                         })),
                                                 className: "h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 524,
+                                                lineNumber: 787,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                htmlFor: "show_installments_checkout",
+                                                htmlFor: "show_filter_new",
                                                 className: "ml-2 block text-sm text-gray-900",
-                                                children: "Mostrar informações de parcelamento no checkout"
+                                                children: "Mostrar filtro de lançamentos no catálogo"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 531,
+                                                lineNumber: 803,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 523,
-                                        columnNumber: 13
-                                    }, this),
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                        className: "flex items-center",
-                                        children: [
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                type: "checkbox",
-                                                id: "show_discount",
-                                                checked: settings.show_discount !== undefined ? settings.show_discount : true,
-                                                onChange: (e)=>setSettings((prev)=>({
-                                                            ...prev,
-                                                            show_discount: e.target.checked
-                                                        })),
-                                                className: "h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                            }, void 0, false, {
-                                                fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 536,
-                                                columnNumber: 15
-                                            }, this),
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                htmlFor: "show_discount",
-                                                className: "ml-2 block text-sm text-gray-900",
-                                                children: "Mostrar desconto do produto (porcentagem)"
-                                            }, void 0, false, {
-                                                fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 543,
-                                                columnNumber: 15
-                                            }, this)
-                                        ]
-                                    }, void 0, true, {
-                                        fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 535,
-                                        columnNumber: 13
-                                    }, this),
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                        className: "flex items-center",
-                                        children: [
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
-                                                type: "checkbox",
-                                                id: "show_old_price",
-                                                checked: settings.show_old_price !== undefined ? settings.show_old_price : true,
-                                                onChange: (e)=>setSettings((prev)=>({
-                                                            ...prev,
-                                                            show_old_price: e.target.checked
-                                                        })),
-                                                className: "h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                            }, void 0, false, {
-                                                fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 548,
-                                                columnNumber: 15
-                                            }, this),
-                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
-                                                htmlFor: "show_old_price",
-                                                className: "ml-2 block text-sm text-gray-900",
-                                                children: "Mostrar valor antigo cortado"
-                                            }, void 0, false, {
-                                                fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 555,
-                                                columnNumber: 15
-                                            }, this)
-                                        ]
-                                    }, void 0, true, {
-                                        fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 547,
+                                        lineNumber: 786,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 486,
+                                lineNumber: 713,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                 onClick: saveSettings,
-                                className: "mt-4 flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700",
+                                className: "mt-4 flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$lucide$2d$react$40$0$2e$553$2e$0_react$40$19$2e$2$2e$0$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__["Save"], {
                                         className: "h-4 w-4 mr-2"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 564,
+                                        lineNumber: 815,
                                         columnNumber: 13
                                     }, this),
-                                    "Salvar Configurações do Catálogo"
+                                    "Salvar Configurações de Catálogo"
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 560,
+                                lineNumber: 811,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 484,
+                        lineNumber: 709,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1264,7 +1224,7 @@ function SettingsPage() {
                                 children: "Gerenciamento de Imagens"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 571,
+                                lineNumber: 822,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1278,7 +1238,7 @@ function SettingsPage() {
                                                 children: "Imagens de Produtos"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 574,
+                                                lineNumber: 827,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1286,7 +1246,7 @@ function SettingsPage() {
                                                 children: 'Faça upload de imagens de produtos no bucket "produtos". As imagens são associadas aos produtos no cadastro.'
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 575,
+                                                lineNumber: 830,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1296,33 +1256,33 @@ function SettingsPage() {
                                                         children: "Bucket:"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 580,
+                                                        lineNumber: 835,
                                                         columnNumber: 17
                                                     }, this),
                                                     " produtos",
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("br", {}, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 580,
-                                                        columnNumber: 50
+                                                        lineNumber: 836,
+                                                        columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("strong", {
                                                         children: "Uso:"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 581,
+                                                        lineNumber: 837,
                                                         columnNumber: 17
                                                     }, this),
                                                     " Imagens dos produtos no catálogo"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 579,
+                                                lineNumber: 834,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 573,
+                                        lineNumber: 826,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1333,7 +1293,7 @@ function SettingsPage() {
                                                 children: "Logos de Marcas"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 586,
+                                                lineNumber: 842,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1341,7 +1301,7 @@ function SettingsPage() {
                                                 children: 'Faça upload dos logos das marcas no bucket "marcas". Os logos aparecem nas categorias do catálogo.'
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 587,
+                                                lineNumber: 845,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1351,61 +1311,61 @@ function SettingsPage() {
                                                         children: "Bucket:"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 592,
+                                                        lineNumber: 850,
                                                         columnNumber: 17
                                                     }, this),
                                                     " marcas",
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("br", {}, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 592,
-                                                        columnNumber: 48
+                                                        lineNumber: 851,
+                                                        columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("strong", {
                                                         children: "Uso:"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/settings/page.tsx",
-                                                        lineNumber: 593,
+                                                        lineNumber: 852,
                                                         columnNumber: 17
                                                     }, this),
                                                     " Logos das marcas/categorias"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/settings/page.tsx",
-                                                lineNumber: 591,
+                                                lineNumber: 849,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/settings/page.tsx",
-                                        lineNumber: 585,
+                                        lineNumber: 841,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/settings/page.tsx",
-                                lineNumber: 572,
+                                lineNumber: 825,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/settings/page.tsx",
-                        lineNumber: 570,
+                        lineNumber: 821,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/settings/page.tsx",
-                lineNumber: 305,
+                lineNumber: 453,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/settings/page.tsx",
-        lineNumber: 283,
+        lineNumber: 427,
         columnNumber: 5
     }, this);
 }
-_s(SettingsPage, "pMTvg+CJRbrEAu/TY09UMrcCL5o=", false, function() {
+_s(SettingsPage, "NyvJ3s81tClWg+7OdnPtnPoC7bk=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"]
     ];

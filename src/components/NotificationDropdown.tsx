@@ -1,49 +1,60 @@
-import { useState } from 'react'
-import { Bell, X, Check, AlertCircle, Info, CheckCircle, AlertTriangle } from 'lucide-react'
-import { useNotifications } from '../hooks/useNotifications'
+import { useState } from "react";
+import {
+  Bell,
+  X,
+  Check,
+  AlertCircle,
+  Info,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
+import { useNotifications } from "../hooks/useNotifications";
 
 interface NotificationDropdownProps {
-  userId: string
+  userId: string;
 }
 
-export default function NotificationDropdown({ userId }: NotificationDropdownProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const { notifications, unreadCount, loading, markAsRead } = useNotifications(userId)
+export default function NotificationDropdown({
+  userId,
+}: NotificationDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { notifications, unreadCount, loading, markAsRead } =
+    useNotifications(userId);
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'success':
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      case 'warning':
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />
-      case 'error':
-        return <AlertCircle className="h-5 w-5 text-red-500" />
+      case "success":
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case "warning":
+        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+      case "error":
+        return <AlertCircle className="h-5 w-5 text-red-500" />;
       default:
-        return <Info className="h-5 w-5 text-blue-500" />
+        return <Info className="h-5 w-5 text-blue-500" />;
     }
-  }
+  };
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'success':
-        return 'border-green-200 bg-green-50'
-      case 'warning':
-        return 'border-yellow-200 bg-yellow-50'
-      case 'error':
-        return 'border-red-200 bg-red-50'
+      case "success":
+        return "border-green-200 bg-green-50";
+      case "warning":
+        return "border-yellow-200 bg-yellow-50";
+      case "error":
+        return "border-red-200 bg-red-50";
       default:
-        return 'border-blue-200 bg-blue-50'
+        return "border-blue-200 bg-blue-50";
     }
-  }
+  };
 
   const handleMarkAsRead = async (notificationId: string) => {
-    await markAsRead(notificationId)
-  }
+    await markAsRead(notificationId);
+  };
 
   const handleMarkAllAsRead = async () => {
-    const unreadNotifications = notifications.filter(n => !n.read)
-    await Promise.all(unreadNotifications.map(n => markAsRead(n.id)))
-  }
+    const unreadNotifications = notifications.filter((n) => !n.read);
+    await Promise.all(unreadNotifications.map((n) => markAsRead(n.id)));
+  };
 
   return (
     <div className="relative">
@@ -54,7 +65,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         <Bell className="h-6 w-6" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
@@ -63,7 +74,9 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Notificações</h3>
+              <h3 className="text-lg font-medium text-gray-900">
+                Notificações
+              </h3>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
@@ -91,7 +104,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-gray-50 ${!notification.read ? 'bg-blue-50' : ''}`}
+                    className={`p-4 hover:bg-gray-50 ${!notification.read ? "bg-blue-50" : ""}`}
                   >
                     <div className="flex items-start space-x-3">
                       <div className="flex-shrink-0">
@@ -99,7 +112,9 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className={`text-sm font-medium ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
+                          <p
+                            className={`text-sm font-medium ${!notification.read ? "text-gray-900" : "text-gray-700"}`}
+                          >
                             {notification.title}
                           </p>
                           {!notification.read && (
@@ -112,11 +127,15 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
                             </button>
                           )}
                         </div>
-                        <p className={`text-sm ${!notification.read ? 'text-gray-800' : 'text-gray-600'}`}>
+                        <p
+                          className={`text-sm ${!notification.read ? "text-gray-800" : "text-gray-600"}`}
+                        >
                           {notification.message}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {new Date(notification.createdAt).toLocaleString('pt-BR')}
+                          {new Date(notification.createdAt).toLocaleString(
+                            "pt-BR",
+                          )}
                         </p>
                       </div>
                     </div>
@@ -137,5 +156,5 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         </div>
       )}
     </div>
-  )
+  );
 }

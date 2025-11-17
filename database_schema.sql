@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   price DECIMAL(10,2) NOT NULL,
   image_url TEXT,
+  reference_code TEXT,
+  brand TEXT,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -34,6 +36,10 @@ CREATE TABLE IF NOT EXISTS orders (
   status TEXT NOT NULL DEFAULT 'Pendente',
   total_value DECIMAL(10,2) DEFAULT 0,
   order_type TEXT DEFAULT 'catalog',
+  company_name TEXT,
+  delivery_address TEXT,
+  payment_method TEXT,
+  notes TEXT,
   quick_brand TEXT,
   quick_quantity INTEGER,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -48,6 +54,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   product_id UUID REFERENCES products(id) ON DELETE CASCADE,
   quantity INTEGER NOT NULL,
   price DECIMAL(10,2) NOT NULL,
+  total_price DECIMAL(10,2) NOT NULL,
   brand TEXT,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -80,6 +87,18 @@ CREATE TABLE IF NOT EXISTS settings (
   UNIQUE(user_id)
 );
 
+-- Tabela de marcas
+CREATE TABLE IF NOT EXISTS brands (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  logo_url TEXT,
+  commission_percentage DECIMAL(5,2) DEFAULT 0,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, name)
+);
+
 -- Habilitar RLS (Row Level Security) apenas se não estiver habilitado
 DO $$
 BEGIN
@@ -97,6 +116,9 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'settings' AND relrowsecurity = true) THEN
     ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'brands' AND relrowsecurity = true) THEN
+    ALTER TABLE brands ENABLE ROW LEVEL SECURITY;
   END IF;
 END $$;
 
@@ -235,6 +257,27 @@ BEGIN
   END IF;
 END $$;
 
+-- Políticas RLS para brands (apenas se não existirem)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'brands' AND policyname = 'Users can view their own brands') THEN
+    CREATE POLICY "Users can view their own brands" ON brands
+      FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'brands' AND policyname = 'Users can insert their own brands') THEN
+    CREATE POLICY "Users can insert their own brands" ON brands
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'brands' AND policyname = 'Users can update their own brands') THEN
+    CREATE POLICY "Users can update their own brands" ON brands
+      FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'brands' AND policyname = 'Users can delete their own brands') THEN
+    CREATE POLICY "Users can delete their own brands" ON brands
+      FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
 -- Adicionar colunas que podem estar faltando na tabela settings
 DO $$
 BEGIN
@@ -287,8 +330,29 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'hide_delivery_address') THEN
     ALTER TABLE settings ADD COLUMN hide_delivery_address BOOLEAN DEFAULT false;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'hide_installments') THEN
-    ALTER TABLE settings ADD COLUMN hide_installments BOOLEAN DEFAULT false;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_discount') THEN
+    ALTER TABLE settings ADD COLUMN show_discount BOOLEAN DEFAULT true;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_old_price') THEN
+    ALTER TABLE settings ADD COLUMN show_old_price BOOLEAN DEFAULT true;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_filter_price') THEN
+    ALTER TABLE settings ADD COLUMN show_filter_price BOOLEAN DEFAULT true;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_filter_category') THEN
+    ALTER TABLE settings ADD COLUMN show_filter_category BOOLEAN DEFAULT true;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_filter_bestseller') THEN
+    ALTER TABLE settings ADD COLUMN show_filter_bestseller BOOLEAN DEFAULT true;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_filter_new') THEN
+    ALTER TABLE settings ADD COLUMN show_filter_new BOOLEAN DEFAULT true;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_delivery_address_checkout') THEN
+    ALTER TABLE settings ADD COLUMN show_delivery_address_checkout BOOLEAN DEFAULT true;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'show_payment_method_checkout') THEN
+    ALTER TABLE settings ADD COLUMN show_payment_method_checkout BOOLEAN DEFAULT true;
   END IF;
 END $$;
 
@@ -309,6 +373,10 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_settings_updated_at') THEN
     CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON settings
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_brands_updated_at') THEN
+    CREATE TRIGGER update_brands_updated_at BEFORE UPDATE ON brands
       FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
   END IF;
 END $$;

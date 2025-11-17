@@ -8,8 +8,8 @@ __turbopack_context__.s([
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f40$supabase$2b$supabase$2d$js$40$2$2e$81$2e$1$2f$node_modules$2f40$supabase$2f$supabase$2d$js$2f$dist$2f$module$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$locals$3e$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/@supabase+supabase-js@2.81.1/node_modules/@supabase/supabase-js/dist/module/index.js [app-ssr] (ecmascript) <locals>");
 ;
-const supabaseUrl = ("TURBOPACK compile-time value", "https://aawghxjbipcqefmikwby.supabase.co") || 'YOUR_SUPABASE_URL';
-const supabaseAnonKey = ("TURBOPACK compile-time value", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhd2doeGpiaXBjcWVmbWlrd2J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NjI3NTgsImV4cCI6MjA3ODUzODc1OH0.Ml1sIc2rpkXAh-DuILaNKwFRmI6-COOeZY-HoBILJUw") || 'YOUR_SUPABASE_ANON_KEY';
+const supabaseUrl = ("TURBOPACK compile-time value", "https://aawghxjbipcqefmikwby.supabase.co") || "YOUR_SUPABASE_URL";
+const supabaseAnonKey = ("TURBOPACK compile-time value", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhd2doeGpiaXBjcWVmbWlrd2J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NjI3NTgsImV4cCI6MjA3ODUzODc1OH0.Ml1sIc2rpkXAh-DuILaNKwFRmI6-COOeZY-HoBILJUw") || "YOUR_SUPABASE_ANON_KEY";
 const supabase = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f40$supabase$2b$supabase$2d$js$40$2$2e$81$2e$1$2f$node_modules$2f40$supabase$2f$supabase$2d$js$2f$dist$2f$module$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$locals$3e$__["createClient"])(supabaseUrl, supabaseAnonKey);
 }),
 "[externals]/next/dist/server/app-render/action-async-storage.external.js [external] (next/dist/server/app-render/action-async-storage.external.js, cjs)", ((__turbopack_context__, module, exports) => {
@@ -51,7 +51,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$lu
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$lucide$2d$react$40$0$2e$553$2e$0_react$40$19$2e$2$2e$0$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$map$2d$pin$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__MapPin$3e$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/lucide-react@0.553.0_react@19.2.0/node_modules/lucide-react/dist/esm/icons/map-pin.js [app-ssr] (ecmascript) <export default as MapPin>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$lucide$2d$react$40$0$2e$553$2e$0_react$40$19$2e$2$2e$0$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/lucide-react@0.553.0_react@19.2.0/node_modules/lucide-react/dist/esm/icons/save.js [app-ssr] (ecmascript) <export default as Save>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$lucide$2d$react$40$0$2e$553$2e$0_react$40$19$2e$2$2e$0$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/lucide-react@0.553.0_react@19.2.0/node_modules/lucide-react/dist/esm/icons/x.js [app-ssr] (ecmascript) <export default as X>");
-'use client';
+"use client";
 ;
 ;
 ;
@@ -64,16 +64,16 @@ function ClientsPage() {
     const [showModal, setShowModal] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
     const [editingClient, setEditingClient] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
     const [formData, setFormData] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])({
-        name: '',
-        email: '',
-        phone: '',
-        address: ''
+        name: "",
+        email: "",
+        phone: "",
+        address: ""
     });
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
         const getUser = async ()=>{
             const { data: { user } } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].auth.getUser();
             if (!user) {
-                router.push('/login');
+                router.push("/login");
             } else {
                 setUser(user);
                 loadClients(user.id);
@@ -84,7 +84,7 @@ function ClientsPage() {
         router
     ]);
     const loadClients = async (userId)=>{
-        const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from('clients').select('*').eq('user_id', userId).order('created_at', {
+        const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from("clients").select("*").eq("user_id", userId).order("created_at", {
             ascending: false
         });
         if (data && !error) {
@@ -104,60 +104,60 @@ function ClientsPage() {
         try {
             if (editingClient) {
                 // Atualizar cliente existente
-                const { error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from('clients').update(clientData).eq('id', editingClient.id).eq('user_id', user.id);
+                const { error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from("clients").update(clientData).eq("id", editingClient.id).eq("user_id", user.id);
                 if (error) throw error;
             } else {
                 // Criar novo cliente
-                const { error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from('clients').insert(clientData);
+                const { error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from("clients").insert(clientData);
                 if (error) throw error;
             }
             // Recarregar clientes
             loadClients(user.id);
             // Resetar formulário
             setFormData({
-                name: '',
-                email: '',
-                phone: '',
-                address: ''
+                name: "",
+                email: "",
+                phone: "",
+                address: ""
             });
             setEditingClient(null);
             setShowModal(false);
         } catch (error) {
-            console.error('Erro ao salvar cliente:', error);
-            alert('Erro ao salvar cliente. Tente novamente.');
+            console.error("Erro ao salvar cliente:", error);
+            alert("Erro ao salvar cliente. Tente novamente.");
         }
     };
     const handleEdit = (client)=>{
         setEditingClient(client);
         setFormData({
             name: client.name,
-            email: client.email || '',
-            phone: client.phone || '',
-            address: client.address || ''
+            email: client.email || "",
+            phone: client.phone || "",
+            address: client.address || ""
         });
         setShowModal(true);
     };
     const handleDelete = async (clientId)=>{
         if (!user) return;
-        if (!confirm('Tem certeza que deseja excluir este cliente?')) {
+        if (!confirm("Tem certeza que deseja excluir este cliente?")) {
             return;
         }
         try {
-            const { error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from('clients').delete().eq('id', clientId).eq('user_id', user.id);
+            const { error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from("clients").delete().eq("id", clientId).eq("user_id", user.id);
             if (error) throw error;
             loadClients(user.id);
         } catch (error) {
-            console.error('Erro ao excluir cliente:', error);
-            alert('Erro ao excluir cliente. Tente novamente.');
+            console.error("Erro ao excluir cliente:", error);
+            alert("Erro ao excluir cliente. Tente novamente.");
         }
     };
     const openModal = ()=>{
         setEditingClient(null);
         setFormData({
-            name: '',
-            email: '',
-            phone: '',
-            address: ''
+            name: "",
+            email: "",
+            phone: "",
+            address: ""
         });
         setShowModal(true);
     };
@@ -166,7 +166,7 @@ function ClientsPage() {
             children: "Carregando..."
         }, void 0, false, {
             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-            lineNumber: 163,
+            lineNumber: 174,
             columnNumber: 12
         }, this);
     }
@@ -185,32 +185,32 @@ function ClientsPage() {
                                     children: "Gerenciar Clientes"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                    lineNumber: 172,
+                                    lineNumber: 183,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                                     children: "Adicione e gerencie os clientes do seu catálogo"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                    lineNumber: 173,
+                                    lineNumber: 186,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                            lineNumber: 171,
+                            lineNumber: 182,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "flex space-x-4",
                             children: [
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                                    onClick: ()=>router.push('/dashboard'),
+                                    onClick: ()=>router.push("/dashboard"),
                                     className: "inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50",
                                     children: "Voltar ao Dashboard"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                    lineNumber: 176,
+                                    lineNumber: 189,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -221,31 +221,31 @@ function ClientsPage() {
                                             className: "h-5 w-5 mr-2"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                            lineNumber: 186,
+                                            lineNumber: 199,
                                             columnNumber: 15
                                         }, this),
                                         "Novo Cliente"
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                    lineNumber: 182,
+                                    lineNumber: 195,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                            lineNumber: 175,
+                            lineNumber: 188,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                    lineNumber: 170,
+                    lineNumber: 181,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                lineNumber: 169,
+                lineNumber: 180,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -268,12 +268,12 @@ function ClientsPage() {
                                                     className: "h-6 w-6 text-gray-400"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                    lineNumber: 201,
+                                                    lineNumber: 214,
                                                     columnNumber: 21
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 200,
+                                                lineNumber: 213,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -285,7 +285,7 @@ function ClientsPage() {
                                                             children: "Total de Clientes"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                            lineNumber: 205,
+                                                            lineNumber: 218,
                                                             columnNumber: 23
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dd", {
@@ -293,39 +293,39 @@ function ClientsPage() {
                                                             children: clients.length
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                            lineNumber: 208,
+                                                            lineNumber: 221,
                                                             columnNumber: 23
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                    lineNumber: 204,
+                                                    lineNumber: 217,
                                                     columnNumber: 21
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 203,
+                                                lineNumber: 216,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 199,
+                                        lineNumber: 212,
                                         columnNumber: 17
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                    lineNumber: 198,
+                                    lineNumber: 211,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                lineNumber: 197,
+                                lineNumber: 210,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                            lineNumber: 196,
+                            lineNumber: 209,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -350,17 +350,17 @@ function ClientsPage() {
                                                                             className: "h-5 w-5 text-gray-500"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                            lineNumber: 228,
+                                                                            lineNumber: 241,
                                                                             columnNumber: 29
                                                                         }, this)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                        lineNumber: 227,
+                                                                        lineNumber: 240,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                    lineNumber: 226,
+                                                                    lineNumber: 239,
                                                                     columnNumber: 25
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -373,12 +373,12 @@ function ClientsPage() {
                                                                                 children: client.name
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                                lineNumber: 233,
+                                                                                lineNumber: 246,
                                                                                 columnNumber: 29
                                                                             }, this)
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                            lineNumber: 232,
+                                                                            lineNumber: 245,
                                                                             columnNumber: 27
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -391,14 +391,14 @@ function ClientsPage() {
                                                                                             className: "h-4 w-4 mr-1"
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                                            lineNumber: 238,
+                                                                                            lineNumber: 253,
                                                                                             columnNumber: 33
                                                                                         }, this),
                                                                                         client.email
                                                                                     ]
                                                                                 }, void 0, true, {
                                                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                                    lineNumber: 237,
+                                                                                    lineNumber: 252,
                                                                                     columnNumber: 31
                                                                                 }, this),
                                                                                 client.phone && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -408,20 +408,20 @@ function ClientsPage() {
                                                                                             className: "h-4 w-4 mr-1"
                                                                                         }, void 0, false, {
                                                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                                            lineNumber: 244,
+                                                                                            lineNumber: 259,
                                                                                             columnNumber: 33
                                                                                         }, this),
                                                                                         client.phone
                                                                                     ]
                                                                                 }, void 0, true, {
                                                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                                    lineNumber: 243,
+                                                                                    lineNumber: 258,
                                                                                     columnNumber: 31
                                                                                 }, this)
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                            lineNumber: 235,
+                                                                            lineNumber: 250,
                                                                             columnNumber: 27
                                                                         }, this),
                                                                         client.address && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -431,26 +431,26 @@ function ClientsPage() {
                                                                                     className: "h-4 w-4 mr-1"
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                                    lineNumber: 251,
+                                                                                    lineNumber: 266,
                                                                                     columnNumber: 31
                                                                                 }, this),
                                                                                 client.address
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                            lineNumber: 250,
+                                                                            lineNumber: 265,
                                                                             columnNumber: 29
                                                                         }, this)
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                    lineNumber: 231,
+                                                                    lineNumber: 244,
                                                                     columnNumber: 25
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                            lineNumber: 225,
+                                                            lineNumber: 238,
                                                             columnNumber: 23
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -463,12 +463,12 @@ function ClientsPage() {
                                                                         className: "h-4 w-4"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                        lineNumber: 262,
+                                                                        lineNumber: 277,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                    lineNumber: 258,
+                                                                    lineNumber: 273,
                                                                     columnNumber: 25
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -478,39 +478,39 @@ function ClientsPage() {
                                                                         className: "h-4 w-4"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                        lineNumber: 268,
+                                                                        lineNumber: 283,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                                    lineNumber: 264,
+                                                                    lineNumber: 279,
                                                                     columnNumber: 25
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                            lineNumber: 257,
+                                                            lineNumber: 272,
                                                             columnNumber: 23
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                    lineNumber: 224,
+                                                    lineNumber: 237,
                                                     columnNumber: 21
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 223,
+                                                lineNumber: 236,
                                                 columnNumber: 19
                                             }, this)
                                         }, client.id, false, {
                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                            lineNumber: 222,
+                                            lineNumber: 235,
                                             columnNumber: 17
                                         }, this))
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                    lineNumber: 220,
+                                    lineNumber: 233,
                                     columnNumber: 13
                                 }, this),
                                 clients.length === 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -520,7 +520,7 @@ function ClientsPage() {
                                             className: "h-24 w-24 text-gray-300 mx-auto mb-4"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                            lineNumber: 279,
+                                            lineNumber: 294,
                                             columnNumber: 17
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -528,7 +528,7 @@ function ClientsPage() {
                                             children: "Nenhum cliente cadastrado"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                            lineNumber: 280,
+                                            lineNumber: 295,
                                             columnNumber: 17
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -536,7 +536,7 @@ function ClientsPage() {
                                             children: "Comece adicionando seu primeiro cliente."
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                            lineNumber: 281,
+                                            lineNumber: 298,
                                             columnNumber: 17
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -547,37 +547,37 @@ function ClientsPage() {
                                                     className: "h-5 w-5 mr-2"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                    lineNumber: 286,
+                                                    lineNumber: 305,
                                                     columnNumber: 19
                                                 }, this),
                                                 "Adicionar Primeiro Cliente"
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                            lineNumber: 282,
+                                            lineNumber: 301,
                                             columnNumber: 17
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                    lineNumber: 278,
+                                    lineNumber: 293,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                            lineNumber: 219,
+                            lineNumber: 232,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                    lineNumber: 194,
+                    lineNumber: 207,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                lineNumber: 193,
+                lineNumber: 206,
                 columnNumber: 7
             }, this),
             showModal && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -592,10 +592,10 @@ function ClientsPage() {
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
                                         className: "text-lg font-medium text-gray-900",
-                                        children: editingClient ? 'Editar Cliente' : 'Novo Cliente'
+                                        children: editingClient ? "Editar Cliente" : "Novo Cliente"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 301,
+                                        lineNumber: 320,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -605,18 +605,18 @@ function ClientsPage() {
                                             className: "h-6 w-6"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                            lineNumber: 308,
+                                            lineNumber: 327,
                                             columnNumber: 19
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 304,
+                                        lineNumber: 323,
                                         columnNumber: 17
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                lineNumber: 300,
+                                lineNumber: 319,
                                 columnNumber: 15
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("form", {
@@ -630,7 +630,7 @@ function ClientsPage() {
                                                 children: "Nome do Cliente *"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 314,
+                                                lineNumber: 333,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -645,13 +645,13 @@ function ClientsPage() {
                                                 placeholder: "Nome completo do cliente"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 317,
+                                                lineNumber: 336,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 313,
+                                        lineNumber: 332,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -661,7 +661,7 @@ function ClientsPage() {
                                                 children: "Email"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 328,
+                                                lineNumber: 349,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -675,13 +675,13 @@ function ClientsPage() {
                                                 placeholder: "cliente@email.com"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 331,
+                                                lineNumber: 352,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 327,
+                                        lineNumber: 348,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -691,7 +691,7 @@ function ClientsPage() {
                                                 children: "Telefone"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 341,
+                                                lineNumber: 367,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -705,13 +705,13 @@ function ClientsPage() {
                                                 placeholder: "(11) 99999-9999"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 344,
+                                                lineNumber: 370,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 340,
+                                        lineNumber: 366,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -721,7 +721,7 @@ function ClientsPage() {
                                                 children: "Endereço"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 354,
+                                                lineNumber: 385,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
@@ -734,13 +734,13 @@ function ClientsPage() {
                                                 placeholder: "Endereço completo"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 357,
+                                                lineNumber: 388,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 353,
+                                        lineNumber: 384,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -753,7 +753,7 @@ function ClientsPage() {
                                                 children: "Cancelar"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 366,
+                                                lineNumber: 402,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$2_$40$babel$2b$core$40$7$2e$2_ac612d167d9caedc69b237559ab43d82$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -764,49 +764,49 @@ function ClientsPage() {
                                                         className: "h-4 w-4 mr-2"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                        lineNumber: 377,
+                                                        lineNumber: 413,
                                                         columnNumber: 21
                                                     }, this),
-                                                    editingClient ? 'Atualizar' : 'Salvar',
+                                                    editingClient ? "Atualizar" : "Salvar",
                                                     " Cliente"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                                lineNumber: 373,
+                                                lineNumber: 409,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                        lineNumber: 365,
+                                        lineNumber: 401,
                                         columnNumber: 17
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                                lineNumber: 312,
+                                lineNumber: 331,
                                 columnNumber: 15
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                        lineNumber: 299,
+                        lineNumber: 318,
                         columnNumber: 13
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                    lineNumber: 298,
+                    lineNumber: 317,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/dashboard/clients/page.tsx",
-                lineNumber: 297,
+                lineNumber: 316,
                 columnNumber: 9
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/dashboard/clients/page.tsx",
-        lineNumber: 167,
+        lineNumber: 178,
         columnNumber: 5
     }, this);
 }

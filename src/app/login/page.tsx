@@ -1,52 +1,55 @@
-'use client'
+"use client";
 
-import { useState, FormEvent, useEffect } from 'react'
-import { supabase } from '../../lib/supabaseClient'
-import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react'
+import { useState, FormEvent, useEffect } from "react";
+import { supabase } from "../../lib/supabaseClient";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState<string>('')
-  const [password, setPassword] = useState<string>('')
-  const [showPassword, setShowPassword] = useState<boolean>(false)
-  const [loading, setLoading] = useState<boolean>(false)
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const router = useRouter()
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchLogo = async () => {
       try {
-        const { data: sets } = await supabase.from('settings').select('logo_url').limit(1)
+        const { data: sets } = await supabase
+          .from("settings")
+          .select("logo_url")
+          .limit(1);
         if (sets && sets.length > 0 && sets[0].logo_url) {
-          setLogoUrl(sets[0].logo_url)
+          setLogoUrl(sets[0].logo_url);
         }
       } catch (error) {
-        console.error('Erro ao carregar logo:', error)
+        console.error("Erro ao carregar logo:", error);
       }
-    }
+    };
 
-    fetchLogo()
-  }, [])
+    fetchLogo();
+  }, []);
 
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setLoading(true)
+    e.preventDefault();
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-    })
+    });
     if (error) {
-      alert(error.message)
+      alert(error.message);
     } else {
-      router.push('/dashboard')
+      router.push("/dashboard");
     }
-    setLoading(false)
-  }
+    setLoading(false);
+  };
 
   const handleForgotPassword = () => {
     // TODO: Implementar funcionalidade de recuperação de senha
-    alert('Funcionalidade de recuperação de senha será implementada em breve.')
-  }
+    alert("Funcionalidade de recuperação de senha será implementada em breve.");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -69,16 +72,17 @@ export default function Login() {
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
             Bem-vindo de volta
           </h2>
-          <p className="text-gray-600">
-            Entre na sua conta para continuar
-          </p>
+          <p className="text-gray-600">Entre na sua conta para continuar</p>
         </div>
 
         {/* Form */}
         <form className="space-y-6" onSubmit={handleLogin}>
           {/* Email Field */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               Email
             </label>
             <div className="relative">
@@ -101,7 +105,10 @@ export default function Login() {
 
           {/* Password Field */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               Senha
             </label>
             <div className="relative">
@@ -111,7 +118,7 @@ export default function Login() {
               <input
                 id="password"
                 name="password"
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
                 value={password}
@@ -166,11 +173,9 @@ export default function Login() {
 
         {/* Footer */}
         <div className="text-center">
-          <p className="text-sm text-gray-500">
-            Sistema de Gestão de Vendas
-          </p>
+          <p className="text-sm text-gray-500">Sistema de Gestão de Vendas</p>
         </div>
       </div>
     </div>
-  )
+  );
 }

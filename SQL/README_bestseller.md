@@ -11,14 +11,17 @@
 ## O que o script faz:
 
 ### ✅ Verificações Iniciais:
+
 - **Verifica se a tabela `products` existe** no banco de dados
 - **Verifica se a coluna `bestseller` já existe** na tabela
 
 ### ✅ Adição da Coluna:
+
 - **Adiciona a coluna `bestseller`** do tipo BOOLEAN com valor padrão `false`
 - **Usa `IF NOT EXISTS`** para evitar erros se a coluna já existir
 
 ### ✅ Verificações Finais:
+
 - **Confirma que a coluna foi adicionada** corretamente
 - **Mostra produtos marcados como bestseller** (inicialmente nenhum)
 

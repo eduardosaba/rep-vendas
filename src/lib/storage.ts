@@ -1,78 +1,75 @@
-import { supabase } from './supabaseClient'
+import { supabase } from "./supabaseClient";
 
 interface UploadResult {
-  success: boolean
-  publicUrl?: string
-  filePath?: string
-  error?: string
+  success: boolean;
+  publicUrl?: string;
+  filePath?: string;
+  error?: string;
 }
 
 interface DeleteResult {
-  success: boolean
-  error?: string
+  success: boolean;
+  error?: string;
 }
 
 export const uploadImage = async (
   file: File,
   bucket: string,
   userId: string,
-  customFileName: string | null = null
+  customFileName: string | null = null,
 ): Promise<UploadResult> => {
   try {
-    const fileExt = file.name.split('.').pop()
-    const fileName = customFileName || `${userId}_${Date.now()}.${fileExt}`
-    const filePath = `${bucket}/${fileName}`
+    const fileExt = file.name.split(".").pop();
+    const fileName = customFileName || `${userId}_${Date.now()}.${fileExt}`;
+    const filePath = `${bucket}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(filePath, file)
+      .upload(filePath, file);
 
     if (uploadError) {
-      throw uploadError
+      throw uploadError;
     }
 
-    const { data } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath)
+    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
     return {
       success: true,
       publicUrl: data.publicUrl,
-      filePath: filePath
-    }
+      filePath: filePath,
+    };
   } catch (error) {
-    console.error('Erro ao fazer upload:', error)
+    console.error("Erro ao fazer upload:", error);
     return {
       success: false,
-      error: (error as Error).message
-    }
+      error: (error as Error).message,
+    };
   }
-}
+};
 
-export const deleteImage = async (bucket: string, filePath: string): Promise<DeleteResult> => {
+export const deleteImage = async (
+  bucket: string,
+  filePath: string,
+): Promise<DeleteResult> => {
   try {
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove([filePath])
+    const { error } = await supabase.storage.from(bucket).remove([filePath]);
 
     if (error) {
-      throw error
+      throw error;
     }
 
-    return { success: true }
+    return { success: true };
   } catch (error) {
-    console.error('Erro ao deletar imagem:', error)
+    console.error("Erro ao deletar imagem:", error);
     return {
       success: false,
-      error: (error as Error).message
-    }
+      error: (error as Error).message,
+    };
   }
-}
+};
 
 export const getImageUrl = (bucket: string, filePath: string): string => {
-  const { data } = supabase.storage
-    .from(bucket)
-    .getPublicUrl(filePath)
+  const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
-  return data.publicUrl
-}
+  return data.publicUrl;
+};

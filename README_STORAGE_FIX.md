@@ -1,12 +1,15 @@
 # Correção das Políticas de Storage - Atualizado
 
 ## Problema Resolvido
+
 O script `storage_policies.sql` foi atualizado para resolver o erro:
+
 ```
 ERROR: 42710: policy "Anyone can view logos" for table "objects" already exists
 ```
 
 ## Solução Implementada
+
 O script agora usa um bloco PL/pgSQL que **remove dinamicamente todas as políticas existentes** antes de recriar as novas políticas corretas.
 
 ## Como Executar
@@ -27,12 +30,15 @@ O script agora usa um bloco PL/pgSQL que **remove dinamicamente todas as políti
 ## O que o Script Faz
 
 ### 1. Verificação de Buckets
+
 ```sql
 SELECT id, name, public FROM storage.buckets;
 ```
+
 Verifica se os buckets necessários existem.
 
 ### 2. Remoção Dinâmica de Políticas
+
 ```sql
 DO $$
 DECLARE
@@ -48,22 +54,27 @@ BEGIN
     END LOOP;
 END $$;
 ```
+
 Remove TODAS as políticas existentes de storage.objects automaticamente.
 
 ### 3. Criação das Políticas Corretas
+
 Cria as políticas necessárias para cada bucket:
+
 - **logos**: Upload para usuários autenticados, visualização pública
 - **banner**: Upload para usuários autenticados, visualização pública
 - **produtos**: Upload para usuários autenticados, visualização pública
 - **marcas**: Upload para usuários autenticados, visualização pública
 
 ### 4. Verificação
+
 ```sql
 SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
 FROM pg_policies
 WHERE schemaname = 'storage'
 ORDER BY tablename, policyname;
 ```
+
 Mostra todas as políticas criadas para confirmação.
 
 ## Próximos Passos
@@ -71,6 +82,7 @@ Mostra todas as políticas criadas para confirmação.
 Após executar este script com sucesso:
 
 1. **Execute o script de dados mockup** (opcional para testes)
+
    ```sql
    -- Execute SQL/mockup_data.sql
    ```
