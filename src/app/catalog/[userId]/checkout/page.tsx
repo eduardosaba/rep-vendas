@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../../../lib/supabaseClient";
 import { useRouter, useParams } from "next/navigation";
+import { useCatalog } from "../../../../hooks/useCatalog";
 import {
   CreditCard,
   Truck,
@@ -12,6 +13,9 @@ import {
   User,
   Phone,
   ShoppingCart,
+  Shield,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 
 interface Product {
@@ -65,15 +69,16 @@ interface Client {
 export default function Checkout() {
   const params = useParams();
   const userId = params.userId as string;
-  const [cart, setCart] = useState<{ [key: string]: number }>({});
+  const router = useRouter();
+  const { settings, cart, secureCheckout, formatPrice } = useCatalog();
+
+  // Estados locais
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
   const [completed, setCompleted] = useState(false);
-  const router = useRouter();
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -87,9 +92,7 @@ export default function Checkout() {
 
   useEffect(() => {
     if (userId) {
-      loadCart();
-      loadSettings();
-      loadClients();
+      loadInitialData();
     }
   }, [userId]);
 
@@ -102,12 +105,54 @@ export default function Checkout() {
     }
   }, [cart]);
 
-  const loadCart = () => {
-    const savedCart = localStorage.getItem("cart");
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
-    } else {
-      setLoading(false);
+  // Auto-save do rascunho
+  useEffect(() => {
+    if (autoSaveEnabled && formData.client_name && cartItems.length > 0) {
+      const draftOrder = {
+        clientData: {
+          name: formData.client_name,
+          email: formData.client_email,
+          phone: formData.client_phone,
+          address: formData.delivery_address,
+        },
+        items: cartItems.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          unitPrice: item.product.price,
+        })),
+        paymentMethod: formData.payment_method,
+        notes: formData.notes,
+      };
+
+      secureCheckout.saveDraftOrder(draftOrder);
+    }
+  }, [formData, cartItems, autoSaveEnabled, secureCheckout]);
+
+  const loadInitialData = async () => {
+    try {
+      // Validar sessão de checkout seguro
+      const isValidSession = await secureCheckout.validateSession();
+      if (!isValidSession) {
+        router.push(`/login?redirect=/catalog/${userId}/checkout`);
+        return;
+      }
+
+      // Tentar carregar rascunho salvo
+      const draftOrder = secureCheckout.loadDraftOrder();
+      if (draftOrder) {
+        setFormData({
+          client_name: draftOrder.clientData.name || "",
+          client_email: draftOrder.clientData.email || "",
+          client_phone: draftOrder.clientData.phone || "",
+          delivery_address: draftOrder.clientData.address || "",
+          payment_method: draftOrder.paymentMethod || "boleto",
+          notes: draftOrder.notes || "",
+        });
+      }
+
+      await loadClients();
+    } catch (error) {
+      console.error("Erro ao carregar dados iniciais:", error);
     }
   };
 
@@ -126,18 +171,6 @@ export default function Checkout() {
       setCartItems(items);
     }
     setLoading(false);
-  };
-
-  const loadSettings = async () => {
-    const { data: sets } = await supabase
-      .from("settings")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    if (sets) {
-      setSettings(sets);
-    }
   };
 
   const loadClients = async () => {
@@ -180,226 +213,185 @@ export default function Checkout() {
     return Object.values(cart).reduce((total, quantity) => total + quantity, 0);
   };
 
+  const createNotification = async (orderId: string) => {
+    try {
+      await fetch("/api/notifications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: userId,
+          title: "Novo Pedido Recebido",
+          message: `Pedido #${orderId.slice(-8).toUpperCase()} foi criado com sucesso. Valor: R$ ${getTotalValue().toFixed(2)}`,
+          type: "success",
+          data: {
+            orderId: orderId,
+            orderNumber: orderId.slice(-8).toUpperCase(),
+            totalValue: getTotalValue(),
+            clientName: formData.client_name,
+          },
+        }),
+      });
+    } catch (notificationError) {
+      console.error("Erro ao criar notificação:", notificationError);
+    }
+  };
+
+  const sendOrderEmail = async (orderId: string) => {
+    try {
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #333; text-align: center;">Pedido Recebido!</h1>
+          <p>Olá ${formData.client_name},</p>
+          <p>Seu pedido foi recebido com sucesso e está sendo processado.</p>
+
+          <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+            <h3>Detalhes do Pedido:</h3>
+            <p><strong>Número do Pedido:</strong> #${orderId.slice(-8).toUpperCase()}</p>
+            <p><strong>Data:</strong> ${new Date().toLocaleDateString("pt-BR")}</p>
+            <p><strong>Valor Total:</strong> R$ ${getTotalValue().toFixed(2)}</p>
+            <p><strong>Forma de Pagamento:</strong> ${formData.payment_method === "boleto" ? "Boleto Bancário" : formData.payment_method === "pix" ? "PIX" : "Cartão de Crédito"}</p>
+          </div>
+
+          <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+            <h3>Itens do Pedido:</h3>
+            ${cartItems
+              .map(
+                (item) => `
+              <div style="border-bottom: 1px solid #dee2e6; padding: 10px 0;">
+                <p><strong>${item.product.name}</strong></p>
+                <p>Quantidade: ${item.quantity} | Preço: R$ ${item.product.price.toFixed(2)} | Total: R$ ${(item.product.price * item.quantity).toFixed(2)}</p>
+              </div>
+            `,
+              )
+              .join("")}
+          </div>
+
+          ${
+            settings?.show_delivery_address
+              ? `
+            <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+              <h3>Endereço de Entrega:</h3>
+              <p>${formData.delivery_address}</p>
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            formData.notes
+              ? `
+            <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+              <h3>Observações:</h3>
+              <p>${formData.notes}</p>
+            </div>
+          `
+              : ""
+          }
+
+          <p>Em breve entraremos em contato para confirmar os detalhes do pedido.</p>
+          <p>Atenciosamente,<br>Equipe ${settings?.name || "Rep-Vendas"}</p>
+        </div>
+      `;
+
+      const emailText = `
+        Pedido Recebido!
+
+        Olá ${formData.client_name},
+
+        Seu pedido foi recebido com sucesso e está sendo processado.
+
+        Detalhes do Pedido:
+        Número do Pedido: #${orderId.slice(-8).toUpperCase()}
+        Data: ${new Date().toLocaleDateString("pt-BR")}
+        Valor Total: R$ ${getTotalValue().toFixed(2)}
+        Forma de Pagamento: ${formData.payment_method === "boleto" ? "Boleto Bancário" : formData.payment_method === "pix" ? "PIX" : "Cartão de Crédito"}
+
+        Itens do Pedido:
+        ${cartItems.map((item) => `- ${item.product.name} (Qtd: ${item.quantity}) - R$ ${(item.product.price * item.quantity).toFixed(2)}`).join("\n")}
+
+        ${
+          settings?.show_delivery_address
+            ? `Endereço de Entrega:
+        ${formData.delivery_address}`
+            : ""
+        }
+
+        ${formData.notes ? `Observações: ${formData.notes}` : ""}
+
+        Em breve entraremos em contato para confirmar os detalhes do pedido.
+
+        Atenciosamente,
+        Equipe ${settings?.name || "Rep-Vendas"}
+      `;
+
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: formData.client_email,
+          subject: `Pedido #${orderId.slice(-8).toUpperCase()} - ${settings?.name || "Rep-Vendas"}`,
+          html: emailHtml,
+          text: emailText,
+          userId: userId,
+        }),
+      });
+    } catch (emailError) {
+      console.error("Erro ao enviar email:", emailError);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProcessing(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        alert("Usuário não autenticado");
-        return;
-      }
-
-      // Criar cliente se for novo
-      let clientId = selectedClient;
-      if (!selectedClient && formData.client_name.trim()) {
-        const { data: newClient, error: clientError } = await supabase
-          .from("clients")
-          .insert({
-            user_id: userId, // Usar o userId do catálogo, não do usuário logado
-            name: formData.client_name.trim(),
-            email: formData.client_email?.trim() || null,
-            phone: formData.client_phone?.trim() || null,
-          })
-          .select()
-          .single();
-
-        if (clientError) throw clientError;
-        clientId = newClient.id;
-      }
-
-      // Criar o pedido
+      // Preparar dados do pedido
       const orderData = {
-        user_id: userId, // Usar o userId do catálogo
-        client_id: clientId,
-        status: "Pendente",
-        total_value: getTotalValue(),
-        order_type: "catalog",
-        delivery_address: formData.delivery_address,
-        payment_method: formData.payment_method,
-        notes: formData.notes,
-        // Criar os itens do pedido
-        order_items: cartItems.map((item) => ({
-          product_id: item.product.id,
+        userId,
+        clientId: selectedClient,
+        clientData: {
+          name: formData.client_name,
+          email: formData.client_email,
+          phone: formData.client_phone,
+          address: formData.delivery_address,
+        },
+        items: cartItems.map(item => ({
+          productId: item.product.id,
           quantity: item.quantity,
-          unit_price: item.product.price,
-          total_price: item.product.price * item.quantity,
+          unitPrice: item.product.price,
         })),
+        totalValue: getTotalValue(),
+        deliveryAddress: formData.delivery_address,
+        paymentMethod: formData.payment_method,
+        notes: formData.notes,
       };
 
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          user_id: orderData.user_id,
-          client_id: orderData.client_id,
-          status: orderData.status,
-          total_value: orderData.total_value,
-          order_type: orderData.order_type,
-          delivery_address: orderData.delivery_address,
-          payment_method: orderData.payment_method,
-          notes: orderData.notes,
-        })
-        .select()
-        .single();
+      // Usar o sistema de checkout seguro para submeter
+      const result = await secureCheckout.submitOrder(orderData);
 
-      if (orderError) throw orderError;
+      if (result.success && result.orderId) {
+        // Limpar carrinho e rascunho
+        localStorage.removeItem("cart");
+        secureCheckout.clearDraftOrder();
 
-      // Inserir os itens do pedido
-      const orderItemsData = orderData.order_items.map((item) => ({
-        order_id: order.id,
-        ...item,
-      }));
+        // Criar notificação
+        await createNotification(result.orderId);
 
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItemsData);
-
-      if (itemsError) throw itemsError;
-
-      // Criar notificação para o usuário dono do catálogo
-      try {
-        await fetch("/api/notifications", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: userId,
-            title: "Novo Pedido Recebido",
-            message: `Pedido #${order.id.slice(-8).toUpperCase()} foi criado com sucesso. Valor: R$ ${getTotalValue().toFixed(2)}`,
-            type: "success",
-            data: {
-              orderId: order.id,
-              orderNumber: order.id.slice(-8).toUpperCase(),
-              totalValue: getTotalValue(),
-              clientName: formData.client_name,
-            },
-          }),
-        });
-      } catch (notificationError) {
-        console.error("Erro ao criar notificação:", notificationError);
-        // Não falhar o pedido por causa da notificação
-      }
-
-      // Enviar email para o cliente se email foi fornecido
-      if (formData.client_email) {
-        try {
-          const emailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #333; text-align: center;">Pedido Recebido!</h1>
-              <p>Olá ${formData.client_name},</p>
-              <p>Seu pedido foi recebido com sucesso e está sendo processado.</p>
-
-              <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
-                <h3>Detalhes do Pedido:</h3>
-                <p><strong>Número do Pedido:</strong> #${order.id.slice(-8).toUpperCase()}</p>
-                <p><strong>Data:</strong> ${new Date().toLocaleDateString("pt-BR")}</p>
-                <p><strong>Valor Total:</strong> R$ ${getTotalValue().toFixed(2)}</p>
-                <p><strong>Forma de Pagamento:</strong> ${formData.payment_method === "boleto" ? "Boleto Bancário" : formData.payment_method === "pix" ? "PIX" : "Cartão de Crédito"}</p>
-              </div>
-
-              <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
-                <h3>Itens do Pedido:</h3>
-                ${cartItems
-                  .map(
-                    (item) => `
-                  <div style="border-bottom: 1px solid #dee2e6; padding: 10px 0;">
-                    <p><strong>${item.product.name}</strong></p>
-                    <p>Quantidade: ${item.quantity} | Preço: R$ ${item.product.price.toFixed(2)} | Total: R$ ${(item.product.price * item.quantity).toFixed(2)}</p>
-                  </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-
-              ${
-                settings?.show_delivery_address
-                  ? `
-                <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
-                  <h3>Endereço de Entrega:</h3>
-                  <p>${formData.delivery_address}</p>
-                </div>
-              `
-                  : ""
-              }
-
-              ${
-                formData.notes
-                  ? `
-                <div style="background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
-                  <h3>Observações:</h3>
-                  <p>${formData.notes}</p>
-                </div>
-              `
-                  : ""
-              }
-
-              <p>Em breve entraremos em contato para confirmar os detalhes do pedido.</p>
-              <p>Atenciosamente,<br>Equipe ${settings?.name || "Rep-Vendas"}</p>
-            </div>
-          `;
-
-          const emailText = `
-            Pedido Recebido!
-
-            Olá ${formData.client_name},
-
-            Seu pedido foi recebido com sucesso e está sendo processado.
-
-            Detalhes do Pedido:
-            Número do Pedido: #${order.id.slice(-8).toUpperCase()}
-            Data: ${new Date().toLocaleDateString("pt-BR")}
-            Valor Total: R$ ${getTotalValue().toFixed(2)}
-            Forma de Pagamento: ${formData.payment_method === "boleto" ? "Boleto Bancário" : formData.payment_method === "pix" ? "PIX" : "Cartão de Crédito"}
-
-            Itens do Pedido:
-            ${cartItems.map((item) => `- ${item.product.name} (Qtd: ${item.quantity}) - R$ ${(item.product.price * item.quantity).toFixed(2)}`).join("\n")}
-
-            ${
-              settings?.show_delivery_address
-                ? `Endereço de Entrega:
-            ${formData.delivery_address}`
-                : ""
-            }
-
-            ${formData.notes ? `Observações: ${formData.notes}` : ""}
-
-            Em breve entraremos em contato para confirmar os detalhes do pedido.
-
-            Atenciosamente,
-            Equipe ${settings?.name || "Rep-Vendas"}
-          `;
-
-          await fetch("/api/send-email", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              to: formData.client_email,
-              subject: `Pedido #${order.id.slice(-8).toUpperCase()} - ${settings?.name || "Rep-Vendas"}`,
-              html: emailHtml,
-              text: emailText,
-              userId: userId,
-            }),
-          });
-        } catch (emailError) {
-          console.error("Erro ao enviar email:", emailError);
-          // Não falhar o pedido por causa do email
+        // Enviar email se necessário
+        if (formData.client_email) {
+          await sendOrderEmail(result.orderId);
         }
-      }
 
-      // Limpar carrinho
-      localStorage.removeItem("cart");
-      setCompleted(true);
+        setCompleted(true);
+      } else {
+        alert(`Erro ao finalizar pedido: ${result.error}`);
+      }
     } catch (error) {
       console.error("Erro ao finalizar pedido:", error);
       alert("Erro ao finalizar pedido. Tente novamente.");
-    } finally {
-      setProcessing(false);
     }
   };
 
@@ -465,6 +457,33 @@ export default function Checkout() {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Security Status Header */}
+      <div className="bg-blue-50 border-b border-blue-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Shield className={`h-5 w-5 ${secureCheckout.state.isAuthenticated ? 'text-green-500' : 'text-red-500'}`} />
+              <div>
+                <p className="text-sm font-medium text-blue-900">
+                  Checkout Seguro {secureCheckout.state.isAuthenticated ? 'Ativo' : 'Inativo'}
+                </p>
+                <p className="text-xs text-blue-700">
+                  {secureCheckout.state.isAuthenticated
+                    ? `Sessão válida até ${new Date(secureCheckout.state.lastActivity + 30 * 60 * 1000).toLocaleTimeString('pt-BR')}`
+                    : 'Faça login para continuar'
+                  }
+                </p>
+              </div>
+            </div>
+            {secureCheckout.loadDraftOrder() && (
+              <div className="flex items-center space-x-2 text-blue-700">
+                <Clock className="h-4 w-4" />
+                <span className="text-sm">Rascunho salvo automaticamente</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
       {/* Header */}
       <header
         className="bg-white border-b border-gray-200"
@@ -778,16 +797,24 @@ export default function Checkout() {
 
               <button
                 type="submit"
-                disabled={processing}
+                disabled={secureCheckout.state.isProcessing || !secureCheckout.state.isAuthenticated}
                 className="w-full mt-6 bg-blue-600 text-white py-3 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: settings?.primary_color || "#3B82F6",
                 }}
               >
-                {processing ? (
+                {secureCheckout.state.isProcessing ? (
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processando...
+                    {secureCheckout.state.retryCount > 0
+                      ? `Tentativa ${secureCheckout.state.retryCount + 1}...`
+                      : 'Processando...'
+                    }
+                  </div>
+                ) : !secureCheckout.state.isAuthenticated ? (
+                  <div className="flex items-center justify-center">
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Autenticação necessária
                   </div>
                 ) : (
                   "Finalizar Pedido"

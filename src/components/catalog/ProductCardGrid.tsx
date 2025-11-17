@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Heart, X } from "lucide-react";
 import { Product, Settings, ProductCardProps } from "@/lib/types";
 
-interface ProductCardGridProps extends Omit<ProductCardProps, 'onToggleFavorite' | 'onAddToCart'> {
+interface ProductCardGridProps extends ProductCardProps {
   hasPriceAccess: boolean;
 }
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useToast } from "@/hooks/useToast";
 import { supabase } from "@/lib/supabaseClient";
+import { useSecureCheckout, UseSecureCheckoutReturn } from "@/hooks/useSecureCheckout";
 
 // Função para formatar preços no formato brasileiro
 const formatPrice = (price: number): string => {
@@ -122,6 +123,9 @@ export interface UseCatalogReturn {
   addToCart: (productId: string, quantity: number) => void;
   clearFilters: () => void;
 
+  // Checkout seguro
+  secureCheckout: UseSecureCheckoutReturn;
+
   // Utilitários
   formatPrice: (price: number) => string;
 };
@@ -131,6 +135,7 @@ export const useCatalog = (): UseCatalogReturn => {
   const userId = params.userId as string;
   const router = useRouter();
   const { addToast } = useToast();
+  const secureCheckout = useSecureCheckout();
 
   // Estados
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -550,6 +555,9 @@ export const useCatalog = (): UseCatalogReturn => {
     // Funções de proteção de preços
     requestPriceAccess,
     checkPriceAccess,
+
+    // Checkout seguro
+    secureCheckout,
 
     // Utilitários
     formatPrice,

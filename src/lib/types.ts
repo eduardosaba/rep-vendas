@@ -53,3 +53,41 @@ export interface CartItem {
   product: Product;
   quantity: number;
 }
+
+// Tipos para checkout seguro
+export interface SecureCheckoutState {
+  isAuthenticated: boolean;
+  sessionToken: string | null;
+  lastActivity: number;
+  retryCount: number;
+  isProcessing: boolean;
+  draftOrder: DraftOrder | null;
+  securityLogs: SecurityLog[];
+}
+
+export interface DraftOrder {
+  id: string;
+  clientData: {
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+  items: Array<{
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+  paymentMethod: string;
+  notes?: string;
+  createdAt: number;
+  lastModified: number;
+}
+
+export interface SecurityLog {
+  id: string;
+  action: string;
+  timestamp: number;
+  success: boolean;
+  details?: string;
+}
