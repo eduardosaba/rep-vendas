@@ -4,18 +4,25 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../../../lib/supabaseClient";
 import { useRouter, useParams } from "next/navigation";
 import { useCatalog } from "../../../../hooks/useCatalog";
+import { generateOrderPDF, OrderData } from "../../../../lib/pdfGenerator";
 import {
-  CreditCard,
-  Truck,
-  ArrowLeft,
-  CheckCircle,
-  MapPin,
-  User,
-  Phone,
   ShoppingCart,
+  CheckCircle,
   Shield,
-  AlertTriangle,
   Clock,
+  ArrowLeft,
+  User,
+  MapPin,
+  CreditCard,
+  AlertTriangle,
+  Download,
+  Eye,
+  EyeOff,
+  X,
+  Plus,
+  Minus,
+  Trash2,
+  Lock,
 } from "lucide-react";
 
 interface Product {
@@ -70,15 +77,21 @@ export default function Checkout() {
   const params = useParams();
   const userId = params.userId as string;
   const router = useRouter();
-  const { settings, cart, secureCheckout, formatPrice } = useCatalog();
+  const { settings, cart, secureCheckout, formatPrice, priceAccessGranted, checkPriceAccess } = useCatalog();
 
   // Estados locais
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>("");
-  const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
+  const [completedOrderData, setCompletedOrderData] = useState<OrderData | null>(null);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authPassword, setAuthPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -210,7 +223,97 @@ export default function Checkout() {
   };
 
   const getTotalItems = () => {
-    return Object.values(cart).reduce((total, quantity) => total + quantity, 0);
+    return cartItems.reduce((total, item) => total + item.quantity, 0);
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!completedOrderData) return;
+
+    setGeneratingPDF(true);
+    try {
+      await generateOrderPDF(completedOrderData);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('Erro ao gerar PDF. Tente novamente.');
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
+  const handleReauth = async () => {
+    if (!authPassword.trim()) {
+      alert('Digite sua senha');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        alert('Usuário não encontrado. Faça login novamente.');
+        router.push(`/login?redirect=/catalog/${userId}/checkout`);
+        return;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email!,
+        password: authPassword,
+      });
+
+      if (signInError) {
+        alert('Senha incorreta. Tente novamente.');
+        return;
+      }
+
+      // Atualizar estado de autenticação
+      await secureCheckout.validateSession();
+      setShowAuthModal(false);
+      setAuthPassword("");
+      setShowAuthPassword(false);
+
+    } catch (error) {
+      console.error('Erro na reautenticação:', error);
+      alert('Erro ao verificar senha. Tente novamente.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const updateCartItemQuantity = (productId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeCartItem(productId);
+      return;
+    }
+
+    const newCart = { ...cart };
+    newCart[productId] = newQuantity;
+    localStorage.setItem("cart", JSON.stringify(newCart));
+
+    // Atualizar estado local
+    const updatedItems = cartItems.map(item =>
+      item.product.id === productId
+        ? { ...item, quantity: newQuantity }
+        : item
+    );
+    setCartItems(updatedItems);
+  };
+
+  const removeCartItem = (productId: string) => {
+    const newCart = { ...cart };
+    delete newCart[productId];
+    localStorage.setItem("cart", JSON.stringify(newCart));
+
+    // Atualizar estado local
+    const updatedItems = cartItems.filter(item => item.product.id !== productId);
+    setCartItems(updatedItems);
+  };
+
+  const shouldShowPrices = () => {
+    // Se não há proteção de preços configurada, mostrar sempre
+    if (!settings?.price_access_password) return true;
+
+    // Verificar se o acesso foi concedido
+    return priceAccessGranted && checkPriceAccess();
   };
 
   const createNotification = async (orderId: string) => {
@@ -373,6 +476,31 @@ export default function Checkout() {
       const result = await secureCheckout.submitOrder(orderData);
 
       if (result.success && result.orderId) {
+        // Preparar dados para o PDF
+        const orderDataForPDF: OrderData = {
+          id: result.orderId,
+          orderNumber: result.orderId.slice(-8).toUpperCase(),
+          createdAt: new Date().toLocaleDateString('pt-BR'),
+          clientName: formData.client_name,
+          clientEmail: formData.client_email,
+          clientPhone: formData.client_phone,
+          deliveryAddress: formData.delivery_address,
+          paymentMethod: formData.payment_method,
+          notes: formData.notes,
+          items: cartItems.map(item => ({
+            name: item.product.name,
+            brand: item.product.brand,
+            quantity: item.quantity,
+            unitPrice: item.product.price,
+            totalPrice: item.product.price * item.quantity,
+          })),
+          subtotal: getTotalValue(),
+          totalValue: getTotalValue(),
+          settings,
+        };
+
+        setCompletedOrderData(orderDataForPDF);
+
         // Limpar carrinho e rascunho
         localStorage.removeItem("cart");
         secureCheckout.clearDraftOrder();
@@ -443,6 +571,25 @@ export default function Checkout() {
             Seu pedido foi criado com sucesso e está sendo processado.
           </p>
           <div className="space-y-3">
+            {completedOrderData && (
+              <button
+                onClick={handleGeneratePDF}
+                disabled={generatingPDF}
+                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {generatingPDF ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Gerando PDF...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Recibo em PDF
+                  </>
+                )}
+              </button>
+            )}
             <button
               onClick={() => router.push(`/catalog/${userId}`)}
               className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-200 transition-colors"
@@ -729,7 +876,7 @@ export default function Checkout() {
                 {cartItems.map((item) => (
                   <div
                     key={item.product.id}
-                    className="flex items-center space-x-4"
+                    className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg"
                   >
                     <div className="w-16 h-16 flex-shrink-0">
                       {item.product.image_url ? (
@@ -753,18 +900,58 @@ export default function Checkout() {
                       <p className="text-sm text-gray-600">
                         {item.product.brand || "Marca"}
                       </p>
-                      <p className="text-sm text-gray-600">
-                        Qtd: {item.quantity}
-                      </p>
+                      <div className="flex items-center space-x-2 mt-2">
+                        <button
+                          onClick={() => updateCartItemQuantity(item.product.id, item.quantity - 1)}
+                          className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                          disabled={item.quantity <= 1}
+                        >
+                          <Minus className="h-4 w-4 text-gray-600" />
+                        </button>
+                        <span className="text-sm font-medium min-w-[2rem] text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateCartItemQuantity(item.product.id, item.quantity + 1)}
+                          className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                        >
+                          <Plus className="h-4 w-4 text-gray-600" />
+                        </button>
+                        <button
+                          onClick={() => removeCartItem(item.product.id)}
+                          className="w-8 h-8 flex items-center justify-center bg-red-100 hover:bg-red-200 rounded-full transition-colors ml-2"
+                          title="Remover item"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </button>
+                      </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">
-                        R$ {(item.product.price * item.quantity).toFixed(2)}
-                      </p>
+                      {shouldShowPrices() ? (
+                        <>
+                          <p className="text-sm font-medium text-gray-900">
+                            R$ {(item.product.price * item.quantity).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            R$ {item.product.price.toFixed(2)} cada
+                          </p>
+                        </>
+                      ) : (
+                        <div className="text-center">
+                          <Lock className="h-4 w-4 text-gray-400 mx-auto mb-1" />
+                          <p className="text-xs text-gray-500">Preço protegido</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
+              {cartItems.length === 0 && (
+                <div className="text-center py-8">
+                  <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Nenhum item no carrinho</p>
+                </div>
+              )}
             </div>
 
             {/* Order Total */}
@@ -777,9 +964,16 @@ export default function Checkout() {
                   <span className="text-gray-600">
                     Subtotal ({getTotalItems()} itens)
                   </span>
-                  <span className="text-gray-900">
-                    R$ {getTotalValue().toFixed(2)}
-                  </span>
+                  {shouldShowPrices() ? (
+                    <span className="text-gray-900">
+                      R$ {getTotalValue().toFixed(2)}
+                    </span>
+                  ) : (
+                    <div className="flex items-center">
+                      <Lock className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-gray-500">Protegido</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Frete</span>
@@ -788,19 +982,32 @@ export default function Checkout() {
                 <div className="border-t border-gray-200 pt-2">
                   <div className="flex justify-between text-lg font-medium">
                     <span className="text-gray-900">Total</span>
-                    <span className="text-gray-900">
-                      R$ {getTotalValue().toFixed(2)}
-                    </span>
+                    {shouldShowPrices() ? (
+                      <span className="text-gray-900">
+                        R$ {getTotalValue().toFixed(2)}
+                      </span>
+                    ) : (
+                      <div className="flex items-center">
+                        <Lock className="h-5 w-5 text-gray-400 mr-1" />
+                        <span className="text-gray-500">Protegido</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={secureCheckout.state.isProcessing || !secureCheckout.state.isAuthenticated}
+                disabled={secureCheckout.state.isProcessing}
                 className="w-full mt-6 bg-blue-600 text-white py-3 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: settings?.primary_color || "#3B82F6",
+                }}
+                onClick={(e) => {
+                  if (!secureCheckout.state.isAuthenticated) {
+                    e.preventDefault();
+                    setShowAuthModal(true);
+                  }
                 }}
               >
                 {secureCheckout.state.isProcessing ? (
@@ -813,8 +1020,8 @@ export default function Checkout() {
                   </div>
                 ) : !secureCheckout.state.isAuthenticated ? (
                   <div className="flex items-center justify-center">
-                    <AlertTriangle className="h-4 w-4 mr-2" />
-                    Autenticação necessária
+                    <Shield className="h-4 w-4 mr-2" />
+                    Confirmar Senha para Finalizar
                   </div>
                 ) : (
                   "Finalizar Pedido"
@@ -824,6 +1031,98 @@ export default function Checkout() {
           </div>
         </form>
       </div>
+
+      {/* Authentication Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Shield className="h-5 w-5 mr-2 text-blue-600" />
+                Confirmação de Segurança
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setAuthPassword("");
+                  setShowAuthPassword(false);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Para finalizar o pedido, confirme sua senha:
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Senha
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Shield className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type={showAuthPassword ? "text" : "password"}
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  placeholder="Digite sua senha"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleReauth();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowAuthPassword(!showAuthPassword)}
+                >
+                  {showAuthPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setAuthPassword("");
+                  setShowAuthPassword(false);
+                }}
+                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReauth}
+                disabled={authLoading || !authPassword.trim()}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              >
+                {authLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Confirmar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
