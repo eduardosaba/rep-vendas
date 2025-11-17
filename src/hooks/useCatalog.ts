@@ -97,6 +97,8 @@ export interface UseCatalogReturn {
   categories: string[];
   showOnlyBestsellers: boolean;
   showOnlyNew: boolean;
+  priceAccessGranted: boolean;
+  priceAccessExpiresAt: number | null;
 
   // Ações
   setSearchTerm: (term: string) => void;
@@ -111,15 +113,8 @@ export interface UseCatalogReturn {
   setItemsPerPage: (items: number) => void;
   setShowOnlyBestsellers: (show: boolean) => void;
   setShowOnlyNew: (show: boolean) => void;
-
-  // Funções de interação
-  toggleFavorite: (productId: string) => void;
-  addToCart: (productId: string, quantity: number) => void;
-  clearFilters: () => void;
-
-  // Utilitários
-  formatPrice: (price: number) => string;
-}
+  requestPriceAccess: (password: string) => Promise<boolean>;
+  checkPriceAccess: () => boolean;
 
 export const useCatalog = (): UseCatalogReturn => {
   const params = useParams();
@@ -151,6 +146,10 @@ export const useCatalog = (): UseCatalogReturn => {
   const [showOnlyBestsellers, setShowOnlyBestsellers] =
     useState<boolean>(false);
   const [showOnlyNew, setShowOnlyNew] = useState<boolean>(false);
+
+  // Estados de proteção de preços
+  const [priceAccessGranted, setPriceAccessGranted] = useState<boolean>(false);
+  const [priceAccessExpiresAt, setPriceAccessExpiresAt] = useState<number | null>(null);
 
   // Debounce da busca
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -229,6 +228,22 @@ export const useCatalog = (): UseCatalogReturn => {
     const savedItemsPerPage = localStorage.getItem("itemsPerPage");
     if (savedItemsPerPage) {
       setItemsPerPage(parseInt(savedItemsPerPage, 10));
+    }
+
+    // Carregar acesso aos preços
+    const savedPriceAccess = localStorage.getItem("priceAccessGranted");
+    const savedPriceExpiresAt = localStorage.getItem("priceAccessExpiresAt");
+
+    if (savedPriceAccess === "true" && savedPriceExpiresAt) {
+      const expiresAt = parseInt(savedPriceExpiresAt, 10);
+      if (Date.now() < expiresAt) {
+        setPriceAccessGranted(true);
+        setPriceAccessExpiresAt(expiresAt);
+      } else {
+        // Acesso expirou, limpar
+        localStorage.removeItem("priceAccessGranted");
+        localStorage.removeItem("priceAccessExpiresAt");
+      }
     }
 
     // Carregar configurações do usuário
@@ -405,6 +420,71 @@ export const useCatalog = (): UseCatalogReturn => {
     setSortOrder("asc");
   };
 
+  // Funções de proteção de preços
+  const requestPriceAccess = async (password: string): Promise<boolean> => {
+    try {
+      // Verificar senha (por enquanto hardcoded, depois pode vir das settings)
+      const correctPassword = settings?.price_access_password || "123456";
+
+      if (password === correctPassword) {
+        const expiresAt = Date.now() + (30 * 60 * 1000); // 30 minutos
+        setPriceAccessGranted(true);
+        setPriceAccessExpiresAt(expiresAt);
+
+        // Salvar no localStorage
+        localStorage.setItem("priceAccessGranted", "true");
+        localStorage.setItem("priceAccessExpiresAt", expiresAt.toString());
+
+        addToast({
+          title: "Acesso concedido!",
+          message: "Você pode visualizar os preços por 30 minutos.",
+          type: "success",
+        });
+
+        return true;
+      } else {
+        addToast({
+          title: "Senha incorreta",
+          message: "Verifique a senha e tente novamente.",
+          type: "error",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("Erro ao verificar senha:", error);
+      addToast({
+        title: "Erro",
+        message: "Não foi possível verificar a senha.",
+        type: "error",
+      });
+      return false;
+    }
+  };
+
+  const checkPriceAccess = (): boolean => {
+    if (!priceAccessGranted || !priceAccessExpiresAt) {
+      return false;
+    }
+
+    if (Date.now() > priceAccessExpiresAt) {
+      // Acesso expirou
+      setPriceAccessGranted(false);
+      setPriceAccessExpiresAt(null);
+      localStorage.removeItem("priceAccessGranted");
+      localStorage.removeItem("priceAccessExpiresAt");
+
+      addToast({
+        title: "Acesso expirado",
+        message: "O acesso aos preços expirou. Solicite novamente.",
+        type: "warning",
+      });
+
+      return false;
+    }
+
+    return true;
+  };
+
   // Handlers para setters que precisam de lógica adicional
   const handleSetItemsPerPage = (items: number) => {
     setItemsPerPage(items);
@@ -435,6 +515,8 @@ export const useCatalog = (): UseCatalogReturn => {
     categories,
     showOnlyBestsellers,
     showOnlyNew,
+    priceAccessGranted,
+    priceAccessExpiresAt,
 
     // Ações
     setSearchTerm,
@@ -454,6 +536,10 @@ export const useCatalog = (): UseCatalogReturn => {
     toggleFavorite,
     addToCart,
     clearFilters,
+
+    // Funções de proteção de preços
+    requestPriceAccess,
+    checkPriceAccess,
 
     // Utilitários
     formatPrice,

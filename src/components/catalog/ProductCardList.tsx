@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { Heart, X } from "lucide-react";
 import { Product, Settings, ProductCardProps } from "@/lib/types";
 
-export const ProductCardList: React.FC<ProductCardProps> = ({
+interface ProductCardListProps extends ProductCardProps {
+  hasPriceAccess: boolean;
+  onRequestPriceAccess: () => void;
+}
+
+export const ProductCardList: React.FC<ProductCardListProps> = ({
   product,
   isFavorite,
   onToggleFavorite,
@@ -14,6 +19,8 @@ export const ProductCardList: React.FC<ProductCardProps> = ({
   settings,
   userId,
   formatPrice,
+  hasPriceAccess,
+  onRequestPriceAccess,
 }) => {
   const router = useRouter();
   const [showImageModal, setShowImageModal] = useState(false);
@@ -111,27 +118,40 @@ export const ProductCardList: React.FC<ProductCardProps> = ({
 
             <div className="flex flex-col sm:flex-row justify-between sm:items-end mt-4">
               <div className="mb-3 sm:mb-0">
-                <div className="flex items-baseline space-x-2 mb-1">
-                  <span className="text-xl font-bold text-gray-900">
-                    R$ {formatPrice(product.price)}
-                  </span>
-                  {settings?.show_old_price && (
-                    <span className="text-sm text-gray-500 line-through">
-                      R$ {formatPrice(product.price * 1.2)}
-                    </span>
-                  )}
-                  {settings?.show_discount && (
-                    <span className="text-xs text-green-600 font-medium">
-                      17% OFF
-                    </span>
-                  )}
-                </div>
-                {settings?.show_installments && (
-                  <div className="text-xs text-green-600 mt-1">
-                    12x de R$ {formatPrice(product.price / 12)} sem juros
+                {hasPriceAccess ? (
+                  <>
+                    <div className="flex items-baseline space-x-2 mb-1">
+                      <span className="text-xl font-bold text-gray-900">
+                        R$ {formatPrice(product.price)}
+                      </span>
+                      {settings?.show_old_price && (
+                        <span className="text-sm text-gray-500 line-through">
+                          R$ {formatPrice(product.price * 1.2)}
+                        </span>
+                      )}
+                      {settings?.show_discount && (
+                        <span className="text-xs text-green-600 font-medium">
+                          17% OFF
+                        </span>
+                      )}
+                    </div>
+                    {settings?.show_installments && (
+                      <div className="text-xs text-green-600 mt-1">
+                        12x de R$ {formatPrice(product.price / 12)} sem juros
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mb-1">
+                    <button
+                      onClick={onRequestPriceAccess}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium underline"
+                    >
+                      Solicitar acesso aos preços
+                    </button>
                   </div>
                 )}
-                {settings?.show_shipping && (
+                {hasPriceAccess && settings?.show_shipping && (
                   <div className="flex items-center text-xs text-gray-600 mt-1">
                     <svg
                       className="h-3 w-3 mr-1"

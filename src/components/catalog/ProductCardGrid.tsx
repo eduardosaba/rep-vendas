@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { Heart, X } from "lucide-react";
 import { Product, Settings, ProductCardProps } from "@/lib/types";
 
-export const ProductCardGrid: React.FC<ProductCardProps> = ({
+interface ProductCardGridProps extends ProductCardProps {
+  hasPriceAccess: boolean;
+  onRequestPriceAccess: () => void;
+}
+
+export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
   product,
   isFavorite,
   onToggleFavorite,
@@ -14,6 +19,8 @@ export const ProductCardGrid: React.FC<ProductCardProps> = ({
   settings,
   userId,
   formatPrice,
+  hasPriceAccess,
+  onRequestPriceAccess,
 }) => {
   const [quantity, setQuantity] = useState(1);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -111,22 +118,33 @@ export const ProductCardGrid: React.FC<ProductCardProps> = ({
           </p>
 
           <div className="mb-3">
-            <div className="flex items-baseline space-x-2 mb-1">
-              <span className="text-xl font-bold text-gray-900">
-                R$ {formatPrice(product.price)}
-              </span>
-              {settings?.show_old_price && (
-                <span className="text-sm text-gray-500 line-through">
-                  R$ {formatPrice(product.price * 1.2)}
+            {hasPriceAccess ? (
+              <div className="flex items-baseline space-x-2 mb-1">
+                <span className="text-xl font-bold text-gray-900">
+                  R$ {formatPrice(product.price)}
                 </span>
-              )}
-              {settings?.show_discount && (
-                <span className="text-xs text-green-600 font-medium">
-                  17% OFF
-                </span>
-              )}
-            </div>
-            {settings?.show_installments && (
+                {settings?.show_old_price && (
+                  <span className="text-sm text-gray-500 line-through">
+                    R$ {formatPrice(product.price * 1.2)}
+                  </span>
+                )}
+                {settings?.show_discount && (
+                  <span className="text-xs text-green-600 font-medium">
+                    17% OFF
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="mb-1">
+                <button
+                  onClick={onRequestPriceAccess}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium underline"
+                >
+                  Solicitar acesso aos preços
+                </button>
+              </div>
+            )}
+            {hasPriceAccess && settings?.show_installments && (
               <div className="text-xs text-green-600 mt-1">
                 12x de R$ {formatPrice(product.price / 12)} sem juros
               </div>

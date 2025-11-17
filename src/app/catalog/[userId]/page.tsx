@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useCatalog } from "@/hooks/useCatalog";
 import { Product, ProductCardProps, Settings } from "@/lib/types";
 
@@ -14,6 +14,7 @@ import { SidebarFilters } from "@/components/catalog/SidebarFilters";
 import { PaginationControls } from "@/components/catalog/PaginationControls";
 import { BestsellerCarousel } from "@/components/catalog/BestsellerCarousel";
 import { CatalogFooter } from "@/components/catalog/CatalogFooter";
+import { PriceAccessModal } from "@/components/catalog/PriceAccessModal";
 
 import { Filter, Grid3X3, List } from "lucide-react"; // Ícones usados na UI
 
@@ -58,7 +59,29 @@ export default memo(function CatalogPage() {
     toggleFavorite,
     clearFilters,
     formatPrice,
+    priceAccessGranted,
+    checkPriceAccess,
+    requestPriceAccess,
   } = useCatalog();
+
+  // Estado do modal de acesso aos preços
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [priceModalLoading, setPriceModalLoading] = useState(false);
+
+  // Handler para solicitar acesso aos preços
+  const handleRequestPriceAccess = () => {
+    setShowPriceModal(true);
+  };
+
+  // Handler para submeter senha do modal
+  const handlePriceAccessSubmit = async (password: string) => {
+    setPriceModalLoading(true);
+    try {
+      return await requestPriceAccess(password);
+    } finally {
+      setPriceModalLoading(false);
+    }
+  };
 
   // Calcular filtros ativos para indicador visual
   const activeFiltersCount = [
@@ -272,7 +295,9 @@ export default memo(function CatalogPage() {
                           primaryColor={settings?.primary_color}
                           settings={settings}
                           userId={userId}
-                          formatPrice={formatPrice} // Passando o formatador
+                          formatPrice={formatPrice}
+                          hasPriceAccess={checkPriceAccess()}
+                          onRequestPriceAccess={handleRequestPriceAccess}
                         />
                       ) : (
                         <MemoizedProductCardList
@@ -284,7 +309,9 @@ export default memo(function CatalogPage() {
                           primaryColor={settings?.primary_color}
                           settings={settings}
                           userId={userId}
-                          formatPrice={formatPrice} // Passando o formatador
+                          formatPrice={formatPrice}
+                          hasPriceAccess={checkPriceAccess()}
+                          onRequestPriceAccess={handleRequestPriceAccess}
                         />
                       ),
                     )}
@@ -347,6 +374,13 @@ export default memo(function CatalogPage() {
       />
 
       <CatalogFooter settings={settings} />
+
+      <PriceAccessModal
+        isOpen={showPriceModal}
+        onClose={() => setShowPriceModal(false)}
+        onSubmit={handlePriceAccessSubmit}
+        isLoading={priceModalLoading}
+      />
     </div>
   );
 });

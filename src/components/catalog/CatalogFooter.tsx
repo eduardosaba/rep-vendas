@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings } from "../../lib/types";
+import { Settings } from "@/lib/types";
 
 interface CatalogFooterProps {
   settings: Settings | null;
@@ -21,25 +21,30 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
-                  Carreiras
+                  Nossa missão
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
-                  Imprensa
+                  Política de privacidade
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
-                  Comunicação
+                  Termos de uso
                 </a>
               </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-bold mb-4 text-lg">Ajuda</h4>
+            <h4 className="font-bold mb-4 text-lg">Atendimento</h4>
             <ul className="space-y-2 text-sm text-gray-400">
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Central de ajuda
+                </a>
+              </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
                   Como comprar
@@ -47,22 +52,17 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
-                  Pagamento
+                  Formas de pagamento
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
-                  Entrega
+                  Prazos de entrega
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
                   Trocas e devoluções
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Segurança
                 </a>
               </li>
             </ul>
@@ -73,56 +73,43 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
             <ul className="space-y-2 text-sm text-gray-400">
               <li>
                 <a href="#" className="hover:text-white transition-colors">
+                  Área do vendedor
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
                   Como vender
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
-                  Desenvolvimento
+                  Programa de vantagens
                 </a>
               </li>
               <li>
                 <a href="#" className="hover:text-white transition-colors">
-                  Marketplace
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Vendas corporativas
+                  Suporte ao vendedor
                 </a>
               </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-bold mb-4 text-lg">Serviços</h4>
-            <ul className="space-y-2 text-sm text-gray-400">
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Cartão Luiza
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Magalu Pay
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Seguros
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Consórcio
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Lista de casamento
-                </a>
-              </li>
-            </ul>
+            <h4 className="font-bold mb-4 text-lg">Contato</h4>
+            <div className="space-y-2 text-sm text-gray-400">
+              <p>
+                <span className="block font-medium">📞 Telefone</span>
+                <span>(11) 9999-9999</span>
+              </p>
+              <p>
+                <span className="block font-medium">📧 Email</span>
+                <span>contato@repvendas.com.br</span>
+              </p>
+              <p>
+                <span className="block font-medium">🕒 Horário</span>
+                <span>Seg-Sex: 8h às 18h</span>
+              </p>
+            </div>
           </div>
 
           <div>
@@ -131,25 +118,28 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
               <a
                 href="#"
                 className="text-gray-400 hover:text-white transition-colors"
+                aria-label="Facebook"
               >
                 📘 Facebook
               </a>
               <a
                 href="#"
                 className="text-gray-400 hover:text-white transition-colors"
+                aria-label="Instagram"
               >
                 📷 Instagram
               </a>
               <a
                 href="#"
                 className="text-gray-400 hover:text-white transition-colors"
+                aria-label="LinkedIn"
               >
-                🐦 Twitter
+                💼 LinkedIn
               </a>
             </div>
             <div className="text-sm text-gray-400">
               <p className="mb-2">📧 Newsletter</p>
-              <p>Receba ofertas exclusivas</p>
+              <p>Receba ofertas exclusivas e novidades</p>
             </div>
           </div>
         </div>
@@ -162,12 +152,16 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
                 reservados.
               </p>
               <p>
-                CNPJ: XX.XXX.XXX/XXXX-XX | Endereço: Rua Exemplo, 123 -
-                Cidade/SP
+                Sistema de vendas B2B - CNPJ: XX.XXX.XXX/XXXX-XX
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-400">Site seguro</span>
+              <span className="text-sm text-gray-400 flex items-center">
+                🔒 Site seguro SSL
+              </span>
+              <span className="text-sm text-gray-400">
+                Ambiente B2B
+              </span>
             </div>
           </div>
         </div>

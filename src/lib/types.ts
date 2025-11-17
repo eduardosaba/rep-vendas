@@ -35,6 +35,7 @@ export interface Settings {
   show_filter_category?: boolean;
   show_filter_bestseller?: boolean;
   show_filter_new?: boolean;
+  price_access_password?: string;
 }
 
 export interface ProductCardProps {
