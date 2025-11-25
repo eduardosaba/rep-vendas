@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
 import {
   CreditCard,
@@ -358,7 +359,7 @@ export default function Checkout() {
         }
       }
 
-      // Limpar carrinho
+      // Limpar Pedido
       localStorage.removeItem('cart');
       setCompleted(true);
     } catch (error) {
@@ -387,10 +388,10 @@ export default function Checkout() {
           <div className="py-16 text-center">
             <ShoppingCart className="mx-auto mb-4 h-24 w-24 text-gray-300" />
             <h3 className="mb-2 text-xl font-medium text-gray-900">
-              Carrinho vazio
+              Pedido vazio
             </h3>
             <p className="mb-6 text-gray-600">
-              Adicione produtos ao carrinho antes de finalizar o pedido.
+              Adicione produtos ao Pedido antes de finalizar o pedido.
             </p>
             <button
               onClick={() => router.push('/')}
@@ -454,23 +455,11 @@ export default function Checkout() {
                 <ArrowLeft className="mr-2 h-5 w-5" />
                 Voltar
               </button>
-              {settings?.logo_url ? (
-                <img
-                  src={settings.logo_url}
-                  alt="Logo"
-                  className="h-14 w-auto"
-                />
-              ) : (
-                <h1
-                  className="text-2xl font-bold text-gray-900"
-                  style={{
-                    color: settings?.title_color || '#111827',
-                    fontFamily: settings?.font_family || 'Inter, sans-serif',
-                  }}
-                >
-                  Rep-Vendas
-                </h1>
-              )}
+              <img
+                src={settings?.logo_url || SYSTEM_LOGO_URL}
+                alt={settings?.name || 'Rep-Vendas'}
+                className="h-14 w-auto"
+              />
             </div>
           </div>
         </div>

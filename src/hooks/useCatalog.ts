@@ -1,570 +1,375 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { useToast } from '@/hooks/useToast';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import {
-  useSecureCheckout,
-  UseSecureCheckoutReturn,
-} from '@/hooks/useSecureCheckout';
+import { Product, Settings, CartItem } from '@/lib/types';
+import { useToast } from '@/hooks/useToast';
+import { useParams } from 'next/navigation';
 
-// Função para formatar preços no formato brasileiro
-const formatPrice = (price: number): string => {
-  return price.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-};
-
-// Constantes de paginação
-const DEFAULT_ITEMS_PER_PAGE = 20;
-const ITEMS_PER_PAGE_OPTIONS = [12, 20, 32, 48];
-
-// Hook personalizado para debounce
-const useDebounce = (value: string, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
-
-interface Product {
-  id: string;
-  name: string;
-  brand?: string;
-  reference_code?: string;
-  description?: string;
-  price: number;
-  images?: string[];
-  bestseller?: boolean;
-  is_launch?: boolean;
-  technical_specs?: string;
-}
-
-interface Settings {
-  id?: string;
-  user_id?: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-  logo_url?: string;
-  banner_url?: string;
-  primary_color?: string;
-  secondary_color?: string;
-  header_color?: string;
-  font_family?: string;
-  title_color?: string;
-  icon_color?: string;
-  show_shipping?: boolean;
-  show_installments?: boolean;
-  show_delivery_address?: boolean;
-  show_installments_checkout?: boolean;
-  show_discount?: boolean;
-  show_old_price?: boolean;
-  show_filter_price?: boolean;
-  show_filter_category?: boolean;
-  show_filter_bestseller?: boolean;
-  show_filter_new?: boolean;
-  price_access_password?: string;
-}
-
-export interface UseCatalogReturn {
-  // Estados
-  userId: string;
-  settings: Settings | null;
-  products: Product[];
-  searchTerm: string;
-  selectedCategory: string;
-  priceRange: [number, number];
-  showFilters: boolean;
-  viewMode: 'grid' | 'list';
-  favorites: Set<string>;
-  cart: { [key: string]: number };
-  selectedBrands: string[];
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-  currentPage: number;
-  totalProducts: number;
-  loading: boolean;
-  bestsellerProducts: Product[];
-  itemsPerPage: number;
-  allBrands: string[];
-  categories: string[];
-  showOnlyBestsellers: boolean;
-  showOnlyNew: boolean;
-  priceAccessGranted: boolean;
-  priceAccessExpiresAt: number | null;
-
-  // Ações
-  setSearchTerm: (term: string) => void;
-  setSelectedCategory: (category: string) => void;
-  setPriceRange: (range: [number, number]) => void;
-  setShowFilters: (show: boolean) => void;
-  setViewMode: (mode: 'grid' | 'list') => void;
-  setSelectedBrands: (brands: string[]) => void;
-  setSortBy: (sort: string) => void;
-  setSortOrder: (order: 'asc' | 'desc') => void;
-  setCurrentPage: (page: number) => void;
-  setItemsPerPage: (items: number) => void;
-  setShowOnlyBestsellers: (show: boolean) => void;
-  setShowOnlyNew: (show: boolean) => void;
-  requestPriceAccess: (password: string) => Promise<boolean>;
-  checkPriceAccess: () => boolean;
-
-  // Funções de interação
-  toggleFavorite: (productId: string) => void;
-  addToCart: (productId: string, quantity: number) => void;
-  clearFilters: () => void;
-
-  // Checkout seguro
-  secureCheckout: UseSecureCheckoutReturn;
-
-  // Utilitários
-  formatPrice: (price: number) => string;
-}
-
-export const useCatalog = (): UseCatalogReturn => {
+export function useCatalog(overrideUserId?: string) {
   const params = useParams();
-  const userId = params.userId as string;
-  const router = useRouter();
   const { addToast } = useToast();
-  const secureCheckout = useSecureCheckout();
 
-  // Estados
-  const [settings, setSettings] = useState<Settings | null>(null);
+  // Prioriza o ID passado via props (resolvido no servidor), senão tenta ler da URL
+  const userId = overrideUserId || (params.slug as string);
+
+  // --- ESTADOS DE DADOS ---
   const [products, setProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
-  const [showFilters, setShowFilters] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [cart, setCart] = useState<Record<string, number>>({}); // { productId: quantity }
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [cart, setCart] = useState<{ [key: string]: number }>({});
+  const [loadedOrderCode, setLoadedOrderCode] = useState<string | null>(null);
+
+  // --- ESTADOS DE FILTRO E UI ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [totalProducts, setTotalProducts] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [bestsellerProducts, setBestsellerProducts] = useState<Product[]>([]);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(
-    DEFAULT_ITEMS_PER_PAGE
-  );
-  const [allBrands, setAllBrands] = useState<string[]>([]);
-  const [showOnlyBestsellers, setShowOnlyBestsellers] =
-    useState<boolean>(false);
-  const [showOnlyNew, setShowOnlyNew] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
+  const [showOnlyNew, setShowOnlyNew] = useState(false);
 
-  // Estados de proteção de preços
-  const [priceAccessGranted, setPriceAccessGranted] = useState<boolean>(false);
-  const [priceAccessExpiresAt, setPriceAccessExpiresAt] = useState<
-    number | null
-  >(null);
+  // --- ESTADOS DE ACESSO (PREÇO) ---
+  const [priceAccessGranted, setPriceAccessGranted] = useState(false);
 
-  // Debounce da busca
-  const debouncedSearch = useDebounce(searchTerm, 300);
-
-  // Computed states
-  const categories = ['Todos', ...allBrands];
-
-  // Efeitos
+  // --- CARREGAMENTO INICIAL ---
   useEffect(() => {
-    if (userId) {
-      loadUserData();
-      loadBestsellerProducts();
-      loadAllBrands();
-    }
-  }, [userId]);
+    if (!userId) return;
 
-  useEffect(() => {
-    if (userId) {
-      loadCatalogData(
-        currentPage,
-        debouncedSearch,
-        selectedCategory,
-        selectedBrands,
-        priceRange,
-        sortBy,
-        sortOrder,
-        showOnlyBestsellers,
-        showOnlyNew
-      );
-    }
-  }, [
-    userId,
-    currentPage,
-    debouncedSearch,
-    selectedCategory,
-    selectedBrands,
-    priceRange,
-    sortBy,
-    sortOrder,
-    itemsPerPage,
-    showOnlyBestsellers,
-    showOnlyNew,
-  ]);
+    const initCatalog = async () => {
+      try {
+        setLoading(true);
 
-  useEffect(() => {
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [
-    debouncedSearch,
-    selectedCategory,
-    selectedBrands,
-    priceRange,
-    sortBy,
-    sortOrder,
-    itemsPerPage,
-    showOnlyBestsellers,
-    showOnlyNew,
-  ]);
+        // 1. Carregar Configurações e Produtos (se não vierem via props no futuro)
+        // Nota: Mesmo que a página passe initialProducts, este fetch garante dados frescos se o usuário navegar
+        const [settingsRes, productsRes] = await Promise.all([
+          supabase.from('settings').select('*').eq('user_id', userId).single(),
+          supabase.from('products').select('*').eq('user_id', userId),
+        ]);
 
-  // Funções de carregamento de dados
-  const loadUserData = async () => {
-    // Carregar favoritos do localStorage
-    const savedFavorites = localStorage.getItem('favorites');
-    if (savedFavorites) {
-      setFavorites(new Set(JSON.parse(savedFavorites)));
-    }
+        if (settingsRes.data) setSettings(settingsRes.data);
+        if (productsRes.data) setProducts(productsRes.data);
 
-    // Carregar carrinho do localStorage
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
-    }
+        // 2. Carregar Dados do Cliente (LocalStorage)
+        // Isso só roda no navegador
+        if (typeof window !== 'undefined') {
+          const savedCart = localStorage.getItem('cart');
+          if (savedCart) setCart(JSON.parse(savedCart));
 
-    // Carregar preferência de items por página
-    const savedItemsPerPage = localStorage.getItem('itemsPerPage');
-    if (savedItemsPerPage) {
-      setItemsPerPage(parseInt(savedItemsPerPage, 10));
-    }
+          const savedFavs = localStorage.getItem('favorites');
+          if (savedFavs) setFavorites(new Set(JSON.parse(savedFavs)));
 
-    // Carregar acesso aos preços
-    const savedPriceAccess = localStorage.getItem('priceAccessGranted');
-    const savedPriceExpiresAt = localStorage.getItem('priceAccessExpiresAt');
-
-    if (savedPriceAccess === 'true' && savedPriceExpiresAt) {
-      const expiresAt = parseInt(savedPriceExpiresAt, 10);
-      if (Date.now() < expiresAt) {
-        setPriceAccessGranted(true);
-        setPriceAccessExpiresAt(expiresAt);
-      } else {
-        // Acesso expirou, limpar
-        localStorage.removeItem('priceAccessGranted');
-        localStorage.removeItem('priceAccessExpiresAt');
+          const access = localStorage.getItem('priceAccessGranted');
+          if (access === 'true') setPriceAccessGranted(true);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar catálogo:', error);
+        addToast({ title: 'Erro ao carregar catálogo', type: 'error' });
+      } finally {
+        setLoading(false);
       }
-    }
+    };
 
-    // Carregar configurações do usuário
-    try {
-      const { data: userSettings, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+    initCatalog();
+  }, [userId, addToast]);
 
-      if (userSettings && !error) {
-        setSettings(userSettings);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
-    }
-  };
+  // --- FILTRAGEM E ORDENAÇÃO ---
+  // Usamos useMemo para não recalcular a lista toda vez que o componente renderizar
+  const filteredProducts = useMemo(() => {
+    return products
+      .filter((product) => {
+        // 1. Busca por Texto (Nome ou Referência)
+        const matchesSearch =
+          product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (product.reference_code &&
+            product.reference_code
+              .toLowerCase()
+              .includes(searchTerm.toLowerCase()));
 
-  const loadBestsellerProducts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('bestseller', true)
-        .limit(10);
+        // 2. Filtro de Preço
+        const matchesPrice =
+          product.price >= priceRange[0] && product.price <= priceRange[1];
 
-      if (error) throw error;
+        // 3. Filtro de Marca
+        const matchesBrand =
+          selectedBrands.length === 0 ||
+          (product.brand && selectedBrands.includes(product.brand));
 
-      setBestsellerProducts(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar produtos best sellers:', error);
-    }
-  };
+        // 4. Filtro de Categoria (Usando 'Brand' como categoria por enquanto, ajuste se tiver campo category)
+        const matchesCategory =
+          selectedCategory === 'Todos' || product.brand === selectedCategory;
 
-  const loadAllBrands = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('brand')
-        .eq('user_id', userId)
-        .not('brand', 'is', null);
+        // 5. Filtros Especiais (Tags)
+        const matchesBestseller = !showOnlyBestsellers || product.bestseller;
+        const matchesNew = !showOnlyNew || product.is_launch;
 
-      if (error) throw error;
-
-      const uniqueBrands = [
-        ...new Set(data.map((item: any) => item.brand).filter(Boolean)),
-      ] as string[];
-      setAllBrands(uniqueBrands.sort());
-    } catch (error) {
-      console.error('Erro ao carregar marcas:', error);
-    }
-  };
-
-  const loadCatalogData = async (
-    page: number,
-    search: string,
-    category: string,
-    brands: string[],
-    price: [number, number],
-    sort: string,
-    order: 'asc' | 'desc',
-    onlyBestsellers: boolean,
-    onlyNew: boolean
-  ) => {
-    setLoading(true);
-    try {
-      let query = supabase
-        .from('products')
-        .select('*', { count: 'exact' })
-        .eq('user_id', userId);
-
-      // 1. Filtro de Busca (ILike)
-      if (search.trim()) {
-        query = query.ilike('name', `%${search.trim()}%`);
-      }
-
-      // 2. Filtro de Categoria (Navbar)
-      if (category !== 'Todos') {
-        query = query.eq('brand', category);
-      }
-
-      // 3. Filtro de Marcas (Sidebar)
-      if (brands.length > 0) {
-        query = query.in('brand', brands);
-      }
-
-      // 4. Filtro de Preço
-      query = query.gte('price', price[0]).lte('price', price[1]);
-
-      // 5. Filtro de Bestsellers
-      if (onlyBestsellers) {
-        query = query.eq('bestseller', true);
-      }
-
-      // 6. Filtro de Novos Lançamentos
-      if (onlyNew) {
-        query = query.eq('is_launch', true);
-      }
-
-      // 7. Ordenação
-      let sortField = sort;
-      if (sort === 'name') sortField = 'name';
-      if (sort === 'price') sortField = 'price';
-      if (sort === 'brand') sortField = 'brand';
-
-      query = query.order(sortField, { ascending: order === 'asc' });
-
-      // 6. Paginação
-      const from = (page - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
-
-      if (error) throw error;
-
-      setProducts(data || []);
-      setTotalProducts(count || 0);
-    } catch (error) {
-      console.error('Erro ao carregar produtos:', error);
-      addToast({
-        title: 'Erro',
-        message: 'Não foi possível carregar os produtos.',
-        type: 'error',
+        return (
+          matchesSearch &&
+          matchesPrice &&
+          matchesBrand &&
+          matchesCategory &&
+          matchesBestseller &&
+          matchesNew
+        );
+      })
+      .sort((a, b) => {
+        // Lógica de Ordenação
+        if (sortBy === 'price') {
+          return sortOrder === 'asc' ? a.price - b.price : b.price - a.price;
+        }
+        if (sortBy === 'brand') {
+          const brandA = a.brand || '';
+          const brandB = b.brand || '';
+          return sortOrder === 'asc'
+            ? brandA.localeCompare(brandB)
+            : brandB.localeCompare(brandA);
+        }
+        // Default: Nome
+        return sortOrder === 'asc'
+          ? a.name.localeCompare(b.name)
+          : b.name.localeCompare(a.name);
       });
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [
+    products,
+    searchTerm,
+    priceRange,
+    selectedBrands,
+    selectedCategory,
+    sortBy,
+    sortOrder,
+    showOnlyBestsellers,
+    showOnlyNew,
+  ]);
 
-  // Funções de interação
-  const toggleFavorite = (productId: string) => {
-    const newFavorites = new Set(favorites);
-    if (newFavorites.has(productId)) {
-      newFavorites.delete(productId);
-    } else {
-      newFavorites.add(productId);
-    }
-    setFavorites(newFavorites);
-    localStorage.setItem('favorites', JSON.stringify([...newFavorites]));
-  };
+  // --- PAGINAÇÃO ---
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
 
-  const addToCart = (productId: string, quantity: number) => {
+  // --- LISTAS AUXILIARES (Marcas/Categorias dinâmicas) ---
+  const allBrands = useMemo(
+    () =>
+      [
+        ...new Set(products.map((p) => p.brand).filter(Boolean) as string[]),
+      ].sort(),
+    [products]
+  );
+  const categories = useMemo(() => ['Todos', ...allBrands], [allBrands]);
+  const bestsellerProducts = useMemo(
+    () => products.filter((p) => p.bestseller).slice(0, 10),
+    [products]
+  );
+
+  // --- AÇÕES DO CARRINHO ---
+  const addToCart = (productId: string, quantity = 1) => {
     const newCart = { ...cart };
-    const existingQuantity = newCart[productId] || 0;
-    newCart[productId] = existingQuantity + quantity;
+    newCart[productId] = (newCart[productId] || 0) + quantity;
+
     setCart(newCart);
     localStorage.setItem('cart', JSON.stringify(newCart));
 
-    // Encontrar o produto para mostrar o nome no toast
-    // Verificar tanto na lista principal quanto nos bestsellers
-    const product =
-      products.find((p) => p.id === productId) ||
-      bestsellerProducts.find((p) => p.id === productId);
-
+    const product = products.find((p) => p.id === productId);
     addToast({
-      title: 'Produto adicionado!',
-      message: `${quantity}x ${
-        product?.name || 'Produto'
-      } adicionado ao carrinho`,
+      title: 'Adicionado ao pedido',
+      description: `${quantity}x ${product?.name || 'Produto'}`,
       type: 'success',
     });
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setSelectedCategory('Todos');
-    setPriceRange([0, 10000]);
-    setSelectedBrands([]);
-    setShowOnlyBestsellers(false);
-    setShowOnlyNew(false);
-    setSortBy('name');
-    setSortOrder('asc');
+  // --- AÇÕES DE FAVORITOS ---
+  const toggleFavorite = (productId: string) => {
+    const newFavs = new Set(favorites);
+    if (newFavs.has(productId)) {
+      newFavs.delete(productId);
+      addToast({ title: 'Removido dos favoritos', type: 'info' });
+    } else {
+      newFavs.add(productId);
+      addToast({ title: 'Adicionado aos favoritos', type: 'success' });
+    }
+    setFavorites(newFavs);
+    localStorage.setItem('favorites', JSON.stringify([...newFavs]));
   };
 
-  // Funções de proteção de preços
-  const requestPriceAccess = async (password: string): Promise<boolean> => {
+  // --- CONTROLE DE UI ---
+  const clearFilters = () => {
+    setSearchTerm('');
+    setPriceRange([0, 10000]);
+    setSelectedBrands([]);
+    setSelectedCategory('Todos');
+    setShowOnlyBestsellers(false);
+    setShowOnlyNew(false);
+    setCurrentPage(1);
+    addToast({ title: 'Filtros limpos', type: 'info' });
+  };
+
+  // --- CONTROLE DE ACESSO (PREÇOS) ---
+  const checkPriceAccess = () => priceAccessGranted;
+
+  const requestPriceAccess = async (password: string) => {
     try {
-      // Verificar senha (por enquanto hardcoded, depois pode vir das settings)
-      const correctPassword = settings?.price_access_password || '123456';
+      const res = await fetch('/api/check-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passwordAttempt: password, userId }),
+      });
+      const data = await res.json();
 
-      if (password === correctPassword) {
-        const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutos
+      if (data.success) {
         setPriceAccessGranted(true);
-        setPriceAccessExpiresAt(expiresAt);
-
-        // Salvar no localStorage
         localStorage.setItem('priceAccessGranted', 'true');
-        localStorage.setItem('priceAccessExpiresAt', expiresAt.toString());
+        // Define expiração para 24h (opcional, boa prática)
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
 
-        addToast({
-          title: 'Acesso concedido!',
-          message: 'Você pode visualizar os preços por 30 minutos.',
-          type: 'success',
-        });
-
+        addToast({ title: 'Acesso liberado!', type: 'success' });
         return true;
       } else {
-        addToast({
-          title: 'Senha incorreta',
-          message: 'Verifique a senha e tente novamente.',
-          type: 'error',
-        });
+        addToast({ title: 'Senha incorreta', type: 'error' });
         return false;
       }
     } catch (error) {
-      console.error('Erro ao verificar senha:', error);
-      addToast({
-        title: 'Erro',
-        message: 'Não foi possível verificar a senha.',
-        type: 'error',
-      });
+      addToast({ title: 'Erro ao verificar senha', type: 'error' });
       return false;
     }
   };
 
-  const checkPriceAccess = (): boolean => {
-    if (!priceAccessGranted || !priceAccessExpiresAt) {
-      return false;
+  // --- FORMATADOR ---
+  const formatPrice = useCallback(
+    (price: number) => {
+      if (!priceAccessGranted) return 'R$ ---';
+      return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(price);
+    },
+    [priceAccessGranted]
+  );
+
+  // --- PERSISTÊNCIA DE PEDIDO (API) ---
+  const saveCart = async (): Promise<string> => {
+    if (Object.keys(cart).length === 0) {
+      addToast({ title: 'Carrinho vazio', type: 'warning' });
+      return '';
     }
 
-    if (Date.now() > priceAccessExpiresAt) {
-      // Acesso expirou
-      setPriceAccessGranted(false);
-      setPriceAccessExpiresAt(null);
-      localStorage.removeItem('priceAccessGranted');
-      localStorage.removeItem('priceAccessExpiresAt');
+    // Converte o objeto cart {id: qty} para o formato que a API espera (array)
+    // Mas nossa API espera o objeto JSONB direto ou array?
+    // No nosso type Order, não definimos estritamente, mas a API de save-cart espera { items: ... }
+    // Vamos mandar um array de objetos simples
+    const itemsPayload = Object.entries(cart).map(([productId, quantity]) => ({
+      product_id: productId,
+      quantity,
+    }));
 
-      addToast({
-        title: 'Acesso expirado',
-        message: 'O acesso aos preços expirou. Solicite novamente.',
-        type: 'warning',
+    try {
+      const res = await fetch('/api/save-cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsPayload, userId }),
       });
 
-      return false;
-    }
+      const data = await res.json();
 
-    return true;
+      if (data.success) {
+        addToast({ title: 'Pedido salvo com sucesso!', type: 'success' });
+        return data.code; // Retorna o código curto (ex: X7K9P2)
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      addToast({ title: 'Erro ao salvar pedido', type: 'error' });
+      return '';
+    }
   };
 
-  // Handlers para setters que precisam de lógica adicional
-  const handleSetItemsPerPage = (items: number) => {
-    setItemsPerPage(items);
-    localStorage.setItem('itemsPerPage', items.toString());
+  const loadCart = async (code: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/load-cart?code=${code}`);
+      const data = await res.json();
+
+      if (data.success && data.items) {
+        // Converter o array de volta para o mapa {id: qty}
+        const newCart: Record<string, number> = {};
+        data.items.forEach((item: any) => {
+          newCart[item.product_id] = item.quantity;
+        });
+
+        setCart(newCart);
+        localStorage.setItem('cart', JSON.stringify(newCart));
+        setLoadedOrderCode(code);
+        addToast({ title: 'Pedido carregado!', type: 'success' });
+        return true;
+      } else {
+        addToast({ title: 'Código inválido ou expirado', type: 'error' });
+        return false;
+      }
+    } catch (error) {
+      addToast({ title: 'Erro ao carregar pedido', type: 'error' });
+      return false;
+    }
   };
 
   return {
-    // Estados
+    // Dados Básicos
     userId,
-    settings,
-    products,
-    searchTerm,
-    selectedCategory,
-    priceRange,
-    showFilters,
-    viewMode,
-    favorites,
-    cart,
-    selectedBrands,
-    sortBy,
-    sortOrder,
-    currentPage,
-    totalProducts,
     loading,
+    products: paginatedProducts,
+    totalProducts: filteredProducts.length,
+    settings,
+    cart,
+    loadedOrderCode,
+    favorites,
     bestsellerProducts,
-    itemsPerPage,
+
+    // Listas Auxiliares
     allBrands,
     categories,
+
+    // Estados de Filtro
+    searchTerm,
+    priceRange,
+    selectedBrands,
+    selectedCategory,
+    sortBy,
+    sortOrder,
+    viewMode,
+    currentPage,
+    itemsPerPage,
+    showFilters,
     showOnlyBestsellers,
     showOnlyNew,
-    priceAccessGranted,
-    priceAccessExpiresAt,
 
-    // Ações
+    // Setters
     setSearchTerm,
-    setSelectedCategory,
     setPriceRange,
-    setShowFilters,
-    setViewMode,
     setSelectedBrands,
+    setSelectedCategory,
     setSortBy,
     setSortOrder,
+    setViewMode,
     setCurrentPage,
-    setItemsPerPage: handleSetItemsPerPage,
+    setItemsPerPage,
+    setShowFilters,
     setShowOnlyBestsellers,
     setShowOnlyNew,
 
-    // Funções de interação
-    toggleFavorite,
+    // Ações
     addToCart,
+    toggleFavorite,
     clearFilters,
 
-    // Funções de proteção de preços
-    requestPriceAccess,
-    checkPriceAccess,
-
-    // Checkout seguro
-    secureCheckout,
-
-    // Utilitários
+    // Lógica de Negócio
     formatPrice,
+    priceAccessGranted,
+    checkPriceAccess,
+    requestPriceAccess,
+    saveCart,
+    loadCart,
   };
-};
+}

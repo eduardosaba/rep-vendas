@@ -1,27 +1,67 @@
-import { ReactNode } from 'react';
+import { LucideIcon, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 
-interface StatCardProps {
+// Interface corrigida para aceitar 'color' e valores numéricos ou string
+export interface StatCardProps {
   title: string;
-  value: string;
-  icon: ReactNode;
+  value: string | number;
+  icon: LucideIcon;
+  trend?: number; // Porcentagem de crescimento/queda
+  trendLabel?: string; // Texto explicativo (ex: "vs mês passado")
+  color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | string; // Aceita cores específicas ou string
 }
 
-export default function StatCard({ title, value, icon }: StatCardProps) {
+export const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  trendLabel,
+  color = 'blue',
+}: StatCardProps) => {
+  // Mapa de cores para estilos Tailwind
+  const colors: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-600',
+    green: 'bg-green-50 text-green-600',
+    purple: 'bg-purple-50 text-purple-600',
+    orange: 'bg-orange-50 text-orange-600',
+    red: 'bg-red-50 text-red-600',
+  };
+
+  // Se a cor passada não estiver no mapa, usa azul como fallback
+  const colorClass = colors[color] || colors.blue;
+
   return (
-    <div className="overflow-hidden rounded-lg bg-white shadow">
-      <div className="p-5">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">{icon}</div>
-          <div className="ml-5 w-0 flex-1">
-            <dl>
-              <dt className="truncate text-sm font-medium text-gray-500">
-                {title}
-              </dt>
-              <dd className="text-lg font-medium text-gray-900">{value}</dd>
-            </dl>
-          </div>
+    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-500">{title}</p>
+          <h3 className="mt-2 text-2xl font-bold text-gray-900">{value}</h3>
+        </div>
+        <div className={`rounded-lg p-3 ${colorClass}`}>
+          <Icon size={24} />
         </div>
       </div>
+
+      {/* Se houver tendência, exibe o indicador */}
+      {trend !== undefined && (
+        <div className="mt-4 flex items-center text-xs">
+          <span
+            className={`flex items-center font-medium ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-600'}`}
+          >
+            {trend > 0 ? (
+              <ArrowUp size={14} className="mr-1" />
+            ) : trend < 0 ? (
+              <ArrowDown size={14} className="mr-1" />
+            ) : (
+              <Minus size={14} className="mr-1" />
+            )}
+            {Math.abs(trend)}%
+          </span>
+          <span className="ml-2 text-gray-400">
+            {trendLabel || 'vs mês anterior'}
+          </span>
+        </div>
+      )}
     </div>
   );
-}
+};

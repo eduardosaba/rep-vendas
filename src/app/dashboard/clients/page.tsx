@@ -1,422 +1,184 @@
 'use client';
 
-import { useEffect, useState, FormEvent } from 'react';
-import { supabase } from '../../../lib/supabaseClient';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { Client } from '@/lib/types';
+import Link from 'next/link';
 import {
   Plus,
-  Edit,
+  Search,
+  Edit2,
   Trash2,
-  Users,
   User,
+  MapPin,
   Phone,
   Mail,
-  MapPin,
-  Save,
-  X,
+  Loader2,
 } from 'lucide-react';
-
-interface User {
-  id: string;
-  email?: string;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  user_id: string;
-  created_at: string;
-}
-
-interface ClientFormData {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-}
+import { useToast } from '@/hooks/useToast';
 
 export default function ClientsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const router = useRouter();
+  const { addToast } = useToast();
   const [clients, setClients] = useState<Client[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [formData, setFormData] = useState<ClientFormData>({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-  });
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const getUser = async () => {
+  // Carregar Clientes
+  const fetchClients = async () => {
+    try {
+      setLoading(true);
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-      } else {
-        setUser(user);
-        loadClients(user.id);
-      }
-    };
-    getUser();
-  }, [router]);
+      if (!user) return;
 
-  const loadClients = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (data && !error) {
-      setClients(data);
-    }
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    const clientData = {
-      user_id: user.id,
-      name: formData.name.trim(),
-      email: formData.email?.trim() || null,
-      phone: formData.phone?.trim() || null,
-      address: formData.address?.trim() || null,
-    };
-
-    try {
-      if (editingClient) {
-        // Atualizar cliente existente
-        const { error } = await supabase
-          .from('clients')
-          .update(clientData)
-          .eq('id', editingClient.id)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
-      } else {
-        // Criar novo cliente
-        const { error } = await supabase.from('clients').insert(clientData);
-
-        if (error) throw error;
-      }
-
-      // Recarregar clientes
-      loadClients(user.id);
-
-      // Resetar formulário
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-      });
-      setEditingClient(null);
-      setShowModal(false);
-    } catch (error) {
-      console.error('Erro ao salvar cliente:', error);
-      alert('Erro ao salvar cliente. Tente novamente.');
-    }
-  };
-
-  const handleEdit = (client: Client) => {
-    setEditingClient(client);
-    setFormData({
-      name: client.name,
-      email: client.email || '',
-      phone: client.phone || '',
-      address: client.address || '',
-    });
-    setShowModal(true);
-  };
-
-  const handleDelete = async (clientId: string) => {
-    if (!user) return;
-
-    if (!confirm('Tem certeza que deseja excluir este cliente?')) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('clients')
-        .delete()
-        .eq('id', clientId)
-        .eq('user_id', user.id);
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name', { ascending: true });
 
       if (error) throw error;
-
-      loadClients(user.id);
+      setClients(data || []);
     } catch (error) {
-      console.error('Erro ao excluir cliente:', error);
-      alert('Erro ao excluir cliente. Tente novamente.');
+      console.error(error);
+      addToast({ title: 'Erro ao carregar clientes', type: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const openModal = () => {
-    setEditingClient(null);
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-    });
-    setShowModal(true);
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  // Apagar Cliente
+  const handleDelete = async (id: string) => {
+    if (
+      !confirm(
+        'Tem a certeza que deseja apagar este cliente? O histórico de pedidos poderá ser afetado.'
+      )
+    )
+      return;
+
+    try {
+      const { error } = await supabase.from('clients').delete().eq('id', id);
+      if (error) throw error;
+
+      setClients(clients.filter((c) => c.id !== id));
+      addToast({ title: 'Cliente removido com sucesso', type: 'success' });
+    } catch (error) {
+      addToast({ title: 'Erro ao remover', type: 'error' });
+    }
   };
 
-  if (!user) {
-    return <div>Carregando...</div>;
-  }
+  // Filtro de pesquisa
+  const filteredClients = clients.filter(
+    (client) =>
+      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.phone?.includes(searchTerm)
+  );
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Gerenciar Clientes
-            </h1>
-            <p>Adicione e gerencie os clientes do seu catálogo</p>
-          </div>
-          <div className="flex space-x-4">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Voltar ao Dashboard
-            </button>
-            <button
-              onClick={openModal}
-              className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              Novo Cliente
-            </button>
-          </div>
+    <div className="space-y-6">
+      {/* Cabeçalho */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Meus Clientes</h1>
+          <p className="text-sm text-gray-500">
+            Gerencie a sua carteira de clientes
+          </p>
         </div>
-      </header>
 
-      <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          {/* Stats */}
-          <div className="mb-8">
-            <div className="overflow-hidden rounded-lg bg-white shadow">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <Users className="h-6 w-6 text-gray-400" />
+        <Link
+          href="/dashboard/clients/new"
+          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors shadow-sm"
+        >
+          <Plus size={18} />
+          Novo Cliente
+        </Link>
+      </div>
+
+      {/* Barra de Pesquisa */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+        <input
+          type="text"
+          placeholder="Pesquisar por nome, email ou telefone..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+        />
+      </div>
+
+      {/* Lista de Clientes (Cards para melhor adaptação mobile/desktop) */}
+      {loading ? (
+        <div className="flex justify-center p-12">
+          <Loader2 className="animate-spin text-indigo-600 h-8 w-8" />
+        </div>
+      ) : filteredClients.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
+          <User className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+          <h3 className="text-lg font-medium text-gray-900">
+            Nenhum cliente encontrado
+          </h3>
+          <p className="text-gray-500 mt-1">
+            Adicione o seu primeiro cliente para começar.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredClients.map((client) => (
+            <div
+              key={client.id}
+              className="group relative flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-all hover:border-indigo-200"
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 font-bold">
+                    {client.name.charAt(0).toUpperCase()}
                   </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="truncate text-sm font-medium text-gray-500">
-                        Total de Clientes
-                      </dt>
-                      <dd className="text-lg font-medium text-gray-900">
-                        {clients.length}
-                      </dd>
-                    </dl>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded">
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(client.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Clients Table */}
-          <div className="overflow-hidden bg-white shadow sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
-              {clients.map((client) => (
-                <li key={client.id}>
-                  <div className="px-4 py-4 sm:px-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
-                            <User className="h-5 w-5 text-gray-500" />
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="flex items-center">
-                            <h3 className="text-sm font-medium text-gray-900">
-                              {client.name}
-                            </h3>
-                          </div>
-                          <div className="mt-1 flex items-center space-x-4">
-                            {client.email && (
-                              <div className="flex items-center text-sm text-gray-500">
-                                <Mail className="mr-1 h-4 w-4" />
-                                {client.email}
-                              </div>
-                            )}
-                            {client.phone && (
-                              <div className="flex items-center text-sm text-gray-500">
-                                <Phone className="mr-1 h-4 w-4" />
-                                {client.phone}
-                              </div>
-                            )}
-                          </div>
-                          {client.address && (
-                            <div className="mt-1 flex items-center text-sm text-gray-500">
-                              <MapPin className="mr-1 h-4 w-4" />
-                              {client.address}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleEdit(client)}
-                          className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(client.id)}
-                          className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{client.name}</h3>
+                  {client.email && (
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                      <Mail size={14} />
+                      <span className="truncate">{client.email}</span>
                     </div>
+                  )}
+                  {client.phone && (
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                      <Phone size={14} />
+                      <span>{client.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {client.address && (
+                <div className="mt-4 pt-4 border-t border-gray-50">
+                  <div className="flex items-start gap-2 text-xs text-gray-500">
+                    <MapPin size={14} className="mt-0.5 flex-shrink-0" />
+                    <span className="line-clamp-2">{client.address}</span>
                   </div>
-                </li>
-              ))}
-            </ul>
-
-            {clients.length === 0 && (
-              <div className="py-16 text-center">
-                <Users className="mx-auto mb-4 h-24 w-24 text-gray-300" />
-                <h3 className="mb-2 text-xl font-medium text-gray-900">
-                  Nenhum cliente cadastrado
-                </h3>
-                <p className="mb-6 text-gray-600">
-                  Comece adicionando seu primeiro cliente.
-                </p>
-                <button
-                  onClick={openModal}
-                  className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-6 py-3 text-sm font-medium text-white hover:bg-indigo-700"
-                >
-                  <Plus className="mr-2 h-5 w-5" />
-                  Adicionar Primeiro Cliente
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 h-full w-full overflow-y-auto bg-gray-600 bg-opacity-50">
-          <div className="relative top-20 mx-auto w-full max-w-lg rounded-md border bg-white p-5 shadow-lg">
-            <div className="mt-3">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">
-                  {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
-                </h3>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Nome do Cliente *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    className="w-full rounded border border-gray-300 px-3 py-2"
-                    placeholder="Nome completo do cliente"
-                  />
                 </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        email: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded border border-gray-300 px-3 py-2"
-                    placeholder="cliente@email.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Telefone
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        phone: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded border border-gray-300 px-3 py-2"
-                    placeholder="(11) 99999-9999"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Endereço
-                  </label>
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        address: e.target.value,
-                      }))
-                    }
-                    className="h-20 w-full rounded border border-gray-300 px-3 py-2"
-                    placeholder="Endereço completo"
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {editingClient ? 'Atualizar' : 'Salvar'} Cliente
-                  </button>
-                </div>
-              </form>
+              )}
             </div>
-          </div>
+          ))}
         </div>
       )}
     </div>

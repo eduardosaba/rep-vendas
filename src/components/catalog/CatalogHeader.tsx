@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { Search, Heart, ShoppingCart, LogIn } from 'lucide-react';
 import { Settings } from '../../lib/types';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 interface CatalogHeaderProps {
   settings: Settings | null;
@@ -11,6 +12,7 @@ interface CatalogHeaderProps {
   cart: { [key: string]: number };
   favorites: Set<string>;
   userId: string;
+  loadedOrderCode?: string | null;
 }
 
 export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
@@ -20,6 +22,7 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
   cart,
   favorites,
   userId,
+  loadedOrderCode,
 }) => {
   const router = useRouter();
 
@@ -48,19 +51,11 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
         {/* Main Header */}
         <div className="flex items-center justify-between py-4">
           <div className="flex items-center space-x-8">
-            {settings?.logo_url ? (
-              <img src={settings.logo_url} alt="Logo" className="h-14 w-auto" />
-            ) : (
-              <h1
-                className="text-2xl font-bold text-gray-900"
-                style={{
-                  color: settings?.title_color || '#111827',
-                  fontFamily: settings?.font_family || 'Inter, sans-serif',
-                }}
-              >
-                {settings?.name || 'Rep-Vendas'}
-              </h1>
-            )}
+            <img
+              src={settings?.logo_url || SYSTEM_LOGO_URL}
+              alt={settings?.name || 'Rep-Vendas'}
+              className="h-14 w-auto"
+            />
           </div>
 
           <div className="mx-8 max-w-2xl flex-1">
@@ -99,8 +94,11 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
             >
               <ShoppingCart className="h-6 w-6" />
               <span className="text-xs">
-                Carrinho (
-                {Object.values(cart).reduce((total, qty) => total + qty, 0)})
+                Pedido (
+                {loadedOrderCode
+                  ? loadedOrderCode
+                  : Object.values(cart).reduce((total, qty) => total + qty, 0)}
+                )
               </span>
             </button>
             <button

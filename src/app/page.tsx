@@ -1,228 +1,479 @@
-'use client';
+import { Metadata } from 'next';
+import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { createClient as createSupabaseClient } from '@/lib/supabaseServer';
+import { redirect } from 'next/navigation';
+import {
+  ArrowRight,
+  CheckCircle2,
+  BarChart3,
+  Smartphone,
+  Globe,
+  ShieldCheck,
+  Menu,
+  Zap,
+  Layout,
+  Users,
+} from 'lucide-react';
 
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { useRouter } from 'next/navigation';
-import { ShoppingBag, Users, BarChart3, ArrowRight } from 'lucide-react';
+export const metadata: Metadata = {
+  title: 'Rep-Vendas - O Sistema Definitivo para Representantes',
+  description:
+    'Transforme suas vendas com um catálogo digital profissional, pedidos automáticos e gestão completa.',
+  openGraph: {
+    images: [
+      'https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png',
+    ],
+  },
+};
 
-export default function Home() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default async function LandingPage() {
+  // Verifica se já está logado para redirecionar ao Dashboard
+  const supabase = await createSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  useEffect(() => {
-    const checkUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
-
-      // Se usuário estiver logado, redirecionar para seu catálogo
-      if (user) {
-        router.push(`/catalog/${user.id}`);
-      }
-    };
-    checkUser();
-  }, [router]);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    );
+  if (session) {
+    redirect('/dashboard');
   }
 
-  // Se usuário estiver logado, já foi redirecionado
-  if (user) {
-    return null;
-  }
+  // CORES DA MARCA (Referência):
+  // Principal (Fundo/Texto): #0d1b2c (Azul Noite)
+  // Ação (Botões/Destaque): #b9722e (Bronze/Laranja)
 
-  // Página de boas-vindas para usuários não logados
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-6">
-            <div className="flex items-center">
-              <ShoppingBag className="mr-3 h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Rep-Vendas</h1>
-            </div>
-            <div className="flex space-x-4">
-              <button
-                onClick={() => router.push('/login')}
-                className="font-medium text-gray-600 hover:text-gray-900"
-              >
-                Entrar
-              </button>
-              <button
-                onClick={() => router.push('/register')}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
-              >
-                Começar Agora
-              </button>
-            </div>
+    <div className="min-h-screen bg-white font-sans selection:bg-[#b9722e] selection:text-white">
+      {/* --- NAV --- */}
+      <nav className="fixed top-0 w-full bg-[#0d1b2c]/95 backdrop-blur-md z-50 border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img
+              src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png"
+              alt="Rep-Vendas"
+              className="h-10 w-auto object-contain brightness-0 invert" // Logo branco para fundo escuro
+            />
           </div>
-        </div>
-      </header>
 
-      {/* Hero Section */}
-      <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <h1 className="mb-6 text-4xl font-bold text-gray-900 md:text-6xl">
-            Sistema de Vendas para
-            <br />
-            <span className="text-blue-600">Representantes Comerciais</span>
-          </h1>
-          <p className="mx-auto mb-8 max-w-3xl text-xl text-gray-600">
-            Crie seu catálogo online personalizado, gerencie pedidos e clientes
-            de forma eficiente. Cada representante tem seu próprio link único
-            para compartilhar com clientes.
-          </p>
-          <div className="flex flex-col justify-center gap-4 sm:flex-row">
-            <button
-              onClick={() => router.push('/register')}
-              className="flex items-center justify-center rounded-lg bg-blue-600 px-8 py-4 text-lg font-semibold text-white transition-colors hover:bg-blue-700"
+          <div className="hidden md:flex items-center gap-8">
+            <a
+              href="#beneficios"
+              className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
             >
-              Criar Minha Conta
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </button>
-            <button
-              onClick={() => router.push('/login')}
-              className="rounded-lg border-2 border-blue-600 px-8 py-4 text-lg font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+              Benefícios
+            </a>
+            <a
+              href="#como-funciona"
+              className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
             >
-              Já tenho conta
-            </button>
-          </div>
-        </div>
-
-        {/* Features */}
-        <div className="mt-20 grid grid-cols-1 gap-8 md:grid-cols-3">
-          <div className="rounded-xl bg-white p-8 text-center shadow-lg">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-              <ShoppingBag className="h-8 w-8 text-blue-600" />
-            </div>
-            <h3 className="mb-4 text-xl font-semibold text-gray-900">
-              Catálogo Personalizado
-            </h3>
-            <p className="text-gray-600">
-              Crie seu próprio catálogo online com produtos, preços e
-              configurações personalizadas. Cada representante tem seu link
-              único.
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white p-8 text-center shadow-lg">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <Users className="h-8 w-8 text-green-600" />
-            </div>
-            <h3 className="mb-4 text-xl font-semibold text-gray-900">
-              Gestão de Clientes
-            </h3>
-            <p className="text-gray-600">
-              Gerencie seus clientes, histórico de pedidos e informações de
-              contato. Mantenha relacionamentos organizados.
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-white p-8 text-center shadow-lg">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-100">
-              <BarChart3 className="h-8 w-8 text-purple-600" />
-            </div>
-            <h3 className="mb-4 text-xl font-semibold text-gray-900">
-              Relatórios e Analytics
-            </h3>
-            <p className="text-gray-600">
-              Acompanhe suas vendas, pedidos pendentes e performance com
-              dashboards intuitivos e relatórios detalhados.
-            </p>
-          </div>
-        </div>
-
-        {/* How it works */}
-        <div className="mt-20 rounded-2xl bg-white p-8 shadow-xl md:p-12">
-          <div className="mb-12 text-center">
-            <h2 className="mb-4 text-3xl font-bold text-gray-900">
               Como Funciona
-            </h2>
-            <p className="text-gray-600">
-              Comece a vender online em poucos passos
-            </p>
+            </a>
+            <Link
+              href="/login"
+              className="text-white font-bold hover:text-[#b9722e] transition-colors"
+            >
+              Entrar
+            </Link>
+            <Link
+              href="/register"
+              className="bg-[#b9722e] text-white px-6 py-2.5 rounded-full font-bold hover:bg-[#a06025] transition-all shadow-lg shadow-orange-900/20 hover:shadow-orange-900/40 hover:-translate-y-0.5"
+            >
+              Testar Grátis
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white">
-                1
-              </div>
-              <h3 className="mb-2 font-semibold text-gray-900">Cadastre-se</h3>
-              <p className="text-sm text-gray-600">
-                Crie sua conta de representante
-              </p>
-            </div>
+          <button className="md:hidden p-2 text-white">
+            <Menu />
+          </button>
+        </div>
+      </nav>
 
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white">
-                2
-              </div>
-              <h3 className="mb-2 font-semibold text-gray-900">
-                Configure seu Catálogo
-              </h3>
-              <p className="text-sm text-gray-600">
-                Adicione produtos e personalize
-              </p>
-            </div>
+      {/* --- HERO SECTION (Impacto Visual) --- */}
+      <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 px-4 overflow-hidden bg-[#0d1b2c]">
+        {/* Efeitos de Fundo */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+          <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-[#b9722e] rounded-full mix-blend-screen filter blur-[120px] opacity-20 animate-pulse"></div>
+          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-blue-600 rounded-full mix-blend-screen filter blur-[120px] opacity-10"></div>
+        </div>
 
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white">
-                3
-              </div>
-              <h3 className="mb-2 font-semibold text-gray-900">
-                Compartilhe seu Link
-              </h3>
-              <p className="text-sm text-gray-600">
-                Envie seu link único para clientes
-              </p>
-            </div>
+        <div className="relative z-10 max-w-7xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-[#b9722e] text-sm font-bold mb-8 backdrop-blur-sm">
+            <span className="flex h-2 w-2 rounded-full bg-[#b9722e] animate-ping"></span>
+            A revolução nas vendas B2B chegou
+          </div>
 
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white">
-                4
+          <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-8 leading-tight">
+            Abandone o PDF. <br />
+            Venda com{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#b9722e] to-orange-400">
+              Inteligência.
+            </span>
+          </h1>
+
+          <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-12 leading-relaxed font-light">
+            O sistema completo para representantes comerciais. Crie seu catálogo
+            digital em minutos, receba pedidos automáticos no WhatsApp e
+            gerencie sua carteira de clientes em um único lugar.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/register"
+              className="w-full sm:w-auto px-8 py-4 bg-[#b9722e] text-white rounded-full font-bold text-lg hover:bg-[#a06025] transition-all shadow-xl shadow-orange-900/30 flex items-center justify-center gap-2 hover:-translate-y-1"
+            >
+              Começar Teste Grátis <ArrowRight size={20} />
+            </Link>
+            <a
+              href="#demonstracao"
+              className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/30 text-white rounded-full font-bold text-lg hover:bg-white/10 transition-all backdrop-blur-sm"
+            >
+              Ver como funciona
+            </a>
+          </div>
+
+          <div className="mt-8 flex items-center justify-center gap-6 text-sm text-gray-400">
+            <span className="flex items-center gap-1">
+              <CheckCircle2 size={16} className="text-[#b9722e]" /> Sem cartão
+              de crédito
+            </span>
+            <span className="flex items-center gap-1">
+              <CheckCircle2 size={16} className="text-[#b9722e]" /> 14 dias
+              grátis
+            </span>
+            <span className="flex items-center gap-1">
+              <CheckCircle2 size={16} className="text-[#b9722e]" /> Cancelamento
+              fácil
+            </span>
+          </div>
+
+          {/* Mockup do Dashboard (CSS Puro para leveza) */}
+          <div className="mt-20 relative mx-auto max-w-6xl animate-fade-up">
+            <div className="relative rounded-xl bg-[#1a2c45] p-2 shadow-2xl border border-white/10">
+              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/5 to-transparent pointer-events-none rounded-xl"></div>
+              {/* Janela do Browser */}
+              <div className="bg-white rounded-lg overflow-hidden shadow-inner">
+                {/* Barra de topo fake */}
+                <div className="h-8 bg-gray-100 border-b flex items-center px-4 gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                  <div className="flex-1 mx-4 bg-white h-5 rounded border text-[10px] flex items-center px-2 text-gray-400 font-mono">
+                    repvendas.com/dashboard
+                  </div>
+                </div>
+                {/* Conteúdo Fake */}
+                <div className="p-8 bg-gray-50 grid grid-cols-4 gap-6 h-[400px] lg:h-[600px] overflow-hidden relative">
+                  {/* Sidebar Fake */}
+                  <div className="hidden md:block col-span-1 bg-white h-full rounded-lg border border-gray-200 p-4 space-y-3">
+                    <div className="h-8 w-3/4 bg-gray-100 rounded mb-6"></div>
+                    <div className="h-4 w-full bg-blue-50 rounded"></div>
+                    <div className="h-4 w-full bg-gray-50 rounded"></div>
+                    <div className="h-4 w-full bg-gray-50 rounded"></div>
+                    <div className="h-4 w-full bg-gray-50 rounded"></div>
+                  </div>
+                  {/* Main Content Fake */}
+                  <div className="col-span-4 md:col-span-3 space-y-6">
+                    <div className="grid grid-cols-4 gap-4">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm h-24"
+                        >
+                          <div className="w-8 h-8 rounded bg-orange-50 mb-2"></div>
+                          <div className="w-12 h-4 bg-gray-100 rounded"></div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-white h-64 rounded-lg border border-gray-200 shadow-sm p-6">
+                      <div className="flex items-end gap-4 h-full pb-4">
+                        <div
+                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          style={{ height: '40%' }}
+                        ></div>
+                        <div
+                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          style={{ height: '70%' }}
+                        ></div>
+                        <div
+                          className="w-full bg-[#b9722e] rounded-t shadow-lg shadow-orange-200"
+                          style={{ height: '90%' }}
+                        ></div>
+                        <div
+                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          style={{ height: '60%' }}
+                        ></div>
+                        <div
+                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          style={{ height: '80%' }}
+                        ></div>
+                      </div>
+                    </div>
+                    {/* Overlay CTA */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-gray-50 via-transparent to-transparent">
+                      <Link
+                        href="/register"
+                        className="bg-[#0d1b2c] text-white px-8 py-3 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-2"
+                      >
+                        Ver Dashboard Real <ArrowRight size={16} />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h3 className="mb-2 font-semibold text-gray-900">
-                Gerencie Pedidos
-              </h3>
-              <p className="text-sm text-gray-600">
-                Acompanhe vendas e clientes
-              </p>
             </div>
           </div>
         </div>
-      </main>
+      </section>
 
-      {/* Footer */}
-      <footer className="mt-20 bg-gray-900 py-12 text-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <div className="mb-4 flex items-center justify-center">
-              <ShoppingBag className="mr-2 h-6 w-6 text-blue-400" />
-              <span className="text-xl font-bold">Rep-Vendas</span>
-            </div>
-            <p className="mb-4 text-gray-400">
-              Sistema completo para representantes comerciais gerenciarem seus
-              catálogos e pedidos online.
-            </p>
-            <p className="text-sm text-gray-500">
-              © 2025 Rep-Vendas. Todos os direitos reservados.
+      {/* --- LOGOS / SOCIAL PROOF --- */}
+      <section className="py-10 border-b border-gray-100 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6">
+            Ideal para diversos segmentos
+          </p>
+          <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+            {[
+              'Moda & Vestuário',
+              'Calçados',
+              'Cosméticos',
+              'Eletrônicos',
+              'Decoração',
+              'Alimentos',
+            ].map((item) => (
+              <span
+                key={item}
+                className="text-xl font-bold text-gray-400 hover:text-[#b9722e] cursor-default"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* --- BENEFÍCIOS --- */}
+      <section id="beneficios" className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-20">
+            <h2 className="text-[#b9722e] font-bold tracking-wide uppercase text-sm mb-3">
+              Funcionalidades Premium
+            </h2>
+            <h3 className="text-4xl font-extrabold text-[#0d1b2c]">
+              Tudo o que você precisa para vender mais
+            </h3>
+            <p className="text-gray-500 mt-4 max-w-2xl mx-auto text-lg">
+              Automatize processos repetitivos e foque no que importa: o
+              relacionamento com seus clientes.
             </p>
           </div>
+
+          <div className="grid md:grid-cols-3 gap-10">
+            <FeatureCard
+              icon={Globe}
+              title="Catálogo Online 24/7"
+              description="Seu portfólio disponível o tempo todo. Compartilhe links personalizados e deixe o cliente montar o pedido sozinho."
+            />
+            <FeatureCard
+              icon={Smartphone}
+              title="Importação Visual"
+              description="Esqueça o Excel. Cadastre produtos apenas arrastando as fotos do seu celular ou computador. O sistema organiza tudo."
+            />
+            <FeatureCard
+              icon={ShieldCheck}
+              title="Preços Protegidos"
+              description="Segurança total. Defina uma senha para o seu catálogo e garanta que apenas clientes autorizados vejam seus preços."
+            />
+            <FeatureCard
+              icon={BarChart3}
+              title="Dashboard de Gestão"
+              description="Controle total. Acompanhe vendas, status de pedidos (pendente, entregue) e histórico de clientes em tempo real."
+            />
+            <FeatureCard
+              icon={Layout}
+              title="Carrinho Inteligente"
+              description="Seu cliente foi interrompido? Sem problemas. O carrinho fica salvo e pode ser recuperado em outro dispositivo."
+            />
+            <FeatureCard
+              icon={Zap}
+              title="Venda no WhatsApp"
+              description="Receba pedidos prontos e formatados direto no seu WhatsApp. Menos conversa fiada, mais fechamento."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* --- COMO FUNCIONA --- */}
+      <section
+        id="como-funciona"
+        className="py-24 bg-[#0d1b2c] text-white relative overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+
+        <div className="max-w-7xl mx-auto px-4 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <h2 className="text-[#b9722e] font-bold tracking-wide uppercase text-sm mb-3">
+                Passo a Passo
+              </h2>
+              <h3 className="text-4xl font-extrabold mb-8 leading-tight">
+                Comece a vender em menos de 5 minutos
+              </h3>
+
+              <div className="space-y-12">
+                <Step
+                  number="01"
+                  title="Crie sua conta"
+                  desc="Cadastro rápido, sem burocracia. Você ganha 14 dias de acesso total gratuito."
+                />
+                <Step
+                  number="02"
+                  title="Personalize sua Loja"
+                  desc="Faça upload do seu logo, escolha a cor da sua marca e defina a senha de acesso."
+                />
+                <Step
+                  number="03"
+                  title="Cadastre Produtos"
+                  desc="Arraste as fotos dos seus produtos. O nosso sistema cria os cartões automaticamente."
+                />
+                <Step
+                  number="04"
+                  title="Compartilhe e Venda"
+                  desc="Envie o link para seus clientes. Receba os pedidos organizados no seu painel."
+                />
+              </div>
+            </div>
+
+            <div className="relative">
+              {/* Card Flutuante Ilustrativo */}
+              <div className="bg-white text-[#0d1b2c] p-8 rounded-3xl shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-500">
+                <div className="flex items-center gap-4 mb-6 border-b border-gray-100 pb-6">
+                  <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg">Novo Pedido Recebido!</p>
+                    <p className="text-sm text-gray-500">
+                      há 2 minutos via Catálogo
+                    </p>
+                  </div>
+                  <div className="ml-auto font-bold text-xl">R$ 1.450,00</div>
+                </div>
+                <div className="space-y-3">
+                  <div className="h-2 bg-gray-100 rounded w-full"></div>
+                  <div className="h-2 bg-gray-100 rounded w-3/4"></div>
+                  <div className="h-2 bg-gray-100 rounded w-1/2"></div>
+                </div>
+                <div className="mt-8">
+                  <button className="w-full py-3 bg-[#0d1b2c] text-white rounded-xl font-bold">
+                    Ver Detalhes
+                  </button>
+                </div>
+              </div>
+              {/* Elemento Decorativo */}
+              <div className="absolute -z-10 top-10 -right-10 w-full h-full bg-[#b9722e]/20 rounded-3xl transform -rotate-6"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* --- CTA FINAL --- */}
+      <section className="py-24 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-4xl md:text-5xl font-extrabold text-[#0d1b2c] mb-6">
+            Pronto para o próximo nível?
+          </h2>
+          <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
+            Não perca mais tempo digitando pedidos manualmente. Junte-se aos
+            representantes modernos.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/register"
+              className="w-full sm:w-auto px-10 py-5 bg-[#b9722e] text-white rounded-full font-bold text-xl hover:bg-[#a06025] transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3"
+            >
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+              </span>
+              Criar Minha Conta Grátis
+            </Link>
+          </div>
+          <p className="mt-4 text-sm text-gray-500">
+            Teste grátis de 14 dias • Sem compromisso
+          </p>
+        </div>
+      </section>
+
+      {/* --- FOOTER --- */}
+      <footer className="bg-[#0d1b2c] text-gray-400 py-12 border-t border-white/10">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2">
+            <img
+              src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png"
+              alt="Logo"
+              className="h-8 w-auto opacity-80 grayscale hover:grayscale-0 transition-all brightness-0 invert"
+            />
+          </div>
+          <div className="text-sm flex gap-6">
+            <a href="#" className="hover:text-white transition-colors">
+              Termos de Uso
+            </a>
+            <a href="#" className="hover:text-white transition-colors">
+              Privacidade
+            </a>
+            <a href="#" className="hover:text-white transition-colors">
+              Suporte
+            </a>
+          </div>
+          <p className="text-sm">
+            © 2025 Rep-Vendas. Todos os direitos reservados.
+          </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// Componente de Card de Funcionalidade
+function FeatureCard({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: any;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl hover:border-[#b9722e]/30 transition-all duration-300 group">
+      <div className="w-14 h-14 bg-orange-50 text-[#b9722e] rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+        <Icon size={28} />
+      </div>
+      <h3 className="text-xl font-bold text-[#0d1b2c] mb-3 group-hover:text-[#b9722e] transition-colors">
+        {title}
+      </h3>
+      <p className="text-gray-500 leading-relaxed">{description}</p>
+    </div>
+  );
+}
+
+// Componente de Passo
+function Step({
+  number,
+  title,
+  desc,
+}: {
+  number: string;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="flex gap-6">
+      <div className="text-5xl font-bold text-white/10">{number}</div>
+      <div>
+        <h4 className="text-xl font-bold text-white mb-2">{title}</h4>
+        <p className="text-gray-400 leading-relaxed">{desc}</p>
+      </div>
     </div>
   );
 }

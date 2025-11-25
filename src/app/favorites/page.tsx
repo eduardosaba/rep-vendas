@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
 import { Heart, Star, Truck, ArrowLeft } from 'lucide-react';
 
@@ -91,7 +92,7 @@ export default function Favorites() {
     const cart = savedCart ? JSON.parse(savedCart) : {};
     cart[productId] = (cart[productId] || 0) + 1;
     localStorage.setItem('cart', JSON.stringify(cart));
-    alert('Produto adicionado ao carrinho!');
+    alert('Produto adicionado ao Pedido!');
   };
 
   if (loading) {
@@ -123,23 +124,11 @@ export default function Favorites() {
                 <ArrowLeft className="mr-2 h-5 w-5" />
                 Voltar
               </button>
-              {settings?.logo_url ? (
-                <img
-                  src={settings.logo_url}
-                  alt="Logo"
-                  className="h-14 w-auto"
-                />
-              ) : (
-                <h1
-                  className="text-2xl font-bold text-gray-900"
-                  style={{
-                    color: settings?.title_color || '#111827',
-                    fontFamily: settings?.font_family || 'Inter, sans-serif',
-                  }}
-                >
-                  Rep-Vendas
-                </h1>
-              )}
+              <img
+                src={settings?.logo_url || SYSTEM_LOGO_URL}
+                alt={settings?.name || 'Rep-Vendas'}
+                className="h-14 w-auto"
+              />
             </div>
 
             <div className="flex items-center space-x-6">
@@ -272,7 +261,7 @@ export default function Favorites() {
                       backgroundColor: settings?.primary_color || '#3B82F6',
                     }}
                   >
-                    Adicionar ao Carrinho
+                    Adicionar ao Pedido
                   </button>
                 </div>
               </div>

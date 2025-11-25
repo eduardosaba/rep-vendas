@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../../../lib/supabaseClient';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Heart,
@@ -116,7 +117,7 @@ export default function ProductDetailPage() {
       setFavorites(new Set(JSON.parse(savedFavorites)));
     }
 
-    // Carregar carrinho do localStorage
+    // Carregar Pedido do localStorage
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setCart(JSON.parse(savedCart));
@@ -158,7 +159,7 @@ export default function ProductDetailPage() {
 
     addToast({
       title: 'Produto adicionado!',
-      message: `${quantity}x ${product?.name || 'Produto'} adicionado ao carrinho`,
+      message: `${quantity}x ${product?.name || 'Produto'} adicionado ao Pedido`,
       type: 'success',
     });
   };
@@ -241,23 +242,11 @@ export default function ProductDetailPage() {
           {/* Main Header */}
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center space-x-8">
-              {settings?.logo_url ? (
-                <img
-                  src={settings.logo_url}
-                  alt="Logo"
-                  className="h-14 w-auto"
-                />
-              ) : (
-                <h1
-                  className="text-2xl font-bold text-gray-900"
-                  style={{
-                    color: settings?.title_color || '#111827',
-                    fontFamily: settings?.font_family || 'Inter, sans-serif',
-                  }}
-                >
-                  {settings?.name || 'Rep-Vendas'}
-                </h1>
-              )}
+              <img
+                src={settings?.logo_url || SYSTEM_LOGO_URL}
+                alt={settings?.name || 'Rep-Vendas'}
+                className="h-14 w-auto"
+              />
             </div>
 
             <div className="mx-8 max-w-2xl flex-1">
@@ -296,7 +285,7 @@ export default function ProductDetailPage() {
               >
                 <ShoppingCart className="h-6 w-6" />
                 <span className="text-xs">
-                  Carrinho (
+                  Pedido (
                   {Object.values(cart).reduce((total, qty) => total + qty, 0)})
                 </span>
               </button>
@@ -502,7 +491,7 @@ export default function ProductDetailPage() {
                   }}
                 >
                   <ShoppingCart className="mr-2 h-5 w-5" />
-                  Adicionar ao Carrinho
+                  Adicionar ao Pedido
                 </button>
                 <button
                   onClick={() => toggleFavorite(product.id)}

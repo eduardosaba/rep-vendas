@@ -14,10 +14,10 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
 
   const filteredLogs = logs.filter((log) => {
     if (filter === 'all') return true;
-    return filter === 'success' ? log.success : !log.success;
+    return filter === 'success' ? Boolean(log.success) : !Boolean(log.success);
   });
 
-  const getActionIcon = (action: string) => {
+  const getActionIcon = (action?: string) => {
     switch (action) {
       case 'session_validation':
         return <Shield className="h-4 w-4" />;
@@ -30,7 +30,7 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
     }
   };
 
-  const getActionColor = (action: string, success: boolean) => {
+  const getActionColor = (action?: string, success?: boolean) => {
     if (!success) return 'text-red-600 bg-red-50';
     switch (action) {
       case 'session_validation':
@@ -106,7 +106,18 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
               </div>
             ) : (
               filteredLogs
-                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice()
+                .sort((a, b) => {
+                  const toNumber = (v?: number | string) => {
+                    if (typeof v === 'number') return v;
+                    if (typeof v === 'string') {
+                      const parsed = Date.parse(v);
+                      return Number.isFinite(parsed) ? parsed : 0;
+                    }
+                    return 0;
+                  };
+                  return toNumber(b.timestamp) - toNumber(a.timestamp);
+                })
                 .map((log) => (
                   <div
                     key={log.id}
@@ -123,7 +134,7 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
                       <div className="flex items-center space-x-2">
                         {getActionIcon(log.action)}
                         <p className="text-sm font-medium text-gray-900">
-                          {log.action
+                          {(log.action || 'acao_desconhecida')
                             .replace(/_/g, ' ')
                             .replace(/\b\w/g, (l) => l.toUpperCase())}
                         </p>
@@ -138,7 +149,13 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
                         </span>
                       </div>
                       <p className="mt-1 text-sm text-gray-600">
-                        {new Date(log.timestamp).toLocaleString('pt-BR')}
+                        {log.timestamp
+                          ? new Date(
+                              typeof log.timestamp === 'number'
+                                ? log.timestamp
+                                : Date.parse(String(log.timestamp))
+                            ).toLocaleString('pt-BR')
+                          : '-'}
                       </p>
                       {log.details && (
                         <p className="mt-1 text-sm text-gray-500">

@@ -1,102 +1,100 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Settings } from '@/lib/types';
 import { useToast } from '@/hooks/useToast';
+import {
+  Save,
+  Loader2,
+  Palette,
+  Lock,
+  Store,
+  LayoutTemplate,
+  UploadCloud,
+  Check,
+} from 'lucide-react';
 
 export default function SettingsPage() {
-  const router = useRouter();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<Partial<Settings>>({
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Estado inicial com valores padrão
+  const [settings, setSettings] = useState<Settings>({
+    user_id: '',
     name: '',
     email: '',
     phone: '',
-    price_access_password: '123456',
-    primary_color: '#3B82F6',
-    show_shipping: true,
-    show_installments: true,
-    show_delivery_address: true,
-    show_installments_checkout: true,
-    show_discount: true,
-    show_old_price: true,
+    primary_color: '#4F46E5', // Indigo padrão
+    catalog_slug: '',
+    catalog_price_password: '',
     show_filter_price: true,
     show_filter_category: true,
-    show_filter_bestseller: true,
-    show_filter_new: true,
+    show_installments: true,
+    show_shipping: true,
   });
 
-  // Carregar configurações existentes
+  // Carregar Configurações
   useEffect(() => {
-    loadSettings();
+    const fetchSettings = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        setUserId(user.id);
+
+        const { data, error } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data) {
+          setSettings(data);
+        } else {
+          // Se não existir, prepara o estado com o ID do utilizador para criar depois
+          setSettings((prev) => ({ ...prev, user_id: user.id }));
+        }
+      } catch (error) {
+        console.error(error);
+        // Não mostramos erro aqui porque pode ser o primeiro acesso (sem settings criados)
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
   }, []);
 
-  const loadSettings = async () => {
+  // Salvar (Upsert)
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId) return;
+    setSaving(true);
+
     try {
-      setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (data && !error) {
-        setSettings(data);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
-      addToast({
-        title: 'Erro',
-        message: 'Não foi possível carregar as configurações.',
-        type: 'error',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-
-      const { error } = await supabase.from('settings').upsert({
-        ...settings,
-        user_id: user.id,
-        updated_at: new Date().toISOString(),
-      });
+      // Upsert: Cria se não existir, Atualiza se existir
+      const { error } = await supabase.from('settings').upsert(
+        {
+          ...settings,
+          user_id: userId, // Garante que o ID está correto
+          updated_at: new Date().toISOString(), // Se tiver coluna updated_at
+        },
+        { onConflict: 'user_id' }
+      );
 
       if (error) throw error;
 
+      addToast({ title: 'Configurações salvas com sucesso!', type: 'success' });
+    } catch (error: any) {
+      console.error(error);
       addToast({
-        title: 'Sucesso!',
-        message: 'Configurações salvas com sucesso.',
-        type: 'success',
-      });
-    } catch (error) {
-      console.error('Erro ao salvar configurações:', error);
-      addToast({
-        title: 'Erro',
-        message: 'Não foi possível salvar as configurações.',
+        title: 'Erro ao salvar',
+        description: error.message,
         type: 'error',
       });
     } finally {
@@ -104,201 +102,250 @@ export default function SettingsPage() {
     }
   };
 
-  const handleInputChange = (field: keyof Settings, value: any) => {
-    setSettings((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  // Handler genérico para inputs de texto
+  const handleChange = (field: keyof Settings, value: any) => {
+    setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Carregando configurações...</p>
-        </div>
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="animate-spin text-indigo-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">Configurações</h1>
+    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Configurações da Loja
+          </h1>
+          <p className="text-sm text-gray-500">
+            Personalize o seu catálogo e preferências
+          </p>
         </div>
-      </header>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-70"
+        >
+          {saving ? (
+            <Loader2 className="animate-spin" size={20} />
+          ) : (
+            <Save size={20} />
+          )}
+          Salvar Alterações
+        </button>
+      </div>
 
-      <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
-        <div className="rounded-lg bg-white shadow">
-          <div className="px-4 py-5 sm:p-6">
-            <h2 className="mb-4 text-lg font-medium text-gray-900">
-              Informações Gerais
-            </h2>
+      <form
+        onSubmit={handleSave}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+      >
+        {/* Coluna Esquerda: Identidade e Marca */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Card: Informações Básicas */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2 border-b pb-3">
+              <Store size={20} className="text-gray-400" /> Informações da Loja
+            </h3>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Nome da Empresa
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome da Loja
                 </label>
                 <input
                   type="text"
-                  id="name"
                   value={settings.name || ''}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="Ex: Calçados Silva"
                 />
               </div>
 
               <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Email
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email de Contato
                 </label>
                 <input
                   type="email"
-                  id="email"
                   value={settings.email || ''}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
 
               <div>
-                <label
-                  htmlFor="phone"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Telefone
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone / WhatsApp
                 </label>
                 <input
                   type="tel"
-                  id="phone"
                   value={settings.phone || ''}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  onChange={(e) => handleChange('phone', e.target.value)}
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="(00) 00000-0000"
                 />
               </div>
 
-              <div>
-                <label
-                  htmlFor="primary_color"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Cor Primária
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Slug do Catálogo (Link)
                 </label>
+                <div className="flex items-center">
+                  <span className="bg-gray-100 border border-r-0 rounded-l-lg px-3 py-2 text-gray-500 text-sm">
+                    repvendas.com/catalog/
+                  </span>
+                  <input
+                    type="text"
+                    value={settings.catalog_slug || ''}
+                    onChange={(e) =>
+                      handleChange(
+                        'catalog_slug',
+                        e.target.value.toLowerCase().replace(/\s+/g, '-')
+                      )
+                    }
+                    className="flex-1 p-2 border rounded-r-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    placeholder="minha-loja"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card: Aparência */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2 border-b pb-3">
+              <Palette size={20} className="text-gray-400" /> Aparência
+            </h3>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cor Principal
+              </label>
+              <div className="flex items-center gap-3">
                 <input
                   type="color"
-                  id="primary_color"
-                  value={settings.primary_color || '#3B82F6'}
+                  value={settings.primary_color || '#4F46E5'}
                   onChange={(e) =>
-                    handleInputChange('primary_color', e.target.value)
+                    handleChange('primary_color', e.target.value)
                   }
-                  className="mt-1 block h-10 w-full rounded-md border-gray-300 shadow-sm"
+                  className="h-10 w-20 rounded cursor-pointer border p-1"
                 />
+                <div className="text-sm text-gray-500">
+                  Usada em botões, links e destaques do seu catálogo.
+                </div>
               </div>
             </div>
 
-            <div className="mt-8">
-              <h2 className="mb-4 text-lg font-medium text-gray-900">
-                Segurança e Acesso
-              </h2>
-
-              <div className="max-w-md">
-                <label
-                  htmlFor="price_access_password"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Senha para Visualizar Preços
-                </label>
-                <input
-                  type="password"
-                  id="price_access_password"
-                  value={settings.price_access_password || '123456'}
-                  onChange={(e) =>
-                    handleInputChange('price_access_password', e.target.value)
-                  }
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="Digite a senha de acesso aos preços"
-                />
-                <p className="mt-2 text-sm text-gray-500">
-                  Esta senha será solicitada aos visitantes para visualizar os
-                  preços dos produtos.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <h2 className="mb-4 text-lg font-medium text-gray-900">
-                Exibição de Elementos
-              </h2>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[
-                  { key: 'show_shipping', label: 'Mostrar frete' },
-                  { key: 'show_installments', label: 'Mostrar parcelas' },
-                  {
-                    key: 'show_delivery_address',
-                    label: 'Mostrar endereço de entrega',
-                  },
-                  {
-                    key: 'show_installments_checkout',
-                    label: 'Parcelas no checkout',
-                  },
-                  { key: 'show_discount', label: 'Mostrar desconto' },
-                  { key: 'show_old_price', label: 'Mostrar preço antigo' },
-                  { key: 'show_filter_price', label: 'Filtro de preço' },
-                  { key: 'show_filter_category', label: 'Filtro de categoria' },
-                  {
-                    key: 'show_filter_bestseller',
-                    label: 'Filtro de bestsellers',
-                  },
-                  { key: 'show_filter_new', label: 'Filtro de lançamentos' },
-                ].map(({ key, label }) => (
-                  <div key={key} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={key}
-                      checked={
-                        (settings[key as keyof Settings] as boolean) || false
-                      }
-                      onChange={(e) =>
-                        handleInputChange(
-                          key as keyof Settings,
-                          e.target.checked
-                        )
-                      }
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <label
-                      htmlFor={key}
-                      className="ml-2 block text-sm text-gray-900"
-                    >
-                      {label}
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-end">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? 'Salvando...' : 'Salvar Configurações'}
-              </button>
+            {/* Upload de Logo (Simplificado - usa URL por enquanto ou componente de upload futuro) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                URL do Logo
+              </label>
+              <input
+                type="text"
+                value={settings.logo_url || ''}
+                onChange={(e) => handleChange('logo_url', e.target.value)}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                placeholder="https://..."
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Para fazer upload, use a aba de Produtos &gt; Importar Fotos e
+                copie o link.
+              </p>
             </div>
           </div>
         </div>
-      </main>
+
+        {/* Coluna Direita: Configurações Técnicas */}
+        <div className="space-y-6">
+          {/* Card: Segurança (Acesso Restrito) */}
+          <div className="bg-white p-6 rounded-xl border border-orange-200 bg-orange-50/30 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2 border-b pb-3">
+              <Lock size={20} className="text-orange-500" /> Acesso e Preços
+            </h3>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Senha do Catálogo
+              </label>
+              <input
+                type="text"
+                value={settings.catalog_price_password || ''}
+                onChange={(e) =>
+                  handleChange('catalog_price_password', e.target.value)
+                }
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-orange-500 outline-none font-mono"
+                placeholder="Ex: 12345"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Se definido, os clientes precisarão desta senha para ver os
+                preços dos produtos.
+              </p>
+            </div>
+          </div>
+
+          {/* Card: Opções de Exibição */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2 border-b pb-3">
+              <LayoutTemplate size={20} className="text-gray-400" /> Exibição
+            </h3>
+
+            <div className="space-y-3">
+              <Toggle
+                label="Mostrar Filtro de Preço"
+                checked={settings.show_filter_price}
+                onChange={(v) => handleChange('show_filter_price', v)}
+              />
+              <Toggle
+                label="Mostrar Categorias"
+                checked={settings.show_filter_category}
+                onChange={(v) => handleChange('show_filter_category', v)}
+              />
+              <Toggle
+                label="Mostrar info de Parcelamento"
+                checked={settings.show_installments}
+                onChange={(v) => handleChange('show_installments', v)}
+              />
+              <Toggle
+                label="Mostrar info de Frete"
+                checked={settings.show_shipping}
+                onChange={(v) => handleChange('show_shipping', v)}
+              />
+            </div>
+          </div>
+        </div>
+      </form>
     </div>
+  );
+}
+
+// Componente Auxiliar de Toggle
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between cursor-pointer p-2 hover:bg-gray-50 rounded-lg transition-colors">
+      <span className="text-sm text-gray-700">{label}</span>
+      <div className="relative inline-flex items-center cursor-pointer">
+        <input
+          type="checkbox"
+          checked={checked || false}
+          onChange={(e) => onChange(e.target.checked)}
+          className="sr-only peer"
+        />
+        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+      </div>
+    </label>
   );
 }

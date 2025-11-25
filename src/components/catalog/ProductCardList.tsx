@@ -185,7 +185,7 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                   style={{ backgroundColor: primaryColor || '#3B82F6' }}
                 >
-                  Adicionar ao Carrinho
+                  Adicionar ao Pedido
                 </button>
               </div>
             </div>

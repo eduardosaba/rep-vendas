@@ -1,139 +1,86 @@
-import { createServerClient } from '@supabase/ssr';
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import type { CookieOptions } from '@supabase/ssr';
 
 export async function middleware(req: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: req.headers,
-    },
-  });
+  const res = NextResponse.next();
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return req.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          req.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-          response = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-        },
-        remove(name: string, options: CookieOptions) {
-          req.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-          response = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-        },
-      },
-    }
-  );
+  // Cria o cliente Supabase para o contexto do middleware
+  const supabase = createMiddlewareClient({ req, res });
 
-  // Obter sessão atual
+  // Verifica a sessão atual
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  // Rotas que requerem autenticação
-  const protectedRoutes = [
-    '/catalog/[userId]/checkout',
-    '/dashboard',
-    '/api/orders',
-    '/api/notifications',
-    '/api/send-email',
-  ];
+  // Rota atual que o usuário está tentando acessar
+  const path = req.nextUrl.pathname;
 
-  // Verificar se a rota atual está protegida
-  const isProtectedRoute = protectedRoutes.some((route) => {
-    const pattern = new RegExp(route.replace('[userId]', '[^/]+'));
-    return pattern.test(req.nextUrl.pathname);
-  });
+  // 1. PROTEÇÃO BÁSICA DE LOGIN
+  // Se não estiver logado e tentar acessar rotas protegidas -> Redireciona para Login
+  // Adicionamos '/onboarding' aqui para garantir que só usuários logados configurem a loja
+  if (
+    !session &&
+    (path.startsWith('/dashboard') ||
+      path.startsWith('/admin') ||
+      path.startsWith('/onboarding'))
+  ) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
 
-  if (isProtectedRoute) {
-    if (!session) {
-      // Redirecionar para login se não estiver autenticado
-      const redirectUrl = new URL('/login', req.url);
-      redirectUrl.searchParams.set('redirect', req.nextUrl.pathname);
-      return NextResponse.redirect(redirectUrl);
-    }
+  // 2. SE ESTIVER LOGADO, VERIFICA CARGO E LICENÇA
+  if (session) {
+    // Buscar o perfil do usuário no banco para ver o Cargo (Role) e Status
+    // Nota: Middleware deve ser rápido, então fazemos uma query leve
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, status, license_expires_at')
+      .eq('id', session.user.id)
+      .single();
 
-    // Verificar se o token ainda é válido (não expirou)
-    if (session.expires_at) {
-      const now = Math.floor(Date.now() / 1000);
-      if (now >= session.expires_at) {
-        // Token expirado, redirecionar para login
-        const redirectUrl = new URL('/login', req.url);
-        redirectUrl.searchParams.set('redirect', req.nextUrl.pathname);
-        return NextResponse.redirect(redirectUrl);
+    // 2.1. PROTEÇÃO DA TORRE DE CONTROLE (MASTER)
+    // Apenas usuários com role 'master' podem entrar em /admin
+    if (path.startsWith('/admin')) {
+      if (profile?.role !== 'master') {
+        // Se for um representante tentando entrar no admin, chuta para o dashboard dele
+        return NextResponse.redirect(new URL('/dashboard', req.url));
       }
     }
 
-    // Adicionar headers de segurança
-    response.headers.set('X-User-ID', session.user.id);
-    response.headers.set('X-Session-ID', session.access_token.slice(-10)); // Apenas últimos 10 chars por segurança
-  }
-
-  // Rotas específicas do checkout que precisam de validação extra
-  if (req.nextUrl.pathname.includes('/checkout')) {
-    // Verificar se há dados de carrinho
-    const cartCookie = req.cookies.get('cart');
+    // 2.2. VERIFICAÇÃO DE LICENÇA (PARA REPRESENTANTES)
+    // Se for um representante tentando usar o dashboard...
+    // (Exceto a página de 'expired' para evitar loop infinito de redirecionamento)
     if (
-      !cartCookie?.value ||
-      cartCookie.value === '{}' ||
-      cartCookie.value === 'null'
+      path.startsWith('/dashboard') &&
+      !path.startsWith('/dashboard/subscription')
     ) {
-      // Redirecionar para catálogo se não há itens no carrinho
-      const userId = req.nextUrl.pathname.split('/')[2]; // Extrair userId da URL
-      if (userId) {
-        const redirectUrl = new URL(`/catalog/${userId}`, req.url);
-        return NextResponse.redirect(redirectUrl);
+      // Ignora a verificação se for o Master (o Master nunca expira)
+      if (profile?.role === 'rep') {
+        const isExpired = profile?.license_expires_at
+          ? new Date(profile.license_expires_at) < new Date()
+          : true; // Se não tiver data, considera expirado (segurança)
+
+        const isInactive = profile?.status !== 'active';
+
+        if (isInactive || isExpired) {
+          // Se a conta não está ativa ou venceu -> Redireciona para página de bloqueio
+          return NextResponse.redirect(
+            new URL('/dashboard/subscription/expired', req.url)
+          );
+        }
       }
     }
-
-    // Adicionar headers específicos do checkout
-    response.headers.set('X-Checkout-Session', 'active');
-    response.headers.set('X-Checkout-Timestamp', Date.now().toString());
   }
 
-  return response;
+  return res;
 }
 
+// Configuração: Em quais rotas este middleware deve rodar?
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+    // Protege todas as rotas de dashboard, admin e onboarding
+    '/dashboard/:path*',
+    '/admin/:path*',
+    '/onboarding/:path*',
   ],
 };
