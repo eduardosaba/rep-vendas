@@ -51,7 +51,7 @@ export default async function LandingPage() {
             <img
               src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png"
               alt="Rep-Vendas"
-              className="h-10 w-auto object-contain brightness-0 invert" // Logo branco para fundo escuro
+              className="h-12 w-auto object-contain" // mostra cor original, um pouco maior
             />
           </div>
 
@@ -411,7 +411,7 @@ export default async function LandingPage() {
             <img
               src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png"
               alt="Logo"
-              className="h-8 w-auto opacity-80 grayscale hover:grayscale-0 transition-all brightness-0 invert"
+              className="h-10 md:h-12 w-auto opacity-90 hover:opacity-100 transition-all object-contain"
             />
           </div>
           <div className="text-sm flex gap-6">

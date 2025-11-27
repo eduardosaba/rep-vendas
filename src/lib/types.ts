@@ -189,3 +189,9 @@ export interface ProductCardProps {
   userId: string;
   formatPrice: (price: number) => string;
 }
+
+// --- TIPOS DE DASHBOARD ---
+export interface DashboardTotals {
+  total_revenue: number;
+  total_items_sold: number;
+}

@@ -1,105 +1,113 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
-  ShoppingBag,
-  Package,
   Users,
+  ShoppingCart,
+  Package,
   Settings,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
-  CircleHelp, // Ícone para a Central de Ajuda
+  BarChart3,
+  Store,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import Logo from '@/components/Logo';
+import { createBrowserClient } from '@supabase/ssr';
+import Logo from '@/components/Logo'; // Ajuste se o caminho do seu logo for diferente
 
-export function Sidebar() {
+// MAPA DE ROTAS CORRIGIDO (Links em PT -> Pastas em EN)
+const menuItems = [
+  {
+    title: 'Visão Geral',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+  },
+  {
+    title: 'Pedidos',
+    href: '/dashboard/orders', // Pasta: src/app/dashboard/orders
+    icon: ShoppingCart,
+  },
+  {
+    title: 'Produtos',
+    href: '/dashboard/products', // Pasta: src/app/dashboard/products
+    icon: Package,
+  },
+  {
+    title: 'Clientes',
+    href: '/dashboard/clients', // Pasta: src/app/dashboard/clients
+    icon: Users,
+  },
+  {
+    title: 'Relatórios',
+    href: '/dashboard/reports', // Vamos criar esta pasta placeholder
+    icon: BarChart3,
+  },
+  {
+    title: 'Configurações',
+    href: '/dashboard/settings', // Pasta: src/app/dashboard/settings
+    icon: Settings,
+  },
+];
+
+export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Visão Geral', href: '/dashboard' },
-    { icon: ShoppingBag, label: 'Pedidos', href: '/dashboard/orders' },
-    { icon: Package, label: 'Produtos', href: '/dashboard/products' },
-    { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
-    { icon: Settings, label: 'Configurações', href: '/dashboard/settings' },
-    { icon: CircleHelp, label: 'Ajuda', href: '/dashboard/help' }, // Novo Item
-  ];
 
   const handleLogout = async () => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
     await supabase.auth.signOut();
+    router.refresh();
     router.push('/login');
   };
 
   return (
-    <aside
-      className={`relative flex flex-col border-r bg-white transition-all duration-300 ${
-        isCollapsed ? 'w-20' : 'w-64'
-      } min-h-screen`}
-    >
-      {/* Botão de Colapsar */}
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-8 flex h-6 w-6 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50 z-10"
-      >
-        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-      </button>
-
-      {/* Logo */}
-      <div className="flex h-16 items-center justify-center border-b px-6">
-        {isCollapsed ? (
-          <div className="flex items-center justify-center">
-            <Logo useSystemLogo className="h-8 w-auto" />
-          </div>
-        ) : (
-          <div className="flex items-center justify-center">
-            <Logo showText className="h-10 w-auto" />
-          </div>
-        )}
+    <aside className="hidden h-screen w-64 flex-col border-r border-gray-200 bg-white md:flex">
+      <div className="flex h-16 items-center border-b border-gray-200 px-6">
+        {/* Se o seu componente Logo exigir props, ajuste aqui */}
+        <div className="font-bold text-xl text-blue-900 flex items-center gap-2">
+          <Store className="text-blue-600" /> RepVendas
+        </div>
       </div>
 
-      {/* Menu */}
-      <nav className="flex-1 space-y-1 p-4">
-        {menuItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-indigo-50 text-indigo-600'
-                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-              title={isCollapsed ? item.label : ''}
-            >
-              <item.icon
-                size={20}
-                className={isActive ? 'text-indigo-600' : 'text-gray-500'}
-              />
-              {!isCollapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-4 py-6">
+        <ul className="space-y-1">
+          {menuItems.map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = item.icon;
+
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-blue-50 text-blue-700 shadow-sm'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon
+                    className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}
+                  />
+                  {item.title}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
-      {/* Footer / Logout */}
-      <div className="border-t p-4">
+      <div className="border-t border-gray-200 p-4">
         <button
           onClick={handleLogout}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors ${
-            isCollapsed ? 'justify-center' : ''
-          }`}
-          title="Sair"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
         >
-          <LogOut size={20} />
-          {!isCollapsed && <span>Sair do Sistema</span>}
+          <LogOut className="h-5 w-5" />
+          Sair do Sistema
         </button>
       </div>
     </aside>

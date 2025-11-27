@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
 import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
+import { login, loginWithGoogle } from './actions'; // Importamos a nova action
 
 const Button = ({
   children,
@@ -14,6 +14,7 @@ const Button = ({
   loading = false,
   onClick,
   type = 'button',
+  variant = 'primary',
 }: {
   children: React.ReactNode;
   className?: string;
@@ -21,13 +22,23 @@ const Button = ({
   loading?: boolean;
   onClick?: () => void;
   type?: 'button' | 'submit' | 'reset';
+  variant?: 'primary' | 'google';
 }) => {
+  const baseStyle =
+    'flex w-full items-center justify-center rounded-lg px-4 py-3 font-bold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70';
+
+  const variants = {
+    primary: 'bg-[#b9722e] text-white hover:bg-[#9a5e24] focus:ring-[#b9722e]',
+    google:
+      'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-200',
+  };
+
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className={`flex w-full items-center justify-center rounded-lg bg-[#b9722e] px-4 py-3 font-bold text-white shadow-lg transition-all hover:bg-[#9a5e24] focus:outline-none focus:ring-2 focus:ring-[#b9722e] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
+      className={`${baseStyle} ${variants[variant]} ${className}`}
     >
       {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : children}
     </button>
@@ -36,92 +47,43 @@ const Button = ({
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Verifica sessão existente e redireciona se já autenticado
-    const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) router.replace('/dashboard');
-    };
-    checkSession();
-  }, [router]);
+    const message = searchParams.get('message');
+    if (message) {
+      setError(message);
+      setLoading(false);
+      setGoogleLoading(false);
+    }
+  }, [searchParams]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleServerLogin = async (formData: FormData) => {
     setLoading(true);
     setError('');
+    await login(formData);
+    setLoading(false);
+  };
 
-    try {
-      const res = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      const { data, error } = res as any;
-
-      if (error) {
-        const msg =
-          (error?.message as string) || 'Ocorreu um erro ao autenticar.';
-        if (msg.includes('Invalid login')) {
-          setError('Email ou senha incorretos.');
-        } else {
-          setError(msg);
-        }
-        return;
-      }
-
-      // Se houver sessão, buscar role no profile e redirecionar apropriadamente
-      if (data?.session && data?.user?.id) {
-        try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', data.user.id)
-            .single();
-
-          // Log detalhado para depuração do 500 (PostgREST)
-          if (profileError) {
-            console.error('profile fetch error', profileError);
-            // Não bloquear o fluxo por falta de profile; enviar ao dashboard
-            router.push('/dashboard');
-            return;
-          }
-
-          console.debug('profile fetch success', profileData);
-
-          const role = profileData?.role;
-          if (role === 'master') {
-            router.push('/admin');
-          } else {
-            router.push('/dashboard');
-          }
-          return;
-        } catch (err) {
-          router.push('/dashboard');
-          return;
-        }
-      }
-
-      setError('Não foi possível efetuar o login.');
-    } catch (err: any) {
-      setError(err.message || 'Ocorreu um erro ao entrar.');
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setError('');
+    // Chama a server action para iniciar o fluxo Google
+    await loginWithGoogle();
+    // Nota: Se redirecionar, o estado loading fica true até a página mudar, o que é bom.
   };
 
   return (
     <div className="flex min-h-screen w-full overflow-hidden font-sans bg-[#0d1b2c]">
       {/* ESQUERDA: Onboarding */}
       <div className="hidden flex-1 lg:block animate-fade-in relative">
-        {/* Máscara para escurecer um pouco o fundo se necessário */}
         <div className="absolute inset-0 bg-[#0d1b2c]/50 z-0 pointer-events-none"></div>
         <LoginOnboarding />
       </div>
@@ -141,9 +103,51 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* modo dev removido */}
+            {/* --- BOTÃO GOOGLE --- */}
+            <div className="mb-6">
+              <Button
+                type="button"
+                variant="google"
+                onClick={handleGoogleLogin}
+                loading={googleLoading}
+              >
+                {!googleLoading && (
+                  <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
+                    <path
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      fill="#4285F4"
+                    />
+                    <path
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      fill="#34A853"
+                    />
+                    <path
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z"
+                      fill="#FBBC05"
+                    />
+                    <path
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      fill="#EA4335"
+                    />
+                  </svg>
+                )}
+                Continuar com Google
+              </Button>
+            </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-2 text-gray-500">
+                  Ou com email
+                </span>
+              </div>
+            </div>
+
+            {/* FORMULÁRIO EMAIL (Mantido) */}
+            <form action={handleServerLogin} className="space-y-5">
               {error && (
                 <div className="flex items-center rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <span className="mr-2">⚠️</span> {error}
@@ -159,6 +163,7 @@ export default function LoginPage() {
                     <Mail className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
+                    name="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -177,7 +182,6 @@ export default function LoginPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={() => {}}
                     className="text-sm font-medium text-[#b9722e] hover:underline"
                   >
                     Esqueceu?
@@ -188,6 +192,7 @@ export default function LoginPage() {
                     <Lock className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -206,7 +211,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Button type="submit" loading={loading}>
+              <Button type="submit" loading={loading} variant="primary">
                 Acessar Sistema <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </form>

@@ -1,186 +1,170 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { User, Phone, ShoppingBag, Calendar } from 'lucide-react';
 
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { Client } from '@/lib/types';
-import Link from 'next/link';
-import {
-  Plus,
-  Search,
-  Edit2,
-  Trash2,
-  User,
-  MapPin,
-  Phone,
-  Mail,
-  Loader2,
-} from 'lucide-react';
-import { useToast } from '@/hooks/useToast';
+interface ClientSummary {
+  name: string;
+  phone: string;
+  totalSpent: number;
+  orderCount: number;
+  lastOrderDate: string;
+}
 
-export default function ClientsPage() {
-  const { addToast } = useToast();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+export default async function ClientsPage() {
+  const supabase = await createClient();
 
-  // Carregar Clientes
-  const fetchClients = async () => {
-    try {
-      setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name', { ascending: true });
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('client_name_guest, client_phone_guest, total_value, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setClients(data || []);
-    } catch (error) {
-      console.error(error);
-      addToast({ title: 'Erro ao carregar clientes', type: 'error' });
-    } finally {
-      setLoading(false);
+  const clientsMap = new Map<string, ClientSummary>();
+
+  (orders || []).forEach((order) => {
+    // PROTEÇÃO CRÍTICA: Garante que nunca seja null antes de manipular
+    const rawPhone = order.client_phone_guest || '';
+
+    // Se não tiver telefone, usamos o nome como chave única (fallback)
+    // Se tiver telefone, removemos tudo que não é número para padronizar
+    const key = rawPhone
+      ? rawPhone.replace(/\D/g, '')
+      : `nomatch-${order.client_name_guest}`;
+
+    if (!clientsMap.has(key)) {
+      clientsMap.set(key, {
+        name: order.client_name_guest || 'Cliente Sem Nome',
+        phone: order.client_phone_guest || '',
+        totalSpent: 0,
+        orderCount: 0,
+        lastOrderDate: order.created_at,
+      });
     }
-  };
 
-  useEffect(() => {
-    fetchClients();
-  }, []);
+    const client = clientsMap.get(key)!;
+    client.totalSpent += Number(order.total_value);
+    client.orderCount += 1;
 
-  // Apagar Cliente
-  const handleDelete = async (id: string) => {
-    if (
-      !confirm(
-        'Tem a certeza que deseja apagar este cliente? O histórico de pedidos poderá ser afetado.'
-      )
-    )
-      return;
+    // Como a query já vem ordenada por data desc, a primeira vez que encontramos o cliente
+    // é a data mais recente. Não precisamos atualizar se já existir.
+  });
 
-    try {
-      const { error } = await supabase.from('clients').delete().eq('id', id);
-      if (error) throw error;
-
-      setClients(clients.filter((c) => c.id !== id));
-      addToast({ title: 'Cliente removido com sucesso', type: 'success' });
-    } catch (error) {
-      addToast({ title: 'Erro ao remover', type: 'error' });
-    }
-  };
-
-  // Filtro de pesquisa
-  const filteredClients = clients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.phone?.includes(searchTerm)
+  const clients = Array.from(clientsMap.values()).sort(
+    (a, b) => b.totalSpent - a.totalSpent
   );
 
   return (
-    <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="max-w-6xl mx-auto space-y-6 pb-20">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Meus Clientes</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Carteira de Clientes
+          </h1>
           <p className="text-sm text-gray-500">
-            Gerencie a sua carteira de clientes
+            {clients.length} clientes identificados através do histórico de
+            pedidos.
           </p>
         </div>
-
-        <Link
-          href="/dashboard/clients/new"
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          <Plus size={18} />
-          Novo Cliente
-        </Link>
       </div>
 
-      {/* Barra de Pesquisa */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
-        <input
-          type="text"
-          placeholder="Pesquisar por nome, email ou telefone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-        />
-      </div>
-
-      {/* Lista de Clientes (Cards para melhor adaptação mobile/desktop) */}
-      {loading ? (
-        <div className="flex justify-center p-12">
-          <Loader2 className="animate-spin text-indigo-600 h-8 w-8" />
-        </div>
-      ) : filteredClients.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
-          <User className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-          <h3 className="text-lg font-medium text-gray-900">
-            Nenhum cliente encontrado
-          </h3>
-          <p className="text-gray-500 mt-1">
-            Adicione o seu primeiro cliente para começar.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredClients.map((client) => (
-            <div
-              key={client.id}
-              className="group relative flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-all hover:border-indigo-200"
-            >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 font-bold">
-                    {client.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded">
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(client.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-900">{client.name}</h3>
-                  {client.email && (
-                    <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                      <Mail size={14} />
-                      <span className="truncate">{client.email}</span>
-                    </div>
-                  )}
-                  {client.phone && (
-                    <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                      <Phone size={14} />
-                      <span>{client.phone}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {client.address && (
-                <div className="mt-4 pt-4 border-t border-gray-50">
-                  <div className="flex items-start gap-2 text-xs text-gray-500">
-                    <MapPin size={14} className="mt-0.5 flex-shrink-0" />
-                    <span className="line-clamp-2">{client.address}</span>
-                  </div>
-                </div>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-4 font-medium">Cliente</th>
+                <th className="px-6 py-4 font-medium">Contato</th>
+                <th className="px-6 py-4 font-medium">Total Gasto</th>
+                <th className="px-6 py-4 font-medium">Pedidos</th>
+                <th className="px-6 py-4 font-medium">Última Compra</th>
+                <th className="px-6 py-4 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {clients.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-12 text-center text-gray-500"
+                  >
+                    <User size={48} className="mx-auto mb-3 text-gray-300" />
+                    <p className="text-lg font-medium">Nenhum cliente ainda</p>
+                    <p className="text-sm">
+                      Compartilhe seu catálogo para receber pedidos.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                clients.map((client, idx) => (
+                  <tr
+                    key={idx}
+                    className="hover:bg-gray-50 transition-colors group"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm uppercase">
+                          {client.name.charAt(0)}
+                        </div>
+                        <span className="font-medium text-gray-900">
+                          {client.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="text-gray-400" />
+                        {client.phone || (
+                          <span className="text-gray-400 italic">Não inf.</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-green-600">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(client.totalSpent)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center gap-1 bg-gray-100 px-2.5 py-0.5 rounded-full text-xs font-medium text-gray-600">
+                        <ShoppingBag size={12} />
+                        {client.orderCount}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-gray-400" />
+                        {new Date(client.lastOrderDate).toLocaleDateString(
+                          'pt-BR'
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {client.phone ? (
+                        <a
+                          href={`https://wa.me/55${client.phone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          className="text-indigo-600 hover:text-indigo-800 text-sm font-medium hover:underline"
+                        >
+                          WhatsApp
+                        </a>
+                      ) : (
+                        <span className="text-gray-400 text-xs cursor-not-allowed">
+                          Sem contato
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))
               )}
-            </div>
-          ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }

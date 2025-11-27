@@ -1,94 +1,55 @@
-import { Metadata } from 'next';
-import { supabase } from '@/lib/supabaseClient';
 import { notFound } from 'next/navigation';
-import CatalogClient from '@/components/catalog/CatalogClient'; // Vamos criar este wrapper abaixo
+import { createClient } from '@/lib/supabase/server';
+import { Storefront } from '@/components/catalog/Storefront';
+import { Metadata } from 'next';
 
-// Função para descobrir o ID real do representante a partir do slug ou ID
-async function resolveCatalogUserId(slug: string): Promise<string | null> {
-  // 1. Tentar buscar por SLUG na tabela de configurações
-  const { data: settings } = await supabase
+type Props = {
+  params: Promise<{ slug: string }>; // Next.js 15: params é uma Promise
+};
+
+// 1. Gera metadados dinâmicos (Título da aba do navegador = Nome da Loja)
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  // AWAIT OBRIGATÓRIO no Next.js 15
+  const { slug } = await params;
+
+  const supabase = await createClient();
+  const { data: store } = await supabase
     .from('settings')
-    .select('user_id')
+    .select('name')
     .eq('catalog_slug', slug)
     .single();
 
-  if (settings?.user_id) {
-    return settings.user_id;
-  }
-
-  // 2. Se não achou por slug, verifica se o texto parece um UUID (ID direto)
-  const isUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      slug
-    );
-
-  if (isUuid) {
-    // Verifica se esse usuário realmente existe
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', slug)
-      .single();
-
-    if (profile) return slug;
-  }
-
-  return null;
-}
-
-// Metadados para SEO e WhatsApp
-export async function generateMetadata({
-  params,
-}: {
-  params: { slug: string } | Promise<{ slug: string }>;
-}): Promise<Metadata> {
-  const { slug } = (await params) as { slug: string };
-  const userId = await resolveCatalogUserId(slug);
-  if (!userId) return { title: 'Catálogo não encontrado' };
-
-  const { data: settings } = await supabase
-    .from('settings')
-    .select('name, logo_url')
-    .eq('user_id', userId)
-    .single();
-
   return {
-    title: settings?.name || 'Catálogo Online',
-    description: `Confira os produtos de ${settings?.name || 'nosso representante'}.`,
-    openGraph: {
-      images: settings?.logo_url ? [settings.logo_url] : [],
-    },
+    title: store
+      ? `${store.name} | Catálogo Digital`
+      : 'Catálogo não encontrado',
   };
 }
 
-export default async function CatalogPage({
-  params,
-}: {
-  params: { slug: string } | Promise<{ slug: string }>;
-}) {
-  const { slug } = (await params) as { slug: string };
+export default async function CatalogPage({ params }: Props) {
+  // AWAIT OBRIGATÓRIO no Next.js 15
+  const { slug } = await params;
 
-  // 1. Resolver quem é o dono deste catálogo
-  const userId = await resolveCatalogUserId(slug);
+  const supabase = await createClient();
 
-  // 2. Se não encontrou ninguém, 404
-  if (!userId) {
-    notFound();
+  // 2. Busca as Configurações da Loja (Baseado no Slug)
+  const { data: store, error: storeError } = await supabase
+    .from('settings')
+    .select('*')
+    .eq('catalog_slug', slug)
+    .single();
+
+  if (storeError || !store) {
+    return notFound(); // Retorna página 404 padrão do Next.js se o slug não existir
   }
 
-  // 3. Carregar os dados iniciais no servidor (Rápido + SEO)
-  // Isso evita o "loading..." piscando na tela do cliente
-  const [settingsRes, productsRes] = await Promise.all([
-    supabase.from('settings').select('*').eq('user_id', userId).single(),
-    supabase.from('products').select('*').eq('user_id', userId),
-  ]);
+  // 3. Busca os Produtos dessa loja
+  const { data: products, error: productsError } = await supabase
+    .from('products')
+    .select('*')
+    .eq('user_id', store.user_id) // Usa o ID do dono da loja
+    .order('created_at', { ascending: false });
 
-  // 4. Renderizar o Cliente
-  return (
-    <CatalogClient
-      initialUserId={userId}
-      initialSettings={settingsRes.data}
-      initialProducts={productsRes.data || []}
-    />
-  );
+  // 4. Renderiza a Interface (Client Component) passando os dados
+  return <Storefront store={store} initialProducts={products || []} />;
 }

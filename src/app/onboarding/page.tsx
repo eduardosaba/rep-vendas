@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient'; // Cliente para upload e auth
 import { useToast } from '@/hooks/useToast';
+import { finishOnboarding } from './actions';
 import {
   Store,
   Palette,
@@ -13,26 +14,26 @@ import {
   Loader2,
   UploadCloud,
   Rocket,
+  LogOut, // Ícone novo
 } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { addToast } = useToast();
 
-  // Paleta híbrida (Rep-Vendas vs Cliente)
   const BRAND_BLUE = '#0d1b2c';
   const BRAND_BRONZE = '#b9722e';
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>(''); // Novo estado para mostrar quem está logado
 
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     email: '',
     slug: '',
-    // Sugestão inicial para o catálogo do cliente (bronze), editável
     primary_color: BRAND_BRONZE,
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -49,11 +50,31 @@ export default function OnboardingPage() {
         router.push('/login');
         return;
       }
+
+      // Verifica se já completou (para evitar loop visual)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.onboarding_completed) {
+        router.push('/dashboard');
+        return;
+      }
+
       setUserId(user.id);
+      setUserEmail(user.email || '');
       setFormData((prev) => ({ ...prev, email: user.email || '' }));
     };
     checkUser();
   }, [router]);
+
+  // Função de Logout de emergência
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -80,6 +101,7 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     if (!userId) return;
     setLoading(true);
+
     try {
       let logoUrl: string | null = null;
 
@@ -89,55 +111,34 @@ export default function OnboardingPage() {
         const filePath = `public/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('logos')
+          .from('product-images') // Usando o bucket que já configuramos
           .upload(filePath, logoFile, { upsert: true });
 
         if (!uploadError) {
           const { data } = await supabase.storage
-            .from('logos')
+            .from('product-images')
             .getPublicUrl(filePath);
           logoUrl = (data as any)?.publicUrl || null;
         }
       }
 
-      const { error } = await supabase.from('settings').upsert(
-        {
-          user_id: userId,
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          catalog_slug: formData.slug,
-          primary_color: formData.primary_color,
-          logo_url: logoUrl,
-          header_color: '#FFFFFF',
-          show_filter_price: true,
-          show_shipping: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' }
-      );
-
-      if (error) throw error;
-
-      // --- NOVO: Marcar onboarding como completo no perfil ---
-      const profileRes = await supabase
-        .from('profiles')
-        .update({ onboarding_completed: true })
-        .eq('id', userId);
-
-      // Log detalhado para diagnosticar 500s do PostgREST
-      console.log('profiles.update result:', profileRes);
-
-      if (profileRes.error) throw profileRes.error;
-      // ------------------------------------------------------
+      await finishOnboarding({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        slug: formData.slug,
+        primary_color: formData.primary_color,
+        logo_url: logoUrl,
+      });
 
       addToast({ title: 'Loja configurada com sucesso!', type: 'success' });
+      router.refresh();
       router.push('/dashboard');
     } catch (err: any) {
       console.error(err);
       addToast({
         title: 'Erro ao salvar',
-        description: err?.message,
+        description: err?.message || 'Ocorreu um erro inesperado.',
         type: 'error',
       });
     } finally {
@@ -170,10 +171,23 @@ export default function OnboardingPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-4"
+      className="min-h-screen flex flex-col items-center justify-center p-4 relative"
       style={{ backgroundColor: BRAND_BLUE }}
     >
-      <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+      {/* Botão de Logout Flutuante */}
+      <div className="absolute top-4 right-4 text-white flex items-center gap-4">
+        <span className="text-sm opacity-80 hidden sm:inline">
+          Logado como: {userEmail}
+        </span>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm transition-colors"
+        >
+          <LogOut size={16} /> Sair
+        </button>
+      </div>
+
+      <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden mt-12">
         <div className="h-2 bg-gray-100 w-full">
           <div
             className="h-full transition-all duration-500 ease-out"
@@ -303,7 +317,6 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
-                  {/* Paleta de cores rápida baseada nas cores fornecidas */}
                   <div className="mt-3 flex items-center gap-3">
                     {['#0d1b2c', '#b9722e', '#a46431'].map((c) => (
                       <button
@@ -332,10 +345,11 @@ export default function OnboardingPage() {
                       onChange={handleLogoChange}
                     />
                     {logoPreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={logoPreview}
                         alt="Logo Preview"
-                        className="h-24 mx-auto object-contain"
+                        className="h-24 mx-auto object-contain shadow-sm shadow-black/10"
                       />
                     ) : (
                       <div className="flex flex-col items-center">

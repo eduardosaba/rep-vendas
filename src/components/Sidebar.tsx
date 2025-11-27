@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { logger } from '@/lib/logger';
 import Logo from './Logo';
 
 export function Sidebar() {
@@ -52,7 +53,7 @@ export function Sidebar() {
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      console.error('Logout error', err);
+      logger.error('Logout error', err);
     } finally {
       router.push('/login');
     }

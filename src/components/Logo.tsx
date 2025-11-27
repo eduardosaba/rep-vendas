@@ -14,7 +14,7 @@ interface LogoProps {
 
 export function Logo({
   settings,
-  className = 'h-10 w-auto',
+  className = 'h-12 w-auto',
   showText = false,
   variant = 'dark',
   useSystemLogo = false,
@@ -29,7 +29,7 @@ export function Logo({
         <img
           src={SYSTEM_LOGO_URL}
           alt={SYSTEM_NAME}
-          className={`${className} object-contain`}
+          className={`${className} object-contain shadow-sm shadow-black/10`}
         />
         {showText && (
           <span
@@ -47,7 +47,7 @@ export function Logo({
       <img
         src={settings.logo_url}
         alt={settings.name || 'Logo da Loja'}
-        className={`${className} object-contain`}
+        className={`${className} object-contain shadow-sm shadow-black/10`}
       />
     );
   }

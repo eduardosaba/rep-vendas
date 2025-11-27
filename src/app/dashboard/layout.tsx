@@ -12,21 +12,19 @@ export default async function DashboardLayout({
   // Criar cliente Supabase no Servidor
   const supabase = await createServerSupabase();
 
-  // Verificar sessão
+  // Verificar usuário autenticado usando getUser() (mais seguro no servidor)
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Segurança extra: Se não houver sessão, redireciona para login
-  // (O middleware já faz isso, mas esta é uma dupla verificação no nível do componente)
-  if (!session) {
+  // Segurança extra: Se não houver usuário autenticado, redireciona para login
+  if (!user) {
     redirect('/login');
   }
-
-  // Dados do utilizador para exibir no header
-  const user = session.user;
   const userName =
-    user.user_metadata?.full_name || user.email?.split('@')[0] || 'Utilizador';
+    (user as any)?.user_metadata?.full_name ||
+    user.email?.split('@')[0] ||
+    'Utilizador';
   const userInitial = userName[0].toUpperCase();
 
   return (
