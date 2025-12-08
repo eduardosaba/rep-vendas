@@ -56,7 +56,7 @@ export default async function EditUserPage({
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-          <Shield className="text-indigo-600" size={20} />
+          <Shield className="rv-text-primary" size={20} />
           <h2 className="font-semibold text-gray-900">
             Detalhes da Assinatura
           </h2>
@@ -135,7 +135,7 @@ export default async function EditUserPage({
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-sm transition-all"
+              className="rv-btn-primary flex items-center gap-2 px-6 py-2.5 font-medium shadow-sm transition-all"
             >
               <Save size={18} />
               Salvar Alterações

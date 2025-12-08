@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, X } from 'lucide-react';
 import { Product, Settings, ProductCardProps } from '@/lib/types';
+import ProductImage from './ProductImage';
 
 interface ProductCardListProps extends ProductCardProps {
   hasPriceAccess: boolean;
@@ -34,8 +35,8 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
         <div className="flex flex-col sm:flex-row">
           <div className="relative h-48 w-full flex-shrink-0 sm:w-48">
             {product.images && product.images.length > 0 ? (
-              <img
-                src={product.images[0]}
+              <ProductImage
+                product={{ ...product, image_url: product.images[0] }}
                 alt={product.name}
                 className="h-full w-full cursor-pointer rounded-t-lg object-cover sm:rounded-l-lg sm:rounded-t-none"
                 onClick={() => setShowImageModal(true)}
@@ -109,9 +110,11 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
               >
                 {product.name}
               </h3>
-              <p className="mb-2 line-clamp-2 text-sm text-gray-600">
-                {product.description || 'Sem descrição disponível'}
-              </p>
+              {product.description && product.description.trim() !== '' && (
+                <p className="mb-2 line-clamp-2 text-sm text-gray-600">
+                  {product.description}
+                </p>
+              )}
             </div>
 
             <div className="mt-4 flex flex-col justify-between sm:flex-row sm:items-end">
@@ -203,8 +206,8 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
             className="relative max-h-full max-w-4xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={product.images?.[0] || ''}
+            <ProductImage
+              product={{ ...product, image_url: product.images?.[0] || '' }}
               alt={product.name}
               className="max-h-[90vh] max-w-full object-contain"
             />

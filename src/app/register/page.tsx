@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Eye,
@@ -59,7 +59,6 @@ const Button = ({
 
 export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,17 +69,22 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    const message = searchParams.get('message');
-    if (message) {
-      if (message.includes('realizado') || message.includes('Verifique')) {
-        setSuccess(message);
-      } else {
-        setError(message);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const message = params.get('message');
+      if (message) {
+        if (message.includes('realizado') || message.includes('Verifique')) {
+          setSuccess(message);
+        } else {
+          setError(message);
+        }
+        setLoading(false);
+        setGoogleLoading(false);
       }
-      setLoading(false);
-      setGoogleLoading(false);
+    } catch (e) {
+      // ignore if window not available or parsing fails
     }
-  }, [searchParams]);
+  }, []);
 
   const handleServerSignup = async (formData: FormData) => {
     setLoading(true);

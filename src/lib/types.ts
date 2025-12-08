@@ -55,17 +55,28 @@ export interface Notification {
 export interface Product {
   id: string;
   name: string;
-  brand?: string;
-  reference_code?: string;
-  description?: string;
+  brand?: string | null;
+  reference_code?: string | null;
+  description?: string | null;
   price: number;
-  image_url?: string; // URL da imagem principal
+  image_url?: string | null; // URL da imagem principal
   images?: string[]; // Array de URLs para galeria (novo)
+  // Duas convenções existem no código: `bestseller` e `is_best_seller`.
+  // Mantemos ambos para compatibilidade com diferentes camadas (DB / UI).
   bestseller?: boolean;
+  is_best_seller?: boolean;
+  // Lançamento pode aparecer como `is_launch` em algumas camadas
   is_launch?: boolean;
-  technical_specs?: string;
+  technical_specs?: string | null;
   user_id?: string;
   created_at?: string;
+  // Campos adicionais usados em várias telas e importações
+  barcode?: string;
+  sku?: string;
+  color?: string;
+  cost?: number;
+  stock_quantity?: number;
+  category?: string | null;
 }
 
 export interface CartItem {
@@ -165,6 +176,9 @@ export interface Settings {
   show_filter_category?: boolean;
   show_filter_bestseller?: boolean;
   show_filter_new?: boolean;
+  // Exibição de descontos e percentuais
+  show_cash_discount?: boolean;
+  cash_price_discount_percent?: number;
 
   // Segurança e Acesso
   catalog_price_password?: string | null;

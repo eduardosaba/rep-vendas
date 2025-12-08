@@ -41,6 +41,13 @@ export default function AdminSidebar() {
         </Link>
 
         <Link
+          href="/admin/debug"
+          className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-50 text-sm font-medium text-gray-700"
+        >
+          <Settings size={16} /> DEBUG
+        </Link>
+
+        <Link
           href="/admin/settings"
           className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-50 text-sm font-medium text-gray-700"
         >

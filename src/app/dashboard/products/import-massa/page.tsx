@@ -1,342 +1,598 @@
 'use client';
 
-import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { useToast } from '@/hooks/useToast';
-import * as XLSX from 'xlsx'; // Importa a biblioteca que instalamos
+import React, { useRef, useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import Link from 'next/link';
+import { supabase as sharedSupabase } from '@/lib/supabaseClient'; 
+import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
-  FileSpreadsheet,
   Upload,
+  FileSpreadsheet,
   CheckCircle,
-  AlertCircle,
   Loader2,
-  ArrowRight,
+  ArrowLeft,
+  Edit3,
+  FileText,
+  AlertTriangle,
+  Terminal,
+  Play,
+  ArrowUp,
+  ArrowDown,
+  X,
+  History
 } from 'lucide-react';
+import { toast } from 'sonner';
 
-// Define a estrutura esperada do Excel
-interface ExcelRow {
-  Nome: string;
-  Referencia: string;
-  Preco: number | string;
-  Marca?: string;
-  Descricao?: string;
+type Stats = {
+  total: number;
+  success: number;
+  errors: number;
+};
+
+const IMAGE_KEYWORDS = [
+  'image', 'img', 'foto', 'foto_url', 'foto-url', 'url', 'link', 'imagem', 'src', 'fotos', 'images'
+];
+
+function isImageLike(header: string) {
+  const h = String(header || '').toLowerCase();
+  return IMAGE_KEYWORDS.some((kw) => h.includes(kw));
+}
+
+function normalizeKey(s: string) {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+}
+
+function getField(row: any, key: string | undefined) {
+  if (!key) return null;
+  return row[key];
+}
+
+// --- GERADOR DE DESCRIÇÃO ---
+function generateAutoDescription(data: {
+  name: string;
+  brand: string | null;
+  ref: string | null;
+  category: string | null;
+  color: string | null;
+}) {
+  const { name, brand, ref, category, color } = data;
+  const catLower = (category || '').toLowerCase();
+  const nameLower = (name || '').toLowerCase();
+  let intro = 'Conheça o';
+  let productTerm = 'produto';
+
+  if (catLower.includes('solar') || catLower.includes('sol') || nameLower.includes('solar')) {
+    intro = 'Proteja sua visão com estilo usando o';
+    productTerm = 'Óculos de Sol';
+  } else if (catLower.includes('receitu') || catLower.includes('grau') || nameLower.includes('armação')) {
+    intro = 'Enxergue o mundo com clareza com a';
+    productTerm = 'Armação';
+  } else {
+    intro = 'Confira o';
+    productTerm = name; 
+  }
+
+  let desc = `${intro} ${productTerm}`;
+  if (brand) desc += ` da marca ${brand}`;
+  if (ref) desc += ` (Referência: ${ref})`;
+  desc += '.';
+  if (color) desc += ` Modelo disponível na cor ${color}, combinando elegância e versatilidade.`;
+  else desc += ` Design moderno que combina elegância e versatilidade.`;
+  desc += ' Produzido com materiais de alta qualidade para garantir durabilidade e conforto no seu dia a dia.';
+  return desc;
 }
 
 export default function ImportMassaPage() {
-  const { addToast } = useToast();
-  const [step, setStep] = useState(1);
-  const [file, setFile] = useState<File | null>(null);
-  const [previewData, setPreviewData] = useState<any[]>([]);
-  const [importing, setImporting] = useState(false);
-  const [stats, setStats] = useState({ total: 0, success: 0, errors: 0 });
+  const router = useRouter();
+  
+  const [step, setStep] = useState(1); 
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<any[]>([]);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [fileName, setFileName] = useState<string>('');
 
-  // 1. Ler o ficheiro Excel
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+  const [mapping, setMapping] = useState<{
+    name?: string;
+    sku?: string;
+    price?: string;
+    brand?: string;
+    image?: string; 
+    ref?: string;
+    ean?: string;
+    category?: string;
+    color?: string;
+    desc?: string;
+    techSpecColumns?: string[];
+  }>({});
 
-    setFile(selectedFile);
+  const [techSpecTitles, setTechSpecTitles] = useState<Record<string, string>>({});
+  const [stats, setStats] = useState<Stats>({ total: 0, success: 0, errors: 0 });
 
-    // Processar o Excel
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
+  const supabase = sharedSupabase;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
-      // Pega a primeira aba da planilha
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
-      // Converte para JSON
-      const data = XLSX.utils.sheet_to_json(ws);
-      setPreviewData(data as any[]);
-      setStep(2); // Avança para preview
-    };
-    reader.readAsBinaryString(selectedFile);
+  const addLog = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
+    const icon = type === 'error' ? '❌ ' : type === 'success' ? '✅ ' : 'ℹ️ ';
+    setLogs(prev => [...prev, `${icon}${message}`]);
   };
 
-  // 2. Enviar para o Supabase
+  const moveTechSpec = (index: number, direction: 'up' | 'down') => {
+    const currentList = [...(mapping.techSpecColumns || [])];
+    if (direction === 'up') {
+      if (index === 0) return;
+      [currentList[index - 1], currentList[index]] = [currentList[index], currentList[index - 1]];
+    } else {
+      if (index === currentList.length - 1) return;
+      [currentList[index + 1], currentList[index]] = [currentList[index], currentList[index + 1]];
+    }
+    setMapping({ ...mapping, techSpecColumns: currentList });
+  };
+
+  const removeTechSpec = (colName: string) => {
+    const currentList = mapping.techSpecColumns || [];
+    setMapping({
+      ...mapping,
+      techSpecColumns: currentList.filter(c => c !== colName)
+    });
+  };
+
+  // --- Passo 1: Leitura ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setLogs([]);
+    addLog(`Arquivo selecionado: ${file.name}`);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<any>(ws, { defval: '' }); // defval: '' garante vazio em vez de undefined
+
+        if (data.length === 0) {
+          toast.error('A planilha está vazia.');
+          addLog('Erro: Planilha vazia.', 'error');
+          return;
+        }
+
+        setRows(data);
+        addLog(`Leitura concluída. ${data.length} linhas encontradas.`, 'success');
+        
+        const cols = Object.keys(data[0]);
+        setColumns(cols);
+        autoMapColumns(cols);
+        setStep(2);
+      } catch (err) {
+        console.error(err);
+        addLog('Erro crítico ao ler o arquivo Excel.', 'error');
+        toast.error('Erro ao ler arquivo Excel.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const autoMapColumns = (cols: string[]) => {
+    const map: typeof mapping = {};
+    const usedCols: string[] = [];
+
+    const findCol = (regex: RegExp) => {
+      const col = cols.find((c) => regex.test(normalizeKey(c)) && !usedCols.includes(c));
+      if (col) usedCols.push(col);
+      return col;
+    };
+
+    map.name = findCol(/nome|name|produto|title/);
+    map.sku = findCol(/sku|codigo|code/);
+    map.price = findCol(/preco|price|valor/);
+    map.brand = findCol(/marca|brand|fornecedor/);
+    map.ref = findCol(/referencia|ref|reference/);
+    map.ean = findCol(/ean|barcode|codigo de barras|gtin/);
+    map.category = findCol(/categoria|category/);
+    map.color = findCol(/cor|color/);
+    map.desc = findCol(/descricao|desc|description/);
+    
+    map.image = cols.find((c) => isImageLike(c));
+    if (map.image) usedCols.push(map.image);
+
+    const techSpecs = cols.filter((c) => !usedCols.includes(c) && !isImageLike(c));
+    map.techSpecColumns = techSpecs;
+
+    const titles: Record<string, string> = {};
+    techSpecs.forEach((c) => { titles[c] = c; });
+
+    setMapping(map);
+    setTechSpecTitles(titles);
+    
+    if (Object.keys(map).length > 0) {
+      addLog('Colunas mapeadas automaticamente com sucesso.');
+    }
+  };
+
+  // --- Passo 3: Execução ---
+
   const handleImport = async () => {
-    setImporting(true);
-    let successCount = 0;
-    let errorCount = 0;
+    if (!mapping.name || !mapping.price) {
+      toast.error("Por favor, mapeie pelo menos 'Nome' e 'Preço'.");
+      addLog('Tentativa de importação falhou: Campos obrigatórios faltando.', 'error');
+      return;
+    }
+
+    setLoading(true);
+    setLogs(prev => [...prev, '--- INICIANDO IMPORTAÇÃO ---']);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não logado');
+      addLog('Verificando autenticação...');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
 
-      // Prepara os dados para o formato do banco
-      const productsToInsert = previewData
-        .map((row: any) => {
-          // Tenta encontrar as colunas independente de maiúsculas/minúsculas
-          const name = row['Nome'] || row['nome'] || row['Name'];
-          const ref =
-            row['Referencia'] || row['referencia'] || row['sku'] || row['SKU'];
-          const priceRaw = row['Preco'] || row['preco'] || row['Price'] || '0';
-          const brand = row['Marca'] || row['marca'] || row['Brand'];
+      addLog(`Usuário autenticado: ${user.email}`);
+      addLog(`Processando ${rows.length} produtos...`);
 
-          // Limpeza básica de preço (troca vírgula por ponto)
-          let price = 0;
-          if (typeof priceRaw === 'string') {
-            price = parseFloat(
-              priceRaw.replace('R$', '').replace(',', '.').trim()
-            );
-          } else {
-            price = Number(priceRaw);
+      let successCount = 0;
+      let errorCount = 0;
+      const uniqueProductsMap = new Map();
+      const detectedBrands = new Set<string>();
+      
+      const finalTechCols = mapping.techSpecColumns || [];
+
+      for (const row of rows) {
+        const name = getField(row, mapping.name);
+        const priceRaw = getField(row, mapping.price);
+        const sku = getField(row, mapping.sku);
+        const ref = getField(row, mapping.ref);
+        const ean = getField(row, mapping.ean);
+        const brand = getField(row, mapping.brand) ? String(getField(row, mapping.brand)) : null;
+        if (brand) detectedBrands.add(brand);
+
+        const category = getField(row, mapping.category) ? String(getField(row, mapping.category)) : null;
+        const color = getField(row, mapping.color) ? String(getField(row, mapping.color)) : null;
+
+        // Imagem (Apenas a primeira URL)
+        let coverUrl: string | null = null;
+        let galleryUrls: string[] = [];
+
+        if (mapping.image) {
+          const originalVal = getField(row, mapping.image);
+          if (originalVal && String(originalVal).trim().length > 0) {
+            const rawString = String(originalVal).trim();
+            const rawList = rawString.split(/[\s,;\n]+/);
+            galleryUrls = rawList.filter(u => u.toLowerCase().startsWith('http'));
+            
+            if (galleryUrls.length > 0) {
+              coverUrl = galleryUrls[0];
+            }
           }
+        }
 
-          // Se não tiver referência, gera uma provisória
-          const finalRef = ref
-            ? String(ref)
-            : `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-
-          if (!name) return null; // Pula linhas vazias
-
-          return {
-            user_id: user.id,
+        // LÓGICA DE DESCRIÇÃO (Ajustada)
+        let finalDescription = null;
+        const mappedDesc = getField(row, mapping.desc);
+        
+        // Verifica se tem conteúdo real na coluna do Excel
+        if (mappedDesc && String(mappedDesc).trim().length > 0) {
+          finalDescription = String(mappedDesc); 
+        } else {
+          // Se coluna vazia ou não mapeada -> Template Automático
+          finalDescription = generateAutoDescription({
             name: String(name),
-            reference_code: finalRef,
-            price: isNaN(price) ? 0 : price,
-            brand: brand ? String(brand) : null,
-            // image_url: null (As imagens serão vinculadas depois no Matcher)
-          };
+            brand,
+            ref: ref ? String(ref) : null,
+            category,
+            color
+          });
+        }
+
+        // Ficha Técnica
+        const techSpecs: Record<string, string> = {};
+        finalTechCols.forEach((col) => {
+          const val = getField(row, col);
+          if (val) {
+            const finalKey = techSpecTitles[col] || col;
+            techSpecs[finalKey] = String(val);
+          }
+        });
+
+        let price = 0;
+        if (typeof priceRaw === 'string') {
+          price = parseFloat(priceRaw.replace('R$', '').replace(',', '.').trim());
+        } else {
+          price = Number(priceRaw);
+        }
+
+        if (!name) {
+          addLog(`Linha ignorada (Sem Nome): ${JSON.stringify(row).slice(0, 50)}...`, 'error');
+          continue; 
+        }
+
+        const refCode = ref 
+          ? String(ref) 
+          : (sku ? String(sku) : `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
+
+        const productObj = {
+          user_id: user.id,
+          name: String(name),
+          reference_code: refCode,
+          sku: sku ? String(sku) : null,
+          barcode: ean ? String(ean) : null,
+          price: isNaN(price) ? 0 : price,
+          brand,
+          category,
+          color,
+          description: finalDescription,
+          
+          image_path: null,
+          external_image_url: coverUrl,
+          image_url: coverUrl, 
+          images: galleryUrls, 
+          
+          technical_specs: Object.keys(techSpecs).length > 0 ? techSpecs : null,
+          last_import_id: null 
+        };
+
+        uniqueProductsMap.set(refCode, productObj);
+      }
+
+      const productsToInsert = Array.from(uniqueProductsMap.values());
+      const duplicatesRemoved = rows.length - productsToInsert.length;
+
+      if (duplicatesRemoved > 0) {
+        addLog(`Aviso: ${duplicatesRemoved} produtos duplicados removidos.`);
+      }
+
+      // Histórico
+      let brandSummary = 'Diversas';
+      if (detectedBrands.size === 1) brandSummary = Array.from(detectedBrands)[0];
+      else if (detectedBrands.size > 1) brandSummary = `Várias (${detectedBrands.size} marcas)`;
+
+      const { data: historyData, error: historyError } = await supabase
+        .from('import_history')
+        .insert({
+          user_id: user.id,
+          total_items: productsToInsert.length,
+          brand_summary: brandSummary,
+          file_name: fileName || 'Importação Manual'
         })
-        .filter(Boolean); // Remove nulos
+        .select()
+        .single();
 
-      // Envia em lotes de 50 para não sobrecarregar
-      const batchSize = 50;
-      for (let i = 0; i < productsToInsert.length; i += batchSize) {
-        const batch = productsToInsert.slice(i, i + batchSize);
+      if (historyError) throw new Error('Erro ao criar histórico: ' + historyError.message);
+      
+      const historyId = historyData.id;
+      addLog(`Histórico criado: ${historyId}`, 'success');
 
-        // Upsert: Se a referência já existir, atualiza os dados (ideal para correção de preços)
-        const { error } = await supabase
-          .from('products')
-          .upsert(batch, { onConflict: 'user_id,reference_code' });
+      const finalBatch = productsToInsert.map(p => ({ ...p, last_import_id: historyId }));
+
+      const batchSize = 100;
+      const totalBatches = Math.ceil(finalBatch.length / batchSize);
+      
+      addLog(`Inserindo ${finalBatch.length} itens...`);
+
+      for (let i = 0; i < finalBatch.length; i += batchSize) {
+        const batchNum = Math.floor(i / batchSize) + 1;
+        const batch = finalBatch.slice(i, i + batchSize);
+
+        addLog(`Enviando Lote ${batchNum}/${totalBatches}...`);
+
+        const { error } = await supabase.from('products').upsert(batch, {
+          onConflict: 'user_id, reference_code' as any, 
+          ignoreDuplicates: false,
+        });
 
         if (error) {
-          console.error('Erro no lote', error);
+          console.error('Erro detalhado:', JSON.stringify(error, null, 2));
+          addLog(`Erro lote ${batchNum}: ${error.message}`, 'error');
           errorCount += batch.length;
         } else {
+          addLog(`Lote ${batchNum} salvo.`, 'success');
           successCount += batch.length;
         }
       }
 
       setStats({
-        total: productsToInsert.length,
+        total: rows.length,
         success: successCount,
         errors: errorCount,
       });
-      setStep(3); // Sucesso
-      addToast({ title: 'Importação concluída!', type: 'success' });
-    } catch (error: any) {
-      console.error(error);
-      addToast({
-        title: 'Erro fatal na importação',
-        description: error.message,
-        type: 'error',
-      });
+      
+      addLog('--- PROCESSO FINALIZADO ---');
+      setStep(3);
+      toast.success('Processo concluído!');
+
+    } catch (err: any) {
+      console.error(err);
+      addLog(`ERRO CRÍTICO: ${err.message}`, 'error');
+      toast.error('Erro fatal: ' + err.message);
     } finally {
-      setImporting(false);
+      setLoading(false);
     }
   };
 
-  // Template para download
   const downloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      {
-        Nome: 'Tênis Exemplo',
-        Referencia: 'REF001',
-        Preco: '199,90',
-        Marca: 'Nike',
-      },
-      {
-        Nome: 'Camiseta Básica',
-        Referencia: 'REF002',
-        Preco: 49.9,
-        Marca: 'Adidas',
-      },
-    ]);
+    const ws = XLSX.utils.json_to_sheet([{ Nome: 'Exemplo', Referencia: 'REF01', Preco: '100' }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
-    XLSX.writeFile(wb, 'modelo_importacao.xlsx');
+    XLSX.writeFile(wb, 'modelo_produtos.xlsx');
   };
 
+  // --- UI ---
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto p-6 pb-20 space-y-8">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/dashboard/products"
-          className="p-2 rounded-full hover:bg-gray-100 text-gray-600"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Importação em Massa
-          </h1>
-          <p className="text-sm text-gray-500">
-            Carregue seus produtos via Excel ou CSV
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/products" className="p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
+            <ArrowLeft size={20} />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Importação em Massa</h1>
+            <p className="text-sm text-gray-500">Importe produtos via Excel</p>
+          </div>
         </div>
+        <Link 
+          href="/dashboard/products/import-history" 
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primary transition-colors border px-3 py-2 rounded-lg hover:bg-gray-50"
+        >
+          <History size={16} />
+          Ver Histórico / Desfazer
+        </Link>
       </div>
 
-      {/* Passo 1: Upload */}
       {step === 1 && (
-        <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm text-center">
-          <div className="mx-auto w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
+        <div className="bg-white p-12 rounded-xl border border-dashed border-gray-300 text-center space-y-6">
+          <div className="mx-auto w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
             <FileSpreadsheet size={32} />
           </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Selecione sua planilha</h3>
+            <p className="text-gray-500 max-w-md mx-auto text-sm mt-1">O arquivo deve ter cabeçalhos na primeira linha.</p>
+          </div>
+          <div className="flex flex-col gap-3 items-center">
+            <button onClick={() => fileInputRef.current?.click()} className="bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-medium flex items-center gap-2 shadow-sm hover:opacity-90 transition-opacity">
+              <Upload size={18} /> Escolher Arquivo (.xlsx)
+            </button>
+            <input ref={fileInputRef} type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileChange} />
+            <button onClick={downloadTemplate} className="text-sm text-primary hover:underline mt-2 font-medium">Baixar modelo</button>
+          </div>
+        </div>
+      )}
 
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Carregue sua planilha
-          </h3>
-          <p className="text-gray-500 mb-8 max-w-md mx-auto">
-            O arquivo deve conter as colunas:{' '}
-            <strong>Nome, Referencia, Preco e Marca</strong>.
-          </p>
+      {step === 2 && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+          
+          <div className="bg-white p-6 rounded-xl border shadow-sm">
+            <h3 className="font-semibold mb-4 text-gray-800 flex items-center gap-2"><Edit3 size={18} /> Mapeamento de Colunas</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {[
+                { k: 'name', l: 'Nome do Produto', r: true },
+                { k: 'price', l: 'Preço Venda', r: true },
+                { k: 'sku', l: 'SKU / Código' },
+                { k: 'ref', l: 'Referência' },
+                { k: 'brand', l: 'Marca' },
+                { k: 'image', l: 'URL da Imagem' },
+                { k: 'ean', l: 'EAN / Barcode' },
+                { k: 'category', l: 'Categoria' },
+                { k: 'color', l: 'Cor' },
+                { k: 'desc', l: 'Descrição' }, // Mantive label simples aqui
+              ].map((field) => {
+                // Lógica de texto da opção padrão
+                const isDesc = field.k === 'desc';
+                const defaultOptionText = isDesc ? 'Gerar Automaticamente (Se Vazio)' : '-- Não importar --';
 
-          <div className="flex flex-col gap-4 max-w-sm mx-auto">
-            <label className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium cursor-pointer hover:bg-indigo-700 transition-colors shadow-sm">
-              <Upload size={20} />
-              Escolher Ficheiro Excel
-              <input
-                type="file"
-                accept=".xlsx, .xls, .csv"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
+                return (
+                  <div key={field.k}>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{field.l} {field.r && <span className="text-red-500">*</span>}</label>
+                    <select
+                      className="w-full border-gray-300 rounded-md text-sm p-2.5 border bg-gray-50 focus:bg-white transition-colors focus:ring-1 focus:ring-primary focus:border-primary"
+                      value={(mapping as any)[field.k] || ''}
+                      onChange={(e) => setMapping({ ...mapping, [field.k]: e.target.value })}
+                    >
+                      <option value="">{defaultOptionText}</option>
+                      {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-            <button
-              onClick={downloadTemplate}
-              className="text-sm text-indigo-600 hover:text-indigo-800 underline"
-            >
-              Baixar modelo de exemplo
+          <div className="bg-white p-6 rounded-xl border shadow-sm">
+            <h3 className="font-semibold mb-2 text-gray-800 flex items-center gap-2"><FileText size={18} /> Ficha Técnica Extra</h3>
+            <p className="text-sm text-gray-500 mb-4">Selecione o que deseja importar.</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              {columns.filter((c) => !Object.values(mapping).includes(c) || (mapping.techSpecColumns || []).includes(c)).map((col, idx) => {
+                  const isChecked = (mapping.techSpecColumns || []).includes(col);
+                  return (
+                    <label key={`${col}-${idx}`} className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${isChecked ? 'bg-primary/5 border-primary/30' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                      <input type="checkbox" checked={isChecked} onChange={(e) => {
+                          const current = mapping.techSpecColumns || [];
+                          setMapping({ ...mapping, techSpecColumns: e.target.checked ? [...current, col] : current.filter((x) => x !== col) });
+                          if(e.target.checked && !techSpecTitles[col]) setTechSpecTitles(prev => ({...prev, [col]: col}));
+                        }} className="rounded text-primary focus:ring-primary" />
+                      <span className={`text-sm truncate select-none ${isChecked ? 'text-primary font-medium' : 'text-gray-600'}`} title={col}>{col}</span>
+                    </label>
+                  );
+                })}
+            </div>
+
+            {(mapping.techSpecColumns || []).length > 0 && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-sm text-gray-700 mb-3">Organizar e Renomear</h4>
+                <div className="space-y-2 max-w-2xl">
+                  {mapping.techSpecColumns?.map((col, index) => (
+                    <div key={col} className="flex items-center gap-3 p-2 bg-gray-50 rounded border border-gray-200 hover:border-primary/40 transition-colors">
+                      <div className="flex flex-col gap-1">
+                        <button onClick={() => moveTechSpec(index, 'up')} disabled={index === 0} className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 text-gray-600"><ArrowUp size={14} /></button>
+                        <button onClick={() => moveTechSpec(index, 'down')} disabled={index === (mapping.techSpecColumns?.length || 0) - 1} className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 text-gray-600"><ArrowDown size={14} /></button>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-500 mb-1">Coluna Excel: <strong className="text-gray-800">{col}</strong></p>
+                        <input type="text" value={techSpecTitles[col] || col} onChange={(e) => setTechSpecTitles(prev => ({...prev, [col]: e.target.value}))} className="w-full text-sm border border-gray-300 rounded p-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Título no Sistema" />
+                      </div>
+                      <button onClick={() => removeTechSpec(col)} className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors" title="Remover"><X size={16} /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button onClick={() => setStep(1)} className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 font-medium transition-colors">Voltar</button>
+            <button onClick={handleImport} disabled={loading} className="bg-primary text-primary-foreground px-8 py-2.5 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 shadow-sm hover:opacity-90 transition-opacity">
+              {loading ? <Loader2 className="animate-spin" /> : <Play size={18} fill="currentColor" />} Iniciar Importação
             </button>
           </div>
+
+          {(logs.length > 0 || loading) && (
+            <div className="bg-gray-900 text-green-400 p-4 rounded-md text-xs font-mono shadow-inner border border-gray-700 max-h-60 overflow-y-auto mt-6">
+              <div className="mb-2 text-gray-500 border-b border-gray-700 pb-1 font-bold flex items-center gap-2"><Terminal size={14} /> LOG DE SISTEMA</div>
+              {logs.map((log, index) => (
+                <div key={index} className="truncate py-0.5 border-b border-gray-800/50 last:border-0 font-mono">
+                  <span className="opacity-50 mr-2">[{new Date().toLocaleTimeString()}]</span>
+                  {log}
+                </div>
+              ))}
+              <div ref={logsEndRef} />
+            </div>
+          )}
         </div>
       )}
 
-      {/* Passo 2: Preview */}
-      {step === 2 && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">
-                Pré-visualização ({previewData.length} itens encontrados)
-              </h3>
-              <button
-                onClick={handleImport}
-                disabled={importing}
-                className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-70"
-              >
-                {importing ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <CheckCircle size={20} />
-                )}
-                Confirmar Importação
-              </button>
-            </div>
-
-            <div className="overflow-x-auto border rounded-lg max-h-96">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-600 font-medium sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3">Referência</th>
-                    <th className="px-4 py-3">Nome</th>
-                    <th className="px-4 py-3">Preço</th>
-                    <th className="px-4 py-3">Marca</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {previewData.slice(0, 50).map((row, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 font-mono text-xs">
-                        {row['Referencia'] || row['sku'] || '-'}
-                      </td>
-                      <td className="px-4 py-2 font-medium">
-                        {row['Nome'] || row['nome'] || 'Sem Nome'}
-                      </td>
-                      <td className="px-4 py-2">
-                        {row['Preco'] || row['preco'] || '0'}
-                      </td>
-                      <td className="px-4 py-2 text-gray-500">
-                        {row['Marca'] || row['marca'] || '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {previewData.length > 50 && (
-                <p className="p-4 text-center text-xs text-gray-500 bg-gray-50">
-                  ... e mais {previewData.length - 50} itens.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3 text-blue-800 text-sm">
-            <AlertCircle size={20} className="mt-0.5 flex-shrink-0" />
-            <p>
-              <strong>Nota:</strong> Se uma referência já existir no sistema, os
-              dados (preço/nome) serão atualizados. Isso é útil para atualização
-              de preços em massa.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Passo 3: Conclusão */}
       {step === 3 && (
-        <div className="bg-white p-12 rounded-xl border border-gray-200 shadow-sm text-center">
-          <div className="mx-auto w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 animate-in zoom-in duration-300">
-            <CheckCircle size={40} />
+        <div className="bg-white p-12 rounded-xl border text-center shadow-sm max-w-2xl mx-auto">
+          <CheckCircle className="mx-auto w-20 h-20 text-green-600 mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Importação Concluída!</h2>
+          <p className="text-gray-500">Dados salvos com sucesso.</p>
+          <div className="flex justify-center gap-8 my-8 py-6 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="text-center"><p className="text-3xl font-bold text-green-600">{stats.success}</p><p className="text-xs uppercase font-bold text-gray-400 mt-1">Salvos</p></div>
+            {stats.errors > 0 && <div className="text-center"><p className="text-3xl font-bold text-red-600">{stats.errors}</p><p className="text-xs uppercase font-bold text-gray-400 mt-1">Erros</p></div>}
           </div>
-
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Importação Realizada!
-          </h2>
-          <p className="text-gray-500 mb-8">
-            Processamos o seu ficheiro com sucesso.
-          </p>
-
-          <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto mb-8 text-sm">
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <span className="block text-gray-500">Sucessos</span>
-              <span className="block text-xl font-bold text-green-600">
-                {stats.success}
-              </span>
+          {logs.length > 0 && (
+            <div className="text-left mb-6">
+                <div className="bg-gray-900 text-green-400 p-4 rounded-md text-xs font-mono shadow-inner border border-gray-700 max-h-40 overflow-y-auto">
+                <div className="mb-2 text-gray-500 border-b border-gray-700 pb-1 font-bold">LOG FINAL</div>
+                {logs.map((log, index) => <div key={index} className="truncate py-0.5 border-b border-gray-800/50 last:border-0 font-mono"><span className="opacity-50 mr-2">[{new Date().toLocaleTimeString()}]</span>{log}</div>)}
+                </div>
             </div>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <span className="block text-gray-500">Erros</span>
-              <span className="block text-xl font-bold text-red-600">
-                {stats.errors}
-              </span>
+          )}
+          <div className="space-y-3">
+            <button onClick={() => router.push('/dashboard/manage-external-images')} className="w-full bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 shadow-sm hover:opacity-90 transition-opacity"><AlertTriangle size={20} /> Ir para Sincronizar Imagens</button>
+            <div className="flex gap-3 justify-center mt-6">
+              <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Importar Nova Planilha</button>
+              <Link href="/dashboard/products" className="px-4 py-2 text-sm text-primary hover:bg-primary/5 rounded-lg transition-colors font-medium">Ver Lista de Produtos</Link>
             </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/dashboard/products"
-              className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
-            >
-              Ver Catálogo
-            </Link>
-
-            {/* O Próximo passo lógico: O Matcher! */}
-            <Link
-              href="/dashboard/products/matcher"
-              className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 flex items-center justify-center gap-2"
-            >
-              Vincular Fotos (Matcher)
-              <ArrowRight size={18} />
-            </Link>
           </div>
         </div>
       )}

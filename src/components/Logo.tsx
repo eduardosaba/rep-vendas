@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { Store } from 'lucide-react';
-import { Settings } from '@/lib/types';
+import type { Settings } from '@/lib/types';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 interface LogoProps {
   settings?: Settings | null;
@@ -19,8 +20,6 @@ export function Logo({
   variant = 'dark',
   useSystemLogo = false,
 }: LogoProps) {
-  const SYSTEM_LOGO_URL =
-    'https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png';
   const SYSTEM_NAME = 'Rep-Vendas';
 
   if (useSystemLogo) {
@@ -55,7 +54,7 @@ export function Logo({
   return (
     <div className="flex items-center gap-2">
       <div
-        className={`p-2 rounded-lg ${variant === 'light' ? 'bg-white/10 text-white' : 'bg-indigo-50 text-indigo-600'}`}
+        className={`p-2 rounded-lg ${variant === 'light' ? 'bg-white/10 text-white' : 'bg-indigo-50 rv-text-primary'}`}
       >
         <Store size={24} />
       </div>

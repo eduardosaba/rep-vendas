@@ -1,116 +1,136 @@
 'use server';
 
-import createClient from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
-
-// Precisamos criar um cliente com permissões de ADMIN para salvar o pedido
-// pois o cliente público (anon) pode ter restrições dependendo do seu RLS.
-// Mas para simplificar e usar a estrutura padrão, vamos usar o client padrão
-// e confiar na policy "Public can insert orders" que criamos no SQL.
+import { createClient } from '@/lib/supabase/server';
+import { revalidatePath } from 'next/cache';
+import { mapToDbStatus } from '@/lib/orderStatus';
 
 export async function createOrder(
-  storeOwnerId: string,
-  customer: { name: string; phone: string },
+  ownerId: string,
+  customer: { name: string; phone: string; email?: string; cnpj?: string },
   cartItems: any[]
 ) {
-  // Valida variáveis de ambiente antes de tentar usar o Supabase
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    console.error('Variáveis de ambiente do Supabase não configuradas');
-    throw new Error(
-      'Configuração do Supabase ausente (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY)'
-    );
-  }
+  const ensureSupabaseEnv = () => {
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      // eslint-disable-next-line no-console
+      console.error(
+        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+      throw new Error(
+        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+    }
+  };
 
+  ensureSupabaseEnv();
   const supabase = await createClient();
 
-  // 1. Calcular totais no servidor (mais seguro que confiar no front)
-  let totalValue = 0;
-  let itemCount = 0;
+  try {
+    // 1. Busca Configurações da Loja (Estoque e Backorder)
+    const { data: settings } = await supabase
+      .from('settings')
+      .select('enable_stock_management, global_allow_backorder, name')
+      .eq('user_id', ownerId)
+      .single();
 
-  const itemsToSave = cartItems.map((item) => {
-    const total = item.price * item.quantity;
-    totalValue += total;
-    itemCount += item.quantity;
+    const shouldManageStock = settings?.enable_stock_management || false;
+    const allowBackorder = settings?.global_allow_backorder || false;
 
-    return {
-      product_id: item.id,
+    // 2. Validação de Estoque (Pré-venda)
+    if (shouldManageStock && !allowBackorder) {
+      for (const item of cartItems) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('stock_quantity, name')
+          .eq('id', item.id)
+          .single();
+
+        // Se o item for "manual" (não tem ID no banco), pulamos a validação rigorosa ou assumimos estoque infinito
+        // Mas se tiver ID, validamos:
+        if (product && (product.stock_quantity || 0) < item.quantity) {
+          return {
+            success: false,
+            error: `Estoque insuficiente para: ${product.name}. (Disponível: ${product.stock_quantity})`,
+          };
+        }
+      }
+    }
+
+    // 3. Criar o Pedido
+    const displayId = Math.floor(Date.now() / 1000) % 1000000;
+
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        user_id: ownerId,
+        display_id: displayId,
+        status: mapToDbStatus('pending'),
+        total_value: cartItems.reduce(
+          (acc, item) => acc + item.price * item.quantity,
+          0
+        ),
+        item_count: cartItems.reduce((acc, item) => acc + item.quantity, 0),
+        client_name_guest: customer.name,
+        client_phone_guest: customer.phone,
+        client_email_guest: customer.email || null,
+        // CORREÇÃO: Usando o nome correto da coluna
+        client_cnpj_guest: customer.cnpj || null,
+      })
+      .select()
+      .single();
+
+    if (orderError)
+      throw new Error(`Erro ao criar pedido: ${orderError.message}`);
+
+    // 4. Inserir Itens do Pedido
+    // Filtra itens manuais sem ID válido se necessário, ou insere direto se a tabela permitir nullable
+    // Assumindo que order_items requer product_id válido ou nulo:
+    const orderItems = cartItems.map((item) => ({
+      order_id: order.id,
+      product_id: item.is_manual ? null : item.id, // Se for manual, product_id é null
       product_name: item.name,
       product_reference: item.reference_code,
       quantity: item.quantity,
       unit_price: item.price,
-      total_price: total,
-    };
-  });
+      total_price: item.price * item.quantity,
+    }));
 
-  // 2. Criar o Pedido (Order)
-  // Tenta inserir usando o formato esperado pela aplicação (campos como
-  // client_name_guest, item_count e display_id), mas mantém um fallback
-  // para esquemas que não tenham essas colunas.
-  let order: any = null;
-  try {
-    const insertResp = await supabase
-      .from('orders')
-      .insert({
-        user_id: storeOwnerId,
-        client_name_guest: customer.name,
-        client_phone_guest: customer.phone,
-        total_value: totalValue,
-        item_count: itemCount,
-        status: 'Pendente',
-      })
-      .select()
-      .single();
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems);
 
-    if (insertResp.error) throw insertResp.error;
-    order = insertResp.data;
-  } catch (firstError) {
-    console.warn(
-      'Inserção padrão falhou, tentando fallback de esquema:',
-      firstError
-    );
-    // Fallback: insere apenas os campos mínimos que existem no esquema base
-    const fallback = await supabase
-      .from('orders')
-      .insert({
-        user_id: storeOwnerId,
-        total_value: totalValue,
-        status: 'Pendente',
-      })
-      .select()
-      .single();
+    if (itemsError)
+      throw new Error(`Erro ao inserir itens: ${itemsError.message}`);
 
-    if (fallback.error) {
-      console.error('Erro ao criar pedido (fallback):', fallback.error);
-      throw new Error('Falha ao registrar pedido no sistema.');
+    // 5. Baixa de Estoque
+    if (shouldManageStock) {
+      for (const item of cartItems) {
+        if (!item.is_manual) {
+          // Só baixa estoque de produtos reais
+          const { error: stockError } = await supabase.rpc('decrement_stock', {
+            p_product_id: item.id,
+            p_quantity: item.quantity,
+            p_allow_backorder: allowBackorder,
+          });
+
+          if (stockError) console.error(`Falha estoque ${item.id}`, stockError);
+        }
+      }
     }
 
-    order = fallback.data;
+    revalidatePath('/dashboard');
+    revalidatePath(`/catalog`);
+
+    return {
+      success: true,
+      orderId: displayId,
+      clientEmail: customer.email,
+      clientDocument: customer.cnpj,
+    };
+  } catch (error: any) {
+    console.error(error);
+    return { success: false, error: error.message || 'Erro interno.' };
   }
-
-  // 3. Criar os Itens (Order Items)
-  const itemsWithOrderId = itemsToSave.map((item) => ({
-    ...item,
-    order_id: order.id,
-  }));
-
-  const { error: itemsError } = await supabase
-    .from('order_items')
-    .insert(itemsWithOrderId);
-
-  if (itemsError) {
-    console.error('Erro ao criar itens:', itemsError);
-    // Nota: Numa aplicação real, faríamos rollback aqui, mas o Supabase não suporta transações via API JS simples.
-    // Como é um MVP, assumimos o risco ou apagamos o pedido órfão.
-    await supabase.from('orders').delete().eq('id', order.id);
-    throw new Error('Falha ao registrar itens do pedido.');
-  }
-
-  return {
-    success: true,
-    orderId: order.display_id ?? null,
-    orderUUID: order.id,
-  };
 }

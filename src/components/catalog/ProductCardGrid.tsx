@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, X } from 'lucide-react';
 import { Product, Settings, ProductCardProps } from '@/lib/types';
+import ProductImage from './ProductImage';
 
 interface ProductCardGridProps extends ProductCardProps {
   hasPriceAccess: boolean;
@@ -42,11 +43,10 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
         <div className="relative">
           {product.images && product.images.length > 0 ? (
             <>
-              <img
-                src={product.images[0]}
+              <ProductImage
+                product={{ ...product, image_url: product.images[0] }}
                 alt={product.name}
                 className="h-48 w-full cursor-pointer object-cover"
-                onClick={handleImageClick}
               />
               {/* Overlay de zoom */}
               <div
@@ -111,9 +111,11 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
           >
             {product.name}
           </h3>
-          <p className="mb-2 line-clamp-2 text-sm text-gray-600">
-            {product.description || 'Sem descrição disponível'}
-          </p>
+          {product.description && product.description.trim() !== '' && (
+            <p className="mb-2 line-clamp-2 text-sm text-gray-600">
+              {product.description}
+            </p>
+          )}
 
           <div className="mb-3">
             {hasPriceAccess ? (
@@ -201,8 +203,8 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
             className="relative max-h-full max-w-4xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={product.images?.[0] || ''}
+            <ProductImage
+              product={{ ...product, image_url: product.images?.[0] || '' }}
               alt={product.name}
               className="max-h-[90vh] max-w-full object-contain"
             />

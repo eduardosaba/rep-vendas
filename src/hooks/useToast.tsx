@@ -50,7 +50,14 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
 export function useToast(): ToastContextData {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
+    // Fallback seguro quando o hook é usado fora do provider.
+    // Retornamos funções no-op para evitar crashes nas páginas de debug/IDE
+    // que podem executar fora do tree do provider.
+    return {
+      addToast: () => undefined,
+      removeToast: () => undefined,
+      toasts: [],
+    } as ToastContextData;
   }
   return context;
 }

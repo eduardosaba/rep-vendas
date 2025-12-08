@@ -73,7 +73,7 @@ export default async function AdminDashboard() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
           <h2 className="font-bold text-gray-900">Usuários Recentes</h2>
-          <button className="text-sm text-indigo-600 hover:underline font-medium">
+          <button className="text-sm rv-text-primary hover:underline font-medium">
             Ver todos os representantes
           </button>
         </div>
@@ -128,7 +128,7 @@ export default async function AdminDashboard() {
                 <td className="px-6 py-4 text-right">
                   <Link
                     href={`/admin/users/${user.id}`}
-                    className="inline-flex p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-indigo-600 transition-colors"
+                    className="inline-flex p-2 hover:bg-gray-100 rounded-full text-gray-400 rv-text-primary-hover transition-colors"
                     title="Editar Licença"
                   >
                     <Edit size={18} />

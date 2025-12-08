@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Settings } from '../../lib/types';
 
 interface SidebarFiltersProps {
@@ -9,6 +10,7 @@ interface SidebarFiltersProps {
   onPriceChange: (range: [number, number]) => void;
   allBrands: string[];
   selectedBrands: string[];
+  brandLogos?: Record<string, string | null>;
   onBrandChange: (brands: string[]) => void;
   onClearFilters: () => void;
   formatPrice: (price: number) => string;
@@ -32,6 +34,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
   showOnlyNew,
   onBestsellerChange,
   onNewChange,
+  brandLogos,
 }) => {
   if (
     settings?.show_filter_price === false &&
@@ -76,7 +79,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
             </label>
             <div className="max-h-60 space-y-2 overflow-y-auto">
               {allBrands.map((brand) => (
-                <label key={brand} className="flex items-center">
+                <label key={brand} className="flex items-center gap-3">
                   <input
                     type="checkbox"
                     checked={selectedBrands.includes(brand)}
@@ -91,6 +94,20 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                     }}
                     className="mr-2"
                   />
+                  <div className="h-6 w-6 flex-shrink-0 flex items-center justify-center">
+                    {brandLogos && brandLogos[brand] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={brandLogos[brand] || ''}
+                        alt={`${brand} logo`}
+                        className="h-6 w-6 object-contain rounded"
+                      />
+                    ) : (
+                      <div className="h-6 w-6 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                        {brand.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
                   <span className="text-sm text-gray-700">{brand}</span>
                 </label>
               ))}
@@ -112,7 +129,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                   className="mr-2"
                 />
                 <span className="flex items-center text-sm text-gray-700">
-                  ⭐ Bestsellers
+                  ⭐ Best sellers
                 </span>
               </label>
               <label className="flex items-center">

@@ -2,8 +2,9 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Plus, X, Maximize2, Search, Heart, Lock, Unlock } from 'lucide-react';
+import ProductBarcode from '@/components/ui/Barcode';
 import { PriceDisplay } from '../PriceDisplay';
 
 // --- Tipos --- (Simplificados, use os tipos completos do Storefront.tsx)
@@ -45,7 +46,9 @@ interface ProductDetailsModalProps {
 // Helper de Imagens (movido do Storefront)
 const getProductImages = (product: Product) => {
   if (product.images && product.images.length > 0) return product.images;
-  if (product.image_url) return [product.image_url];
+  const main =
+    (product as any).image_url || (product as any).external_image_url || null;
+  if (main) return [main];
   return [];
 };
 
@@ -75,6 +78,8 @@ export function ProductDetailsModal({
         <button
           onClick={() => setViewProduct(null)}
           className="absolute top-4 right-4 z-10 p-2 bg-white/80 rounded-full hover:bg-white text-gray-500 hover:text-gray-900 shadow-sm"
+          aria-label="Fechar"
+          title="Fechar"
         >
           <X size={20} />
         </button>
@@ -112,7 +117,7 @@ export function ProductDetailsModal({
             {productImages.length > 0 && (
               <button
                 onClick={() => setIsZoomOpen(true)}
-                className="absolute bottom-4 right-4 p-2 bg-white/90 rounded-lg shadow text-gray-600 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute bottom-4 right-4 p-2 bg-white/90 rounded-lg shadow text-gray-600 rv-text-primary-hover opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Maximize2 size={20} />
               </button>
@@ -145,9 +150,26 @@ export function ProductDetailsModal({
               {viewProduct.reference_code}
             </span>
             {viewProduct.brand && (
-              <span className="text-xs font-bold text-indigo-600 uppercase bg-indigo-50 px-2 py-1 rounded">
+              <span className="text-xs font-bold rv-text-primary uppercase bg-indigo-50 px-2 py-1 rounded">
                 {viewProduct.brand}
               </span>
+            )}
+            {/* Código de barras visual */}
+            {('barcode' in viewProduct || (viewProduct as any).barcode) && (
+              <div className="ml-auto flex items-center gap-3">
+                {(viewProduct as any).barcode ? (
+                  <div className="flex-shrink-0">
+                    <ProductBarcode
+                      value={String((viewProduct as any).barcode)}
+                      height={36}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-500 font-mono">
+                    {(viewProduct as any).barcode || ''}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4 leading-tight">
@@ -178,7 +200,10 @@ export function ProductDetailsModal({
 
           <div className="prose prose-sm text-gray-600 mb-8 flex-1">
             <h4 className="text-gray-900 font-semibold mb-2">Detalhes</h4>
-            <p>{viewProduct.description || 'Sem descrição.'}</p>
+            {viewProduct.description &&
+              viewProduct.description.trim() !== '' && (
+                <p>{viewProduct.description}</p>
+              )}
           </div>
 
           {/* Botão de Adicionar */}

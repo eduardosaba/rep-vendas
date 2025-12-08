@@ -44,7 +44,7 @@ export function ImageDropzone({ onDrop }: ImageDropzoneProps) {
         <div
           className={`
           p-4 rounded-full 
-          ${isDragActive ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500'}
+          ${isDragActive ? 'bg-indigo-100 rv-text-primary' : 'bg-gray-100 text-gray-500'}
         `}
         >
           <UploadCloud size={32} />

@@ -1,6 +1,7 @@
-import { Sidebar } from '@/components/Sidebar';
-import NotificationDropdown from '@/components/NotificationDropdown';
-import { cookies } from 'next/headers';
+import React from 'react';
+import Sidebar from '@/components/Sidebar';
+import SessionGuard from '@/components/SessionGuard';
+import { DashboardTopbar } from '@/components/dashboard/DashboardTopbar';
 import { createServerSupabase } from '@/lib/supabaseServer';
 import { redirect } from 'next/navigation';
 
@@ -21,44 +22,68 @@ export default async function DashboardLayout({
   if (!user) {
     redirect('/login');
   }
-  const userName =
-    (user as any)?.user_metadata?.full_name ||
-    user.email?.split('@')[0] ||
-    'Utilizador';
-  const userInitial = userName[0].toUpperCase();
+
+  // Buscar configurações/branding do usuário para aplicar tema e logo
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('*')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const primary = (settings && settings.primary_color) || '#4f46e5';
+  // pequena função para escurecer uma cor hex sem dependências
+  function darkenHex(hex: string, amount = 0.12) {
+    try {
+      const h = hex.replace('#', '');
+      const r = Math.max(
+        0,
+        Math.min(
+          255,
+          Math.round(parseInt(h.substring(0, 2), 16) * (1 - amount))
+        )
+      );
+      const g = Math.max(
+        0,
+        Math.min(
+          255,
+          Math.round(parseInt(h.substring(2, 4), 16) * (1 - amount))
+        )
+      );
+      const b = Math.max(
+        0,
+        Math.min(
+          255,
+          Math.round(parseInt(h.substring(4, 6), 16) * (1 - amount))
+        )
+      );
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    } catch {
+      return hex;
+    }
+  }
+
+  const primaryHover = darkenHex(primary, 0.12);
+
+  const cssVars = {
+    ['--primary' as unknown as string]: primary,
+    ['--primary-hover' as unknown as string]: primaryHover,
+  } as React.CSSProperties;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50" style={cssVars}>
       {/* Menu Lateral Fixo */}
-      <Sidebar />
+      <Sidebar settings={settings ?? null} />
 
       {/* Área Principal */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Barra de Topo (Header) */}
-        <header className="flex h-16 items-center justify-between border-b bg-white px-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Painel de Controle
-          </h2>
-
-          <div className="flex items-center gap-4">
-            {/* Notificações (Agora conectado com o ID real) */}
-            <NotificationDropdown userId={user.id} />
-
-            {/* Perfil do Utilizador */}
-            <div className="flex items-center gap-3 border-l pl-4">
-              <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
-                {userInitial}
-              </div>
-              <div className="hidden md:block">
-                <p className="text-sm font-medium text-gray-700">{userName}</p>
-                <p className="text-xs text-gray-500">Representante</p>
-              </div>
-            </div>
-          </div>
-        </header>
+        {/* Barra de Topo (Header) - usar DashboardTopbar para garantir sino em todas as páginas */}
+        <DashboardTopbar settings={settings ?? null} />
 
         {/* Conteúdo da Página */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6">
+          <SessionGuard />
+          {children}
+        </main>
       </div>
     </div>
   );

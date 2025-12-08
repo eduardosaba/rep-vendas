@@ -6,6 +6,7 @@ import {
   XCircle,
   Package,
 } from 'lucide-react';
+import { getUiStatusKey } from '@/lib/orderStatus';
 
 // Definimos a interface com os dados REAIS que vêm do banco
 interface Order {
@@ -16,6 +17,7 @@ interface Order {
   status: string; // 'pending', 'confirmed', etc.
   created_at: string;
   item_count: number;
+  pdf_url?: string | null;
 }
 
 interface RecentOrdersTableProps {
@@ -25,7 +27,8 @@ interface RecentOrdersTableProps {
 export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
   // Função auxiliar para formatar o status
   const getStatusStyle = (status: string) => {
-    switch (status) {
+    const key = getUiStatusKey(status);
+    switch (key) {
       case 'confirmed':
         return {
           bg: 'bg-green-100',
@@ -63,7 +66,7 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
         <h3 className="font-semibold text-gray-900">Pedidos Recentes</h3>
         <Link
           href="/dashboard/orders" // Link para a página completa de pedidos (futura)
-          className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+          className="flex items-center gap-1 text-sm font-medium rv-text-primary rv-text-primary-hover"
         >
           Ver todos <ArrowUpRight size={16} />
         </Link>
@@ -76,6 +79,7 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
               <th className="px-6 py-3 font-medium">Cliente</th>
               <th className="px-6 py-3 font-medium">Valor</th>
               <th className="px-6 py-3 font-medium">Status</th>
+              <th className="px-6 py-3 font-medium">PDF</th>
               <th className="px-6 py-3 font-medium">Data</th>
             </tr>
           </thead>
@@ -119,6 +123,20 @@ export default function RecentOrdersTable({ orders }: RecentOrdersTableProps) {
                         <StatusIcon size={12} />
                         {statusStyle.label}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {order.pdf_url ? (
+                        <a
+                          href={order.pdf_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rv-text-primary hover:underline text-sm font-medium"
+                        >
+                          Ver PDF
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-gray-500">
                       {new Date(order.created_at).toLocaleDateString('pt-BR', {

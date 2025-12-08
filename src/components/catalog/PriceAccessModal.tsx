@@ -51,7 +51,7 @@ export function PriceAccessModal({
         </button>
 
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="p-4 bg-indigo-50 rounded-2xl mb-4 text-indigo-600">
+          <div className="p-4 bg-indigo-50 rounded-2xl mb-4 rv-text-primary">
             <Lock size={32} />
           </div>
           <h3 className="text-2xl font-bold text-gray-900">Acesso Restrito</h3>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { useToast } from '@/hooks/useToast';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   Loader2,
@@ -17,7 +17,6 @@ import Link from 'next/link';
 
 export default function NewClientPage() {
   const router = useRouter();
-  const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -31,7 +30,7 @@ export default function NewClientPage() {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      addToast({ title: 'Nome é obrigatório', type: 'warning' });
+      toast('Nome é obrigatório');
       return;
     }
 
@@ -54,15 +53,11 @@ export default function NewClientPage() {
 
       if (error) throw error;
 
-      addToast({ title: 'Cliente cadastrado com sucesso!', type: 'success' });
+      toast.success('Cliente cadastrado com sucesso!');
       router.push('/dashboard/clients');
     } catch (error: any) {
       console.error(error);
-      addToast({
-        title: 'Erro ao guardar',
-        description: error.message,
-        type: 'error',
-      });
+      toast.error('Erro ao guardar', { description: error.message });
     } finally {
       setLoading(false);
     }
@@ -85,7 +80,7 @@ export default function NewClientPage() {
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 border-b pb-2">
-              <User className="text-indigo-600" size={20} />
+              <User className="rv-text-primary" size={20} />
               <h3>Dados Pessoais</h3>
             </div>
 
@@ -146,7 +141,7 @@ export default function NewClientPage() {
 
           <div className="space-y-4 pt-2">
             <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 border-b pb-2">
-              <MapPin className="text-indigo-600" size={20} />
+              <MapPin className="rv-text-primary" size={20} />
               <h3>Localização</h3>
             </div>
 
@@ -177,7 +172,7 @@ export default function NewClientPage() {
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-colors shadow-sm"
+            className="rv-btn-primary px-6 py-2.5 rounded-lg text-white font-medium flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-colors shadow-sm"
           >
             {loading ? (
               <Loader2 className="animate-spin" size={20} />

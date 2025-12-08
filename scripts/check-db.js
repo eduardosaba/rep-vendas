@@ -1,8 +1,9 @@
 import fetch from 'node-fetch';
 
-const SUPABASE_URL = 'https://aawghxjbipcqefmikwby.supabase.co';
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhd2doeGpiaXBjcWVmbWlrd2J5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NjI3NTgsImV4cCI6MjA3ODUzODc1OH0.Ml1sIc2rpkXAh-DuILaNKwFRmI6-COOeZY-HoBILJUw';
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 async function checkTable() {
   try {

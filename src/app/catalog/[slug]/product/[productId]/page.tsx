@@ -14,7 +14,7 @@ import {
   ChevronRight,
   ArrowLeft,
 } from 'lucide-react';
-import { useToast } from '../../../../../hooks/useToast';
+import { toast } from 'sonner';
 
 // Função para formatar preços no formato brasileiro
 const formatPrice = (price: number): string => {
@@ -76,7 +76,7 @@ export default function ProductDetailPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { addToast } = useToast();
+  // usar sonner programático
 
   useEffect(() => {
     if (userId && productId) {
@@ -99,11 +99,7 @@ export default function ProductDetailPage() {
       setProduct(data);
     } catch (error) {
       console.error('Erro ao carregar produto:', error);
-      addToast({
-        title: 'Erro',
-        message: 'Produto não encontrado.',
-        type: 'error',
-      });
+      toast.error('Produto não encontrado.');
       router.push(`/catalog/${userId}`);
     } finally {
       setLoading(false);
@@ -157,11 +153,9 @@ export default function ProductDetailPage() {
     setCart(newCart);
     localStorage.setItem('cart', JSON.stringify(newCart));
 
-    addToast({
-      title: 'Produto adicionado!',
-      message: `${quantity}x ${product?.name || 'Produto'} adicionado ao Pedido`,
-      type: 'success',
-    });
+    toast.success(
+      `${quantity}x ${product?.name || 'Produto'} adicionado ao Pedido`
+    );
   };
 
   const nextImage = () => {

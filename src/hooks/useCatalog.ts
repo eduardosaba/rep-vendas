@@ -1,19 +1,27 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Product, Settings, CartItem } from '@/lib/types';
-import { useToast } from '@/hooks/useToast';
+import { toast } from 'sonner';
 import { useParams } from 'next/navigation';
 
-export function useCatalog(overrideUserId?: string) {
+export function useCatalog(
+  overrideUserId?: string,
+  initialSettings?: Settings | null
+) {
   const params = useParams();
-  const { addToast } = useToast();
+  // usar sonner programático
 
   // Prioriza o ID passado via props (resolvido no servidor), senão tenta ler da URL
   const userId = overrideUserId || (params.slug as string);
 
   // --- ESTADOS DE DADOS ---
   const [products, setProducts] = useState<Product[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(
+    initialSettings || null
+  );
+  const [brandLogos, setBrandLogos] = useState<Record<string, string | null>>(
+    {}
+  );
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({}); // { productId: quantity }
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -46,13 +54,46 @@ export function useCatalog(overrideUserId?: string) {
 
         // 1. Carregar Configurações e Produtos (se não vierem via props no futuro)
         // Nota: Mesmo que a página passe initialProducts, este fetch garante dados frescos se o usuário navegar
+        // Buscar settings apenas se não foi fornecido como initialSettings
+        const settingsPromise = initialSettings
+          ? Promise.resolve({ data: initialSettings })
+          : supabase
+              .from('settings')
+              .select('*')
+              .eq('user_id', userId)
+              .single();
+        const productsPromise = supabase
+          .from('products')
+          .select('*')
+          .eq('user_id', userId);
+
         const [settingsRes, productsRes] = await Promise.all([
-          supabase.from('settings').select('*').eq('user_id', userId).single(),
-          supabase.from('products').select('*').eq('user_id', userId),
+          settingsPromise,
+          productsPromise,
         ]);
 
-        if (settingsRes.data) setSettings(settingsRes.data);
+        if (settingsRes && (settingsRes as any).data)
+          setSettings((settingsRes as any).data);
         if (productsRes.data) setProducts(productsRes.data);
+
+        // 3. Carregar logos das marcas (se existir tabela `brands`)
+        try {
+          const { data: brandsData } = await supabase
+            .from('brands')
+            .select('name,logo_url')
+            .eq('user_id', userId);
+
+          if (brandsData) {
+            const map: Record<string, string | null> = {};
+            (brandsData as any[]).forEach((b) => {
+              if (b && b.name) map[b.name] = b.logo_url || null;
+            });
+            setBrandLogos(map);
+          }
+        } catch (err) {
+          // Não crítico — continuar sem logos
+          console.debug('Não foi possível carregar logos de marcas', err);
+        }
 
         // 2. Carregar Dados do Cliente (LocalStorage)
         // Isso só roda no navegador
@@ -68,14 +109,14 @@ export function useCatalog(overrideUserId?: string) {
         }
       } catch (error) {
         console.error('Erro ao carregar catálogo:', error);
-        addToast({ title: 'Erro ao carregar catálogo', type: 'error' });
+        toast.error('Erro ao carregar catálogo');
       } finally {
         setLoading(false);
       }
     };
 
     initCatalog();
-  }, [userId, addToast]);
+  }, [userId]);
 
   // --- FILTRAGEM E ORDENAÇÃO ---
   // Usamos useMemo para não recalcular a lista toda vez que o componente renderizar
@@ -174,10 +215,8 @@ export function useCatalog(overrideUserId?: string) {
     localStorage.setItem('cart', JSON.stringify(newCart));
 
     const product = products.find((p) => p.id === productId);
-    addToast({
-      title: 'Adicionado ao pedido',
+    toast.success('Adicionado ao pedido', {
       description: `${quantity}x ${product?.name || 'Produto'}`,
-      type: 'success',
     });
   };
 
@@ -186,10 +225,10 @@ export function useCatalog(overrideUserId?: string) {
     const newFavs = new Set(favorites);
     if (newFavs.has(productId)) {
       newFavs.delete(productId);
-      addToast({ title: 'Removido dos favoritos', type: 'info' });
+      toast('Removido dos favoritos');
     } else {
       newFavs.add(productId);
-      addToast({ title: 'Adicionado aos favoritos', type: 'success' });
+      toast.success('Adicionado aos favoritos');
     }
     setFavorites(newFavs);
     localStorage.setItem('favorites', JSON.stringify([...newFavs]));
@@ -204,7 +243,7 @@ export function useCatalog(overrideUserId?: string) {
     setShowOnlyBestsellers(false);
     setShowOnlyNew(false);
     setCurrentPage(1);
-    addToast({ title: 'Filtros limpos', type: 'info' });
+    toast('Filtros limpos');
   };
 
   // --- CONTROLE DE ACESSO (PREÇOS) ---
@@ -227,14 +266,14 @@ export function useCatalog(overrideUserId?: string) {
         tomorrow.setDate(tomorrow.getDate() + 1);
         localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
 
-        addToast({ title: 'Acesso liberado!', type: 'success' });
+        toast.success('Acesso liberado!');
         return true;
       } else {
-        addToast({ title: 'Senha incorreta', type: 'error' });
+        toast.error('Senha incorreta');
         return false;
       }
     } catch (error) {
-      addToast({ title: 'Erro ao verificar senha', type: 'error' });
+      toast.error('Erro ao verificar senha');
       return false;
     }
   };
@@ -254,7 +293,7 @@ export function useCatalog(overrideUserId?: string) {
   // --- PERSISTÊNCIA DE PEDIDO (API) ---
   const saveCart = async (): Promise<string> => {
     if (Object.keys(cart).length === 0) {
-      addToast({ title: 'Carrinho vazio', type: 'warning' });
+      toast('Carrinho vazio');
       return '';
     }
 
@@ -277,13 +316,13 @@ export function useCatalog(overrideUserId?: string) {
       const data = await res.json();
 
       if (data.success) {
-        addToast({ title: 'Pedido salvo com sucesso!', type: 'success' });
+        toast.success('Pedido salvo com sucesso!');
         return data.code; // Retorna o código curto (ex: X7K9P2)
       } else {
         throw new Error(data.error);
       }
     } catch (error) {
-      addToast({ title: 'Erro ao salvar pedido', type: 'error' });
+      toast.error('Erro ao salvar pedido');
       return '';
     }
   };
@@ -303,14 +342,14 @@ export function useCatalog(overrideUserId?: string) {
         setCart(newCart);
         localStorage.setItem('cart', JSON.stringify(newCart));
         setLoadedOrderCode(code);
-        addToast({ title: 'Pedido carregado!', type: 'success' });
+        toast.success('Pedido carregado!');
         return true;
       } else {
-        addToast({ title: 'Código inválido ou expirado', type: 'error' });
+        toast.error('Código inválido ou expirado');
         return false;
       }
     } catch (error) {
-      addToast({ title: 'Erro ao carregar pedido', type: 'error' });
+      toast.error('Erro ao carregar pedido');
       return false;
     }
   };
@@ -371,5 +410,7 @@ export function useCatalog(overrideUserId?: string) {
     requestPriceAccess,
     saveCart,
     loadCart,
+    // Brand logos map: { [brandName]: logo_url }
+    brandLogos,
   };
 }

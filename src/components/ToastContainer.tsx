@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@/hooks';
+import type { Toast } from '@/lib/types';
 
 export function ToastContainer() {
   const { toasts, removeToast } = useToast();
@@ -35,11 +36,11 @@ export function ToastContainer() {
     }
   };
 
-  if (toasts.length === 0) return null;
+  if (!toasts || toasts.length === 0) return null;
 
   return (
     <div className="fixed right-6 top-8 z-[9999] min-w-[420px] max-w-md space-y-3">
-      {toasts.map((toast) => (
+      {toasts.map((toast: any) => (
         <div
           key={toast.id}
           className={`w-full ${getBgColor(toast.type)} animate-in slide-in-from-right-2 transform rounded-lg border p-5 shadow-lg transition-all duration-300 ease-in-out`}

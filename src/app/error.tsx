@@ -1,10 +1,10 @@
-'use client'; // Erros devem ser Client Components
+'use client'; // Componentes de erro precisam ser Client Components
 
 import { useEffect } from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import Link from 'next/link';
+import { AlertTriangle, RefreshCcw, ArrowLeft } from 'lucide-react';
+import Logo from '@/components/Logo';
 
-export default function GlobalError({
+export default function Error({
   error,
   reset,
 }: {
@@ -12,47 +12,57 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Aqui você poderia enviar o erro para um serviço de log (ex: Sentry)
-    console.error('Erro capturado pelo GlobalError:', error);
+    // Log do erro no console (ou serviço de monitoramento como Sentry)
+    console.error('Erro capturado pelo App:', error);
   }, [error]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4 text-center">
-      <div className="max-w-md space-y-6 rounded-2xl bg-white p-8 shadow-xl border border-gray-100 animate-fade-in">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
-          <AlertTriangle size={32} />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-md text-center space-y-8">
+        <div className="flex justify-center">
+          <Logo useSystemLogo={true} className="h-12 w-auto" />
         </div>
 
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Algo deu errado!</h2>
-          <p className="mt-2 text-sm text-gray-500">
-            Desculpe, encontramos um erro inesperado ao processar sua
-            solicitação. Nossa equipe técnica foi notificada.
+        <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
+          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle className="h-8 w-8 text-red-600" />
+          </div>
+
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Algo deu errado!
+          </h2>
+
+          <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+            Encontramos um erro inesperado ao processar sua solicitação. Nossa
+            equipe técnica já foi notificada.
           </p>
-          {/* Em desenvolvimento, pode ser útil ver a mensagem curta */}
+
+          {/* Detalhes técnicos (opcional, bom para dev) */}
           {process.env.NODE_ENV === 'development' && (
-            <div className="mt-4 rounded bg-red-50 p-2 text-xs font-mono text-red-800 overflow-x-auto">
-              {error.message}
+            <div className="mb-6 p-3 bg-red-50 rounded-lg text-left overflow-x-auto">
+              <p className="text-xs text-red-800 font-mono break-all">
+                {error.message || 'Erro desconhecido'}
+              </p>
             </div>
           )}
-        </div>
 
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={reset}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-red-700 shadow-md"
-          >
-            <RefreshCw size={18} />
-            Tentar Novamente
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={() => reset()}
+              className="rv-btn-primary flex items-center justify-center w-full px-4 py-3 text-sm font-bold rounded-xl transition-colors shadow-sm gap-2"
+            >
+              <RefreshCcw size={18} />
+              Tentar Novamente
+            </button>
 
-          <Link
-            href="/dashboard"
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
-            <Home size={18} />
-            Voltar ao Dashboard
-          </Link>
+            <button
+              onClick={() => (window.location.href = '/dashboard')}
+              className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors gap-2"
+            >
+              <ArrowLeft size={18} />
+              Voltar ao Dashboard
+            </button>
+          </div>
         </div>
       </div>
     </div>

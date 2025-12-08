@@ -15,11 +15,32 @@ function generateShortId() {
 
 export async function saveCartAction(cartItems: any[]) {
   // Importante: Criamos o cliente. Como é uma ação pública, ele usará a role 'anon'
-  const supabase = await createClient();
+  const ensureSupabaseEnv = () => {
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      // eslint-disable-next-line no-console
+      console.error(
+        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+      throw new Error(
+        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+    }
+  };
 
+  ensureSupabaseEnv();
+  const supabase = await createClient();
   try {
+    console.log(
+      'saveCartAction called. cartItems length:',
+      Array.isArray(cartItems) ? cartItems.length : 'invalid'
+    );
+
     // 1. Validação Básica
     if (!cartItems || cartItems.length === 0) {
+      console.log('saveCartAction: empty cart');
       return { success: false, error: 'O carrinho está vazio.' };
     }
 
@@ -29,13 +50,14 @@ export async function saveCartAction(cartItems: any[]) {
 
     // Loop de segurança para garantir unicidade
     while (attempts < 3) {
-      const { data } = await supabase
+      const { data: exists } = await supabase
         .from('saved_carts')
         .select('id')
         .eq('short_id', shortId)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
-      if (!data) break; // ID livre
+      if (!exists) break; // ID livre
 
       shortId = generateShortId();
       attempts++;
@@ -44,7 +66,7 @@ export async function saveCartAction(cartItems: any[]) {
     // 3. Inserir no Banco
     console.log('Tentando salvar carrinho com ID:', shortId); // Log para debug
 
-    const { data, error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('saved_carts')
       .insert({
         short_id: shortId,
@@ -60,7 +82,10 @@ export async function saveCartAction(cartItems: any[]) {
       return { success: false, error: 'Erro ao salvar no banco de dados.' };
     }
 
-    return { success: true, shortId };
+    console.log('saveCartAction: inserted row:', inserted);
+    const result = { success: true, shortId };
+    console.log('saveCartAction returning:', result);
+    return result;
   } catch (err) {
     console.error('ERRO INESPERADO:', err);
     return { success: false, error: 'Erro interno no servidor.' };
@@ -68,6 +93,22 @@ export async function saveCartAction(cartItems: any[]) {
 }
 
 export async function loadCartAction(shortId: string) {
+  const ensureSupabaseEnv = () => {
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      // eslint-disable-next-line no-console
+      console.error(
+        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+      throw new Error(
+        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+    }
+  };
+
+  ensureSupabaseEnv();
   const supabase = await createClient();
 
   try {

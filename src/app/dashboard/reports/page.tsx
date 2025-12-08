@@ -7,7 +7,7 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-bold">Relatórios</h1>
         <Link
           href="/dashboard"
-          className="text-sm text-indigo-600 hover:underline"
+          className="text-sm rv-text-primary hover:underline"
         >
           Voltar
         </Link>

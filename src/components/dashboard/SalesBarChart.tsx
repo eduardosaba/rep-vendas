@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import ChartWrapper from '@/components/ChartWrapper';
 
 interface SalesData {
   name: string;
@@ -25,7 +26,7 @@ export const SalesBarChart = ({ data }: Props) => {
       <h3 className="mb-6 text-lg font-semibold text-gray-900">
         Vendas por Mês
       </h3>
-      <div className="h-[300px] w-full">
+      <ChartWrapper height={300}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
@@ -68,7 +69,7 @@ export const SalesBarChart = ({ data }: Props) => {
             />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartWrapper>
     </div>
   );
 };

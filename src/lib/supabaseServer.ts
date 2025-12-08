@@ -1,12 +1,17 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { checkSupabaseEnv } from './env';
 
 export async function createClient() {
   const cookieStore = await cookies();
 
+  const { url, anon } = checkSupabaseEnv();
+
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    // pass through even if null/undefined so the underlying lib can surface
+    // clearer network errors; we prefer to warn earlier above.
+    String(url ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''),
+    String(anon ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''),
     {
       cookies: {
         getAll() {

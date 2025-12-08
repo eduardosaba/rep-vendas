@@ -215,9 +215,17 @@ export default function Checkout() {
       if (orderError) throw orderError;
 
       // Inserir os itens do pedido
-      const orderItemsData = orderData.order_items.map((item) => ({
+      const orderItemsData = orderData.order_items.map((item: any) => ({
         order_id: order.id,
-        ...item,
+        product_id: item.product_id ?? item.productId ?? null,
+        product_name: item.product_name ?? item.productName ?? null,
+        product_reference:
+          item.product_reference ?? item.reference_code ?? null,
+        quantity: item.quantity ?? 1,
+        unit_price: item.unit_price ?? item.unitPrice ?? 0,
+        total_price:
+          item.total_price ??
+          (item.unit_price ?? item.unitPrice ?? 0) * (item.quantity ?? 1),
       }));
 
       const { error: itemsError } = await supabase

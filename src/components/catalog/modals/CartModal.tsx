@@ -112,7 +112,7 @@ export function CartModal({
               <p>Seu carrinho está vazio.</p>
               <button
                 onClick={() => setIsCartOpen(false)}
-                className="mt-4 text-indigo-600 font-medium hover:underline"
+                className="mt-4 rv-text-primary font-medium hover:underline"
               >
                 Continuar comprando
               </button>
@@ -221,11 +221,11 @@ export function CartModal({
                           value={p.price}
                           isPricesVisible={isPricesVisible}
                           size="normal"
-                          className="text-xs font-bold text-indigo-600"
+                          className="text-xs font-bold rv-text-primary"
                         />
                         <button
                           onClick={() => addToCart(p)}
-                          className="mt-2 w-full py-1 bg-white border border-indigo-200 text-indigo-600 text-xs font-bold rounded hover:bg-indigo-50"
+                          className="mt-2 w-full py-1 bg-white border border-indigo-200 rv-text-primary text-xs font-bold rounded hover:bg-indigo-50"
                         >
                           Add +
                         </button>

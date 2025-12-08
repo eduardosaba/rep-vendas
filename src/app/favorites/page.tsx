@@ -179,19 +179,25 @@ export default function Favorites() {
                 className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:shadow-lg"
               >
                 <div className="relative">
-                  {product.image_url ? (
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="h-48 w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-48 w-full items-center justify-center bg-gray-100">
-                      <span className="text-sm text-gray-400">
-                        Imagem não disponível
-                      </span>
-                    </div>
-                  )}
+                  {(() => {
+                    const img =
+                      (product as any).image_url ||
+                      (product as any).external_image_url ||
+                      null;
+                    return img ? (
+                      <img
+                        src={img}
+                        alt={product.name}
+                        className="h-48 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-48 w-full items-center justify-center bg-gray-100">
+                        <span className="text-sm text-gray-400">
+                          Imagem não disponível
+                        </span>
+                      </div>
+                    );
+                  })()}
                   <button
                     onClick={() => removeFromFavorites(product.id)}
                     className="absolute right-3 top-3 rounded-full bg-white p-2 shadow-md transition-all hover:bg-red-50"

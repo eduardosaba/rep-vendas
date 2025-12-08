@@ -132,7 +132,7 @@ export function StagingProductCard({
           <button
             onClick={handleSaveClick}
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            className="rv-btn-primary flex-1 flex items-center justify-center gap-2 text-white py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {saving ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

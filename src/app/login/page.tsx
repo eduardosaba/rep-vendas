@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, useTransition } from 'react';
+import { toast } from 'sonner';
+// import useSearchParams avoided to prevent CSR bailout during prerender
+// Link não usado neste componente
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight } from 'lucide-react';
 import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
-import { login, loginWithGoogle } from './actions'; // Importamos a nova action
+import { loginWithGoogle, login } from '@/app/login/actions'; // Usar Server Action `login` para autenticação com perfil
+// Supabase client not required on this client page (Server Action handles auth)
+// toast intentionally omitted to avoid extra UI delay during redirect
 
+// Componente de Botão
 const Button = ({
   children,
   className = '',
@@ -46,8 +51,8 @@ const Button = ({
 };
 
 export default function LoginPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  // router not needed when using Server Action redirects
+  // Nota: evitamos `useSearchParams` para prevenir problemas de prerender.
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,33 +60,110 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  // usar sonner programático
 
   useEffect(() => {
-    const message = searchParams.get('message');
+    // Leitura direta dos search params no cliente evita o uso de useSearchParams()
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+
+    const msgType = sp.get('message_type');
+    const msgText = sp.get('message_text');
+    if (msgType && msgText) {
+      if (msgType === 'success') toast.success(msgText);
+      else toast.error(msgText);
+      setLoading(false);
+      setGoogleLoading(false);
+      return;
+    }
+
+    const message = sp.get('message');
     if (message) {
-      setError(message);
+      if (message.includes('realizado') || message.includes('Verifique')) {
+        toast.success(message);
+      } else {
+        toast.error(message);
+      }
       setLoading(false);
       setGoogleLoading(false);
     }
-  }, [searchParams]);
+  }, []);
 
-  const handleServerLogin = async (formData: FormData) => {
-    setLoading(true);
+  // NOTE: Usaremos a Server Action `login(formData)` para autenticação.
+  // Isso garante que o servidor realize sign-in e busque o profile,
+  // retornando o redirect correto (admin/dashboard) sem "piscar" a rota.
+
+  // UseTransition + loading: fornecer feedback imediato ao usuário
+  const [isPending, startTransition] = useTransition();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    // Evitar múltiplos envios
+    if (loading || isPending) {
+      e.preventDefault();
+      return;
+    }
+
+    // Validação cliente básica
+    const emailTrim = String(email || '').trim();
+    if (!emailTrim) {
+      e.preventDefault();
+      setError('Por favor, informe seu e-mail.');
+      return;
+    }
+    // formato simples de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrim)) {
+      e.preventDefault();
+      setError('Formato de e-mail inválido.');
+      return;
+    }
+
+    if (!password || !String(password).trim()) {
+      e.preventDefault();
+      setError('Por favor, informe sua senha.');
+      return;
+    }
+
+    // Limpar erros e mostrar spinner imediatamente
     setError('');
-    await login(formData);
-    setLoading(false);
+    startTransition(() => {
+      setLoading(true);
+    });
+
+    // Não previnir o submit: o form será enviado para a Server Action `login`
+    // O servidor fará a autenticação e retornará o redirect correto.
+    // Se o servidor redirecionar de volta para /login com ?message=...,
+    // o useEffect abaixo mostrará o toast apropriado.
   };
 
   const handleGoogleLogin = async () => {
+    if (loading || isPending || googleLoading) return;
     setGoogleLoading(true);
     setError('');
-    // Chama a server action para iniciar o fluxo Google
-    await loginWithGoogle();
-    // Nota: Se redirecionar, o estado loading fica true até a página mudar, o que é bom.
+    try {
+      await loginWithGoogle();
+    } catch (e) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : String(e ?? 'Erro ao autenticar com Google');
+      toast.error(message);
+      setGoogleLoading(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen w-full overflow-hidden font-sans bg-[#0d1b2c]">
+      <style>{`
+        @keyframes rvOverlayFade {
+          0% { opacity: 0 }
+          100% { opacity: 1 }
+        }
+        @keyframes rvInnerPop {
+          0% { opacity: 0; transform: translateY(-6px) scale(.98); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
       {/* ESQUERDA: Onboarding */}
       <div className="hidden flex-1 lg:block animate-fade-in relative">
         <div className="absolute inset-0 bg-[#0d1b2c]/50 z-0 pointer-events-none"></div>
@@ -91,7 +173,27 @@ export default function LoginPage() {
       {/* DIREITA: Formulário */}
       <div className="flex flex-1 items-center justify-center p-4 lg:p-12 bg-gray-50">
         <div className="w-full max-w-[440px] animate-fade-up">
-          <div className="rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-gray-200 sm:p-10">
+          <div className="relative rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-gray-200 sm:p-10">
+            {(loading || isPending) && (
+              <div
+                className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl pointer-events-auto"
+                style={{
+                  animation: 'rvOverlayFade 260ms ease-out both',
+                  backgroundColor: 'rgba(0,0,0,0.28)',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <div
+                  style={{
+                    animation: 'rvInnerPop 260ms cubic-bezier(.2,.9,.2,1) both',
+                  }}
+                  className="bg-white/95 px-4 py-3 rounded-md flex items-center gap-3 shadow-lg"
+                >
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-700" />
+                  <span className="text-sm text-gray-800">Entrando...</span>
+                </div>
+              </div>
+            )}
             {/* Logo */}
             <div className="mb-8 text-center">
               <Logo useSystemLogo={true} className="h-16 mx-auto mb-6" />
@@ -110,6 +212,7 @@ export default function LoginPage() {
                 variant="google"
                 onClick={handleGoogleLogin}
                 loading={googleLoading}
+                disabled={loading || isPending}
               >
                 {!googleLoading && (
                   <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
@@ -146,13 +249,15 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* FORMULÁRIO EMAIL (Mantido) */}
-            <form action={handleServerLogin} className="space-y-5">
+            {/* FORMULÁRIO EMAIL (enviado para Server Action `login`) */}
+            <form action={login} onSubmit={handleSubmit} className="space-y-5">
               {error && (
                 <div className="flex items-center rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <span className="mr-2">⚠️</span> {error}
                 </div>
               )}
+
+              {/* success messages shown via toast after server redirect */}
 
               <div>
                 <label className="mb-1.5 block text-sm font-bold text-[#0d1b2c]">
@@ -167,6 +272,7 @@ export default function LoginPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={loading || isPending}
                     className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-gray-900 focus:border-[#b9722e] focus:ring-2 focus:ring-[#b9722e] focus:ring-offset-1 transition-all outline-none"
                     autoComplete="email"
                     placeholder="nome@empresa.com"
@@ -182,7 +288,8 @@ export default function LoginPage() {
                   </label>
                   <button
                     type="button"
-                    className="text-sm font-medium text-[#b9722e] hover:underline"
+                    disabled={loading || isPending}
+                    className="text-sm font-medium text-[#b9722e] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     Esqueceu?
                   </button>
@@ -196,6 +303,7 @@ export default function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading || isPending}
                     className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-10 text-gray-900 focus:border-[#b9722e] focus:ring-2 focus:ring-[#b9722e] focus:ring-offset-1 transition-all outline-none"
                     autoComplete="current-password"
                     placeholder="••••••••"
@@ -211,7 +319,11 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Button type="submit" loading={loading} variant="primary">
+              <Button
+                type="submit"
+                loading={loading || isPending}
+                variant="primary"
+              >
                 Acessar Sistema <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </form>

@@ -33,7 +33,7 @@ export default function ExpiredPage() {
             href="https://wa.me/55SEUNUMERO?text=Ola,%20minha%20licenca%20venceu,%20gostaria%20de%20renovar."
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-center w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors shadow-md"
+            className="rv-btn-primary flex items-center justify-center w-full py-3 px-4 rounded-xl font-bold transition-colors shadow-md"
           >
             Renovar via WhatsApp <ExternalLink size={18} className="ml-2" />
           </a>

@@ -50,7 +50,11 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
 export function useToast(): ToastContextData {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
+    return {
+      addToast: () => undefined,
+      removeToast: () => undefined,
+      toasts: [],
+    } as ToastContextData;
   }
   return context;
 }

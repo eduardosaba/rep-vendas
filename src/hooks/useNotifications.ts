@@ -1,30 +1,31 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { useToast } from '@/hooks/useToast';
+import { supabase as sharedSupabase } from '@/lib/supabaseClient';
+import { toast } from 'sonner';
 
 export interface Notification {
   id: string;
-  user_id: string;
   title: string;
   message: string;
-  read: boolean;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: 'success' | 'warning' | 'error' | 'info';
   link?: string;
+  read: boolean;
   created_at: string;
 }
 
-export function useNotifications(userId: string | undefined) {
+export function useNotifications(userId?: string) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const { addToast } = useToast();
+  const [loading, setLoading] = useState(true);
+  // usar sonner programático
 
+  const supabase = sharedSupabase;
+
+  // 1. Carregar notificações iniciais
   useEffect(() => {
     if (!userId) return;
 
-    // 1. Carregar notificações iniciais
     const fetchNotifications = async () => {
-      setLoading(true);
       const { data } = await supabase
         .from('notifications')
         .select('*')
@@ -32,23 +33,15 @@ export function useNotifications(userId: string | undefined) {
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (data) {
-        // Normalize createdAt for components that expect camelCase
-        const normalized = data.map((n: any) => ({
-          ...n,
-          createdAt: n.created_at,
-        }));
-        setNotifications(normalized);
-        setUnreadCount(normalized.filter((n: any) => !n.read).length);
-      }
+      if (data) setNotifications(data as Notification[]);
       setLoading(false);
     };
 
     fetchNotifications();
 
-    // 2. Inscrever em atualizações em Tempo Real (Real-time)
-    const subscription = supabase
-      .channel('public:notifications')
+    // 2. LIGAR O REALTIME (O Pulo do Gato 🐱)
+    const channel = supabase
+      .channel('realtime-notifications')
       .on(
         'postgres_changes',
         {
@@ -58,44 +51,45 @@ export function useNotifications(userId: string | undefined) {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          const newNotification = payload.new as Notification;
-          setNotifications((prev) => [newNotification, ...prev]);
-          setUnreadCount((prev) => prev + 1);
+          const newNotif = payload.new as Notification;
 
-          // Tocar um som ou mostrar Toast
-          addToast({
-            title: newNotification.title,
-            description: newNotification.message,
-            type: newNotification.type,
-          });
+          // Atualiza a lista visualmente
+          setNotifications((prev) => [newNotif, ...prev]);
+
+          // Toca um Toast na tela também
+          toast(newNotif.title, { description: newNotif.message });
+
+          // Opcional: Tocar um som
+          // const audio = new Audio('/notification.mp3');
+          // audio.play().catch(() => {});
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
-  }, [userId, addToast]);
+  }, [userId, supabase]);
 
+  // Ações
   const markAsRead = async (id: string) => {
-    // Atualiza localmente para UI rápida
+    // Otimista (atualiza tela antes do banco)
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-
-    // Atualiza no banco
     await supabase.from('notifications').update({ read: true }).eq('id', id);
   };
 
   const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    setUnreadCount(0);
     await supabase
       .from('notifications')
       .update({ read: true })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('read', false);
   };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return { notifications, unreadCount, loading, markAsRead, markAllAsRead };
 }

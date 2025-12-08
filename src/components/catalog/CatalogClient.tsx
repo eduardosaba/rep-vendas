@@ -41,6 +41,7 @@ export default memo(function CatalogClient({
     favorites,
     bestsellerProducts,
     allBrands,
+    brandLogos,
     categories,
     searchTerm,
     priceRange,
@@ -76,7 +77,7 @@ export default memo(function CatalogClient({
     requestPriceAccess,
     saveCart,
     loadCart,
-  } = useCatalog();
+  } = useCatalog(initialUserId, initialSettings);
 
   // --- Estados Locais para Modais ---
   const [showPriceModal, setShowPriceModal] = useState(false);
@@ -197,6 +198,7 @@ export default memo(function CatalogClient({
             showOnlyNew={showOnlyNew}
             onBestsellerChange={setShowOnlyBestsellers}
             onNewChange={setShowOnlyNew}
+            brandLogos={brandLogos}
           />
 
           {/* Conteúdo Central */}
@@ -349,12 +351,12 @@ export default memo(function CatalogClient({
         </div>
       </div>
 
-      {/* 5. Carrossel de Mais Vendidos */}
+      {/* 5. Carrossel de Best Sellers */}
       {bestsellerProducts.length > 0 && (
         <section className="border-t bg-white py-12">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <h2 className="mb-8 text-2xl font-bold text-gray-900">
-              Mais Vendidos
+              Best Sellers
             </h2>
             <BestsellerCarousel
               products={bestsellerProducts}

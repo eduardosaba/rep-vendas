@@ -2,7 +2,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // --- Tipos ---
@@ -17,7 +17,7 @@ interface ZoomModalProps {
   isZoomOpen: boolean;
   setIsZoomOpen: (isOpen: boolean) => void;
   currentImageIndex: number;
-  setCurrentImageIndex: (index: number) => void;
+  setCurrentImageIndex: React.Dispatch<React.SetStateAction<number>>;
 }
 
 // Helper de Imagens (movido do Storefront)
@@ -53,14 +53,31 @@ export function ZoomModal({
     );
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsZoomOpen(false);
+      if (e.key === 'ArrowLeft')
+        setCurrentImageIndex((i) => (i > 0 ? i - 1 : productImages.length - 1));
+      if (e.key === 'ArrowRight')
+        setCurrentImageIndex((i) => (i < productImages.length - 1 ? i + 1 : 0));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setIsZoomOpen, setCurrentImageIndex, productImages.length]);
+
   return (
     <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center">
       <button
         onClick={() => setIsZoomOpen(false)}
         className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+        aria-label="Fechar"
+        title="Fechar"
       >
         <X size={32} />
       </button>
+
+      {/* Fecha ao pressionar Escape */}
+      {/** useEffect below to add keydown listener when modal aberto */}
       <div className="relative w-full h-full flex items-center justify-center p-4">
         {hasMultipleImages && (
           <button

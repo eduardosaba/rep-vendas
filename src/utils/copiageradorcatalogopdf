@@ -1,0 +1,234 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+interface Product {
+  id: string;
+  name: string;
+  reference_code: string;
+  price: number;
+  brand: string | null;
+  category: string | null;
+  // Nova convenção: image_path (storage) é preferida para PDFs
+  image_path?: string | null;
+  external_image_url?: string | null;
+  // Mantemos image_url por compatibilidade, mas não é usada para PDFs
+  image_url?: string | null;
+}
+
+interface CatalogOptions {
+  showPrices: boolean;
+  title: string;
+  storeName?: string;
+  imageZoom?: number;
+  // NOVO: Mapa de marcas para logotipos (Nome da Marca -> URL do Logo)
+  brandMapping?: Record<string, string | null>;
+}
+
+// Helper para carregar imagens (Promessa)
+const loadImage = (url: string): Promise<HTMLImageElement | null> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.src = url;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null); // Não falha o PDF se a imagem falhar
+  });
+};
+
+export const generateCatalogPDF = async (
+  products: Product[],
+  options: CatalogOptions
+) => {
+  const doc = new jsPDF();
+  const date = new Date().toLocaleDateString('pt-BR');
+
+  const zoom = options.imageZoom || 1;
+  const baseSize = 20;
+  const imageSize = baseSize * zoom;
+
+  // --- CABEÇALHO PRINCIPAL ---
+  doc.setFillColor(13, 27, 44);
+  doc.rect(0, 0, 210, 40, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.text(options.title, 14, 20);
+
+  doc.setFontSize(10);
+  doc.text(`Gerado em: ${date}`, 14, 30);
+
+  if (options.storeName) {
+    doc.text(options.storeName, 200, 20, { align: 'right' });
+  }
+  doc.text(`${products.length} produtos`, 200, 30, { align: 'right' });
+
+  // --- BARRA DE MARCAS (NOVO) ---
+  let tableStartY = 50; // Posição padrão se não tiver marcas
+
+  // 1. Identifica marcas únicas nos produtos listados
+  const uniqueBrands = Array.from(
+    new Set(products.map((p) => p.brand).filter((b) => b && b.trim() !== ''))
+  ) as string[];
+
+  if (uniqueBrands.length > 0) {
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100); // Cinza escuro
+    doc.text('Marcas:', 14, 48);
+
+    let currentX = 30;
+    const startY = 44;
+    const logoHeight = 6; // Tamanho do logo da marca no PDF
+
+    // Carrega e desenha cada marca
+    for (const brandName of uniqueBrands) {
+      const logoUrl = options.brandMapping?.[brandName];
+      let widthAdded = 0;
+
+      // Se tiver logo, desenha a imagem
+      if (logoUrl) {
+        const img = await loadImage(logoUrl);
+        if (img) {
+          const ratio = img.width / img.height;
+          const logoWidth = logoHeight * ratio;
+
+          // Verifica se cabe na linha
+          if (currentX + logoWidth > 200) break;
+
+          doc.addImage(img, 'PNG', currentX, startY, logoWidth, logoHeight);
+          currentX += logoWidth + 2; // Espaço após logo
+        }
+      }
+
+      // Desenha o nome da marca
+      doc.text(brandName, currentX, 48);
+      const textWidth = doc.getTextWidth(brandName);
+      currentX += textWidth + 5; // Espaço entre marcas
+
+      // Separador se não for o último e couber
+      if (
+        uniqueBrands.indexOf(brandName) < uniqueBrands.length - 1 &&
+        currentX < 190
+      ) {
+        doc.text('•', currentX - 2.5, 48);
+      }
+
+      if (currentX > 190) {
+        doc.text('...', currentX, 48);
+        break; // Para de desenhar se estourar a largura
+      }
+    }
+
+    // Empurra a tabela para baixo para dar espaço às marcas
+    tableStartY = 55;
+  }
+
+  // --- TABELA DE PRODUTOS ---
+  const tableHead = [['FOTO', 'DETALHES']];
+  if (options.showPrices) {
+    tableHead[0].push('PREÇO');
+  }
+
+  const tableBody = [];
+
+  for (const product of products) {
+    const row = [
+      '', // Espaço para foto (desenhada via hook)
+      `Produto: ${product.name}\nRef: ${product.reference_code || '-'}\nMarca: ${product.brand || '-'}\nCat: ${product.category || '-'}`,
+    ];
+
+    if (options.showPrices) {
+      row.push(
+        new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }).format(product.price)
+      );
+    }
+    tableBody.push(row);
+  }
+
+  autoTable(doc, {
+    startY: tableStartY,
+    head: tableHead,
+    body: tableBody,
+    theme: 'grid',
+    headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
+
+    styles: {
+      fontSize: 10,
+      valign: 'middle',
+      cellPadding: 3,
+      minCellHeight: imageSize, // Altura dinâmica baseada no zoom
+    },
+
+    columnStyles: {
+      0: { cellWidth: imageSize },
+      1: { cellWidth: 'auto' },
+      2: {
+        cellWidth: 35,
+        halign: 'right',
+        fontStyle: 'bold',
+        textColor: [0, 100, 0],
+      },
+    },
+
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === 0) {
+        const product = products[data.row.index];
+        // Somente desenha imagens quando houver um path interno (image_path).
+        // Isso evita usar URLs externas que podem falhar na geração do PDF.
+        const supabaseUrl = (
+          process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+        ).replace(/\/$/, '');
+        let imgSrc: string | null = null;
+        if (product && product.image_path) {
+          imgSrc = `${supabaseUrl}/storage/v1/object/public/products/${product.image_path}`;
+        } else {
+          imgSrc = null;
+        }
+        if (imgSrc) {
+          const img = imgSrc;
+          const dim = data.cell.height - 4;
+          const x = data.cell.x + (data.cell.width - dim) / 2;
+          const y = data.cell.y + 2;
+
+          try {
+            // Carrega a imagem como elemento antes de desenhar para melhorar compatibilidade
+            // Nota: addImage aceita HTMLImageElement, por isso carregamos via Image()
+            const imageElement = new Image();
+            imageElement.crossOrigin = 'Anonymous';
+            imageElement.onload = () => {
+              try {
+                doc.addImage(imageElement, 'JPEG', x, y, dim, dim);
+              } catch (err) {
+                // Erro silencioso ao adicionar a imagem
+              }
+            };
+            imageElement.onerror = () => {
+              // não faz nada
+            };
+            imageElement.src = img;
+          } catch (err) {
+            // Erro silencioso
+          }
+        }
+      }
+    },
+  });
+
+  // Rodapé
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  doc.setFontSize(8);
+  doc.setTextColor(150);
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.text(
+      `Página ${i} de ${pageCount} - ${options.storeName || 'Catálogo'}`,
+      105,
+      290,
+      { align: 'center' }
+    );
+  }
+
+  doc.save(`Catalogo_${options.title.replace(/\s+/g, '_')}.pdf`);
+};

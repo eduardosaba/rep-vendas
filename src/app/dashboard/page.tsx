@@ -11,6 +11,22 @@ import { isDashboardTotals } from '@/lib/validators';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  const ensureSupabaseEnv = () => {
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      // eslint-disable-next-line no-console
+      console.error(
+        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+      throw new Error(
+        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      );
+    }
+  };
+
+  ensureSupabaseEnv();
   const supabase = await createClient();
 
   // 1. Autenticação
@@ -51,7 +67,7 @@ export default async function DashboardPage() {
     supabase
       .from('orders')
       .select(
-        'id, display_id, client_name_guest, total_value, status, created_at, item_count'
+        'id, display_id, client_name_guest, total_value, status, created_at, item_count, pdf_url'
       )
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -84,14 +100,43 @@ export default async function DashboardPage() {
   const recentOrders = recentOrdersResult.data || [];
   const catalogSlug = settingsResult.data?.catalog_slug || '';
 
-  const chartData = [
-    { name: 'Jan', vendas: 4000 },
-    { name: 'Fev', vendas: 3000 },
-    { name: 'Mar', vendas: 2000 },
-    { name: 'Abr', vendas: 2780 },
-    { name: 'Mai', vendas: 1890 },
-    { name: 'Jun', vendas: 4000 + (Number(total_revenue) || 0) },
-  ];
+  // Monta dados de vendas por mês (últimos 6 meses) a partir dos pedidos reais
+  // Buscamos os pedidos dos últimos 6 meses e agregamos por mês no servidor
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+
+  const { data: ordersForChart } = await supabase
+    .from('orders')
+    .select('created_at, total_value')
+    .gte('created_at', sixMonthsAgo.toISOString())
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true });
+
+  // Inicializa mapa dos últimos 6 meses com 0
+  const months: { key: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('pt-BR', { month: 'short' });
+    months.push({ key, label });
+  }
+
+  const monthSums: Record<string, number> = {};
+  months.forEach((m) => (monthSums[m.key] = 0));
+
+  if (ordersForChart && Array.isArray(ordersForChart)) {
+    for (const o of ordersForChart) {
+      const d = new Date(o.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthSums[key] = (monthSums[key] || 0) + Number(o.total_value || 0);
+    }
+  }
+
+  const chartData = months.map((m) => ({
+    name: m.label,
+    vendas: Math.round(monthSums[m.key] || 0),
+  }));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

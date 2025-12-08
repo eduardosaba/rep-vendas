@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createClient as createSupabaseClient } from '@/lib/supabaseServer';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { redirect } from 'next/navigation';
 import {
   ArrowRight,
@@ -21,11 +22,12 @@ export const metadata: Metadata = {
   description:
     'Transforme suas vendas com um catálogo digital profissional, pedidos automáticos e gestão completa.',
   openGraph: {
-    images: [
-      'https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png',
-    ],
+    images: [SYSTEM_LOGO_URL],
   },
 };
+
+// Evita que o Next tente prerenderizar esta página e executar fetchs no build
+export const dynamic = 'force-dynamic';
 
 export default async function LandingPage() {
   // Verifica se já está logado para redirecionar ao Dashboard
@@ -49,7 +51,7 @@ export default async function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png"
+              src={SYSTEM_LOGO_URL}
               alt="Rep-Vendas"
               className="h-12 w-auto object-contain" // mostra cor original, um pouco maior
             />
@@ -409,7 +411,7 @@ export default async function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
             <img
-              src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/logo.png"
+              src={SYSTEM_LOGO_URL}
               alt="Logo"
               className="h-10 md:h-12 w-auto opacity-90 hover:opacity-100 transition-all object-contain"
             />

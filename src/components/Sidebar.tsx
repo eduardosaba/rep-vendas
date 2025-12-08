@@ -8,45 +8,136 @@ import {
   ShoppingBag,
   Package,
   Users,
+  UploadCloud,
+  RefreshCcw,
+  Download,
+  Link as LinkIcon,
+  PlusCircle,
+  Tag,
+  List,
   HelpCircle,
-  Settings,
+  Settings as SettingsIcon,
+  DollarSign,
   LogOut,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
 import { logger } from '@/lib/logger';
 import Logo from './Logo';
+import { supabase } from '@/lib/supabaseClient';
+import type { Settings } from '@/lib/types';
 
-export function Sidebar() {
+export function Sidebar({
+  settings: initialSettings,
+}: { settings?: Settings | null } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMaster, setIsMaster] = useState(false);
+  const [branding, setBranding] = useState<Settings | null>(
+    initialSettings || null
+  );
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
-      const raw = localStorage.getItem('sidebarCollapsed');
-      if (raw !== null) setIsCollapsed(raw === 'true');
-    } catch (e) {
+      const storage = (
+        globalThis as unknown as {
+          localStorage?: {
+            getItem(key: string): string | null;
+            setItem(key: string, value: string): void;
+          };
+        }
+      ).localStorage;
+      const raw = storage?.getItem('sidebarCollapsed');
+      if (raw !== null && raw !== undefined) setIsCollapsed(raw === 'true');
+    } catch {
       // ignore (SSR or privacy settings)
     }
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem('sidebarCollapsed', String(isCollapsed));
-    } catch (e) {
+      const storage = (
+        globalThis as unknown as {
+          localStorage?: {
+            getItem(key: string): string | null;
+            setItem(key: string, value: string): void;
+          };
+        }
+      ).localStorage;
+      storage?.setItem('sidebarCollapsed', String(isCollapsed));
+    } catch {
       // ignore
     }
   }, [isCollapsed]);
 
-  const menuItems = [
+  type MenuChild = {
+    title: string;
+    href: string;
+    icon: React.ComponentType<Record<string, unknown>>;
+  };
+  type MenuItem = {
+    icon: React.ComponentType<Record<string, unknown>>;
+    label: string;
+    href: string;
+    children?: MenuChild[];
+  };
+
+  const menuItems: MenuItem[] = [
     { icon: LayoutDashboard, label: 'Visão Geral', href: '/dashboard' },
     { icon: ShoppingBag, label: 'Pedidos', href: '/dashboard/orders' },
-    { icon: Package, label: 'Produtos', href: '/dashboard/products' },
+    {
+      icon: Package,
+      label: 'Produtos',
+      href: '/dashboard/products',
+      children: [
+        {
+          title: 'Novo Produto manual',
+          href: '/dashboard/products/new',
+          icon: PlusCircle,
+        },
+        {
+          title: '1ª Etapa: Import Visual',
+          href: '/dashboard/products/import-visual',
+          icon: UploadCloud,
+        },
+        {
+          title: '2ª Etapa: Import Dados',
+          href: '/dashboard/products/import-massa',
+          icon: RefreshCcw,
+        },
+        {
+          title: '3ª Etapa: Matcher',
+          href: '/dashboard/products/matcher',
+          icon: LinkIcon,
+        },
+        {
+          title: 'Gerenciar Imagens Externas',
+          href: '/dashboard/manage-external-images',
+          icon: Download,
+        },
+        {
+          title: 'Marcas',
+          href: '/dashboard/brands',
+          icon: Tag,
+        },
+        {
+          title: 'Categorias',
+          href: '/dashboard/categories',
+          icon: List,
+        },
+        {
+          title: 'Atualização de Preços',
+          href: '/dashboard/products/update-prices',
+          icon: DollarSign,
+        },
+      ],
+    },
     { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
     { icon: HelpCircle, label: 'Central de Ajuda', href: '/dashboard/help' },
-    { icon: Settings, label: 'Configurações', href: '/dashboard/settings' },
+    { icon: SettingsIcon, label: 'Configurações', href: '/dashboard/settings' },
   ];
 
   const handleLogout = async () => {
@@ -60,6 +151,48 @@ export function Sidebar() {
   };
 
   const toggle = () => setIsCollapsed((v) => !v);
+
+  // Carregar perfil (role) e settings apenas se não vierem por prop
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // role
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.role === 'master') setIsMaster(true);
+
+        // settings apenas se não vieram via prop
+        if (!initialSettings) {
+          const { data: settings } = await supabase
+            .from('settings')
+            .select('logo_url, primary_color, name')
+            .eq('user_id', user.id)
+            .single();
+
+          if (settings) {
+            setBranding({
+              logo_url: settings.logo_url,
+              primary_color: settings.primary_color || '#4f46e5',
+              name: settings.name || 'RepVendas',
+            } as Settings);
+          }
+        }
+      } catch (err) {
+        logger.error('Sidebar loadData error', err);
+      }
+    };
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <aside
@@ -80,11 +213,20 @@ export function Sidebar() {
       <div className="flex h-16 items-center justify-center border-b px-6">
         {isCollapsed ? (
           <div className="flex items-center justify-center">
-            <Logo useSystemLogo className="h-8 w-auto" />
+            <Logo
+              settings={branding}
+              useSystemLogo={!branding?.logo_url}
+              className="h-8 w-auto"
+            />
           </div>
         ) : (
           <div className="flex items-center justify-center">
-            <Logo showText className="h-10 w-auto" />
+            <Logo
+              settings={branding}
+              showText
+              useSystemLogo={!branding?.logo_url}
+              className="h-10 w-auto"
+            />
           </div>
         )}
       </div>
@@ -95,27 +237,69 @@ export function Sidebar() {
         aria-label="Links principais"
       >
         {menuItems.map((item) => {
-          const Icon = item.icon;
+          const Icon = item.icon as React.ComponentType<{
+            size?: number;
+            className?: string;
+          }>;
           const isActive = pathname?.startsWith(item.href) ?? false;
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-indigo-50 text-indigo-600'
-                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-              title={isCollapsed ? item.label : ''}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <Icon
-                size={20}
-                className={isActive ? 'text-indigo-600' : 'text-gray-500'}
-              />
-              {!isCollapsed && <span>{item.label}</span>}
-            </Link>
+            <div key={item.href}>
+              <Link
+                href={item.href}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-indigo-50 rv-text-primary'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                title={isCollapsed ? item.label : ''}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon
+                  size={20}
+                  className={isActive ? 'rv-text-primary' : 'text-gray-500'}
+                />
+                {!isCollapsed && <span>{item.label}</span>}
+              </Link>
+
+              {/* Render submenu se existir */}
+              {Array.isArray(item.children) && item.children.length > 0 && (
+                <ul className="mt-1 ml-6 space-y-1">
+                  {item.children.map((child) => {
+                    const ChildIcon = child.icon as React.ComponentType<{
+                      size?: number;
+                      className?: string;
+                    }>;
+                    const childActive =
+                      pathname?.startsWith(child.href) ?? false;
+                    return (
+                      <li key={child.href}>
+                        <Link
+                          href={child.href}
+                          className={`flex items-center gap-2 rounded-md px-3 py-1 text-sm transition-colors ${
+                            childActive
+                              ? 'bg-indigo-50 rv-text-primary font-medium'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          }`}
+                          title={isCollapsed ? child.title : ''}
+                          aria-current={childActive ? 'page' : undefined}
+                        >
+                          <ChildIcon
+                            size={16}
+                            className={
+                              childActive ? 'rv-text-primary' : 'text-gray-400'
+                            }
+                          />
+                          {!isCollapsed && (
+                            <span className="text-sm">{child.title}</span>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           );
         })}
       </nav>
@@ -136,3 +320,5 @@ export function Sidebar() {
     </aside>
   );
 }
+
+export default Sidebar;

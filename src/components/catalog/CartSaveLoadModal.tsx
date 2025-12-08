@@ -166,7 +166,7 @@ export function CartSaveLoadModal({
 
               <button
                 onClick={resetAndClose}
-                className="text-indigo-600 font-medium hover:underline"
+                className="rv-text-primary font-medium hover:underline"
               >
                 Fechar e continuar comprando
               </button>

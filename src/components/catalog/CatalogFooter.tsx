@@ -1,6 +1,6 @@
 'use client';
 
-import { Settings } from '@/lib/types';
+import type { Settings } from '@/lib/types';
 
 interface CatalogFooterProps {
   settings: Settings | null;
