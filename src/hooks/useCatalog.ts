@@ -74,7 +74,23 @@ export function useCatalog(
 
         if (settingsRes && (settingsRes as any).data)
           setSettings((settingsRes as any).data);
-        if (productsRes.data) setProducts(productsRes.data);
+        if (productsRes.data) {
+          // Normalizar produto: manter compatibilidade com schema atual onde
+          // `price` pode representar custo. Aqui garantimos duas propriedades
+          // no objeto do frontend:
+          // - `cost`: valor de custo (vindo de `price` no banco)
+          // - `price`: preço de venda (vindo de `sale_price` no banco, se existir)
+          const normalized = (productsRes.data as any[]).map((p) => {
+            const costVal = p.cost ?? p.price ?? null;
+            const saleVal = p.sale_price ?? p.price ?? null;
+            return {
+              ...p,
+              cost: costVal,
+              price: saleVal,
+            } as any;
+          });
+          setProducts(normalized as Product[]);
+        }
 
         // 3. Carregar logos das marcas (se existir tabela `brands`)
         try {
@@ -307,21 +323,69 @@ export function useCatalog(
     }));
 
     try {
-      const res = await fetch('/api/save-cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: itemsPayload, userId }),
-      });
+      // Se usuário autenticado (Fluxo existente): usar endpoint server-side atual
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = (sessionData as any)?.session;
 
-      const data = await res.json();
+      if (session) {
+        const res = await fetch('/api/save-cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: itemsPayload, userId }),
+        });
 
-      if (data.success) {
-        toast.success('Pedido salvo com sucesso!');
-        return data.code; // Retorna o código curto (ex: X7K9P2)
-      } else {
-        throw new Error(data.error);
+        const data = await res.json();
+
+        if (data.success) {
+          toast.success('Pedido salvo com sucesso!');
+          return data.code;
+        }
+
+        throw new Error(data.error || 'Erro ao salvar pedido');
       }
+
+      // Flow para convidados (guest): usar RPC `api.insert_saved_cart_for_guest`
+      if (typeof window === 'undefined') {
+        toast.error('Operação não suportada no servidor');
+        return '';
+      }
+
+      // Garantir guest_id no localStorage
+      let guestId = localStorage.getItem('guest_id');
+      if (!guestId) {
+        guestId = crypto.randomUUID();
+        localStorage.setItem('guest_id', guestId);
+      }
+
+      // Gerar shortId simples (6 chars) se necessário
+      const generateShortId = () =>
+        Math.random().toString(36).slice(2, 8).toUpperCase();
+
+      const shortId = generateShortId();
+
+
+      // note: wrapper public signature expects (p_guest_id, p_items, p_short_id)
+      const rpcParams = {
+        p_guest_id: guestId,
+        p_items: itemsPayload,
+        p_short_id: shortId,
+      } as any;
+
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        'insert_saved_cart_for_guest',
+        rpcParams
+      );
+
+      if (rpcError) {
+        console.error('RPC error', rpcError);
+        toast.error('Erro ao salvar pedido (guest)');
+        return '';
+      }
+
+      toast.success('Pedido salvo com sucesso!');
+      return shortId;
     } catch (error) {
+      console.error('saveCart error', error);
       toast.error('Erro ao salvar pedido');
       return '';
     }
@@ -329,25 +393,70 @@ export function useCatalog(
 
   const loadCart = async (code: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/load-cart?code=${code}`);
-      const data = await res.json();
+      // Se usuário autenticado: usar endpoint server-side existente
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = (sessionData as any)?.session;
 
-      if (data.success && data.items) {
-        // Converter o array de volta para o mapa {id: qty}
-        const newCart: Record<string, number> = {};
-        data.items.forEach((item: any) => {
-          newCart[item.product_id] = item.quantity;
-        });
+      if (session) {
+        const res = await fetch(`/api/load-cart?code=${code}`);
+        const data = await res.json();
 
-        setCart(newCart);
-        localStorage.setItem('cart', JSON.stringify(newCart));
-        setLoadedOrderCode(code);
-        toast.success('Pedido carregado!');
-        return true;
-      } else {
+        if (data.success && data.items) {
+          const newCart: Record<string, number> = {};
+          data.items.forEach((item: any) => {
+            newCart[item.product_id] = item.quantity;
+          });
+
+          setCart(newCart);
+          localStorage.setItem('cart', JSON.stringify(newCart));
+          setLoadedOrderCode(code);
+          toast.success('Pedido carregado!');
+          return true;
+        }
+
         toast.error('Código inválido ou expirado');
         return false;
       }
+
+      // Fluxo guest: usar RPC `api.get_saved_cart_for_guest`
+      if (typeof window === 'undefined') {
+        toast.error('Operação não suportada no servidor');
+        return false;
+      }
+
+      const guestId = localStorage.getItem('guest_id');
+      if (!guestId) {
+        toast.error('Guest ID não encontrado');
+        return false;
+      }
+
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc(
+        'get_saved_cart_for_guest',
+        { p_short_id: code, p_guest_id: guestId }
+      );
+
+      if (rpcErr) {
+        console.error('RPC load error', rpcErr);
+        toast.error('Erro ao carregar pedido (guest)');
+        return false;
+      }
+
+      const row = Array.isArray(rpcRes) ? rpcRes[0] : rpcRes;
+      if (!row || !row.items) {
+        toast.error('Código inválido ou expirado');
+        return false;
+      }
+
+      const newCart: Record<string, number> = {};
+      (row.items as any[]).forEach((item: any) => {
+        newCart[item.product_id] = item.quantity;
+      });
+
+      setCart(newCart);
+      localStorage.setItem('cart', JSON.stringify(newCart));
+      setLoadedOrderCode(code);
+      toast.success('Pedido carregado!');
+      return true;
     } catch (error) {
       toast.error('Erro ao carregar pedido');
       return false;
