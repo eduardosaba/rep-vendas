@@ -1,159 +1,217 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { StatCard } from '@/components/StatCard';
 import { SalesBarChart } from '@/components/dashboard/SalesBarChart';
 import RecentOrdersTable from '@/components/RecentOrdersTable';
-import { DollarSign, ShoppingBag, Package, ShoppingCart } from 'lucide-react';
-import type { DashboardTotals } from '@/lib/types';
-import { isDashboardTotals } from '@/lib/validators';
+import {
+  DollarSign,
+  ShoppingBag,
+  Package,
+  ShoppingCart,
+  AlertCircle,
+  ExternalLink,
+  PlusCircle,
+  FileSpreadsheet,
+  Activity,
+} from 'lucide-react';
 
-// 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA
+// Evita cache para dados em tempo real
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const ensureSupabaseEnv = () => {
-    if (
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) {
-      // eslint-disable-next-line no-console
-      console.error(
-        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-      throw new Error(
-        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-    }
-  };
-
-  ensureSupabaseEnv();
   const supabase = await createClient();
 
   // 1. Autenticação
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
 
-  // 2. Verificação de Perfil (Agora sempre fresca do banco)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('onboarding_completed')
-    .eq('id', user.id)
-    .single();
-
-  // Se por algum motivo o perfil não existir ou onboarding for false
-  if (!profile || !profile.onboarding_completed) {
-    redirect('/onboarding');
+  if (authError || !user) {
+    redirect('/login');
   }
 
-  // 3. Busca de Dados em Paralelo
-  const [
-    totalsResult,
-    productsCountResult,
-    ordersCountResult,
-    recentOrdersResult,
-    settingsResult,
-  ] = await Promise.all([
-    supabase.rpc('get_dashboard_totals', { owner_id: user.id }).single(),
-    supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id),
-    supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id),
-    supabase
-      .from('orders')
-      .select(
-        'id, display_id, client_name_guest, total_value, status, created_at, item_count, pdf_url'
-      )
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(5),
-    supabase
-      .from('settings')
-      .select('catalog_slug')
-      .eq('user_id', user.id)
-      .single(),
-  ]);
-
-  // Validação runtime do retorno da RPC para evitar casts inseguros.
-  const rawTotals = totalsResult.data as unknown;
-  let total_revenue = 0;
-  let total_items_sold = 0;
-
-  if (isDashboardTotals(rawTotals)) {
-    // valores já são number
-    total_revenue = rawTotals.total_revenue;
-    total_items_sold = rawTotals.total_items_sold;
-  } else if (rawTotals && typeof rawTotals === 'object') {
-    // tenta extrair/normalizar mesmo que os tipos venham como string
-    const maybeRev = (rawTotals as any).total_revenue;
-    const maybeItems = (rawTotals as any).total_items_sold;
-    total_revenue = Number(maybeRev) || 0;
-    total_items_sold = Number(maybeItems) || 0;
-  }
-  const productsCount = productsCountResult.count || 0;
-  const ordersCount = ordersCountResult.count || 0;
-  const recentOrders = recentOrdersResult.data || [];
-  const catalogSlug = settingsResult.data?.catalog_slug || '';
-
-  // Monta dados de vendas por mês (últimos 6 meses) a partir dos pedidos reais
-  // Buscamos os pedidos dos últimos 6 meses e agregamos por mês no servidor
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-
-  const { data: ordersForChart } = await supabase
-    .from('orders')
-    .select('created_at, total_value')
-    .gte('created_at', sixMonthsAgo.toISOString())
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true });
-
-  // Inicializa mapa dos últimos 6 meses com 0
-  const months: { key: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const label = d.toLocaleString('pt-BR', { month: 'short' });
-    months.push({ key, label });
-  }
-
-  const monthSums: Record<string, number> = {};
-  months.forEach((m) => (monthSums[m.key] = 0));
-
-  if (ordersForChart && Array.isArray(ordersForChart)) {
-    for (const o of ordersForChart) {
-      const d = new Date(o.created_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthSums[key] = (monthSums[key] || 0) + Number(o.total_value || 0);
+  // --- HELPER PARA SEGURANÇA DE DADOS ---
+  async function safeFetch<T>(
+    promise: Promise<any>,
+    fallbackValue: T
+  ): Promise<T> {
+    try {
+      const result = await promise;
+      if (result.error) {
+        console.error('Erro no DB:', result.error.message);
+        return fallbackValue;
+      }
+      return result;
+    } catch (err) {
+      console.error('Erro crítico:', err);
+      return fallbackValue;
     }
   }
 
-  const chartData = months.map((m) => ({
-    name: m.label,
-    vendas: Math.round(monthSums[m.key] || 0),
-  }));
+  // 2. Buscas de Dados em Paralelo
+  const [
+    rpcResult,
+    productsResult,
+    ordersResult,
+    recentOrdersResult,
+    settingsResult,
+    profileResult,
+    chartOrdersResult,
+  ] = await Promise.all([
+    // A. Totais RPC
+    safeFetch(
+      supabase
+        .rpc('get_dashboard_totals', { owner_id: user.id })
+        .single() as unknown as Promise<any>,
+      { data: { total_revenue: 0, total_items_sold: 0 } }
+    ),
+
+    // B. Contagem de Produtos
+    safeFetch(
+      supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id) as unknown as Promise<any>,
+      { count: 0 }
+    ),
+
+    // C. Contagem de Pedidos
+    safeFetch(
+      supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id) as unknown as Promise<any>,
+      { count: 0 }
+    ),
+
+    // D. Pedidos Recentes
+    safeFetch(
+      supabase
+        .from('orders')
+        .select(
+          'id, display_id, client_name_guest, total_value, status, created_at, item_count, pdf_url'
+        )
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5) as unknown as Promise<any>,
+      { data: [] }
+    ),
+
+    // E. Configurações (Slug)
+    safeFetch(
+      supabase
+        .from('settings')
+        .select('catalog_slug, name')
+        .eq('user_id', user.id)
+        .single() as unknown as Promise<any>,
+      { data: { catalog_slug: '', name: '' } }
+    ),
+
+    // F. Perfil (Nome do usuário)
+    safeFetch(
+      supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single() as unknown as Promise<any>,
+      { data: { full_name: '' } }
+    ),
+
+    // G. Dados para o Gráfico (Últimos 6 meses)
+    safeFetch(
+      supabase
+        .from('orders')
+        .select('total_value, created_at')
+        .eq('user_id', user.id)
+        .gte(
+          'created_at',
+          new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
+        )
+        .order('created_at', { ascending: true }) as unknown as Promise<any>,
+      { data: [] }
+    ),
+  ]);
+
+  // 3. Processamento dos Dados
+  const rawTotals = rpcResult.data as any;
+  const totalRevenue = Number(rawTotals?.total_revenue || 0);
+  const totalItems = Number(rawTotals?.total_items_sold || 0);
+
+  const productsCount = productsResult.count || 0;
+  const ordersCount = ordersResult.count || 0;
+  const recentOrders = recentOrdersResult.data || [];
+  const catalogSlug = settingsResult.data?.catalog_slug || '';
+  const storeName = settingsResult.data?.name || 'Sua Loja';
+  const userName =
+    profileResult.data?.full_name?.split(' ')[0] || 'Empreendedor';
+
+  // 4. Lógica do Gráfico (Agregação Dinâmica)
+  const processChartData = () => {
+    const rawData = chartOrdersResult.data || [];
+    const monthsMap = new Map<string, number>();
+    const today = new Date();
+
+    // Inicializa os últimos 6 meses com 0
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthLabel = d.toLocaleString('pt-BR', { month: 'short' });
+      const label = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+      monthsMap.set(label, 0);
+    }
+
+    // Soma os valores reais do banco
+    rawData.forEach((order: any) => {
+      const date = new Date(order.created_at);
+      const monthLabel = date.toLocaleString('pt-BR', { month: 'short' });
+      const label = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+      if (monthsMap.has(label)) {
+        monthsMap.set(
+          label,
+          (monthsMap.get(label) || 0) + Number(order.total_value)
+        );
+      }
+    });
+
+    return Array.from(monthsMap.entries()).map(([name, vendas]) => ({
+      name,
+      vendas,
+    }));
+  };
+
+  const chartData = processChartData();
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Visão Geral</h1>
-        <p className="text-sm text-gray-500 font-medium bg-gray-100 px-3 py-1 rounded-full">
-          Dados em tempo real
-        </p>
+    <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden animate-in fade-in duration-500">
+      {/* HEADER DE BOAS VINDAS */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Olá, {userName} 👋
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Aqui está o resumo da <strong>{storeName}</strong> hoje.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs font-medium bg-white dark:bg-slate-900 px-3 py-1.5 rounded-full border border-gray-200 dark:border-slate-800 shadow-sm self-start md:self-auto">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span className="text-gray-600 dark:text-gray-300">
+            Sistema Online
+          </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* CARDS DE ESTATÍSTICAS */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
           title="Receita Total"
           value={new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
-          }).format(Number(total_revenue))}
+          }).format(totalRevenue)}
           icon={DollarSign}
           color="green"
         />
@@ -165,7 +223,7 @@ export default async function DashboardPage() {
         />
         <StatCard
           title="Itens Vendidos"
-          value={Number(total_items_sold)}
+          value={totalItems}
           icon={ShoppingCart}
           color="purple"
         />
@@ -177,37 +235,100 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <SalesBarChart data={chartData} />
+      {/* ÁREA CENTRAL: GRÁFICO E AÇÕES */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-8">
+        {/* GRÁFICO DE VENDAS */}
+        <div className="lg:col-span-2 min-h-[350px] bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+          <h3 className="font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+            <Activity size={18} className="text-indigo-500" /> Desempenho de
+            Vendas
+          </h3>
+          <div className="h-[300px] w-full">
+            <SalesBarChart data={chartData} />
+          </div>
         </div>
-        <div className="rounded-xl border bg-white p-6 shadow-sm flex flex-col justify-center">
-          <h3 className="mb-4 font-semibold text-gray-900">Acesso Rápido</h3>
-          <div className="space-y-3">
-            <a
+
+        {/* AÇÕES RÁPIDAS (CONTROL PANEL) */}
+        <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col h-full">
+          <div className="p-5 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50">
+            <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <AlertCircle size={18} className="text-indigo-500" />
+              Ações Rápidas
+            </h3>
+          </div>
+
+          <div className="p-5 flex-1 flex flex-col gap-3">
+            <Link
               href="/dashboard/products/new"
-              className="block w-full rounded-lg bg-indigo-50 px-4 py-3 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition"
+              className="group flex items-center gap-3 w-full rounded-xl bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all border border-indigo-100 dark:border-indigo-800 shadow-sm hover:shadow-md"
             >
-              + Novo Produto
-            </a>
-            <a
+              <div className="bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                <PlusCircle
+                  size={20}
+                  className="text-indigo-600 dark:text-indigo-400"
+                />
+              </div>
+              <span className="flex-1">Novo Produto</span>
+            </Link>
+
+            <Link
               href="/dashboard/products/import-massa"
-              className="block w-full rounded-lg bg-gray-50 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
+              className="group flex items-center gap-3 w-full rounded-xl bg-white dark:bg-slate-800 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md"
             >
-              Importar Excel
-            </a>
+              <div className="bg-gray-100 dark:bg-slate-700 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                <FileSpreadsheet
+                  size={20}
+                  className="text-gray-600 dark:text-gray-400"
+                />
+              </div>
+              <span className="flex-1">Importar Excel</span>
+            </Link>
+
             <a
-              href={catalogSlug ? `/catalog/${catalogSlug}` : '#'}
+              href={catalogSlug ? `/${catalogSlug}` : '#'}
               target="_blank"
-              className="block w-full rounded-lg bg-green-50 px-4 py-3 text-left text-sm font-medium text-green-700 hover:bg-green-100 transition border border-green-100"
+              className={`group flex items-center gap-3 w-full rounded-xl px-4 py-3 text-sm font-medium transition-all border shadow-sm hover:shadow-md ${
+                catalogSlug
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                  : 'bg-gray-50 dark:bg-slate-800/50 text-gray-400 cursor-not-allowed border-gray-200 dark:border-slate-800'
+              }`}
             >
-              Ver Minha Loja Pública ↗
+              <div
+                className={`p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform ${catalogSlug ? 'bg-white dark:bg-slate-800' : 'bg-gray-200 dark:bg-slate-700'}`}
+              >
+                <ExternalLink
+                  size={20}
+                  className={
+                    catalogSlug
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-gray-400'
+                  }
+                />
+              </div>
+              <span className="flex-1">
+                {catalogSlug ? 'Ver Loja Online' : 'Loja não configurada'}
+              </span>
             </a>
           </div>
         </div>
       </div>
 
-      <RecentOrdersTable orders={recentOrders} />
+      {/* TABELA DE PEDIDOS RECENTES */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50 dark:bg-slate-900/50">
+          <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <ShoppingBag size={18} className="text-indigo-500" /> Últimos
+            Pedidos
+          </h3>
+          <Link
+            href="/dashboard/orders"
+            className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:underline flex items-center gap-1"
+          >
+            Ver todos <ExternalLink size={12} />
+          </Link>
+        </div>
+        <RecentOrdersTable orders={recentOrders} />
+      </div>
     </div>
   );
 }

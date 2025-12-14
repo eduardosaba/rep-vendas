@@ -1,88 +1,140 @@
-import React from 'react';
-import Sidebar from '@/components/Sidebar';
-import SessionGuard from '@/components/SessionGuard';
-import { DashboardTopbar } from '@/components/dashboard/DashboardTopbar';
-import { createServerSupabase } from '@/lib/supabaseServer';
-import { redirect } from 'next/navigation';
+'use client';
 
-export default async function DashboardLayout({
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { Sidebar } from '@/components/Sidebar';
+import { DashboardHeader } from '@/components/DashboardHeader';
+import { Loader2, AlertTriangle } from 'lucide-react';
+
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Criar cliente Supabase no Servidor
-  const supabase = await createServerSupabase();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
 
-  // Verificar usuário autenticado usando getUser() (mais seguro no servidor)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Instancia o cliente
+  const supabase = createClient();
 
-  // Segurança extra: Se não houver usuário autenticado, redireciona para login
-  if (!user) {
-    redirect('/login');
-  }
-
-  // Buscar configurações/branding do usuário para aplicar tema e logo
-  const { data: settings } = await supabase
-    .from('settings')
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  const primary = (settings && settings.primary_color) || '#4f46e5';
-  // pequena função para escurecer uma cor hex sem dependências
-  function darkenHex(hex: string, amount = 0.12) {
-    try {
-      const h = hex.replace('#', '');
-      const r = Math.max(
-        0,
-        Math.min(
-          255,
-          Math.round(parseInt(h.substring(0, 2), 16) * (1 - amount))
-        )
+  useEffect(() => {
+    // DIAGNÓSTICO: Verifica se as variáveis existem no navegador
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      console.error(
+        'ERRO GRAVE: NEXT_PUBLIC_SUPABASE_URL não encontrada no navegador.'
       );
-      const g = Math.max(
-        0,
-        Math.min(
-          255,
-          Math.round(parseInt(h.substring(2, 4), 16) * (1 - amount))
-        )
-      );
-      const b = Math.max(
-        0,
-        Math.min(
-          255,
-          Math.round(parseInt(h.substring(4, 6), 16) * (1 - amount))
-        )
-      );
-      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    } catch {
-      return hex;
+      setConnectionError(true);
+      setLoading(false);
+      return;
     }
+
+    const checkSession = async () => {
+      try {
+        // Aumentei o timeout para 15 segundos para evitar falsos positivos em conexões lentas
+        // Timeout resolve com um objeto identificador em vez de rejeitar, para evitar
+        // um erro lançado que polui o console. Tratamos o timeout abaixo.
+        const timeoutPromise = new Promise((resolve) =>
+          setTimeout(() => resolve({ timeout: true }), 15000)
+        );
+
+        const sessionPromise = supabase.auth.getSession();
+
+        // Corrida entre obter sessão e timeout
+        const result: any = await Promise.race([
+          sessionPromise,
+          timeoutPromise,
+        ]);
+
+        if (result && result.timeout) {
+          console.warn('Timeout ao obter sessão Supabase (15s)');
+          setConnectionError(true);
+          setLoading(false);
+          return;
+        }
+
+        if (result?.error) throw result.error;
+
+        if (!result?.data?.session) {
+          // Sem sessão? Tenta limpar tudo e ir pro login
+          await supabase.auth.signOut();
+          router.replace('/login');
+        } else {
+          setAuthorized(true);
+        }
+      } catch (error) {
+        console.error('Falha na conexão com Supabase:', error);
+        setConnectionError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+  }, [router, supabase]);
+
+  if (connectionError) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-red-50 p-4">
+        <div className="max-w-md text-center bg-white p-8 rounded-xl shadow-lg border border-red-100">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Erro de Conexão
+          </h2>
+
+          {/* CORREÇÃO DE HTML: Trocamos <p> por <div> para permitir a lista interna */}
+          <div className="text-gray-600 mb-6 text-sm">
+            Não foi possível conectar ao Supabase.
+            <br />
+            <br />
+            <strong>Verifique:</strong>
+            <ul className="text-left list-disc pl-6 mt-2 space-y-1">
+              <li>O projeto no Supabase está pausado?</li>
+              <li>Sua internet está funcionando?</li>
+              <li>
+                As chaves no <code>.env.local</code> estão corretas?
+              </li>
+            </ul>
+            <div className="mt-4 p-2 bg-gray-100 rounded text-xs font-mono break-all">
+              URL: {process.env.NEXT_PUBLIC_SUPABASE_URL || 'Não definida'}
+            </div>
+          </div>
+
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 w-full transition-colors"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      </div>
+    );
   }
 
-  const primaryHover = darkenHex(primary, 0.12);
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gray-50 flex-col gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <p className="text-sm text-gray-500">Conectando ao banco de dados...</p>
+      </div>
+    );
+  }
 
-  const cssVars = {
-    ['--primary' as unknown as string]: primary,
-    ['--primary-hover' as unknown as string]: primaryHover,
-  } as React.CSSProperties;
+  if (!authorized) return null;
 
   return (
-    <div className="flex min-h-screen bg-gray-50" style={cssVars}>
-      {/* Menu Lateral Fixo */}
-      <Sidebar settings={settings ?? null} />
-
-      {/* Área Principal */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Barra de Topo (Header) - usar DashboardTopbar para garantir sino em todas as páginas */}
-        <DashboardTopbar settings={settings ?? null} />
-
-        {/* Conteúdo da Página */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <SessionGuard />
-          {children}
+    <div className="flex h-screen w-full bg-gray-50 dark:bg-slate-950 overflow-hidden">
+      <div className="flex-shrink-0 hidden md:block h-full">
+        <Sidebar />
+      </div>
+      <div className="flex-1 flex flex-col h-full min-w-0 relative">
+        <div className="flex-shrink-0 z-20">
+          <DashboardHeader />
+        </div>
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin relative z-0">
+          <div className="max-w-7xl mx-auto pb-20">{children}</div>
         </main>
       </div>
     </div>

@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   CreditCard,
   Truck,
@@ -66,6 +68,7 @@ interface Client {
 }
 
 export default function Checkout() {
+  const supabase = createClient();
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -128,9 +131,21 @@ export default function Checkout() {
   };
 
   const loadSettings = async () => {
-    const { data: sets } = await supabase.from('settings').select('*').limit(1);
-    if (sets && sets.length > 0) {
-      setSettings(sets[0]);
+    // CRÍTICO: Buscar settings do usuário autenticado (isolamento multi-tenant)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Resiliência: usar .maybeSingle() para não quebrar se não houver settings
+    const { data: sets } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (sets) {
+      setSettings(sets);
     }
   };
 
@@ -154,7 +169,10 @@ export default function Checkout() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        alert('Usuário não autenticado');
+        toast.error('Autenticação necessária', {
+          description: 'Por favor, faça login para continuar.',
+        });
+        router.push('/login');
         return;
       }
 
@@ -372,7 +390,10 @@ export default function Checkout() {
       setCompleted(true);
     } catch (error) {
       console.error('Erro ao finalizar pedido:', error);
-      alert('Erro ao finalizar pedido. Tente novamente.');
+      toast.error('Erro ao finalizar pedido', {
+        description:
+          'Ocorreu um erro ao processar seu pedido. Por favor, tente novamente.',
+      });
     } finally {
       setProcessing(false);
     }
@@ -404,7 +425,7 @@ export default function Checkout() {
             <button
               onClick={() => router.push('/')}
               className="rounded-lg bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700"
-              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
+              style={{ backgroundColor: settings?.primary_color || '#4f46e5' }} // Fallback: Indigo-600
             >
               Voltar ao Catálogo
             </button>
@@ -429,7 +450,7 @@ export default function Checkout() {
             <button
               onClick={() => router.push('/dashboard')}
               className="w-full rounded-lg bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700"
-              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
+              style={{ backgroundColor: settings?.primary_color || '#4f46e5' }} // Fallback: Indigo-600
             >
               Ver Meus Pedidos
             </button>
@@ -463,11 +484,15 @@ export default function Checkout() {
                 <ArrowLeft className="mr-2 h-5 w-5" />
                 Voltar
               </button>
-              <img
-                src={settings?.logo_url || SYSTEM_LOGO_URL}
-                alt={settings?.name || 'Rep-Vendas'}
-                className="h-14 w-auto"
-              />
+              <div className="relative h-14 w-32">
+                <Image
+                  src={settings?.logo_url || SYSTEM_LOGO_URL}
+                  alt={settings?.name || 'Rep-Vendas'}
+                  fill
+                  sizes="128px"
+                  className="object-contain"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -682,12 +707,14 @@ export default function Checkout() {
                     key={item.product.id}
                     className="flex items-center space-x-4"
                   >
-                    <div className="h-16 w-16 flex-shrink-0">
+                    <div className="h-16 w-16 flex-shrink-0 relative">
                       {item.product.image_url ? (
-                        <img
+                        <Image
                           src={item.product.image_url}
                           alt={item.product.name}
-                          className="h-full w-full rounded object-cover"
+                          fill
+                          sizes="64px"
+                          className="rounded object-cover"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center rounded bg-gray-100">

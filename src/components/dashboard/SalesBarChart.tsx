@@ -18,12 +18,16 @@ interface SalesData {
 
 interface Props {
   data: SalesData[];
+  primaryColor?: string; // Cor primária do usuário para branding dinâmico
 }
 
-export const SalesBarChart = ({ data }: Props) => {
+export const SalesBarChart = ({
+  data,
+  primaryColor = '#4f46e5', // Fallback: Indigo-600
+}: Props) => {
   return (
-    <div className="h-[400px] w-full rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h3 className="mb-6 text-lg font-semibold text-gray-900">
+    <div className="h-[400px] w-full rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+      <h3 className="mb-6 text-lg font-semibold text-gray-900 dark:text-slate-50">
         Vendas por Mês
       </h3>
       <ChartWrapper height={300}>
@@ -37,16 +41,22 @@ export const SalesBarChart = ({ data }: Props) => {
               bottom: 5,
             }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#E5E7EB"
+              className="dark:stroke-slate-700"
+            />
             <XAxis
               dataKey="name"
               stroke="#6B7280"
+              className="dark:stroke-slate-400"
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
               stroke="#6B7280"
+              className="dark:stroke-slate-400"
               fontSize={12}
               tickLine={false}
               axisLine={false}
@@ -60,10 +70,11 @@ export const SalesBarChart = ({ data }: Props) => {
                 borderRadius: '8px',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
               }}
+              className="dark:bg-slate-800 dark:border-slate-700"
             />
             <Bar
               dataKey="vendas"
-              fill="#4F46E5"
+              fill={primaryColor}
               radius={[4, 4, 0, 0]}
               barSize={40}
             />

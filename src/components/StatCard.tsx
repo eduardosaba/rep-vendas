@@ -31,13 +31,17 @@ export const StatCard = ({
   const colorClass = colors[color] || colors.blue;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+    <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <h3 className="mt-2 text-2xl font-bold text-gray-900">{value}</h3>
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400">
+            {title}
+          </p>
+          <h3 className="mt-2 text-2xl font-bold text-gray-900 dark:text-slate-50">
+            {value}
+          </h3>
         </div>
-        <div className={`rounded-lg p-3 ${colorClass}`}>
+        <div className={`rounded-lg p-3 ${colorClass} dark:opacity-90`}>
           <Icon size={24} />
         </div>
       </div>
@@ -46,7 +50,7 @@ export const StatCard = ({
       {trend !== undefined && (
         <div className="mt-4 flex items-center text-xs">
           <span
-            className={`flex items-center font-medium ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-600'}`}
+            className={`flex items-center font-medium ${trend > 0 ? 'text-green-600 dark:text-green-400' : trend < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-400'}`}
           >
             {trend > 0 ? (
               <ArrowUp size={14} className="mr-1" />
@@ -57,7 +61,7 @@ export const StatCard = ({
             )}
             {Math.abs(trend)}%
           </span>
-          <span className="ml-2 text-gray-400">
+          <span className="ml-2 text-gray-400 dark:text-slate-500">
             {trendLabel || 'vs mês anterior'}
           </span>
         </div>

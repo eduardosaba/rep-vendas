@@ -1,5 +1,3 @@
-import { supabase } from './supabaseClient';
-
 interface UploadResult {
   success: boolean;
   publicUrl?: string;
@@ -13,11 +11,18 @@ interface DeleteResult {
 }
 
 export const uploadImage = async (
+  supabase: any,
   file: File,
   bucket: string,
   userId: string,
   customFileName: string | null = null
 ): Promise<UploadResult> => {
+  if (!supabase) {
+    throw new Error(
+      'uploadImage requires a Supabase client instance as first argument'
+    );
+  }
+
   try {
     const fileExt = file.name.split('.').pop();
     const fileName = customFileName || `${userId}_${Date.now()}.${fileExt}`;
@@ -48,9 +53,16 @@ export const uploadImage = async (
 };
 
 export const deleteImage = async (
+  supabase: any,
   bucket: string,
   filePath: string
 ): Promise<DeleteResult> => {
+  if (!supabase) {
+    throw new Error(
+      'deleteImage requires a Supabase client instance as first argument'
+    );
+  }
+
   try {
     const { error } = await supabase.storage.from(bucket).remove([filePath]);
 
@@ -68,7 +80,17 @@ export const deleteImage = async (
   }
 };
 
-export const getImageUrl = (bucket: string, filePath: string): string => {
+export const getImageUrl = (
+  supabase: any,
+  bucket: string,
+  filePath: string
+): string => {
+  if (!supabase) {
+    throw new Error(
+      'getImageUrl requires a Supabase client instance as first argument'
+    );
+  }
+
   const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
   return data.publicUrl;

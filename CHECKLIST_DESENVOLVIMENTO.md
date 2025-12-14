@@ -22,11 +22,11 @@
 #### 🔧 Arquivos modificados/criados:
 
 - `src/hooks/useCatalog.ts` - ✅ Adicionado estado e funções de proteção
-- `src/components/catalog/ProductCardGrid.tsx` - ✅ Atualizado para condicional de preços
-- `src/components/catalog/ProductCardList.tsx` - ✅ Atualizado para condicional de preços
+- `src/components/catalogo/ProductCardGrid.tsx` - ✅ Atualizado para condicional de preços
+- `src/components/catalogo/ProductCardList.tsx` - ✅ Atualizado para condicional de preços
 - `src/lib/types.ts` - ✅ Adicionado campo `price_access_password`
-- `src/components/catalog/PriceAccessModal.tsx` - ✅ **NOVO** - Modal de acesso
-- `src/app/catalog/[userId]/page.tsx` - ✅ Integrado modal e handlers
+- `src/components/catalogo/PriceAccessModal.tsx` - ✅ **NOVO** - Modal de acesso
+- `src/app/catalogo/[userId]/page.tsx` - ✅ Integrado modal e handlers
 
 ---
 
@@ -51,9 +51,9 @@
 
 #### 🔧 Arquivos a modificar:
 
-- `src/app/catalog/[userId]/checkout/page.tsx` - Validações de segurança
+- `src/app/catalogo/[userId]/checkout/page.tsx` - Validações de segurança
 - `src/hooks/useCatalog.ts` - Integração com checkout seguro
-- `src/lib/supabaseClient.ts` - Autenticação reforçada
+  -- `src/lib/supabaseServer.ts` / `src/lib/supabase/client` - factories cookie-aware; prefira essas em vez de `src/lib/supabaseClient.ts`
 - `src/components/NotificationDropdown.tsx` - Notificações de segurança
 
 #### 🔧 Arquivos criados/modificados:
@@ -62,7 +62,7 @@
 - `middleware.ts` - **NOVO** - Middleware de autenticação
 - `src/components/dashboard/SecurityLogs.tsx` - **NOVO** - Visualização de logs
 - `src/lib/types.ts` - Tipos para checkout seguro
-- `src/app/catalog/[userId]/checkout/page.tsx` - Interface segura implementada
+- `src/app/catalogo/[userId]/checkout/page.tsx` - Interface segura implementada
 
 ---
 

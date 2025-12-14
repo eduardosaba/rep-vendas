@@ -1,7 +1,7 @@
 // Tipos globais mínimos para o projeto
 // Adiciona campos opcionais usados pela UI para evitar erros de checagem
 
-declare module NodeJS {
+declare namespace NodeJS {
   interface Global {
     // allow any global additions if needed
     [key: string]: any;

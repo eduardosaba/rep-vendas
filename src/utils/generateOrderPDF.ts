@@ -142,11 +142,11 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
     new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-    }).format(item.price),
+    }).format(item.sale_price ?? item.price),
     new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-    }).format(item.price * item.quantity),
+    }).format((item.sale_price ?? item.price) * item.quantity),
   ]);
 
   autoTable(doc, {

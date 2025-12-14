@@ -1,6 +1,20 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
+const VERBOSE = process.env.VERBOSE_RPC === '1' || process.env.DEBUG;
+const vlog = (...args) => VERBOSE && console.log('[VERBOSE]', ...args);
+
+vlog(
+  'ENV NEXT_PUBLIC_SUPABASE_URL=',
+  process.env.NEXT_PUBLIC_SUPABASE_URL
+    ? process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/:\/\/[^:]+:/, '://***:***:')
+    : undefined
+);
+vlog(
+  'ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '***' : undefined
+);
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!url || !anonKey) {
@@ -27,20 +41,27 @@ async function run() {
     for (const name of candidates) {
       try {
         console.log(`Tentando RPC: ${name}`);
+        vlog('RPC params:', params);
+        const start = Date.now();
         const { data, error } = await supabase.rpc(name, params);
+        const duration = Date.now() - start;
+        vlog(`RPC ${name} duration: ${duration}ms`);
         if (error) {
           console.log(
             `RPC ${name} retornou erro:`,
             error.code || error.message || error
           );
+          vlog('RPC full error object:', error);
           continue;
         }
+        vlog('RPC response data:', data);
         return { name, data };
       } catch (err) {
         console.log(
           `RPC ${name} falhou:`,
           err && err.message ? err.message : err
         );
+        vlog('RPC caught error object:', err && (err.stack || err));
       }
     }
     return null;

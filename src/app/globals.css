@@ -2,69 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Valores padrão para --primary caso o container não defina a variável dinamicamente */
-:root {
-  --primary: #4f46e5; /* indigo-600 */
-  --primary-hover: #4338ca; /* indigo-700 */
+@layer components {
+  /* Garante que inputs sempre tenham fundo legível */
+  .input-field {
+    @apply bg-white text-gray-900 border-gray-300
+           dark:bg-slate-900 dark:text-white dark:border-slate-700;
+  }
 }
 
-/* RepVendas - botão primário e outline usando variável de cor --primary definida dinamicamente no container */
-.rv-btn-primary {
-  background-color: var(--primary);
-  color: #fff;
-}
-.rv-btn-primary:hover {
-  background-color: var(--primary-hover);
-}
-.rv-btn-outline {
-  border: 1px solid var(--primary);
-  color: var(--primary);
-  background: transparent;
-}
-.rv-btn-outline:hover {
-  background-color: var(--primary);
-  color: #fff;
-}
+/* Utility: Botões padrão do sistema.
+   - Use sempre `text-primary-foreground` ao compor botões.
+   - Para botões primários use `btn btn-primary`.
+   - No modo escuro aplicamos uma borda sutil para evitar que botões com cor muito escura "sumam".
+*/
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold transition-colors;
+  }
 
-/* Utilitário para aplicar a cor primária em ícones/textos usando a variável --primary */
-.rv-text-primary {
-  color: var(--primary) !important;
-}
+  .btn-primary {
+    /* cor de fundo e texto devem vir das CSS variables configuradas em runtime */
+    @apply bg-primary text-primary-foreground border border-transparent;
+  }
 
-.rv-text-primary-hover:hover {
-  color: var(--primary-hover) !important;
-}
-
-/* Suporte para comportamento de group-hover: aplica quando um elemento pai com a classe `group` é hoverado */
-.group:hover .group-hover-rv-text-primary {
-  color: var(--primary-hover) !important;
-}
-
-/* Override para classes Tailwind que o projeto usa como "primary".
-   Alguns componentes ainda aplicavam classes como `bg-indigo-600/90`.
-   Essas regras forçam o uso da variável `--primary`/`--primary-hover`
-   para que a cor primária configurada pelo usuário seja aplicada globalmente. */
-
-.bg-indigo-600,
-.bg-indigo-600\/90,
-.bg-indigo-600\/75 {
-  background-color: var(--primary) !important;
-}
-
-.bg-indigo-700,
-.bg-indigo-800,
-.bg-indigo-600:hover,
-.bg-indigo-600\/90:hover {
-  background-color: var(--primary-hover) !important;
-}
-
-/* Text color overrides for indigo utilities used as primary */
-.text-indigo-600,
-.text-indigo-700 {
-  color: var(--primary) !important;
-}
-
-/* Border/outline overrides */
-.border-indigo-600 {
-  border-color: var(--primary) !important;
+  /* Borda sutil no modo escuro para garantir contraste quando primary for muito escuro */
+  .dark .btn-primary {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
 }

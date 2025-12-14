@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createOrder } from '@/app/catalog/actions';
+import { createOrder } from '@/app/catalogo/actions';
 
 export async function POST(req: Request) {
   try {

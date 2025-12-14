@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx'; // Importa a biblioteca que instalamos
 import Link from 'next/link';
@@ -50,6 +50,7 @@ export default function ImportMassaPage() {
   };
   const [importing, setImporting] = useState(false);
   const [stats, setStats] = useState({ total: 0, success: 0, errors: 0 });
+  const supabase = createClient();
 
   // 1. Ler o ficheiro Excel
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

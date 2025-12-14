@@ -1,10 +1,12 @@
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 
 export async function saveProductsFromRows(rows: any[], userId?: string) {
+  const supabase = createClient();
   const productsToInsert = rows.map((row) => ({
     user_id: userId || null,
     name: row.Produto || row.name || null,
     price: row.Preco || row.price || 0,
+    sale_price: row.Preco || row.price || 0,
     description: row.Descricao || row.description || null,
     external_image_url: row.UrlDaImagem || row.external_image_url || null,
     image_path: null,

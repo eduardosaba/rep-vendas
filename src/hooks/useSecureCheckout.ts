@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 // Tipos para checkout seguro
@@ -80,6 +80,7 @@ const SECURITY_LOGS_KEY = 'secure_checkout_logs';
 const ENCRYPTION_KEY = 'repvendas_secure_key'; // Em produção, usar chave dinâmica
 
 export const useSecureCheckout = (): UseSecureCheckoutReturn => {
+  const supabase = createClient();
   // usar sonner programático
 
   // Estado inicial

@@ -9,8 +9,9 @@ import {
   Settings as SettingsIcon,
   User,
 } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
-import { supabase as sharedSupabase } from '@/lib/supabaseClient';
+import Image from 'next/image';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import Logo from '@/components/Logo';
 import type { Settings } from '@/lib/types';
@@ -39,7 +40,7 @@ export function DashboardTopbar({ settings }: { settings?: Settings | null }) {
     return 'Dashboard';
   };
 
-  const supabase = sharedSupabase;
+  const supabase = useMemo(() => createClient(), []);
 
   // Carregar Usuário e Perfil
   useEffect(() => {
@@ -50,12 +51,12 @@ export function DashboardTopbar({ settings }: { settings?: Settings | null }) {
       if (user) {
         setUserId(user.id);
 
-        // Busca dados extras do perfil (nome, avatar)
+        // Busca dados extras do perfil (nome, avatar) - com resiliência .maybeSingle()
         const { data: profile } = await supabase
           .from('profiles')
           .select('full_name, avatar_url')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         setUserProfile({
           name: profile?.full_name || user.email?.split('@')[0] || 'Usuário',
@@ -124,12 +125,14 @@ export function DashboardTopbar({ settings }: { settings?: Settings | null }) {
 
             <div className="h-9 w-9 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center overflow-hidden">
               {userProfile.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={userProfile.avatar_url}
-                  alt="Avatar"
-                  className="h-full w-full object-cover"
-                />
+                <div className="relative h-full w-full">
+                  <Image
+                    src={userProfile.avatar_url}
+                    alt="Avatar"
+                    fill
+                    style={{ objectFit: 'cover' }}
+                  />
+                </div>
               ) : (
                 <UserCircle size={24} className="rv-text-primary" />
               )}
@@ -154,7 +157,7 @@ export function DashboardTopbar({ settings }: { settings?: Settings | null }) {
 
               <div className="py-1">
                 <Link
-                  href="/dashboard/account"
+                  href="/dashboard/user"
                   onClick={() => setIsProfileOpen(false)}
                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
                 >

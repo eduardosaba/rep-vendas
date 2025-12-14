@@ -16,11 +16,12 @@ export async function POST(request: Request) {
     const nextCookies = await cookies();
     const supabase = createRouteSupabase(() => nextCookies);
 
+    // Resiliência: usar .maybeSingle() para não quebrar se não houver settings
     const { data: settings, error } = await supabase
       .from('settings')
       .select('catalog_price_password')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Erro ao buscar settings:', error);
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Fallback para senha padrão se não houver configuração
     const correctPassword = settings?.catalog_price_password || '12345';
 
     if (passwordAttempt === correctPassword) {

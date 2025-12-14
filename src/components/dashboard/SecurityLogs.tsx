@@ -14,7 +14,7 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
 
   const filteredLogs = logs.filter((log) => {
     if (filter === 'all') return true;
-    return filter === 'success' ? Boolean(log.success) : !Boolean(log.success);
+    return filter === 'success' ? Boolean(log.success) : !log.success;
   });
 
   const getActionIcon = (action?: string) => {

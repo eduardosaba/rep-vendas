@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // Script de teste simples para chamar a rota /api/process-external-image
 // Uso: node scripts/test-process-external-image.js [PRODUCT_ID] [EXTERNAL_IMAGE_URL]
 

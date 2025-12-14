@@ -18,11 +18,12 @@ export async function GET(request: Request) {
 
   // Buscar os itens baseados no código curto
   // Nota: usamos 'items' conforme a padronização do banco de dados
+  // Resiliência: usar .maybeSingle() para não quebrar se não houver carrinho
   const { data, error } = await supabase
     .from('saved_carts')
     .select('items')
     .eq('short_id', code)
-    .single(); // Espera apenas um resultado
+    .maybeSingle();
 
   if (error || !data) {
     return NextResponse.json(

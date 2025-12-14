@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../lib/supabaseClient';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
   try {
     const { to, subject, html, text, userId } = await request.json();
 
@@ -13,14 +14,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar configurações de email do usuário
+    // Buscar configurações de email do usuário - com resiliência .maybeSingle()
     let settings = null;
     if (userId) {
       const { data } = await supabase
         .from('settings')
         .select('email_provider, email_api_key, email_from')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       settings = data;
     }

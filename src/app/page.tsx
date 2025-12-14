@@ -1,7 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
-import { createClient as createSupabaseClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabase/server';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { redirect } from 'next/navigation';
 import {
@@ -14,7 +13,7 @@ import {
   Menu,
   Zap,
   Layout,
-  Users,
+  ExternalLink,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -31,12 +30,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function LandingPage() {
   // Verifica se já está logado para redirecionar ao Dashboard
-  const supabase = await createSupabaseClient();
+  const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (session) {
+  if (user) {
     redirect('/dashboard');
   }
 
@@ -45,7 +44,10 @@ export default async function LandingPage() {
   // Ação (Botões/Destaque): #b9722e (Bronze/Laranja)
 
   return (
-    <div className="min-h-screen bg-white font-sans selection:bg-[#b9722e] selection:text-white">
+    <div
+      suppressHydrationWarning={true}
+      className="min-h-screen bg-white font-sans selection:bg-[#b9722e] selection:text-white"
+    >
       {/* --- NAV --- */}
       <nav className="fixed top-0 w-full bg-[#0d1b2c]/95 backdrop-blur-md z-50 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -53,7 +55,7 @@ export default async function LandingPage() {
             <img
               src={SYSTEM_LOGO_URL}
               alt="Rep-Vendas"
-              className="h-12 w-auto object-contain" // mostra cor original, um pouco maior
+              className="h-12 w-auto object-contain"
             />
           </div>
 
@@ -64,12 +66,15 @@ export default async function LandingPage() {
             >
               Benefícios
             </a>
-            <a
-              href="#como-funciona"
-              className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
+
+            {/* Link para Demo do Catálogo na Navbar */}
+            <Link
+              href="/demo/catalogo"
+              className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide flex items-center gap-1"
             >
-              Como Funciona
-            </a>
+              Exemplo de Loja <ExternalLink size={14} className="mb-0.5" />
+            </Link>
+
             <Link
               href="/login"
               className="text-white font-bold hover:text-[#b9722e] transition-colors"
@@ -125,12 +130,26 @@ export default async function LandingPage() {
             >
               Começar Teste Grátis <ArrowRight size={20} />
             </Link>
-            <a
-              href="#demonstracao"
-              className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/30 text-white rounded-full font-bold text-lg hover:bg-white/10 transition-all backdrop-blur-sm"
+
+            {/* Link para Demo do Dashboard */}
+            <Link
+              href="/demo/dashboard"
+              className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/30 text-white rounded-full font-bold text-lg hover:bg-white/10 transition-all backdrop-blur-sm flex items-center justify-center gap-2"
             >
-              Ver como funciona
-            </a>
+              <Layout size={20} />
+              Ver Dashboard Demo
+            </Link>
+          </div>
+
+          {/* Link Secundário para Demo do Catálogo */}
+          <div className="mt-6">
+            <Link
+              href="/demo/catalogo"
+              className="text-gray-400 hover:text-[#b9722e] underline underline-offset-4 text-sm transition-colors inline-flex items-center gap-1"
+            >
+              Ou veja como fica o Catálogo para seu cliente{' '}
+              <ExternalLink size={12} />
+            </Link>
           </div>
 
           <div className="mt-8 flex items-center justify-center gap-6 text-sm text-gray-400">
@@ -213,10 +232,10 @@ export default async function LandingPage() {
                     {/* Overlay CTA */}
                     <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-gray-50 via-transparent to-transparent">
                       <Link
-                        href="/register"
+                        href="/demo/dashboard"
                         className="bg-[#0d1b2c] text-white px-8 py-3 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-2"
                       >
-                        Ver Dashboard Real <ArrowRight size={16} />
+                        Interagir com a Demo <ArrowRight size={16} />
                       </Link>
                     </div>
                   </div>

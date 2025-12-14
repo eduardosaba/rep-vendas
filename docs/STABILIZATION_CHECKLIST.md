@@ -148,7 +148,7 @@
 **Fase 3: A Loja (Cliente Final)**
 
 - [ ] 12. Acesso Público:
-  - `/catalog/<slug>` abre sem login.
+  - `/catalogo/<slug>` abre sem login.
 
 - [ ] 13. Visualização:
   - Banners aparecem; preços estão ocultos até senha (se configurado).

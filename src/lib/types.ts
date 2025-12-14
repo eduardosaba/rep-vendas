@@ -59,7 +59,11 @@ export interface Product {
   reference_code?: string | null;
   description?: string | null;
   price: number;
+  sale_price?: number | null;
+  original_price?: number | null;
   image_url?: string | null; // URL da imagem principal
+  image_path?: string | null; // caminho no storage (algumas camadas usam this)
+  external_image_url?: string | null; // url externa alternativa
   images?: string[]; // Array de URLs para galeria (novo)
   // Duas convenções existem no código: `bestseller` e `is_best_seller`.
   // Mantemos ambos para compatibilidade com diferentes camadas (DB / UI).
@@ -67,12 +71,12 @@ export interface Product {
   is_best_seller?: boolean;
   // Lançamento pode aparecer como `is_launch` em algumas camadas
   is_launch?: boolean;
-  technical_specs?: string | null;
+  technical_specs?: string | Record<string, string> | null;
   user_id?: string;
   created_at?: string;
   // Campos adicionais usados em várias telas e importações
-  barcode?: string;
-  sku?: string;
+  barcode?: string | null;
+  sku?: string | null;
   color?: string;
   cost?: number;
   stock_quantity?: number;
@@ -152,6 +156,14 @@ export interface Settings {
   phone?: string;
   logo_url?: string;
   banner_url?: string;
+  banners?: string[];
+  header_background_color?: string;
+  footer_message?: string;
+  show_top_benefit_bar?: boolean;
+  top_benefit_text?: string;
+  enable_stock_management?: boolean;
+  global_allow_backorder?: boolean;
+  price_password?: string | null;
 
   // Tema
   primary_color?: string;
@@ -179,6 +191,11 @@ export interface Settings {
   // Exibição de descontos e percentuais
   show_cash_discount?: boolean;
   cash_price_discount_percent?: number;
+  // Novas opções usadas pelo catálogo
+  max_installments?: number;
+  show_sale_price?: boolean;
+  show_cost_price?: boolean;
+  show_discount_tag?: boolean;
 
   // Segurança e Acesso
   catalog_price_password?: string | null;

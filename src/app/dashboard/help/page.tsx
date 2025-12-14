@@ -17,7 +17,7 @@ import {
   Link as LinkIcon,
   FileText,
   Palette,
-  Archive
+  Archive,
 } from 'lucide-react';
 
 // --- DADOS DO MANUAL ---
@@ -32,17 +32,39 @@ const helpCategories = [
         title: 'Como usar a Edição em Massa?',
         content: (
           <div className="space-y-2">
-            <p>Para editar vários produtos ao mesmo tempo (ex: aumentar preços ou marcar como lançamento):</p>
+            <p>
+              Para editar vários produtos ao mesmo tempo (ex: aumentar preços ou
+              marcar como lançamento):
+            </p>
             <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>Na lista de produtos, clique nas <strong>caixas de seleção</strong> à esquerda dos produtos.</li>
-              <li>Para selecionar <strong>todos</strong>, clique na caixa do cabeçalho da tabela.</li>
-              <li>Uma <strong>barra preta flutuante</strong> aparecerá na parte inferior da tela.</li>
-              <li>Escolha a ação desejada:
-                 <ul className="list-disc list-inside ml-4 mt-1">
-                    <li><strong>Novo/Top:</strong> Adiciona ou remove as etiquetas de destaque.</li>
-                    <li><strong>Preço:</strong> Permite aumentar/diminuir valor em % ou definir valor fixo para todos.</li>
-                    <li><strong>Marca/Categoria:</strong> Define a mesma marca ou categoria para todos os selecionados.</li>
-                 </ul>
+              <li>
+                Na lista de produtos, clique nas{' '}
+                <strong>caixas de seleção</strong> à esquerda dos produtos.
+              </li>
+              <li>
+                Para selecionar <strong>todos</strong>, clique na caixa do
+                cabeçalho da tabela.
+              </li>
+              <li>
+                Uma <strong>barra preta flutuante</strong> aparecerá na parte
+                inferior da tela.
+              </li>
+              <li>
+                Escolha a ação desejada:
+                <ul className="list-disc list-inside ml-4 mt-1">
+                  <li>
+                    <strong>Novo/Top:</strong> Adiciona ou remove as etiquetas
+                    de destaque.
+                  </li>
+                  <li>
+                    <strong>Preço:</strong> Permite aumentar/diminuir valor em %
+                    ou definir valor fixo para todos.
+                  </li>
+                  <li>
+                    <strong>Marca/Categoria:</strong> Define a mesma marca ou
+                    categoria para todos os selecionados.
+                  </li>
+                </ul>
               </li>
               <li>Clique em Salvar/Confirmar.</li>
             </ol>
@@ -53,15 +75,30 @@ const helpCategories = [
         title: 'O que é o Matcher de Fotos e como usar?',
         content: (
           <div className="space-y-2">
-            <p>O <strong>Matcher</strong> é uma ferramenta visual para organizar produtos que foram importados sem foto:</p>
+            <p>
+              O <strong>Matcher</strong> é uma ferramenta visual para organizar
+              produtos que foram importados sem foto:
+            </p>
             <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>Acesse a página clicando no botão <strong>Vincular</strong> no topo da lista de produtos.</li>
-              <li>À esquerda, você verá seus produtos sem imagem. À direita, as fotos que você carregou mas não vinculou.</li>
-              <li>Simplesmente <strong>arraste a foto</strong> da direita e solte em cima do produto correspondente na esquerda.</li>
+              <li>
+                Acesse a página clicando no botão <strong>Vincular</strong> no
+                topo da lista de produtos.
+              </li>
+              <li>
+                À esquerda, você verá seus produtos sem imagem. À direita, as
+                fotos que você carregou mas não vinculou.
+              </li>
+              <li>
+                Simplesmente <strong>arraste a foto</strong> da direita e solte
+                em cima do produto correspondente na esquerda.
+              </li>
               <li>O sistema salva automaticamente!</li>
             </ol>
-            <Link href="/dashboard/products/matcher" className="inline-flex items-center text-sm text-indigo-600 hover:underline mt-2">
-               Ir para o Matcher <LinkIcon size={14} className="ml-1"/>
+            <Link
+              href="/dashboard/products/matcher"
+              className="inline-flex items-center text-sm text-indigo-600 hover:underline mt-2"
+            >
+              Ir para o Matcher <LinkIcon size={14} className="ml-1" />
             </Link>
           </div>
         ),
@@ -72,11 +109,23 @@ const helpCategories = [
           <div className="space-y-2">
             <p>Para adicionar um único produto novo:</p>
             <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>Vá até o menu <strong>Produtos</strong>.</li>
-              <li>Clique no botão <strong>+ Novo Produto</strong> no topo direito.</li>
-              <li>Preencha o nome, preço e referência. Agora você também pode adicionar uma <strong>Ficha Técnica</strong> detalhada.</li>
-              <li>Se a gestão de estoque estiver ativa, defina a quantidade inicial.</li>
-              <li>Clique em <strong>Salvar</strong>.</li>
+              <li>
+                Vá até o menu <strong>Produtos</strong>.
+              </li>
+              <li>
+                Clique no botão <strong>+ Novo Produto</strong> no topo direito.
+              </li>
+              <li>
+                Preencha o nome, preço e referência. Agora você também pode
+                adicionar uma <strong>Ficha Técnica</strong> detalhada.
+              </li>
+              <li>
+                Se a gestão de estoque estiver ativa, defina a quantidade
+                inicial.
+              </li>
+              <li>
+                Clique em <strong>Salvar</strong>.
+              </li>
             </ol>
           </div>
         ),
@@ -87,10 +136,23 @@ const helpCategories = [
           <div className="space-y-2">
             <p>Você pode criar um PDF profissional para enviar aos clientes:</p>
             <ul className="list-disc list-inside space-y-1 ml-2 text-gray-600">
-              <li>Na lista de produtos, clique no botão <strong>PDF</strong> no topo.</li>
-              <li>Se quiser um catálogo parcial, selecione primeiro os produtos desejados usando as caixas de seleção.</li>
-              <li>No modal que abrir, escolha se deseja exibir os <strong>Preços</strong> e qual o <strong>Tamanho das Fotos</strong> (Zoom de 1x a 5x).</li>
-              <li>Clique em Baixar. O PDF incluirá sua logo e contatos automaticamente.</li>
+              <li>
+                Na lista de produtos, clique no botão <strong>PDF</strong> no
+                topo.
+              </li>
+              <li>
+                Se quiser um catálogo parcial, selecione primeiro os produtos
+                desejados usando as caixas de seleção.
+              </li>
+              <li>
+                No modal que abrir, escolha se deseja exibir os{' '}
+                <strong>Preços</strong> e qual o{' '}
+                <strong>Tamanho das Fotos</strong> (Zoom de 1x a 5x).
+              </li>
+              <li>
+                Clique em Baixar. O PDF incluirá sua logo e contatos
+                automaticamente.
+              </li>
             </ul>
           </div>
         ),
@@ -109,19 +171,26 @@ const helpCategories = [
           <div className="space-y-2">
             <p>Por padrão, o estoque é infinito. Para controlar quantidades:</p>
             <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>Vá em <strong>Configurações</strong> {'>'} aba <strong>Estoque & Logística</strong>.</li>
-              <li>Ative a opção <strong>Ativar Gestão de Estoque</strong>.</li>
-              <li>Agora, ao editar um produto, você verá o campo "Quantidade".</li>
+              <li>
+                Vá em <strong>Configurações</strong> {'>'} aba{' '}
+                <strong>Estoque & Logística</strong>.
+              </li>
+              <li>
+                Ative a opção <strong>Ativar Gestão de Estoque</strong>.
+              </li>
+              <li>
+                Agora, ao editar um produto, você verá o campo "Quantidade".
+              </li>
             </ol>
           </div>
         ),
       },
       {
         title: 'O que é "Venda sem Estoque" (Backorder)?',
-        content: 
+        content:
           'Na aba de Estoque, a opção "Permitir Venda sem Estoque" define o comportamento quando a quantidade chega a zero. Se ativada, o cliente pode continuar comprando (saldo negativo/encomenda). Se desativada, o botão de compra muda para "Esgotado" na loja.',
-      }
-    ]
+      },
+    ],
   },
   {
     id: 'orders',
@@ -135,9 +204,16 @@ const helpCategories = [
           <div className="space-y-2">
             <p>Para vendas de balcão ou telefone:</p>
             <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>Vá em <strong>Pedidos</strong> e clique em <strong>Nova Venda</strong>.</li>
+              <li>
+                Vá em <strong>Pedidos</strong> e clique em{' '}
+                <strong>Nova Venda</strong>.
+              </li>
               <li>Identifique o cliente (Nome/Telefone).</li>
-              <li>Adicione produtos do catálogo ou use a aba <strong>Item Avulso</strong> para digitar um produto na hora (ex: taxa de entrega).</li>
+              <li>
+                Adicione produtos do catálogo ou use a aba{' '}
+                <strong>Item Avulso</strong> para digitar um produto na hora
+                (ex: taxa de entrega).
+              </li>
               <li>Ao finalizar, o estoque será baixado automaticamente.</li>
             </ol>
           </div>
@@ -147,10 +223,24 @@ const helpCategories = [
         title: 'Status do Pedido e Aprovação',
         content: (
           <ul className="space-y-2 text-gray-600 ml-2">
-            <li><span className="font-bold text-yellow-600">Pendente:</span> Novo pedido recebido. O estoque está reservado.</li>
-            <li><span className="font-bold text-blue-600">Confirmado:</span> Você clicou em "Aprovar Pedido". Significa que o pagamento/negociação está ok.</li>
-            <li><span className="font-bold text-green-600">Entregue:</span> O produto chegou ao cliente.</li>
-            <li><span className="font-bold text-red-600">Cancelado:</span> A venda não ocorreu. <strong>Nota:</strong> Cancelar não devolve o estoque automaticamente por segurança.</li>
+            <li>
+              <span className="font-bold text-yellow-600">Pendente:</span> Novo
+              pedido recebido. O estoque está reservado.
+            </li>
+            <li>
+              <span className="font-bold text-blue-600">Confirmado:</span> Você
+              clicou em "Aprovar Pedido". Significa que o pagamento/negociação
+              está ok.
+            </li>
+            <li>
+              <span className="font-bold text-green-600">Entregue:</span> O
+              produto chegou ao cliente.
+            </li>
+            <li>
+              <span className="font-bold text-red-600">Cancelado:</span> A venda
+              não ocorreu. <strong>Nota:</strong> Cancelar não devolve o estoque
+              automaticamente por segurança.
+            </li>
           </ul>
         ),
       },
@@ -164,26 +254,39 @@ const helpCategories = [
     articles: [
       {
         title: 'Como mudar as Cores e Identidade?',
-        content: 
+        content:
           'Vá em Configurações > Aparência. Lá você pode definir a "Cor Primária" (botões e destaques), "Cor Secundária" (detalhes e preços) e a "Cor de Fundo do Cabeçalho". O catálogo atualiza imediatamente.',
       },
       {
         title: 'Configurações de Exibição',
         content: (
           <div className="space-y-2">
-            <p>Na aba <strong>Exibição</strong> das configurações, você pode ligar/desligar:</p>
+            <p>
+              Na aba <strong>Exibição</strong> das configurações, você pode
+              ligar/desligar:
+            </p>
             <ul className="list-disc list-inside space-y-1 ml-2 text-gray-600">
-              <li><strong>Parcelamento:</strong> Exibe "ou 12x de R$..." nos produtos.</li>
-              <li><strong>Tags de Desconto:</strong> Mostra selos de "% OFF" e calcula o preço à vista automaticamente.</li>
-              <li><strong>Barra de Benefícios:</strong> A faixa no topo do site (ex: "Frete Grátis").</li>
+              <li>
+                <strong>Parcelamento:</strong> Exibe "ou 12x de R$..." nos
+                produtos.
+              </li>
+              <li>
+                <strong>Tags de Desconto:</strong> Mostra selos de "% OFF" e
+                calcula o preço à vista automaticamente.
+              </li>
+              <li>
+                <strong>Barra de Benefícios:</strong> A faixa no topo do site
+                (ex: "Frete Grátis").
+              </li>
             </ul>
           </div>
         ),
       },
       {
         title: 'Alterar o Link da Loja (Slug)',
-        content: 'Na aba Geral, você pode alterar o endereço da sua loja (ex: repvendas.com/catalog/sua-loja). Cuidado: ao mudar, os links antigos enviados deixarão de funcionar.',
-      }
+        content:
+          'Na aba Geral, você pode alterar o endereço da sua loja (ex: repvendas.com/catalogo/sua-loja). Cuidado: ao mudar, os links antigos enviados deixarão de funcionar.',
+      },
     ],
   },
 ];
@@ -207,7 +310,7 @@ export default function HelpPage() {
     .filter((cat) => cat.articles.length > 0);
 
   const toggleCategory = (id: string) => {
-    if (searchTerm) return; 
+    if (searchTerm) return;
     setOpenCategory(openCategory === id ? null : id);
   };
 
@@ -220,13 +323,12 @@ export default function HelpPage() {
       {/* Header */}
       <div className="text-center space-y-4 py-8">
         <div className="inline-flex p-4 bg-indigo-50 rounded-full text-indigo-600 mb-2">
-           <HelpCircle size={32} />
+          <HelpCircle size={32} />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900">
-          Central de Ajuda
-        </h1>
+        <h1 className="text-3xl font-bold text-gray-900">Central de Ajuda</h1>
         <p className="text-gray-500 max-w-lg mx-auto">
-          Tutoriais e guias rápidos sobre as novas funcionalidades do seu sistema.
+          Tutoriais e guias rápidos sobre as novas funcionalidades do seu
+          sistema.
         </p>
 
         {/* Barra de Busca */}
@@ -245,9 +347,9 @@ export default function HelpPage() {
       {/* Conteúdo */}
       <div className="grid gap-6">
         {filteredCategories.length === 0 && (
-            <div className="text-center py-10 text-gray-400">
-                <p>Nenhum resultado encontrado para "{searchTerm}"</p>
-            </div>
+          <div className="text-center py-10 text-gray-400">
+            <p>Nenhum resultado encontrado para "{searchTerm}"</p>
+          </div>
         )}
 
         {filteredCategories.map((category) => (
@@ -335,24 +437,25 @@ export default function HelpPage() {
       {/* Rodapé de Suporte */}
       <div className="bg-indigo-900 rounded-2xl p-8 text-white text-center mt-12 relative overflow-hidden">
         <div className="relative z-10">
-            <h3 className="text-xl font-bold mb-2">Ainda precisa de ajuda?</h3>
-            <p className="text-indigo-200 mb-6 max-w-md mx-auto">
-            Nossa equipe de suporte está pronta para tirar suas dúvidas e ajudar a configurar sua loja.
-            </p>
-            <a
+          <h3 className="text-xl font-bold mb-2">Ainda precisa de ajuda?</h3>
+          <p className="text-indigo-200 mb-6 max-w-md mx-auto">
+            Nossa equipe de suporte está pronta para tirar suas dúvidas e ajudar
+            a configurar sua loja.
+          </p>
+          <a
             href="https://wa.me/55SEUNUMERO"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2 bg-white text-indigo-900 px-6 py-3 rounded-lg font-bold hover:bg-indigo-50 transition-colors shadow-lg"
-            >
+          >
             <PlayCircle size={20} /> Falar no WhatsApp
-            </a>
+          </a>
         </div>
-        
+
         {/* Decoração de Fundo */}
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-            <div className="absolute -top-20 -right-20 w-64 h-64 bg-white rounded-full mix-blend-overlay blur-3xl"></div>
-            <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-400 rounded-full mix-blend-overlay blur-3xl"></div>
+          <div className="absolute -top-20 -right-20 w-64 h-64 bg-white rounded-full mix-blend-overlay blur-3xl"></div>
+          <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-400 rounded-full mix-blend-overlay blur-3xl"></div>
         </div>
       </div>
     </div>

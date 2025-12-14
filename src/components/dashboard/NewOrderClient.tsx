@@ -23,8 +23,9 @@ import {
   Box,
   UserPlus,
 } from 'lucide-react';
+import Image from 'next/image';
 import { toast } from 'sonner';
-import { createOrder } from '@/app/catalog/actions';
+import { createOrder } from '@/app/catalogo/actions';
 
 // Tipos
 interface Product {
@@ -409,11 +410,15 @@ export function NewOrderClient({
                     <div className="aspect-square bg-gray-50 rounded-lg mb-2 overflow-hidden flex items-center justify-center border border-gray-100">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                          alt={product.name}
-                        />
+                        <div className="relative w-full h-full">
+                          <Image
+                            src={product.image_url}
+                            alt={product.name}
+                            fill
+                            style={{ objectFit: 'contain' }}
+                            className="group-hover:scale-105 transition-transform"
+                          />
+                        </div>
                       ) : (
                         <Package className="text-gray-300" />
                       )}
@@ -560,11 +565,14 @@ export function NewOrderClient({
                 <div className="h-14 w-14 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {item.image_url ? (
-                    <img
-                      src={item.image_url}
-                      className="h-full w-full object-cover"
-                      alt=""
-                    />
+                    <div className="relative h-full w-full">
+                      <Image
+                        src={item.image_url}
+                        alt={item.name || ''}
+                        fill
+                        style={{ objectFit: 'cover' }}
+                      />
+                    </div>
                   ) : (
                     <Package size={16} className="text-gray-400" />
                   )}

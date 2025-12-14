@@ -1,35 +1,40 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { supabase as sharedSupabase } from '@/lib/supabaseClient';
-import { 
-  Trash2, 
-  ArrowLeft, 
-  Calendar, 
-  Package, 
-  Loader2, 
-  FileText, 
-  Camera, 
-  FileSpreadsheet, 
-  AlertTriangle 
+import React, { useEffect, useState, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import {
+  Trash2,
+  ArrowLeft,
+  Calendar,
+  Package,
+  Loader2,
+  FileText,
+  Camera,
+  FileSpreadsheet,
+  AlertOctagon,
+  CheckCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
-import { toast } from 'sonner'; // Padrão de alertas
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+interface ImportHistoryItem {
+  id: string;
+  total_items: number;
+  brand_summary: string;
+  file_name: string;
+  created_at: string;
+}
+
 export default function ImportHistoryPage() {
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<ImportHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const supabase = sharedSupabase;
+  const supabase = createClient();
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('import_history')
@@ -37,44 +42,60 @@ export default function ImportHistoryPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error('Erro ao buscar histórico', {
-        description: 'Tente recarregar a página.'
-      });
+      console.error(error);
+      toast.error('Erro ao buscar histórico');
     } else {
       setHistory(data || []);
     }
     setLoading(false);
-  };
+  }, [supabase]);
 
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  //
   const handleUndoImport = async (importId: string) => {
-    // Confirmação nativa para segurança crítica
-    if (!confirm('ATENÇÃO: Isso excluirá TODOS os produtos e imagens desta importação permanentemente. Deseja continuar?')) return;
+    if (
+      !confirm(
+        'ATENÇÃO: Esta ação é irreversível.\n\nIsso apagará TODOS os produtos criados nesta importação e suas respectivas fotos.\n\nDeseja continuar?'
+      )
+    ) {
+      return;
+    }
 
     setDeletingId(importId);
-    
-    // Inicia o Toast de carregamento (feedback imediato)
-    const toastId = toast.loading('Revertendo importação e limpando arquivos...');
+    const toastId = toast.loading(
+      'Revertendo importação e limpando arquivos...'
+    );
 
     try {
-      // 1. BUSCAR IMAGENS PARA LIMPAR DO STORAGE
-      // Antes de apagar o registro, precisamos saber quais arquivos apagar
-      const { data: productsToDelete } = await supabase
+      // 1. Identificar imagens para remover do Storage
+      const { data: products } = await supabase
         .from('products')
-        .select('image_path')
+        .select('image_path, images')
         .eq('last_import_id', importId);
 
-      // Filtra apenas os que têm imagem salva
-      const pathsToDelete = productsToDelete
-        ?.map((p) => p.image_path)
-        .filter((path): path is string => !!path) || [];
+      // Coleta todos os paths (image_path principal + array images)
+      const pathsToDelete: string[] = [];
+      products?.forEach((p) => {
+        if (p.image_path) pathsToDelete.push(p.image_path);
+        // Se houver paths no array de imagens extras que não são URLs públicas
+        if (Array.isArray(p.images)) {
+          // Lógica opcional: se você salvar paths no array images, adicione aqui
+        }
+      });
 
+      // 2. Remover arquivos do Storage (se houver)
       if (pathsToDelete.length > 0) {
-        // Tenta apagar dos dois buckets possíveis para garantir limpeza total
-        await supabase.storage.from('products').remove(pathsToDelete);
+        // Tenta remover, mas não falha se o arquivo já não existir
         await supabase.storage.from('product-images').remove(pathsToDelete);
+
+        // Backup: tenta remover do bucket antigo 'products' se houver legado
+        await supabase.storage.from('products').remove(pathsToDelete);
       }
 
-      // 2. Excluir Produtos do Banco
+      // 3. Excluir Produtos do Banco (Cascade deve cuidar do resto, mas garantimos aqui)
       const { error: prodError, count } = await supabase
         .from('products')
         .delete({ count: 'exact' })
@@ -82,7 +103,7 @@ export default function ImportHistoryPage() {
 
       if (prodError) throw prodError;
 
-      // 3. Excluir o registro do histórico
+      // 4. Excluir o registro do histórico
       const { error: histError } = await supabase
         .from('import_history')
         .delete()
@@ -90,19 +111,17 @@ export default function ImportHistoryPage() {
 
       if (histError) throw histError;
 
-      // Sucesso!
-      toast.success('Importação desfeita com sucesso!', {
-        id: toastId, // Atualiza o toast de loading
-        description: `${count} produtos e ${pathsToDelete.length} imagens foram removidos.`
+      toast.success('Desfeito com sucesso!', {
+        id: toastId,
+        description: `${count || 0} produtos removidos.`,
       });
-      
-      fetchHistory(); // Atualiza a lista
 
+      fetchHistory(); // Recarrega a lista
     } catch (err: any) {
       console.error(err);
-      toast.error('Erro ao desfazer importação', {
+      toast.error('Erro ao reverter', {
         id: toastId,
-        description: err.message
+        description: err.message,
       });
     } finally {
       setDeletingId(null);
@@ -110,79 +129,150 @@ export default function ImportHistoryPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6 pb-20">
+    <div className="max-w-5xl mx-auto p-6 space-y-8 pb-20 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/dashboard/products/import-massa" className="p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Histórico de Importações</h1>
-          <p className="text-sm text-gray-500">Gerencie e reverta importações recentes</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/dashboard/products"
+            className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
+          >
+            <ArrowLeft size={20} className="text-gray-600 dark:text-gray-300" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Histórico de Importações
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Gerencie e reverta operações em massa realizadas recentemente.
+            </p>
+          </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center p-12">
-          <Loader2 className="animate-spin text-primary h-8 w-8" />
+        <div className="flex justify-center items-center h-64">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="animate-spin text-indigo-600 dark:text-indigo-400 h-8 w-8" />
+            <p className="text-sm text-gray-400">Carregando histórico...</p>
+          </div>
         </div>
       ) : history.length === 0 ? (
-        <div className="text-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-          <Package className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-          <h3 className="text-gray-900 font-medium text-lg">Nenhum histórico encontrado</h3>
-          <p className="text-gray-500 text-sm">Suas importações de Excel e Fotos aparecerão aqui.</p>
+        <div className="flex flex-col items-center justify-center p-16 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-300 dark:border-slate-700 text-center">
+          <div className="w-16 h-16 bg-gray-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+            <Package className="h-8 w-8 text-gray-400" />
+          </div>
+          <h3 className="text-gray-900 dark:text-white font-medium text-lg">
+            Nenhum histórico encontrado
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-sm">
+            Suas importações de planilhas Excel e uploads manuais de fotos
+            aparecerão aqui.
+          </p>
+          <div className="flex gap-3 mt-6">
+            <Link
+              href="/dashboard/products/import-massa"
+              className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-sm font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            >
+              Importar Excel
+            </Link>
+            <Link
+              href="/dashboard/products/import-visual"
+              className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg text-sm font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            >
+              Importar Fotos
+            </Link>
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4">
           {history.map((item) => {
-            // Lógica visual para diferenciar Excel de Foto
-            const isVisual = item.brand_summary?.includes('Visual') || item.file_name?.includes('Upload Manual');
-            
+            // Identifica o tipo de importação baseado no nome ou resumo
+            const isVisual =
+              item.brand_summary?.includes('Visual') ||
+              item.file_name?.includes('Upload Manual');
+
             return (
-              <div key={item.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-primary/40 hover:shadow-md transition-all">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    {/* Ícone Diferenciado */}
-                    <div className={`p-2.5 rounded-lg ${isVisual ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>
-                      {isVisual ? <Camera size={20} /> : <FileSpreadsheet size={20} />}
-                    </div>
-                    
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900 text-lg">{item.brand_summary || 'Várias Marcas'}</span>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full font-medium border border-gray-200">
-                          {item.total_items} itens
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5 font-mono">
-                        ID: {item.id.slice(0, 8)}...
-                      </div>
-                    </div>
+              <div
+                key={item.id}
+                className="group bg-white dark:bg-slate-900 p-5 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+              >
+                <div className="flex items-start gap-4 w-full md:w-auto">
+                  {/* Ícone Indicativo */}
+                  <div
+                    className={`p-3 rounded-xl shrink-0 ${
+                      isVisual
+                        ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-300'
+                        : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300'
+                    }`}
+                  >
+                    {isVisual ? (
+                      <Camera size={24} />
+                    ) : (
+                      <FileSpreadsheet size={24} />
+                    )}
                   </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-gray-500 pl-[52px]">
-                    <span className="flex items-center gap-1.5">
-                      <Calendar size={14} className="text-gray-400" />
-                      {item.created_at ? format(new Date(item.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR }) : '-'}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <FileText size={14} className="text-gray-400" />
-                      <span className="truncate max-w-[200px]" title={item.file_name}>
-                          {item.file_name || 'Arquivo desconhecido'}
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-gray-900 dark:text-white text-lg truncate">
+                        {item.brand_summary || 'Importação Geral'}
+                      </h3>
+                      <span
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                          isVisual
+                            ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-800'
+                            : 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800'
+                        }`}
+                      >
+                        {item.total_items}{' '}
+                        {item.total_items === 1 ? 'item' : 'itens'}
                       </span>
-                    </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-500 dark:text-gray-400">
+                      <span
+                        className="flex items-center gap-1.5"
+                        title="Nome do Arquivo"
+                      >
+                        <FileText size={14} />
+                        <span className="truncate max-w-[200px]">
+                          {item.file_name}
+                        </span>
+                      </span>
+                      <span className="hidden sm:inline text-gray-300 dark:text-slate-700">
+                        |
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Calendar size={14} />
+                        {item.created_at
+                          ? format(
+                              new Date(item.created_at),
+                              "dd 'de' MMM 'às' HH:mm",
+                              { locale: ptBR }
+                            )
+                          : '-'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleUndoImport(item.id)}
-                  disabled={deletingId === item.id}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50 border border-red-100 whitespace-nowrap active:scale-95"
-                  title="Apagar todos os produtos e imagens desta importação"
-                >
-                  {deletingId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                  Desfazer Tudo
-                </button>
+                {/* Botão de Ação */}
+                <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0 pl-[60px] md:pl-0">
+                  <button
+                    onClick={() => handleUndoImport(item.id)}
+                    disabled={deletingId === item.id}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-900/30 rounded-lg transition-all disabled:opacity-50 active:scale-95 group-hover:bg-red-100 dark:group-hover:bg-red-900/40"
+                    title="Reverter Importação"
+                  >
+                    {deletingId === item.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                    <span className="whitespace-nowrap">Desfazer</span>
+                  </button>
+                </div>
               </div>
             );
           })}

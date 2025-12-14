@@ -21,299 +21,295 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Edit,
+  FileText,
+  Circle,
+  Box,
 } from 'lucide-react';
-import { logger } from '@/lib/logger';
 import Logo from './Logo';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 import type { Settings } from '@/lib/types';
+
+interface MenuItem {
+  icon?: React.ElementType;
+  label?: string;
+  title?: string;
+  href: string;
+  exact?: boolean;
+  children?: MenuItem[];
+}
+
+const MENU_ITEMS: MenuItem[] = [
+  {
+    icon: LayoutDashboard,
+    label: 'Visão Geral',
+    href: '/dashboard',
+    exact: true,
+  },
+  { icon: ShoppingBag, label: 'Pedidos', href: '/dashboard/orders' },
+  {
+    icon: Package,
+    label: 'Produtos',
+    href: '/dashboard/products',
+    children: [
+      {
+        title: 'Lista de Produtos',
+        href: '/dashboard/products',
+        icon: List,
+        exact: true,
+      },
+      {
+        title: 'Novo Produto',
+        href: '/dashboard/products/new',
+        icon: PlusCircle,
+      },
+      {
+        title: 'Edição em Massa',
+        href: '/dashboard/products/bulk-edit',
+        icon: Edit,
+      },
+      { title: 'Categorias', href: '/dashboard/categories', icon: Box },
+      { title: 'Marcas', href: '/dashboard/brands', icon: Tag },
+    ],
+  },
+  {
+    icon: FileText,
+    label: 'Ferramentas',
+    href: '#tools',
+    children: [
+      {
+        title: 'Importar Excel',
+        href: '/dashboard/products/import-massa',
+        icon: RefreshCcw,
+      },
+      {
+        title: 'Importar Fotos',
+        href: '/dashboard/products/import-visual',
+        icon: UploadCloud,
+      },
+      {
+        title: 'Vincular (Matcher)',
+        href: '/dashboard/products/matcher',
+        icon: LinkIcon,
+      },
+      {
+        title: 'Atualizar Preços',
+        href: '/dashboard/products/update-prices',
+        icon: DollarSign,
+      },
+      {
+        title: 'Imagens Externas',
+        href: '/dashboard/manage-external-images',
+        icon: Download,
+      },
+    ],
+  },
+  { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
+  { icon: SettingsIcon, label: 'Configurações', href: '/dashboard/settings' },
+  { icon: HelpCircle, label: 'Ajuda', href: '/dashboard/help' },
+];
 
 export function Sidebar({
   settings: initialSettings,
 }: { settings?: Settings | null } = {}) {
   const pathname = usePathname();
   const router = useRouter();
+  const supabase = createClient();
+
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMaster, setIsMaster] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([
+    'Produtos',
+    'Ferramentas',
+  ]);
   const [branding, setBranding] = useState<Settings | null>(
     initialSettings || null
   );
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const storage = (
-        globalThis as unknown as {
-          localStorage?: {
-            getItem(key: string): string | null;
-            setItem(key: string, value: string): void;
-          };
-        }
-      ).localStorage;
-      const raw = storage?.getItem('sidebarCollapsed');
-      if (raw !== null && raw !== undefined) setIsCollapsed(raw === 'true');
-    } catch {
-      // ignore (SSR or privacy settings)
-    }
+    setMounted(true);
+    const storedState = localStorage.getItem('sidebarCollapsed');
+    if (storedState) setIsCollapsed(storedState === 'true');
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const storage = (
-        globalThis as unknown as {
-          localStorage?: {
-            getItem(key: string): string | null;
-            setItem(key: string, value: string): void;
-          };
-        }
-      ).localStorage;
-      storage?.setItem('sidebarCollapsed', String(isCollapsed));
-    } catch {
-      // ignore
-    }
-  }, [isCollapsed]);
+    if (mounted) localStorage.setItem('sidebarCollapsed', String(isCollapsed));
+  }, [isCollapsed, mounted]);
 
-  type MenuChild = {
-    title: string;
-    href: string;
-    icon: React.ComponentType<Record<string, unknown>>;
-  };
-  type MenuItem = {
-    icon: React.ComponentType<Record<string, unknown>>;
-    label: string;
-    href: string;
-    children?: MenuChild[];
-  };
-
-  const menuItems: MenuItem[] = [
-    { icon: LayoutDashboard, label: 'Visão Geral', href: '/dashboard' },
-    { icon: ShoppingBag, label: 'Pedidos', href: '/dashboard/orders' },
-    {
-      icon: Package,
-      label: 'Produtos',
-      href: '/dashboard/products',
-      children: [
-        {
-          title: 'Novo Produto manual',
-          href: '/dashboard/products/new',
-          icon: PlusCircle,
-        },
-        {
-          title: '1ª Etapa: Import Visual',
-          href: '/dashboard/products/import-visual',
-          icon: UploadCloud,
-        },
-        {
-          title: '2ª Etapa: Import Dados',
-          href: '/dashboard/products/import-massa',
-          icon: RefreshCcw,
-        },
-        {
-          title: '3ª Etapa: Matcher',
-          href: '/dashboard/products/matcher',
-          icon: LinkIcon,
-        },
-        {
-          title: 'Gerenciar Imagens Externas',
-          href: '/dashboard/manage-external-images',
-          icon: Download,
-        },
-        {
-          title: 'Marcas',
-          href: '/dashboard/brands',
-          icon: Tag,
-        },
-        {
-          title: 'Categorias',
-          href: '/dashboard/categories',
-          icon: List,
-        },
-        {
-          title: 'Atualização de Preços',
-          href: '/dashboard/products/update-prices',
-          icon: DollarSign,
-        },
-      ],
-    },
-    { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
-    { icon: HelpCircle, label: 'Central de Ajuda', href: '/dashboard/help' },
-    { icon: SettingsIcon, label: 'Configurações', href: '/dashboard/settings' },
-  ];
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      logger.error('Logout error', err);
-    } finally {
-      router.push('/login');
-    }
-  };
-
-  const toggle = () => setIsCollapsed((v) => !v);
-
-  // Carregar perfil (role) e settings apenas se não vierem por prop
   useEffect(() => {
-    const loadData = async () => {
-      try {
+    if (initialSettings) setBranding(initialSettings);
+  }, [initialSettings]);
+
+  // Se não vier via props, busca no client (fallback)
+  useEffect(() => {
+    if (mounted && !initialSettings) {
+      const loadData = async () => {
         const {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user) return;
+        const { data } = await supabase
+          .from('settings')
+          .select('logo_url, primary_color, name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (data) setBranding(data as Settings);
+      };
+      loadData();
+    }
+  }, [mounted, initialSettings, supabase]);
 
-        // role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.replace('/login');
+  };
 
-        if (profile?.role === 'master') setIsMaster(true);
+  const toggleSubmenu = (label: string) => {
+    if (isCollapsed) {
+      setIsCollapsed(false);
+      setExpandedMenus([label]);
+    } else {
+      setExpandedMenus((prev) =>
+        prev.includes(label)
+          ? prev.filter((i) => i !== label)
+          : [...prev, label]
+      );
+    }
+  };
 
-        // settings apenas se não vieram via prop
-        if (!initialSettings) {
-          const { data: settings } = await supabase
-            .from('settings')
-            .select('logo_url, primary_color, name')
-            .eq('user_id', user.id)
-            .single();
+  const isItemActive = (item: MenuItem) => {
+    if (item.exact) return pathname === item.href;
+    if (item.children)
+      return item.children.some((child) => pathname?.startsWith(child.href));
+    return pathname?.startsWith(item.href);
+  };
 
-          if (settings) {
-            setBranding({
-              logo_url: settings.logo_url,
-              primary_color: settings.primary_color || '#4f46e5',
-              name: settings.name || 'RepVendas',
-            } as Settings);
-          }
-        }
-      } catch (err) {
-        logger.error('Sidebar loadData error', err);
-      }
-    };
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  if (!mounted) return null;
 
   return (
     <aside
-      aria-label="Menu lateral"
-      className={`relative flex flex-col border-r bg-white transition-all duration-300 ${
-        isCollapsed ? 'w-20' : 'w-64'
-      } min-h-screen`}
+      className={`relative flex flex-col border-r bg-white dark:bg-slate-950 dark:border-slate-800 transition-all duration-300 h-full z-30 ${isCollapsed ? 'w-20' : 'w-72'}`}
     >
       <button
-        aria-pressed={isCollapsed}
-        aria-label={isCollapsed ? 'Expandir menu' : 'Colapsar menu'}
-        onClick={toggle}
-        className="absolute -right-3 top-8 flex h-6 w-6 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="absolute -right-3 top-6 flex h-7 w-7 items-center justify-center rounded-full border bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 shadow-md text-gray-500 dark:text-slate-400 hover:text-[var(--primary)] dark:hover:text-[var(--primary)] transition-colors z-50 hover:bg-gray-50 dark:hover:bg-slate-800"
       >
-        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      <div className="flex h-16 items-center justify-center border-b px-6">
-        {isCollapsed ? (
-          <div className="flex items-center justify-center">
+      <div
+        className={`flex h-20 items-center border-b border-gray-100 dark:border-slate-800/50 px-6 transition-all ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
+      >
+        {Logo ? (
+          <div className="w-full flex items-center justify-center overflow-hidden">
             <Logo
               settings={branding}
+              showText={!isCollapsed}
               useSystemLogo={!branding?.logo_url}
-              className="h-8 w-auto"
+              className={isCollapsed ? 'h-8 w-auto' : 'h-8 w-auto'}
             />
           </div>
         ) : (
-          <div className="flex items-center justify-center">
-            <Logo
-              settings={branding}
-              showText
-              useSystemLogo={!branding?.logo_url}
-              className="h-10 w-auto"
-            />
-          </div>
+          <span className="font-bold text-xl truncate text-[var(--primary)] dark:text-white">
+            {isCollapsed ? 'RV' : 'Rep Vendas'}
+          </span>
         )}
       </div>
 
-      <nav
-        className="flex-1 space-y-1 p-4"
-        role="navigation"
-        aria-label="Links principais"
-      >
-        {menuItems.map((item) => {
-          const Icon = item.icon as React.ComponentType<{
-            size?: number;
-            className?: string;
-          }>;
-          const isActive = pathname?.startsWith(item.href) ?? false;
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-800">
+        {MENU_ITEMS.map((item) => {
+          const active = isItemActive(item);
+          const label = item.label || item.title || '';
+          const expanded = expandedMenus.includes(label);
+          const hasChildren = item.children && item.children.length > 0;
+          const isLink = item.href && !item.href.startsWith('#');
+          const Icon = item.icon || Circle;
 
-          return (
-            <div key={item.href}>
-              <Link
-                href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-indigo-50 rv-text-primary'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-                title={isCollapsed ? item.label : ''}
-                aria-current={isActive ? 'page' : undefined}
-              >
+          // BRANDING DINÂMICO AQUI:
+          const baseItemClass = `group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]`;
+          const activeClass = `bg-[var(--primary)] bg-opacity-10 text-[var(--primary)] shadow-sm`;
+          const inactiveClass = `text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200`;
+
+          const content = (
+            <>
+              <div className="flex items-center gap-3.5 min-w-0">
                 <Icon
                   size={20}
-                  className={isActive ? 'rv-text-primary' : 'text-gray-500'}
+                  className={`flex-shrink-0 transition-colors ${active ? 'text-[var(--primary)]' : 'text-gray-400 group-hover:text-gray-600 dark:text-slate-500 dark:group-hover:text-slate-300'}`}
                 />
-                {!isCollapsed && <span>{item.label}</span>}
-              </Link>
+                {!isCollapsed && <span className="truncate">{label}</span>}
+              </div>
+              {hasChildren && !isCollapsed && (
+                <ChevronDown
+                  size={16}
+                  className={`flex-shrink-0 text-gray-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+                />
+              )}
+            </>
+          );
 
-              {/* Render submenu se existir */}
-              {Array.isArray(item.children) && item.children.length > 0 && (
-                <ul className="mt-1 ml-6 space-y-1">
-                  {item.children.map((child) => {
-                    const ChildIcon = child.icon as React.ComponentType<{
-                      size?: number;
-                      className?: string;
-                    }>;
-                    const childActive =
-                      pathname?.startsWith(child.href) ?? false;
+          return (
+            <div key={label} className="mb-1">
+              {isLink ? (
+                <Link
+                  href={item.href}
+                  onClick={() => {
+                    if (hasChildren) toggleSubmenu(label);
+                  }}
+                  className={`${baseItemClass} ${active ? activeClass : inactiveClass}`}
+                  title={isCollapsed ? label : ''}
+                >
+                  {content}
+                </Link>
+              ) : (
+                <button
+                  onClick={() => toggleSubmenu(label)}
+                  className={`w-full ${baseItemClass} ${active ? activeClass : inactiveClass}`}
+                  title={isCollapsed ? label : ''}
+                >
+                  {content}
+                </button>
+              )}
+
+              {hasChildren && expanded && !isCollapsed && (
+                <div className="mt-1 ml-4 space-y-0.5 border-l-2 border-gray-100 dark:border-slate-800 pl-3 animate-in slide-in-from-left-2 duration-200">
+                  {item.children!.map((child) => {
+                    const childActive = child.exact
+                      ? pathname === child.href
+                      : pathname?.startsWith(child.href);
+                    const ChildIcon = child.icon || Circle;
                     return (
-                      <li key={child.href}>
-                        <Link
-                          href={child.href}
-                          className={`flex items-center gap-2 rounded-md px-3 py-1 text-sm transition-colors ${
-                            childActive
-                              ? 'bg-indigo-50 rv-text-primary font-medium'
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                          }`}
-                          title={isCollapsed ? child.title : ''}
-                          aria-current={childActive ? 'page' : undefined}
-                        >
-                          <ChildIcon
-                            size={16}
-                            className={
-                              childActive ? 'rv-text-primary' : 'text-gray-400'
-                            }
-                          />
-                          {!isCollapsed && (
-                            <span className="text-sm">{child.title}</span>
-                          )}
-                        </Link>
-                      </li>
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={`group/sub flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${childActive ? 'bg-[var(--primary)] bg-opacity-10 text-[var(--primary)] font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-800/30'}`}
+                      >
+                        <ChildIcon
+                          size={16}
+                          className={`flex-shrink-0 transition-colors ${childActive ? 'text-[var(--primary)]' : 'text-gray-300 group-hover/sub:text-gray-500 dark:text-slate-600 dark:group-hover/sub:text-slate-400'}`}
+                        />
+                        <span className="truncate">{child.title}</span>
+                      </Link>
                     );
                   })}
-                </ul>
+                </div>
               )}
             </div>
           );
         })}
       </nav>
 
-      <div className="border-t p-4">
+      <div className="border-t border-gray-100 dark:border-slate-800 p-4 bg-gray-50/30 dark:bg-slate-900/30">
         <button
           onClick={handleLogout}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors ${
-            isCollapsed ? 'justify-center' : ''
-          }`}
+          className={`group flex w-full items-center gap-3.5 rounded-xl px-3 py-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20 transition-all ${isCollapsed ? 'justify-center' : ''}`}
           title="Sair"
-          aria-label="Sair do sistema"
         >
-          <LogOut size={20} />
+          <LogOut
+            size={20}
+            className="flex-shrink-0 group-hover:scale-110 transition-transform"
+          />
           {!isCollapsed && <span>Sair do Sistema</span>}
         </button>
       </div>

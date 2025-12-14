@@ -2,163 +2,266 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase as sharedSupabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
   Loader2,
   Save,
-  X,
-  Plus,
-  Star,
-  Zap,
-  FileText,
   Image as ImageIcon,
-  Table,
-  AlignLeft,
-  Percent,
   Package,
   Barcode,
-  ScanLine,
   Palette,
+  Percent,
+  Sparkles,
+  X,
+  UploadCloud,
 } from 'lucide-react';
-import Link from 'next/link';
-import ProductBarcode from '@/components/ui/Barcode';
 
-interface SpecRow {
-  key: string;
-  value: string;
+// --- TIPAGEM ---
+interface Brand {
+  id: string;
+  name: string;
 }
+interface Category {
+  id: string;
+  name: string;
+}
+const ImageUploader = ({
+  images,
+  onUpload,
+  onRemove,
+  onSetCover,
+}: {
+  images: string[];
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemove: (index: number) => void;
+  onSetCover: (index: number) => void;
+}) => (
+  <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+    <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
+      <ImageIcon size={18} className="text-blue-600" /> Galeria de Imagens
+    </h3>
 
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+      {images.map((url, index) => (
+        <div
+          key={index}
+          className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900' : 'border-gray-200 dark:border-slate-700'}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            className="w-full h-full object-cover"
+            alt={`Product ${index}`}
+          />
+
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+          >
+            <X size={14} />
+          </button>
+
+          {index === 0 ? (
+            <div className="absolute bottom-0 inset-x-0 bg-blue-600/90 text-white text-[10px] text-center py-1 font-bold">
+              CAPA
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onSetCover(index)}
+              className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-blue-600/80 transition-colors"
+            >
+              Definir Capa
+            </button>
+          )}
+        </div>
+      ))}
+
+      <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-blue-300 transition-all group relative">
+        <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors">
+          <UploadCloud size={24} />
+        </div>
+        <span className="text-xs text-gray-500 mt-2 font-medium">
+          Adicionar
+        </span>
+        <input
+          type="file"
+          className="hidden"
+          accept="image/*"
+          multiple
+          onChange={onUpload}
+        />
+      </label>
+    </div>
+    <p className="text-xs text-gray-400 mt-3">
+      A primeira imagem será usada como capa.
+    </p>
+  </div>
+);
+
+// --- PÁGINA PRINCIPAL ---
 export default function NewProductPage() {
   const router = useRouter();
-  // usar sonner diretamente
+  const supabase = createClient();
+
+  // Estados de UI
   const [loading, setLoading] = useState(false);
-
-  const supabase = sharedSupabase;
-
-  // Estados
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
-  const [specsMode, setSpecsMode] = useState<'text' | 'table'>('text');
-  const [specsRows, setSpecsRows] = useState<SpecRow[]>([
-    { key: '', value: '' },
-  ]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [generatingDesc, setGeneratingDesc] = useState(false);
 
   // Listas Auxiliares
-  const [availableBrands, setAvailableBrands] = useState<{ name: string }[]>(
-    []
-  );
-  const [availableCategories, setAvailableCategories] = useState<
-    { name: string }[]
-  >([]);
+  const [brandsList, setBrandsList] = useState<Brand[]>([]);
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
 
+  // Formulário
   const [formData, setFormData] = useState({
     name: '',
     reference_code: '',
-    sku: '', // Novo
-    barcode: '', // Novo
-    color: '', // Novo
-    // Structured specs
-    bridge: '',
-    size: '',
-    material: '',
-    temple: '',
-    height: '',
-    gender: '',
-    shape: '',
-    product_type: '',
+    sku: '',
+    barcode: '',
+    color: '',
     price: '',
+    sale_price: '',
     discount_percent: 0,
     brand: '',
     category: '',
     description: '',
-    technical_specs: '',
     track_stock: true,
     stock_quantity: 0,
     is_launch: false,
     is_best_seller: false,
     is_active: true,
+    images: [] as string[],
   });
 
-  // Carregar Listas
+  // --- CARREGAMENTO DE DADOS (CORRIGIDO) ---
   useEffect(() => {
-    const fetchAuxData = async () => {
+    const fetchData = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Buscar Marcas
+        const { data: brandsData, error: brandsError } = await supabase
+          .from('brands')
+          .select('id, name')
+          .eq('user_id', user.id)
+          .order('name');
+
+        if (brandsError) console.error('Erro marcas:', brandsError);
+        else setBrandsList(brandsData || []);
+
+        // Buscar Categorias
+        const { data: catsData, error: catsError } = await supabase
+          .from('categories')
+          .select('id, name')
+          .eq('user_id', user.id)
+          .order('name');
+
+        if (catsError) console.error('Erro categorias:', catsError);
+        else setCategoriesList(catsData || []);
+      } catch (error) {
+        console.error('Erro ao carregar dados auxiliares:', error);
+      }
+    };
+
+    fetchData();
+  }, []); // Dependência vazia para rodar apenas uma vez na montagem
+
+  // --- Handlers ---
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    setUploadingImage(true);
+    const files = Array.from(e.target.files);
+    const newUrls: string[] = [];
+
+    try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: brands } = await supabase
-        .from('brands')
-        .select('name')
-        .eq('user_id', user.id)
-        .order('name');
-      const { data: cats } = await supabase
-        .from('categories')
-        .select('name')
-        .eq('user_id', user.id)
-        .order('name');
-      setAvailableBrands(brands || []);
-      setAvailableCategories(cats || []);
-    };
-    fetchAuxData();
-  }, [supabase]);
+      if (!user) throw new Error('Login necessário');
 
-  // Handlers (Resumidos para focar na mudança)
-  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '');
-    if (value === '') {
-      setFormData({ ...formData, price: '' });
-      return;
-    }
-    const numericValue = parseFloat(value) / 100;
-    const formatted = numericValue.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    setFormData({ ...formData, price: formatted });
-  };
+      for (const file of files) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setImageFiles((prev) => [...prev, ...newFiles]);
-      const newPreviews = newFiles.map((file) => URL.createObjectURL(file));
-      setPreviewUrls((prev) => [...prev, ...newPreviews]);
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(`public/${fileName}`, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(`public/${fileName}`);
+
+        newUrls.push(data.publicUrl);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        images: [...prev.images, ...newUrls],
+      }));
+      toast.success('Imagens enviadas!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao enviar imagem');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
   const removeImage = (index: number) => {
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
   };
 
   const setAsCover = (index: number) => {
-    if (index === 0) return;
-    const newFiles = [...imageFiles];
-    const selectedFile = newFiles.splice(index, 1)[0];
-    newFiles.unshift(selectedFile);
-    setImageFiles(newFiles);
-    const newPreviews = [...previewUrls];
-    const selectedPreview = newPreviews.splice(index, 1)[0];
-    newPreviews.unshift(selectedPreview);
-    setPreviewUrls(newPreviews);
-    toast.success('Capa definida!');
+    setFormData((prev) => {
+      const newImages = [...prev.images];
+      const selected = newImages.splice(index, 1)[0];
+      newImages.unshift(selected);
+      return { ...prev, images: newImages };
+    });
   };
 
-  const addSpecRow = () => setSpecsRows([...specsRows, { key: '', value: '' }]);
-  const removeSpecRow = (index: number) => {
-    if (specsRows.length === 1) setSpecsRows([{ key: '', value: '' }]);
-    else setSpecsRows(specsRows.filter((_, i) => i !== index));
+  const formatCurrency = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    const float = parseFloat(numbers) / 100;
+    return float.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
-  const updateSpecRow = (
-    index: number,
-    field: 'key' | 'value',
-    value: string
-  ) => {
-    const newRows = [...specsRows];
-    newRows[index][field] = value;
-    setSpecsRows(newRows);
+
+  const handlePriceChange = (field: 'price' | 'sale_price', value: string) => {
+    if (!value) {
+      setFormData((prev) => ({ ...prev, [field]: '' }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, [field]: formatCurrency(value) }));
+  };
+
+  const generateDescription = () => {
+    if (!formData.name)
+      return toast.warning('Preencha o nome do produto primeiro.');
+    setGeneratingDesc(true);
+    setTimeout(() => {
+      const desc = `O **${formData.name}** oferece qualidade e estilo. \n\nIdeal para quem busca durabilidade e design moderno.\n\nPrincipais características:\n- Alta resistência\n- Acabamento premium`;
+      setFormData((prev) => ({ ...prev, description: desc }));
+      setGeneratingDesc(false);
+      toast.success('Descrição gerada!');
+    }, 1000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -167,66 +270,30 @@ export default function NewProductPage() {
 
     try {
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error('Sessão expirada.');
-      const user = session.user;
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sessão expirada');
 
-      const finalReference = formData.reference_code.trim()
-        ? formData.reference_code
-        : `REF-${Date.now().toString().slice(-6)}`;
-      const cleanPrice = parseFloat(
-        formData.price.replace(/\./g, '').replace(',', '.')
-      );
+      const finalPrice =
+        parseFloat(formData.price.replace(/\./g, '').replace(',', '.')) || 0;
+      const finalSalePrice = formData.sale_price
+        ? parseFloat(formData.sale_price.replace(/\./g, '').replace(',', '.'))
+        : null;
 
-      let finalSpecs = formData.technical_specs;
-      if (specsMode === 'table') {
-        const validRows = specsRows.filter(
-          (r) => r.key.trim() || r.value.trim()
-        );
-        finalSpecs = validRows.length > 0 ? JSON.stringify(validRows) : '';
-      }
-
-      // Upload
-      const uploadPromises = imageFiles.map(async (file, index) => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${finalReference}-${Date.now()}-${index}.${fileExt}`;
-        const { error } = await supabase.storage
-          .from('product-images')
-          .upload(`public/${fileName}`, file);
-        if (error) throw error;
-        const { data } = supabase.storage
-          .from('product-images')
-          .getPublicUrl(`public/${fileName}`);
-        return data.publicUrl;
-      });
-
-      const uploadedUrls = await Promise.all(uploadPromises);
-
-      const { error } = await supabase.from('products').insert({
+      const payload = {
         user_id: user.id,
         name: formData.name,
-        reference_code: finalReference,
-        // Novos Campos
+        reference_code:
+          formData.reference_code || `REF-${Date.now().toString().slice(-6)}`,
         sku: formData.sku || null,
         barcode: formData.barcode || null,
         color: formData.color || null,
-        // Structured specs
-        bridge: formData.bridge || null,
-        size: formData.size || null,
-        material: formData.material || null,
-        temple: formData.temple || null,
-        height: formData.height || null,
-        gender: formData.gender || null,
-        shape: formData.shape || null,
-        product_type: formData.product_type || null,
-
-        price: cleanPrice,
-        discount_percent: formData.discount_percent,
+        price: finalPrice,
+        sale_price: finalSalePrice,
+        discount_percent: Number(formData.discount_percent) || 0,
         brand: formData.brand || null,
         category: formData.category || null,
         description: formData.description || null,
-        technical_specs: finalSpecs,
         track_stock: formData.track_stock,
         stock_quantity: formData.track_stock
           ? Number(formData.stock_quantity)
@@ -234,295 +301,326 @@ export default function NewProductPage() {
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
         is_active: formData.is_active,
-        image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : null,
-        images: uploadedUrls,
-      });
+        images: formData.images,
+        image_url: formData.images[0] || null,
+      };
 
+      const { error } = await supabase.from('products').insert(payload);
       if (error) throw error;
 
-      toast.success('Produto criado!');
+      toast.success('Produto cadastrado!');
       router.push('/dashboard/products');
     } catch (error: any) {
-      toast.error('Erro', { description: error.message });
+      console.error(error);
+      toast.error('Erro ao salvar', { description: error.message });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/dashboard/products"
-          className="p-2 rounded-full hover:bg-gray-100"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900">Novo Produto</h1>
+    <div className="max-w-5xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500">
+      {/* Header Fixo */}
+      <div className="flex items-center justify-between sticky top-0 z-30 bg-gray-50/90 dark:bg-slate-950/90 backdrop-blur-md py-4 -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-gray-200 dark:border-slate-800">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/dashboard/products"
+            className="p-2 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            <ArrowLeft size={20} className="text-gray-600 dark:text-gray-300" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Novo Produto
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Preencha os dados abaixo
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-300"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || uploadingImage}
+            className="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shadow-md transition-transform active:scale-95"
+          >
+            {loading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Save size={16} />
+            )}
+            Salvar
+          </button>
+        </div>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-      >
-        {/* Coluna Principal */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* ESQUERDA: Dados Principais */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <h3 className="font-semibold text-gray-900 border-b pb-2 mb-4">
-              Informações Básicas
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4">
+              Dados Básicos
             </h3>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nome do Produto *
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Nome do Produto <span className="text-red-500">*</span>
               </label>
               <input
                 required
-                type="text"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                placeholder="Ex: Tênis Esportivo Runner..."
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Referência
                 </label>
                 <input
-                  type="text"
                   value={formData.reference_code}
                   onChange={(e) =>
                     setFormData({ ...formData, reference_code: e.target.value })
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Auto"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
+                  placeholder="Automático se vazio"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  SKU
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Código de Barras (EAN)
                 </label>
-                <input
-                  type="text"
-                  value={formData.sku}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sku: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                  <Barcode size={14} /> Barras (EAN)
-                </label>
-                <input
-                  type="text"
-                  value={formData.barcode}
-                  onChange={(e) =>
-                    setFormData({ ...formData, barcode: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                {formData.barcode ? (
-                  <div className="mt-2">
-                    <ProductBarcode value={formData.barcode} height={36} />
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Preço (R$) *
-                </label>
-                <input
-                  required
-                  type="text"
-                  inputMode="numeric"
-                  value={formData.price}
-                  onChange={handlePriceChange}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0,00"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                  <Percent size={14} /> Desconto (%)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={formData.discount_percent}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      discount_percent: Number(e.target.value),
-                    })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ponte
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).bridge}
-                  onChange={(e) =>
-                    setFormData({ ...formData, bridge: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tamanho
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).size}
-                  onChange={(e) =>
-                    setFormData({ ...formData, size: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Material
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).material}
-                  onChange={(e) =>
-                    setFormData({ ...formData, material: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Haste
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).temple}
-                  onChange={(e) =>
-                    setFormData({ ...formData, temple: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Altura
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).height}
-                  onChange={(e) =>
-                    setFormData({ ...formData, height: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gênero
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).gender}
-                  onChange={(e) =>
-                    setFormData({ ...formData, gender: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Formato
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).shape}
-                  onChange={(e) =>
-                    setFormData({ ...formData, shape: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tipo
-                </label>
-                <input
-                  type="text"
-                  value={(formData as any).product_type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, product_type: e.target.value })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <div className="relative">
+                  <input
+                    value={formData.barcode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, barcode: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 pl-9 pr-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
+                    placeholder="Ex: 789..."
+                  />
+                  <Barcode
+                    size={16}
+                    className="absolute left-3 top-3 text-gray-400"
+                  />
+                </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Descrição
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Descrição
+                </label>
+                <button
+                  type="button"
+                  onClick={generateDescription}
+                  disabled={generatingDesc}
+                  className="text-xs flex items-center gap-1 text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-1 rounded-md transition-colors"
+                >
+                  {generatingDesc ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={12} />
+                  )}
+                  Gerar com IA
+                </button>
+              </div>
               <textarea
                 rows={4}
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
                 }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm leading-relaxed"
+                placeholder="Detalhes técnicos e comerciais do produto..."
               />
             </div>
           </div>
 
-          {/* SEÇÃO ESTOQUE */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <h3 className="font-semibold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
-              <Package size={18} /> Estoque
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4">
+              Preços
             </h3>
-            <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <span className="text-sm font-medium text-gray-900">
-                  Controlar Estoque?
-                </span>
-                <p className="text-xs text-gray-500">
-                  Se desmarcado, o produto sempre estará disponível.
-                </p>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Preço de Venda (R$) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  required
+                  value={formData.price}
+                  onChange={(e) => handlePriceChange('price', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold text-gray-900"
+                  placeholder="0,00"
+                />
               </div>
-              <input
-                type="checkbox"
-                checked={formData.track_stock}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Preço Promocional (Opcional)
+                </label>
+                <input
+                  value={formData.sale_price}
+                  onChange={(e) =>
+                    handlePriceChange('sale_price', e.target.value)
+                  }
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-green-500 dark:text-white text-green-700 font-medium"
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 pt-2">
+              <div className="relative w-32">
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Desconto (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.discount_percent}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discount_percent: Number(e.target.value),
+                      })
+                    }
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 pl-3 pr-8 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                  />
+                  <Percent
+                    size={14}
+                    className="absolute right-3 top-3 text-gray-400"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-5">
+                Desconto automático no carrinho.
+              </p>
+            </div>
+          </div>
+
+          <ImageUploader
+            images={formData.images}
+            onUpload={handleImageUpload}
+            onRemove={removeImage}
+            onSetCover={setAsCover}
+          />
+        </div>
+
+        {/* DIREITA: Organização e Estoque */}
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              Organização
+            </h3>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Marca
+              </label>
+              <select
+                value={formData.brand}
                 onChange={(e) =>
-                  setFormData({ ...formData, track_stock: e.target.checked })
+                  setFormData({ ...formData, brand: e.target.value })
                 }
-                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer"
+              >
+                <option value="">Selecione...</option>
+                {brandsList.map((b) => (
+                  <option key={b.id} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              {brandsList.length === 0 && (
+                <p className="text-xs text-orange-500 mt-1">
+                  Nenhuma marca encontrada.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Categoria
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) =>
+                  setFormData({ ...formData, category: e.target.value })
+                }
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer"
+              >
+                <option value="">Selecione...</option>
+                {categoriesList.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {categoriesList.length === 0 && (
+                <p className="text-xs text-orange-500 mt-1">
+                  Nenhuma categoria encontrada.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                <Palette size={14} /> Cor / Variante
+              </label>
+              <input
+                value={formData.color}
+                onChange={(e) =>
+                  setFormData({ ...formData, color: e.target.value })
+                }
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                placeholder="Ex: Preto Fosco"
               />
             </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Package size={18} /> Estoque
+            </h3>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                Controlar Estoque
+              </span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.track_stock}
+                  onChange={(e) =>
+                    setFormData({ ...formData, track_stock: e.target.checked })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
             {formData.track_stock && (
-              <div className="animate-in fade-in slide-in-from-top-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantidade Disponível
+              <div className="animate-in slide-in-from-top-2 fade-in">
+                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">
+                  Quantidade Atual
                 </label>
                 <input
                   type="number"
@@ -534,278 +632,65 @@ export default function NewProductPage() {
                       stock_quantity: Number(e.target.value),
                     })
                   }
-                  className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono font-bold text-lg"
                 />
               </div>
             )}
           </div>
 
-          {/* Ficha Técnica (Mantido) */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
-            <h3 className="font-semibold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
-              <FileText size={18} /> Ficha Técnica
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-2">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">
+              Visibilidade
             </h3>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  Modo
-                </label>
-                <div className="flex bg-gray-100 p-1 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setSpecsMode('text')}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-all ${specsMode === 'text' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
-                  >
-                    Texto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSpecsMode('table')}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-all ${specsMode === 'table' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
-                  >
-                    Tabela
-                  </button>
-                </div>
-              </div>
-              {specsMode === 'text' ? (
-                <textarea
-                  rows={5}
-                  value={formData.technical_specs}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      technical_specs: e.target.value,
-                    })
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
-                  placeholder="Especificações..."
-                />
-              ) : (
-                <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50/50">
-                  {specsRows.map((row, idx) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-[1fr_1fr_40px] gap-0 border-b border-gray-200 last:border-0 bg-white"
-                    >
-                      <input
-                        type="text"
-                        placeholder="Característica"
-                        value={row.key}
-                        onChange={(e) =>
-                          updateSpecRow(idx, 'key', e.target.value)
-                        }
-                        className="px-4 py-3 text-sm border-r border-gray-100 outline-none focus:bg-indigo-50/30"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Valor"
-                        value={row.value}
-                        onChange={(e) =>
-                          updateSpecRow(idx, 'value', e.target.value)
-                        }
-                        className="px-4 py-3 text-sm outline-none focus:bg-indigo-50/30"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSpecRow(idx)}
-                        className="flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addSpecRow}
-                    className="w-full py-2 text-xs font-medium text-indigo-600 hover:bg-indigo-50 flex items-center justify-center gap-1"
-                  >
-                    <Plus size={14} /> Adicionar Linha
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Galeria (Mantido) */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="font-semibold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
-              <ImageIcon size={18} /> Galeria
-            </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-              {previewUrls.map((url, index) => (
-                <div
-                  key={index}
-                  className={`relative aspect-square rounded-lg overflow-hidden border group ${index === 0 ? 'border-indigo-500 ring-2' : 'border-gray-200'}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    className="w-full h-full object-cover"
-                    alt="preview"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="absolute top-1 right-1 bg-white text-red-500 p-1 rounded-full shadow opacity-0 group-hover:opacity-100"
-                  >
-                    <X size={12} />
-                  </button>
-                  {index === 0 ? (
-                    <div className="absolute bottom-0 inset-x-0 bg-indigo-600/90 text-white text-[10px] text-center py-1">
-                      Capa
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setAsCover(index)}
-                      className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-black/70"
-                    >
-                      Capa
-                    </button>
-                  )}
-                </div>
-              ))}
-              <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 rounded-xl hover:bg-gray-50">
-                <Plus size={24} className="text-gray-400" />
-                <span className="text-xs text-gray-500 font-medium mt-2">
-                  Adicionar
-                </span>
+            {[
+              {
+                key: 'is_active',
+                label: 'Produto Ativo',
+                color: 'text-green-600',
+                icon: null,
+              },
+              {
+                key: 'is_launch',
+                label: 'Lançamento',
+                color: 'text-purple-600',
+                icon: Zap,
+              },
+              {
+                key: 'is_best_seller',
+                label: 'Mais Vendido',
+                color: 'text-yellow-600',
+                icon: Star,
+              },
+            ].map((item) => (
+              <label
+                key={item.key}
+                className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
                 <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageChange}
+                  type="checkbox"
+                  // @ts-ignore
+                  checked={formData[item.key]}
+                  // @ts-ignore
+                  onChange={(e) =>
+                    setFormData({ ...formData, [item.key]: e.target.checked })
+                  }
+                  className={`w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${item.color}`}
                 />
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {item.icon && (
+                    <item.icon
+                      size={16}
+                      className={item.color.replace('text-', 'text-')}
+                    />
+                  )}
+                  {item.label}
+                </div>
               </label>
-            </div>
+            ))}
           </div>
         </div>
-
-        {/* Coluna Lateral */}
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <h3 className="font-semibold text-gray-900">Categorização</h3>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Marca
-              </label>
-              <input
-                list="brands-list"
-                type="text"
-                value={formData.brand}
-                onChange={(e) =>
-                  setFormData({ ...formData, brand: e.target.value })
-                }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Selecione..."
-              />
-              <datalist id="brands-list">
-                {availableBrands.map((b, i) => (
-                  <option key={i} value={b.name} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Categoria
-              </label>
-              <input
-                list="categories-list"
-                type="text"
-                value={formData.category}
-                onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
-                }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Selecione..."
-              />
-              <datalist id="categories-list">
-                {availableCategories.map((c, i) => (
-                  <option key={i} value={c.name} />
-                ))}
-              </datalist>
-            </div>
-
-            {/* NOVO CAMPO COR */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                <Palette size={14} /> Cor
-              </label>
-              <input
-                type="text"
-                value={formData.color}
-                onChange={(e) =>
-                  setFormData({ ...formData, color: e.target.value })
-                }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Ex: Azul Marinho"
-              />
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <h3 className="font-semibold text-gray-900">Visibilidade</h3>
-            <label className="flex items-center gap-3 cursor-pointer p-3 border rounded-lg hover:bg-green-50 transition-colors">
-              <input
-                type="checkbox"
-                checked={formData.is_active}
-                onChange={(e) =>
-                  setFormData({ ...formData, is_active: e.target.checked })
-                }
-                className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
-              />
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                Ativo
-              </div>
-            </label>
-            <p className="text-xs text-gray-500">
-              Se desmarcado, o produto ficará inativo no catálogo.
-            </p>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <h3 className="font-semibold text-gray-900">Destaques</h3>
-            <label className="flex items-center gap-3 cursor-pointer p-3 border rounded-lg hover:bg-purple-50 transition-colors">
-              <input
-                type="checkbox"
-                checked={formData.is_launch}
-                onChange={(e) =>
-                  setFormData({ ...formData, is_launch: e.target.checked })
-                }
-                className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
-              />
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <Zap size={16} className="text-purple-500" /> Lançamento
-              </div>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer p-3 border rounded-lg hover:bg-yellow-50 transition-colors">
-              <input
-                type="checkbox"
-                checked={formData.is_best_seller}
-                onChange={(e) =>
-                  setFormData({ ...formData, is_best_seller: e.target.checked })
-                }
-                className="w-5 h-5 text-yellow-600 rounded focus:ring-yellow-500"
-              />
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <Star size={16} className="text-yellow-500 fill-yellow-500" />{' '}
-                Mais Vendido
-              </div>
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-70 flex justify-center gap-2 shadow-md"
-          >
-            {loading ? <Loader2 className="animate-spin" /> : <Save />} Salvar
-            Produto
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }

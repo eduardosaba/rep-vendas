@@ -122,10 +122,10 @@ export async function finishOnboarding(data: OnboardingData) {
 
     try {
       // Revalidar o catálogo público para o slug criado/atualizado
-      if (data.slug) revalidatePath(`/catalog/${data.slug}`);
+      if (data.slug) revalidatePath(`/catalogo/${data.slug}`);
     } catch (e) {
       console.warn(
-        'finishOnboarding: revalidatePath(/catalog/:slug) warning',
+        'finishOnboarding: revalidatePath(/catalogo/:slug) warning',
         e
       );
     }

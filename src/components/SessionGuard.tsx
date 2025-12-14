@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SessionGuard() {
   const router = useRouter();
+  const supabase = createClient();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function SessionGuard() {
 
         // esperar um pouco antes da próxima tentativa
         // aumenta a chance do Supabase client inicializar
-        // eslint-disable-next-line no-await-in-loop
+
         await new Promise((r) => setTimeout(r, 250));
       }
 

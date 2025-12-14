@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 import { Product, Settings, CartItem } from '@/lib/types';
 import { toast } from 'sonner';
 import { useParams } from 'next/navigation';
@@ -8,6 +8,7 @@ export function useCatalog(
   overrideUserId?: string,
   initialSettings?: Settings | null
 ) {
+  const supabase = createClient();
   const params = useParams();
   // usar sonner programático
 
@@ -54,14 +55,14 @@ export function useCatalog(
 
         // 1. Carregar Configurações e Produtos (se não vierem via props no futuro)
         // Nota: Mesmo que a página passe initialProducts, este fetch garante dados frescos se o usuário navegar
-        // Buscar settings apenas se não foi fornecido como initialSettings
+        // Buscar settings apenas se não foi fornecido como initialSettings (com resiliência .maybeSingle())
         const settingsPromise = initialSettings
           ? Promise.resolve({ data: initialSettings })
           : supabase
               .from('settings')
               .select('*')
               .eq('user_id', userId)
-              .single();
+              .maybeSingle();
         const productsPromise = supabase
           .from('products')
           .select('*')
@@ -362,7 +363,6 @@ export function useCatalog(
         Math.random().toString(36).slice(2, 8).toUpperCase();
 
       const shortId = generateShortId();
-
 
       // note: wrapper public signature expects (p_guest_id, p_items, p_short_id)
       const rpcParams = {

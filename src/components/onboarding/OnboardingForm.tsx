@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { finishOnboarding } from '@/app/onboarding/actions'; // Certifique-se que o caminho está certo
 import {
@@ -25,6 +26,7 @@ interface OnboardingFormProps {
 
 export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
   const router = useRouter();
+  const supabase = createClient();
 
   const BRAND_BLUE = '#0d1b2c';
   const BRAND_BRONZE = '#b9722e';
@@ -196,7 +198,7 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
                   </label>
                   <div className="flex">
                     <span className="bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg px-3 py-3 text-gray-500 text-sm hidden sm:block">
-                      repvendas.com/catalog/
+                      repvendas.com/catalogo/
                     </span>
                     <input
                       type="text"
@@ -287,11 +289,15 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
                       onChange={handleLogoChange}
                     />
                     {logoPreview ? (
-                      <img
-                        src={logoPreview}
-                        alt="Logo Preview"
-                        className="h-24 mx-auto object-contain shadow-sm"
-                      />
+                      <div className="relative h-24 w-24 mx-auto">
+                        <Image
+                          src={logoPreview}
+                          alt="Logo Preview"
+                          fill
+                          sizes="96px"
+                          className="object-contain shadow-sm"
+                        />
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center">
                         <UploadCloud className="h-10 w-10 text-gray-400 mb-2" />

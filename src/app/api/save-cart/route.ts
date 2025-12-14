@@ -12,6 +12,7 @@ export async function POST(request: Request) {
     const supabase = createRouteSupabase(() => nextCookies);
 
     const body = await request.json();
+    console.log('API save-cart body:', JSON.stringify(body));
     const { items, userId } = body || {};
 
     if (!items || !Array.isArray(items) || items.length === 0) {

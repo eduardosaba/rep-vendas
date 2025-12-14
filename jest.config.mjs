@@ -20,7 +20,7 @@ const customJestConfig = {
   testPathIgnorePatterns: [
     '<rootDir>/.next/',
     '<rootDir>/node_modules/',
-    '<rootDir>/src/app/catalog/[userId]/checkout/test.tsx',
+    '<rootDir>/src/app/catalogo/[userId]/checkout/test.tsx',
   ],
 };
 

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../lib/supabaseClient';
 
 // Simulação de notificações em memória (em produção, use Redis ou database)
 let notifications: any[] = [];

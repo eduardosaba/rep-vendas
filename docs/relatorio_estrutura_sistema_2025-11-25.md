@@ -14,12 +14,12 @@ Resumo rápido
   - `app/` - rotas e páginas do Next.js (app router)
     - `admin/` - (Torre de Controle) — local para administração/global (contém rota `src/app/admin`)
     - `dashboard/` - área dos representantes
-    - `catalog/` - exibição pública/slug do catálogo dos representantes
+    - `catalogo/` - exibição pública/slug do catálogo dos representantes
     - `settings/` - página de configurações do representante
     - `login/`, `register/`, `orders/`, `checkout/`, `cart/`, `favorites/` e APIs em `src/app/api/`
   - `components/` - componentes reutilizáveis (StatCard, SalesBarChart, RecentOrdersTable, ToastContainer, etc.)
   - `hooks/` - hooks personalizados (`useCatalog`, `useToast`, `useSecureCheckout`, `useNotifications`)
-  - `lib/` - clientes e helpers (`supabaseClient.ts`, `storage.ts`, `pdfGenerator.ts`, `types.ts`)
+  - `lib/` - clientes e helpers (`supabaseServer.ts` / `supabase/client` (factories cookie-aware), `storage.ts`, `pdfGenerator.ts`, `types.ts`)
   - `middleware.ts` - middleware de autenticação/autorização (protege `/dashboard` e `/admin`)
 
 2. Arquivos de configuração importantes
@@ -33,7 +33,7 @@ Resumo rápido
 
 3. Integração com Supabase
 
-- Cliente supabase em `src/lib/supabaseClient.ts` usando `NEXT_PUBLIC_*` vars
+- Cliente supabase migrado para factories cookie-aware em `src/lib/supabaseServer.ts` e `src/lib/supabase/client` (usar `server` em Server Components/Routes e `client` em Client Components)
 - Pastas `supabase/migrations/` contêm SQL de migrações aplicadas (várias migrações recentes para `settings`, `products`, `orders`, etc.)
 - Scripts utilitários em `scripts/` para verificar/alterar esquema (ex.: `create-tables.js`, `check-column.js`)
 
@@ -44,7 +44,7 @@ Resumo rápido
   - redireciona não-autenticados de `/dashboard` e `/admin` para `/login`
   - impede que usuários que não sejam `master` acessem `/admin`
   - impede representantes (`role: 'rep'`) com licença expirada ou status inválido acessarem `/dashboard` (redireciona para `/dashboard/subscription/expired`)
-- Catálogo com suporte a `catalog_slug` nas `settings` (rota pública `/catalog/:slug` carregando `user_id` via `settings.catalog_slug`)
+- Catálogo com suporte a `catalog_slug` nas `settings` (rota pública `/catalogo/:slug` carregando `user_id` via `settings.catalog_slug`)
 - Painel Admin (Torre de Controle) planejado para listar usuários e gerenciar licenças/status (página `src/app/admin/page.tsx` sugerida — ainda verificar se arquivo existe/está populado)
 - Salvamento e carregamento de Pedidos (API em `src/app/api/save-cart`, `load-cart`)
 

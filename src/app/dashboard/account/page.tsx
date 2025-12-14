@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { supabase as sharedSupabase } from '@/lib/supabaseClient';
+import { useState, useEffect, useMemo } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
   User,
@@ -30,7 +30,7 @@ export default function AccountPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const supabase = sharedSupabase;
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -42,11 +42,12 @@ export default function AccountPage() {
       setUserId(user.id);
       setUserEmail(user.email || '');
 
+      // Resiliência: usar .maybeSingle() para não quebrar se não houver perfil
       const { data: profile } = await supabase
         .from('profiles')
         .select('full_name, avatar_url')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
         setFullName(profile.full_name || '');

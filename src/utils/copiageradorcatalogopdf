@@ -6,6 +6,7 @@ interface Product {
   name: string;
   reference_code: string;
   price: number;
+  sale_price?: number | null;
   brand: string | null;
   category: string | null;
   // Nova convenção: image_path (storage) é preferida para PDFs
@@ -141,7 +142,7 @@ export const generateCatalogPDF = async (
         new Intl.NumberFormat('pt-BR', {
           style: 'currency',
           currency: 'BRL',
-        }).format(product.price)
+        }).format(product.sale_price ?? product.price)
       );
     }
     tableBody.push(row);

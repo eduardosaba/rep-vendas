@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -39,6 +39,7 @@ export default function ProductsClient({
   const router = useRouter();
   // usando sonner diretamente
   const [products, setProducts] = useState<Product[]>(initialProducts || []);
+  const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 

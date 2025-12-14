@@ -9,7 +9,12 @@ interface ToastOptions {
 
 // Hook useToast compatível com Sonner e código legado
 export function useToast() {
-  const addToast = ({ title, description, type = 'default', duration = 4000 }: ToastOptions) => {
+  const addToast = ({
+    title,
+    description,
+    type = 'default',
+    duration = 4000,
+  }: ToastOptions) => {
     // Garante que 'toast' existe antes de chamar (segurança extra)
     if (typeof toast === 'undefined') {
       console.warn('Sonner toast not initialized');
@@ -41,10 +46,10 @@ export function useToast() {
     }
   };
 
-  return { 
+  return {
     addToast,
     toast, // Instância original para uso avançado
     removeToast, // Compatibilidade
-    toasts: [] // Compatibilidade (array vazio pois Sonner gerencia o estado internamente)
+    toasts: [], // Compatibilidade (array vazio pois Sonner gerencia o estado internamente)
   };
 }

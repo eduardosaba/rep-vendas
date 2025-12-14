@@ -17,12 +17,12 @@ export default async function OnboardingPage() {
     redirect('/login');
   }
 
-  // 2. Busca o Perfil no Servidor (Fonte da Verdade)
+  // 2. Busca o Perfil no Servidor (Fonte da Verdade) - com resiliência .maybeSingle()
   const { data: profile } = await supabase
     .from('profiles')
     .select('onboarding_completed')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   // 3. Decisão de Roteamento
   // Se o perfil existe E já completou o onboarding, manda pro Dashboard.

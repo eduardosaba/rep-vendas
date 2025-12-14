@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase as sharedSupabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 export interface Notification {
@@ -18,8 +18,7 @@ export function useNotifications(userId?: string) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   // usar sonner programático
-
-  const supabase = sharedSupabase;
+  const supabase = createClient();
 
   // 1. Carregar notificações iniciais
   useEffect(() => {

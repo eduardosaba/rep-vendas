@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { Store } from 'lucide-react';
 import type { Settings } from '@/lib/types';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
@@ -25,11 +26,15 @@ export function Logo({
   if (useSystemLogo) {
     return (
       <div className="flex items-center gap-2">
-        <img
-          src={SYSTEM_LOGO_URL}
-          alt={SYSTEM_NAME}
-          className={`${className} object-contain shadow-sm shadow-black/10`}
-        />
+        <div className={`${className} relative`}>
+          <Image
+            src={SYSTEM_LOGO_URL}
+            alt={SYSTEM_NAME}
+            fill
+            style={{ objectFit: 'contain' }}
+            sizes="48px"
+          />
+        </div>
         {showText && (
           <span
             className={`font-bold text-xl ${variant === 'light' ? 'text-white' : 'text-[#0d1b2c]'}`}
@@ -43,11 +48,14 @@ export function Logo({
 
   if (settings?.logo_url) {
     return (
-      <img
-        src={settings.logo_url}
-        alt={settings.name || 'Logo da Loja'}
-        className={`${className} object-contain shadow-sm shadow-black/10`}
-      />
+      <div className={`${className} relative`}>
+        <Image
+          src={settings.logo_url}
+          alt={settings.name || 'Logo da Loja'}
+          fill
+          style={{ objectFit: 'contain' }}
+        />
+      </div>
     );
   }
 

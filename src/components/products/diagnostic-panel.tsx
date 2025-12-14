@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -162,10 +163,12 @@ export function DiagnosticPanel() {
                   className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-gray-200"
                   title={sample.name}
                 >
-                  <img
+                  <Image
                     src={sample.external_image_url}
                     alt={sample.name}
-                    className="h-full w-full object-cover"
+                    fill
+                    sizes="32px"
+                    className="object-cover"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).style.display =
                         'none';

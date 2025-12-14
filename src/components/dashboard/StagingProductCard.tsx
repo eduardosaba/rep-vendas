@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Save, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface StagingProductCardProps {
   id: string;
@@ -45,7 +47,9 @@ export function StagingProductCard({
 
   const handleSaveClick = async () => {
     if (!formData.name || !formData.price || !formData.reference) {
-      alert('Preencha todos os campos obrigatórios'); // Pode usar toast aqui se preferir
+      toast.error('Campos obrigatórios', {
+        description: 'Preencha todos os campos obrigatórios antes de salvar.',
+      });
       return;
     }
 
@@ -67,11 +71,15 @@ export function StagingProductCard({
 
       {/* Imagem (Preview) */}
       <div className="h-48 w-full bg-gray-100 relative overflow-hidden">
-        <img
-          src={imageUrl}
-          alt="Preview"
-          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-        />
+        <div className="relative w-full h-full">
+          <Image
+            src={imageUrl}
+            alt="Preview"
+            fill
+            style={{ objectFit: 'cover' }}
+            className="transition-transform group-hover:scale-105"
+          />
+        </div>
       </div>
 
       {/* Formulário */}

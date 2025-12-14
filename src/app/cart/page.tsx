@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
 import {
@@ -46,6 +46,7 @@ interface CartItem {
 }
 
 export default function Cart() {
+  const supabase = createClient();
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -93,9 +94,21 @@ export default function Cart() {
   };
 
   const loadSettings = async () => {
-    const { data: sets } = await supabase.from('settings').select('*').limit(1);
-    if (sets && sets.length > 0) {
-      setSettings(sets[0]);
+    // CRÍTICO: Buscar settings do usuário autenticado (isolamento multi-tenant)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Resiliência: usar .maybeSingle() para não quebrar se não houver settings
+    const { data: sets } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (sets) {
+      setSettings(sets);
     }
   };
 
@@ -218,7 +231,7 @@ export default function Cart() {
             <button
               onClick={() => router.push('/')}
               className="rounded-lg bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700"
-              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
+              style={{ backgroundColor: settings?.primary_color || '#4f46e5' }} // Fallback: Indigo-600
             >
               Continuar Comprando
             </button>

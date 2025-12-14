@@ -35,7 +35,9 @@ export default function DebugPage() {
 
   const handleSave = async () => {
     if (!formData.path.includes('.')) {
-      toast.warning('Caminho inválido', { description: 'Inclua a extensão (ex: .tsx)' });
+      toast.warning('Caminho inválido', {
+        description: 'Inclua a extensão (ex: .tsx)',
+      });
       return;
     }
 
@@ -50,7 +52,9 @@ export default function DebugPage() {
       const result = await resp.json();
 
       if (result.success) {
-        toast.success('Sucesso!', { description: 'Arquivo criado ou substituído.' });
+        toast.success('Sucesso!', {
+          description: 'Arquivo criado ou substituído.',
+        });
         setLastResult({ success: true, path: formData.path });
       } else {
         toast.error('Erro', { description: result.error });

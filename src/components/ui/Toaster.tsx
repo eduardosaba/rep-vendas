@@ -5,69 +5,70 @@ import { useEffect } from 'react';
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
+declare global {
+  interface Window {
+    __repvendas_showToast?: (args: {
+      title: string;
+      description?: string;
+      type?: 'success' | 'error' | 'warning' | 'info' | 'default';
+      duration?: number;
+    }) => void;
+  }
+}
+
 export function Toaster({ ...props }: ToasterProps) {
   useEffect(() => {
-    // Expor fallback global para ser usado por código que não encontra o provider
-    try {
-      // @ts-ignore
+    if (typeof window !== 'undefined') {
       window.__repvendas_showToast = ({
         title,
         description,
         type = 'default',
         duration = 4000,
-      }: any) => {
-        if (!sonnerToast) return;
-        switch (type) {
-          case 'success':
-            sonnerToast.success(title, { description, duration });
-            break;
-          case 'error':
-            sonnerToast.error(title, { description, duration });
-            break;
-          case 'warning':
-            sonnerToast.warning(title, { description, duration });
-            break;
-          case 'info':
-            sonnerToast.info(title, { description, duration });
-            break;
-          default:
-            sonnerToast(title, { description, duration });
-            break;
+      }) => {
+        const toastFn =
+          type === 'default'
+            ? sonnerToast
+            : sonnerToast[type as keyof typeof sonnerToast];
+        if (typeof toastFn === 'function') {
+          // @ts-ignore
+          toastFn(title, { description, duration });
         }
       };
-    } catch (e) {
-      // ignore
     }
     return () => {
-      try {
-        // @ts-ignore
-        delete window.__repvendas_showToast;
-      } catch (e) {}
+      if (typeof window !== 'undefined') delete window.__repvendas_showToast;
     };
   }, []);
+
   return (
     <Sonner
-      theme="light"
+      theme="system"
       className="toaster group"
-      position="top-right" // Posição preferida
-      richColors // Cores bonitas para sucesso/erro
-      closeButton // Botão de fechar
+      position="top-right"
+      richColors
+      closeButton
       toastOptions={{
         classNames: {
           toast:
-            'group toast group-[.toaster]:bg-white group-[.toaster]:text-gray-950 group-[.toaster]:border-gray-200 group-[.toaster]:shadow-lg group-[.toaster]:rounded-xl group-[.toaster]:p-4 group-[.toaster]:font-sans',
-          description: 'group-[.toast]:text-gray-500 group-[.toast]:text-sm',
+            'group toast group-[.toaster]:bg-white group-[.toaster]:dark:bg-slate-900 group-[.toaster]:text-gray-950 group-[.toaster]:dark:text-gray-50 group-[.toaster]:border-gray-200 group-[.toaster]:dark:border-slate-800 group-[.toaster]:shadow-xl group-[.toaster]:rounded-xl group-[.toaster]:p-4 group-[.toaster]:font-sans',
+          description:
+            'group-[.toast]:text-gray-500 group-[.toast]:dark:text-gray-400 group-[.toast]:text-sm',
+
+          // AQUI: Usa a cor da marca para o botão de ação
           actionButton:
-            'group-[.toast]:bg-gray-900 group-[.toast]:text-gray-50',
+            'group-[.toast]:bg-[var(--primary)] group-[.toast]:text-white group-[.toast]:font-bold active:scale-95',
+
           cancelButton:
-            'group-[.toast]:bg-gray-100 group-[.toast]:text-gray-500',
+            'group-[.toast]:bg-gray-100 group-[.toast]:dark:bg-slate-800 group-[.toast]:text-gray-500 group-[.toast]:dark:text-gray-400',
+
+          // Cores semânticas fixas (Padrão UX)
           error:
-            'group-[.toaster]:bg-red-50 group-[.toaster]:text-red-600 group-[.toaster]:border-red-200',
+            'group-[.toaster]:bg-red-50 group-[.toaster]:dark:bg-red-950/30 group-[.toaster]:text-red-700 group-[.toaster]:dark:text-red-400 group-[.toaster]:border-red-200 group-[.toaster]:dark:border-red-900',
           success:
-            'group-[.toaster]:bg-green-50 group-[.toaster]:text-green-600 group-[.toaster]:border-green-200',
+            'group-[.toaster]:bg-emerald-50 group-[.toaster]:dark:bg-emerald-950/30 group-[.toaster]:text-emerald-700 group-[.toaster]:dark:text-emerald-400 group-[.toaster]:border-emerald-200 group-[.toaster]:dark:border-emerald-900',
           warning:
-            'group-[.toaster]:bg-yellow-50 group-[.toaster]:text-yellow-600 group-[.toaster]:border-yellow-200',
-          info: 'group-[.toaster]:bg-blue-50 group-[.toaster]:text-blue-600 group-[.toaster]:border-blue-200',
+            'group-[.toaster]:bg-amber-50 group-[.toaster]:dark:bg-amber-950/30 group-[.toaster]:text-amber-700 group-[.toaster]:dark:text-amber-400 group-[.toaster]:border-amber-200 group-[.toaster]:dark:border-amber-900',
+          info: 'group-[.toaster]:bg-blue-50 group-[.toaster]:dark:bg-blue-950/30 group-[.toaster]:text-blue-700 group-[.toaster]:dark:text-blue-400 group-[.toaster]:border-blue-200 group-[.toaster]:dark:border-blue-900',
         },
       }}
       {...props}

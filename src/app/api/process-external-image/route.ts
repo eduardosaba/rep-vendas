@@ -25,7 +25,7 @@ function sanitizeFolder(name: string | null | undefined) {
 }
 
 export async function POST(request: Request) {
-  let targetUrl = ''; 
+  let targetUrl = '';
 
   try {
     // 1. Configuração do Cliente Admin (Service Role)
@@ -33,11 +33,14 @@ export async function POST(request: Request) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ error: 'Configuração de servidor incompleta.' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Configuração de servidor incompleta.' },
+        { status: 500 }
+      );
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
     // 2. Recebe os dados
@@ -63,8 +66,8 @@ export async function POST(request: Request) {
     // 4. Download da Imagem
     const cleanUrl = externalUrl.trim();
     try {
-      targetUrl = encodeURI(cleanUrl); 
-      new URL(targetUrl); 
+      targetUrl = encodeURI(cleanUrl);
+      new URL(targetUrl);
     } catch (e) {
       throw new Error(`URL inválida: ${cleanUrl}`);
     }
@@ -74,16 +77,20 @@ export async function POST(request: Request) {
     const downloadResponse = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        'Referer': new URL(targetUrl).origin
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept:
+          'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        Referer: new URL(targetUrl).origin,
       },
-      signal: AbortSignal.timeout(25000) 
+      signal: AbortSignal.timeout(25000),
     });
 
     if (!downloadResponse.ok) {
       const errorText = await downloadResponse.text().catch(() => '');
-      throw new Error(`Falha download (${downloadResponse.status}): ${errorText.slice(0, 50)}`);
+      throw new Error(
+        `Falha download (${downloadResponse.status}): ${errorText.slice(0, 50)}`
+      );
     }
 
     const arrayBuffer = await downloadResponse.arrayBuffer();
@@ -92,7 +99,8 @@ export async function POST(request: Request) {
     if (buffer.length === 0) throw new Error('Imagem vazia recebida.');
 
     // 5. Preparar Upload
-    const contentType = downloadResponse.headers.get('content-type') || 'image/jpeg';
+    const contentType =
+      downloadResponse.headers.get('content-type') || 'image/jpeg';
     let extension = 'jpg';
     if (contentType.includes('png')) extension = 'png';
     else if (contentType.includes('webp')) extension = 'webp';
@@ -102,7 +110,7 @@ export async function POST(request: Request) {
     // products / {USER_ID} / {MARCA} / {ARQUIVO}
     const userId = product.user_id;
     const brandFolder = sanitizeFolder(product.brand);
-    
+
     // Nome do arquivo com timestamp para evitar cache/colisão
     const fileName = `${userId}/${brandFolder}/${productId}-${Date.now()}.${extension}`;
 
@@ -111,7 +119,7 @@ export async function POST(request: Request) {
       .from('products')
       .upload(fileName, buffer, {
         contentType: contentType,
-        upsert: true
+        upsert: true,
       });
 
     if (uploadError) {
@@ -128,14 +136,16 @@ export async function POST(request: Request) {
     if (dbError) throw new Error(`Erro Banco: ${dbError.message}`);
 
     return NextResponse.json({ success: true, path: uploadData.path });
-
   } catch (error: any) {
     console.error(`[SYNC FAILURE] URL: ${targetUrl}`, error);
-    
-    return NextResponse.json({ 
-      error: error.message || 'Erro desconhecido',
-      url: targetUrl, 
-      cause: error.cause ? String(error.cause) : undefined
-    }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        error: error.message || 'Erro desconhecido',
+        url: targetUrl,
+        cause: error.cause ? String(error.cause) : undefined,
+      },
+      { status: 500 }
+    );
   }
 }
