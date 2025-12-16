@@ -23,7 +23,7 @@ async function checkPermissions() {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (profile?.role !== 'master') {
     throw new Error('Acesso negado. Apenas Master.');

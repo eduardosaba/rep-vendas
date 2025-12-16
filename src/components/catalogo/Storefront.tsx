@@ -8,6 +8,7 @@ import {
   StoreHeader,
   StoreSidebar,
   StoreFooter,
+  StoreMobileActionBar,
 } from './store-layout';
 import { StoreBanners, ProductGrid } from './product-components';
 import { StoreModals } from './store-modals-container';
@@ -183,7 +184,7 @@ export function Storefront({
         {/* LAYOUT PRINCIPAL: 
             Usa max-w-[1920px] para telas grandes e flex-row para Sidebar + Grid 
         */}
-        <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8 items-start flex-1 relative">
+        <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8 flex flex-col md:flex-row gap-8 items-start flex-1 relative">
           {/* Sidebar de Filtros (Fixo) */}
           <StoreSidebar />
 
@@ -195,7 +196,13 @@ export function Storefront({
 
         <StoreFooter />
 
-        <FloatingCart />
+        {/* Barra de A\u00e7\u00f5es Mobile (Ver Pre\u00e7os, Pedidos, Favoritos, Carrinho) */}
+        <StoreMobileActionBar />
+
+        {/* FloatingCart apenas no Desktop (md+) */}
+        <div className="hidden md:block">
+          <FloatingCart />
+        </div>
 
         <StoreModals />
 

@@ -2,7 +2,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Image from 'next/image';
 import {
   ShoppingCart,
@@ -74,6 +74,14 @@ export function CartModal({
   handleSaveCart,
   isSaving,
 }: CartModalProps) {
+  // Body scroll-lock
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   const cartTotal = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
@@ -91,22 +99,24 @@ export function CartModal({
         className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
         onClick={() => setIsCartOpen(false)}
       />
-      <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-        {/* Cabeçalho do Modal */}
-        <div className="p-4 border-b flex items-center justify-between bg-gray-50">
-          <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+      {/* Modal: Full Screen on mobile (w-full h-screen), Drawer on desktop */}
+      <div className="relative w-full h-screen md:max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+        {/* Cabeçalho do Modal: Sticky with 44px touch target */}
+        <div className="sticky top-0 z-10 p-4 border-b flex items-center justify-between bg-gray-50">
+          <h2 className="font-bold text-base md:text-lg text-gray-800 flex items-center gap-2">
             <ShoppingCart size={20} /> Seu Pedido ({cartCount} itens)
           </h2>
           <button
             onClick={() => setIsCartOpen(false)}
-            className="p-2 text-gray-500 hover:bg-gray-200 rounded-full"
+            className="p-2 min-w-[44px] min-h-[44px] text-gray-500 hover:bg-gray-200 rounded-full flex items-center justify-center"
+            aria-label="Fechar"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Lista de Itens */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Lista de Itens: Overflow-y-auto for scrolling */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400">
               <ShoppingCart size={48} className="mb-4 opacity-20" />
@@ -135,6 +145,11 @@ export function CartModal({
                           width={64}
                           height={64}
                           className="w-full h-full object-cover"
+                          style={{
+                            maxWidth: '100%',
+                            height: 'auto',
+                            objectFit: 'cover',
+                          }}
                         />
                       )}
                     </div>
@@ -214,6 +229,11 @@ export function CartModal({
                               width={120}
                               height={80}
                               className="w-full h-full object-cover"
+                              style={{
+                                maxWidth: '100%',
+                                height: 'auto',
+                                objectFit: 'cover',
+                              }}
                             />
                           )}
                         </div>
@@ -228,7 +248,7 @@ export function CartModal({
                         />
                         <button
                           onClick={() => addToCart(p)}
-                          className="mt-2 w-full py-1 bg-white border border-indigo-200 rv-text-primary text-xs font-bold rounded hover:bg-indigo-50"
+                          className="mt-2 w-full py-1 bg-white border border-primary/30 rv-text-primary text-xs font-bold rounded hover:bg-primary/10"
                         >
                           Add +
                         </button>
@@ -241,9 +261,9 @@ export function CartModal({
           )}
         </div>
 
-        {/* Footer do Modal (Total e Ações) */}
+        {/* Footer do Modal (Total e Ações): Sticky */}
         {cart.length > 0 && (
-          <div className="p-4 border-t bg-gray-50 space-y-3">
+          <div className="sticky bottom-0 p-4 border-t bg-gray-50 space-y-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Total Estimado</span>
               <PriceDisplay

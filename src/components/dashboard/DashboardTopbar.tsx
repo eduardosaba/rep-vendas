@@ -123,16 +123,15 @@ export function DashboardTopbar({ settings }: { settings?: Settings | null }) {
               </p>
             </div>
 
-            <div className="h-9 w-9 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center overflow-hidden">
+            <div className="h-9 w-9 rounded-full bg-primary/5 border border-primary/30 flex items-center justify-center overflow-hidden">
               {userProfile.avatar_url ? (
-                <div className="relative h-full w-full">
-                  <Image
-                    src={userProfile.avatar_url}
-                    alt="Avatar"
-                    fill
-                    style={{ objectFit: 'cover' }}
-                  />
-                </div>
+                <Image
+                  src={userProfile.avatar_url}
+                  alt="Avatar"
+                  width={36}
+                  height={36}
+                  style={{ objectFit: 'cover' }}
+                />
               ) : (
                 <UserCircle size={24} className="rv-text-primary" />
               )}
@@ -159,14 +158,14 @@ export function DashboardTopbar({ settings }: { settings?: Settings | null }) {
                 <Link
                   href="/dashboard/user"
                   onClick={() => setIsProfileOpen(false)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary"
                 >
                   <User size={16} /> Meu Perfil
                 </Link>
                 <Link
                   href="/dashboard/settings"
                   onClick={() => setIsProfileOpen(false)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary"
                 >
                   <SettingsIcon size={16} /> Configurações da Loja
                 </Link>

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { Product } from '@/lib/types';
 import {
   ArrowLeft,
   Loader2,
@@ -13,37 +14,16 @@ import {
   Package,
   Barcode,
   Palette,
-  Percent,
   Sparkles,
   X,
   UploadCloud,
   Trash2,
   AlertTriangle,
-  RotateCcw,
+  Tag,
+  Link as LinkIcon,
+  RefreshCw, // Ícone para regenerar o slug
 } from 'lucide-react';
-
-// --- TIPAGEM ---
-interface ProductData {
-  id: string;
-  name: string;
-  reference_code: string | null;
-  sku: string | null;
-  barcode: string | null;
-  color: string | null;
-  price: number;
-  sale_price: number | null;
-  discount_percent: number | null;
-  brand: string | null;
-  category: string | null;
-  description: string | null;
-  track_stock: boolean;
-  stock_quantity: number;
-  is_launch: boolean;
-  is_best_seller: boolean;
-  is_active: boolean;
-  images: string[] | null;
-  image_url: string | null; // Capa
-}
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 // --- SUB-COMPONENTE: UPLOAD ---
 const ImageUploader = ({
@@ -56,71 +36,104 @@ const ImageUploader = ({
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
   onSetCover: (index: number) => void;
-}) => (
-  <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
-    <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
-      <ImageIcon size={18} className="text-blue-600" /> Galeria de Imagens
-    </h3>
+}) => {
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
+  return (
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+      <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
+        <ImageIcon size={18} className="text-primary" /> Galeria de Imagens
+      </h3>
 
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-      {images.map((url, index) => (
-        <div
-          key={index}
-          className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900' : 'border-gray-200 dark:border-slate-700'}`}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={url}
-            className="w-full h-full object-cover"
-            alt={`Product ${index}`}
-          />
-
-          <button
-            type="button"
-            onClick={() => onRemove(index)}
-            className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
-            title="Remover imagem"
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+        {images.map((url, index) => (
+          <div
+            key={index}
+            className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${
+              index === 0
+                ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900'
+                : 'border-gray-200 dark:border-slate-700'
+            }`}
           >
-            <X size={14} />
-          </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              className="w-full h-full object-contain p-1 cursor-zoom-in"
+              alt={`Product ${index}`}
+              onClick={() => setZoomImage(url)}
+            />
 
-          {index === 0 ? (
-            <div className="absolute bottom-0 inset-x-0 bg-blue-600/90 text-white text-[10px] text-center py-1 font-bold">
-              CAPA
-            </div>
-          ) : (
             <button
               type="button"
-              onClick={() => onSetCover(index)}
-              className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-blue-600/80 transition-colors"
+              onClick={() => onRemove(index)}
+              className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 z-10"
+              title="Remover imagem"
             >
-              Definir Capa
+              <X size={14} />
             </button>
-          )}
-        </div>
-      ))}
 
-      <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-blue-300 transition-all group relative">
-        <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors">
-          <UploadCloud size={24} />
+            {index === 0 ? (
+              <div className="absolute bottom-0 inset-x-0 bg-primary/90 text-white text-[10px] text-center py-1 font-bold z-10">
+                CAPA
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSetCover(index)}
+                className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-primary/80 transition-colors z-10"
+              >
+                Definir Capa
+              </button>
+            )}
+          </div>
+        ))}
+
+        <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-blue-300 transition-all group relative">
+          <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-primary/10 dark:group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+            <UploadCloud size={24} />
+          </div>
+          <span className="text-xs text-gray-500 mt-2 font-medium">
+            Adicionar
+          </span>
+          <input
+            type="file"
+            className="hidden"
+            accept="image/*"
+            multiple
+            onChange={onUpload}
+          />
+        </label>
+      </div>
+
+      {zoomImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setZoomImage(null)}
+        >
+          <div
+            className="relative max-w-6xl max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={zoomImage}
+              alt="Ampliado"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            />
+            <button
+              onClick={() => setZoomImage(null)}
+              className="absolute top-4 right-4 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg"
+            >
+              <X size={20} className="text-gray-700" />
+            </button>
+          </div>
         </div>
-        <span className="text-xs text-gray-500 mt-2 font-medium">
-          Adicionar
-        </span>
-        <input
-          type="file"
-          className="hidden"
-          accept="image/*"
-          multiple
-          onChange={onUpload}
-        />
-      </label>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 // --- COMPONENTE PRINCIPAL ---
-export function EditProductForm({ product }: { product: ProductData }) {
+export function EditProductForm({ product }: { product: Product }) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -128,6 +141,7 @@ export function EditProductForm({ product }: { product: ProductData }) {
   const [loading, setLoading] = useState(false);
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
@@ -140,7 +154,7 @@ export function EditProductForm({ product }: { product: ProductData }) {
   >([]);
 
   // Helpers de formatação inicial
-  const formatInitialPrice = (val: number | null) => {
+  const formatInitialPrice = (val: number | null | undefined) => {
     if (val === null || val === undefined) return '';
     return val.toLocaleString('pt-BR', {
       minimumFractionDigits: 2,
@@ -148,28 +162,32 @@ export function EditProductForm({ product }: { product: ProductData }) {
     });
   };
 
-  // Inicializa o formulário com os dados vindos do servidor
+  // Inicializa o formulário
   const [formData, setFormData] = useState({
     name: product.name || '',
     reference_code: product.reference_code || '',
+    slug: product.slug || '',
     sku: product.sku || '',
     barcode: product.barcode || '',
     color: product.color || '',
+
     price: formatInitialPrice(product.price),
     sale_price: formatInitialPrice(product.sale_price),
-    discount_percent: product.discount_percent || 0,
+    original_price: formatInitialPrice(product.original_price),
+
+    discount_percent: 0,
+
     brand: product.brand || '',
     category: product.category || '',
     description: product.description || '',
-    track_stock: product.track_stock ?? true,
+    track_stock: true,
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
-    is_best_seller: product.is_best_seller ?? false,
-    is_active: product.is_active ?? true,
+    is_best_seller: product.is_best_seller || product.bestseller || false,
     images: product.images || (product.image_url ? [product.image_url] : []),
   });
 
-  // Listener para confirmar saída se houver mudanças
+  // Listener para confirmar saída
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasChanges) {
@@ -208,18 +226,49 @@ export function EditProductForm({ product }: { product: ProductData }) {
     fetchAux();
   }, [supabase]);
 
-  // --- Handlers Genéricos ---
+  // Handlers
   const updateField = (field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
+  // --- LÓGICA DE SLUG ATUALIZADA ---
+  const createSlug = (source: string) => {
+    return source
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  // Gatilho ao sair do campo Nome
+  const handleNameBlur = () => {
+    if (formData.name && !formData.slug) {
+      updateField('slug', createSlug(formData.name));
+    }
+  };
+
+  // Botão manual para gerar slug (opção: Nome ou Referência)
+  const regenerateSlug = (source: 'name' | 'ref') => {
+    const text = source === 'ref' ? formData.reference_code : formData.name;
+    if (!text)
+      return toast.warning(
+        `Preencha ${source === 'ref' ? 'a Referência' : 'o Nome'} primeiro.`
+      );
+
+    const newSlug = createSlug(text);
+    updateField('slug', newSlug);
+    toast.success('Slug atualizado!');
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setUploadingImage(true);
+    setUploadProgress(0);
     const files = Array.from(e.target.files);
     const newUrls: string[] = [];
-
+    let progressInterval: any = null;
     try {
       const {
         data: { user },
@@ -230,19 +279,28 @@ export function EditProductForm({ product }: { product: ProductData }) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
+        let simulated = 0;
+        progressInterval = setInterval(() => {
+          simulated = Math.min(95, simulated + Math.random() * 12 + 5);
+          setUploadProgress(Math.round(simulated));
+        }, 300);
+
         const { error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(`public/${fileName}`, file);
 
         if (uploadError) throw uploadError;
 
+        setUploadProgress(100);
+        if (progressInterval) clearInterval(progressInterval);
+
         const { data } = supabase.storage
           .from('product-images')
           .getPublicUrl(`public/${fileName}`);
-
         newUrls.push(data.publicUrl);
+        await new Promise((r) => setTimeout(r, 300));
+        setUploadProgress(0);
       }
-
       updateField('images', [...formData.images, ...newUrls]);
       toast.success('Imagens enviadas!');
     } catch (error) {
@@ -250,6 +308,8 @@ export function EditProductForm({ product }: { product: ProductData }) {
       toast.error('Erro ao enviar imagem');
     } finally {
       setUploadingImage(false);
+      setUploadProgress(null);
+      if (progressInterval) clearInterval(progressInterval);
     }
   };
 
@@ -288,7 +348,10 @@ export function EditProductForm({ product }: { product: ProductData }) {
     });
   };
 
-  const handlePriceChange = (field: 'price' | 'sale_price', value: string) => {
+  const handlePriceChange = (
+    field: 'price' | 'sale_price' | 'original_price',
+    value: string
+  ) => {
     if (!value) {
       updateField(field, '');
       return;
@@ -316,23 +379,28 @@ export function EditProductForm({ product }: { product: ProductData }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       const finalPrice =
         parseFloat(formData.price.replace(/\./g, '').replace(',', '.')) || 0;
       const finalSalePrice = formData.sale_price
         ? parseFloat(formData.sale_price.replace(/\./g, '').replace(',', '.'))
         : null;
+      const finalOriginalPrice = formData.original_price
+        ? parseFloat(
+            formData.original_price.replace(/\./g, '').replace(',', '.')
+          )
+        : null;
 
       const payload = {
         name: formData.name,
+        slug: formData.slug || null,
         reference_code: formData.reference_code,
         sku: formData.sku || null,
         barcode: formData.barcode || null,
         color: formData.color || null,
         price: finalPrice,
         sale_price: finalSalePrice,
-        discount_percent: Number(formData.discount_percent) || 0,
+        original_price: finalOriginalPrice,
         brand: formData.brand || null,
         category: formData.category || null,
         description: formData.description || null,
@@ -342,7 +410,6 @@ export function EditProductForm({ product }: { product: ProductData }) {
           : 0,
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
-        is_active: formData.is_active,
         images: formData.images,
         image_url:
           formData.images && formData.images.length > 0
@@ -355,11 +422,10 @@ export function EditProductForm({ product }: { product: ProductData }) {
         .from('products')
         .update(payload)
         .eq('id', product.id);
-
       if (error) throw error;
 
       setHasChanges(false);
-      toast.success('Produto atualizado com sucesso!');
+      toast.success('Produto atualizado!');
       router.push('/dashboard/products');
       router.refresh();
     } catch (error: any) {
@@ -372,6 +438,11 @@ export function EditProductForm({ product }: { product: ProductData }) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500">
+      <LoadingOverlay
+        show={uploadingImage}
+        progress={uploadProgress}
+        message="Enviando imagens..."
+      />
       {/* HEADER FIXO */}
       <div className="flex items-center justify-between sticky top-0 z-30 bg-gray-50/90 dark:bg-slate-950/90 backdrop-blur-md py-4 -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-gray-200 dark:border-slate-800">
         <div className="flex items-center gap-4">
@@ -409,17 +480,13 @@ export function EditProductForm({ product }: { product: ProductData }) {
           <button
             onClick={handleSubmit}
             disabled={loading || uploadingImage || !hasChanges}
-            className={`px-6 py-2 text-sm font-bold text-white rounded-lg flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
-              hasChanges
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-gray-400 cursor-not-allowed opacity-70'
-            }`}
+            className={`px-6 py-2 text-sm font-bold text-white rounded-lg flex items-center gap-2 shadow-md transition-transform active:scale-95 ${hasChanges ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
           >
             {loading ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
               <Save size={16} />
-            )}
+            )}{' '}
             Salvar
           </button>
         </div>
@@ -432,17 +499,64 @@ export function EditProductForm({ product }: { product: ProductData }) {
             <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4">
               Dados Básicos
             </h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Nome do Produto <span className="text-red-500">*</span>
-              </label>
-              <input
-                required
-                value={formData.name}
-                onChange={(e) => updateField('name', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-              />
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nome do Produto <span className="text-red-500">*</span>
+                </label>
+                <input
+                  required
+                  value={formData.name}
+                  onChange={(e) => updateField('name', e.target.value)}
+                  onBlur={handleNameBlur}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                />
+              </div>
+
+              {/* SLUG CORRIGIDO COM BOTÕES */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                  <LinkIcon size={14} className="text-gray-400" /> Slug (URL
+                  Amigável)
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      value={formData.slug}
+                      onChange={(e) => updateField('slug', e.target.value)}
+                      placeholder="ex: oculos-sol-aviador-preto"
+                      className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 pl-9 pr-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 text-sm font-mono"
+                    />
+                    <Tag
+                      size={16}
+                      className="absolute left-3 top-2.5 text-gray-400"
+                    />
+                  </div>
+                  {/* Botões para regenerar slug */}
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => regenerateSlug('name')}
+                      className="p-2 border border-gray-200 rounded-lg hover:bg-gray-100 text-xs text-gray-600"
+                      title="Gerar do Nome"
+                    >
+                      <RefreshCw size={16} /> Nome
+                    </button>
+                    {formData.reference_code && (
+                      <button
+                        type="button"
+                        onClick={() => regenerateSlug('ref')}
+                        className="p-2 border border-gray-200 rounded-lg hover:bg-gray-100 text-xs text-gray-600"
+                        title="Gerar da Referência"
+                      >
+                        <RefreshCw size={16} /> Ref
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -471,6 +585,25 @@ export function EditProductForm({ product }: { product: ProductData }) {
                     className="absolute left-3 top-3 text-gray-400"
                   />
                 </div>
+
+                {/* --- VISUALIZADOR DE CÓDIGO DE BARRAS (EAN-13) --- */}
+                {formData.barcode && formData.barcode.length > 0 && (
+                  <div className="mt-3 flex flex-col items-center justify-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <span className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider font-semibold">
+                      EAN-13
+                    </span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://bwipjs-api.metafloor.com/?bcid=ean13&text=${formData.barcode}&scale=2&height=10&includetext`}
+                      alt={`Barcode ${formData.barcode}`}
+                      className="max-h-16 mix-blend-multiply"
+                      onError={(e) => {
+                        // Fallback visual simples se falhar (ex: código não numérico)
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
             <div>
@@ -488,7 +621,7 @@ export function EditProductForm({ product }: { product: ProductData }) {
                     <Loader2 size={12} className="animate-spin" />
                   ) : (
                     <Sparkles size={12} />
-                  )}
+                  )}{' '}
                   IA
                 </button>
               </div>
@@ -505,52 +638,49 @@ export function EditProductForm({ product }: { product: ProductData }) {
             <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4">
               Preços
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Preço Venda (R$)
+                  💰 Preço de Custo (R$)
                 </label>
                 <input
-                  required
                   value={formData.price}
                   onChange={(e) => handlePriceChange('price', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-blue-50 dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 text-blue-700 dark:text-blue-400 text-lg font-medium"
+                  placeholder="0,00"
                 />
+                <span className="text-xs text-gray-400 mt-1">
+                  Quanto você paga
+                </span>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Preço Promo (R$)
+                  💵 Preço de Venda (R$)
                 </label>
                 <input
                   value={formData.sale_price}
                   onChange={(e) =>
                     handlePriceChange('sale_price', e.target.value)
                   }
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-green-500 dark:text-white text-green-700 font-medium"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-green-500 dark:text-white text-lg font-bold"
+                  placeholder="0,00"
                 />
+                <span className="text-xs text-gray-400 mt-1">
+                  Sugerido ao cliente
+                </span>
               </div>
-            </div>
-            <div className="flex items-center gap-4 pt-2">
-              <div className="relative w-32">
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  Desconto (%)
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  🏷️ Preço Promocional
                 </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.discount_percent}
-                    onChange={(e) =>
-                      updateField('discount_percent', Number(e.target.value))
-                    }
-                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 pl-3 pr-8 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                  />
-                  <Percent
-                    size={14}
-                    className="absolute right-3 top-3 text-gray-400"
-                  />
-                </div>
+                <input
+                  value={formData.original_price}
+                  onChange={(e) =>
+                    handlePriceChange('original_price', e.target.value)
+                  }
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-gray-500 text-gray-600 dark:text-gray-400 font-medium"
+                  placeholder="0,00"
+                />
               </div>
             </div>
           </div>
@@ -656,7 +786,6 @@ export function EditProductForm({ product }: { product: ProductData }) {
               Visibilidade
             </h3>
             {[
-              { key: 'is_active', label: 'Ativo', color: 'text-green-600' },
               {
                 key: 'is_launch',
                 label: 'Lançamento',
@@ -664,7 +793,7 @@ export function EditProductForm({ product }: { product: ProductData }) {
               },
               {
                 key: 'is_best_seller',
-                label: 'Mais Vendido',
+                label: 'Best Seller',
                 color: 'text-yellow-600',
               },
             ].map((item) => (
@@ -674,10 +803,15 @@ export function EditProductForm({ product }: { product: ProductData }) {
               >
                 <input
                   type="checkbox"
-                  // @ts-ignore
-                  checked={formData[item.key]}
-                  // @ts-ignore
-                  onChange={(e) => updateField(item.key, e.target.checked)}
+                  checked={
+                    formData[item.key as keyof typeof formData] as boolean
+                  }
+                  onChange={(e) =>
+                    updateField(
+                      item.key as keyof typeof formData,
+                      e.target.checked
+                    )
+                  }
                   className={`w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${item.color}`}
                 />
                 <div
@@ -691,7 +825,6 @@ export function EditProductForm({ product }: { product: ProductData }) {
         </div>
       </div>
 
-      {/* Modal de Exclusão */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in-95 border border-red-100 dark:border-red-900/30">

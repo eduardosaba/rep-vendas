@@ -23,7 +23,7 @@ export default async function EditUserPage({
     .from('profiles')
     .select('*')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (error || !profile) {
     return notFound();
@@ -71,7 +71,7 @@ export default async function EditUserPage({
             <select
               name="plan"
               defaultValue={profile.plan || 'free'}
-              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-[var(--primary)] outline-none bg-white"
             >
               <option value="free">Gratuito (Free)</option>
               <option value="pro">Profissional (Pro)</option>
@@ -87,7 +87,7 @@ export default async function EditUserPage({
             <select
               name="status"
               defaultValue={profile.subscription_status || 'trial'}
-              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-[var(--primary)] outline-none bg-white"
             >
               <option value="trial">Período de Teste (Trial)</option>
               <option value="active">Ativo (Pago)</option>
@@ -105,7 +105,7 @@ export default async function EditUserPage({
               type="date"
               name="ends_at"
               defaultValue={formattedDate}
-              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-[var(--primary)] outline-none"
             />
             <p className="text-xs text-gray-500 mt-1">
               Deixe em branco para acesso indeterminado.
@@ -135,7 +135,7 @@ export default async function EditUserPage({
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              className="rv-btn-primary flex items-center gap-2 px-6 py-2.5 font-medium shadow-sm transition-all"
+              className="rv-btn-primary flex items-center gap-2 px-4 sm:px-6 py-2.5 font-medium shadow-sm transition-all"
             >
               <Save size={18} />
               Salvar Alterações

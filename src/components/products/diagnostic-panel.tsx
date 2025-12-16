@@ -166,8 +166,8 @@ export function DiagnosticPanel() {
                   <Image
                     src={sample.external_image_url}
                     alt={sample.name}
-                    fill
-                    sizes="32px"
+                    width={32}
+                    height={32}
                     className="object-cover"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).style.display =

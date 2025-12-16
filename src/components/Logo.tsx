@@ -62,7 +62,7 @@ export function Logo({
   return (
     <div className="flex items-center gap-2">
       <div
-        className={`p-2 rounded-lg ${variant === 'light' ? 'bg-white/10 text-white' : 'bg-indigo-50 rv-text-primary'}`}
+        className={`p-2 rounded-lg ${variant === 'light' ? 'bg-white/10 text-white' : 'bg-primary/5 rv-text-primary'}`}
       >
         <Store size={24} />
       </div>

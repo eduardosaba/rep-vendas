@@ -9,7 +9,7 @@ export default function ManualOrderLauncher() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 shadow-sm transition-colors"
+        className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 shadow-sm transition-colors"
       >
         Nova Venda Manual
       </button>

@@ -364,7 +364,7 @@ export default function BulkEditClient({
                 {visibleColumns.reference_code && (
                   <td className="px-4 py-2">
                     <input
-                      className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-gray-500 font-mono text-xs"
+                      className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-sm text-gray-700 dark:text-gray-300 font-sans"
                       value={product.reference_code || ''}
                       onChange={(e) =>
                         handleInputChange(
@@ -382,7 +382,7 @@ export default function BulkEditClient({
                 {visibleColumns.name && (
                   <td className="px-4 py-2">
                     <input
-                      className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-gray-900 dark:text-white font-medium"
+                      className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-sm text-gray-700 dark:text-gray-300 font-sans"
                       value={product.name}
                       onChange={(e) =>
                         handleInputChange(product.id, 'name', e.target.value)
@@ -393,7 +393,7 @@ export default function BulkEditClient({
 
                 {/* MARCA */}
                 {visibleColumns.brand && (
-                  <td className="px-4 py-2 text-gray-500 text-xs">
+                  <td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 font-sans">
                     {product.brand || (
                       <span className="opacity-30 italic">Sem marca</span>
                     )}
@@ -406,11 +406,11 @@ export default function BulkEditClient({
                     <div className="relative">
                       <input
                         type="number"
-                        className={`w-full text-right bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 rounded px-2 py-1 outline-none focus:bg-white dark:focus:bg-slate-950 transition-all font-mono ${
+                        className={`w-full text-right bg-transparent border border-transparent hover:border-gray-300 focus:border-[var(--primary)] rounded px-2 py-1 outline-none focus:bg-white dark:focus:bg-slate-950 transition-all text-sm font-sans ${
                           product.stock_quantity === 0
-                            ? 'text-red-500 font-bold bg-red-50 dark:bg-red-900/20'
+                            ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
                             : product.stock_quantity < 0
-                              ? 'text-red-700 font-black'
+                              ? 'text-red-700'
                               : 'text-gray-700 dark:text-gray-300'
                         }`}
                         value={product.stock_quantity}
@@ -435,7 +435,7 @@ export default function BulkEditClient({
                       </span>
                       <input
                         type="text"
-                        className="w-full text-right bg-transparent border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-950 transition-all text-gray-500 dark:text-gray-400 font-mono text-sm"
+                        className="w-full text-right bg-transparent border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 transition-all text-sm text-gray-700 dark:text-gray-300 font-sans"
                         value={formatCurrencyDisplay(product.price)}
                         onChange={(e) =>
                           handleCurrencyChange(
@@ -458,7 +458,7 @@ export default function BulkEditClient({
                       </span>
                       <input
                         type="text"
-                        className="w-full text-right bg-transparent border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-950 transition-all font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-slate-800 font-mono text-sm"
+                        className="w-full text-right bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 transition-all text-sm text-gray-700 dark:text-gray-300 font-sans"
                         value={formatCurrencyDisplay(product.sale_price)}
                         onChange={(e) =>
                           handleCurrencyChange(

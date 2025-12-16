@@ -33,6 +33,9 @@ export default function ProductImage({
         ? external
         : '/placeholder.png';
 
+  // Detect object-fit preference from className (object-contain/object-cover)
+  const prefersContain = className?.includes('object-contain');
+
   return (
     <div
       className={`relative ${className || 'w-full h-auto'}`}
@@ -44,7 +47,12 @@ export default function ProductImage({
         alt={alt || product?.name || 'Produto'}
         fill
         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-        className="object-cover"
+        className={
+          className || (prefersContain ? 'object-contain' : 'object-cover')
+        }
+        style={{ objectFit: prefersContain ? 'contain' : 'cover' }}
+        loading="lazy"
+        quality={80}
         onError={() => setError(true)}
       />
     </div>

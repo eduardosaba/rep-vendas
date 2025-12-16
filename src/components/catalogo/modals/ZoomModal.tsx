@@ -54,6 +54,15 @@ export function ZoomModal({
     );
   };
 
+  // Body scroll-lock
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
+  // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsZoomOpen(false);
@@ -70,33 +79,34 @@ export function ZoomModal({
     <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center">
       <button
         onClick={() => setIsZoomOpen(false)}
-        className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+        className="absolute top-4 right-4 text-white/70 hover:text-white p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
         aria-label="Fechar"
         title="Fechar"
       >
         <X size={32} />
       </button>
 
-      {/* Fecha ao pressionar Escape */}
-      {/** useEffect below to add keydown listener when modal aberto */}
-      <div className="relative w-full h-full flex items-center justify-center p-4">
+      <div className="relative w-full h-full flex items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         {hasMultipleImages && (
           <button
             onClick={handlePrev}
-            className="absolute left-4 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full"
+            className="absolute left-4 p-2 min-w-[44px] min-h-[44px] text-white/50 hover:text-white hover:bg-white/10 rounded-full flex items-center justify-center"
+            aria-label="Anterior"
           >
             <ChevronLeft size={48} />
           </button>
         )}
 
         {productImages[currentImageIndex] && (
-          <div className="relative max-w-[90vw] max-h-[90vh] w-auto h-auto">
+          <div className="relative max-w-[90vw] max-h-[85vh] w-auto h-auto">
             <Image
               src={productImages[currentImageIndex]}
               alt="Zoom"
               fill
-              style={{ objectFit: 'contain' }}
+              style={{ objectFit: 'contain', maxWidth: '100%' }}
               className="select-none"
+              loading="eager"
+              quality={95}
             />
           </div>
         )}
@@ -104,7 +114,8 @@ export function ZoomModal({
         {hasMultipleImages && (
           <button
             onClick={handleNext}
-            className="absolute right-4 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full"
+            className="absolute right-4 p-2 min-w-[44px] min-h-[44px] text-white/50 hover:text-white hover:bg-white/10 rounded-full flex items-center justify-center"
+            aria-label="Próximo"
           >
             <ChevronRight size={48} />
           </button>

@@ -2,55 +2,48 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { EditProductForm } from '@/components/dashboard/EditProductForm';
 
-// Garante que a página não faça cache, pois os dados do produto podem mudar
+// Não cachear: produto pode mudar
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-  const { id } = await params;
+  const { slug } = await params;
   const supabase = await createClient();
 
   const { data: product } = await supabase
     .from('products')
     .select('name')
-    .eq('id', id)
-    .single();
+    .eq('slug', slug)
+    .maybeSingle();
 
-  return {
-    title: product ? `Editar: ${product.name}` : 'Editar Produto',
-  };
+  return { title: product ? `Editar: ${product.name}` : 'Editar Produto' };
 }
 
-export default async function EditProductPage({
+export default async function EditProductBySlugPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }) {
   const supabase = await createClient();
-  const { id } = await params;
+  const { slug } = await params;
 
-  // 1. Autenticação
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) redirect('/login');
 
-  // 2. Busca do Produto
   const { data: product, error } = await supabase
     .from('products')
     .select('*')
-    .eq('id', id)
+    .eq('slug', slug)
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (error || !product) {
-    return notFound();
-  }
+  if (error || !product) return notFound();
 
-  // 3. Renderiza o Formulário Cliente com os dados iniciais
   return <EditProductForm product={product} />;
 }

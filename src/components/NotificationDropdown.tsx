@@ -49,7 +49,7 @@ export default function NotificationDropdown({
       case 'error':
         return <AlertCircle className="h-5 w-5 text-red-500" />;
       default:
-        return <Info className="h-5 w-5 text-blue-500" />;
+        return <Info className="h-5 w-5 text-primary" />;
     }
   };
 
@@ -75,7 +75,7 @@ export default function NotificationDropdown({
             {unreadCount > 0 && (
               <button
                 onClick={() => markAllAsRead()}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                className="text-xs text-primary hover:text-primary/90 font-medium"
               >
                 Marcar todas como lidas
               </button>
@@ -98,7 +98,7 @@ export default function NotificationDropdown({
                 {notifications.map((notif) => (
                   <div
                     key={notif.id}
-                    className={`flex gap-3 p-4 hover:bg-gray-50 transition-colors relative group ${!notif.read ? 'bg-indigo-50/30' : ''}`}
+                    className={`flex gap-3 p-4 hover:bg-gray-50 transition-colors relative group ${!notif.read ? 'bg-primary/10' : ''}`}
                   >
                     <div className="mt-0.5">{getIcon(notif.type)}</div>
                     <div className="flex-1 min-w-0">
@@ -135,7 +135,7 @@ export default function NotificationDropdown({
                     {!notif.read && (
                       <button
                         onClick={() => markAsRead(notif.id)}
-                        className="text-indigo-400 hover:text-indigo-600 p-1 self-start opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-primary hover:text-primary/90 p-1 self-start opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Marcar como lida"
                       >
                         <Check size={14} />

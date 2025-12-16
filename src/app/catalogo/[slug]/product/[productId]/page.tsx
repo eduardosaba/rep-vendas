@@ -93,7 +93,7 @@ export default function ProductDetailPage() {
         .select('*')
         .eq('id', productId)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 

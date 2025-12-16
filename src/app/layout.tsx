@@ -18,7 +18,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-br" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased bg-gray-50 dark:bg-slate-950`}>
+      <body
+        className={`${inter.className} antialiased bg-gray-50 dark:bg-slate-950`}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

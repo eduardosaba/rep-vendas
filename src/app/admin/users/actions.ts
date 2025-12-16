@@ -23,7 +23,7 @@ export async function updateUserAction(formData: FormData) {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (!me || me.role !== 'master') {
     logger.warn('Tentativa não autorizada de atualização de usuário', {

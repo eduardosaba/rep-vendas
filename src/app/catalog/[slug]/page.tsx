@@ -38,7 +38,7 @@ export async function generateMetadata(
       .select('name, price, image_url, external_image_url, description')
       .eq('id', productId)
       .eq('is_active', true) // GARANTE QUE SÓ MOSTRA SE ATIVO
-      .single();
+      .maybeSingle();
 
     if (product) {
       const priceFormatted = new Intl.NumberFormat('pt-BR', {

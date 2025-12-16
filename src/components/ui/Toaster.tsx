@@ -56,7 +56,7 @@ export function Toaster({ ...props }: ToasterProps) {
 
           // AQUI: Usa a cor da marca para o botão de ação
           actionButton:
-            'group-[.toast]:bg-[var(--primary)] group-[.toast]:text-white group-[.toast]:font-bold active:scale-95',
+            'group-[.toast]:bg-primary group-[.toast]:text-white group-[.toast]:font-bold active:scale-95',
 
           cancelButton:
             'group-[.toast]:bg-gray-100 group-[.toast]:dark:bg-slate-800 group-[.toast]:text-gray-500 group-[.toast]:dark:text-gray-400',
@@ -68,7 +68,7 @@ export function Toaster({ ...props }: ToasterProps) {
             'group-[.toaster]:bg-emerald-50 group-[.toaster]:dark:bg-emerald-950/30 group-[.toaster]:text-emerald-700 group-[.toaster]:dark:text-emerald-400 group-[.toaster]:border-emerald-200 group-[.toaster]:dark:border-emerald-900',
           warning:
             'group-[.toaster]:bg-amber-50 group-[.toaster]:dark:bg-amber-950/30 group-[.toaster]:text-amber-700 group-[.toaster]:dark:text-amber-400 group-[.toaster]:border-amber-200 group-[.toaster]:dark:border-amber-900',
-          info: 'group-[.toaster]:bg-blue-50 group-[.toaster]:dark:bg-blue-950/30 group-[.toaster]:text-blue-700 group-[.toaster]:dark:text-blue-400 group-[.toaster]:border-blue-200 group-[.toaster]:dark:border-blue-900',
+          info: 'group-[.toaster]:bg-primary/5 group-[.toaster]:dark:bg-primary/30 group-[.toaster]:text-primary group-[.toaster]:dark:text-primary group-[.toaster]:border-primary/10 group-[.toaster]:dark:border-primary/20',
         },
       }}
       {...props}

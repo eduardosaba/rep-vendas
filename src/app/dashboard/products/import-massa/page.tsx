@@ -432,6 +432,16 @@ export default function ImportMassaPage() {
             ? String(sku)
             : `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
+        const slugify = (s: string) =>
+          s
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-');
+
+        const slugBase = slugify(String(name) || 'produto');
+
         const productObj = {
           user_id: user.id,
           name: String(name),
@@ -452,6 +462,7 @@ export default function ImportMassaPage() {
 
           technical_specs: Object.keys(techSpecs).length > 0 ? techSpecs : null,
           last_import_id: null,
+          slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
         };
 
         uniqueProductsMap.set(refCode, productObj);
@@ -480,7 +491,7 @@ export default function ImportMassaPage() {
           file_name: fileName || 'Importação Manual',
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (historyError)
         throw new Error('Erro ao criar histórico: ' + historyError.message);

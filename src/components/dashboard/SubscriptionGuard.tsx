@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { AlertTriangle, Lock, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/Button';
 
 export default function SubscriptionGuard({
   children,
@@ -102,19 +103,18 @@ export default function SubscriptionGuard({
             catálogo e o dashboard, por favor renove seu plano.
           </p>
 
-          <button
+          <Button
             onClick={() => {
-              // TODO: Implementar redirecionamento para link de pagamento/WhatsApp
               toast.info('Redirecionamento', {
                 description: 'Redirecionando para o link de pagamento...',
               });
-              // router.push('/billing') ou window.open('https://...')
             }}
-            className="w-full py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
+            variant="primary"
+            className="w-full py-3 flex items-center justify-center gap-2"
           >
             <CreditCard size={20} />
             Renovar Assinatura Agora
-          </button>
+          </Button>
 
           <button
             onClick={() => router.push('/login')}

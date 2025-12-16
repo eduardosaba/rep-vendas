@@ -70,20 +70,22 @@ export function StagingProductCard({
       </button>
 
       {/* Imagem (Preview) */}
-      <div className="h-48 w-full bg-gray-100 relative overflow-hidden">
+      <div className="h-40 md:h-48 w-full bg-gray-100 relative overflow-hidden">
         <div className="relative w-full h-full">
           <Image
             src={imageUrl}
             alt="Preview"
             fill
-            style={{ objectFit: 'cover' }}
+            style={{ objectFit: 'cover', maxWidth: '100%' }}
             className="transition-transform group-hover:scale-105"
+            loading="lazy"
+            quality={80}
           />
         </div>
       </div>
 
       {/* Formulário */}
-      <div className="p-4 flex flex-col gap-3 flex-1">
+      <div className="p-3 sm:p-4 flex flex-col gap-3 flex-1">
         <div>
           <label className="text-xs font-semibold text-gray-500 uppercase">
             Nome do Produto
@@ -94,11 +96,11 @@ export function StagingProductCard({
             value={formData.name}
             onChange={handleChange}
             placeholder="Ex: Tênis Runner"
-            className="w-full mt-1 border-b border-gray-200 py-1 text-sm font-medium focus:border-indigo-500 focus:outline-none transition-colors"
+            className="w-full mt-1 border-b border-gray-200 py-1 text-sm font-medium focus:border-primary focus:outline-none transition-colors"
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase">
               Referência
@@ -109,7 +111,7 @@ export function StagingProductCard({
               value={formData.reference}
               onChange={handleChange}
               placeholder="SKU-123"
-              className="w-full mt-1 border-b border-gray-200 py-1 text-sm focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full mt-1 border-b border-gray-200 py-1 text-sm focus:border-primary focus:outline-none transition-colors"
             />
           </div>
           <div>
@@ -122,7 +124,7 @@ export function StagingProductCard({
               value={formData.price}
               onChange={handleChange}
               placeholder="0,00"
-              className="w-full mt-1 border-b border-gray-200 py-1 text-sm focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full mt-1 border-b border-gray-200 py-1 text-sm focus:border-primary focus:outline-none transition-colors"
             />
           </div>
         </div>
@@ -145,10 +147,10 @@ export function StagingProductCard({
             {saving ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <>
+              <span className="inline-flex items-center gap-2">
                 <Save size={16} />
-                Salvar Produto
-              </>
+                <span>Salvar Produto</span>
+              </span>
             )}
           </button>
         </div>

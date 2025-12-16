@@ -52,7 +52,7 @@ export async function updateOrderStatus(
     .from('orders')
     .select('display_id')
     .eq('id', orderId)
-    .single();
+    .maybeSingle();
 
   if (orderRow?.display_id) {
     revalidatePath(`/dashboard/orders/${orderRow.display_id}`);

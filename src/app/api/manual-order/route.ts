@@ -70,7 +70,7 @@ export async function POST(req: any) {
         .from('orders')
         .insert(orderPayload)
         .select()
-        .single();
+        .maybeSingle();
       if (!error && data) {
         orderData = data;
         break;

@@ -91,7 +91,7 @@ export default async function OrderDetailsPage({
     .select(`*, order_items (*)`)
     .eq('display_id', displayId)
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error || !order) {
     return notFound();

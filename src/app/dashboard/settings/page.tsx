@@ -18,13 +18,13 @@ import {
   DollarSign,
   Zap,
   Tag,
-  Eye,
   Package,
   AlertTriangle,
   Brush,
   CreditCard,
   Layout,
   Settings as SettingsIcon,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -114,11 +114,7 @@ const ToggleSetting = ({
   children,
 }: any) => (
   <div
-    className={`p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all ${
-      checked
-        ? 'border-indigo-500 ring-1 ring-indigo-500/20 shadow-sm'
-        : 'border-gray-200 dark:border-slate-800'
-    }`}
+    className={`p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all ${checked ? 'border-indigo-500 ring-1 ring-indigo-500/20 shadow-sm' : 'border-gray-200 dark:border-slate-800'}`}
   >
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-start gap-3">
@@ -152,8 +148,6 @@ const ToggleSetting = ({
         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
       </label>
     </div>
-
-    {/* Conteúdo Expansível (Inputs de Configuração) */}
     {checked && children && (
       <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 animate-in slide-in-from-top-2 fade-in pl-[52px]">
         {children}
@@ -173,13 +167,13 @@ export default function SettingsPage() {
   // Dados do Formulário
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
+    phone: '', // Mapeado para 'phone' ou 'support_phone'
     email: '',
     catalog_slug: '',
     primary_color: '#0d1b2c',
     secondary_color: '#b9722e',
     header_background_color: '#ffffff',
-    price_password: '123456',
+    price_password: '',
     footer_message: '',
   });
 
@@ -202,35 +196,16 @@ export default function SettingsPage() {
   const [newBannerFiles, setNewBannerFiles] = useState<
     { file: File; preview: string; tooSmall?: boolean }[]
   >([]);
-
-  const RECOMMENDED_BANNER = { width: 1400, height: 400 };
   const [logoUploading, setLogoUploading] = useState(false);
+  const RECOMMENDED_BANNER = { width: 1400, height: 400 };
 
-  // --- LIVE PREVIEW ---
+  // --- LIVE PREVIEW DA COR ---
   useEffect(() => {
     const root = document.documentElement;
     if (formData.primary_color) {
       root.style.setProperty('--primary', formData.primary_color);
-      root.style.setProperty(
-        '--primary-foreground',
-        getContrastColor(formData.primary_color)
-      );
     }
-    if (formData.secondary_color) {
-      root.style.setProperty('--secondary', formData.secondary_color);
-      root.style.setProperty(
-        '--secondary-foreground',
-        getContrastColor(formData.secondary_color)
-      );
-    }
-    if (formData.header_background_color) {
-      root.style.setProperty('--header-bg', formData.header_background_color);
-    }
-  }, [
-    formData.primary_color,
-    formData.secondary_color,
-    formData.header_background_color,
-  ]);
+  }, [formData.primary_color]);
 
   // --- CARREGAR DADOS ---
   useEffect(() => {
@@ -255,14 +230,14 @@ export default function SettingsPage() {
         if (settings) {
           setFormData({
             name: settings.name || '',
-            phone: settings.phone || '',
-            email: settings.email || '',
+            phone: settings.phone || settings.support_phone || '',
+            email: settings.email || settings.support_email || '',
             catalog_slug: settings.catalog_slug || '',
             primary_color: settings.primary_color || '#0d1b2c',
             secondary_color: settings.secondary_color || '#b9722e',
             header_background_color:
               settings.header_background_color || '#ffffff',
-            price_password: settings.price_password || '123456',
+            price_password: settings.price_password || '',
             footer_message: settings.footer_message || '',
           });
           setLogoPreview(settings.logo_url);
@@ -363,6 +338,10 @@ export default function SettingsPage() {
     setNewBannerFiles((prev) => [...prev, ...processed]);
   };
 
+  const removeNewBanner = (index: number) => {
+    setNewBannerFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const applyTheme = (theme: (typeof THEME_PRESETS)[0]) => {
     setFormData((prev) => ({
       ...prev,
@@ -373,10 +352,10 @@ export default function SettingsPage() {
     toast.success(`Tema ${theme.name} aplicado!`);
   };
 
-  // --- SALVAR ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const toastId = toast.loading('Salvando configurações...');
 
     try {
       const {
@@ -393,14 +372,15 @@ export default function SettingsPage() {
       if (logoFile) {
         setLogoUploading(true);
         const fileExt = logoFile.name.split('.').pop();
-        const fileName = `logo-${currentUserId}-${Date.now()}.${fileExt}`;
+        const fileName = `public/${currentUserId}/branding/logo-${Date.now()}.${fileExt}`;
+
         const { error } = await supabase.storage
           .from('product-images')
-          .upload(`public/${fileName}`, logoFile);
+          .upload(fileName, logoFile, { upsert: true });
         if (!error) {
           const { data } = supabase.storage
             .from('product-images')
-            .getPublicUrl(`public/${fileName}`);
+            .getPublicUrl(fileName);
           logoUrl = data.publicUrl;
         }
         setLogoUploading(false);
@@ -412,14 +392,14 @@ export default function SettingsPage() {
         for (let i = 0; i < newBannerFiles.length; i++) {
           const item = newBannerFiles[i];
           const fileExt = item.file.name.split('.').pop();
-          const fileName = `banner-${currentUserId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+          const fileName = `public/${currentUserId}/banners/banner-${Date.now()}-${i}.${fileExt}`;
           const { error } = await supabase.storage
             .from('product-images')
-            .upload(`public/${fileName}`, item.file);
+            .upload(fileName, item.file, { upsert: true });
           if (!error) {
-            const { data } = await supabase.storage
+            const { data } = supabase.storage
               .from('product-images')
-              .getPublicUrl(`public/${fileName}`);
+              .getPublicUrl(fileName);
             uploadedBanners.push(data.publicUrl);
           }
         }
@@ -430,9 +410,18 @@ export default function SettingsPage() {
       const { error } = await supabase.from('settings').upsert(
         {
           user_id: currentUserId,
-          ...formData,
+          name: formData.name,
+          phone: formData.phone,
+          support_phone: formData.phone, // Mantém compatibilidade
+          email: formData.email,
+          support_email: formData.email, // Mantém compatibilidade
           logo_url: logoUrl,
           catalog_slug: formData.catalog_slug,
+          primary_color: formData.primary_color,
+          secondary_color: formData.secondary_color,
+          header_background_color: formData.header_background_color,
+          price_password: formData.price_password,
+          footer_message: formData.footer_message,
           banners: finalBanners,
           updated_at: new Date().toISOString(),
           show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
@@ -445,8 +434,8 @@ export default function SettingsPage() {
           ),
           enable_stock_management: catalogSettings.enable_stock_management,
           global_allow_backorder: catalogSettings.global_allow_backorder,
-          show_cost_price: catalogSettings.show_cost_price ?? false,
-          show_sale_price: catalogSettings.show_sale_price ?? true,
+          show_cost_price: catalogSettings.show_cost_price,
+          show_sale_price: catalogSettings.show_sale_price,
         },
         { onConflict: 'user_id' }
       );
@@ -459,10 +448,17 @@ export default function SettingsPage() {
 
       setNewBannerFiles([]);
       setCurrentBanners(finalBanners);
-      toast.success('Configurações salvas com sucesso!');
+
+      toast.success('Configurações salvas!', { id: toastId });
+
+      // Delay para garantir que o logo atualize visualmente
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error: any) {
       console.error(error);
-      toast.error('Erro ao salvar', { description: error.message });
+      toast.error('Erro ao salvar', {
+        id: toastId,
+        description: error.message,
+      });
     } finally {
       setSaving(false);
     }
@@ -483,16 +479,22 @@ export default function SettingsPage() {
     { id: 'stock', label: 'Estoque', icon: Package },
   ];
 
+  // Se está na subpágina de otimização, não precisa renderizar o conteúdo principal
+  const isImagesSubPage =
+    typeof window !== 'undefined' &&
+    window.location.pathname.includes('/settings/images');
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20 p-4 sm:p-6 animate-in fade-in duration-500">
+    <div className="max-w-6xl mx-auto space-y-6 pb-20 p-4 sm:p-6 animate-in fade-in duration-500">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-30 bg-gray-50/90 dark:bg-slate-950/90 backdrop-blur-md py-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-30 bg-gray-50/90 dark:bg-slate-950/90 backdrop-blur-md py-4 -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-gray-200 dark:border-slate-800/50">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <SettingsIcon className="text-gray-400" /> Configurações
+            <SettingsIcon className="text-[var(--primary)]" /> Configurações da
+            Loja
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Personalize sua loja e catálogo.
+            Personalize sua loja, catálogo e regras de negócio.
           </p>
         </div>
         <Button
@@ -518,7 +520,7 @@ export default function SettingsPage() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`group flex items-center gap-2 py-4 px-4 border-b-2 font-medium text-sm transition-all whitespace-nowrap ${
                   isActive
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    ? 'border-[var(--primary)] text-[var(--primary)]'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-slate-400 dark:hover:text-white dark:hover:border-slate-600'
                 }`}
               >
@@ -526,7 +528,7 @@ export default function SettingsPage() {
                   size={18}
                   className={
                     isActive
-                      ? 'text-indigo-600 dark:text-indigo-400'
+                      ? 'text-[var(--primary)]'
                       : 'text-gray-400 group-hover:text-gray-500 dark:text-slate-500'
                   }
                 />
@@ -544,7 +546,8 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm md:col-span-2 space-y-6">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <Store size={18} className="text-indigo-500" /> Dados da Loja
+              <Store size={18} className="text-[var(--primary)]" /> Dados
+              Básicos
             </h3>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
@@ -555,7 +558,7 @@ export default function SettingsPage() {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
                   placeholder="Ex: Minha Loja Incrível"
                 />
               </div>
@@ -567,7 +570,7 @@ export default function SettingsPage() {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
                   placeholder="(00) 00000-0000"
                 />
               </div>
@@ -579,7 +582,7 @@ export default function SettingsPage() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
                   placeholder="contato@loja.com"
                 />
               </div>
@@ -588,7 +591,8 @@ export default function SettingsPage() {
 
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <Lock size={18} className="text-indigo-500" /> Acesso e Segurança
+              <Lock size={18} className="text-[var(--primary)]" /> Acesso e
+              Links
             </h3>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -596,20 +600,17 @@ export default function SettingsPage() {
               </label>
               <div className="flex rounded-lg shadow-sm">
                 <span className="bg-gray-100 dark:bg-slate-800 border border-r-0 border-gray-300 dark:border-slate-700 rounded-l-lg px-3 py-2.5 text-gray-500 text-sm hidden sm:flex items-center select-none">
-                  loja.com/
+                  repvendas.com.br/catalogo/
                 </span>
                 <input
                   type="text"
                   name="catalog_slug"
                   value={formData.catalog_slug}
                   onChange={handleSlugChange}
-                  className="flex-1 p-2.5 border border-gray-300 dark:border-slate-700 rounded-r-lg sm:rounded-l-none rounded-l-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-indigo-600 dark:text-indigo-400 font-bold bg-white dark:bg-slate-950"
+                  className="flex-1 p-2.5 border border-gray-300 dark:border-slate-700 rounded-r-lg sm:rounded-l-none rounded-l-lg focus:ring-2 focus:ring-[var(--primary)] outline-none font-mono text-[var(--primary)] font-bold bg-white dark:bg-slate-950"
                   placeholder="minha-loja"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Este será o endereço público da sua loja.
-              </p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
@@ -619,28 +620,29 @@ export default function SettingsPage() {
                 name="price_password"
                 value={formData.price_password}
                 onChange={handleChange}
-                className="w-full p-2.5 border rounded-lg font-mono bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                placeholder="123456"
+                className="w-full p-2.5 border rounded-lg font-mono bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                placeholder="Ex: 123456"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Se definido, o cliente precisará digitar para ver preços.
+                Se definido, o cliente precisará da senha para ver os preços.
               </p>
             </div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <MessageSquare size={18} className="text-indigo-500" /> Mensagens
+              <MessageSquare size={18} className="text-[var(--primary)]" />{' '}
+              Rodapé
             </h3>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                Rodapé (Footer)
+                Mensagem do Footer
               </label>
               <textarea
                 name="footer_message"
                 value={formData.footer_message}
                 onChange={handleChange}
-                className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none"
+                className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none resize-none"
                 rows={4}
                 placeholder="Ex: Enviamos para todo o Brasil. Aceitamos Pix e Cartão."
               />
@@ -654,14 +656,15 @@ export default function SettingsPage() {
         <div className="grid gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 mb-4">
-              <Brush size={18} className="text-indigo-500" /> Temas Predefinidos
+              <Brush size={18} className="text-[var(--primary)]" /> Temas
+              Prontos
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {THEME_PRESETS.map((theme, idx) => (
                 <button
                   key={idx}
                   onClick={() => applyTheme(theme)}
-                  className="border border-gray-200 dark:border-slate-700 rounded-xl p-4 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-500/20 transition-all text-left group bg-gray-50 dark:bg-slate-800/50"
+                  className="border border-gray-200 dark:border-slate-700 rounded-xl p-4 hover:border-[var(--primary)] hover:ring-2 hover:ring-[var(--primary)]/20 transition-all text-left group bg-gray-50 dark:bg-slate-800/50"
                 >
                   <div className="flex gap-1 mb-3 h-10 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-600 shadow-sm">
                     <div
@@ -677,7 +680,7 @@ export default function SettingsPage() {
                       style={{ backgroundColor: theme.header }}
                     ></div>
                   </div>
-                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-[var(--primary)]">
                     {theme.name}
                   </span>
                 </button>
@@ -687,67 +690,52 @@ export default function SettingsPage() {
 
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <Palette size={18} className="text-indigo-500" /> Cores
-              Personalizadas
+              <Palette size={18} className="text-[var(--primary)]" />{' '}
+              Personalizar Cores
             </h3>
             <div className="grid md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Cor Primária
-                </label>
-                <div className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700">
-                  <input
-                    type="color"
-                    name="primary_color"
-                    value={formData.primary_color}
-                    onChange={handleChange}
-                    className="h-10 w-10 rounded cursor-pointer border-0 p-0 shadow-sm"
-                  />
-                  <span className="text-sm font-mono text-gray-600 dark:text-gray-400 uppercase">
-                    {formData.primary_color}
-                  </span>
+              {[
+                {
+                  label: 'Cor Primária',
+                  name: 'primary_color',
+                  value: formData.primary_color,
+                },
+                {
+                  label: 'Cor Secundária',
+                  name: 'secondary_color',
+                  value: formData.secondary_color,
+                },
+                {
+                  label: 'Fundo do Header',
+                  name: 'header_background_color',
+                  value: formData.header_background_color,
+                },
+              ].map((colorInput) => (
+                <div key={colorInput.name}>
+                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                    {colorInput.label}
+                  </label>
+                  <div className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700">
+                    <input
+                      type="color"
+                      name={colorInput.name}
+                      value={colorInput.value}
+                      onChange={handleChange}
+                      className="h-10 w-10 rounded cursor-pointer border-0 p-0 shadow-sm"
+                    />
+                    <span className="text-sm font-mono text-gray-600 dark:text-gray-400 uppercase">
+                      {colorInput.value}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Cor Secundária
-                </label>
-                <div className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700">
-                  <input
-                    type="color"
-                    name="secondary_color"
-                    value={formData.secondary_color}
-                    onChange={handleChange}
-                    className="h-10 w-10 rounded cursor-pointer border-0 p-0 shadow-sm"
-                  />
-                  <span className="text-sm font-mono text-gray-600 dark:text-gray-400 uppercase">
-                    {formData.secondary_color}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Fundo do Header
-                </label>
-                <div className="flex items-center gap-3 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700">
-                  <input
-                    type="color"
-                    name="header_background_color"
-                    value={formData.header_background_color}
-                    onChange={handleChange}
-                    className="h-10 w-10 rounded cursor-pointer border-0 p-0 shadow-sm"
-                  />
-                  <span className="text-sm font-mono text-gray-600 dark:text-gray-400 uppercase">
-                    {formData.header_background_color}
-                  </span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <UploadCloud size={18} className="text-indigo-500" /> Logo da Loja
+              <UploadCloud size={18} className="text-[var(--primary)]" /> Logo
+              da Loja
             </h3>
             <div className="flex items-center gap-6">
               <div className="relative h-32 w-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-slate-950 hover:bg-gray-100 transition-colors">
@@ -771,7 +759,7 @@ export default function SettingsPage() {
                 )}
                 {logoUploading && (
                   <div className="absolute inset-0 bg-white/80 dark:bg-black/80 flex items-center justify-center backdrop-blur-sm">
-                    <Loader2 className="animate-spin text-indigo-600" />
+                    <Loader2 className="animate-spin text-[var(--primary)]" />
                   </div>
                 )}
               </div>
@@ -787,11 +775,10 @@ export default function SettingsPage() {
                   htmlFor="logo-upload"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
                 >
-                  <UploadCloud size={16} />
-                  Escolher Imagem
+                  <UploadCloud size={16} /> Escolher Imagem
                 </label>
                 <p className="text-xs text-gray-500 mt-2">
-                  Recomendado: PNG Transparente ou JPG (500x500px)
+                  Recomendado: PNG Transparente.
                 </p>
               </div>
             </div>
@@ -799,7 +786,7 @@ export default function SettingsPage() {
 
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <ImageIcon size={18} className="text-indigo-500" /> Banners
+              <ImageIcon size={18} className="text-[var(--primary)]" /> Banners
               Promocionais
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -814,18 +801,44 @@ export default function SettingsPage() {
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     alt="Banner"
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                   <button
                     onClick={() =>
                       setCurrentBanners((prev) =>
                         prev.filter((_, idx) => idx !== i)
                       )
                     }
-                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 shadow-md hover:bg-red-600 transition-all transform scale-90 group-hover:scale-100"
-                    title="Remover banner"
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 shadow-md hover:bg-red-600 transition-all scale-90 group-hover:scale-100"
                   >
                     <X size={14} />
                   </button>
+                </div>
+              ))}
+              {/* Previews das novas imagens selecionadas (antes de salvar) */}
+              {newBannerFiles.map((nb, idx) => (
+                <div
+                  key={`new-${idx}`}
+                  className="relative h-32 bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden group shadow-sm border border-dashed border-gray-300 dark:border-slate-700 flex items-center justify-center"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={nb.preview}
+                    className="w-full h-full object-cover"
+                    alt={`Preview ${idx}`}
+                  />
+                  <div className="absolute left-2 top-2 bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    Novo
+                  </div>
+                  <button
+                    onClick={() => removeNewBanner(idx)}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg shadow-md hover:bg-red-600 transition-all"
+                  >
+                    <X size={14} />
+                  </button>
+                  {nb.tooSmall && (
+                    <div className="absolute bottom-2 left-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5 rounded">
+                      Dimensões abaixo do recomendado
+                    </div>
+                  )}
                 </div>
               ))}
               <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:border-indigo-300 transition-all group">
@@ -847,9 +860,37 @@ export default function SettingsPage() {
                 />
               </label>
             </div>
-            <p className="text-xs text-gray-400">
-              Tamanho recomendado: 1400x400px
-            </p>
+          </div>
+
+          {/* OTIMIZAÇÃO DE IMAGENS */}
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
+                <Zap
+                  size={24}
+                  className="text-indigo-600 dark:text-indigo-400"
+                />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
+                  Otimização de Imagens
+                  <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">
+                    Novo
+                  </span>
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Converta automaticamente suas imagens para WebP, gere versões
+                  responsivas e reduza até 80% do tamanho. Melhore a performance
+                  do seu catálogo!
+                </p>
+                <a
+                  href="/dashboard/settings/images"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                >
+                  <Zap size={16} /> Abrir Painel de Otimização
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -877,7 +918,7 @@ export default function SettingsPage() {
                   name="max_installments"
                   value={catalogSettings.max_installments}
                   onChange={handleCatalogSettingsChange}
-                  className="w-24 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-24 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
                 />
               </div>
             </ToggleSetting>
@@ -885,7 +926,7 @@ export default function SettingsPage() {
             <ToggleSetting
               label="Barra de Benefícios"
               name="show_top_benefit_bar"
-              description="Faixa colorida no topo da loja com aviso."
+              description="Faixa colorida no topo da loja."
               checked={catalogSettings.show_top_benefit_bar}
               onChange={handleCatalogSettingsChange}
               icon={DollarSign}
@@ -900,7 +941,7 @@ export default function SettingsPage() {
                   value={catalogSettings.top_benefit_text}
                   onChange={handleCatalogSettingsChange}
                   placeholder="Ex: Frete Grátis para todo Brasil!"
-                  className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
                 />
               </div>
             </ToggleSetting>
@@ -908,14 +949,14 @@ export default function SettingsPage() {
             <ToggleSetting
               label="Tag de Desconto à Vista"
               name="show_discount_tag"
-              description="Mostra selo de % OFF no preço à vista."
+              description="Mostra selo de % OFF."
               checked={catalogSettings.show_discount_tag}
               onChange={handleCatalogSettingsChange}
               icon={Tag}
             >
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Percentual de Desconto (%)
+                  Percentual (%)
                 </label>
                 <div className="relative w-32">
                   <input
@@ -925,7 +966,7 @@ export default function SettingsPage() {
                     name="cash_price_discount_percent"
                     value={catalogSettings.cash_price_discount_percent}
                     onChange={handleCatalogSettingsChange}
-                    className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white pr-8 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white pr-8 focus:ring-2 focus:ring-[var(--primary)] outline-none"
                   />
                   <span className="absolute right-3 top-2.5 text-gray-400 font-bold">
                     %
@@ -938,7 +979,7 @@ export default function SettingsPage() {
               <ToggleSetting
                 label="Mostrar Preço de Venda"
                 name="show_sale_price"
-                description="Exibe o preço sugerido (De: R$)."
+                description="Exibe o preço sugerido."
                 checked={catalogSettings.show_sale_price ?? true}
                 onChange={handleCatalogSettingsChange}
                 icon={DollarSign}
@@ -946,7 +987,7 @@ export default function SettingsPage() {
               <ToggleSetting
                 label="Mostrar Preço de Custo"
                 name="show_cost_price"
-                description="Exibe o preço de custo (apenas interno)."
+                description="Apenas para uso interno."
                 checked={catalogSettings.show_cost_price ?? false}
                 onChange={handleCatalogSettingsChange}
                 icon={Lock}
@@ -961,26 +1002,26 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <Package size={18} className="text-indigo-500" /> Controle de
-              Estoque
+              <Package size={18} className="text-[var(--primary)]" /> Controle
+              de Estoque
             </h3>
             <div className="space-y-6">
               <ToggleSetting
                 label="Ativar Gestão de Estoque"
                 name="enable_stock_management"
-                description="Habilita o controle de quantidades disponíveis por produto."
+                description="Habilita o controle de quantidades."
                 checked={catalogSettings.enable_stock_management}
                 onChange={handleCatalogSettingsChange}
                 icon={Package}
               >
                 <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-xl mt-2">
                   <h4 className="text-sm font-bold text-yellow-800 dark:text-yellow-500 flex items-center gap-2 mb-3">
-                    <AlertTriangle size={16} /> Política de Venda sem Estoque
+                    <AlertTriangle size={16} /> Venda sem Estoque
                   </h4>
                   <ToggleSetting
-                    label="Permitir Backorder (Venda sem Estoque)"
+                    label="Permitir Backorder"
                     name="global_allow_backorder"
-                    description="Permite que clientes comprem produtos mesmo com estoque zerado."
+                    description="Permite vender mesmo com estoque zerado."
                     checked={catalogSettings.global_allow_backorder}
                     onChange={handleCatalogSettingsChange}
                     icon={Zap}

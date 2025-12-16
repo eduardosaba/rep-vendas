@@ -68,19 +68,18 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
         style={{ transform: `translateX(-${currentSlide * 100}%)` }}
       >
         {slides.map((slide) => (
-          <div
-            key={slide.id}
-            className="min-w-full w-full h-full relative flex-shrink-0"
-          >
-            <NextImage
-              src={slide.imageUrl}
-              alt={slide.altText}
-              fill
-              sizes="100vw"
-              className="object-cover"
-              priority={slide.id === 0}
-            />
-            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none opacity-50" />
+          <div key={slide.id} className="w-full flex-shrink-0 relative">
+            <div className="relative w-full h-full">
+              <NextImage
+                src={slide.imageUrl}
+                alt={slide.altText}
+                fill
+                sizes="100vw"
+                className="object-cover"
+                priority={slide.id === 0}
+              />
+              <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none opacity-50" />
+            </div>
           </div>
         ))}
       </div>
@@ -110,7 +109,11 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
               <button
                 key={idx}
                 onClick={() => setCurrentSlide(idx)}
-                className={`h-2 rounded-full transition-all shadow-sm ${idx === currentSlide ? 'bg-white w-8' : 'bg-white/50 w-2 hover:bg-white/80'}`}
+                className={`h-2 rounded-full transition-all shadow-sm ${
+                  idx === currentSlide
+                    ? 'bg-white w-8'
+                    : 'bg-white/50 w-2 hover:bg-white/80'
+                }`}
               />
             ))}
           </div>
@@ -170,6 +173,12 @@ export function ProductGrid() {
     return (product.stock_quantity || 0) <= 0;
   };
 
+  // Aplicar paginação
+  const ITEMS_PER_PAGE = 24;
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedProducts = displayProducts.slice(startIndex, endIndex);
+
   return (
     <div className="flex flex-col gap-6 w-full">
       {isFilterOpen && (
@@ -183,7 +192,7 @@ export function ProductGrid() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between w-full sm:w-auto">
           <p className="text-sm text-gray-600">
-            Mostrando <strong>{displayProducts.length}</strong> de{' '}
+            Mostrando <strong>{paginatedProducts.length}</strong> de{' '}
             <strong>{totalProducts}</strong> produtos
           </p>
           <Button
@@ -249,15 +258,15 @@ export function ProductGrid() {
           {viewMode === 'grid' ? (
             // --- GRID: FORÇANDO 5 COLUNAS EM LG ---
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
-              {displayProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}
                   storeSettings={{
-                    primary_color: store.primary_color || '#4f46e5', // Fallback: Indigo-600
+                    primary_color: store.primary_color || '#4f46e5', // Fallback padrão se --primary não estiver definido
                     show_installments: !!store.show_installments,
                     max_installments: store.max_installments || 1,
-                    show_cash_discount: !!store.show_discount_tag,
+                    show_cash_discount: !!store.show_cash_discount,
                     cash_price_discount_percent:
                       store.cash_price_discount_percent || 0,
                     show_cost_price: !!store.show_cost_price,
@@ -273,7 +282,7 @@ export function ProductGrid() {
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              {displayProducts.map((product) => {
+              {paginatedProducts.map((product) => {
                 const outOfStock = isOutOfStock(product);
                 return (
                   <div
@@ -304,7 +313,7 @@ export function ProductGrid() {
                         </div>
                       )}
                       {product.is_launch && (
-                        <span className="absolute top-2 left-2 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
+                        <span className="absolute top-2 left-2 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
                           Novo
                         </span>
                       )}

@@ -105,12 +105,12 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
 
         <div className="p-4">
           <div className="mb-2">
-            <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
+            <span className="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
               {product.brand || 'Marca'}
             </span>
           </div>
           <h3
-            className="mb-2 line-clamp-2 cursor-pointer text-lg font-medium text-gray-900 hover:text-blue-600"
+            className="mb-2 line-clamp-2 cursor-pointer text-lg font-medium text-gray-900 hover:text-primary"
             onClick={handleProductClick}
           >
             {product.name}
@@ -129,14 +129,28 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
                 </span>
                 {settings?.show_old_price && (
                   <span className="text-sm text-gray-500 line-through">
-                    R$ {formatPrice(salePrice * 1.2)}
+                    R${' '}
+                    {formatPrice(
+                      settings?.show_old_price &&
+                        (product.original_price ?? product.price)
+                        ? (product.original_price ?? product.price)
+                        : salePrice
+                    )}
                   </span>
                 )}
-                {settings?.show_discount && (
-                  <span className="text-xs font-medium text-green-600">
-                    17% OFF
-                  </span>
-                )}
+                {settings?.show_cash_discount &&
+                  product.price &&
+                  salePrice < (product.original_price ?? product.price) && (
+                    <span className="text-xs font-medium text-green-600">
+                      {Math.round(
+                        (((product.original_price ?? product.price) -
+                          salePrice) /
+                          (product.original_price ?? product.price)) *
+                          100
+                      )}
+                      % OFF
+                    </span>
+                  )}
               </div>
             ) : (
               <div className="mb-1">

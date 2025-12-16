@@ -245,12 +245,14 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 font-medium">Cliente</th>
-                <th className="px-6 py-4 font-medium">Contato</th>
-                <th className="px-6 py-4 font-medium">Total Gasto (LTV)</th>
-                <th className="px-6 py-4 font-medium">Pedidos</th>
-                <th className="px-6 py-4 font-medium">Última Compra</th>
-                <th className="px-6 py-4 text-right">Ações</th>
+                <th className="px-3 sm:px-6 py-4 font-medium">Cliente</th>
+                <th className="px-3 sm:px-6 py-4 font-medium">Contato</th>
+                <th className="px-3 sm:px-6 py-4 font-medium">
+                  Total Gasto (LTV)
+                </th>
+                <th className="px-3 sm:px-6 py-4 font-medium">Pedidos</th>
+                <th className="px-3 sm:px-6 py-4 font-medium">Última Compra</th>
+                <th className="px-3 sm:px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -266,7 +268,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                     key={client.id}
                     className="hover:bg-gray-50 transition-colors group"
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
                           {client.name.charAt(0).toUpperCase()}
@@ -281,7 +283,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-4">
                       <div className="flex flex-col gap-1">
                         {client.phone ? (
                           <a
@@ -303,18 +305,18 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-bold text-gray-900">
+                    <td className="px-3 sm:px-6 py-4 font-bold text-gray-900">
                       {formatCurrency(client.totalSpent)}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-4">
                       <span className="bg-gray-100 text-gray-600 py-1 px-2.5 rounded-full text-xs font-bold">
                         {client.orderCount}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-3 sm:px-6 py-4 text-gray-500">
                       {formatDate(client.lastOrderDate)}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-3 sm:px-6 py-4 text-right">
                       <button
                         onClick={() => setSelectedClient(client)}
                         className="text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition-colors font-medium text-sm inline-flex items-center gap-1"

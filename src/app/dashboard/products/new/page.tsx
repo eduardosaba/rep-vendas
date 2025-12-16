@@ -17,6 +17,8 @@ import {
   Sparkles,
   X,
   UploadCloud,
+  Zap,
+  Star,
 } from 'lucide-react';
 
 // --- TIPAGEM ---
@@ -38,70 +40,100 @@ const ImageUploader = ({
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
   onSetCover: (index: number) => void;
-}) => (
-  <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
-    <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
-      <ImageIcon size={18} className="text-blue-600" /> Galeria de Imagens
-    </h3>
+}) => {
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
+  return (
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+      <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
+        <ImageIcon size={18} className="text-blue-600" /> Galeria de Imagens
+      </h3>
 
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-      {images.map((url, index) => (
-        <div
-          key={index}
-          className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900' : 'border-gray-200 dark:border-slate-700'}`}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={url}
-            className="w-full h-full object-cover"
-            alt={`Product ${index}`}
-          />
-
-          <button
-            type="button"
-            onClick={() => onRemove(index)}
-            className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+        {images.map((url, index) => (
+          <div
+            key={index}
+            className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900' : 'border-gray-200 dark:border-slate-700'}`}
           >
-            <X size={14} />
-          </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              className="w-full h-full object-cover cursor-zoom-in"
+              alt={`Product ${index}`}
+              onClick={() => setZoomImage(url)}
+            />
 
-          {index === 0 ? (
-            <div className="absolute bottom-0 inset-x-0 bg-blue-600/90 text-white text-[10px] text-center py-1 font-bold">
-              CAPA
-            </div>
-          ) : (
             <button
               type="button"
-              onClick={() => onSetCover(index)}
-              className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-blue-600/80 transition-colors"
+              onClick={() => onRemove(index)}
+              className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
             >
-              Definir Capa
+              <X size={14} />
             </button>
-          )}
-        </div>
-      ))}
 
-      <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-blue-300 transition-all group relative">
-        <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors">
-          <UploadCloud size={24} />
+            {index === 0 ? (
+              <div className="absolute bottom-0 inset-x-0 bg-blue-600/90 text-white text-[10px] text-center py-1 font-bold">
+                CAPA
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSetCover(index)}
+                className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-blue-600/80 transition-colors"
+              >
+                Definir Capa
+              </button>
+            )}
+          </div>
+        ))}
+
+        <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-blue-300 transition-all group relative">
+          <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors">
+            <UploadCloud size={24} />
+          </div>
+          <span className="text-xs text-gray-500 mt-2 font-medium">
+            Adicionar
+          </span>
+          <input
+            type="file"
+            className="hidden"
+            accept="image/*"
+            multiple
+            onChange={onUpload}
+          />
+        </label>
+      </div>
+      <p className="text-xs text-gray-400 mt-3">
+        A primeira imagem será usada como capa.
+      </p>
+
+      {/* Modal de Zoom */}
+      {zoomImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setZoomImage(null)}
+        >
+          <div
+            className="relative max-w-6xl max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={zoomImage}
+              alt="Ampliado"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            />
+            <button
+              onClick={() => setZoomImage(null)}
+              className="absolute top-4 right-4 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg"
+            >
+              <X size={20} className="text-gray-700" />
+            </button>
+          </div>
         </div>
-        <span className="text-xs text-gray-500 mt-2 font-medium">
-          Adicionar
-        </span>
-        <input
-          type="file"
-          className="hidden"
-          accept="image/*"
-          multiple
-          onChange={onUpload}
-        />
-      </label>
+      )}
     </div>
-    <p className="text-xs text-gray-400 mt-3">
-      A primeira imagem será usada como capa.
-    </p>
-  </div>
-);
+  );
+};
 
 // --- PÁGINA PRINCIPAL ---
 export default function NewProductPage() {
@@ -124,6 +156,7 @@ export default function NewProductPage() {
     sku: '',
     barcode: '',
     color: '',
+    cost: '',
     price: '',
     sale_price: '',
     discount_percent: 0,
@@ -244,7 +277,10 @@ export default function NewProductPage() {
     });
   };
 
-  const handlePriceChange = (field: 'price' | 'sale_price', value: string) => {
+  const handlePriceChange = (
+    field: 'price' | 'sale_price' | 'cost',
+    value: string
+  ) => {
     if (!value) {
       setFormData((prev) => ({ ...prev, [field]: '' }));
       return;
@@ -274,12 +310,24 @@ export default function NewProductPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Sessão expirada');
 
+      const finalCost = formData.cost
+        ? parseFloat(formData.cost.replace(/\./g, '').replace(',', '.'))
+        : null;
       const finalPrice =
         parseFloat(formData.price.replace(/\./g, '').replace(',', '.')) || 0;
       const finalSalePrice = formData.sale_price
         ? parseFloat(formData.sale_price.replace(/\./g, '').replace(',', '.'))
         : null;
 
+      const slugify = (s: string) =>
+        s
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-');
+
+      const slugBase = slugify(formData.name || 'produto');
       const payload = {
         user_id: user.id,
         name: formData.name,
@@ -288,6 +336,7 @@ export default function NewProductPage() {
         sku: formData.sku || null,
         barcode: formData.barcode || null,
         color: formData.color || null,
+        cost: finalCost,
         price: finalPrice,
         sale_price: finalSalePrice,
         discount_percent: Number(formData.discount_percent) || 0,
@@ -303,6 +352,7 @@ export default function NewProductPage() {
         is_active: formData.is_active,
         images: formData.images,
         image_url: formData.images[0] || null,
+        slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
       };
 
       const { error } = await supabase.from('products').insert(payload);
@@ -455,18 +505,35 @@ export default function NewProductPage() {
               Preços
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Preço de Venda (R$) <span className="text-red-500">*</span>
+                  Preço de Custo (R$)
                 </label>
                 <input
-                  required
+                  value={formData.cost}
+                  onChange={(e) => handlePriceChange('cost', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-medium text-blue-600"
+                  placeholder="0,00"
+                />
+                <span className="text-xs text-gray-400 mt-1">
+                  Opcional - Quanto você paga
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Preço de Venda (R$)
+                </label>
+                <input
                   value={formData.price}
                   onChange={(e) => handlePriceChange('price', e.target.value)}
                   className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold text-gray-900"
                   placeholder="0,00"
                 />
+                <span className="text-xs text-gray-400 mt-1">
+                  Preço sugerido ao cliente
+                </span>
               </div>
 
               <div>
@@ -481,6 +548,9 @@ export default function NewProductPage() {
                   className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-green-500 dark:text-white text-green-700 font-medium"
                   placeholder="0,00"
                 />
+                <span className="text-xs text-gray-400 mt-1">
+                  Preço "de/por"
+                </span>
               </div>
             </div>
 

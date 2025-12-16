@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       .from('staging_images')
       .select('storage_path, original_name')
       .eq('id', stagingImageId)
-      .single();
+      .maybeSingle();
 
     if (imgErr || !imgRow) {
       return NextResponse.json(
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       .from('products')
       .select('id, image_url')
       .eq('id', productId)
-      .single();
+      .maybeSingle();
 
     if (prodErr || !productRow) {
       return NextResponse.json({ error: 'product not found' }, { status: 404 });

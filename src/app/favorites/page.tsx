@@ -13,6 +13,7 @@ import {
   ShoppingBag,
   AlertCircle,
 } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import { toast } from 'sonner';
 
 // --- TIPAGEM ---
@@ -141,7 +142,7 @@ export default function FavoritesPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-slate-950">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -218,14 +219,13 @@ export default function FavoritesPage() {
               Você ainda não adicionou nenhum produto aos favoritos. Explore o
               catálogo para encontrar o que precisa.
             </p>
-            <button
+            <Button
               onClick={() => router.push('/')}
-              className="mt-6 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium text-white shadow-md transition-transform hover:scale-105 active:scale-95"
-              style={{ backgroundColor: primaryColor }}
+              className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 text-sm"
             >
               <ShoppingBag size={18} />
               Ir para o Catálogo
-            </button>
+            </Button>
           </div>
         ) : (
           // GRID DE PRODUTOS
@@ -246,7 +246,7 @@ export default function FavoritesPage() {
               return (
                 <div
                   key={product.id}
-                  className="group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-indigo-300 hover:shadow-lg dark:hover:border-indigo-700"
+                  className="group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-primary hover:shadow-lg dark:hover:border-primary"
                 >
                   {/* Imagem */}
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-white p-4">

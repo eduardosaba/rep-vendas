@@ -86,7 +86,7 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
       </div>
 
       {slides.length > 1 && (
-        <>
+        <div>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -114,7 +114,7 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
               />
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -297,7 +297,7 @@ export function ProductGrid() {
                         </div>
                       )}
                       {product.is_launch && (
-                        <span className="absolute top-2 left-2 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
+                        <span className="absolute top-2 left-2 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
                           Novo
                         </span>
                       )}

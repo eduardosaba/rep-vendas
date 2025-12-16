@@ -329,7 +329,7 @@ export function StoreProvider({
           status: 'pending',
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 

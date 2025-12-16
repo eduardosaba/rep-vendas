@@ -67,7 +67,12 @@ export function ProductCard({
   const [imageFailed, setImageFailed] = useState(false);
 
   // --- LÓGICA DE PREÇOS ---
-  const currentPrice = product.price;
+  // CORRETO: price = custo, sale_price = preço de venda sugerido
+  const costPrice = product.price || 0;
+  const salePrice = (product as any).sale_price || 0;
+  // Se não tiver sale_price, usa costPrice como preço de venda também
+  const currentPrice = salePrice > 0 ? salePrice : costPrice;
+
   const hasValidOriginalPrice =
     product.original_price && product.original_price > currentPrice;
   const discountPercent = hasValidOriginalPrice
@@ -93,7 +98,7 @@ export function ProductCard({
 
   const { cart, updateQuantity } = useStore();
 
-  const primaryColor = storeSettings.primary_color || '#4f46e5'; // Fallback: Indigo-600
+  const primaryColor = storeSettings.primary_color || '#4f46e5'; // Fallback padrão se --primary não estiver definido
 
   return (
     <div
@@ -111,6 +116,8 @@ export function ProductCard({
               sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
               style={{ objectFit: 'contain' }}
               className="group-hover:scale-105 transition-transform duration-700 p-6"
+              loading="lazy"
+              quality={80}
               onError={() => setImageFailed(true)}
             />
           </div>
@@ -201,7 +208,7 @@ export function ProductCard({
             {product.name}
           </h3>
           {product.brand && (
-            <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-2">
+            <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
               {product.brand}
             </p>
           )}
@@ -217,20 +224,23 @@ export function ProductCard({
                     Preço de Custo
                   </span>
                   <span className="font-bold text-gray-900 leading-none text-2xl tracking-tight">
-                    {typeof product.cost === 'number'
-                      ? new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(product.cost)
-                      : 'R$ --'}
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    }).format(costPrice)}
                   </span>
-                  <span className="text-[10px] text-gray-400 mt-1">
-                    Venda não disponível
-                  </span>
+                  {/* Exibir aviso de indisponibilidade apenas se o controle de estoque estiver ATIVO e a quantidade for zero */}
+                  {storeSettings.enable_stock_management &&
+                  (product.stock_quantity ?? 0) <= 0 ? (
+                    <span className="text-[10px] text-gray-400 mt-1">
+                      Venda não disponível
+                    </span>
+                  ) : null}
                 </div>
               ) : (
                 <>
-                  {showCost && typeof product.cost === 'number' && (
+                  {/* Mostrar ambos os preços quando as duas opções estão ativas */}
+                  {showCost && showSale && costPrice > 0 && (
                     <div className="flex justify-between items-center bg-yellow-50 px-2 py-1.5 rounded text-[10px] text-yellow-800 border border-yellow-100 mb-2">
                       <span className="font-bold uppercase tracking-wide">
                         Custo
@@ -239,11 +249,12 @@ export function ProductCard({
                         {new Intl.NumberFormat('pt-BR', {
                           style: 'currency',
                           currency: 'BRL',
-                        }).format(product.cost)}
+                        }).format(costPrice)}
                       </span>
                     </div>
                   )}
 
+                  {/* Preço principal (venda ou custo se só tiver um) */}
                   {showSale ? (
                     <>
                       {hasValidOriginalPrice && (
@@ -269,60 +280,85 @@ export function ProductCard({
                           />
                         </div>
                       </div>
-
-                      {getInstallmentText(
-                        currentPrice,
-                        storeSettings.max_installments || 1,
-                        isPricesVisible
-                      )}
-                      {getCashDiscountText(
-                        currentPrice,
-                        storeSettings.cash_price_discount_percent || 0,
-                        isPricesVisible
-                      )}
-
-                      {/* QUICK QUANTITY CONTROLS (quando já no carrinho) */}
-                      {(() => {
-                        const inCart = cart.find((it) => it.id === product.id);
-                        const qty = inCart ? inCart.quantity : 0;
-                        return qty > 0 ? (
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              data-action="no-open"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateQuantity(product.id, -1);
-                              }}
-                              className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center border"
-                            >
-                              <Minus size={16} />
-                            </button>
-                            <div className="min-w-[36px] text-center font-bold">
-                              {qty}
-                            </div>
-                            <button
-                              data-action="no-open"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onAddToCart(product, 1);
-                              }}
-                              className="w-8 h-8 rounded-lg flex items-center justify-center"
-                              style={{
-                                backgroundColor: primaryColor,
-                                color: '#fff',
-                              }}
-                            >
-                              <Plus size={16} />
-                            </button>
-                          </div>
-                        ) : null;
-                      })()}
                     </>
-                  ) : (
-                    <div className="text-center py-2 text-sm font-medium text-gray-500 bg-gray-50 rounded-lg border border-gray-100">
-                      Sob Consulta
+                  ) : showCost && costPrice > 0 ? (
+                    /* Modo apenas custo (destaque) */
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">
+                        Preço de Custo
+                      </span>
+                      <PriceDisplay
+                        value={costPrice}
+                        isPricesVisible={isPricesVisible}
+                        size="normal"
+                        className="font-bold text-primary leading-none text-lg"
+                      />
                     </div>
-                  )}
+                  ) : null}
+
+                  {/* Parcelamento e Desconto - Define qual preço usar */}
+                  {(() => {
+                    // Se mostrar venda (ou ambos), usa sale_price se existir, senão price
+                    // Se mostrar apenas custo, usa price
+                    const priceForInstallment =
+                      showSale && salePrice > 0 ? salePrice : costPrice;
+
+                    return (
+                      <>
+                        {storeSettings.show_installments &&
+                          priceForInstallment > 0 &&
+                          getInstallmentText(
+                            priceForInstallment,
+                            storeSettings.max_installments || 1,
+                            isPricesVisible
+                          )}
+                        {storeSettings.show_cash_discount &&
+                          priceForInstallment > 0 &&
+                          getCashDiscountText(
+                            priceForInstallment,
+                            storeSettings.cash_price_discount_percent || 0,
+                            isPricesVisible
+                          )}
+                      </>
+                    );
+                  })()}
+
+                  {/* QUICK QUANTITY CONTROLS (quando já no carrinho) */}
+                  {(() => {
+                    const inCart = cart.find((it) => it.id === product.id);
+                    const qty = inCart ? inCart.quantity : 0;
+                    return qty > 0 ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          data-action="no-open"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateQuantity(product.id, -1);
+                          }}
+                          className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center border"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <div className="min-w-[36px] text-center font-bold">
+                          {qty}
+                        </div>
+                        <button
+                          data-action="no-open"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCart(product, 1);
+                          }}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center"
+                          style={{
+                            backgroundColor: primaryColor,
+                            color: '#fff',
+                          }}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    ) : null;
+                  })()}
                 </>
               )}
             </>

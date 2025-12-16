@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/Sidebar';
 import { DashboardHeader } from '@/components/DashboardHeader';
+import MobileSidebar from '@/components/MobileSidebar';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -17,25 +18,25 @@ export default function DashboardLayout({
   const [authorized, setAuthorized] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
-  // Instancia o cliente
+  // Instancia o cliente (Isso cria um novo objeto a cada render, por isso NÃO pode ir no useEffect deps)
   const supabase = createClient();
 
   useEffect(() => {
-    // DIAGNÓSTICO: Verifica se as variáveis existem no navegador
+    let mounted = true; // Flag para evitar atualizações em componentes desmontados
+
+    // DIAGNÓSTICO: Verifica se as variáveis existem
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      console.error(
-        'ERRO GRAVE: NEXT_PUBLIC_SUPABASE_URL não encontrada no navegador.'
-      );
-      setConnectionError(true);
-      setLoading(false);
+      console.error('ERRO GRAVE: NEXT_PUBLIC_SUPABASE_URL não encontrada.');
+      if (mounted) {
+        setConnectionError(true);
+        setLoading(false);
+      }
       return;
     }
 
     const checkSession = async () => {
       try {
-        // Aumentei o timeout para 15 segundos para evitar falsos positivos em conexões lentas
-        // Timeout resolve com um objeto identificador em vez de rejeitar, para evitar
-        // um erro lançado que polui o console. Tratamos o timeout abaixo.
+        // Timeout Promise
         const timeoutPromise = new Promise((resolve) =>
           setTimeout(() => resolve({ timeout: true }), 15000)
         );
@@ -48,6 +49,9 @@ export default function DashboardLayout({
           timeoutPromise,
         ]);
 
+        // Se o componente desmontou durante a espera, paramos aqui
+        if (!mounted) return;
+
         if (result && result.timeout) {
           console.warn('Timeout ao obter sessão Supabase (15s)');
           setConnectionError(true);
@@ -58,22 +62,31 @@ export default function DashboardLayout({
         if (result?.error) throw result.error;
 
         if (!result?.data?.session) {
-          // Sem sessão? Tenta limpar tudo e ir pro login
-          await supabase.auth.signOut();
+          // Sem sessão? Redireciona
+          // await supabase.auth.signOut(); // Opcional aqui, pois já não tem sessão
           router.replace('/login');
         } else {
           setAuthorized(true);
         }
       } catch (error) {
         console.error('Falha na conexão com Supabase:', error);
-        setConnectionError(true);
+        if (mounted) setConnectionError(true);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     checkSession();
-  }, [router, supabase]);
+
+    // Cleanup: se o usuário sair da página antes do check terminar
+    return () => {
+      mounted = false;
+    };
+
+    // IMPORTANTE: Array de dependências vazio para rodar APENAS na montagem.
+    // O supabase é removido daqui porque ele é recriado a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (connectionError) {
     return (
@@ -84,7 +97,6 @@ export default function DashboardLayout({
             Erro de Conexão
           </h2>
 
-          {/* CORREÇÃO DE HTML: Trocamos <p> por <div> para permitir a lista interna */}
           <div className="text-gray-600 mb-6 text-sm">
             Não foi possível conectar ao Supabase.
             <br />
@@ -137,6 +149,7 @@ export default function DashboardLayout({
           <div className="max-w-7xl mx-auto pb-20">{children}</div>
         </main>
       </div>
+      <MobileSidebar />
     </div>
   );
 }

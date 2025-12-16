@@ -68,7 +68,7 @@ export default function Sidebar() {
           .from('profiles')
           .select('role')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         if (profile?.role === 'master') {
           setIsMaster(true);

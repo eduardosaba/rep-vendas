@@ -77,7 +77,7 @@ export async function bulkDelete(
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   // If master, use service role to perform a global delete (bypass RLS).
   const chunkSize = 200;

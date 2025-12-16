@@ -104,12 +104,12 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
           <div className="flex flex-1 flex-col justify-between p-4">
             <div>
               <div className="mb-2">
-                <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
+                <span className="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
                   {product.brand || 'Marca'}
                 </span>
               </div>
               <h3
-                className="mb-2 line-clamp-2 cursor-pointer text-lg font-medium text-gray-900 hover:text-blue-600"
+                className="mb-2 line-clamp-2 cursor-pointer text-lg font-medium text-gray-900 hover:text-primary"
                 onClick={handleProductClick}
               >
                 {product.name}

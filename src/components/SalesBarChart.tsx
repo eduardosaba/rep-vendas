@@ -21,7 +21,7 @@ interface SalesBarChartProps {
 
 export default function SalesBarChart({
   data = [],
-  primaryColor = '#4f46e5', // Fallback: Indigo-600
+  primaryColor = 'var(--primary, #4f46e5)', // Fallback: Indigo-600
 }: SalesBarChartProps) {
   return (
     <div className="rounded-lg bg-white dark:bg-slate-900 p-6 shadow">

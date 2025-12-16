@@ -1,28 +1,26 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { StatCard } from '@/components/StatCard';
-import { SalesBarChart } from '@/components/dashboard/SalesBarChart';
 import RecentOrdersTable from '@/components/RecentOrdersTable';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import {
   DollarSign,
   ShoppingBag,
   Package,
-  ShoppingCart,
-  AlertCircle,
+  Users,
   ExternalLink,
   PlusCircle,
   FileSpreadsheet,
-  Activity,
+  Settings,
+  LayoutDashboard,
 } from 'lucide-react';
+import Link from 'next/link';
 
-// Evita cache para dados em tempo real
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  // 1. Autenticação
   const {
     data: { user },
     error: authError,
@@ -32,94 +30,82 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  // --- HELPER PARA SEGURANÇA DE DADOS ---
-  async function safeFetch<T>(
-    promise: Promise<any>,
-    fallbackValue: T
-  ): Promise<T> {
+  // Aceita tanto Promises quanto os Builders do Supabase (PostgrestBuilder),
+  // que são "thenable" em runtime mas nem sempre tipados como Promise.
+  async function safeFetch<T>(maybeBuilder: any, fallbackValue: T): Promise<T> {
     try {
-      const result = await promise;
-      if (result.error) {
-        console.error('Erro no DB:', result.error.message);
-        return fallbackValue;
-      }
+      const result = await maybeBuilder;
+      if (!result || (result as any).error) return fallbackValue;
       return result;
-    } catch (err) {
-      console.error('Erro crítico:', err);
+    } catch {
       return fallbackValue;
     }
   }
 
-  // 2. Buscas de Dados em Paralelo
+  // --- BUSCAS DE DADOS (Mantidas iguais) ---
   const [
     rpcResult,
     productsResult,
     ordersResult,
+    clientsResult,
     recentOrdersResult,
     settingsResult,
     profileResult,
     chartOrdersResult,
   ] = await Promise.all([
-    // A. Totais RPC
     safeFetch(
-      supabase
-        .rpc('get_dashboard_totals', { owner_id: user.id })
-        .single() as unknown as Promise<any>,
+      supabase.rpc('get_dashboard_totals', { owner_id: user.id }).maybeSingle(),
       { data: { total_revenue: 0, total_items_sold: 0 } }
     ),
-
-    // B. Contagem de Produtos
     safeFetch(
       supabase
         .from('products')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id) as unknown as Promise<any>,
+        .eq('user_id', user.id)
+        .eq('active', true),
       { count: 0 }
     ),
-
-    // C. Contagem de Pedidos
     safeFetch(
       supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id) as unknown as Promise<any>,
+        .eq('user_id', user.id),
       { count: 0 }
     ),
-
-    // D. Pedidos Recentes
+    safeFetch(
+      supabase
+        .from('clients')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      { count: 0 }
+    ),
     safeFetch(
       supabase
         .from('orders')
         .select(
-          'id, display_id, client_name_guest, total_value, status, created_at, item_count, pdf_url'
+          'id, display_id, client_name_guest, total_value, status, created_at, item_count'
         )
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(5) as unknown as Promise<any>,
+        .limit(5),
       { data: [] }
     ),
-
-    // E. Configurações (Slug)
     safeFetch(
       supabase
         .from('settings')
         .select('catalog_slug, name')
         .eq('user_id', user.id)
-        .single() as unknown as Promise<any>,
+        .maybeSingle(),
       { data: { catalog_slug: '', name: '' } }
     ),
-
-    // F. Perfil (Nome do usuário)
     safeFetch(
       supabase
         .from('profiles')
         .select('full_name')
         .eq('id', user.id)
-        .single() as unknown as Promise<any>,
+        .maybeSingle(),
       { data: { full_name: '' } }
     ),
-
-    // G. Dados para o Gráfico (Últimos 6 meses)
     safeFetch(
       supabase
         .from('orders')
@@ -127,85 +113,67 @@ export default async function DashboardPage() {
         .eq('user_id', user.id)
         .gte(
           'created_at',
-          new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
+          new Date(
+            new Date().setFullYear(new Date().getFullYear() - 1)
+          ).toISOString()
         )
-        .order('created_at', { ascending: true }) as unknown as Promise<any>,
+        .order('created_at', { ascending: true }),
       { data: [] }
     ),
   ]);
 
-  // 3. Processamento dos Dados
   const rawTotals = rpcResult.data as any;
   const totalRevenue = Number(rawTotals?.total_revenue || 0);
-  const totalItems = Number(rawTotals?.total_items_sold || 0);
-
   const productsCount = productsResult.count || 0;
   const ordersCount = ordersResult.count || 0;
+  const clientsCount = clientsResult.count || 0;
   const recentOrders = recentOrdersResult.data || [];
   const catalogSlug = settingsResult.data?.catalog_slug || '';
   const storeName = settingsResult.data?.name || 'Sua Loja';
   const userName =
     profileResult.data?.full_name?.split(' ')[0] || 'Empreendedor';
-
-  // 4. Lógica do Gráfico (Agregação Dinâmica)
-  const processChartData = () => {
-    const rawData = chartOrdersResult.data || [];
-    const monthsMap = new Map<string, number>();
-    const today = new Date();
-
-    // Inicializa os últimos 6 meses com 0
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      const monthLabel = d.toLocaleString('pt-BR', { month: 'short' });
-      const label = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
-      monthsMap.set(label, 0);
-    }
-
-    // Soma os valores reais do banco
-    rawData.forEach((order: any) => {
-      const date = new Date(order.created_at);
-      const monthLabel = date.toLocaleString('pt-BR', { month: 'short' });
-      const label = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
-
-      if (monthsMap.has(label)) {
-        monthsMap.set(
-          label,
-          (monthsMap.get(label) || 0) + Number(order.total_value)
-        );
-      }
-    });
-
-    return Array.from(monthsMap.entries()).map(([name, vendas]) => ({
-      name,
-      vendas,
-    }));
-  };
-
-  const chartData = processChartData();
+  const chartOrdersRaw = chartOrdersResult.data || [];
+  const storeLink = catalogSlug ? `/catalogo/${catalogSlug}` : '#';
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden animate-in fade-in duration-500">
-      {/* HEADER DE BOAS VINDAS */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    // Padding reduzido no mobile (p-4) vs desktop (md:p-8)
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 animate-in fade-in duration-500">
+      {/* HEADER: Stack vertical no mobile, Horizontal no Desktop */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
             Olá, {userName} 👋
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Aqui está o resumo da <strong>{storeName}</strong> hoje.
+          <p className="text-gray-500 dark:text-gray-400 mt-1.5 text-base sm:text-lg">
+            Visão geral da <strong>{storeName}</strong>.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-medium bg-white dark:bg-slate-900 px-3 py-1.5 rounded-full border border-gray-200 dark:border-slate-800 shadow-sm self-start md:self-auto">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-gray-600 dark:text-gray-300">
-            Sistema Online
-          </span>
-        </div>
+        {catalogSlug && (
+          // Link ocupa largura total no mobile para facilitar clique
+          <div className="w-full lg:w-auto flex items-center justify-between lg:justify-start gap-3 bg-white dark:bg-slate-900 p-3 pl-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              Loja Online:
+            </span>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-indigo-600 dark:text-indigo-400 font-mono truncate max-w-[150px] sm:max-w-none">
+                /{catalogSlug}
+              </code>
+              <a
+                href={storeLink}
+                target="_blank"
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-500 hover:text-indigo-600 transition-colors"
+                title="Abrir loja"
+              >
+                <ExternalLink size={18} />
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* CARDS DE ESTATÍSTICAS */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+      {/* KPI CARDS: 1 col no mobile, 2 no tablet, 4 no desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Receita Total"
           value={new Intl.NumberFormat('pt-BR', {
@@ -216,119 +184,137 @@ export default async function DashboardPage() {
           color="green"
         />
         <StatCard
-          title="Pedidos Realizados"
+          title="Pedidos"
           value={ordersCount}
           icon={ShoppingBag}
           color="blue"
         />
         <StatCard
-          title="Itens Vendidos"
-          value={totalItems}
-          icon={ShoppingCart}
+          title="Clientes"
+          value={clientsCount}
+          icon={Users}
           color="purple"
         />
         <StatCard
-          title="Produtos Ativos"
+          title="Produtos"
           value={productsCount}
           icon={Package}
           color="orange"
         />
       </div>
 
-      {/* ÁREA CENTRAL: GRÁFICO E AÇÕES */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-8">
-        {/* GRÁFICO DE VENDAS */}
-        <div className="lg:col-span-2 min-h-[350px] bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
-          <h3 className="font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-            <Activity size={18} className="text-indigo-500" /> Desempenho de
-            Vendas
-          </h3>
-          <div className="h-[300px] w-full">
-            <SalesBarChart data={chartData} />
-          </div>
+      {/* GRID PRINCIPAL: 1 coluna no mobile/tablet, 3 no desktop large */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+        <div className="xl:col-span-2 h-full min-h-[400px]">
+          <DashboardCharts orders={chartOrdersRaw} />
         </div>
 
-        {/* AÇÕES RÁPIDAS (CONTROL PANEL) */}
-        <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col h-full">
-          <div className="p-5 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50">
-            <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <AlertCircle size={18} className="text-indigo-500" />
-              Ações Rápidas
-            </h3>
-          </div>
+        <div className="flex flex-col gap-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden h-full flex flex-col">
+            <div className="p-5 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50">
+              <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <LayoutDashboard size={18} className="text-indigo-500" />
+                Acesso Rápido
+              </h3>
+            </div>
 
-          <div className="p-5 flex-1 flex flex-col gap-3">
-            <Link
-              href="/dashboard/products/new"
-              className="group flex items-center gap-3 w-full rounded-xl bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all border border-indigo-100 dark:border-indigo-800 shadow-sm hover:shadow-md"
-            >
-              <div className="bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
-                <PlusCircle
-                  size={20}
-                  className="text-indigo-600 dark:text-indigo-400"
-                />
-              </div>
-              <span className="flex-1">Novo Produto</span>
-            </Link>
+            <div className="p-5 grid grid-cols-2 gap-3">
+              <QuickActionCard
+                href="/dashboard/products/new"
+                icon={PlusCircle}
+                label="Novo Produto"
+                color="indigo"
+              />
+              <QuickActionCard
+                href="/dashboard/products/import-massa"
+                icon={FileSpreadsheet}
+                label="Importar Excel"
+                color="green"
+              />
+              <QuickActionCard
+                href="/dashboard/clients"
+                icon={Users}
+                label="Clientes"
+                color="blue"
+              />
+              <QuickActionCard
+                href="/dashboard/settings"
+                icon={Settings}
+                label="Configurações"
+                color="slate"
+              />
+            </div>
 
-            <Link
-              href="/dashboard/products/import-massa"
-              className="group flex items-center gap-3 w-full rounded-xl bg-white dark:bg-slate-800 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md"
-            >
-              <div className="bg-gray-100 dark:bg-slate-700 p-2 rounded-lg group-hover:scale-110 transition-transform">
-                <FileSpreadsheet
-                  size={20}
-                  className="text-gray-600 dark:text-gray-400"
-                />
-              </div>
-              <span className="flex-1">Importar Excel</span>
-            </Link>
-
-            <a
-              href={catalogSlug ? `/${catalogSlug}` : '#'}
-              target="_blank"
-              className={`group flex items-center gap-3 w-full rounded-xl px-4 py-3 text-sm font-medium transition-all border shadow-sm hover:shadow-md ${
-                catalogSlug
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
-                  : 'bg-gray-50 dark:bg-slate-800/50 text-gray-400 cursor-not-allowed border-gray-200 dark:border-slate-800'
-              }`}
-            >
-              <div
-                className={`p-2 rounded-lg shadow-sm group-hover:scale-110 transition-transform ${catalogSlug ? 'bg-white dark:bg-slate-800' : 'bg-gray-200 dark:bg-slate-700'}`}
-              >
-                <ExternalLink
-                  size={20}
-                  className={
-                    catalogSlug
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-gray-400'
-                  }
-                />
-              </div>
-              <span className="flex-1">
-                {catalogSlug ? 'Ver Loja Online' : 'Loja não configurada'}
-              </span>
-            </a>
+            <div className="mt-auto p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 border-t border-gray-100 dark:border-slate-800">
+              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-1">
+                DICA
+              </p>
+              <p className="text-sm text-gray-600 dark:text-slate-300">
+                Divulgue seu link no Instagram para vender mais.
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* TABELA DE PEDIDOS RECENTES */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50 dark:bg-slate-900/50">
-          <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <ShoppingBag size={18} className="text-indigo-500" /> Últimos
-            Pedidos
+      {/* TABELA: Overflow Auto para scroll horizontal no mobile */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-900/50">
+          <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+            <ShoppingBag size={18} className="text-indigo-500" />
+            Pedidos Recentes
           </h3>
           <Link
             href="/dashboard/orders"
-            className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:underline flex items-center gap-1"
+            className="text-xs sm:text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:underline flex items-center gap-1 transition-all"
           >
             Ver todos <ExternalLink size={12} />
           </Link>
         </div>
-        <RecentOrdersTable orders={recentOrders} />
+        {/* Container wrapper para scroll horizontal */}
+        <div className="overflow-x-auto">
+          <RecentOrdersTable orders={recentOrders} />
+        </div>
       </div>
     </div>
+  );
+}
+
+// QuickActionCard igual
+function QuickActionCard({
+  href,
+  icon: Icon,
+  label,
+  color,
+}: {
+  href: string;
+  icon: any;
+  label: string;
+  color: string;
+}) {
+  const colorClasses: Record<string, string> = {
+    indigo:
+      'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:text-indigo-300 group-hover:bg-indigo-100',
+    green:
+      'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 group-hover:bg-emerald-100',
+    blue: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300 group-hover:bg-blue-100',
+    slate:
+      'text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 group-hover:bg-slate-200',
+  };
+
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md transition-all bg-white dark:bg-slate-800/50 h-24 sm:h-auto"
+    >
+      <div
+        className={`p-2 sm:p-3 rounded-full transition-colors ${colorClasses[color] || colorClasses.slate}`}
+      >
+        <Icon size={20} className="sm:w-6 sm:h-6" />
+      </div>
+      <span className="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center leading-tight">
+        {label}
+      </span>
+    </Link>
   );
 }

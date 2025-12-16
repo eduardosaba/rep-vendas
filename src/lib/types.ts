@@ -10,7 +10,7 @@ export interface UserProfile {
   status: AccountStatus;
   plan_id: string;
   license_expires_at: string; // Data em formato ISO string
-  onboarding_completed?: boolean; // <--- flag para controlar fluxo de onboarding
+  onboarding_completed?: boolean; // flag para controlar fluxo de onboarding
   created_at: string;
   updated_at?: string;
 }
@@ -58,29 +58,43 @@ export interface Product {
   brand?: string | null;
   reference_code?: string | null;
   description?: string | null;
-  price: number;
-  sale_price?: number | null;
-  original_price?: number | null;
-  image_url?: string | null; // URL da imagem principal
-  image_path?: string | null; // caminho no storage (algumas camadas usam this)
+
+  // --- PREÇIFICAÇÃO ---
+  price: number;              // PREÇO DE CUSTO (Interno)
+  sale_price?: number | null; // PREÇO DE VENDA (Sugerido ao cliente)
+  original_price?: number | null; // PREÇO "DE" (Para promoções/comparação)
+
+  // --- IMAGENS ---
+  image_url?: string | null; // URL da imagem principal (Capa)
+  image_path?: string | null; // caminho no storage
   external_image_url?: string | null; // url externa alternativa
-  images?: string[]; // Array de URLs para galeria (novo)
-  // Duas convenções existem no código: `bestseller` e `is_best_seller`.
-  // Mantemos ambos para compatibilidade com diferentes camadas (DB / UI).
+  images?: string[]; // Galeria de imagens
+
+  // --- IDENTIFICADORES E ORGANIZAÇÃO ---
+  slug?: string | null; // URL Amigável (ex: oculos-sol-rayban)
+  category?: string | null; // Nome da categoria
+  category_id?: string | null; // ID da categoria (Relação)
+  barcode?: string | null;
+  sku?: string | null;
+  color?: string | null;
+
+  // --- FLAGS E STATUS ---
+  // Mantemos compatibilidade entre convenções diferentes (DB vs UI)
   bestseller?: boolean;
-  is_best_seller?: boolean;
-  // Lançamento pode aparecer como `is_launch` em algumas camadas
+  is_best_seller?: boolean; 
+  
   is_launch?: boolean;
+  is_active?: boolean; // Controla visibilidade global do produto
+  
+  // --- OUTROS ---
   technical_specs?: string | Record<string, string> | null;
   user_id?: string;
   created_at?: string;
-  // Campos adicionais usados em várias telas e importações
-  barcode?: string | null;
-  sku?: string | null;
-  color?: string;
-  cost?: number;
+  updated_at?: string;
+  
+  // Campos legado ou redundantes mantidos para evitar quebras
+  cost?: number; 
   stock_quantity?: number;
-  category?: string | null;
 }
 
 export interface CartItem {

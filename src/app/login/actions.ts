@@ -38,7 +38,7 @@ export async function login(formData: FormData) {
         .from('profiles')
         .select('role')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
       const role = profileData?.role;
 

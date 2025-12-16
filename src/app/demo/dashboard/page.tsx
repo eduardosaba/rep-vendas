@@ -154,7 +154,7 @@ export default function DashboardDemo() {
               <Bell size={20} />
               <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
             </button>
-            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">
+            <div className="h-8 w-8 rounded-full bg-primary/5 flex items-center justify-center text-primary font-bold border border-primary/20">
               U
             </div>
           </div>

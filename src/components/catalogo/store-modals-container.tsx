@@ -307,7 +307,7 @@ export function StoreModals() {
                         <div className="flex items-center justify-between mt-2">
                           <PriceDisplay
                             value={item.price * item.quantity}
-                            className="text-indigo-600 font-bold text-sm"
+                            className="text-primary font-bold text-sm"
                             isPricesVisible={isPricesVisible}
                           />
                           <div className="flex items-center border rounded">
@@ -360,7 +360,7 @@ export function StoreModals() {
                   variant="ghost"
                   onClick={onSaveCart}
                   isLoading={loadingStates.saving}
-                  className="w-full text-indigo-600"
+                  className="w-full text-primary"
                 >
                   Salvar para depois
                 </Button>
@@ -403,7 +403,7 @@ export function StoreModals() {
               <input
                 autoFocus
                 placeholder="Código (ex: K9P-2X4)"
-                className="w-full p-3 border rounded-lg mb-4 text-center uppercase font-bold tracking-widest outline-none focus:border-indigo-500"
+                className="w-full p-3 border rounded-lg mb-4 text-center uppercase font-bold tracking-widest outline-none focus:border-primary"
                 value={loadCodeInput}
                 onChange={(e) => setLoadCodeInput(e.target.value.toUpperCase())}
               />
@@ -479,7 +479,7 @@ export function StoreModals() {
                       onClick={() => setCurrentImageIndex(idx)}
                       className={`w-14 h-14 rounded-lg border overflow-hidden transition-all flex-shrink-0 ${
                         currentImageIndex === idx
-                          ? 'border-indigo-600 ring-2 ring-indigo-600/30'
+                          ? 'border-primary ring-2 ring-primary/30'
                           : 'border-gray-200 hover:border-gray-400'
                       }`}
                     >
@@ -536,7 +536,7 @@ export function StoreModals() {
                       );
                     }
                     return (
-                      <span className="text-sm font-semibold text-indigo-600 uppercase">
+                      <span className="text-sm font-semibold text-primary uppercase">
                         {modals.product?.brand}
                       </span>
                     );
@@ -681,7 +681,7 @@ export function StoreModals() {
             <div className="space-y-3">
               <Button
                 onClick={onGeneratePDF}
-                className="w-full py-6 text-lg shadow-lg bg-indigo-600 hover:bg-indigo-700 text-white border-none"
+                className="w-full py-6 text-lg shadow-lg bg-primary hover:bg-primary/90 text-white border-none"
                 leftIcon={<Download size={24} />}
               >
                 Baixar Pedido em PDF

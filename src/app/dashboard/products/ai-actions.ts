@@ -18,7 +18,7 @@ export async function generateProductDescription(product: {
       .from('platform_settings')
       .select('is_enabled')
       .eq('key', 'ai_description_generation')
-      .single();
+      .maybeSingle();
 
     // Se não existir configuração ou estiver false, bloqueia
     if (!config || config.is_enabled === false) {

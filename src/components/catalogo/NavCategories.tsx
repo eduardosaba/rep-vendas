@@ -30,7 +30,7 @@ export const NavCategories: React.FC<NavCategoriesProps> = ({
                   onClick={() => onSelectCategory(category)}
                   className={`whitespace-nowrap text-sm font-medium ${
                     selectedCategory === category
-                      ? 'border-b-2 border-blue-600 pb-1 text-blue-600'
+                      ? 'border-b-2 border-primary pb-1 text-primary'
                       : 'text-gray-700 hover:text-gray-900'
                   }`}
                 >

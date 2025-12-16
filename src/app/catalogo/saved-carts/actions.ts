@@ -75,7 +75,7 @@ export async function saveCartAction(cartItems: any[]) {
         created_at: new Date().toISOString(),
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       // Aqui veremos o erro real no terminal do VS Code
@@ -119,7 +119,7 @@ export async function loadCartAction(shortId: string) {
       .from('saved_carts')
       .select('cart_items')
       .eq('short_id', formattedId)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       console.error('Erro ao buscar:', error);

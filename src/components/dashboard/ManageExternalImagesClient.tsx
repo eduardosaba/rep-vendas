@@ -222,10 +222,12 @@ export default function ManageExternalImagesClient({
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 sticky top-0 shadow-sm z-10">
             <tr>
-              <th className="px-6 py-3 font-medium w-24">Status</th>
-              <th className="px-6 py-3 font-medium">Produto</th>
-              <th className="px-6 py-3 font-medium w-1/3">Link de Origem</th>
-              <th className="px-6 py-3 font-medium w-1/3">Log</th>
+              <th className="px-3 sm:px-6 py-3 font-medium w-24">Status</th>
+              <th className="px-3 sm:px-6 py-3 font-medium">Produto</th>
+              <th className="px-3 sm:px-6 py-3 font-medium w-1/3">
+                Link de Origem
+              </th>
+              <th className="px-3 sm:px-6 py-3 font-medium w-1/3">Log</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -234,7 +236,7 @@ export default function ManageExternalImagesClient({
                 key={item.id}
                 className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group"
               >
-                <td className="px-6 py-3">
+                <td className="px-3 sm:px-6 py-3">
                   {item.status === 'idle' && (
                     <span
                       className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 ml-2"
@@ -254,7 +256,7 @@ export default function ManageExternalImagesClient({
                     <XCircle size={20} className="text-red-500" />
                   )}
                 </td>
-                <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">
+                <td className="px-3 sm:px-6 py-3 font-medium text-gray-900 dark:text-white">
                   <div className="flex flex-col">
                     <span className="truncate max-w-[250px]" title={item.name}>
                       {item.name}
@@ -264,7 +266,7 @@ export default function ManageExternalImagesClient({
                     </span>
                   </div>
                 </td>
-                <td className="px-6 py-3">
+                <td className="px-3 sm:px-6 py-3">
                   <a
                     href={item.external_image_url}
                     target="_blank"
@@ -275,7 +277,7 @@ export default function ManageExternalImagesClient({
                     Abrir Link <ExternalLink size={12} />
                   </a>
                 </td>
-                <td className="px-6 py-3 text-red-500 text-xs font-mono break-all">
+                <td className="px-3 sm:px-6 py-3 text-red-500 text-xs font-mono break-all">
                   {item.message ||
                     (item.status === 'success' ? (
                       <span className="text-green-600 font-medium">

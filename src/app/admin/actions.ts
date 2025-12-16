@@ -21,7 +21,7 @@ export async function addSubscriptionDays(
       .from('subscriptions')
       .select('current_period_end, status')
       .eq('user_id', targetUserId)
-      .single();
+      .maybeSingle();
 
     // 3. Calcular a nova data
     const now = new Date();

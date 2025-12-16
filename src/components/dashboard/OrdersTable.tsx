@@ -17,10 +17,11 @@ import {
   X,
   Package,
   PlusCircle,
+  Eye,
 } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { getUiStatusKey } from '@/lib/orderStatus';
 
-// Interface do Pedido
 export interface Order {
   id: number;
   display_id: number;
@@ -36,7 +37,6 @@ interface OrdersTableProps {
   initialOrders: Order[];
 }
 
-// A exportação deve ser nomeada assim:
 export function OrdersTable({ initialOrders }: OrdersTableProps) {
   // Dados
   const [orders, setOrders] = useState<Order[]>(initialOrders);
@@ -69,7 +69,7 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
     return { totalOrders, totalRevenue, pendingOrders, averageTicket };
   }, [orders]);
 
-  // --- PROCESSAMENTO (Filtros + Busca) ---
+  // --- PROCESSAMENTO ---
   const processedOrders = useMemo(() => {
     const data = orders.filter((order) => {
       const searchLower = searchTerm.toLowerCase();
@@ -118,10 +118,14 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
   const getStatusBadge = (status: string) => {
     const key = getUiStatusKey(status);
     const styles: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      confirmed: 'bg-blue-100 text-blue-800 border-blue-200',
-      delivered: 'bg-green-100 text-green-800 border-green-200',
-      cancelled: 'bg-red-100 text-red-800 border-red-200',
+      pending:
+        'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900/50',
+      confirmed:
+        'bg-primary/10 text-primary border-primary/30 dark:bg-primary/30 dark:text-primary/80 dark:border-primary/20',
+      delivered:
+        'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900/50',
+      cancelled:
+        'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900/50',
     };
     const labels: Record<string, string> = {
       pending: 'Pendente',
@@ -141,39 +145,46 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
   return (
     <div className="space-y-6 pb-20">
       {/* 1. DASHBOARD KPIS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2 mb-1">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        {/* Total Pedidos */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-center min-h-[90px]">
+          <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-slate-400 uppercase flex items-center gap-2 mb-1">
             <ShoppingBag size={14} /> Total Pedidos
           </span>
-          <span className="text-2xl font-bold text-gray-900">
+          <span className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
             {kpis.totalOrders}
           </span>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2 mb-1">
+
+        {/* Receita Total - Fonte responsiva */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-center min-h-[90px]">
+          <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-slate-400 uppercase flex items-center gap-2 mb-1">
             <DollarSign size={14} /> Receita Total
           </span>
-          <span className="text-2xl font-bold text-green-600">
+          <span className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400 break-words leading-tight">
             {new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency: 'BRL',
             }).format(kpis.totalRevenue)}
           </span>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2 mb-1">
+
+        {/* Pendentes */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-center min-h-[90px]">
+          <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-slate-400 uppercase flex items-center gap-2 mb-1">
             <Clock size={14} /> Pendentes
           </span>
-          <span className="text-2xl font-bold text-yellow-600">
+          <span className="text-lg sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400 truncate">
             {kpis.pendingOrders}
           </span>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2 mb-1">
+
+        {/* Ticket Médio */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-center min-h-[90px]">
+          <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-slate-400 uppercase flex items-center gap-2 mb-1">
             <TrendingUp size={14} /> Ticket Médio
           </span>
-          <span className="text-2xl font-bold text-indigo-600">
+          <span className="text-lg sm:text-2xl font-bold text-primary dark:text-primary/70 break-words leading-tight">
             {new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency: 'BRL',
@@ -183,59 +194,67 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
       </div>
 
       {/* 2. BARRA DE CONTROLE */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row gap-4 justify-between">
-          {/* Busca e Filtro Toggle */}
           <div className="flex-1 flex gap-2">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="Buscar cliente, telefone ou ID..."
+                placeholder="Buscar cliente ou ID..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 focus:border-indigo-500 focus:outline-none transition-all shadow-sm"
+                className="w-full rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 py-2.5 pl-10 pr-4 focus:border-primary focus:outline-none transition-all shadow-sm text-gray-900 dark:text-white placeholder-gray-400 text-sm"
               />
             </div>
-            <button
+            <Button
+              variant="outline"
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2 rounded-lg border flex items-center gap-2 font-medium transition-colors ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+              className={`${
+                showFilters
+                  ? 'bg-primary/5 dark:bg-primary/20 border-primary/30 dark:border-primary/20 text-primary dark:text-primary/70'
+                  : ''
+              }`}
+              leftIcon={<Filter size={18} />}
             >
-              <Filter size={18} /> Filtros
-            </button>
+              Filtros
+            </Button>
           </div>
 
-          {/* Ações */}
           <div className="flex gap-2">
             <button
               onClick={handleRefresh}
-              className="p-2.5 text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-lg"
+              className="p-2.5 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
               title="Recarregar"
             >
               <RefreshCcw size={18} />
             </button>
-            <Link
-              href="/dashboard/orders/new"
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 shadow-sm transition-colors"
-            >
-              <PlusCircle size={18} />{' '}
-              <span className="hidden sm:inline">Nova Venda</span>
+
+            {/* Botão Nova Venda com COR PRIMÁRIA */}
+            <Link href="/dashboard/orders/new">
+              <Button
+                leftIcon={<PlusCircle size={18} />}
+                className="bg-[var(--primary)] hover:opacity-90 text-white border-transparent shadow-md"
+              >
+                <span className="hidden sm:inline">Nova Venda</span>
+                <span className="sm:hidden">Novo</span>
+              </Button>
             </Link>
           </div>
         </div>
 
-        {/* Painel de Filtros Avançados */}
+        {/* Filtros Avançados */}
         {showFilters && (
-          <div className="pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in slide-in-from-top-2">
+          <div className="pt-4 border-t border-gray-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in slide-in-from-top-2">
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+              <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1 block">
                 Status
               </label>
               <select
-                className="w-full p-2 border rounded-lg text-sm bg-white outline-none focus:border-indigo-500"
+                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-slate-950 dark:border-slate-700 text-gray-900 dark:text-white outline-none focus:border-primary"
                 value={filters.status}
                 onChange={(e) => {
                   setFilters({ ...filters, status: e.target.value });
@@ -250,12 +269,12 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block flex gap-2">
+              <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1 block flex gap-2">
                 <Calendar size={12} /> Data Início
               </label>
               <input
                 type="date"
-                className="w-full p-2 border rounded-lg text-sm outline-none focus:border-indigo-500"
+                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-slate-950 dark:border-slate-700 text-gray-900 dark:text-white outline-none focus:border-indigo-500"
                 value={filters.startDate}
                 onChange={(e) => {
                   setFilters({ ...filters, startDate: e.target.value });
@@ -264,12 +283,12 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block flex gap-2">
+              <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1 block flex gap-2">
                 <Calendar size={12} /> Data Fim
               </label>
               <input
                 type="date"
-                className="w-full p-2 border rounded-lg text-sm outline-none focus:border-indigo-500"
+                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-slate-950 dark:border-slate-700 text-gray-900 dark:text-white outline-none focus:border-indigo-500"
                 value={filters.endDate}
                 onChange={(e) => {
                   setFilters({ ...filters, endDate: e.target.value });
@@ -293,29 +312,44 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
       </div>
 
       {/* 3. TABELA DE PEDIDOS */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto relative">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead className="bg-gray-50 dark:bg-slate-950/50 text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-800">
               <tr>
-                <th className="px-6 py-4 font-medium">Pedido</th>
-                <th className="px-6 py-4 font-medium">Cliente</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Data</th>
-                <th className="px-6 py-4 font-medium text-right">Total</th>
-                <th className="px-6 py-4"></th>
+                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
+                  Pedido
+                </th>
+                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
+                  Cliente
+                </th>
+                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
+                  Status
+                </th>
+                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
+                  Data
+                </th>
+                <th className="px-3 sm:px-6 py-4 font-medium text-right whitespace-nowrap">
+                  Total
+                </th>
+                <th className="sticky right-0 z-20 bg-gray-50 dark:bg-slate-950 px-3 sm:px-6 py-4 font-medium text-right shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)] w-[80px]">
+                  Ações
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
               {processedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-gray-500">
+                  <td
+                    colSpan={6}
+                    className="p-12 text-center text-gray-500 dark:text-slate-400"
+                  >
                     <div className="flex flex-col items-center justify-center">
-                      <Package className="h-12 w-12 text-gray-300 mb-3" />
-                      <p className="text-lg font-medium text-gray-900">
+                      <Package className="h-12 w-12 text-gray-300 dark:text-slate-600 mb-3" />
+                      <p className="text-lg font-medium text-gray-900 dark:text-white">
                         Nenhum pedido encontrado
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-slate-400">
                         Tente ajustar os filtros de busca.
                       </p>
                     </div>
@@ -325,41 +359,41 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                 paginatedOrders.map((order) => (
                   <tr
                     key={order.id}
-                    className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                    className="group hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
                   >
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                    <td className="px-3 sm:px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                       #{order.display_id}
                       <span className="block text-xs text-gray-400 font-normal mt-0.5">
                         {order.item_count} itens
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-700">
-                      <span className="block font-medium">
-                        {order.client_name_guest}
+                    <td className="px-3 sm:px-6 py-4 text-gray-700 dark:text-slate-300 whitespace-nowrap">
+                      <span className="block font-medium truncate max-w-[150px]">
+                        {order.client_name_guest || 'Visitante'}
                       </span>
                       <span className="text-xs text-gray-400">
                         {order.client_phone_guest}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(order.status)}
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-3 sm:px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">
                       {new Date(order.created_at).toLocaleDateString('pt-BR')}
                     </td>
-                    <td className="px-6 py-4 text-right font-medium text-gray-900">
+                    <td className="px-3 sm:px-6 py-4 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">
                       {new Intl.NumberFormat('pt-BR', {
                         style: 'currency',
                         currency: 'BRL',
                       }).format(order.total_value)}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800/50 px-3 sm:px-6 py-4 text-right shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
                       <Link
                         href={`/dashboard/orders/${order.display_id}`}
-                        className="inline-flex p-2 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors"
+                        className="inline-flex p-2 rounded-lg text-primary hover:bg-primary/10 dark:text-primary/70 dark:hover:bg-primary/20 transition-colors"
                         title="Ver Detalhes"
                       >
-                        <ArrowRight size={18} />
+                        <ArrowRight size={20} />
                       </Link>
                     </td>
                   </tr>
@@ -370,8 +404,8 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
         </div>
 
         {/* Paginação */}
-        <div className="p-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
-          <p className="text-sm text-gray-500">
+        <div className="p-4 border-t border-gray-200 dark:border-slate-800 flex items-center justify-between bg-gray-50 dark:bg-slate-900/50 text-sm text-gray-500 dark:text-slate-400">
+          <p>
             Mostrando {paginatedOrders.length} de {processedOrders.length}{' '}
             pedidos
           </p>
@@ -379,14 +413,14 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => p - 1)}
-              className="px-3 py-1.5 border rounded-lg bg-white disabled:opacity-50 hover:bg-gray-50 flex items-center gap-1 text-sm font-medium text-gray-700 transition-colors"
+              className="px-3 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-1 text-sm font-medium text-gray-700 dark:text-slate-300 transition-colors"
             >
               <ChevronLeft size={16} /> Anterior
             </button>
             <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => p + 1)}
-              className="px-3 py-1.5 border rounded-lg bg-white disabled:opacity-50 hover:bg-gray-50 flex items-center gap-1 text-sm font-medium text-gray-700 transition-colors"
+              className="px-3 py-1.5 border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-1 text-sm font-medium text-gray-700 dark:text-slate-300 transition-colors"
             >
               Próxima <ChevronRight size={16} />
             </button>

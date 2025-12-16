@@ -50,7 +50,7 @@ export default function AdminSettingsPage() {
         .from('platform_settings')
         .select('*')
         .eq('id', 1)
-        .single();
+        .maybeSingle();
 
       // Se der erro de não encontrado, usamos os defaults
       if (error && error.code !== 'PGRST116') throw error;
@@ -158,7 +158,7 @@ export default function AdminSettingsPage() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader2 className="animate-spin text-indigo-600" size={32} />
+        <Loader2 className="animate-spin text-[var(--primary)]" size={32} />
       </div>
     );
   }
@@ -180,7 +180,8 @@ export default function AdminSettingsPage() {
           {/* Card: Aparência */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Layout size={20} className="text-indigo-500" /> Identidade Visual
+              <Layout size={20} className="text-[var(--primary)]" /> Identidade
+              Visual
             </h2>
 
             <div className="space-y-4">
@@ -194,7 +195,7 @@ export default function AdminSettingsPage() {
                   onChange={(e) =>
                     setSettings({ ...settings, system_name: e.target.value })
                   }
-                  className="w-full p-2.5 border rounded-lg dark:bg-slate-800 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full p-2.5 border rounded-lg dark:bg-slate-800 dark:border-slate-700 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
                   placeholder="Ex: RepVendas Pro"
                 />
               </div>
@@ -254,7 +255,7 @@ export default function AdminSettingsPage() {
                   onChange={(e) =>
                     setSettings({ ...settings, support_phone: e.target.value })
                   }
-                  className="w-full p-2.5 border rounded-lg dark:bg-slate-800 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full p-2.5 border rounded-lg dark:bg-slate-800 dark:border-slate-700 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
                   placeholder="(11) 99999-9999"
                 />
               </div>
@@ -268,7 +269,7 @@ export default function AdminSettingsPage() {
                   onChange={(e) =>
                     setSettings({ ...settings, support_email: e.target.value })
                   }
-                  className="w-full p-2.5 border rounded-lg dark:bg-slate-800 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full p-2.5 border rounded-lg dark:bg-slate-800 dark:border-slate-700 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
                   placeholder="suporte@seudominio.com"
                 />
               </div>
@@ -332,10 +333,11 @@ export default function AdminSettingsPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+          style={{ backgroundColor: settings.primary_color }}
         >
           {saving ? (
-            <Loader2 className="animate-spin" size={20} />
+            <Loader2 className="animate-spin text-white" size={20} />
           ) : (
             <Save size={20} />
           )}

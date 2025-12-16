@@ -51,7 +51,7 @@ export async function POST(request: Request) {
         expires_at: expiresAt.toISOString(),
       })
       .select('short_id')
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Erro ao salvar pedido:', error);

@@ -106,7 +106,7 @@ export default function Cart() {
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
-    
+
     if (sets) {
       setSettings(sets);
     }
@@ -370,7 +370,7 @@ export default function Cart() {
                   onClick={() => router.push('/checkout')}
                   className="mb-3 w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                   style={{
-                    backgroundColor: settings?.primary_color || '#3B82F6',
+                    backgroundColor: settings?.primary_color || '#4f46e5', // Fallback: Indigo-600
                   }}
                 >
                   Finalizar Pedido

@@ -191,7 +191,7 @@ export default function UserProfilePage() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const fileExt = file.name.split('.').pop();
-    const filePath = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `public/${userId}/avatars/avatar-${Date.now()}.${fileExt}`;
     const toastId = toast.loading('Enviando foto...');
 
     try {
@@ -287,17 +287,54 @@ export default function UserProfilePage() {
     });
   };
 
+  // --- CREATE USER (MANUAL) ---
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: '',
+    full_name: '',
+    password: '',
+  });
+
+  const handleCreateUser = async () => {
+    if (!newUser.email || !newUser.password)
+      return toast.error('Email e senha são obrigatórios');
+    setCreating(true);
+    const toastId = toast.loading('Criando usuário...');
+    try {
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Erro ao criar usuário');
+      }
+      toast.success('Usuário criado com sucesso!', { id: toastId });
+      setShowCreateUserModal(false);
+      setNewUser({ email: '', full_name: '', password: '' });
+    } catch (err: any) {
+      toast.error('Falha ao criar usuário', {
+        id: toastId,
+        description: err.message,
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-1rem)] items-center justify-center">
-        <Loader2 className="animate-spin text-indigo-600" size={32} />
+        <Loader2 className="animate-spin text-primary" size={32} />
       </div>
     );
   }
 
   // Estilos reutilizáveis (com suporte a Dark Mode)
   const inputClass =
-    'w-full p-2.5 rounded-lg outline-none transition-all border bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500';
+    'w-full p-2.5 rounded-lg outline-none transition-all border bg-white dark:bg-slate-950 border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary';
   const labelClass =
     'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
   const cardClass =
@@ -307,9 +344,21 @@ export default function UserProfilePage() {
     <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
       {/* HEADER */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          Minha Conta
-        </h1>
+        <div className="flex items-start justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            Minha Conta
+          </h1>
+          <div className="ml-4">
+            <Button
+              onClick={() => setShowCreateUserModal(true)}
+              variant="secondary"
+              size="sm"
+              className="uppercase tracking-wide"
+            >
+              Criar Usuário
+            </Button>
+          </div>
+        </div>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
           Gerencie seus dados pessoais e de acesso.
         </p>
@@ -355,12 +404,14 @@ export default function UserProfilePage() {
             </div>
 
             <div className="flex gap-2 mb-4">
-              <button
+              <Button
                 onClick={() => setShowAvatarModal(true)}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors text-xs font-bold uppercase tracking-wide border border-indigo-100 dark:border-indigo-800"
+                size="sm"
+                variant="secondary"
+                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
               >
                 <Smile size={14} /> Escolher da Galeria
-              </button>
+              </Button>
             </div>
 
             <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate w-full px-4">
@@ -393,36 +444,27 @@ export default function UserProfilePage() {
 
           {/* Menu Lateral */}
           <nav className="flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
-            <button
+            <Button
               onClick={() => setActiveTab('profile')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === 'profile'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                  : 'bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 border border-transparent hover:border-gray-200 dark:hover:border-slate-700'
-              }`}
+              variant={activeTab === 'profile' ? 'primary' : 'secondary'}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium whitespace-nowrap"
             >
               <User size={18} /> Dados Pessoais
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab('security')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === 'security'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                  : 'bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 border border-transparent hover:border-gray-200 dark:hover:border-slate-700'
-              }`}
+              variant={activeTab === 'security' ? 'primary' : 'secondary'}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium whitespace-nowrap"
             >
               <Lock size={18} /> Segurança
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab('plan')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === 'plan'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                  : 'bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 border border-transparent hover:border-gray-200 dark:hover:border-slate-700'
-              }`}
+              variant={activeTab === 'plan' ? 'primary' : 'secondary'}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium whitespace-nowrap"
             >
               <CreditCard size={18} /> Meu Plano
-            </button>
+            </Button>
           </nav>
         </div>
 
@@ -701,6 +743,84 @@ export default function UserProfilePage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CRIAR USUÁRIO (MANUAL) */}
+      {showCreateUserModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6 border border-gray-200 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-bold text-lg text-gray-900 dark:text-white">
+                Criar Usuário Manual
+              </h4>
+              <button
+                onClick={() => setShowCreateUserModal(false)}
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                  Nome Completo
+                </label>
+                <input
+                  value={newUser.full_name}
+                  onChange={(e) =>
+                    setNewUser((p) => ({ ...p, full_name: e.target.value }))
+                  }
+                  className="w-full p-2.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                  E-mail
+                </label>
+                <input
+                  value={newUser.email}
+                  onChange={(e) =>
+                    setNewUser((p) => ({ ...p, email: e.target.value }))
+                  }
+                  className="w-full p-2.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                  Senha
+                </label>
+                <input
+                  value={newUser.password}
+                  onChange={(e) =>
+                    setNewUser((p) => ({ ...p, password: e.target.value }))
+                  }
+                  type="password"
+                  className="w-full p-2.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowCreateUserModal(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleCreateUser}
+                  isLoading={creating}
+                  className="px-4"
+                >
+                  Criar
+                </Button>
+              </div>
             </div>
           </div>
         </div>

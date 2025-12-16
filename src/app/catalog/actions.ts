@@ -46,7 +46,7 @@ export async function createOrder(
           .from('products')
           .select('stock_quantity, name')
           .eq('id', item.id)
-          .single();
+          .maybeSingle();
 
         // Se o item for "manual" (não tem ID no banco), pulamos a validação rigorosa ou assumimos estoque infinito
         // Mas se tiver ID, validamos:
@@ -80,7 +80,7 @@ export async function createOrder(
         client_cnpj_guest: customer.cnpj || null,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (orderError)
       throw new Error(`Erro ao criar pedido: ${orderError.message}`);

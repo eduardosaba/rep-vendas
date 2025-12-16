@@ -70,12 +70,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {isLoading ? (
-          <>
+          <span className="inline-flex items-center">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             <span className="opacity-90">Carregando...</span>
-          </>
+          </span>
         ) : (
-          <>
+          <span className="inline-flex items-center">
             {leftIcon && (
               <span className="mr-2 -ml-1 opacity-90">{leftIcon}</span>
             )}
@@ -83,7 +83,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             {rightIcon && (
               <span className="ml-2 -mr-1 opacity-90">{rightIcon}</span>
             )}
-          </>
+          </span>
         )}
       </button>
     );

@@ -178,12 +178,23 @@ export default function ImportMassaPage() {
 
           if (!name) return null; // Pula linhas vazias
 
+          const slugify = (s: string) =>
+            s
+              .toLowerCase()
+              .trim()
+              .replace(/[^a-z0-9\s-]/g, '')
+              .replace(/\s+/g, '-')
+              .replace(/-+/g, '-');
+
+          const slugBase = slugify(String(name) || 'produto');
+
           return {
             user_id: user.id,
             name: String(name),
             reference_code: finalRef,
             price: isNaN(price) ? 0 : price,
             brand: brand ? String(brand) : null,
+            slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
           };
         })
         .filter(Boolean);

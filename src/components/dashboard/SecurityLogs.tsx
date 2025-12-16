@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react';
 import { SecurityLog } from '@/lib/types';
 
@@ -10,6 +10,13 @@ interface SecurityLogsProps {
 }
 
 export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
+  // Body scroll-lock
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
   const [filter, setFilter] = useState<'all' | 'success' | 'error'>('all');
 
   const filteredLogs = logs.filter((log) => {
@@ -34,7 +41,7 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
     if (!success) return 'text-red-600 bg-red-50';
     switch (action) {
       case 'session_validation':
-        return 'text-blue-600 bg-blue-50';
+        return 'text-primary bg-primary/5';
       case 'order_submit':
         return 'text-green-600 bg-green-50';
       case 'session_timeout':
@@ -46,30 +53,34 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="mx-4 max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 p-6">
+      {/* Modal: Full Screen on mobile, centered on desktop */}
+      <div className="w-full h-screen md:h-auto md:max-h-[80vh] md:max-w-4xl md:mx-4 md:rounded-lg overflow-hidden bg-white shadow-xl flex flex-col">
+        {/* Header: Sticky on mobile with 44px touch target for close button */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 p-4 md:p-6 bg-white">
           <div className="flex items-center space-x-3">
-            <Shield className="h-6 w-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">
+            <Shield className="h-6 w-6 text-primary" />
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900">
               Logs de Segurança
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label="Fechar"
           >
             <X className="h-6 w-6" />
           </button>
         </div>
 
-        <div className="p-6">
+        {/* Modal Body: Overflow-y-auto for scrolling */}
+        <div className="p-4 md:p-6 overflow-y-auto flex-1 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           {/* Filtros */}
-          <div className="mb-4 flex space-x-2">
+          <div className="mb-4 flex flex-wrap gap-2">
             <button
               onClick={() => setFilter('all')}
-              className={`rounded-full px-3 py-1 text-sm font-medium ${
+              className={`rounded-full px-3 py-2 text-sm font-medium ${
                 filter === 'all'
-                  ? 'bg-blue-100 text-blue-800'
+                  ? 'bg-primary/10 text-primary'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -77,7 +88,7 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
             </button>
             <button
               onClick={() => setFilter('success')}
-              className={`rounded-full px-3 py-1 text-sm font-medium ${
+              className={`rounded-full px-3 py-2 text-sm font-medium ${
                 filter === 'success'
                   ? 'bg-green-100 text-green-800'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -87,7 +98,7 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
             </button>
             <button
               onClick={() => setFilter('error')}
-              className={`rounded-full px-3 py-1 text-sm font-medium ${
+              className={`rounded-full px-3 py-2 text-sm font-medium ${
                 filter === 'error'
                   ? 'bg-red-100 text-red-800'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -98,7 +109,7 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
           </div>
 
           {/* Lista de logs */}
-          <div className="max-h-96 space-y-3 overflow-y-auto">
+          <div className="space-y-3">
             {filteredLogs.length === 0 ? (
               <div className="py-8 text-center text-gray-500">
                 <Shield className="mx-auto mb-4 h-12 w-12 text-gray-300" />
@@ -169,10 +180,11 @@ export default function SecurityLogs({ logs, onClose }: SecurityLogsProps) {
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3 border-t border-gray-200 p-6">
+        {/* Footer: Sticky on mobile */}
+        <div className="sticky bottom-0 flex justify-end space-x-3 border-t border-gray-200 p-4 md:p-6 bg-white pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <button
             onClick={onClose}
-            className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            className="rounded-lg bg-gray-100 px-4 py-3 min-h-[44px] text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             Fechar
           </button>

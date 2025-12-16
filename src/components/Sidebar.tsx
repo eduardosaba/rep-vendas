@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -18,7 +18,6 @@ import {
   HelpCircle,
   Settings as SettingsIcon,
   DollarSign,
-  LogOut,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -65,7 +64,7 @@ const MENU_ITEMS: MenuItem[] = [
         icon: PlusCircle,
       },
       {
-        title: 'Edição em Massa',
+        title: 'Tabela de Produtos',
         href: '/dashboard/products/bulk-edit',
         icon: Edit,
       },
@@ -112,9 +111,29 @@ const MENU_ITEMS: MenuItem[] = [
 
 export function Sidebar({
   settings: initialSettings,
-}: { settings?: Settings | null } = {}) {
+  isMobile = false,
+}: { settings?: Settings | null; isMobile?: boolean } = {}) {
+  // Helpers: get luminance and detect if a hex color is light
+  const getLuminance = (hex?: string) => {
+    if (!hex) return 0;
+    const h = hex.replace('#', '').trim();
+    const full =
+      h.length === 3
+        ? h
+            .split('')
+            .map((c) => c + c)
+            .join('')
+        : h;
+    const r = parseInt(full.substring(0, 2), 16) / 255;
+    const g = parseInt(full.substring(2, 4), 16) / 255;
+    const b = parseInt(full.substring(4, 6), 16) / 255;
+    const lin = (v: number) =>
+      v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  };
+  const isLightHex = (hex?: string) => getLuminance(hex) > 0.7;
   const pathname = usePathname();
-  const router = useRouter();
+  const isDashboardRoute = pathname?.startsWith('/dashboard');
   const supabase = createClient();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -160,11 +179,6 @@ export function Sidebar({
     }
   }, [mounted, initialSettings, supabase]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace('/login');
-  };
-
   const toggleSubmenu = (label: string) => {
     if (isCollapsed) {
       setIsCollapsed(false);
@@ -185,21 +199,38 @@ export function Sidebar({
     return pathname?.startsWith(item.href);
   };
 
+  const primary = branding?.primary_color || '#2563eb';
+  const primaryForeground = isLightHex(primary) ? '#0f172a' : '#ffffff';
+  const secondaryRaw = branding?.secondary_color || '#f8fafc';
+  // If secondary is almost white, use a slightly darker fallback so it's visible
+  const secondary =
+    getLuminance(secondaryRaw) > 0.96 ? '#f3f4f6' : secondaryRaw;
+
   if (!mounted) return null;
+
+  // Only render the sidebar inside dashboard routes
+  if (!isDashboardRoute) return null;
 
   return (
     <aside
-      className={`relative flex flex-col border-r bg-white dark:bg-slate-950 dark:border-slate-800 transition-all duration-300 h-full z-30 ${isCollapsed ? 'w-20' : 'w-72'}`}
+      style={{
+        ['--primary' as any]: primary,
+        ['--primary-foreground' as any]: primaryForeground,
+        ['--secondary' as any]: secondary,
+      }}
+      className={`${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative flex flex-col border-r dark:border-slate-800 h-full z-30'} bg-[var(--secondary)] dark:bg-slate-950 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'}`}
+      role="navigation"
     >
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-6 flex h-7 w-7 items-center justify-center rounded-full border bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 shadow-md text-gray-500 dark:text-slate-400 hover:text-[var(--primary)] dark:hover:text-[var(--primary)] transition-colors z-50 hover:bg-gray-50 dark:hover:bg-slate-800"
+        className="hidden md:flex absolute -right-3 top-4 md:top-6 flex h-7 w-7 items-center justify-center rounded-full border bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 shadow-md text-gray-500 dark:text-slate-400 hover:text-[var(--primary)] dark:hover:text-[var(--primary)] transition-colors z-50 hover:bg-gray-50 dark:hover:bg-slate-800"
+        aria-label={isCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
       >
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
       <div
-        className={`flex h-20 items-center border-b border-gray-100 dark:border-slate-800/50 px-6 transition-all ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
+        className={`flex h-16 md:h-20 items-center border-b border-gray-100 dark:border-slate-800/50 px-4 md:px-6 transition-all ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
       >
         {Logo ? (
           <div className="w-full flex items-center justify-center overflow-hidden">
@@ -227,18 +258,23 @@ export function Sidebar({
           const Icon = item.icon || Circle;
 
           // BRANDING DINÂMICO AQUI:
-          const baseItemClass = `group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]`;
-          const activeClass = `bg-[var(--primary)] bg-opacity-10 text-[var(--primary)] shadow-sm`;
-          const inactiveClass = `text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200`;
+          const baseItemClass = `group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-medium transition-colors duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] border-l-4 border-transparent`;
+          const activeClass = `bg-[var(--primary)] bg-opacity-10 shadow-sm border-[var(--primary)] transition-colors duration-200 ease-in-out`;
+          const inactiveClass = `text-gray-600 hover:bg-[var(--primary)] hover:bg-opacity-10 dark:text-slate-400 dark:hover:bg-[var(--primary)] dark:hover:bg-opacity-10`;
+
+          const labelClass = active
+            ? 'truncate text-[var(--primary-foreground)] font-medium'
+            : 'truncate text-gray-700 dark:text-slate-400 group-hover:text-[var(--primary-foreground)] dark:group-hover:text-[var(--primary-foreground)]';
 
           const content = (
-            <>
+            <div className="w-full flex items-center justify-between">
               <div className="flex items-center gap-3.5 min-w-0">
                 <Icon
                   size={20}
-                  className={`flex-shrink-0 transition-colors ${active ? 'text-[var(--primary)]' : 'text-gray-400 group-hover:text-gray-600 dark:text-slate-500 dark:group-hover:text-slate-300'}`}
+                  className={`flex-shrink-0 transition-colors text-gray-500 dark:text-slate-500 ${active ? 'text-[var(--primary-foreground)]' : 'group-hover:text-[var(--primary-foreground)] dark:group-hover:text-[var(--primary-foreground)]'}`}
+                  aria-hidden
                 />
-                {!isCollapsed && <span className="truncate">{label}</span>}
+                {!isCollapsed && <span className={labelClass}>{label}</span>}
               </div>
               {hasChildren && !isCollapsed && (
                 <ChevronDown
@@ -246,7 +282,7 @@ export function Sidebar({
                   className={`flex-shrink-0 text-gray-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
                 />
               )}
-            </>
+            </div>
           );
 
           return (
@@ -254,8 +290,11 @@ export function Sidebar({
               {isLink ? (
                 <Link
                   href={item.href}
-                  onClick={() => {
-                    if (hasChildren) toggleSubmenu(label);
+                  onClick={(e) => {
+                    if (hasChildren) {
+                      e.preventDefault();
+                      toggleSubmenu(label);
+                    }
                   }}
                   className={`${baseItemClass} ${active ? activeClass : inactiveClass}`}
                   title={isCollapsed ? label : ''}
@@ -283,13 +322,18 @@ export function Sidebar({
                       <Link
                         key={child.href}
                         href={child.href}
-                        className={`group/sub flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${childActive ? 'bg-[var(--primary)] bg-opacity-10 text-[var(--primary)] font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-800/30'}`}
+                        className={`group/sub flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-200 ease-in-out border-l-4 ${childActive ? 'bg-[var(--primary)] bg-opacity-10 font-medium border-[var(--primary)]' : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-[var(--primary)] hover:bg-opacity-10 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-[var(--primary)] dark:hover:bg-opacity-10'}`}
                       >
                         <ChildIcon
                           size={16}
-                          className={`flex-shrink-0 transition-colors ${childActive ? 'text-[var(--primary)]' : 'text-gray-300 group-hover/sub:text-gray-500 dark:text-slate-600 dark:group-hover/sub:text-slate-400'}`}
+                          className={`flex-shrink-0 transition-colors text-gray-400 dark:text-slate-600 ${childActive ? 'text-[var(--primary-foreground)]' : 'group-hover/sub:text-[var(--primary-foreground)] dark:group-hover/sub:text-[var(--primary-foreground)]'}`}
+                          aria-hidden
                         />
-                        <span className="truncate">{child.title}</span>
+                        <span
+                          className={`truncate ${childActive ? 'text-[var(--primary-foreground)] font-medium' : 'text-gray-500 dark:text-slate-500 group-hover/sub:text-[var(--primary-foreground)] dark:group-hover/sub:text-[var(--primary-foreground)]'}`}
+                        >
+                          {child.title}
+                        </span>
                       </Link>
                     );
                   })}
@@ -299,20 +343,6 @@ export function Sidebar({
           );
         })}
       </nav>
-
-      <div className="border-t border-gray-100 dark:border-slate-800 p-4 bg-gray-50/30 dark:bg-slate-900/30">
-        <button
-          onClick={handleLogout}
-          className={`group flex w-full items-center gap-3.5 rounded-xl px-3 py-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20 transition-all ${isCollapsed ? 'justify-center' : ''}`}
-          title="Sair"
-        >
-          <LogOut
-            size={20}
-            className="flex-shrink-0 group-hover:scale-110 transition-transform"
-          />
-          {!isCollapsed && <span>Sair do Sistema</span>}
-        </button>
-      </div>
     </aside>
   );
 }

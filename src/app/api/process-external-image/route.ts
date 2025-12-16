@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       .from('products')
       .select('user_id, brand')
       .eq('id', productId)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !product) {
       throw new Error('Produto não encontrado no banco.');
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     const brandFolder = sanitizeFolder(product.brand);
 
     // Nome do arquivo com timestamp para evitar cache/colisão
-    const fileName = `${userId}/${brandFolder}/${productId}-${Date.now()}.${extension}`;
+    const fileName = `public/${userId}/products/${brandFolder}/${productId}-${Date.now()}.${extension}`;
 
     // 6. Upload para o Supabase
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage

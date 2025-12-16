@@ -6,4 +6,4 @@ export const SYSTEM_LOGO_URL =
     : '/_next/static/media/default-logo.png';
 
 // Cor primária do sistema usada como fallback quando a loja não define uma
-export const SYSTEM_PRIMARY_COLOR = '#4f46e5'; // indigo-600 (padrão em globals.css)
+export const SYSTEM_PRIMARY_COLOR = '#4f46e5'; // fallback padrão (indigo-600) usado quando --primary não está definido

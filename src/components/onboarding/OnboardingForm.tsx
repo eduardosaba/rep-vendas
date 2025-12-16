@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
@@ -72,6 +72,60 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
     }
   };
 
+  // --- SLUG AVAILABILITY CHECK (debounced) ---
+  const [slugChecking, setSlugChecking] = useState(false);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [slugCheckError, setSlugCheckError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const slug = formData.slug?.trim();
+    if (!slug) {
+      setSlugAvailable(null);
+      setSlugCheckError(null);
+      return;
+    }
+
+    let mounted = true;
+    const timer = setTimeout(async () => {
+      try {
+        setSlugChecking(true);
+        setSlugCheckError(null);
+        const { data, error } = await supabase
+          .from('settings')
+          .select('user_id')
+          .eq('catalog_slug', slug)
+          .maybeSingle();
+
+        if (!mounted) return;
+
+        if (error) {
+          console.debug('Slug check error', error);
+          setSlugCheckError('Erro ao verificar disponibilidade');
+          setSlugAvailable(null);
+        } else if (
+          data &&
+          (data as any).user_id &&
+          (data as any).user_id !== userId
+        ) {
+          setSlugAvailable(false);
+        } else {
+          setSlugAvailable(true);
+        }
+      } catch (err) {
+        if (!mounted) return;
+        setSlugCheckError('Erro ao verificar disponibilidade');
+        setSlugAvailable(null);
+      } finally {
+        if (mounted) setSlugChecking(false);
+      }
+    }, 600);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [formData.slug, supabase, userId]);
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
@@ -79,8 +133,7 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
 
       if (logoFile) {
         const fileExt = logoFile.name.split('.').pop();
-        const fileName = `logo-${userId}.${fileExt}`;
-        const filePath = `public/${fileName}`;
+        const filePath = `public/${userId}/branding/logo-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('product-images')
@@ -120,13 +173,13 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
       {[1, 2, 3].map((i) => (
         <div key={i} className="flex items-center">
           <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= i ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= i ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'}`}
           >
             {step > i ? <CheckCircle size={20} /> : i}
           </div>
           {i < 3 && (
             <div
-              className={`w-16 h-1 ${step > i ? 'bg-indigo-600' : 'bg-gray-200'}`}
+              className={`w-16 h-1 ${step > i ? 'bg-primary' : 'bg-gray-200'}`}
             />
           )}
         </div>
@@ -168,7 +221,7 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
           {step === 1 && (
             <div className="animate-in slide-in-from-right fade-in duration-300">
               <div className="text-center mb-8">
-                <div className="mx-auto w-16 h-16 bg-indigo-100 rv-text-primary rounded-full flex items-center justify-center mb-4">
+                <div className="mx-auto w-16 h-16 bg-primary/10 rv-text-primary rounded-full flex items-center justify-center mb-4">
                   <Store size={32} />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900">
@@ -188,7 +241,7 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
                     placeholder="Ex: Calçados Silva"
                   />
                 </div>
@@ -205,9 +258,24 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
                       name="slug"
                       value={formData.slug}
                       onChange={handleChange}
-                      className="flex-1 p-3 border border-gray-300 rounded-lg sm:rounded-l-none focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="flex-1 p-3 border border-gray-300 rounded-lg sm:rounded-l-none focus:ring-2 focus:ring-primary outline-none"
                       placeholder="calcados-silva"
                     />
+                  </div>
+                  <div className="mt-2">
+                    {slugChecking ? (
+                      <p className="text-xs text-gray-500">
+                        Verificando disponibilidade...
+                      </p>
+                    ) : slugAvailable === false ? (
+                      <p className="text-xs text-red-600">
+                        Este link já está em uso. Escolha outro.
+                      </p>
+                    ) : slugAvailable === true ? (
+                      <p className="text-xs text-green-600">Disponível ✅</p>
+                    ) : slugCheckError ? (
+                      <p className="text-xs text-red-600">{slugCheckError}</p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -220,7 +288,7 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -233,7 +301,7 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
                     />
                   </div>
                 </div>

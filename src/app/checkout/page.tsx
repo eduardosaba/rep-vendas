@@ -143,7 +143,7 @@ export default function Checkout() {
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
-    
+
     if (sets) {
       setSettings(sets);
     }
@@ -188,7 +188,7 @@ export default function Checkout() {
             phone: formData.client_phone?.trim() || null,
           })
           .select()
-          .single();
+          .maybeSingle();
 
         if (clientError) throw clientError;
         clientId = newClient.id;
@@ -228,7 +228,7 @@ export default function Checkout() {
           notes: orderData.notes,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (orderError) throw orderError;
 
@@ -788,7 +788,7 @@ export default function Checkout() {
                   disabled={processing}
                   className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
-                    backgroundColor: settings?.primary_color || '#3B82F6',
+                    backgroundColor: settings?.primary_color || '#4f46e5', // Fallback: Indigo-600
                   }}
                 >
                   {processing ? (

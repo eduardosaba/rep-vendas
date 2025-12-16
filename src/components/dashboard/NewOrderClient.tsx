@@ -174,28 +174,34 @@ export function NewOrderClient({
   };
 
   const updateQuantity = (id: string, delta: number) => {
-    setCart((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const newQty = Math.max(1, item.quantity + delta);
+    setCart((prev) => {
+      const existing = prev.find((it) => it.id === id);
+      if (!existing) return prev;
 
-          // Validação de estoque para produtos catalogados
-          if (
-            !item.is_manual &&
-            delta > 0 &&
-            userSettings?.enable_stock_management &&
-            !userSettings?.global_allow_backorder
-          ) {
-            if (item.track_stock && (item.stock_quantity || 0) < newQty) {
-              if (true) toast('Limite de estoque atingido');
-              return item;
-            }
-          }
-          return { ...item, quantity: newQty };
+      const newQty = existing.quantity + delta;
+
+      // Se reduzir para zero ou menos, remover o item do carrinho
+      if (newQty <= 0) {
+        return prev.filter((it) => it.id !== id);
+      }
+
+      // Validação de estoque apenas quando aumentando
+      if (
+        !existing.is_manual &&
+        delta > 0 &&
+        userSettings?.enable_stock_management &&
+        !userSettings?.global_allow_backorder
+      ) {
+        if (existing.track_stock && (existing.stock_quantity || 0) < newQty) {
+          toast('Limite de estoque atingido');
+          return prev;
         }
-        return item;
-      })
-    );
+      }
+
+      return prev.map((item) =>
+        item.id === id ? { ...item, quantity: newQty } : item
+      );
+    });
   };
 
   const removeFromCart = (id: string) =>
@@ -271,13 +277,13 @@ export function NewOrderClient({
           <div className="flex bg-gray-100 p-1 rounded-lg w-full sm:w-auto">
             <button
               onClick={() => setActiveTab('catalog')}
-              className={`flex-1 sm:flex-none justify-center px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'catalog' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 sm:flex-none justify-center px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'catalog' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
               <Package size={16} /> Catálogo
             </button>
             <button
               onClick={() => setActiveTab('manual')}
-              className={`flex-1 sm:flex-none justify-center px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 sm:flex-none justify-center px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'manual' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
               <Zap size={16} /> Item Avulso
             </button>
@@ -289,7 +295,7 @@ export function NewOrderClient({
           {/* 1. DADOS DO CLIENTE */}
           <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6">
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <UserPlus size={18} className="text-indigo-600" /> Identificar
+              <UserPlus size={18} className="text-primary" /> Identificar
               Cliente
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -380,7 +386,7 @@ export function NewOrderClient({
                   <input
                     type="text"
                     placeholder="Buscar produto..."
-                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm"
+                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -404,7 +410,7 @@ export function NewOrderClient({
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm hover:border-indigo-300 transition-all cursor-pointer group"
+                    className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm hover:border-primary/30 transition-all cursor-pointer group"
                     onClick={() => addToCart(product)}
                   >
                     <div className="aspect-square bg-gray-50 rounded-lg mb-2 overflow-hidden flex items-center justify-center border border-gray-100">
@@ -417,6 +423,8 @@ export function NewOrderClient({
                             fill
                             style={{ objectFit: 'contain' }}
                             className="group-hover:scale-105 transition-transform"
+                            loading="lazy"
+                            quality={75}
                           />
                         </div>
                       ) : (
@@ -440,7 +448,7 @@ export function NewOrderClient({
                           currency: 'BRL',
                         }).format(product.price)}
                       </span>
-                      <button className="p-1.5 bg-indigo-50 text-indigo-600 rounded-md hover:bg-indigo-100 transition-colors">
+                      <button className="p-1.5 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors">
                         <Plus size={16} />
                       </button>
                     </div>
@@ -527,7 +535,7 @@ export function NewOrderClient({
                 <div className="md:col-span-2 pt-2">
                   <button
                     onClick={addManualItem}
-                    className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors"
+                    className="w-full py-2.5 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-colors"
                   >
                     Adicionar ao Pedido
                   </button>
@@ -542,7 +550,7 @@ export function NewOrderClient({
       <div className="w-full lg:w-[400px] bg-white border-l border-gray-200 flex flex-col shadow-xl z-20 h-[40vh] lg:h-auto relative">
         <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
           <h2 className="font-bold text-lg flex items-center gap-2">
-            <ShoppingCart size={20} className="text-indigo-600" /> Carrinho
+            <ShoppingCart size={20} className="text-primary" /> Carrinho
           </h2>
           <span className="bg-white border px-2 py-1 rounded text-xs font-bold">
             {cart.reduce((a, b) => a + b.quantity, 0)} itens
@@ -560,7 +568,7 @@ export function NewOrderClient({
             cart.map((item) => (
               <div
                 key={item.id}
-                className="flex gap-3 p-3 border rounded-xl bg-white shadow-sm group hover:border-indigo-200 transition-colors"
+                className="flex gap-3 p-3 border rounded-xl bg-white shadow-sm group hover:border-primary/30 transition-colors"
               >
                 <div className="h-14 w-14 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -584,9 +592,12 @@ export function NewOrderClient({
                     </h4>
                     <button
                       onClick={() => removeFromCart(item.id)}
-                      className="text-gray-300 hover:text-red-500 p-1"
+                      className="text-gray-300 hover:text-red-500 p-1 flex items-center gap-1"
+                      title="Excluir item"
+                      aria-label="Excluir item"
                     >
                       <Trash2 size={14} />
+                      <span className="sr-only">Excluir</span>
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mb-2">
@@ -599,7 +610,7 @@ export function NewOrderClient({
                   </p>
 
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-indigo-700">
+                    <div className="text-sm font-bold text-primary">
                       {new Intl.NumberFormat('pt-BR', {
                         style: 'currency',
                         currency: 'BRL',

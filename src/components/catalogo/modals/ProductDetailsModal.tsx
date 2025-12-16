@@ -4,7 +4,7 @@
 
 import React, { useEffect } from 'react';
 import Image from 'next/image';
-import { Plus, X, Maximize2, Search, Heart, Lock, Unlock } from 'lucide-react';
+import { Plus, X, Maximize2, Search, Heart } from 'lucide-react';
 import ProductBarcode from '@/components/ui/Barcode';
 import { PriceDisplay } from '../PriceDisplay';
 
@@ -24,6 +24,10 @@ interface StoreSettings {
   primary_color: string;
   show_installments: boolean;
   max_installments: number;
+  show_cash_discount: boolean;
+  cash_price_discount_percent: number;
+  show_cost_price: boolean;
+  show_sale_price: boolean;
 }
 // -------------
 
@@ -68,17 +72,26 @@ export function ProductDetailsModal({
   const productImages = getProductImages(viewProduct);
   const primaryColor = store.primary_color || '#4f46e5'; // Fallback: Indigo-600
 
+  // Body scroll-lock
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={() => setViewProduct(null)}
       />
-      <div className="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-200 max-h-[90vh] md:max-h-[600px]">
+      {/* Full Screen on mobile, centered on desktop */}
+      <div className="relative bg-white dark:bg-slate-900 w-full h-screen md:h-auto md:max-h-[90vh] md:max-w-4xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
         {/* Botões de Ação no topo */}
         <button
           onClick={() => setViewProduct(null)}
-          className="absolute top-4 right-4 z-10 p-2 bg-white/80 rounded-full hover:bg-white text-gray-500 hover:text-gray-900 shadow-sm"
+          className="absolute top-4 right-4 z-10 p-2 min-w-[44px] min-h-[44px] bg-white/80 md:bg-white rounded-full hover:bg-white text-gray-500 hover:text-gray-900 shadow-sm flex items-center justify-center"
           aria-label="Fechar"
           title="Fechar"
         >
@@ -86,7 +99,8 @@ export function ProductDetailsModal({
         </button>
         <button
           onClick={() => toggleFavorite(viewProduct.id)}
-          className="absolute top-4 right-14 z-10 p-2 bg-white/80 rounded-full hover:bg-white text-gray-500 hover:text-gray-900 shadow-sm"
+          className="absolute top-4 right-16 md:right-14 z-10 p-2 min-w-[44px] min-h-[44px] bg-white/80 md:bg-white rounded-full hover:bg-white text-gray-500 hover:text-gray-900 shadow-sm flex items-center justify-center"
+          aria-label="Favoritar"
         >
           <Heart
             size={20}
@@ -99,16 +113,18 @@ export function ProductDetailsModal({
         </button>
 
         {/* Área de Imagens */}
-        <div className="w-full md:w-1/2 bg-gray-100 relative flex flex-col">
+        <div className="w-full md:w-1/2 bg-gray-100 dark:bg-slate-800 relative flex flex-col h-1/2 md:h-auto">
           <div className="flex-1 relative flex items-center justify-center overflow-hidden group">
             {productImages.length > 0 ? (
-              <div className="relative w-full h-full">
+              <div className="relative w-full h-full max-h-[70vh]">
                 <Image
                   src={productImages[currentImageIndex]}
                   alt={viewProduct.name}
                   fill
-                  style={{ objectFit: 'contain' }}
+                  style={{ objectFit: 'contain', maxWidth: '100%' }}
                   className="cursor-zoom-in"
+                  loading="eager"
+                  quality={90}
                   onClick={() => setIsZoomOpen(true)}
                 />
               </div>
@@ -133,14 +149,15 @@ export function ProductDetailsModal({
                 <button
                   key={idx}
                   onClick={() => setCurrentImageIndex(idx)}
-                  className={`w-16 h-16 rounded-lg border-2 overflow-hidden flex-shrink-0 ${currentImageIndex === idx ? 'border-indigo-600' : 'border-transparent hover:border-gray-300'}`}
+                  className={`w-16 h-16 rounded-lg border-2 overflow-hidden flex-shrink-0 ${currentImageIndex === idx ? 'border-primary' : 'border-transparent hover:border-gray-300'}`}
                 >
                   <div className="relative w-full h-full">
                     <Image
                       src={img}
                       alt="thumbnail"
-                      fill
-                      style={{ objectFit: 'cover' }}
+                      width={64}
+                      height={64}
+                      style={{ objectFit: 'cover', maxWidth: '100%' }}
                     />
                   </div>
                 </button>
@@ -149,14 +166,14 @@ export function ProductDetailsModal({
           )}
         </div>
 
-        {/* Detalhes do Produto */}
-        <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col overflow-y-auto">
+        {/* Detalhes do Produto: Overflow-y-auto with SafeArea */}
+        <div className="w-full md:w-1/2 p-4 md:p-6 lg:p-8 flex flex-col overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+1rem)] h-1/2 md:h-auto bg-white dark:bg-slate-900">
           <div className="mb-2 flex items-center gap-2">
             <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
               {viewProduct.reference_code}
             </span>
             {viewProduct.brand && (
-              <span className="text-xs font-bold rv-text-primary uppercase bg-indigo-50 px-2 py-1 rounded">
+              <span className="text-xs font-bold rv-text-primary uppercase bg-primary/10 px-2 py-1 rounded">
                 {viewProduct.brand}
               </span>
             )}
@@ -198,40 +215,126 @@ export function ProductDetailsModal({
 
             {/* Decidir qual valor passar para o PriceDisplay conforme flags da loja */}
             {(() => {
-              const showSale = (store as any).show_sale_price !== false;
-              const showCost = (store as any).show_cost_price !== false;
+              const showSale =
+                isPricesVisible && store.show_sale_price !== false;
+              const showCost =
+                isPricesVisible && store.show_cost_price === true;
 
-              const priceVisibleForThisStore =
-                isPricesVisible && (showSale || showCost);
+              // CORRETO: price = custo, sale_price = preço de venda sugerido
+              const costPrice = viewProduct.price || 0;
+              const salePrice = (viewProduct as any).sale_price || 0;
+              const discountPercent = store.cash_price_discount_percent || 0;
 
-              const mainValue = showSale
-                ? viewProduct.price
-                : ((viewProduct as any).cost ?? viewProduct.price);
+              // Se apenas uma opção estiver marcada, mostrar em destaque
+              const showOnlyOne =
+                (showCost && !showSale) || (!showCost && showSale);
 
               return (
                 <>
-                  <PriceDisplay
-                    value={mainValue}
-                    isPricesVisible={priceVisibleForThisStore}
-                    size="large"
-                    className="font-bold text-red-600 block mb-1"
-                  />
-                  <span className="text-sm text-gray-500">Preço unitário</span>
-
-                  {/* Se ambos os preços estiverem permitidos, mostrar o custo secundário */}
-                  {priceVisibleForThisStore && showSale && showCost && (
-                    <div className="mt-2 text-sm text-gray-500">
-                      <span className="font-semibold">Custo:</span>{' '}
-                      <span>
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(
-                          (viewProduct as any).cost ?? viewProduct.price
-                        )}
+                  {/* MODO: Apenas uma opção (destaque maior) */}
+                  {showOnlyOne ? (
+                    <div className="mb-4">
+                      <PriceDisplay
+                        value={showCost ? costPrice : salePrice}
+                        isPricesVisible={true}
+                        size="large"
+                        className="font-bold text-red-600 block mb-1 text-3xl"
+                      />
+                      <span className="text-sm text-gray-500">
+                        {showCost ? 'Preço de Custo' : 'Preço de Venda'}
                       </span>
                     </div>
+                  ) : (
+                    /* MODO: Ambas opções (exibir separado) */
+                    <>
+                      {/* Preço de Custo */}
+                      {showCost && (
+                        <div className="mb-3">
+                          <PriceDisplay
+                            value={costPrice}
+                            isPricesVisible={true}
+                            size="large"
+                            className="font-bold text-blue-600 block mb-1"
+                          />
+                          <span className="text-sm text-gray-500">
+                            Preço de Custo
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Preço Sugerido */}
+                      {showSale && salePrice > 0 && (
+                        <div className="mb-3">
+                          <PriceDisplay
+                            value={salePrice}
+                            isPricesVisible={true}
+                            size="large"
+                            className="font-bold text-red-600 block mb-1"
+                          />
+                          <span className="text-sm text-gray-500">
+                            Preço Sugerido
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
+
+                  {/* Parcelamento e Desconto - usa sale_price se disponível e show_sale ativo, senão usa price */}
+                  {(() => {
+                    // Se mostrar venda (ou ambos), usa salePrice se > 0, senão costPrice
+                    // Se mostrar apenas custo, usa costPrice
+                    const priceForInstallment =
+                      showSale && salePrice > 0 ? salePrice : costPrice;
+
+                    return (
+                      <>
+                        {/* Parcelamento */}
+                        {store.show_installments &&
+                          store.max_installments > 1 &&
+                          priceForInstallment > 0 && (
+                            <div className="text-sm text-green-600 font-medium mt-2">
+                              ou{' '}
+                              <span className="font-bold">
+                                {store.max_installments}x
+                              </span>{' '}
+                              de{' '}
+                              <span className="font-bold">
+                                {new Intl.NumberFormat('pt-BR', {
+                                  style: 'currency',
+                                  currency: 'BRL',
+                                }).format(
+                                  priceForInstallment / store.max_installments
+                                )}
+                              </span>{' '}
+                              sem juros
+                            </div>
+                          )}
+
+                        {/* Desconto à vista */}
+                        {store.show_cash_discount &&
+                          discountPercent > 0 &&
+                          priceForInstallment > 0 && (
+                            <div className="text-sm text-green-700 font-bold mt-2 bg-green-50 px-3 py-2 rounded-lg">
+                              <span className="text-base">
+                                {new Intl.NumberFormat('pt-BR', {
+                                  style: 'currency',
+                                  currency: 'BRL',
+                                }).format(
+                                  priceForInstallment *
+                                    (1 - discountPercent / 100)
+                                )}
+                              </span>{' '}
+                              <span className="opacity-80 font-normal">
+                                à vista
+                              </span>{' '}
+                              <span className="text-xs border border-green-200 px-1.5 py-0.5 rounded bg-white">
+                                -{discountPercent}%
+                              </span>
+                            </div>
+                          )}
+                      </>
+                    );
+                  })()}
                 </>
               );
             })()}
@@ -246,14 +349,14 @@ export function ProductDetailsModal({
           </div>
 
           {/* Botão de Adicionar */}
-          <div className="mt-auto">
+          <div className="mt-auto pt-4">
             <button
               onClick={() => {
                 addToCart(viewProduct);
                 setViewProduct(null);
               }}
               style={{ backgroundColor: primaryColor }}
-              className="w-full py-4 rounded-xl text-white font-bold text-lg hover:brightness-110 transition-colors shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-4 min-h-[44px] rounded-xl text-white font-bold text-base md:text-lg hover:brightness-110 transition-colors shadow-lg flex items-center justify-center gap-2"
             >
               <Plus size={20} /> Adicionar ao Pedido
             </button>

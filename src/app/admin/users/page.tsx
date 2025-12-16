@@ -165,7 +165,7 @@ export default function AdminUsersPage() {
             placeholder="Buscar por email ou ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 border rounded-lg text-sm w-64 bg-white dark:bg-slate-900 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+            className="pl-9 pr-4 py-2 border rounded-lg text-sm w-64 bg-white dark:bg-slate-900 dark:border-slate-700 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
           />
         </div>
       </div>
@@ -174,11 +174,11 @@ export default function AdminUsersPage() {
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 dark:bg-slate-950 text-gray-500 dark:text-slate-400 font-medium border-b border-gray-200 dark:border-slate-800">
             <tr>
-              <th className="px-6 py-4">Usuário</th>
-              <th className="px-6 py-4">Role</th>
-              <th className="px-6 py-4">Cadastro</th>
-              <th className="px-6 py-4">Vencimento</th>
-              <th className="px-6 py-4 text-right">Ações</th>
+              <th className="px-3 sm:px-6 py-4">Usuário</th>
+              <th className="px-3 sm:px-6 py-4">Role</th>
+              <th className="px-3 sm:px-6 py-4">Cadastro</th>
+              <th className="px-3 sm:px-6 py-4">Vencimento</th>
+              <th className="px-3 sm:px-6 py-4 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -187,7 +187,7 @@ export default function AdminUsersPage() {
                 <td colSpan={5} className="p-12 text-center text-gray-500">
                   <div className="flex justify-center items-center gap-2">
                     <Loader2
-                      className="animate-spin text-indigo-600"
+                      className="animate-spin text-[var(--primary)]"
                       size={24}
                     />
                     <span>Carregando base de usuários...</span>
@@ -206,9 +206,9 @@ export default function AdminUsersPage() {
                   key={user.id}
                   className="hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-3 sm:px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800">
+                      <div className="h-9 w-9 rounded-full bg-[var(--primary)]/10 dark:bg-[var(--primary)]/50 flex items-center justify-center text-[var(--primary)] dark:text-[var(--primary)] font-bold border border-[var(--primary)] dark:border-[var(--primary)]">
                         {user.email?.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex flex-col">
@@ -224,7 +224,7 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 sm:px-6 py-4">
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                         user.role === 'master' || user.role === 'admin'
@@ -235,13 +235,15 @@ export default function AdminUsersPage() {
                       {user.role || 'user'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400">
+                  <td className="px-3 sm:px-6 py-4 text-gray-500 dark:text-slate-400">
                     {new Date(user.created_at).toLocaleDateString('pt-BR')}
                   </td>
 
-                  <td className="px-6 py-4">{renderExpirationDate(user)}</td>
+                  <td className="px-3 sm:px-6 py-4">
+                    {renderExpirationDate(user)}
+                  </td>
 
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-3 sm:px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
                       {/* Ao clicar, chama a função de confirmação visual */}
                       <button
@@ -259,7 +261,7 @@ export default function AdminUsersPage() {
 
                       <button
                         onClick={() => handleImpersonate(user.email)}
-                        className="p-2 text-gray-400 border border-transparent hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30 dark:hover:text-white dark:hover:border-indigo-800 rounded-lg transition-all"
+                        className="p-2 text-gray-400 border border-transparent hover:border-[var(--primary)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] dark:hover:bg-[var(--primary)]/30 dark:hover:text-white dark:hover:border-[var(--primary)] rounded-lg transition-all"
                         title="Logar como este usuário"
                       >
                         <LogIn size={16} />

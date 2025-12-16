@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       .from('orders')
       .select('display_id')
       .eq('id', orderId)
-      .single();
+      .maybeSingle();
 
     revalidatePath('/dashboard/orders');
     if (orderRow?.display_id)

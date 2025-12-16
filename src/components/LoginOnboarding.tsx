@@ -25,7 +25,7 @@ const features: Feature[] = [
     description:
       'Acompanhe as suas métricas, vendas por marca e metas num dashboard intuitivo e centralizado.',
     icon: BarChart3,
-    color: 'bg-blue-500',
+    color: 'bg-primary',
   },
   {
     id: 2,
@@ -33,7 +33,7 @@ const features: Feature[] = [
     description:
       'Partilhe os seus produtos com clientes. Proteja os preços com senha ou permita orçamentos rápidos.',
     icon: ShoppingBag,
-    color: 'bg-indigo-500',
+    color: 'bg-primary',
   },
   {
     id: 3,
@@ -75,10 +75,10 @@ export default function LoginOnboarding() {
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden bg-slate-900 p-12 text-white">
       {/* Fundo com Efeito Gradiente Animado (Simples) */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900 opacity-90"></div>
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-primary/80 via-slate-900 to-primary/95 opacity-90"></div>
 
       {/* Círculos Decorativos de Fundo */}
-      <div className="animate-blob absolute left-10 top-10 h-64 w-64 rounded-full bg-blue-600 opacity-20 mix-blend-multiply blur-3xl filter"></div>
+      <div className="animate-blob absolute left-10 top-10 h-64 w-64 rounded-full bg-primary opacity-20 mix-blend-multiply blur-3xl filter"></div>
       <div className="animate-blob animation-delay-2000 absolute bottom-10 right-10 h-64 w-64 rounded-full bg-purple-600 opacity-20 mix-blend-multiply blur-3xl filter"></div>
 
       {/* Conteúdo Principal */}

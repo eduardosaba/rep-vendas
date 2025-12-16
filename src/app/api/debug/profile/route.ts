@@ -21,7 +21,7 @@ export async function GET(req: Request) {
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     // Retornar tanto data quanto error (PostgREST fornece mais detalhes no error)
     return NextResponse.json({ data, error }, { status: error ? 500 : 200 });

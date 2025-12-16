@@ -100,7 +100,7 @@ export default async function LandingPage() {
         {/* Efeitos de Fundo */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
           <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-[#b9722e] rounded-full mix-blend-screen filter blur-[120px] opacity-20 animate-pulse"></div>
-          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-blue-600 rounded-full mix-blend-screen filter blur-[120px] opacity-10"></div>
+          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-primary rounded-full mix-blend-screen filter blur-[120px] opacity-10"></div>
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto text-center">
@@ -187,7 +187,7 @@ export default async function LandingPage() {
                   {/* Sidebar Fake */}
                   <div className="hidden md:block col-span-1 bg-white h-full rounded-lg border border-gray-200 p-4 space-y-3">
                     <div className="h-8 w-3/4 bg-gray-100 rounded mb-6"></div>
-                    <div className="h-4 w-full bg-blue-50 rounded"></div>
+                    <div className="h-4 w-full bg-primary/5 rounded"></div>
                     <div className="h-4 w-full bg-gray-50 rounded"></div>
                     <div className="h-4 w-full bg-gray-50 rounded"></div>
                     <div className="h-4 w-full bg-gray-50 rounded"></div>
@@ -208,11 +208,11 @@ export default async function LandingPage() {
                     <div className="bg-white h-64 rounded-lg border border-gray-200 shadow-sm p-6">
                       <div className="flex items-end gap-4 h-full pb-4">
                         <div
-                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          className="w-full bg-primary/5 rounded-t hover:bg-primary/10 transition-all"
                           style={{ height: '40%' }}
                         ></div>
                         <div
-                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          className="w-full bg-primary/5 rounded-t hover:bg-primary/10 transition-all"
                           style={{ height: '70%' }}
                         ></div>
                         <div
@@ -220,11 +220,11 @@ export default async function LandingPage() {
                           style={{ height: '90%' }}
                         ></div>
                         <div
-                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          className="w-full bg-primary/5 rounded-t hover:bg-primary/10 transition-all"
                           style={{ height: '60%' }}
                         ></div>
                         <div
-                          className="w-full bg-blue-50 rounded-t hover:bg-blue-100 transition-all"
+                          className="w-full bg-primary/5 rounded-t hover:bg-primary/10 transition-all"
                           style={{ height: '80%' }}
                         ></div>
                       </div>

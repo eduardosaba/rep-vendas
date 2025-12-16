@@ -2,46 +2,31 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { ProductsTable } from '@/components/dashboard/ProductsTable';
-import { DiagnosticPanel } from '@/components/products/diagnostic-panel'; // Ajuste o import se necessário (named vs default)
+import { DiagnosticPanel } from '@/components/products/diagnostic-panel';
 import {
   FileSpreadsheet,
   Image as ImageIcon,
   DollarSign,
   Plus,
+  Box
 } from 'lucide-react';
+import { Button } from '@/components/ui/Button'; // Usando nosso componente padronizado
 
-// 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA (Dados sempre frescos)
+// 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA
 export const dynamic = 'force-dynamic';
 
 export default async function ProductsPage() {
-  const ensureSupabaseEnv = () => {
-    if (
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) {
-      // eslint-disable-next-line no-console
-      console.error(
-        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-      throw new Error(
-        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-    }
-  };
-
-  ensureSupabaseEnv();
   const supabase = await createClient();
 
   // 1. Autenticação Segura (Server-Side)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     redirect('/login');
   }
 
-  // 2. Busca de Produtos (Server-Side)
+  // 2. Busca de Produtos Otimizada
+  // Selecionamos apenas o necessário para a lista inicial para não pesar
   const { data: products, error } = await supabase
     .from('products')
     .select('*')
@@ -50,66 +35,67 @@ export default async function ProductsPage() {
 
   if (error) {
     console.error('Erro ao carregar produtos:', error);
-    return <ProductsTable initialProducts={[]} />;
   }
 
-  // 3. Renderiza o Cliente com Header de Ações e Tabela
-  return (
-    <div className="p-6 space-y-6 pb-20">
-      {/* Painel de Diagnóstico (Imagens pendentes) */}
-      <DiagnosticPanel />
+  // Fallback seguro se der erro
+  const safeProducts = products || [];
 
+  return (
+    <div className="p-4 md:p-6 space-y-6 pb-24 animate-in fade-in duration-500">
+      
       {/* HEADER DE AÇÕES: Responsivo */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         {/* Título */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Produtos</h1>
-          <p className="text-sm text-gray-500">
-            Gerencie seu catálogo completo ({products?.length || 0} itens)
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Box size={24} className="text-[var(--primary)]" />
+            Produtos
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Gerencie seu catálogo completo ({safeProducts.length} itens)
           </p>
         </div>
 
         {/* Barra de Ferramentas */}
-        <div className="flex flex-wrap gap-2 w-full xl:w-auto">
+        <div className="grid grid-cols-2 sm:flex flex-wrap gap-3 w-full lg:w-auto">
           {/* Botão Importar Excel */}
-          <Link
-            href="/dashboard/products/import-massa"
-            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:text-primary hover:border-primary/30 transition-all shadow-sm"
-          >
-            <FileSpreadsheet size={16} />
-            <span className="whitespace-nowrap">Importar Excel</span>
+          <Link href="/dashboard/products/import-massa" className="contents">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-center" leftIcon={<FileSpreadsheet size={16} />}>
+              Importar Excel
+            </Button>
           </Link>
 
           {/* Botão Importar Visual */}
-          <Link
-            href="/dashboard/products/import-visual"
-            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:text-primary hover:border-primary/30 transition-all shadow-sm"
-          >
-            <ImageIcon size={16} />
-            <span className="whitespace-nowrap">Importar Fotos</span>
+          <Link href="/dashboard/products/import-visual" className="contents">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-center" leftIcon={<ImageIcon size={16} />}>
+              Importar Fotos
+            </Button>
           </Link>
 
-          {/* Botão Atualizar Preços (NOVO) */}
-          <Link
-            href="/dashboard/products/update-prices"
-            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
-          >
-            <DollarSign size={16} />
-            <span className="whitespace-nowrap">Atualizar Preços</span>
+          {/* Botão Atualizar Preços */}
+          <Link href="/dashboard/products/update-prices" className="contents">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-center col-span-2 sm:col-span-1" leftIcon={<DollarSign size={16} />}>
+              Atualizar Preços
+            </Button>
           </Link>
 
           {/* Botão Novo Produto (Destaque) */}
-          {/* Este botão pode abrir um modal ou ir para uma página de criação manual */}
-          <button className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:opacity-90 shadow-sm transition-all">
-            <Plus size={16} />
-            <span className="whitespace-nowrap">Novo Produto</span>
-          </button>
+          <Link href="/dashboard/products/new" className="contents">
+            <Button variant="primary" size="sm" className="w-full sm:w-auto justify-center col-span-2 sm:col-span-1" leftIcon={<Plus size={16} />}>
+              Novo Produto
+            </Button>
+          </Link>
         </div>
       </div>
 
+      {/* Painel de Diagnóstico (Só exibe se houver problemas) */}
+      <DiagnosticPanel />
+
       {/* Tabela de Dados */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <ProductsTable initialProducts={products || []} />
+      {/* Envolvemos em um container com borda e fundo para o tema */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
+        {/* Passamos os dados para o Client Component que vai cuidar da responsividade da tabela */}
+        <ProductsTable initialProducts={safeProducts} />
       </div>
     </div>
   );

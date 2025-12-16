@@ -209,17 +209,17 @@ export default function CategoriesPage() {
 
   const uploadImage = async (userId: string, file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/categories/${Date.now()}.${fileExt}`;
+    const filePath = `public/${userId}/categories/category-${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('product-images')
-      .upload(`categories/${fileName}`, file);
+      .upload(filePath, file);
 
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage
       .from('product-images')
-      .getPublicUrl(`categories/${fileName}`);
+      .getPublicUrl(fileName);
 
     return data.publicUrl;
   };

@@ -58,7 +58,7 @@ export default function OrderStatusControls({ orderId, statusKey }: Props) {
         <button
           onClick={() => updateStatus('confirmed')}
           disabled={!!loading}
-          className="w-full py-2.5 px-4 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+          className="w-full py-2.5 px-4 bg-primary/10 text-primary border border-primary/30 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
         >
           <ThumbsUp size={16} />{' '}
           {loading === 'confirm' ? 'Processando...' : 'Aprovar Pedido'}

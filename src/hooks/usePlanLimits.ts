@@ -21,7 +21,7 @@ export function usePlanLimits() {
         .from('subscriptions')
         .select('plan_name')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       const planName = sub?.plan_name || 'Free'; // Padrão se não tiver assinatura
 
@@ -30,7 +30,7 @@ export function usePlanLimits() {
         .from('plans')
         .select('max_products')
         .eq('name', planName)
-        .single();
+        .maybeSingle();
 
       const maxLimit = plan?.max_products || 500; // Fallback se não achar plano
 

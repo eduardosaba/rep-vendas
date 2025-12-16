@@ -465,7 +465,7 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
           phone: orderData.clientData.phone || null,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (clientError) throw clientError;
       clientId = newClient.id;
@@ -485,7 +485,7 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
         notes: orderData.notes,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (orderError) throw orderError;
 

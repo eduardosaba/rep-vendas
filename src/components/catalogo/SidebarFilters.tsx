@@ -67,7 +67,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                 onChange={(e) =>
                   onPriceChange([priceRange[0], parseInt(e.target.value)])
                 }
-                className="w-full accent-indigo-600 cursor-pointer"
+                className="w-full accent-primary cursor-pointer"
               />
               <div className="flex justify-between text-xs font-medium text-gray-600">
                 <span>R$ {formatPrice(priceRange[0])}</span>
@@ -100,7 +100,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                         );
                       }
                     }}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
                   />
                   <div className="h-6 w-6 flex-shrink-0 flex items-center justify-center">
                     {brandLogos && brandLogos[brand] ? (
@@ -119,7 +119,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                       </div>
                     )}
                   </div>
-                  <span className="text-sm text-gray-600 group-hover:text-indigo-600 transition-colors">
+                  <span className="text-sm text-gray-600 group-hover:text-primary transition-colors">
                     {brand}
                   </span>
                 </label>
@@ -136,9 +136,9 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                   type="checkbox"
                   checked={showOnlyBestsellers}
                   onChange={(e) => onBestsellerChange(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <span className="ml-2 flex items-center text-sm text-gray-700 group-hover:text-indigo-600 transition-colors">
+                <span className="ml-2 flex items-center text-sm text-gray-700 group-hover:text-primary transition-colors">
                   <span className="mr-2">⭐</span> Best Seller
                 </span>
               </label>
@@ -147,9 +147,9 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                   type="checkbox"
                   checked={showOnlyNew}
                   onChange={(e) => onNewChange(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <span className="ml-2 flex items-center text-sm text-gray-700 group-hover:text-indigo-600 transition-colors">
+                <span className="ml-2 flex items-center text-sm text-gray-700 group-hover:text-primary transition-colors">
                   <span className="mr-2">🆕</span> Lançamentos
                 </span>
               </label>

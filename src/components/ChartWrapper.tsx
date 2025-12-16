@@ -48,7 +48,7 @@ export default function ChartWrapper({
     <div
       ref={ref}
       className={className}
-      style={{ width: '100%', height, minWidth: 0 }}
+      style={{ width: '100%', height, minWidth: 0, minHeight: 0 }}
     >
       {ready ? children : null}
     </div>

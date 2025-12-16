@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
+    "optimize-images": "node scripts/optimize-images.mjs",
     "dependency-check": "echo 'Checking for unused dependencies...' && npx depcheck --ignores='@types/*,autoprefixer,postcss,tailwindcss,baseline-browser-mapping,jest-environment-jsdom'",
     "env-check": "node -e \"const fs = require('fs'); const envExists = fs.existsSync('.env.local'); console.log(envExists ? '✅ .env.local file exists' : '❌ .env.local file missing'); if(envExists){ const env = fs.readFileSync('.env.local', 'utf8'); const hasSupabase = env.includes('NEXT_PUBLIC_SUPABASE_URL') && env.includes('NEXT_PUBLIC_SUPABASE_ANON_KEY'); console.log(hasSupabase ? '✅ Supabase environment variables found' : '❌ Supabase environment variables missing'); }\"",
     "eduardosaba": "pnpm run format && pnpm run typecheck && echo 'Lint skipped - ESLint config issue' && pnpm run dependency-check && pnpm run env-check"
@@ -33,6 +34,7 @@
     "react-dropzone": "^14.3.8",
     "recharts": "^3.4.1",
     "sonner": "^2.0.7",
+    "tus-js-client": "^4.3.1",
     "xlsx": "^0.18.5",
     "zustand": "^5.0.9"
   },
@@ -50,11 +52,13 @@
     "depcheck": "^1.4.7",
     "eslint": "^9.39.1",
     "eslint-config-next": "^16.0.2",
+    "glob": "^13.0.0",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "node-fetch": "^3.3.2",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.18",
     "typescript": "^5.9.3"
   }

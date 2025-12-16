@@ -125,7 +125,7 @@ export default function ImportVisualPage() {
           file_name: 'Upload Manual',
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -201,7 +201,7 @@ export default function ImportVisualPage() {
       await Promise.all(
         files.map(async (file) => {
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-          const filePath = `${user.id}/staging/${fileName}`; // Isolamento por usuário
+          const filePath = `public/${user.id}/staging/${fileName}`; // Isolamento por usuário (prefixo public)
 
           // Upload Storage
           const { error: uploadError } = await supabase.storage
@@ -276,6 +276,16 @@ export default function ImportVisualPage() {
       const historyId = await ensureHistorySession();
 
       // Inserir Produto
+      const slugify = (s: string) =>
+        s
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-');
+
+      const slugBase = slugify(data.name || 'produto');
+
       const { error: productError } = await supabase.from('products').insert({
         user_id: user.id,
         name: data.name,
@@ -286,6 +296,7 @@ export default function ImportVisualPage() {
         images: [image.publicUrl],
         image_path: image.storage_path,
         last_import_id: historyId,
+        slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
       });
 
       if (productError) throw productError;
@@ -298,7 +309,7 @@ export default function ImportVisualPage() {
           .from('import_history')
           .select('total_items')
           .eq('id', historyId)
-          .single();
+          .maybeSingle();
 
         if (currentHist) {
           await supabase

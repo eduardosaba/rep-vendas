@@ -225,28 +225,8 @@ export function StoreHeader() {
               )}
             </div>
 
-            <div className="flex items-center gap-1 lg:hidden">
-              <button
-                onClick={() => setShowFavorites(!showFavorites)}
-                className={`p-2 ${textColorClass}`}
-              >
-                <Heart
-                  size={22}
-                  className={showFavorites ? 'fill-current text-red-500' : ''}
-                />
-              </button>
-              <button
-                onClick={() => setModal('cart', true)}
-                className={`relative p-2 ${textColorClass}`}
-              >
-                <ShoppingCart size={24} />
-                {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-3.5 w-3.5 flex items-center justify-center rounded-full">
-                    {cartCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            {/* Removidos botões inline - agora usamos barra fixa no rodapé mobile */}
+            <div className="lg:hidden" />
           </div>
 
           <div className="flex-1 w-full relative">
@@ -494,13 +474,11 @@ export function StoreSidebar() {
               <button
                 onClick={() => setShowOnlyNew(!showOnlyNew)}
                 className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} w-full py-2 text-sm transition-colors rounded-lg 
-                  ${showOnlyNew ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-gray-600 hover:text-[var(--primary)] hover:bg-gray-50'}`}
+                  ${showOnlyNew ? 'bg-primary/5 text-primary font-bold' : 'text-gray-600 hover:text-[var(--primary)] hover:bg-gray-50'}`}
               >
                 <Zap
                   size={16}
-                  className={
-                    showOnlyNew ? 'fill-indigo-500 text-indigo-500' : ''
-                  }
+                  className={showOnlyNew ? 'fill-primary text-primary' : ''}
                 />
                 {!isCollapsed && (
                   <span className="font-medium">Lançamentos</span>
@@ -614,6 +592,109 @@ export function StoreSidebar() {
   );
 }
 
+// --- MOBILE ACTION BAR (Fixed Bottom) ---
+export function StoreMobileActionBar() {
+  const {
+    isPricesVisible,
+    setIsPricesVisible,
+    setModal,
+    cart,
+    favorites,
+    showFavorites,
+    setShowFavorites,
+  } = useStore();
+
+  const getCartCount = (c: any) => {
+    if (!c) return 0;
+    if (Array.isArray(c))
+      return c.reduce((acc, item) => acc + (item?.quantity || 0), 0);
+    if (typeof c === 'object') {
+      return Object.values(c).reduce((acc: number, v: any) => {
+        if (typeof v === 'number') return acc + v;
+        if (v && typeof v === 'object') return acc + (v.quantity || 0);
+        return acc;
+      }, 0);
+    }
+    return 0;
+  };
+  const cartCount = getCartCount(cart);
+
+  return (
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-center justify-around px-2 py-2">
+        {/* Ver Preços */}
+        <button
+          onClick={() =>
+            isPricesVisible
+              ? setIsPricesVisible(false)
+              : setModal('password', true)
+          }
+          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
+        >
+          {isPricesVisible ? (
+            <Unlock size={20} className="text-green-600" />
+          ) : (
+            <Lock size={20} className="text-gray-600" />
+          )}
+          <span className="text-[10px] font-medium text-gray-700">
+            {isPricesVisible ? 'Preços ON' : 'Ver Preços'}
+          </span>
+        </button>
+
+        {/* Pedidos */}
+        <button
+          onClick={() => setModal('load', true)}
+          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
+        >
+          <Download size={20} className="text-gray-600" />
+          <span className="text-[10px] font-medium text-gray-700">Pedidos</span>
+        </button>
+
+        {/* Favoritos */}
+        <button
+          onClick={() => setShowFavorites(!showFavorites)}
+          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
+        >
+          <div className="relative">
+            <Heart
+              size={20}
+              className={
+                showFavorites ? 'fill-current text-red-500' : 'text-gray-600'
+              }
+            />
+            {favorites.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
+                {favorites.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-medium text-gray-700">
+            Favoritos
+          </span>
+        </button>
+
+        {/* Carrinho */}
+        <button
+          onClick={() => setModal('cart', true)}
+          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
+        >
+          <div className="relative">
+            <ShoppingCart size={20} className="text-gray-600" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
+                {cartCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-medium text-gray-700">
+            Carrinho
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // --- FOOTER ---
 export function StoreFooter() {
   const { store } = useStore();
@@ -697,18 +778,29 @@ function CarouselBrands({
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [shouldAnimate, setShouldAnimate] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const check = () => {
       if (!containerRef.current || !innerRef.current) return;
-      setShouldAnimate(
-        innerRef.current.scrollWidth > containerRef.current.clientWidth
-      );
+      const hasOverflow =
+        innerRef.current.scrollWidth > containerRef.current.clientWidth;
+      // Em mobile, sempre anima se tiver mais de 3 marcas
+      setShouldAnimate(isMobile ? brands.length > 3 : hasOverflow);
     };
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
-  }, [brands]);
+  }, [brands, isMobile]);
 
   const loopBrands = shouldAnimate ? [...brands, ...brands] : brands;
   const duration = Math.max(18, Math.ceil(brands.length * 1.5) + 18);
@@ -717,8 +809,8 @@ function CarouselBrands({
     <div className="w-full overflow-hidden" ref={containerRef}>
       <style>{`@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
       <div
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
+        onMouseEnter={() => !isMobile && setIsPaused(true)}
+        onMouseLeave={() => !isMobile && setIsPaused(false)}
         className="w-full"
       >
         <div

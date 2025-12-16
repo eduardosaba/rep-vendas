@@ -63,7 +63,7 @@ export default async function DashboardPage() {
     safeFetch(
       supabase
         .rpc('get_dashboard_totals', { owner_id: user.id })
-        .single() as unknown as Promise<any>,
+        .maybeSingle() as unknown as Promise<any>,
       { data: { total_revenue: 0, total_items_sold: 0 } }
     ),
 
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
         .from('settings')
         .select('catalog_slug, name')
         .eq('user_id', user.id)
-        .single() as unknown as Promise<any>,
+        .maybeSingle() as unknown as Promise<any>,
       { data: { catalog_slug: '', name: '' } }
     ),
 
@@ -114,7 +114,7 @@ export default async function DashboardPage() {
         .from('profiles')
         .select('full_name')
         .eq('id', user.id)
-        .single() as unknown as Promise<any>,
+        .maybeSingle() as unknown as Promise<any>,
       { data: { full_name: '' } }
     ),
 
@@ -251,7 +251,7 @@ export default async function DashboardPage() {
         <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col h-full">
           <div className="p-5 border-b border-gray-100 dark:border-slate-800">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <AlertCircle size={18} className="text-indigo-500" />
+              <AlertCircle size={18} className="text-primary" />
               Ações Rápidas
             </h3>
           </div>
@@ -259,12 +259,12 @@ export default async function DashboardPage() {
           <div className="p-5 flex-1 flex flex-col gap-3 justify-center">
             <a
               href="/dashboard/products/new"
-              className="group flex items-center gap-3 w-full rounded-lg bg-indigo-50 dark:bg-indigo-900/20 px-4 py-3 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition border border-indigo-100 dark:border-indigo-800"
+              className="group flex items-center gap-3 w-full rounded-lg bg-primary/5 dark:bg-primary/10 px-4 py-3 text-sm font-medium text-primary dark:text-primary hover:bg-primary/10 dark:hover:bg-primary/20 transition border border-primary/10 dark:border-primary/20"
             >
               <div className="bg-white dark:bg-slate-800 p-1.5 rounded-md shadow-sm group-hover:scale-110 transition-transform">
                 <PlusCircle
                   size={18}
-                  className="text-indigo-600 dark:text-indigo-400"
+                  className="text-primary dark:text-primary"
                 />
               </div>
               Cadastrar Novo Produto
@@ -318,7 +318,7 @@ export default async function DashboardPage() {
           </h3>
           <a
             href="/dashboard/orders"
-            className="text-sm text-indigo-600 hover:underline"
+            className="text-sm text-primary hover:underline"
           >
             Ver todos
           </a>

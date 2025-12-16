@@ -27,6 +27,7 @@ interface Product {
   image_url: string | null;
   images: string[] | null;
   created_at: string;
+  slug?: string | null;
 }
 
 export default function ProductsClient({
@@ -155,10 +156,12 @@ export default function ProductsClient({
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 font-medium">Produto</th>
-                <th className="px-6 py-4 font-medium">Referência</th>
-                <th className="px-6 py-4 font-medium">Preço</th>
-                <th className="px-6 py-4 font-medium text-right">Ações</th>
+                <th className="px-3 sm:px-6 py-4 font-medium">Produto</th>
+                <th className="px-3 sm:px-6 py-4 font-medium">Referência</th>
+                <th className="px-3 sm:px-6 py-4 font-medium">Preço</th>
+                <th className="px-3 sm:px-6 py-4 font-medium text-right">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -215,7 +218,7 @@ export default function ProductsClient({
                     key={product.id}
                     className="hover:bg-gray-50 transition-colors group"
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100 border border-gray-200 relative flex items-center justify-center">
                           {(() => {
@@ -240,19 +243,19 @@ export default function ProductsClient({
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-gray-600 font-mono text-xs">
+                    <td className="px-3 sm:px-6 py-4 text-gray-600 font-mono text-xs">
                       {product.reference_code || '-'}
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                    <td className="px-3 sm:px-6 py-4 font-medium text-gray-900">
                       {new Intl.NumberFormat('pt-BR', {
                         style: 'currency',
                         currency: 'BRL',
                       }).format(product.price)}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-3 sm:px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Link
-                          href={`/dashboard/products/${product.id}`}
+                          href={`/dashboard/products/${product.slug || product.id}`}
                           className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                           title="Editar"
                         >
