@@ -1,20 +1,20 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: 'class', // <--- OBRIGATÓRIO para alternar temas
+  darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
+      // Se um dia quiser trocar a fonte padrão sem Google Fonts, seria aqui:
+      // fontFamily: { sans: ['SuasFontesLocais', 'sans-serif'] },
       colors: {
-        // CORES DINÂMICAS (Vêm do Banco -> CSS Variables)
         primary: {
-          DEFAULT: 'var(--primary)', // A cor do fundo do botão
-          foreground: 'var(--primary-foreground)', // A cor do texto (Preto ou Branco)
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
         },
         secondary: {
           DEFAULT: 'var(--secondary)',
           foreground: 'var(--secondary-foreground)',
         },
-        // Variáveis para fundos específicos se desejar
         header: {
           bg: 'var(--header-bg)',
           text: 'var(--header-text)',
