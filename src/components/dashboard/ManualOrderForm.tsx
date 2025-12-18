@@ -182,7 +182,7 @@ export default function ManualOrderForm({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={addItem}
-              className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded"
+              className="px-3 py-1 bg-[var(--primary)]/10 text-[var(--primary)] rounded"
             >
               Adicionar Item
             </button>
@@ -202,7 +202,7 @@ export default function ManualOrderForm({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={isSaving}
-            className="px-4 py-2 bg-indigo-600 text-white rounded"
+            className="px-4 py-2 bg-[var(--primary)] text-white rounded hover:opacity-90 transition-all"
           >
             {isSaving ? 'Salvando...' : 'Criar Pedido'}
           </button>

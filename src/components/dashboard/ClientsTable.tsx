@@ -167,7 +167,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
       {/* 1. DASHBOARD DE CLIENTES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full">
+          <div className="p-3 bg-[var(--primary)]/10 text-[var(--primary)] rounded-full">
             <User size={24} />
           </div>
           <div>
@@ -219,7 +219,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full pl-10 p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+            className="w-full pl-10 p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] outline-none"
           />
         </div>
 
@@ -319,7 +319,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                     <td className="px-3 sm:px-6 py-4 text-right">
                       <button
                         onClick={() => setSelectedClient(client)}
-                        className="text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition-colors font-medium text-sm inline-flex items-center gap-1"
+                        className="text-[var(--primary)] hover:bg-[var(--primary)]/10 p-2 rounded-lg transition-colors font-medium text-sm inline-flex items-center gap-1"
                       >
                         Ver Detalhes <ArrowRight size={16} />
                       </button>
@@ -457,10 +457,10 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                         key={order.id}
                         className="block group"
                       >
-                        <div className="p-4 border rounded-xl hover:border-indigo-300 hover:shadow-md transition-all bg-white">
+                        <div className="p-4 border rounded-xl hover:border-[var(--primary)]/50 hover:shadow-md transition-all bg-white">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <span className="font-bold text-indigo-600 text-sm">
+                              <span className="font-bold text-[var(--primary)] text-sm">
                                 Pedido #{order.display_id}
                               </span>
                               <p className="text-xs text-gray-400">

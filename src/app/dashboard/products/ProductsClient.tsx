@@ -14,7 +14,6 @@ import {
   UploadCloud,
   RefreshCcw,
   AlertTriangle,
-  AlertOctagon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -122,7 +121,7 @@ export default function ProductsClient({
 
           <Link
             href="/dashboard/products/new"
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm"
           >
             <Plus size={18} />
             Novo Produto
@@ -146,7 +145,7 @@ export default function ProductsClient({
           placeholder="Buscar por nome ou referência..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all shadow-sm"
+          className="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all shadow-sm"
         />
       </div>
 
@@ -227,7 +226,6 @@ export default function ProductsClient({
                               (product as any).external_image_url ||
                               null;
                             return img ? (
-                              // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={img}
                                 alt={product.name}
@@ -256,7 +254,7 @@ export default function ProductsClient({
                       <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Link
                           href={`/dashboard/products/${product.slug || product.id}`}
-                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors"
                           title="Editar"
                         >
                           <Edit2 size={18} />

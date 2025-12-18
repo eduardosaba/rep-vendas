@@ -10,8 +10,9 @@ import {
   Loader2,
   Layout,
   Smartphone,
-  Palette,
 } from 'lucide-react';
+import { logger } from '@/lib/logger';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
 interface PlatformSettings {
   system_name: string;
@@ -65,9 +66,11 @@ export default function AdminSettingsPage() {
         });
         if (data.logo_url) setLogoPreview(data.logo_url);
       }
-    } catch (error: any) {
-      console.error(error);
-      toast.error('Erro ao carregar configurações');
+    } catch (error: unknown) {
+      logger.error('Erro ao carregar configurações', error);
+      toast.error('Erro ao carregar configurações', {
+        description: getErrorMessage(error),
+      });
     } finally {
       setLoading(false);
     }
@@ -144,11 +147,11 @@ export default function AdminSettingsPage() {
       setTimeout(() => {
         window.location.reload();
       }, 1500);
-    } catch (error: any) {
-      console.error(error);
+    } catch (error: unknown) {
+      logger.error('Erro ao salvar configurações', error);
       toast.error('Erro ao salvar', {
         id: toastId,
-        description: error.message,
+        description: getErrorMessage(error),
       });
     } finally {
       setSaving(false);
@@ -287,7 +290,6 @@ export default function AdminSettingsPage() {
             <div className="flex flex-col items-center">
               <label className="w-full aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors relative overflow-hidden group bg-white dark:bg-slate-950">
                 {logoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={logoPreview}
                     alt="Logo Preview"

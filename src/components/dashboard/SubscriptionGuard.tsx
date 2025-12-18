@@ -19,11 +19,6 @@ export default function SubscriptionGuard({
   const [daysOverdue, setDaysOverdue] = useState(0);
   const router = useRouter();
   const supabase = createClient();
-
-  useEffect(() => {
-    checkSubscription();
-  }, []);
-
   const checkSubscription = async () => {
     const {
       data: { user },
@@ -54,8 +49,6 @@ export default function SubscriptionGuard({
     const today = new Date();
 
     // Calcula diferença em dias
-    // Se diff > 0: Já venceu há X dias
-    // Se diff < 0: Ainda faltam X dias para vencer
     const diff = differenceInDays(today, expiryDate);
 
     // REGRA 1: BLOQUEIO TOTAL (Venceu há mais de 5 dias)
@@ -77,7 +70,6 @@ export default function SubscriptionGuard({
     }
     // REGRA 3: AVISO PRÉVIO (Vai vencer nos próximos 5 dias)
     else if (diff >= -5) {
-      // Ex: -2 (faltam 2 dias)
       toast.warning('Renovação Próxima', {
         description: `Sua assinatura vence dia ${format(expiryDate, 'dd/MM')}.`,
         duration: 5000,
@@ -86,6 +78,10 @@ export default function SubscriptionGuard({
 
     setLoading(false);
   };
+
+  useEffect(() => {
+    void checkSubscription();
+  }, []);
 
   // TELA DE BLOQUEIO
   if (isBlocked) {

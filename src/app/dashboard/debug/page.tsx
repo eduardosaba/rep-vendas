@@ -12,8 +12,7 @@ import {
   Image as ImageIcon,
   Server,
   RefreshCcw,
-  Loader2, // <--- ADICIONADO AQUI (O erro era a falta disto)
-  Wifi,
+  Loader2,
 } from 'lucide-react';
 
 interface TestResult {
@@ -218,7 +217,8 @@ export default function SystemHealthPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Activity className="text-indigo-600" /> Diagnóstico do Sistema
+            <Activity className="text-[var(--primary)]" /> Diagnóstico do
+            Sistema
           </h1>
           <p className="text-gray-500 text-sm">
             Use esta tela para identificar problemas de conexão ou configuração.
@@ -227,7 +227,7 @@ export default function SystemHealthPage() {
         <button
           onClick={runDiagnostics}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
         >
           {loading ? (
             <Loader2 className="animate-spin" size={18} />

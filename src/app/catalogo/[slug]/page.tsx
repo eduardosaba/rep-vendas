@@ -16,7 +16,7 @@ type Props = {
 // 1. GERADOR DE METADADOS (SEO)
 export async function generateMetadata(
   { params, searchParams }: Props,
-  parent: ResolvingMetadata
+  _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const { slug } = await params;
   const { productId } = await searchParams;

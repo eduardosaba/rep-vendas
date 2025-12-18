@@ -48,7 +48,6 @@ export default function SalesBarChart({
                 border: '1px solid #E5E7EB',
                 borderRadius: '8px',
               }}
-              className="dark:bg-slate-800 dark:border-slate-700"
             />
             <Bar dataKey="vendas" fill={primaryColor} radius={[4, 4, 0, 0]} />
           </BarChart>

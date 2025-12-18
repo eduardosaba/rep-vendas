@@ -12,7 +12,6 @@ import {
   ArrowRight,
   CheckCircle,
   CheckCircle2,
-  User,
 } from 'lucide-react';
 import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
@@ -81,7 +80,7 @@ export default function RegisterPage() {
         setLoading(false);
         setGoogleLoading(false);
       }
-    } catch (e) {
+    } catch (_e) {
       // ignore if window not available or parsing fails
     }
   }, []);

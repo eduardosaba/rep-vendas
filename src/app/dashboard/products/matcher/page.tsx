@@ -301,7 +301,7 @@ export default function MatcherPage() {
             onClick={() => setShowImportedOnly((s) => !s)}
             className={`px-4 py-2.5 text-sm font-medium border rounded-lg transition-colors shadow-sm flex items-center gap-2 ${
               showImportedOnly
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300'
+                ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[var(--primary)] dark:bg-[var(--primary)]/20 dark:border-[var(--primary)]/40 dark:text-[var(--primary)]'
                 : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-800 dark:text-gray-300'
             }`}
           >
@@ -315,7 +315,7 @@ export default function MatcherPage() {
               !selectedProductId || selectedImageIds.length === 0 || linking
             }
             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all shadow-md active:scale-95 text-sm
-              ${!selectedProductId || selectedImageIds.length === 0 ? 'bg-gray-300 dark:bg-slate-700 cursor-not-allowed opacity-70' : 'bg-indigo-600 hover:bg-indigo-700'}
+              ${!selectedProductId || selectedImageIds.length === 0 ? 'bg-gray-300 dark:bg-slate-700 cursor-not-allowed opacity-70' : 'bg-[var(--primary)] hover:opacity-90'}
             `}
           >
             {linking ? (
@@ -414,7 +414,7 @@ export default function MatcherPage() {
                   className={`p-3 rounded-lg border cursor-pointer transition-all flex justify-between items-center group
                     ${
                       selectedProductId === product.id
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-500'
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 ring-1 ring-[var(--primary)]'
                         : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-slate-600'
                     }
                     ${
@@ -463,7 +463,7 @@ export default function MatcherPage() {
                   </div>
 
                   {selectedProductId === product.id && (
-                    <div className="h-6 w-6 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0 animate-in zoom-in">
+                    <div className="h-6 w-6 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0 animate-in zoom-in">
                       <Check size={14} />
                     </div>
                   )}
@@ -498,7 +498,7 @@ export default function MatcherPage() {
                 <p className="mb-4">Nenhuma foto disponível para vinculação.</p>
                 <Link
                   href="/dashboard/products/import-visual"
-                  className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  className="px-4 py-2 bg-[var(--primary)] text-white text-sm rounded-lg hover:opacity-90 transition-all font-medium"
                 >
                   Carregar novas fotos
                 </Link>
@@ -532,7 +532,7 @@ export default function MatcherPage() {
                       }
                     `}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    { }
                     <img
                       src={img.publicUrl}
                       alt="Staging"
@@ -558,7 +558,7 @@ export default function MatcherPage() {
 
                     {/* Checkbox Visual */}
                     {selectedImageIds.includes(img.id) && (
-                      <div className="absolute top-2 right-2 h-6 w-6 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-md animate-in zoom-in border border-white dark:border-slate-800">
+                      <div className="absolute top-2 right-2 h-6 w-6 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-md animate-in zoom-in border border-white dark:border-slate-800">
                         {selectedImageIds.length > 1 ? (
                           <Layers size={12} />
                         ) : (

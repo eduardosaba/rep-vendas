@@ -12,8 +12,7 @@ import {
   Edit2,
   X,
   RefreshCw,
-  AlertTriangle, // Ícone de alerta adicionado
-  Image as ImageIcon,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -77,7 +76,6 @@ const CategoryCard = ({
       {/* Ícone / Imagem */}
       <div className="h-16 w-16 flex items-center justify-center mb-3 bg-gray-50 dark:bg-slate-800 rounded-full text-gray-400 dark:text-slate-600 overflow-hidden border border-gray-200 dark:border-slate-700 group-hover:border-primary/30 transition-colors">
         {category.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={category.image_url}
             className="w-full h-full object-cover"
@@ -219,7 +217,7 @@ export default function CategoriesPage() {
 
     const { data } = supabase.storage
       .from('product-images')
-      .getPublicUrl(fileName);
+      .getPublicUrl(filePath);
 
     return data.publicUrl;
   };
@@ -379,7 +377,6 @@ export default function CategoriesPage() {
                 </label>
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border-gray-300 dark:border-slate-700 overflow-hidden relative group bg-white dark:bg-slate-950">
                   {formData.iconPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={formData.iconPreview}
                       className="h-full w-full object-contain p-2 z-10"

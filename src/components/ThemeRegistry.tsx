@@ -2,55 +2,80 @@
 
 import { useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { getContrastColor, hexToRgb } from '@/lib/colors';
+import {
+  applyThemeColors,
+  applyDefaultTheme,
+  DEFAULT_PRIMARY_COLOR,
+  DEFAULT_SECONDARY_COLOR,
+} from '@/lib/theme';
 
+/**
+ * ThemeRegistry - Sistema Centralizado de Cores
+ *
+ * Este componente é a ÚNICA fonte de verdade para aplicar cores no sistema.
+ *
+ * Funcionamento:
+ * 1. Carrega as cores do banco de dados (tabela 'settings')
+ * 2. Aplica as cores via CSS variables usando applyThemeColors()
+ * 3. Se não houver cores configuradas, usa os valores padrão
+ *
+ * As cores são aplicadas em :root via CSS variables:
+ * - --primary: Cor primária do sistema
+ * - --primary-foreground: Cor de contraste para texto sobre primária
+ * - --secondary: Cor secundária do sistema
+ * - --secondary-foreground: Cor de contraste para texto sobre secundária
+ * - --header-bg: Cor de fundo do header
+ */
 export default function ThemeRegistry() {
   const supabase = createClient();
+
   useEffect(() => {
-    const applyTheme = async () => {
-      // 1. Pega usuário
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+    const loadAndApplyTheme = async () => {
+      try {
+        // 1. Verifica se há usuário logado
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      // 2. Busca configurações da tabela 'settings' com resiliência (.maybeSingle())
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('primary_color, secondary_color, header_background_color')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-        const root = document.documentElement;
-
-      // --- COR PRIMÁRIA (com fallback) ---
-      const primaryColor = settings?.primary_color || '#4f46e5'; // Indigo-600 como padrão
-      root.style.setProperty('--primary', primaryColor);
-      const contrast = getContrastColor(primaryColor);
-          root.style.setProperty('--primary-foreground', contrast);
-
-      // --- COR SECUNDÁRIA (com fallback) ---
-      if (settings?.secondary_color) {
-          root.style.setProperty('--secondary', settings.secondary_color);
-          const secContrast = getContrastColor(settings.secondary_color);
-          root.style.setProperty('--secondary-foreground', secContrast);
-      } else {
-        // Fallback para cor secundária padrão
-        root.style.setProperty('--secondary', '#64748b'); // Slate-500
-        root.style.setProperty('--secondary-foreground', '#ffffff');
+        if (!user) {
+          // Se não houver usuário, aplica tema padrão
+          applyDefaultTheme();
+          return;
         }
 
-        // --- HEADER ---
-        // Aqui tem um truque: No modo escuro, talvez você queira ignorar o header branco
-        // Mas se quiser forçar a escolha do usuário:
-      if (settings?.header_background_color) {
-          // Opcional: Só aplicar se não estiver no modo dark, ou aplicar sempre
-          // root.style.setProperty('--header-bg', settings.header_background_color);
+        // 2. Busca configurações do usuário no banco
+        const { data: settings } = await supabase
+          .from('settings')
+          .select('primary_color, secondary_color, header_background_color')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // 3. Aplica as cores (usa padrão se não configurado)
+        applyThemeColors({
+          primary: settings?.primary_color || DEFAULT_PRIMARY_COLOR,
+          secondary: settings?.secondary_color || DEFAULT_SECONDARY_COLOR,
+          headerBg: settings?.header_background_color,
+        });
+      } catch {
+        // Em caso de erro, aplica tema padrão silenciosamente
+        applyDefaultTheme();
       }
     };
 
-    applyTheme();
-  }, []);
+    loadAndApplyTheme();
+  }, [supabase]);
 
   return null;
+}
+
+/**
+ * Função utilitária para atualizar cores em tempo real
+ * Pode ser chamada da página de settings quando o usuário altera cores
+ */
+export function updateThemeColors(colors: {
+  primary?: string;
+  secondary?: string;
+  headerBg?: string;
+}) {
+  applyThemeColors(colors);
 }

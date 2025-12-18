@@ -78,7 +78,7 @@ const BrandCard = ({
 
       <div className="h-20 w-full flex items-center justify-center mb-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 overflow-hidden group-hover:border-primary/20 transition-colors">
         {brand.logo_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
+           
           <img
             src={brand.logo_url}
             className="w-full h-full object-contain p-2"
@@ -427,7 +427,7 @@ export default function BrandsPage() {
                 </label>
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors relative overflow-hidden group bg-white dark:bg-slate-950">
                   {formData.logoPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+                     
                     <img
                       src={formData.logoPreview}
                       className="h-full w-full object-contain p-2 z-10"

@@ -1,6 +1,22 @@
 import { createClient } from '@/lib/supabase/client';
 
-export async function saveProductsFromRows(rows: any[], userId?: string) {
+type ProductRow = {
+  Produto?: string;
+  name?: string;
+  Preco?: number;
+  price?: number;
+  Descricao?: string;
+  description?: string;
+  UrlDaImagem?: string;
+  external_image_url?: string;
+  Referencia?: string;
+  reference_code?: string;
+};
+
+export async function saveProductsFromRows(
+  rows: ProductRow[],
+  userId?: string
+) {
   const supabase = createClient();
   const productsToInsert = rows.map((row) => ({
     user_id: userId || null,

@@ -2,6 +2,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
+import { logger } from '@/lib/logger';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
 export async function addSubscriptionDays(
   targetUserId: string,
@@ -62,8 +64,8 @@ export async function addSubscriptionDays(
     revalidatePath('/admin/users');
 
     return { success: true, newDate: newDate.toISOString() };
-  } catch (error: any) {
-    console.error('Erro ao adicionar dias:', error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    logger.error('Erro ao adicionar dias', error);
+    return { success: false, error: getErrorMessage(error) };
   }
 }

@@ -9,7 +9,7 @@ const nanoid = customAlphabet('23456789ABCDEFGHJKLMNPQRSTUVWXYZ', 6);
 export async function POST(request: Request) {
   try {
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(() => nextCookies);
+    const supabase = createRouteSupabase(async () => nextCookies);
 
     const body = await request.json();
     console.log('API save-cart body:', JSON.stringify(body));
@@ -56,6 +56,13 @@ export async function POST(request: Request) {
     if (error) {
       console.error('Erro ao salvar pedido:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Erro ao salvar pedido' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({

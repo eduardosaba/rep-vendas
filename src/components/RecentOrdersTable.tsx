@@ -31,7 +31,6 @@ export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
     Cancelado: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     Enviado:
       'bg-primary/10 text-primary dark:bg-primary/30 dark:text-primary/80',
-    Enviado: 'bg-primary/5 text-primary dark:bg-primary/30 dark:text-primary',
   };
 
   return (

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { updateThemeColors } from '@/components/ThemeRegistry';
+import { applyThemeColors } from '@/lib/theme';
 import {
   Save,
   Loader2,
@@ -24,7 +26,6 @@ import {
   CreditCard,
   Layout,
   Settings as SettingsIcon,
-  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -114,7 +115,7 @@ const ToggleSetting = ({
   children,
 }: any) => (
   <div
-    className={`p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all ${checked ? 'border-indigo-500 ring-1 ring-indigo-500/20 shadow-sm' : 'border-gray-200 dark:border-slate-800'}`}
+    className={`p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all ${checked ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/20 shadow-sm' : 'border-gray-200 dark:border-slate-800'}`}
   >
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-start gap-3">
@@ -145,7 +146,7 @@ const ToggleSetting = ({
           onChange={onChange}
           className="sr-only peer"
         />
-        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
       </label>
     </div>
     {checked && children && (
@@ -170,8 +171,8 @@ export default function SettingsPage() {
     phone: '', // Mapeado para 'phone' ou 'support_phone'
     email: '',
     catalog_slug: '',
-    primary_color: '#0d1b2c',
-    secondary_color: '#b9722e',
+    primary_color: '#b9722e', // Cor primária padrão
+    secondary_color: '#0d1b2c', // Cor secundária padrão
     header_background_color: '#ffffff',
     price_password: '',
     footer_message: '',
@@ -200,12 +201,18 @@ export default function SettingsPage() {
   const RECOMMENDED_BANNER = { width: 1400, height: 400 };
 
   // --- LIVE PREVIEW DA COR ---
+  // Atualiza as cores em tempo real quando o usuário altera nos inputs
   useEffect(() => {
-    const root = document.documentElement;
-    if (formData.primary_color) {
-      root.style.setProperty('--primary', formData.primary_color);
-    }
-  }, [formData.primary_color]);
+    applyThemeColors({
+      primary: formData.primary_color,
+      secondary: formData.secondary_color,
+      headerBg: formData.header_background_color,
+    });
+  }, [
+    formData.primary_color,
+    formData.secondary_color,
+    formData.header_background_color,
+  ]);
 
   // --- CARREGAR DADOS ---
   useEffect(() => {
@@ -233,8 +240,8 @@ export default function SettingsPage() {
             phone: settings.phone || settings.support_phone || '',
             email: settings.email || settings.support_email || '',
             catalog_slug: settings.catalog_slug || '',
-            primary_color: settings.primary_color || '#0d1b2c',
-            secondary_color: settings.secondary_color || '#b9722e',
+            primary_color: settings.primary_color || '#b9722e',
+            secondary_color: settings.secondary_color || '#0d1b2c',
             header_background_color:
               settings.header_background_color || '#ffffff',
             price_password: settings.price_password || '',
@@ -349,6 +356,12 @@ export default function SettingsPage() {
       secondary_color: theme.secondary,
       header_background_color: theme.header,
     }));
+    // Aplica o tema imediatamente via ThemeRegistry
+    applyThemeColors({
+      primary: theme.primary,
+      secondary: theme.secondary,
+      headerBg: theme.header,
+    });
     toast.success(`Tema ${theme.name} aplicado!`);
   };
 
@@ -449,6 +462,13 @@ export default function SettingsPage() {
       setNewBannerFiles([]);
       setCurrentBanners(finalBanners);
 
+      // Atualiza as cores no sistema após salvar
+      updateThemeColors({
+        primary: formData.primary_color,
+        secondary: formData.secondary_color,
+        headerBg: formData.header_background_color,
+      });
+
       toast.success('Configurações salvas!', { id: toastId });
 
       // Delay para garantir que o logo atualize visualmente
@@ -467,7 +487,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex justify-center h-[50vh] items-center">
-        <Loader2 className="animate-spin text-indigo-600 h-8 w-8" />
+        <Loader2 className="animate-spin text-[var(--primary)] h-8 w-8" />
       </div>
     );
   }
@@ -740,7 +760,6 @@ export default function SettingsPage() {
             <div className="flex items-center gap-6">
               <div className="relative h-32 w-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-slate-950 hover:bg-gray-100 transition-colors">
                 {logoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={logoPreview}
                     className="w-full h-full object-contain p-2"
@@ -795,7 +814,7 @@ export default function SettingsPage() {
                   key={`cur-${i}`}
                   className="relative h-32 bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden group shadow-sm border border-gray-200 dark:border-slate-700"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={b}
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
@@ -819,7 +838,7 @@ export default function SettingsPage() {
                   key={`new-${idx}`}
                   className="relative h-32 bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden group shadow-sm border border-dashed border-gray-300 dark:border-slate-700 flex items-center justify-center"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={nb.preview}
                     className="w-full h-full object-cover"
@@ -841,14 +860,14 @@ export default function SettingsPage() {
                   )}
                 </div>
               ))}
-              <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:border-indigo-300 transition-all group">
-                <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors mb-2">
+              <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:border-[var(--primary)]/50 transition-all group">
+                <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-[var(--primary)]/10 group-hover:text-[var(--primary)] transition-colors mb-2">
                   <Plus
                     size={24}
-                    className="text-gray-400 group-hover:text-indigo-600"
+                    className="text-gray-400 group-hover:text-[var(--primary)]"
                   />
                 </div>
-                <span className="text-xs font-medium text-gray-500 dark:text-slate-400 group-hover:text-indigo-600">
+                <span className="text-xs font-medium text-gray-500 dark:text-slate-400 group-hover:text-[var(--primary)]">
                   Adicionar Banner
                 </span>
                 <input
@@ -863,18 +882,18 @@ export default function SettingsPage() {
           </div>
 
           {/* OTIMIZAÇÃO DE IMAGENS */}
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800 shadow-sm">
+          <div className="bg-gradient-to-br from-[var(--primary)]/10 to-purple-50 dark:from-[var(--primary)]/20 dark:to-purple-950/30 p-6 rounded-xl border border-[var(--primary)]/30 dark:border-[var(--primary)]/40 shadow-sm">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
+              <div className="p-3 bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 rounded-xl">
                 <Zap
                   size={24}
-                  className="text-indigo-600 dark:text-indigo-400"
+                  className="text-[var(--primary)] dark:text-[var(--primary)]"
                 />
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
                   Otimização de Imagens
-                  <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-[var(--primary)] text-white px-2 py-0.5 rounded-full">
                     Novo
                   </span>
                 </h3>
@@ -885,7 +904,7 @@ export default function SettingsPage() {
                 </p>
                 <a
                   href="/dashboard/settings/images"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm font-medium transition-all shadow-sm"
                 >
                   <Zap size={16} /> Abrir Painel de Otimização
                 </a>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import Link from 'next/link';
 import {
   ShoppingCart,
@@ -16,6 +16,7 @@ import {
   Flame,
   Heart,
   Filter,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -182,10 +183,11 @@ export default function CatalogoDemoFull() {
     <div
       className="min-h-screen bg-gray-50 pb-32 font-sans"
       style={{
-        // @ts-ignore
-        '--primary': DEMO_STORE.primaryColor,
-        '--secondary': DEMO_STORE.secondaryColor,
-        '--header': DEMO_STORE.headerColor,
+        ...({
+          '--primary': DEMO_STORE.primaryColor,
+          '--secondary': DEMO_STORE.secondaryColor,
+          '--header': DEMO_STORE.headerColor,
+        } as unknown as CSSProperties),
       }}
     >
       {/* --- CONTROLES DA DEMO (Para o usuário testar recursos) --- */}
@@ -308,7 +310,7 @@ export default function CatalogoDemoFull() {
       {activeCategory === 'Todos' && !searchTerm && (
         <div className="max-w-md mx-auto mt-4 px-4">
           <div className="rounded-xl overflow-hidden shadow-sm aspect-[21/9] relative group">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             <img
               src={DEMO_STORE.banners[0]}
               alt="Banner"
@@ -356,7 +358,7 @@ export default function CatalogoDemoFull() {
               >
                 {/* Imagem & Badges */}
                 <div className="relative aspect-square bg-gray-100 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={product.image}
                     alt={product.name}

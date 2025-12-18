@@ -111,7 +111,7 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
         } else {
           setSlugAvailable(true);
         }
-      } catch (err) {
+      } catch (_err) {
         if (!mounted) return;
         setSlugCheckError('Erro ao verificar disponibilidade');
         setSlugAvailable(null);

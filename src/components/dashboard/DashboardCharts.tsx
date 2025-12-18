@@ -20,7 +20,7 @@ export function DashboardCharts({ orders }: DashboardChartsProps) {
   const chartData = useMemo(() => {
     const today = new Date();
     const dataMap = new Map<string, number>();
-    let startDate = new Date();
+    const startDate = new Date();
     let dateFormat: 'day' | 'month' = 'month';
 
     if (period === '7d') {

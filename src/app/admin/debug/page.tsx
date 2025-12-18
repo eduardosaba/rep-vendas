@@ -60,7 +60,7 @@ export default function DebugPage() {
         toast.error('Erro', { description: result.error });
         setLastResult({ success: false });
       }
-    } catch (e) {
+    } catch {
       toast.error('Erro fatal');
     } finally {
       setLoading(false);
@@ -88,7 +88,7 @@ export default function DebugPage() {
         setVerifyResult(`❌ Erro: ${result.error}`);
         toast.error('Falha na verificação', { description: result.error });
       }
-    } catch (e) {
+    } catch {
       setVerifyResult('❌ Erro de conexão ao verificar.');
     } finally {
       setVerifying(false);

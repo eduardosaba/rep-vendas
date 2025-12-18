@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { OrdersTable } from '@/components/dashboard/OrdersTable';
-import { ShoppingBag, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/Button'; // Usando seu componente padrão se existir, ou HTML nativo
+import { ShoppingBag } from 'lucide-react';
 
 // Força a página a ser dinâmica
 export const dynamic = 'force-dynamic';

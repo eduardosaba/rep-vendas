@@ -156,13 +156,13 @@ export default async function DashboardPage() {
               Loja Online:
             </span>
             <div className="flex items-center gap-2">
-              <code className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-indigo-600 dark:text-indigo-400 font-mono truncate max-w-[150px] sm:max-w-none">
+              <code className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-[var(--primary)] dark:text-[var(--primary)] font-mono truncate max-w-[150px] sm:max-w-none">
                 /{catalogSlug}
               </code>
               <a
                 href={storeLink}
                 target="_blank"
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-500 hover:text-indigo-600 transition-colors"
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-500 hover:text-[var(--primary)] transition-colors"
                 title="Abrir loja"
               >
                 <ExternalLink size={18} />
@@ -213,7 +213,7 @@ export default async function DashboardPage() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden h-full flex flex-col">
             <div className="p-5 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50">
               <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <LayoutDashboard size={18} className="text-indigo-500" />
+                <LayoutDashboard size={18} className="text-[var(--primary)]" />
                 Acesso Rápido
               </h3>
             </div>
@@ -261,7 +261,7 @@ export default async function DashboardPage() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-900/50">
           <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
-            <ShoppingBag size={18} className="text-indigo-500" />
+            <ShoppingBag size={18} className="text-[var(--primary)]" />
             Pedidos Recentes
           </h3>
           <Link
@@ -294,7 +294,7 @@ function QuickActionCard({
 }) {
   const colorClasses: Record<string, string> = {
     indigo:
-      'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:text-indigo-300 group-hover:bg-indigo-100',
+      'text-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 dark:text-[var(--primary)] group-hover:bg-[var(--primary)]/20',
     green:
       'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 group-hover:bg-emerald-100',
     blue: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300 group-hover:bg-blue-100',
@@ -305,7 +305,7 @@ function QuickActionCard({
   return (
     <Link
       href={href}
-      className="group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md transition-all bg-white dark:bg-slate-800/50 h-24 sm:h-auto"
+      className="group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-[var(--primary)]/50 dark:hover:border-[var(--primary)]/50 hover:shadow-md transition-all bg-white dark:bg-slate-800/50 h-24 sm:h-auto"
     >
       <div
         className={`p-2 sm:p-3 rounded-full transition-colors ${colorClasses[color] || colorClasses.slate}`}

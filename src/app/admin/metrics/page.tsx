@@ -17,7 +17,7 @@ export default function AdminMetricsPage() {
               className="flex-1 flex flex-col items-center gap-2 group"
             >
               <div
-                className="w-full bg-indigo-100 dark:bg-indigo-900/30 rounded-t-lg relative group-hover:bg-indigo-200 transition-all"
+                className="w-full bg-[var(--primary)]/20 dark:bg-[var(--primary)]/20 rounded-t-lg relative group-hover:bg-[var(--primary)]/30 transition-all"
                 style={{ height: `${h}%` }}
               >
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">

@@ -19,6 +19,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Home,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
@@ -31,6 +32,7 @@ interface LayoutStore {
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
   setIsFilterOpen: (isOpen: boolean) => void;
+  closeSidebar: () => void;
 }
 
 export const useLayoutStore = create<LayoutStore>((set) => ({
@@ -38,6 +40,7 @@ export const useLayoutStore = create<LayoutStore>((set) => ({
   toggleSidebar: () =>
     set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   setIsFilterOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+  closeSidebar: () => set({ isSidebarOpen: false }),
 }));
 
 // --- HELPERS ---
@@ -209,7 +212,6 @@ export function StoreHeader() {
 
               {store.logo_url ? (
                 <div className="relative h-14 min-w-[120px] flex items-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={store.logo_url}
                     alt={store.name}
@@ -225,7 +227,6 @@ export function StoreHeader() {
               )}
             </div>
 
-            {/* Removidos botões inline - agora usamos barra fixa no rodapé mobile */}
             <div className="lg:hidden" />
           </div>
 
@@ -272,17 +273,20 @@ export function StoreHeader() {
               <span>Favoritos</span>
             </button>
 
-            <button
-              onClick={() =>
-                isPricesVisible
-                  ? setIsPricesVisible(false)
-                  : setModal('password', true)
-              }
-              className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
-            >
-              {isPricesVisible ? <Unlock size={24} /> : <Lock size={24} />}
-              <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
-            </button>
+            {/* SÓ MOSTRA O BOTÃO VER PREÇOS SE A OPÇÃO "PREÇO SUGERIDO" ESTIVER DESLIGADA */}
+            {!store.show_sale_price && (
+              <button
+                onClick={() =>
+                  isPricesVisible
+                    ? setIsPricesVisible(false)
+                    : setModal('password', true)
+                }
+                className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
+              >
+                {isPricesVisible ? <Unlock size={24} /> : <Lock size={24} />}
+                <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
+              </button>
+            )}
 
             <button
               onClick={() => setModal('load', true)}
@@ -364,7 +368,7 @@ export function StoreHeader() {
   );
 }
 
-// --- SIDEBAR (TEXTO "BEST SELLERS" ALTERADO) ---
+// --- SIDEBAR ---
 export function StoreSidebar() {
   const {
     brands,
@@ -485,7 +489,6 @@ export function StoreSidebar() {
                 )}
               </button>
 
-              {/* FIX: Texto alterado para Best Sellers */}
               <button
                 onClick={() => setShowOnlyBestsellers(!showOnlyBestsellers)}
                 className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} w-full py-2 text-sm transition-colors rounded-lg 
@@ -595,6 +598,7 @@ export function StoreSidebar() {
 // --- MOBILE ACTION BAR (Fixed Bottom) ---
 export function StoreMobileActionBar() {
   const {
+    store,
     isPricesVisible,
     setIsPricesVisible,
     setModal,
@@ -602,7 +606,11 @@ export function StoreMobileActionBar() {
     favorites,
     showFavorites,
     setShowFavorites,
+    setSelectedCategory,
+    setSearchTerm,
+    setSelectedBrand,
   } = useStore();
+  const { closeSidebar } = useLayoutStore();
 
   const getCartCount = (c: any) => {
     if (!c) return 0;
@@ -619,36 +627,47 @@ export function StoreMobileActionBar() {
   };
   const cartCount = getCartCount(cart);
 
+  const goHome = () => {
+    setSelectedCategory('all');
+    setSelectedBrand('all');
+    setSearchTerm('');
+    setShowFavorites(false);
+    closeSidebar();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-around px-2 py-2">
-        {/* Ver Preços */}
+        {/* Início */}
         <button
-          onClick={() =>
-            isPricesVisible
-              ? setIsPricesVisible(false)
-              : setModal('password', true)
-          }
+          onClick={goHome}
           className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
         >
-          {isPricesVisible ? (
-            <Unlock size={20} className="text-green-600" />
-          ) : (
-            <Lock size={20} className="text-gray-600" />
-          )}
-          <span className="text-[10px] font-medium text-gray-700">
-            {isPricesVisible ? 'Preços ON' : 'Ver Preços'}
-          </span>
+          <Home size={20} className="text-gray-600" />
+          <span className="text-[10px] font-medium text-gray-700">Início</span>
         </button>
 
-        {/* Pedidos */}
-        <button
-          onClick={() => setModal('load', true)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
-        >
-          <Download size={20} className="text-gray-600" />
-          <span className="text-[10px] font-medium text-gray-700">Pedidos</span>
-        </button>
+        {/* Ver Preços - SÓ MOSTRA SE PREÇO SUGERIDO ESTIVER DESLIGADO */}
+        {!store.show_sale_price && (
+          <button
+            onClick={() =>
+              isPricesVisible
+                ? setIsPricesVisible(false)
+                : setModal('password', true)
+            }
+            className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            {isPricesVisible ? (
+              <Unlock size={20} className="text-green-600" />
+            ) : (
+              <Lock size={20} className="text-gray-600" />
+            )}
+            <span className="text-[10px] font-medium text-gray-700">
+              {isPricesVisible ? 'Preços ON' : 'Ver Preços'}
+            </span>
+          </button>
+        )}
 
         {/* Favoritos */}
         <button
@@ -767,7 +786,7 @@ export function StoreFooter() {
   );
 }
 
-// --- CARROSSEL ---
+// --- CARROSSEL DE MARCAS ---
 function CarouselBrands({
   brands,
   isBrandSelected,

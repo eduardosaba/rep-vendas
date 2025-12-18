@@ -341,7 +341,7 @@ export default function UpdatePricesPage() {
             <div className="flex flex-col gap-3 items-center w-full">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-bold shadow-md active:scale-95"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 transition-all font-bold shadow-md active:scale-95"
               >
                 <Upload size={18} />
                 Escolher Arquivo (.xlsx)
@@ -357,7 +357,7 @@ export default function UpdatePricesPage() {
 
               <button
                 onClick={downloadTemplate}
-                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline mt-2 font-medium flex items-center gap-1"
+                className="text-sm text-[var(--primary)] dark:text-[var(--primary)] hover:underline mt-2 font-medium flex items-center gap-1"
               >
                 <Download size={14} /> Baixar modelo de exemplo
               </button>
@@ -381,7 +381,7 @@ export default function UpdatePricesPage() {
                   Referência (Obrigatório) *
                 </label>
                 <select
-                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white transition-all cursor-pointer"
+                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white transition-all cursor-pointer"
                   value={mapping.ref || ''}
                   onChange={(e) =>
                     setMapping({ ...mapping, ref: e.target.value })
@@ -402,7 +402,7 @@ export default function UpdatePricesPage() {
                   Novo Preço (Obrigatório) *
                 </label>
                 <select
-                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white transition-all cursor-pointer"
+                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white transition-all cursor-pointer"
                   value={mapping.price || ''}
                   onChange={(e) =>
                     setMapping({ ...mapping, price: e.target.value })
@@ -423,7 +423,7 @@ export default function UpdatePricesPage() {
                   Preço Promocional (Opcional)
                 </label>
                 <select
-                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white transition-all cursor-pointer"
+                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white transition-all cursor-pointer"
                   value={mapping.sale_price || ''}
                   onChange={(e) =>
                     setMapping({ ...mapping, sale_price: e.target.value })
@@ -449,7 +449,7 @@ export default function UpdatePricesPage() {
               <button
                 onClick={handleUpdate}
                 disabled={loading}
-                className="px-8 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-bold shadow-md active:scale-95 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                className="px-8 py-2.5 bg-[var(--primary)] text-white hover:opacity-90 rounded-lg font-bold shadow-md active:scale-95 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
               >
                 {loading ? (
                   <Loader2 className="animate-spin" size={18} />
@@ -550,7 +550,7 @@ export default function UpdatePricesPage() {
               </button>
               <Link
                 href="/dashboard/products"
-                className="px-6 py-2.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors font-bold shadow-md"
+                className="px-6 py-2.5 text-sm text-white bg-[var(--primary)] hover:opacity-90 rounded-lg transition-all font-bold shadow-md"
               >
                 Voltar ao Catálogo
               </Link>

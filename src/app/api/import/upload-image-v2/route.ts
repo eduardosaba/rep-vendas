@@ -6,7 +6,6 @@ import { Buffer } from 'buffer';
 export async function POST(req: Request) {
   const startedAt = Date.now();
   const log = (level: 'info' | 'warn' | 'error', msg: string, meta?: any) => {
-    // eslint-disable-next-line no-console
     console[level](`[import/upload-image-v2] ${msg}`, {
       ...meta,
       elapsedMs: Date.now() - startedAt,
@@ -49,7 +48,6 @@ export async function POST(req: Request) {
 
     // Ensure bucket exists (best-effort)
     try {
-      // @ts-ignore
       await supabaseAdmin.storage.createBucket(bucket, { public: true });
       log('info', 'bucket_create_attempt', { bucket });
     } catch (err) {
@@ -139,7 +137,7 @@ export async function POST(req: Request) {
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    // eslint-disable-next-line no-console
+
     console.error('[import/upload-image-v2] unexpected_error', { error: msg });
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }

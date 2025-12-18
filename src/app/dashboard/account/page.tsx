@@ -177,7 +177,7 @@ export default function AccountPage() {
                 <div className="relative group">
                   <div className="h-24 w-24 rounded-full overflow-hidden bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
                     {avatarPreview || avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
+                       
                       <img
                         src={avatarPreview || avatarUrl || ''}
                         alt="Avatar"
@@ -237,7 +237,7 @@ export default function AccountPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-2 bg-[var(--primary)] text-white rounded-lg font-bold hover:opacity-90 disabled:opacity-50 transition-all"
                 >
                   {saving ? (
                     <Loader2 className="animate-spin" size={18} />

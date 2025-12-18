@@ -13,8 +13,6 @@ import {
   Terminal,
   History,
   UploadCloud,
-  CheckCircle2,
-  AlertTriangle,
 } from 'lucide-react';
 
 // --- TIPAGEM ---

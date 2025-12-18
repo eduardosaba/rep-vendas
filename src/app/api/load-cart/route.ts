@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   }
 
   const nextCookies = await cookies();
-  const supabase = createRouteSupabase(() => nextCookies);
+  const supabase = createRouteSupabase(async () => nextCookies);
 
   // Buscar os itens baseados no código curto
   // Nota: usamos 'items' conforme a padronização do banco de dados

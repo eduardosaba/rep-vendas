@@ -274,7 +274,7 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
               </label>
               <input
                 type="date"
-                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-slate-950 dark:border-slate-700 text-gray-900 dark:text-white outline-none focus:border-indigo-500"
+                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-slate-950 dark:border-slate-700 text-gray-900 dark:text-white outline-none focus:border-[var(--primary)]"
                 value={filters.startDate}
                 onChange={(e) => {
                   setFilters({ ...filters, startDate: e.target.value });
@@ -288,7 +288,7 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
               </label>
               <input
                 type="date"
-                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-slate-950 dark:border-slate-700 text-gray-900 dark:text-white outline-none focus:border-indigo-500"
+                className="w-full p-2 border rounded-lg text-sm bg-white dark:bg-slate-950 dark:border-slate-700 text-gray-900 dark:text-white outline-none focus:border-[var(--primary)]"
                 value={filters.endDate}
                 onChange={(e) => {
                   setFilters({ ...filters, endDate: e.target.value });

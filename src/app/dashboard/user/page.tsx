@@ -13,7 +13,6 @@ import {
   CreditCard,
   Calendar,
   ShieldCheck,
-  AlertTriangle,
   Smile,
   X,
   Phone,
@@ -374,7 +373,6 @@ export default function UserProfilePage() {
             <div className="relative group cursor-pointer mb-4">
               <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-100 dark:border-slate-800 shadow-inner bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
                 {formData.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={formData.avatar_url}
                     alt="Avatar"
@@ -476,7 +474,7 @@ export default function UserProfilePage() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2 border-b border-gray-100 dark:border-slate-800 pb-4">
                 <User
                   size={20}
-                  className="text-indigo-600 dark:text-indigo-400"
+                  className="text-[var(--primary)] dark:text-[var(--primary)]"
                 />{' '}
                 Editar Perfil
               </h3>
@@ -565,7 +563,8 @@ export default function UserProfilePage() {
                   onClick={handleSaveProfile}
                   isLoading={saving}
                   leftIcon={<Save size={18} />}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg shadow-md transition-all active:scale-95"
+                  variant="primary"
+                  className="font-bold px-6 py-2.5 rounded-lg shadow-md transition-all active:scale-95"
                 >
                   Salvar Dados
                 </Button>
@@ -704,7 +703,7 @@ export default function UserProfilePage() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[80vh] border border-gray-200 dark:border-slate-800">
             <div className="flex justify-between items-center p-5 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900">
               <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Smile size={20} className="text-indigo-500" /> Galeria de
+                <Smile size={20} className="text-[var(--primary)]" /> Galeria de
                 Avatares
               </h3>
               <button
@@ -730,9 +729,9 @@ export default function UserProfilePage() {
                     <button
                       key={idx}
                       onClick={() => handleSelectLibraryAvatar(url)}
-                      className="group relative aspect-square rounded-xl bg-gray-50 dark:bg-slate-800 overflow-hidden ring-1 ring-gray-200 dark:ring-slate-700 hover:ring-2 hover:ring-indigo-500 transition-all shadow-sm hover:shadow-md"
+                      className="group relative aspect-square rounded-xl bg-gray-50 dark:bg-slate-800 overflow-hidden ring-1 ring-gray-200 dark:ring-slate-700 hover:ring-2 hover:ring-[var(--primary)] transition-all shadow-sm hover:shadow-md"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {}
                       <img
                         src={url}
                         alt={`Avatar ${idx}`}

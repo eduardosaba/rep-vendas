@@ -18,7 +18,7 @@ export function BulkImageSync() {
       const res = await fetch('/api/pending-external-images');
       const json = await res.json();
       setPendingCount((json?.data || []).length);
-    } catch (err) {
+    } catch (_err) {
       // ignore
     }
   };
@@ -49,7 +49,7 @@ export function BulkImageSync() {
           const jr = await r.json();
           if (jr?.success) successCount++;
           else errorCount++;
-        } catch (err) {
+        } catch (_err) {
           errorCount++;
         }
 

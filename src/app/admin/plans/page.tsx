@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Check, Save, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Save, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Plan {
@@ -48,7 +48,7 @@ export default function AdminPlansPage() {
 
       if (error) throw error;
       toast.success('Plano atualizado com sucesso!');
-    } catch (e) {
+    } catch {
       toast.error('Erro ao salvar');
     } finally {
       setSavingId(null);
@@ -93,7 +93,7 @@ export default function AdminPlansPage() {
         </div>
         <button
           onClick={handleCreate}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors"
+          className="flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2 rounded-lg font-bold hover:opacity-90 transition-all"
         >
           <Plus size={18} /> Novo Plano
         </button>
@@ -102,7 +102,7 @@ export default function AdminPlansPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
           <div className="col-span-3 text-center p-12">
-            <Loader2 className="animate-spin mx-auto text-indigo-600" />
+            <Loader2 className="animate-spin mx-auto text-[var(--primary)]" />
           </div>
         ) : (
           plans.map((plan, index) => (
@@ -140,7 +140,7 @@ export default function AdminPlansPage() {
                     newPlans[index].price = parseFloat(e.target.value);
                     setPlans(newPlans);
                   }}
-                  className="text-3xl font-bold text-gray-900 dark:text-white bg-transparent border-b border-transparent focus:border-indigo-500 outline-none w-24"
+                  className="text-3xl font-bold text-gray-900 dark:text-white bg-transparent border-b border-transparent focus:border-[var(--primary)] outline-none w-24"
                 />
                 <span className="text-gray-500 text-sm">/mês</span>
               </div>
@@ -187,7 +187,7 @@ export default function AdminPlansPage() {
               <button
                 onClick={() => handleUpdate(plan)}
                 disabled={savingId === plan.id}
-                className="mt-auto w-full py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+                className="mt-auto w-full py-2 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 dark:bg-[var(--primary)]/20 dark:text-[var(--primary)] dark:hover:bg-[var(--primary)]/30 rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
               >
                 {savingId === plan.id ? (
                   <Loader2 className="animate-spin" size={18} />

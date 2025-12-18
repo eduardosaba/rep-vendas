@@ -33,8 +33,8 @@ export function ImageDropzone({ onDrop }: ImageDropzoneProps) {
         relative border-2 border-dashed rounded-xl p-12 transition-all cursor-pointer text-center
         ${
           isDragActive
-            ? 'border-indigo-500 bg-indigo-50 scale-[1.01]'
-            : 'border-gray-300 hover:border-indigo-400 hover:bg-gray-50 bg-white'
+            ? 'border-[var(--primary)] bg-[var(--primary)]/10 scale-[1.01]'
+            : 'border-gray-300 hover:border-[var(--primary)]/50 hover:bg-gray-50 bg-white'
         }
       `}
     >
@@ -44,7 +44,7 @@ export function ImageDropzone({ onDrop }: ImageDropzoneProps) {
         <div
           className={`
           p-4 rounded-full 
-          ${isDragActive ? 'bg-indigo-100 rv-text-primary' : 'bg-gray-100 text-gray-500'}
+          ${isDragActive ? 'bg-[var(--primary)]/10 rv-text-primary' : 'bg-gray-100 text-gray-500'}
         `}
         >
           <UploadCloud size={32} />

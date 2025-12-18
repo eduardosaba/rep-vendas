@@ -13,7 +13,7 @@ import {
   ShoppingBag,
   AlertCircle,
 } from 'lucide-react';
-import Button from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
 
 // --- TIPAGEM ---

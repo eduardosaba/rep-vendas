@@ -2,7 +2,11 @@ type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
 const getTimestamp = () => new Date().toISOString();
 
-const formatMessage = (level: LogLevel, message: string, meta?: any) => {
+const formatMessage = (
+  level: LogLevel,
+  message: string,
+  meta?: Record<string, unknown>
+) => {
   const timestamp = getTimestamp();
   const metaString = meta ? JSON.stringify(meta) : '';
 
@@ -12,19 +16,27 @@ const formatMessage = (level: LogLevel, message: string, meta?: any) => {
 };
 
 export const logger = {
-  info: (message: string, meta?: any) => {
+  info: (message: string, meta?: Record<string, unknown>) => {
     console.log(formatMessage('info', message, meta));
   },
 
-  warn: (message: string, meta?: any) => {
+  warn: (message: string, meta?: Record<string, unknown>) => {
     console.warn(formatMessage('warn', message, meta));
   },
 
-  error: (message: string, error?: any) => {
-    console.error(formatMessage('error', message, error));
+  error: (message: string, error?: unknown) => {
+    console.error(
+      formatMessage(
+        'error',
+        message,
+        typeof error === 'object'
+          ? (error as Record<string, unknown>)
+          : { error: String(error) }
+      )
+    );
   },
 
-  debug: (message: string, meta?: any) => {
+  debug: (message: string, meta?: Record<string, unknown>) => {
     // Só exibe debug em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
       console.debug(formatMessage('debug', message, meta));

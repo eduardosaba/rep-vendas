@@ -35,8 +35,6 @@ export function ZoomModal({
   currentImageIndex,
   setCurrentImageIndex,
 }: ZoomModalProps) {
-  if (!isZoomOpen || !viewProduct) return null;
-
   const productImages = getProductImages(viewProduct);
   const hasMultipleImages = productImages.length > 1;
 
@@ -56,14 +54,16 @@ export function ZoomModal({
 
   // Body scroll-lock
   useEffect(() => {
+    if (!isZoomOpen) return;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, []);
+  }, [isZoomOpen]);
 
   // Keyboard navigation
   useEffect(() => {
+    if (!isZoomOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsZoomOpen(false);
       if (e.key === 'ArrowLeft')
@@ -73,7 +73,9 @@ export function ZoomModal({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setIsZoomOpen, setCurrentImageIndex, productImages.length]);
+  }, [isZoomOpen, setIsZoomOpen, setCurrentImageIndex, productImages.length]);
+
+  if (!isZoomOpen || !viewProduct) return null;
 
   return (
     <div className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center">

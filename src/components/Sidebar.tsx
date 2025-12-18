@@ -199,9 +199,45 @@ export function Sidebar({
     return pathname?.startsWith(item.href);
   };
 
-  const primary = branding?.primary_color || '#2563eb';
+  // Estado para sincronizar com as variáveis CSS do ThemeRegistry
+  const [cssPrimary, setCssPrimary] = useState<string>('#b9722e');
+  const [cssSecondary, setCssSecondary] = useState<string>('#0d1b2c');
+
+  // Observa mudanças nas variáveis CSS do ThemeRegistry
+  useEffect(() => {
+    if (!mounted) return;
+
+    const updateColors = () => {
+      const root = document.documentElement;
+      const primaryFromCSS =
+        root.style.getPropertyValue('--primary').trim() ||
+        getComputedStyle(root).getPropertyValue('--primary').trim() ||
+        '#b9722e';
+      const secondaryFromCSS =
+        root.style.getPropertyValue('--secondary').trim() ||
+        getComputedStyle(root).getPropertyValue('--secondary').trim() ||
+        '#0d1b2c';
+      setCssPrimary(primaryFromCSS);
+      setCssSecondary(secondaryFromCSS);
+    };
+
+    // Atualiza imediatamente
+    updateColors();
+
+    // Observa mudanças na variável CSS
+    const observer = new MutationObserver(updateColors);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+    });
+
+    return () => observer.disconnect();
+  }, [mounted]);
+
+  // Usa a cor do branding se disponível, senão usa a cor do CSS (ThemeRegistry)
+  const primary = branding?.primary_color || cssPrimary;
   const primaryForeground = isLightHex(primary) ? '#0f172a' : '#ffffff';
-  const secondaryRaw = branding?.secondary_color || '#f8fafc';
+  const secondaryRaw = branding?.secondary_color || cssSecondary;
   // If secondary is almost white, use a slightly darker fallback so it's visible
   const secondary =
     getLuminance(secondaryRaw) > 0.96 ? '#f3f4f6' : secondaryRaw;
@@ -218,7 +254,7 @@ export function Sidebar({
         ['--primary-foreground' as any]: primaryForeground,
         ['--secondary' as any]: secondary,
       }}
-      className={`${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative flex flex-col border-r dark:border-slate-800 h-full z-30'} bg-[var(--secondary)] dark:bg-slate-950 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'}`}
+      className={`${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative flex flex-col border-r dark:border-slate-800 h-full z-30'} bg-[#f8fafc] dark:bg-slate-950 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'}`}
       role="navigation"
     >
       <button

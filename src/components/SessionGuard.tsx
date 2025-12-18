@@ -28,7 +28,7 @@ export default function SessionGuard() {
             if (mounted) setChecked(true);
             return;
           }
-        } catch (e) {
+        } catch (_e) {
           // ignore e faça nova tentativa
         }
 

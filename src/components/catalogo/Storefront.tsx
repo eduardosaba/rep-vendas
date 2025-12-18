@@ -7,7 +7,6 @@ import {
   StoreTopBar,
   StoreHeader,
   StoreSidebar,
-  StoreFooter,
   StoreMobileActionBar,
 } from './store-layout';
 import { StoreBanners, ProductGrid } from './product-components';
@@ -37,14 +36,13 @@ export function Storefront({
   // Diagnóstico rápido: verificar se alguma dependência de componente é undefined
   if (typeof window !== 'undefined') {
     // apenas em cliente
-    // eslint-disable-next-line no-console
+
     console.log('Storefront components:', {
       StoreTopBar: typeof StoreTopBar,
       StoreHeader: typeof StoreHeader,
       StoreSidebar: typeof StoreSidebar,
       StoreBanners: typeof StoreBanners,
       ProductGrid: typeof ProductGrid,
-      StoreFooter: typeof StoreFooter,
       StoreModals: typeof StoreModals,
       InstallPrompt: typeof InstallPrompt,
       FloatingCart: typeof FloatingCart,
@@ -193,8 +191,6 @@ export function Storefront({
             <ProductGrid />
           </div>
         </main>
-
-        <StoreFooter />
 
         {/* Barra de A\u00e7\u00f5es Mobile (Ver Pre\u00e7os, Pedidos, Favoritos, Carrinho) */}
         <StoreMobileActionBar />

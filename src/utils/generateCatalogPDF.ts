@@ -16,6 +16,7 @@ interface Product {
 
 interface CatalogOptions {
   showPrices: boolean;
+  priceType?: 'price' | 'sale_price'; // 'price' = custo, 'sale_price' = sugerido
   title: string;
   storeName?: string;
   coverImageUrl?: string;
@@ -23,6 +24,8 @@ interface CatalogOptions {
   imageZoom?: number;
   itemsPerPage?: number;
   brandMapping?: Record<string, string | null>;
+  secondaryColor?: string; // Cor secundária para a capa
+  onProgress?: (progress: number, message: string) => void; // Callback de progresso
 }
 
 interface ProcessedImage {
@@ -32,30 +35,118 @@ interface ProcessedImage {
   ratio: number;
 }
 
-const getUrlData = async (url: string): Promise<ProcessedImage | null> => {
+// Função para comprimir imagem antes de adicionar ao PDF
+const compressImage = (
+  base64: string,
+  maxWidth: number = 800,
+  quality: number = 0.7
+): Promise<string> => {
+  return new Promise((resolve) => {
+    // Verifica se está no browser
+    if (typeof document === 'undefined' || typeof Image === 'undefined') {
+      resolve(base64);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Redimensiona se necessário (máximo 800px de largura para produtos)
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(base64);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        // Converte para JPEG com qualidade reduzida para melhor compressão
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      } catch (error) {
+        // Se falhar, retorna original
+        resolve(base64);
+      }
+    };
+    img.onerror = () => resolve(base64); // Fallback para original se falhar
+    img.src = base64;
+  });
+};
+
+const getUrlData = async (
+  url: string,
+  compress: boolean = true
+): Promise<ProcessedImage | null> => {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
     const blob = await res.blob();
+    // Helper: converte Blob para dataURL compatível com browser e Node
+    const blobToDataURL = async (b: Blob): Promise<string | null> => {
+      try {
+        // Ambiente Node (ex: execução em server-side) - usa arrayBuffer + Buffer
+        if (
+          typeof window === 'undefined' ||
+          typeof FileReader === 'undefined'
+        ) {
+          // @ts-expect-error: Buffer existe em Node
+          if (typeof (global as any).Buffer !== 'undefined') {
+            const ab = await b.arrayBuffer();
+            const buf = Buffer.from(ab);
+            const mime = b.type || 'image/png';
+            return `data:${mime};base64,${buf.toString('base64')}`;
+          }
+          return null;
+        }
 
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        const img = new Image();
-        img.onload = () => {
+        // Browser: usa FileReader
+        return await new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            resolve(reader.result as string);
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(b);
+        });
+      } catch (e) {
+        return null;
+      }
+    };
+
+    const base64 = await blobToDataURL(blob);
+    if (!base64) return null;
+
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          let dataUrl = base64;
+          if (compress) {
+            dataUrl = await compressImage(dataUrl, 800, 0.7);
+          }
           resolve({
-            base64,
+            base64: dataUrl,
             width: img.width,
             height: img.height,
             ratio: img.width / img.height,
           });
-        };
-        img.onerror = () => resolve(null);
-        img.src = base64;
+        } catch {
+          resolve(null);
+        }
       };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
+      img.onerror = () => resolve(null);
+      img.src = base64;
     });
   } catch (error) {
     console.error('Erro imagem PDF:', url);
@@ -132,10 +223,33 @@ export const generateCatalogPDF = async (
   let storeLogoData: ProcessedImage | null = null;
   let brandCoverData: ProcessedImage | null = null; // Dados específicos da capa
 
+  // Type guard helper
+  const isValidProcessedImage = (
+    img: ProcessedImage | null
+  ): img is ProcessedImage => {
+    return img !== null && typeof img === 'object' && 'base64' in img;
+  };
+
+  const totalSteps =
+    products.length +
+    (options.brandMapping ? uniqueBrands.length : 0) +
+    (autoCoverUrl ? 1 : 0) +
+    ((options as any).storeLogo ? 1 : 0);
+  let completedSteps = 0;
+
+  const updateProgress = (step: number, message: string) => {
+    completedSteps += step;
+    const progress = Math.min(
+      100,
+      Math.round((completedSteps / totalSteps) * 100)
+    );
+    options.onProgress?.(progress, message);
+  };
+
   const promises: Promise<void>[] = [];
 
   // A. Imagens Produtos
-  products.forEach((product) => {
+  products.forEach((product, index) => {
     promises.push(
       (async () => {
         let urlToLoad: string | null = null;
@@ -147,22 +261,31 @@ export const generateCatalogPDF = async (
           urlToLoad = product.image_url;
 
         if (urlToLoad) {
-          const data = await getUrlData(urlToLoad);
+          // Comprime imagens de produtos para reduzir tamanho do PDF
+          const data = await getUrlData(urlToLoad, true);
           if (data) productImages[product.id] = data;
         }
+        updateProgress(
+          1,
+          `Carregando imagens dos produtos (${index + 1}/${products.length})...`
+        );
       })()
     );
   });
 
   // B. Logos Marcas
   if (options.brandMapping) {
-    uniqueBrands.forEach((brandName) => {
+    uniqueBrands.forEach((brandName, index) => {
       const url = options.brandMapping?.[brandName];
       if (url) {
         promises.push(
           (async () => {
             const data = await getUrlData(url);
             if (data) brandLogosData[brandName] = data;
+            updateProgress(
+              1,
+              `Carregando logos das marcas (${index + 1}/${uniqueBrands.length})...`
+            );
           })()
         );
       }
@@ -173,7 +296,9 @@ export const generateCatalogPDF = async (
   if (autoCoverUrl) {
     promises.push(
       (async () => {
-        brandCoverData = await getUrlData(autoCoverUrl!);
+        // Imagem da capa: compressão leve
+        brandCoverData = await getUrlData(autoCoverUrl!, true);
+        updateProgress(1, 'Carregando imagem da capa...');
       })()
     );
   }
@@ -183,17 +308,32 @@ export const generateCatalogPDF = async (
     promises.push(
       (async () => {
         storeLogoData = await getUrlData((options as any).storeLogo!);
+        updateProgress(1, 'Carregando logo do representante...');
       })()
     );
   }
 
+  options.onProgress?.(0, 'Iniciando geração do PDF...');
   await Promise.all(promises);
+  options.onProgress?.(50, 'Criando capa do catálogo...');
 
   // ==========================================
   //               A CAPA
   // ==========================================
 
-  doc.setFillColor(13, 27, 44);
+  // Usa cor secundária configurada ou fallback padrão
+  let secondaryColor = [13, 27, 44]; // Cor padrão (#0d1b2c)
+  if (options.secondaryColor) {
+    // Converte hex para RGB
+    const hex = options.secondaryColor.replace('#', '');
+    secondaryColor = [
+      parseInt(hex.substr(0, 2), 16),
+      parseInt(hex.substr(2, 2), 16),
+      parseInt(hex.substr(4, 2), 16),
+    ];
+  }
+
+  doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   doc.rect(0, 0, 210, 297, 'F');
 
   doc.setDrawColor(255, 255, 255);
@@ -293,17 +433,22 @@ export const generateCatalogPDF = async (
     doc.text(`Representante: ${options.storeName}`, 105, yPos, {
       align: 'center',
     });
-    yPos += 10;
+    // Só adiciona espaço se tiver logo válido, senão não precisa
+    if (isValidProcessedImage(storeLogoData)) {
+      yPos += 10;
+    }
   }
 
-  // LOGO DO REPRESENTANTE
-  if (storeLogoData) {
-    yPos += 5;
+  // LOGO DO REPRESENTANTE (só mostra se existir e tiver dados válidos)
+  if (isValidProcessedImage(storeLogoData)) {
+    if (!options.storeName) {
+      yPos += 5; // Se não tiver nome, adiciona espaço antes do logo
+    }
     const maxUserLogoW = 40;
     const maxUserLogoH = 20;
 
     let uW = maxUserLogoW;
-    const sd = storeLogoData as ProcessedImage;
+    const sd: ProcessedImage = storeLogoData; // Type guard garante que não é null
     let uH = uW / sd.ratio;
     if (uH > maxUserLogoH) {
       uH = maxUserLogoH;
@@ -312,6 +457,7 @@ export const generateCatalogPDF = async (
 
     const xUser = (210 - uW) / 2;
 
+    // Só desenha tarja branca se realmente tiver logo válido
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(xUser - 2, yPos - 2, uW + 4, uH + 4, 1, 1, 'F');
 
@@ -349,11 +495,16 @@ export const generateCatalogPDF = async (
 
     const row = ['', detailsContent];
     if (options.showPrices) {
+      // Usa o tipo de preço escolhido pelo usuário
+      const priceToShow =
+        options.priceType === 'sale_price'
+          ? (product.sale_price ?? product.price)
+          : product.price;
       row.push(
         new Intl.NumberFormat('pt-BR', {
           style: 'currency',
           currency: 'BRL',
-        }).format(product.sale_price ?? product.price)
+        }).format(priceToShow)
       );
     }
     return row;
@@ -437,26 +588,71 @@ export const generateCatalogPDF = async (
   doc.setFontSize(8);
   doc.setTextColor(150);
 
+  options.onProgress?.(80, 'Adicionando logos e numeração das páginas...');
+
   for (let i = 2; i <= pageCount; i++) {
     doc.setPage(i);
 
-    // Se tiver marca única E ela foi carregada, desenha logo pequeno
-    if (uniqueBrands.length === 1) {
-      const brandName = uniqueBrands[0];
-      // Tenta pegar do cover data primeiro (que tem prioridade) ou do brandLogosData
-      const logoData = brandCoverData || brandLogosData[brandName];
+    let rightX = 210 - 15; // Posição inicial no canto direito
+    let storeLogoH = 0;
 
-      if (logoData) {
-        const hW = 12;
-        const hH = hW / logoData.ratio;
-        const hX = 210 - 14 - hW;
-        const hY = 5;
-        try {
-          const fmt = detectImageFormat(logoData.base64);
-          doc.addImage(logoData.base64, fmt, hX, hY, hW, hH);
-        } catch (e) {
-          console.warn('generateCatalogPDF: failed adding small brand logo', e);
+    // Logo do representante no topo direito (se existir e tiver dados válidos)
+    if (isValidProcessedImage(storeLogoData)) {
+      const logoData: ProcessedImage = storeLogoData;
+      const storeLogoW = 15;
+      storeLogoH = storeLogoW / (logoData.ratio || 1);
+      const logoX = rightX - storeLogoW;
+      const logoY = 8;
+      try {
+        const fmt = detectImageFormat(logoData.base64);
+        doc.addImage(
+          logoData.base64,
+          fmt,
+          logoX,
+          logoY,
+          storeLogoW,
+          storeLogoH
+        );
+        rightX = logoX - 5; // Ajusta posição para próximo logo
+      } catch (e) {
+        console.warn('generateCatalogPDF: failed adding small store logo', e);
+        storeLogoH = 0; // Reset se falhar
+      }
+    }
+
+    // Logo da marca no topo direito (se existir)
+    // Prioriza logo da capa, depois logos das marcas
+    let brandLogoData: ProcessedImage | null = null;
+    if (isValidProcessedImage(brandCoverData)) {
+      brandLogoData = brandCoverData;
+    } else if (uniqueBrands.length === 1) {
+      const brandName = uniqueBrands[0];
+      const brandLogo = brandLogosData[brandName];
+      if (isValidProcessedImage(brandLogo)) {
+        brandLogoData = brandLogo;
+      }
+    } else if (uniqueBrands.length > 0) {
+      // Se tiver múltiplas marcas, usa a primeira que tiver logo válido
+      for (const brandName of uniqueBrands) {
+        const brandLogo = brandLogosData[brandName];
+        if (isValidProcessedImage(brandLogo)) {
+          brandLogoData = brandLogo;
+          break;
         }
+      }
+    }
+
+    if (isValidProcessedImage(brandLogoData)) {
+      const hW = 12;
+      const hH = hW / (brandLogoData.ratio || 1);
+      const hX = rightX - hW;
+      // Alinha verticalmente com o logo do representante se existir
+      const hY = storeLogoH > 0 ? 8 + (storeLogoH - hH) / 2 : 5;
+      try {
+        const fmt = detectImageFormat(brandLogoData.base64);
+        doc.addImage(brandLogoData.base64, fmt, hX, hY, hW, hH);
+      } catch (e) {
+        console.warn('generateCatalogPDF: failed adding small brand logo', e);
       }
     }
 
@@ -468,5 +664,7 @@ export const generateCatalogPDF = async (
     );
   }
 
+  options.onProgress?.(100, 'Finalizando PDF...');
   doc.save(`Catalogo_${options.title.replace(/\s+/g, '_')}.pdf`);
+  options.onProgress?.(100, 'PDF gerado com sucesso!');
 };

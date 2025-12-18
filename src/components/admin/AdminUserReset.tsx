@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Trash2, AlertTriangle, Loader2, ShieldAlert, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
 interface AdminUserResetProps {
   targetUserId: string;
@@ -12,7 +13,11 @@ interface AdminUserResetProps {
   onSuccess?: () => void;
 }
 
-export function AdminUserReset({ targetUserId, targetUserEmail, onSuccess }: AdminUserResetProps) {
+export function AdminUserReset({
+  targetUserId,
+  targetUserEmail,
+  onSuccess,
+}: AdminUserResetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -33,20 +38,20 @@ export function AdminUserReset({ targetUserId, targetUserEmail, onSuccess }: Adm
       toast.success(`Dados de ${targetUserEmail} resetados com sucesso.`);
       setIsOpen(false);
       setConfirmText('');
-      
+
       // Atualiza a lista pai, se a função for passada
       if (onSuccess) onSuccess();
-      
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Log detalhado para evitar o erro vazio "{}"
       console.error('Erro RPC detalhado:', error);
-      
-      const errorMessage = error.message || error.details || 'Erro desconhecido ao resetar dados.';
-      
-      toast.error('Falha na operação', { 
-        description: errorMessage.includes('permission') 
-          ? 'Permissão negada. Verifique se seu usuário é "is_admin=true" no banco.' 
-          : errorMessage 
+
+      const errorMessage =
+        getErrorMessage(error) || 'Erro desconhecido ao resetar dados.';
+
+      toast.error('Falha na operação', {
+        description: errorMessage.includes('permission')
+          ? 'Permissão negada. Verifique se seu usuário é "is_admin=true" no banco.'
+          : errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -56,7 +61,7 @@ export function AdminUserReset({ targetUserId, targetUserEmail, onSuccess }: Adm
   return (
     <>
       {/* Botão Gatilho (Lixeira) */}
-      <button 
+      <button
         onClick={() => setIsOpen(true)}
         className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
         title="Resetar Dados do Usuário"
@@ -68,8 +73,7 @@ export function AdminUserReset({ targetUserId, targetUserEmail, onSuccess }: Adm
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 border-2 border-red-500 rounded-2xl w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
-            
-            <button 
+            <button
               onClick={() => setIsOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
             >
@@ -85,13 +89,14 @@ export function AdminUserReset({ targetUserId, targetUserEmail, onSuccess }: Adm
               <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4 text-red-600">
                 <AlertTriangle size={32} />
               </div>
-              
+
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                 Zona de Perigo
               </h3>
 
               <div className="text-sm text-gray-600 dark:text-gray-300 mb-6">
-                Você vai apagar <strong>TODOS</strong> os produtos, clientes e pedidos de:
+                Você vai apagar <strong>TODOS</strong> os produtos, clientes e
+                pedidos de:
                 <div className="mt-2 bg-gray-100 dark:bg-slate-800 p-2 rounded font-mono font-bold select-all break-all text-gray-900 dark:text-white">
                   {targetUserEmail}
                 </div>
@@ -123,7 +128,7 @@ export function AdminUserReset({ targetUserId, targetUserEmail, onSuccess }: Adm
                 >
                   Cancelar
                 </Button>
-                
+
                 <Button
                   variant="danger"
                   onClick={handleReset}

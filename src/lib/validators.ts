@@ -1,9 +1,10 @@
 import type { DashboardTotals } from './types';
 
-export function isDashboardTotals(obj: any): obj is DashboardTotals {
+export function isDashboardTotals(obj: unknown): obj is DashboardTotals {
   if (!obj || typeof obj !== 'object') return false;
-  const rev = obj.total_revenue;
-  const items = obj.total_items_sold;
+  const o = obj as Record<string, unknown>;
+  const rev = o.total_revenue;
+  const items = o.total_items_sold;
 
   // Aceita números ou strings numéricas (converte depois)
   const revOk =

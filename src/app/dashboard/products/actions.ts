@@ -106,7 +106,7 @@ export async function bulkDelete(
       return;
     } catch (err: any) {
       // Log full error for easier debugging in server logs
-      // eslint-disable-next-line no-console
+       
       console.error('[bulkDelete] chunk delete error', {
         message: err?.message || String(err),
         code: err?.code,
@@ -126,7 +126,7 @@ export async function bulkDelete(
       if (isFkError) {
         // Attempt soft-delete: marcar como inativo para preservar integridade
         try {
-          // eslint-disable-next-line no-console
+           
           console.info(
             '[bulkDelete] attempting soft-delete for chunk due to FK constraint',
             {
@@ -142,7 +142,7 @@ export async function bulkDelete(
           if (extraFilter) upd = upd.eq(extraFilter.field, extraFilter.value);
           const { data: upData, error: upErr } = await upd;
           if (upErr) {
-            // eslint-disable-next-line no-console
+             
             console.error('[bulkDelete] soft-delete failed', {
               message: upErr?.message || String(upErr),
             });

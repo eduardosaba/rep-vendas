@@ -5,5 +5,6 @@ export const SYSTEM_LOGO_URL =
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/logos/logos/logo.png`
     : '/_next/static/media/default-logo.png';
 
-// Cor primária do sistema usada como fallback quando a loja não define uma
-export const SYSTEM_PRIMARY_COLOR = '#4f46e5'; // fallback padrão (indigo-600) usado quando --primary não está definido
+// DEPRECATED: Use DEFAULT_PRIMARY_COLOR de @/lib/theme.ts
+// Mantido apenas para compatibilidade com código legado
+export const SYSTEM_PRIMARY_COLOR = '#b9722e';

@@ -6,7 +6,6 @@ import {
   ShoppingBag,
   ArrowLeft,
   Clock,
-  Calendar,
   ArrowRight,
   Package,
   Plus,
@@ -72,7 +71,7 @@ export default async function SavedCartsPage() {
           </Link>
           <Link
             href="/dashboard/orders/new"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-md"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:opacity-90 rounded-lg transition-all shadow-md"
           >
             <Plus size={16} />
             Novo Pedido
@@ -137,7 +136,7 @@ export default async function SavedCartsPage() {
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end">
-                  <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1 group-hover:gap-2 transition-all">
+                  <span className="text-sm font-medium text-[var(--primary)] dark:text-[var(--primary)] flex items-center gap-1 group-hover:gap-2 transition-all">
                     Continuar editando <ArrowRight size={16} />
                   </span>
                 </div>

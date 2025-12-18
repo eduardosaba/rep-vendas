@@ -4,15 +4,24 @@
  */
 import { useToast as useToastContext } from './useToast.tsx';
 
+type FallbackAddToastOpts = {
+  title: string;
+  description?: string;
+  type?: string;
+};
+
 const fallbackToast = {
-  addToast: ({ title, description, type = 'default' }: any) => {
+  addToast: ({
+    title,
+    description,
+    type = 'default',
+  }: FallbackAddToastOpts) => {
     if (typeof window !== 'undefined') {
-      // Em produção, simplesmente log. Em dev, você pode usar console
       console.log(`[${type.toUpperCase()}] ${title}`, description || '');
     }
   },
   removeToast: () => undefined,
-  toasts: [],
+  toasts: [] as unknown[],
 };
 
 export function useToastFallback() {

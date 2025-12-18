@@ -131,14 +131,14 @@ const ALL_DATA_COLUMNS: Record<DataKey, ColumnDefinition> = {
   color: { key: 'color', title: 'Cor', isSortable: true, align: 'left' },
   price: {
     key: 'price',
-    title: 'Preço',
+    title: 'Preço Custo',
     isSortable: true,
     isNumeric: true,
     align: 'right',
   },
   sale_price: {
     key: 'sale_price',
-    title: 'Venda',
+    title: 'Preço Sugerido',
     isSortable: true,
     isNumeric: true,
     align: 'right',
@@ -220,6 +220,7 @@ const DEFAULT_PREFS: UserPreferences = {
     'name',
     'reference_code',
     'price',
+    'sale_price',
     'brand',
     'category',
     'stock_quantity',
@@ -236,6 +237,7 @@ const DEFAULT_PREFS: UserPreferences = {
 };
 
 export function ProductsTable({ initialProducts }: ProductsTableProps) {
+  // Component implementation
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const { canCreate, usage, loading: limitLoading } = usePlanLimits();
@@ -291,10 +293,12 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfOptions, setPdfOptions] = useState({
     showPrices: true,
+    priceType: 'sale_price' as 'price' | 'sale_price', // 'price' = custo, 'sale_price' = sugerido
     title: 'Catálogo de Produtos',
     imageZoom: 3,
   });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState({ progress: 0, message: '' });
 
   const [textConfig, setTextConfig] = useState<{
     field: 'brand' | 'category' | '';
@@ -430,7 +434,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   // --- MANIPULAÇÃO DE COLUNAS ---
   const toggleColumn = (key: DataKey) => {
     const newVisible = new Set(visibleColumnKeys);
-    newVisible.has(key) ? newVisible.delete(key) : newVisible.add(key);
+    if (newVisible.has(key)) newVisible.delete(key);
+    else newVisible.add(key);
     setVisibleColumnKeys(newVisible);
     savePreferences(columnOrder, newVisible);
   };
@@ -741,17 +746,33 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       const brandMap: any = {};
       availableBrands.forEach((b) => (brandMap[b.name] = b.logo_url));
 
+      // Obtém cor secundária do sistema
+      let secondaryColor = '#0d1b2c'; // Fallback padrão
+      if (typeof window !== 'undefined') {
+        const root = document.documentElement;
+        secondaryColor =
+          root.style.getPropertyValue('--secondary').trim() ||
+          getComputedStyle(root).getPropertyValue('--secondary').trim() ||
+          '#0d1b2c';
+      }
+
       await generateCatalogPDF(productsToPrint, {
         showPrices: pdfOptions.showPrices,
+        priceType: pdfOptions.priceType,
         title: pdfOptions.title,
         storeName: settings?.name || 'Catálogo',
         storeLogo: settings?.logo_url,
         imageZoom: pdfOptions.imageZoom,
         brandMapping: brandMap,
+        secondaryColor: secondaryColor,
+        onProgress: (progress, message) => {
+          setPdfProgress({ progress, message });
+        },
       });
 
       toast.success('PDF Gerado com sucesso!');
       setShowPdfModal(false);
+      setPdfProgress({ progress: 0, message: '' });
     } catch (error: any) {
       console.error(error);
       toast.error('Erro ao gerar PDF', { description: error.message });
@@ -768,7 +789,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         setSortConfig({
           key: sortKey,
           direction:
-            sortConfig?.key === sortKey && sortConfig.direction === 'asc'
+            sortConfig &&
+            sortConfig.key === sortKey &&
+            sortConfig.direction === 'asc'
               ? 'desc'
               : 'asc',
         })
@@ -783,7 +806,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   );
 
   const renderCell = (product: Product, key: DataKey) => {
-    // @ts-ignore
+    // @ts-expect-error
     const val = product[key];
     if (key === 'name')
       return (
@@ -819,17 +842,18 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       );
     if (key === 'barcode') {
       const raw = String(val ?? '');
-      const isValid = /^\d{8,14}$/.test(raw); // Validação básica de dígitos
+      const isValid = /^[0-9]{7,13}$/.test(raw); // Validação EAN-8/13 (mesma do componente Barcode)
       return (
-        <div className="flex flex-col items-start gap-1">
+        <div className="flex items-center">
           {isValid ? (
-            <div className="h-6 overflow-hidden">
-              <ProductBarcode value={raw} height={25} width={1} fontSize={0} />
+            <div className="flex-shrink-0">
+              <ProductBarcode value={raw} height={36} showNumber={true} />
             </div>
-          ) : null}
-          <span className="text-[10px] text-gray-500 font-mono">
-            {raw || '-'}
-          </span>
+          ) : (
+            <span className="text-xs text-gray-500 font-mono">
+              {raw || '-'}
+            </span>
+          )}
         </div>
       );
     }
@@ -1108,7 +1132,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             </button>
             <div className="w-px h-8 bg-gray-200 dark:bg-slate-700 mx-1 shrink-0"></div>
             <button
-              onClick={() => openTextModal('brand', 'Marca')}
+              onClick={() => {
+                // TODO: Implementar modal de texto para marca
+                console.log('Abrir modal de marca');
+              }}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
               <Tag size={18} className="text-primary" />{' '}
@@ -1117,7 +1144,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               </span>
             </button>
             <button
-              onClick={() => openTextModal('category', 'Categoria')}
+              onClick={() => {
+                // TODO: Implementar modal de texto para categoria
+                console.log('Abrir modal de categoria');
+              }}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
               <Layers size={18} className="text-purple-500" />{' '}
@@ -1153,9 +1183,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               </span>
             </button>
             <button
-              onClick={() =>
-                setDeleteTargetId(null) || setShowDeleteModal(true)
-              }
+              onClick={() => {
+                setDeleteTargetId(null);
+                setShowDeleteModal(true);
+              }}
               className="flex flex-col items-center gap-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg min-w-[60px]"
             >
               <Trash2 size={18} className="text-red-500" />{' '}
@@ -1262,10 +1293,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                           <Eye size={16} />
                         </button>
                         <button
-                          onClick={() =>
-                            setDeleteTargetId(product.id) ||
-                            setShowDeleteModal(true)
-                          }
+                          onClick={() => {
+                            setDeleteTargetId(product.id);
+                            setShowDeleteModal(true);
+                          }}
                           className="p-1.5 text-gray-400 hover:text-red-500 rounded-md transition-colors"
                         >
                           <Trash2 size={16} />
@@ -1391,25 +1422,66 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-lg">
-                <label
-                  className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer flex-1"
-                  htmlFor="check-price"
-                >
-                  Mostrar Preços
-                </label>
-                <input
-                  id="check-price"
-                  type="checkbox"
-                  checked={pdfOptions.showPrices}
-                  onChange={(e) =>
-                    setPdfOptions({
-                      ...pdfOptions,
-                      showPrices: e.target.checked,
-                    })
-                  }
-                  className="w-5 h-5 rounded text-primary focus:ring-primary cursor-pointer"
-                />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-lg">
+                  <label
+                    className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer flex-1"
+                    htmlFor="check-price"
+                  >
+                    Mostrar Preços
+                  </label>
+                  <input
+                    id="check-price"
+                    type="checkbox"
+                    checked={pdfOptions.showPrices}
+                    onChange={(e) =>
+                      setPdfOptions({
+                        ...pdfOptions,
+                        showPrices: e.target.checked,
+                      })
+                    }
+                    className="w-5 h-5 rounded text-primary focus:ring-primary cursor-pointer"
+                  />
+                </div>
+
+                {pdfOptions.showPrices && (
+                  <div className="p-3 border border-gray-100 dark:border-slate-800 rounded-lg bg-gray-50 dark:bg-slate-800/50">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Tipo de Preço
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPdfOptions({ ...pdfOptions, priceType: 'price' })
+                        }
+                        className={`flex-1 py-2 px-3 rounded-lg border font-medium transition-all text-sm ${
+                          pdfOptions.priceType === 'price'
+                            ? 'bg-primary text-white border-primary shadow-md'
+                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        Preço Custo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPdfOptions({
+                            ...pdfOptions,
+                            priceType: 'sale_price',
+                          })
+                        }
+                        className={`flex-1 py-2 px-3 rounded-lg border font-medium transition-all text-sm ${
+                          pdfOptions.priceType === 'sale_price'
+                            ? 'bg-primary text-white border-primary shadow-md'
+                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        Preço Sugerido
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1467,6 +1539,24 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 Gerar PDF
               </button>
             </div>
+
+            {/* Barra de Progresso */}
+            {isGeneratingPdf && (
+              <div className="px-6 pb-6 pt-0">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <span>{pdfProgress.message || 'Gerando PDF...'}</span>
+                    <span>{pdfProgress.progress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
+                      style={{ width: pdfProgress.progress + '%' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1578,3 +1668,6 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     </div>
   );
 }
+
+// Export default para compatibilidade
+export default ProductsTable;

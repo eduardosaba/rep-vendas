@@ -450,7 +450,7 @@ export function StoreModals() {
               <div className="relative w-full h-[300px] flex items-center justify-center">
                 {getProductImages(modals.product).length > 0 ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    { }
                     <img
                       src={
                         getProductImages(modals.product as any)[
@@ -483,7 +483,7 @@ export function StoreModals() {
                           : 'border-gray-200 hover:border-gray-400'
                       }`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      { }
                       <img
                         src={img}
                         className="w-full h-full object-contain"
@@ -527,7 +527,7 @@ export function StoreModals() {
                     );
                     if (found && found.logo_url) {
                       return (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img
                           src={found.logo_url}
                           alt={modals.product?.brand || ''}
@@ -636,7 +636,7 @@ export function StoreModals() {
 
             {/* Imagem Principal Zoom */}
             <div className="max-w-[90vw] max-h-[90vh]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              { }
               <img
                 src={getProductImages(modals.product as any)[currentImageIndex]}
                 className="max-w-full max-h-full object-contain select-none"

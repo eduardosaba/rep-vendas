@@ -54,7 +54,7 @@ const ImageUploader = ({
             key={index}
             className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900' : 'border-gray-200 dark:border-slate-700'}`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             <img
               src={url}
               className="w-full h-full object-cover cursor-zoom-in"
@@ -116,7 +116,7 @@ const ImageUploader = ({
             className="relative max-w-6xl max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             <img
               src={zoomImage}
               alt="Ampliado"
@@ -739,9 +739,7 @@ export default function NewProductPage() {
               >
                 <input
                   type="checkbox"
-                  // @ts-ignore
-                  checked={formData[item.key]}
-                  // @ts-ignore
+                  checked={(formData as any)[item.key] as boolean}
                   onChange={(e) =>
                     setFormData({ ...formData, [item.key]: e.target.checked })
                   }

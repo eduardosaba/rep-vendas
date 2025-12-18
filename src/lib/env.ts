@@ -26,7 +26,6 @@ export function checkSupabaseEnv() {
   if (!anon) missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
   if (missing.length) {
-    // eslint-disable-next-line no-console
     console.warn(
       `⚠️ Variáveis de ambiente Supabase ausentes: ${missing.join(', ')}. Adicione-as em .env.local ou no ambiente de execução.`
     );
@@ -34,14 +33,12 @@ export function checkSupabaseEnv() {
   }
 
   if (typeof url === 'string' && !/^https?:\/\//i.test(url)) {
-    // eslint-disable-next-line no-console
     console.warn(
       `⚠️ NEXT_PUBLIC_SUPABASE_URL parece inválida: "${url}". Deve começar com http:// ou https://`
     );
   }
 
   if (typeof anon === 'string' && anon.length < 20) {
-    // eslint-disable-next-line no-console
     console.warn(
       `⚠️ NEXT_PUBLIC_SUPABASE_ANON_KEY parece curta/inválida. Confirme a chave no painel do Supabase.`
     );
@@ -74,7 +71,6 @@ export async function checkSupabaseReachability(timeoutMs = 3000) {
     }
     clearTimeout(id);
     if (!res.ok) {
-      // eslint-disable-next-line no-console
       console.warn(
         `⚠️ Não foi possível contatar o Supabase em ${url} — status ${res.status}`
       );
@@ -117,7 +113,6 @@ export async function checkSupabaseAuth(timeoutMs = 3000) {
     clearTimeout(id);
 
     if (res.status === 401 || res.status === 403) {
-      // eslint-disable-next-line no-console
       console.warn(
         `⚠️ Erro de autenticação ao usar a chave anon com ${authUrl} — status ${res.status}.`
       );
@@ -128,21 +123,22 @@ export async function checkSupabaseAuth(timeoutMs = 3000) {
     }
 
     if (!res.ok) {
-      // eslint-disable-next-line no-console
       console.warn(
         `⚠️ Requisição autenticada retornou HTTP ${res.status} ${res.statusText} ao ${authUrl}.`
       );
     }
-  } catch (err: any) {
-    if (err && err.name === 'AbortError') {
-      // eslint-disable-next-line no-console
+  } catch (err: unknown) {
+    if (
+      err &&
+      typeof err === 'object' &&
+      'name' in err &&
+      err.name === 'AbortError'
+    ) {
       console.warn(`⚠️ Timeout ao tentar autenticar contra ${authUrl}.`);
       if (process.env.NODE_ENV === 'development') enableDevSkipActiveChecks();
     } else {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `⚠️ Erro ao tentar validar chave anon: ${err?.message ?? String(err)}`
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`⚠️ Erro ao tentar validar chave anon: ${message}`);
       if (process.env.NODE_ENV === 'development') enableDevSkipActiveChecks();
     }
   }

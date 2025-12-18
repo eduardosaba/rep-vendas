@@ -53,11 +53,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       lg: 'h-12 px-6 text-base',
     };
 
-    // Fallback se var(--primary) não estiver definido (usa indigo-600)
+    // Fallback se var(--primary) não estiver definido (usa cor padrão do sistema)
     // Isso evita botões invisíveis se o CSS global falhar
     const safeStyle =
       variant === 'primary'
-        ? { backgroundColor: 'var(--primary, #4f46e5)' }
+        ? { backgroundColor: 'var(--primary, #b9722e)' }
         : {};
 
     return (

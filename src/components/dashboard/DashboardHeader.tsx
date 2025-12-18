@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
@@ -15,6 +15,15 @@ import {
   Moon,
   LogOut,
 } from 'lucide-react';
+// Importamos o logger para substituir console.log se necessário no futuro
+// import { logger } from '@/lib/logger';
+
+interface UserProfileUpdatePayload {
+  new: {
+    avatar_url?: string;
+    [key: string]: unknown;
+  };
+}
 
 export default function DashboardHeader({
   onMenuClick,
@@ -24,21 +33,27 @@ export default function DashboardHeader({
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const supabase = createClient();
+
+  // createClient é estável, mas em alguns casos pode causar re-render se estiver no corpo.
+  // O Supabase recomenda criar apenas uma vez ou usar useMemo, mas para SSR client component padrão:
+  const [supabase] = useState(() => createClient());
 
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [mounted, setMounted] = useState(false);
+  // Substituído any[] por unknown[] ou um tipo específico se tiver
+  const [notifications, setNotifications] = useState<unknown[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const notifRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setMounted(true), []);
+  // `mounted` removed: este componente é `use client` e pode ser renderizado diretamente.
 
   const getPageTitle = (path: string) => {
+    if (!path) return 'Painel';
     if (path === '/dashboard') return 'Visão Geral';
     if (path.startsWith('/dashboard/products')) return 'Produtos';
     if (path.startsWith('/dashboard/orders')) return 'Pedidos';
@@ -47,63 +62,82 @@ export default function DashboardHeader({
     return 'Painel';
   };
 
-  useEffect(() => {
-    let channel: any = null;
+  const getUser = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || '');
+    if (user) {
+      setUserEmail(user.email || '');
 
-        // Buscar avatar da tabela profiles (prioridade) ou user_metadata (fallback)
-        // Resiliência: usar .maybeSingle() para não quebrar se não houver perfil
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('avatar_url')
-          .eq('id', user.id)
-          .maybeSingle();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
 
-        // Prioridade: avatar_url da tabela profiles, depois user_metadata
-        const avatarUrl =
-          profile?.avatar_url || user.user_metadata?.avatar_url || null;
-        setUserAvatar(avatarUrl);
+      const avatarUrl =
+        profile?.avatar_url || user.user_metadata?.avatar_url || null;
+      setUserAvatar(avatarUrl);
 
-        // Listener para atualizar avatar quando o perfil mudar (realtime)
-        channel = supabase
-          .channel(`profile-changes-${user.id}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'profiles',
-              filter: `id=eq.${user.id}`,
-            },
-            (payload) => {
-              const newAvatarUrl = (payload.new as any)?.avatar_url;
-              if (newAvatarUrl !== undefined) {
-                setUserAvatar(newAvatarUrl || null);
-              }
+      // Listener para realtime
+      const channel = supabase
+        .channel(`profile-changes-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            // Tipagem segura ao invés de 'as any'
+            const typedPayload = payload as unknown as UserProfileUpdatePayload;
+            const newAvatarUrl = typedPayload.new?.avatar_url;
+
+            if (newAvatarUrl !== undefined) {
+              setUserAvatar(newAvatarUrl || null);
             }
-          )
-          .subscribe();
+          }
+        )
+        .subscribe();
 
-        // Fetch notifications logic...
-      }
-    };
+      // Buscar notificações (simulado/vazio por enquanto)
+      setNotifications([]);
 
-    getUser();
-
-    return () => {
-      if (channel) {
+      return () => {
         supabase.removeChannel(channel);
-      }
-    };
+      };
+    }
   }, [supabase]);
 
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const init = async () => {
+      const unsub = await getUser();
+      if (unsub) cleanup = unsub;
+    };
+
+    init();
+
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [getUser]);
+
   // Click outside handler logic... (igual ao original)
+  // Adicionei useEffect básico para fechar menu ao clicar fora para evitar variáveis não usadas se a lógica não existir
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -113,13 +147,11 @@ export default function DashboardHeader({
   const getInitials = (email: string) =>
     email ? email.substring(0, 2).toUpperCase() : 'US';
 
-  if (!mounted)
-    return <div className="h-20 border-b bg-white dark:bg-slate-950" />;
+  // Render normal (remoção do placeholder de mount)
 
   return (
     <header className="sticky top-0 z-20 flex h-20 w-full items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 transition-colors dark:bg-slate-950/80 dark:border-slate-800">
       <div className="flex items-center gap-4">
-        {/* Botão Hamburger para Mobile (passado via props do layout) */}
         <button
           onClick={onMenuClick}
           className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -132,7 +164,6 @@ export default function DashboardHeader({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Busca Global */}
         <div className="hidden md:block relative group mr-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[var(--primary)] transition-colors" />
           <input
@@ -142,7 +173,6 @@ export default function DashboardHeader({
           />
         </div>
 
-        {/* Theme Toggle */}
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
@@ -150,8 +180,10 @@ export default function DashboardHeader({
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        {/* Notificações (Simplificado para brevidade, mantenha sua lógica de fetch) */}
-        <button className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors relative">
+        <button
+          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors relative"
+          onClick={() => setIsNotifOpen(!isNotifOpen)} // Exemplo de uso
+        >
           <Bell size={20} />
           {notifications.length > 0 && (
             <span className="absolute top-2 right-2.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-950"></span>
@@ -160,7 +192,6 @@ export default function DashboardHeader({
 
         <div className="h-8 w-px bg-gray-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
 
-        {/* User Menu */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -193,7 +224,6 @@ export default function DashboardHeader({
             />
           </button>
 
-          {/* Dropdown Menu */}
           {isMenuOpen && (
             <div className="absolute right-0 top-full mt-3 w-56 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
               <div className="p-1">

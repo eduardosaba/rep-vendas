@@ -1,17 +1,29 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Settings as StoreSettings } from '@/lib/types';
-// Usamos tipos leves aqui; o conteúdo real dos itens é serializado quando passado
+
+interface Customer {
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}
+
+interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
 
 interface OrderData {
   id: number;
-  customer: any;
+  customer: Customer;
 }
 
 export const generateOrderPDF = (
   orderData: OrderData,
   store: StoreSettings,
-  items: any[],
+  items: OrderItem[],
   total: number
 ) => {
   const doc = new jsPDF();
@@ -64,7 +76,7 @@ export const generateOrderPDF = (
   });
 
   // --- TOTAIS ---
-  // @ts-ignore (autoTable adiciona lastAutoTable ao doc)
+  // @ts-expect-error (autoTable adiciona lastAutoTable ao doc)
   const finalY = doc.lastAutoTable.finalY + 10;
 
   doc.setFontSize(14);

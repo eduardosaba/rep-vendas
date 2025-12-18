@@ -28,7 +28,7 @@ export function SyncSingleButton({
       } else {
         setStatus('error');
       }
-    } catch (err) {
+    } catch (_err) {
       setStatus('error');
     } finally {
       setIsSyncing(false);

@@ -5,18 +5,13 @@ import Link from 'next/link';
 import {
   Search,
   Package,
-  Users,
   ShoppingBag,
   Settings,
   ChevronDown,
   ChevronUp,
   PlayCircle,
-  ExternalLink,
   HelpCircle,
-  Zap,
   Link as LinkIcon,
-  FileText,
-  Palette,
   Archive,
 } from 'lucide-react';
 

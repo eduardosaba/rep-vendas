@@ -1,3 +1,5 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 interface UploadResult {
   success: boolean;
   publicUrl?: string;
@@ -11,7 +13,7 @@ interface DeleteResult {
 }
 
 export const uploadImage = async (
-  supabase: any,
+  supabase: SupabaseClient,
   file: File,
   bucket: string,
   userId: string,
@@ -53,7 +55,7 @@ export const uploadImage = async (
 };
 
 export const deleteImage = async (
-  supabase: any,
+  supabase: SupabaseClient,
   bucket: string,
   filePath: string
 ): Promise<DeleteResult> => {
@@ -81,7 +83,7 @@ export const deleteImage = async (
 };
 
 export const getImageUrl = (
-  supabase: any,
+  supabase: SupabaseClient,
   bucket: string,
   filePath: string
 ): string => {

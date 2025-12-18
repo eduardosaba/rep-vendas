@@ -51,7 +51,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const supabase = createClient();
 
   // Função para buscar notificações do banco (pedidos pendentes)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   const fetchNotifications = async () => {
     const {
       data: { user },

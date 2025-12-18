@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes'; // Hook do tema
+import { useTheme } from 'next-themes';
 import {
   Users,
   CreditCard,
@@ -18,20 +18,20 @@ import {
   ShieldAlert,
   Moon,
   Sun,
+  Rocket, // <--- 1. Importei o ícone de Foguete
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme(); // Hook para controlar o tema
+  const { theme, setTheme } = useTheme();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const supabase = createClient();
 
-  // Evita erro de hidratação (renderiza o tema correto apenas no cliente)
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -62,6 +62,8 @@ export default function AdminSidebar() {
     },
     { label: 'Métricas', href: '/admin/metrics', icon: BarChart2 },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
+    // 2. Adicionei o item aqui
+    { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket }, 
     { label: 'Configurações', href: '/admin/settings', icon: Settings },
   ];
 
@@ -71,9 +73,7 @@ export default function AdminSidebar() {
     <aside
       className={`
         relative flex flex-col h-screen sticky top-0 transition-all duration-300 border-r
-        /* CORES DO MODO CLARO */
         bg-white border-gray-200 text-slate-600
-        /* CORES DO MODO ESCURO (Dark Mode) */
         dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400
         ${isCollapsed ? 'w-20' : 'w-64'}
       `}
@@ -82,7 +82,7 @@ export default function AdminSidebar() {
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
         className="absolute -right-3 top-8 flex h-6 w-6 items-center justify-center rounded-full border shadow-sm z-50
-        bg-white border-gray-200 text-gray-500 hover:text-indigo-600
+        bg-white border-gray-200 text-gray-500 hover:text-[var(--primary)]
         dark:bg-slate-800 dark:border-gray-700 dark:text-gray-400 dark:hover:text-white"
       >
         {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
@@ -91,7 +91,7 @@ export default function AdminSidebar() {
       {/* Header */}
       <div className="flex h-16 items-center justify-center border-b px-4 border-gray-200 dark:border-slate-800">
         {isCollapsed ? (
-          <span className="font-bold text-xl text-indigo-600 dark:text-indigo-500">
+          <span className="font-bold text-xl text-[var(--primary)] dark:text-[var(--primary)]">
             T
           </span>
         ) : (
@@ -121,8 +121,8 @@ export default function AdminSidebar() {
               href={item.href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-indigo-600 text-white shadow-md' // Ativo é igual nos dois (destaque forte)
-                  : 'hover:bg-gray-100 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white' // Hover adaptativo
+                  ? 'bg-[var(--primary)] text-white shadow-md'
+                  : 'hover:bg-gray-100 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
               }`}
               title={isCollapsed ? item.label : ''}
             >
@@ -135,7 +135,6 @@ export default function AdminSidebar() {
 
       {/* Footer: Toggle Theme & Logout */}
       <div className="border-t p-4 border-gray-200 dark:border-slate-800 space-y-2">
-        {/* Toggle Dark Mode */}
         <button
           onClick={toggleTheme}
           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
@@ -155,7 +154,6 @@ export default function AdminSidebar() {
           )}
         </button>
 
-        {/* Logout */}
         <button
           onClick={handleLogout}
           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:text-red-400 transition-colors ${

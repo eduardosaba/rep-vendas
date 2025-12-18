@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  User,
   Phone,
   Mail,
   FileText,
@@ -16,10 +15,8 @@ import {
   ArrowLeft,
   Package,
   Zap,
-  CreditCard,
   CheckCircle,
   Loader2,
-  AlertTriangle,
   Box,
   UserPlus,
 } from 'lucide-react';
@@ -414,7 +411,7 @@ export function NewOrderClient({
                     onClick={() => addToCart(product)}
                   >
                     <div className="aspect-square bg-gray-50 rounded-lg mb-2 overflow-hidden flex items-center justify-center border border-gray-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {}
                       {product.image_url ? (
                         <div className="relative w-full h-full">
                           <Image
@@ -571,7 +568,7 @@ export function NewOrderClient({
                 className="flex gap-3 p-3 border rounded-xl bg-white shadow-sm group hover:border-primary/30 transition-colors"
               >
                 <div className="h-14 w-14 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   {item.image_url ? (
                     <div className="relative h-full w-full">
                       <Image

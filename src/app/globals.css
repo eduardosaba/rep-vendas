@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Variáveis CSS Padrão do Sistema
+ * 
+ * Estas são as cores padrão aplicadas antes do ThemeRegistry carregar.
+ * O ThemeRegistry sobrescreve essas variáveis quando carrega as configurações do usuário.
+ * 
+ * IMPORTANTE: Não altere essas cores aqui. Use o ThemeRegistry ou a página de Settings.
+ */
+:root {
+  --primary: #b9722e;
+  --primary-foreground: #ffffff;
+  --secondary: #0d1b2c;
+  --secondary-foreground: #ffffff;
+  --header-bg: #ffffff;
+}
+
 @layer components {
   /* Garante que inputs sempre tenham fundo legível */
   .input-field {
@@ -29,4 +45,13 @@
   .dark .btn-primary {
     border-color: rgba(255, 255, 255, 0.08);
   }
+}
+
+.to-purple-600 {
+  --tw-gradient-to: #b9722e var(--tw-gradient-to-position);
+}
+.from-indigo-500 {
+  --tw-gradient-from: #6b3605 var(--tw-gradient-from-position);
+  --tw-gradient-to: #b9722e var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }

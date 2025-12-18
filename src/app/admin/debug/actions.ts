@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { logger } from '@/lib/logger';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
 // Função auxiliar de segurança
 async function checkPermissions() {
@@ -46,9 +48,9 @@ export async function saveSystemFile(filePath: string, fileContent: string) {
       message: `Arquivo gravado com sucesso!`,
       path: fullPath,
     };
-  } catch (error: any) {
-    console.error('Erro ao salvar:', error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    logger.error('Erro ao salvar arquivo via debug', error);
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
@@ -70,7 +72,7 @@ export async function verifySystemFile(filePath: string) {
       lastModified: stats.mtime.toLocaleString('pt-BR'),
       message: 'Arquivo verificado no disco com sucesso.',
     };
-  } catch (error: any) {
+  } catch {
     return {
       success: false,
       exists: false,

@@ -198,7 +198,7 @@ export default function ManageExternalImagesClient({
               className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95 ${
                 stats.pending === 0 && stats.error === 0
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-[var(--primary)] text-white hover:opacity-90'
               }`}
             >
               <Play size={18} /> Iniciar Sincronização
@@ -211,7 +211,7 @@ export default function ManageExternalImagesClient({
       {isProcessing && (
         <div className="w-full h-1 bg-gray-100 dark:bg-slate-800">
           <div
-            className="h-full bg-indigo-500 transition-all duration-300 ease-out"
+            className="h-full bg-[var(--primary)] transition-all duration-300 ease-out"
             style={{ width: `${progress}%` }}
           ></div>
         </div>
@@ -246,7 +246,7 @@ export default function ManageExternalImagesClient({
                   {item.status === 'processing' && (
                     <Loader2
                       size={20}
-                      className="text-indigo-500 animate-spin"
+                      className="text-[var(--primary)] animate-spin"
                     />
                   )}
                   {item.status === 'success' && (

@@ -121,19 +121,19 @@ export default function AdminHeader() {
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white px-6 transition-colors dark:bg-slate-950 dark:border-slate-800">
       {/* Esquerda: Logo */}
       <div className="flex items-center gap-4">
-        <button className="mr-2 md:hidden text-gray-500 hover:text-indigo-600 dark:text-slate-400">
+        <button className="mr-2 md:hidden text-gray-500 hover:text-[var(--primary)] dark:text-slate-400">
           <Menu size={20} />
         </button>
         <div className="flex items-center gap-3 select-none">
           {platform.logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
+             
             <img
               src={platform.logo_url}
               alt="Logo"
               className="h-9 w-auto object-contain max-w-[150px]"
             />
           ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--primary)] text-white shadow-sm">
               <LayoutDashboard size={20} strokeWidth={2.5} />
             </div>
           )}
@@ -153,7 +153,7 @@ export default function AdminHeader() {
           <input
             type="text"
             placeholder="Buscar..."
-            className="h-9 w-64 rounded-full border border-gray-200 bg-gray-50 pl-10 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-800 dark:bg-slate-900 dark:text-white transition-all"
+            className="h-9 w-64 rounded-full border border-gray-200 bg-gray-50 pl-10 pr-4 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] dark:border-slate-800 dark:bg-slate-900 dark:text-white transition-all"
           />
         </div>
 
@@ -168,7 +168,7 @@ export default function AdminHeader() {
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative p-2 text-gray-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors focus:outline-none"
+            className="relative p-2 text-gray-500 hover:text-[var(--primary)] dark:text-slate-400 dark:hover:text-white transition-colors focus:outline-none"
           >
             <Bell size={20} />
             {unreadCount > 0 && (
@@ -183,7 +183,7 @@ export default function AdminHeader() {
                   Notificações
                 </p>
                 {notifications.length > 0 && (
-                  <button className="text-xs text-indigo-600 hover:underline">
+                  <button className="text-xs text-[var(--primary)] hover:underline">
                     Marcar lidas
                   </button>
                 )}
@@ -198,7 +198,7 @@ export default function AdminHeader() {
                   notifications.map((notif) => (
                     <div
                       key={notif.id}
-                      className={`px-4 py-3 border-b border-gray-50 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${!notif.read_at ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}
+                      className={`px-4 py-3 border-b border-gray-50 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${!notif.read_at ? 'bg-[var(--primary)]/10 dark:bg-[var(--primary)]/10' : ''}`}
                     >
                       <div className="flex justify-between items-start mb-1">
                         <p
@@ -207,7 +207,7 @@ export default function AdminHeader() {
                           {notif.title}
                         </p>
                         {!notif.read_at && (
-                          <span className="h-2 w-2 rounded-full bg-indigo-500 mt-1.5"></span>
+                          <span className="h-2 w-2 rounded-full bg-[var(--primary)] mt-1.5"></span>
                         )}
                       </div>
                       <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2">
@@ -244,9 +244,9 @@ export default function AdminHeader() {
                 {userEmail}
               </span>
             </div>
-            <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 overflow-hidden">
+            <div className="h-9 w-9 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)]/30 dark:bg-[var(--primary)]/20 dark:text-[var(--primary)] dark:border-[var(--primary)]/40 overflow-hidden">
               {userAvatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img
                   src={userAvatar}
                   alt="Avatar"

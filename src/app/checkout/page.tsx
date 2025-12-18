@@ -8,12 +8,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   CreditCard,
-  Truck,
   ArrowLeft,
   CheckCircle,
   MapPin,
   User,
-  Phone,
   ShoppingCart,
 } from 'lucide-react';
 

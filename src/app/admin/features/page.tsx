@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { ToggleLeft, ToggleRight, Save, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface FeatureFlag {
   id: string;
@@ -46,7 +46,7 @@ export default function FeaturesPage() {
         prev.map((f) => (f.id === id ? { ...f, is_enabled: !currentValue } : f))
       );
       toast.success(currentValue ? 'Feature desativada' : 'Feature ativada');
-    } catch (e) {
+    } catch {
       toast.error('Erro ao atualizar');
     } finally {
       setToggling(null);
@@ -93,7 +93,7 @@ export default function FeaturesPage() {
                   onClick={() => handleToggle(feature.id, feature.is_enabled)}
                   disabled={toggling === feature.id}
                   className={`
-                    relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                    relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2
                     ${feature.is_enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700'}
                     ${toggling === feature.id ? 'opacity-50 cursor-not-allowed' : ''}
                   `}

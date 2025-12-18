@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { LicensesTable } from '@/components/admin/LicensesTable';
-import { CreditCard, Users, AlertTriangle } from 'lucide-react';
+import { CreditCard, AlertTriangle, Users } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export default async function AdminLicensesPage() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Erro ao buscar assinaturas:', error);
+    logger.error('Erro ao buscar assinaturas', error);
   }
 
   // 3. Processar Dados para o Formato da Tabela e KPIs
@@ -41,29 +42,35 @@ export default async function AdminLicensesPage() {
   let activeCount = 0;
   let canceledCount = 0;
 
-  const subscriptions = (rawData || []).map((sub: any) => {
+  interface SubscriptionRaw {
+    id: string;
+    status?: string | null;
+    plan_name?: string | null;
+    price?: number | string | null;
+    created_at?: string;
+    user?: { email?: string | null } | null;
+  }
+
+  const subscriptions = ((rawData || []) as SubscriptionRaw[]).map((sub) => {
     const price = Number(sub.price) || 0;
     const statusLower = (sub.status || '').toLowerCase();
     const isActive = statusLower === 'active' || statusLower === 'ativo';
     const isCanceled =
       statusLower === 'canceled' || statusLower === 'cancelado';
 
-    // Cálculos de KPI
     if (isActive) {
       activeCount++;
       totalMRR += price;
     }
-    if (isCanceled) {
-      canceledCount++;
-    }
+    if (isCanceled) canceledCount++;
 
     return {
       id: sub.id,
       email: sub.user?.email || 'Email não disponível',
       plan_name: sub.plan_name || 'Desconhecido',
-      status: sub.status,
-      price: price,
-      created_at: sub.created_at,
+      status: sub.status || 'unknown',
+      price,
+      created_at: sub.created_at || new Date().toISOString(),
     };
   });
 

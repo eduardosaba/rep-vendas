@@ -5,7 +5,6 @@ import { createClient } from '@supabase/supabase-js';
 export async function POST(req: Request) {
   const startedAt = Date.now();
   const log = (level: 'info' | 'warn' | 'error', msg: string, meta?: any) => {
-    // eslint-disable-next-line no-console
     console[level](`[import/upload-image] ${msg}`, {
       ...meta,
       elapsedMs: Date.now() - startedAt,
@@ -48,7 +47,7 @@ export async function POST(req: Request) {
 
     // Ensure bucket exists (best-effort)
     try {
-      // @ts-ignore
+      // FIX: Removido @ts-expect-error desnecessário que quebrava o build
       await supabaseAdmin.storage.createBucket(bucket, { public: true });
       log('info', 'bucket_create_attempt', { bucket });
     } catch (err) {
@@ -149,7 +148,6 @@ export async function POST(req: Request) {
       brandSlug,
     });
   } catch (err: any) {
-    // eslint-disable-next-line no-console
     console.error('[import/upload-image] unexpected_error', {
       error: err?.message ?? String(err),
     });

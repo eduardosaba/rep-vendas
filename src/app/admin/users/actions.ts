@@ -1,99 +1,205 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { logger } from '@/lib/logger';
 
-export async function updateUserAction(formData: FormData) {
+// --- CONFIGURAÇÃO DO CLIENTE ADMIN ---
+const supabaseAdmin = createSupabaseAdmin(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // <--- Verifique se está no .env.local
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
+
+// --- CHECAGEM DE SEGURANÇA ---
+async function requireAdminPermission() {
   const supabase = await createClient();
-
-  const id = formData.get('id') as string;
-  const role = (formData.get('role') as string) || 'rep';
-  const license_expires_at =
-    (formData.get('license_expires_at') as string) || null;
-
-  // Verifica se quem está chamando é master
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error('Não autenticado');
 
-  const { data: me } = await supabase
+  if (!user) throw new Error('Não autenticado.');
+
+  const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .maybeSingle();
+    .single();
 
-  if (!me || me.role !== 'master') {
-    logger.warn('Tentativa não autorizada de atualização de usuário', {
-      by: user.id,
-    });
-    throw new Error('Não autorizado');
+  const isAllowed = profile?.role === 'admin' || profile?.role === 'master';
+
+  if (!isAllowed) {
+    throw new Error(
+      'Acesso negado: Apenas administradores podem realizar esta ação.'
+    );
   }
-
-  const updates: any = { role };
-  if (license_expires_at) updates.license_expires_at = license_expires_at;
-
-  const { error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', id);
-  if (error) {
-    logger.error('Falha ao atualizar usuário', { id, error });
-    throw new Error(error.message || 'Falha ao atualizar');
-  }
-
-  try {
-    revalidatePath('/admin');
-    revalidatePath(`/admin/users/${id}`);
-  } catch (e) {
-    logger.debug('Revalidate falhou', e);
-  }
-
-  // Form action handlers should return void / Promise<void>
-  return;
+  return true;
 }
 
-export async function updateUserLicense(userId: string, formData: FormData) {
-  const supabase = await createClient();
+// --- TIPO DE DADOS ---
+interface CreateUserData {
+  email: string;
+  password: string;
+  role: string;
+  planName: string;
+}
 
-  // Verifica autenticação básica
-  const {
-    data: { user: currentUser },
-  } = await supabase.auth.getUser();
-  if (!currentUser) throw new Error('Não autenticado');
+// --- ACTION 1: CRIAR USUÁRIO ---
+export async function createManualUser(data: CreateUserData) {
+  try {
+    // 1. Verifica se quem pediu é admin
+    await requireAdminPermission();
 
-  // Extrai dados do formulário
+    // 2. Cria no Auth (Login)
+    const { data: authData, error: authError } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: data.email,
+        password: data.password,
+        email_confirm: true,
+        user_metadata: { role: data.role },
+      });
+
+    if (authError) throw new Error(`Erro Auth: ${authError.message}`);
+    if (!authData.user) throw new Error('Falha ao gerar ID.');
+
+    const userId = authData.user.id;
+
+    // 3. Cria Perfil
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .upsert({
+        id: userId,
+        email: data.email,
+        full_name: data.email.split('@')[0],
+        role: data.role,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (profileError) throw new Error(`Erro Perfil: ${profileError.message}`);
+
+    // 4. Cria Assinatura
+    let price = 0;
+    if (data.planName === 'Basic') price = 49.9;
+    if (data.planName === 'Pro') price = 99.9;
+    if (data.planName === 'Enterprise') price = 299.9;
+
+    const { error: subError } = await supabaseAdmin
+      .from('subscriptions')
+      .insert({
+        user_id: userId,
+        status: 'active',
+        plan_name: data.planName,
+        price: price,
+        current_period_end: new Date(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      });
+
+    if (subError) throw new Error(`Erro Assinatura: ${subError.message}`);
+
+    revalidatePath('/admin/users');
+    return { success: true };
+  } catch (error: unknown) {
+    logger.error('Erro createManualUser', error);
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// --- ACTION 2: RENOVAR ASSINATURA ---
+export async function addSubscriptionDays(userId: string, daysToAdd: number) {
+  try {
+    await requireAdminPermission();
+
+    const { data: currentSub } = await supabaseAdmin
+      .from('subscriptions')
+      .select('current_period_end, status')
+      .eq('user_id', userId)
+      .single();
+
+    let baseDate = new Date();
+
+    if (currentSub?.current_period_end) {
+      const currentEnd = new Date(currentSub.current_period_end);
+      if (currentEnd > baseDate) {
+        baseDate = currentEnd;
+      }
+    }
+
+    baseDate.setDate(baseDate.getDate() + daysToAdd);
+    const newDateIso = baseDate.toISOString();
+
+    if (currentSub) {
+      const { error: updateError } = await supabaseAdmin
+        .from('subscriptions')
+        .update({
+          current_period_end: newDateIso,
+          status: 'active',
+        })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await supabaseAdmin
+        .from('subscriptions')
+        .insert({
+          user_id: userId,
+          current_period_end: newDateIso,
+          status: 'active',
+          plan_name: 'Pro (Renovado)',
+          price: 0,
+        });
+
+      if (insertError) throw insertError;
+    }
+
+    revalidatePath('/admin/users');
+    return { success: true, newDate: newDateIso };
+  } catch (error: unknown) {
+    logger.error('Erro addSubscriptionDays', error);
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// --- ACTION 3: ATUALIZAR LICENÇA DO USUÁRIO ---
+export async function updateUserLicense(
+  userId: string,
+  formData: FormData
+): Promise<void> {
+  await requireAdminPermission();
+
   const plan = formData.get('plan') as string;
   const status = formData.get('status') as string;
-  const endsAtRaw = formData.get('ends_at') as string;
+  const endsAt = formData.get('ends_at') as string;
 
-  // Converte data se não estiver vazia
-  let endsAt = null;
-  if (endsAtRaw) {
-    endsAt = new Date(endsAtRaw).toISOString();
+  const updateData: Record<string, unknown> = {
+    plan: plan || null,
+    subscription_status: status || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (endsAt) {
+    updateData.subscription_ends_at = new Date(endsAt).toISOString();
+  } else {
+    updateData.subscription_ends_at = null;
   }
 
-  // Atualiza o perfil alvo
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('profiles')
-    .update({
-      plan,
-      subscription_status: status,
-      subscription_ends_at: endsAt,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq('id', userId);
 
   if (error) {
-    throw new Error('Erro ao atualizar licença: ' + error.message);
+    logger.error('Erro updateUserLicense', error);
+    throw new Error(error.message);
   }
 
-  // Atualiza os caches para refletir a mudança imediatamente
-  revalidatePath('/admin');
+  revalidatePath('/admin/users');
   revalidatePath(`/admin/users/${userId}`);
-
-  // Volta para a lista principal
-  redirect('/admin');
 }

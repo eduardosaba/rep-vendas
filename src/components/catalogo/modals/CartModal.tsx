@@ -12,10 +12,7 @@ import {
   Trash2,
   Send,
   Loader2,
-  User,
   Save,
-  Download,
-  Copy,
   Star,
 } from 'lucide-react';
 import { PriceDisplay } from '../PriceDisplay'; // Importação do utilitário PriceDisplay

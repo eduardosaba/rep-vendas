@@ -57,10 +57,10 @@ export async function generateProductDescription(product: {
     let GoogleGenerativeAI: any = undefined;
     try {
       // uso de import dinâmico previne erro de compilação quando o pacote não estiver instalado
-      // @ts-ignore
       const mod = await import('@google/generative-ai');
       GoogleGenerativeAI = mod?.GoogleGenerativeAI;
-    } catch (e) {
+    } catch {
+      // Falha silenciosa no import opcional
       GoogleGenerativeAI = undefined;
     }
 
@@ -70,7 +70,7 @@ export async function generateProductDescription(product: {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-preview-09-2025',
+      model: 'gemini-2.0-flash-exp', // Modelo mais recente e rápido
     });
     const prompt = `
       Atue como um Gerente Comercial Sênior.

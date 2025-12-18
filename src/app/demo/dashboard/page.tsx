@@ -42,7 +42,7 @@ const MOCK_CHART_DATA = [
 const MOCK_ORDERS = [
   {
     id: '1',
-    display_id: '#PED-1024',
+    display_id: 1024,
     client_name_guest: 'Mercadinho Central',
     total_value: 1250.0,
     status: 'pending',
@@ -52,7 +52,7 @@ const MOCK_ORDERS = [
   },
   {
     id: '2',
-    display_id: '#PED-1023',
+    display_id: 1023,
     client_name_guest: 'Padaria do João',
     total_value: 450.5,
     status: 'confirmed',
@@ -62,7 +62,7 @@ const MOCK_ORDERS = [
   },
   {
     id: '3',
-    display_id: '#PED-1022',
+    display_id: 1022,
     client_name_guest: 'Super Compras',
     total_value: 2890.0,
     status: 'delivered',
@@ -72,7 +72,7 @@ const MOCK_ORDERS = [
   },
   {
     id: '4',
-    display_id: '#PED-1021',
+    display_id: 1021,
     client_name_guest: 'Loja da Esquina',
     total_value: 120.0,
     status: 'cancelled',
@@ -82,7 +82,7 @@ const MOCK_ORDERS = [
   },
   {
     id: '5',
-    display_id: '#PED-1020',
+    display_id: 1020,
     client_name_guest: 'Restaurante Sabor',
     total_value: 890.0,
     status: 'delivered',
@@ -261,7 +261,7 @@ function NavItem({
   label,
   active = false,
 }: {
-  icon: any;
+  icon: React.ComponentType<any>;
   label: string;
   active?: boolean;
 }) {

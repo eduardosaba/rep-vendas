@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/Sidebar';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import MobileSidebar from '@/components/MobileSidebar';
+import ThemeRegistry from '@/components/ThemeRegistry';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -63,7 +64,6 @@ export default function DashboardLayout({
 
         if (!result?.data?.session) {
           // Sem sessão? Redireciona
-          // await supabase.auth.signOut(); // Opcional aqui, pois já não tem sessão
           router.replace('/login');
         } else {
           setAuthorized(true);
@@ -128,7 +128,7 @@ export default function DashboardLayout({
   if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-gray-50 flex-col gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" />
         <p className="text-sm text-gray-500">Conectando ao banco de dados...</p>
       </div>
     );
@@ -137,19 +137,22 @@ export default function DashboardLayout({
   if (!authorized) return null;
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 dark:bg-slate-950 overflow-hidden">
-      <div className="flex-shrink-0 hidden md:block h-full">
-        <Sidebar />
-      </div>
-      <div className="flex-1 flex flex-col h-full min-w-0 relative">
-        <div className="flex-shrink-0 z-20">
-          <DashboardHeader />
+    <>
+      <ThemeRegistry />
+      <div className="flex h-screen w-full bg-gray-50 dark:bg-slate-950 overflow-hidden">
+        <div className="flex-shrink-0 hidden md:block h-full">
+          <Sidebar />
         </div>
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin relative z-0">
-          <div className="max-w-7xl mx-auto pb-20">{children}</div>
-        </main>
+        <div className="flex-1 flex flex-col h-full min-w-0 relative">
+          <div className="flex-shrink-0 z-20">
+            <DashboardHeader />
+          </div>
+          <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin relative z-0">
+            <div className="max-w-7xl mx-auto pb-20">{children}</div>
+          </main>
+        </div>
+        <MobileSidebar />
       </div>
-      <MobileSidebar />
-    </div>
+    </>
   );
 }

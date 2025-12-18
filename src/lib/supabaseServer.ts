@@ -33,7 +33,9 @@ export async function createClient() {
 
 // Compatibilidade: criar um client para Route Handlers onde passamos uma
 // factory síncrona que retorna o cookie store (ex: () => nextCookies).
-export function createRouteSupabase(cookieStoreFactory: () => any) {
+export function createRouteSupabase(
+  cookieStoreFactory: () => ReturnType<typeof cookies>
+) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

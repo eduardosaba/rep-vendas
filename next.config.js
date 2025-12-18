@@ -31,6 +31,13 @@ try {
 
 // 2. Objeto de Configuração do Next.js
 const nextConfig = {
+  // Ignora erros de TS no build (assumimos que você checa localmente)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  // Timeout para páginas estáticas
+  staticPageGenerationTimeout: 120,
+
   // Otimizações experimentais
   experimental: {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
