@@ -255,8 +255,8 @@ export default function AdminUsersPage() {
 
       {/* TABELA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+          <table className="w-full text-sm text-left min-w-full">
             <thead className="bg-gray-50 dark:bg-slate-950 text-gray-500 dark:text-slate-400 font-medium border-b border-gray-200 dark:border-slate-800">
               <tr>
                 <th className="px-6 py-4">Usuário</th>

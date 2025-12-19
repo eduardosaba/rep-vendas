@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import MobileSidebar from '@/components/MobileSidebar';
 import ThemeRegistry from '@/components/ThemeRegistry';
+import UpdateNotificationModal from '@/components/dashboard/UpdateNotificationModal';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -139,6 +140,7 @@ export default function DashboardLayout({
   return (
     <>
       <ThemeRegistry />
+      <UpdateNotificationModal />
       <div className="flex h-screen w-full bg-gray-50 dark:bg-slate-950 overflow-hidden">
         <div className="flex-shrink-0 hidden md:block h-full">
           <Sidebar />

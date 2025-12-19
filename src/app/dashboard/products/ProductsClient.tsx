@@ -151,8 +151,8 @@ export default function ProductsClient({
 
       {/* Tabela de Produtos */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+          <table className="w-full text-left text-sm min-w-full">
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <tr>
                 <th className="px-3 sm:px-6 py-4 font-medium">Produto</th>

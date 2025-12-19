@@ -100,7 +100,7 @@ const getUrlData = async (
           typeof window === 'undefined' ||
           typeof FileReader === 'undefined'
         ) {
-          // @ts-expect-error: Buffer existe em Node
+          // In Node, Buffer may exist on global
           if (typeof (global as any).Buffer !== 'undefined') {
             const ab = await b.arrayBuffer();
             const buf = Buffer.from(ab);

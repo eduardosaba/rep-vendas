@@ -46,8 +46,13 @@ interface StoreContextType {
   initialProducts: Product[];
   cart: CartItem[];
   favorites: string[];
+
+  // Mantendo compatibilidade com ambos os nomes
   isPricesVisible: boolean;
   setIsPricesVisible: (visible: boolean) => void;
+  showPrices: boolean;
+  toggleShowPrices: () => void;
+
   displayProducts: Product[];
   totalProducts: number;
   currentPage: number;
@@ -96,7 +101,6 @@ interface StoreContextType {
   toggleFavorite: (id: string) => void;
   unlockPrices: (password: string) => boolean;
 
-  // Ações Integradas
   handleFinalizeOrder: (customer: CustomerInfo) => Promise<boolean>;
   handleSaveCart: () => Promise<string | null>;
   handleLoadCart: (code: string) => Promise<boolean>;
@@ -118,12 +122,13 @@ export function StoreProvider({
 }: StoreProviderProps) {
   const { addToast } = useToast();
   const ITEMS_PER_PAGE = 24;
-
   const supabase = createClient();
+
+  // ESTADO CORRIGIDO: Declarando showPrices diretamente aqui no topo
+  const [showPrices, setShowPrices] = useState(false);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [isPricesVisible, setIsPricesVisible] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<string | string[]>('all');
@@ -165,7 +170,7 @@ export function StoreProvider({
 
   const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
 
-  // --- DERIVAR DADOS ÚNICOS (Marcas e Categorias) ---
+  // --- DERIVAR DADOS ---
   const brands = Array.from(
     new Set(
       initialProducts
@@ -182,16 +187,14 @@ export function StoreProvider({
     )
   ) as string[];
 
-  // --- CARREGAR LOGOS DAS MARCAS ---
+  // --- EFEITOS ---
   useEffect(() => {
     const fetchBrands = async () => {
-      const productBrands = brands; // Já derivado acima
-
+      const productBrands = brands;
       if (productBrands.length === 0) {
         setBrandsWithLogos([]);
         return;
       }
-
       const { data } = await supabase
         .from('brands')
         .select('name, logo_url')
@@ -212,9 +215,8 @@ export function StoreProvider({
       }
     };
     fetchBrands();
-  }, [store.user_id, initialProducts, brands]); // Adicionado brands à dependência
+  }, [store.user_id, initialProducts, brands]);
 
-  // --- PAGINAÇÃO E LOCALSTORAGE ---
   useEffect(() => {
     setCurrentPage(1);
   }, [
@@ -243,15 +245,34 @@ export function StoreProvider({
           setFavorites(JSON.parse(savedFavs));
         } catch {}
       }
-      if (priceUnlocked === 'true') setIsPricesVisible(true);
+      if (priceUnlocked === 'true') setShowPrices(true);
     }
   }, [store.name]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
-      localStorage.setItem(`favs-${store.name}`, JSON.stringify(favorites));
-    }
+    if (typeof window === 'undefined') return;
+
+    const keyCart = `cart-${store.name}`;
+    const keyFavs = `favs-${store.name}`;
+
+    // Debounce writes to avoid frequent synchronous localStorage I/O
+    let timer: number | null = null;
+    timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(keyCart, JSON.stringify(cart));
+      } catch (err) {
+        // ignore storage errors
+      }
+      try {
+        localStorage.setItem(keyFavs, JSON.stringify(favorites));
+      } catch (err) {
+        // ignore storage errors
+      }
+    }, 400);
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
   }, [cart, favorites, store.name]);
 
   useEffect(() => {
@@ -262,6 +283,23 @@ export function StoreProvider({
       return () => clearInterval(interval);
     }
   }, [store.banners]);
+
+  // Abrir modal automaticamente se houver parâmetro ?product=ID na URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const productId = urlParams.get('product');
+
+    if (productId && !modals.product) {
+      const product = initialProducts.find((p) => p.id === productId);
+      if (product) {
+        setModal('product', product);
+        // Limpar o parâmetro da URL sem recarregar a página
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, [initialProducts]);
 
   // --- ACTIONS ---
   const addToCart = (p: Product, qty = 1) => {
@@ -302,7 +340,7 @@ export function StoreProvider({
   const unlockPrices = (password: string) => {
     const ok = password === (store.price_password || '');
     if (ok) {
-      setIsPricesVisible(true);
+      setShowPrices(true);
       if (typeof window !== 'undefined') {
         try {
           sessionStorage.setItem(`prices-${store.name}`, 'true');
@@ -312,10 +350,11 @@ export function StoreProvider({
     return ok;
   };
 
+  const toggleShowPrices = () => setShowPrices((v) => !v);
+
   const handleFinalizeOrder = async (customer: CustomerInfo) => {
     try {
       setLoadingStates((s) => ({ ...s, submitting: true }));
-
       const { data, error } = await supabase
         .from('orders')
         .insert({
@@ -332,21 +371,12 @@ export function StoreProvider({
         .maybeSingle();
 
       if (error) throw error;
-
       setOrderSuccessData({ id: data.id, customer });
       setCart([]);
       return true;
     } catch (e: unknown) {
       console.error('Erro finalizar pedido:', e);
-      let message = 'Erro ao processar pedido. Tente novamente.';
-      try {
-        if (typeof e === 'string') message = e;
-        else if (e && typeof (e as any).message === 'string')
-          message = (e as any).message;
-        else message = JSON.stringify(e) || message;
-      } catch {
-        /* ignore */
-      }
+      let message = 'Erro ao processar pedido.';
       if (typeof addToast === 'function')
         addToast({ type: 'error', message } as Toast);
       return false;
@@ -359,28 +389,15 @@ export function StoreProvider({
     if (cart.length === 0) return null;
     try {
       setLoadingStates((s) => ({ ...s, saving: true }));
-
       const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-
       const { error } = await supabase.from('saved_carts').insert({
         short_id: shortId,
         items: cart,
       });
-
       if (error) throw error;
-
       return shortId;
     } catch (e) {
       console.error(e);
-      let message = 'Erro ao salvar carrinho';
-      try {
-        if (typeof e === 'string') message = e;
-        else if (e && typeof (e as any).message === 'string')
-          message = (e as any).message;
-        else message = JSON.stringify(e) || message;
-      } catch {}
-      if (typeof addToast === 'function')
-        addToast({ type: 'error', message } as any);
       return null;
     } finally {
       setLoadingStates((s) => ({ ...s, saving: false }));
@@ -391,8 +408,6 @@ export function StoreProvider({
     if (!code) return false;
     try {
       setLoadingStates((s) => ({ ...s, loadingCart: true }));
-
-      // Resiliência: usar .maybeSingle() pois o carrinho pode não existir
       const { data, error } = await supabase
         .from('saved_carts')
         .select('items')
@@ -407,12 +422,10 @@ export function StoreProvider({
           } as Toast);
         return false;
       }
-
       if (data.items && Array.isArray(data.items)) {
         setCart(data.items as CartItem[]);
         return true;
       }
-
       return false;
     } catch (e) {
       return false;
@@ -423,12 +436,10 @@ export function StoreProvider({
 
   const handleDownloadPDF = () => {
     const itemsToPrint = cart.length > 0 ? cart : [];
-
     const orderObj = {
       id: orderSuccessData?.id || 0,
       customer: orderSuccessData?.customer || { name: '', phone: '' },
     };
-
     generateOrderPDF(
       orderObj as any,
       store,
@@ -440,7 +451,7 @@ export function StoreProvider({
   const handleSendWhatsApp = () => {
     if (!orderSuccessData) return;
     const { customer } = orderSuccessData;
-    const message = `Olá, meu nome é ${customer.name}. Fiz o pedido #${orderSuccessData.id} no catálogo.`;
+    const message = `Olá, meu nome é ${customer.name}. Fiz o pedido #${orderSuccessData.id}.`;
     const num = (store.phone || '').replace(/\D/g, '');
     window.open(
       `https://wa.me/${num}?text=${encodeURIComponent(message)}`,
@@ -468,14 +479,12 @@ export function StoreProvider({
           if (p.brand !== selectedBrand) return false;
         }
       }
-
       if (
         selectedCategory &&
         selectedCategory !== 'all' &&
         p.category !== selectedCategory
       )
         return false;
-
       if (
         searchTerm &&
         !p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -484,7 +493,6 @@ export function StoreProvider({
           .includes(searchTerm.toLowerCase())
       )
         return false;
-
       return true;
     })
     .sort((a, b) => {
@@ -503,8 +511,11 @@ export function StoreProvider({
         initialProducts,
         cart,
         favorites,
-        isPricesVisible,
-        setIsPricesVisible,
+        // Resolvemos o problema mapeando ambos para o mesmo state
+        showPrices,
+        isPricesVisible: showPrices,
+        setIsPricesVisible: setShowPrices,
+        toggleShowPrices,
         displayProducts,
         totalProducts,
         currentPage,

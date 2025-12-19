@@ -17,12 +17,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Image as ImageIcon } from 'lucide-react';
 import { ProductCard } from './ProductCard';
-import { useLayoutStore } from './store-layout';
 import { PriceDisplay } from './PriceDisplay';
 
-// --- Interfaces e Carousel mantidos iguais (omiti para brevidade, mantenha o código existente do Carousel e StoreBanners) ---
-// ... (Copie o código do Carousel e StoreBanners do arquivo anterior, não houve mudança lá) ...
-
+// --- Interfaces e Carousel mantidos iguais ---
 interface SlideData {
   id: number;
   imageUrl: string;
@@ -125,9 +122,25 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
 
 export function StoreBanners() {
   const { store } = useStore();
-  if (!store.banners || store.banners.length === 0) return null;
+  const [isMobile, setIsMobile] = useState(false);
 
-  const slides: SlideData[] = store.banners.map((url, index) => ({
+  // Detecta mobile
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Decide qual array de banners usar: mobile (se disponível) ou desktop
+  const hasMobileBanners =
+    store.banners_mobile && store.banners_mobile.length > 0;
+  const activeBanners =
+    isMobile && hasMobileBanners ? store.banners_mobile : store.banners;
+
+  if (!activeBanners || activeBanners.length === 0) return null;
+
+  const slides: SlideData[] = activeBanners.map((url, index) => ({
     id: index,
     imageUrl: url,
     linkUrl: '#',
@@ -165,7 +178,7 @@ export function ProductGrid() {
     isPricesVisible,
   } = useStore();
 
-  const { toggleSidebar } = useLayoutStore();
+  // addToCart comes from StoreContext
 
   const isOutOfStock = (product: any) => {
     if (!store.enable_stock_management) return false;
@@ -195,10 +208,12 @@ export function ProductGrid() {
             Mostrando <strong>{paginatedProducts.length}</strong> de{' '}
             <strong>{totalProducts}</strong> produtos
           </p>
+
+          {/* FIX: Botão de Filtros agora usa setIsFilterOpen corretamente */}
           <Button
             variant="outline"
             size="sm"
-            onClick={toggleSidebar}
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
             className="lg:hidden ml-4"
             leftIcon={<SlidersHorizontal size={16} />}
           >
@@ -263,7 +278,7 @@ export function ProductGrid() {
                   key={product.id}
                   product={product}
                   storeSettings={{
-                    primary_color: store.primary_color || '#4f46e5', // Fallback padrão se --primary não estiver definido
+                    primary_color: store.primary_color || '#4f46e5',
                     show_installments: !!store.show_installments,
                     max_installments: store.max_installments || 1,
                     show_cash_discount: !!store.show_cash_discount,

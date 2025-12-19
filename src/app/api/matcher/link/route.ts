@@ -5,7 +5,7 @@ import { createRouteSupabase } from '@/lib/supabaseServer';
 export async function POST(req: Request) {
   try {
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(async () => nextCookies);
+    const supabase = createRouteSupabase(() => nextCookies);
     const body = await req.json();
     const { productId, stagingImageId } = body || {};
 

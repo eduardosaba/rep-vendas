@@ -19,8 +19,9 @@ export function PriceDisplay({
   className = '',
   size = 'normal',
 }: PriceDisplayProps) {
-  // Ajuste de tamanho responsivo
-  const textSize = size === 'large' ? 'text-2xl sm:text-3xl' : 'text-lg';
+  // Ajuste de tamanho responsivo (mobile menor para evitar overflow)
+  const textSize =
+    size === 'large' ? 'text-2xl sm:text-3xl' : 'text-base sm:text-lg';
 
   if (!isPricesVisible) {
     return (

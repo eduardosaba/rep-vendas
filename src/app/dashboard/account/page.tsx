@@ -265,6 +265,7 @@ export default function AccountPage() {
                 </label>
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full p-2 border rounded-lg"
@@ -277,6 +278,7 @@ export default function AccountPage() {
                 </label>
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full p-2 border rounded-lg"

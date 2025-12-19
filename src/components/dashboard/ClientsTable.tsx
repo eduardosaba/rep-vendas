@@ -241,8 +241,8 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
 
       {/* 3. TABELA DE CLIENTES */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+          <table className="w-full text-left text-sm min-w-full">
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <tr>
                 <th className="px-3 sm:px-6 py-4 font-medium">Cliente</th>

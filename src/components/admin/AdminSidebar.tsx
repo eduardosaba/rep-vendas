@@ -3,47 +3,35 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
 import {
   Users,
   CreditCard,
   BarChart2,
   Settings,
-  LogOut,
   LayoutDashboard,
   Package,
   ToggleLeft,
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
-  Moon,
-  Sun,
-  Rocket, // <--- 1. Importei o ícone de Foguete
+  Rocket,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
-
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
-
-  const supabase = createClient();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-  };
+  // admin area is restricted to master users by server-side logic
+  // no need to fetch/check master role here in the sidebar
 
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
+  // logout and theme toggle removed from admin sidebar (admin area has its own flows)
 
   const menuItems = [
     {
@@ -63,7 +51,7 @@ export default function AdminSidebar() {
     { label: 'Métricas', href: '/admin/metrics', icon: BarChart2 },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
     // 2. Adicionei o item aqui
-    { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket }, 
+    { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket },
     { label: 'Configurações', href: '/admin/settings', icon: Settings },
   ];
 
@@ -131,39 +119,43 @@ export default function AdminSidebar() {
             </Link>
           );
         })}
+
+        {/* Link ao Dashboard (nova aba) */}
+        <a
+          href="/dashboard"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-gray-100 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white ${isCollapsed ? 'justify-center' : ''}`}
+          title={isCollapsed ? 'Dashboard' : 'Abrir Dashboard (nova aba)'}
+        >
+          <LayoutDashboard size={20} />
+          {!isCollapsed && <span>Abrir Dashboard</span>}
+        </a>
       </nav>
 
       {/* Footer: Toggle Theme & Logout */}
-      <div className="border-t p-4 border-gray-200 dark:border-slate-800 space-y-2">
-        <button
-          onClick={toggleTheme}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-            hover:bg-gray-100 text-slate-600
-            dark:hover:bg-slate-800 dark:text-slate-300
-            ${isCollapsed ? 'justify-center' : ''}
-          `}
-          title="Alternar Tema"
+      <div className="border-t p-4 border-gray-200 dark:border-slate-800">
+        <div
+          className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}
         >
-          {theme === 'dark' ? (
-            <Sun size={20} className="text-yellow-500" />
-          ) : (
-            <Moon size={20} className="text-slate-600" />
-          )}
+          <img
+            src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
+            alt="RepVendas"
+            className="h-8 w-auto object-contain"
+            onError={(e) => {
+              const img = e.currentTarget as HTMLImageElement;
+              img.src = '/images/logo.png';
+            }}
+          />
           {!isCollapsed && (
-            <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>
+            <div className="flex flex-col text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                RepVendas
+              </span>
+              <span>v{process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'}</span>
+            </div>
           )}
-        </button>
-
-        <button
-          onClick={handleLogout}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:text-red-400 transition-colors ${
-            isCollapsed ? 'justify-center' : ''
-          }`}
-          title="Sair"
-        >
-          <LogOut size={20} />
-          {!isCollapsed && <span>Sair</span>}
-        </button>
+        </div>
       </div>
     </aside>
   );

@@ -325,165 +325,172 @@ export default function BulkEditClient({
 
       {/* TABELA */}
       <div className="flex-1 overflow-auto border border-gray-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm relative">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 sticky top-0 z-10 shadow-sm">
-            <tr>
-              {visibleColumns.reference_code && (
-                <th className="px-4 py-3 font-medium w-32">Ref</th>
-              )}
-              {visibleColumns.name && (
-                <th className="px-4 py-3 font-medium min-w-[200px]">Produto</th>
-              )}
-              {visibleColumns.brand && (
-                <th className="px-4 py-3 font-medium w-32">Marca</th>
-              )}
-              {visibleColumns.stock_quantity && (
-                <th className="px-4 py-3 font-medium w-28 text-right">
-                  Estoque
-                </th>
-              )}
-              {visibleColumns.price && (
-                <th className="px-4 py-3 font-medium w-36 text-right">
-                  Preço Custo
-                </th>
-              )}
-              {visibleColumns.sale_price && (
-                <th className="px-4 py-3 font-medium w-36 text-right">
-                  Preço Venda
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-            {filteredProducts.map((product) => (
-              <tr
-                key={product.id}
-                className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition-colors group"
-              >
-                {/* REF */}
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+          <table className="w-full text-sm text-left min-w-full">
+            <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 sticky top-0 z-10 shadow-sm">
+              <tr>
                 {visibleColumns.reference_code && (
-                  <td className="px-4 py-2">
-                    <input
-                      className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-sm text-gray-700 dark:text-gray-300 font-sans"
-                      value={product.reference_code || ''}
-                      onChange={(e) =>
-                        handleInputChange(
-                          product.id,
-                          'reference_code',
-                          e.target.value
-                        )
-                      }
-                      placeholder="-"
-                    />
-                  </td>
+                  <th className="px-4 py-3 font-medium w-32">Ref</th>
                 )}
-
-                {/* NOME */}
                 {visibleColumns.name && (
-                  <td className="px-4 py-2">
-                    <input
-                      className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-sm text-gray-700 dark:text-gray-300 font-sans"
-                      value={product.name}
-                      onChange={(e) =>
-                        handleInputChange(product.id, 'name', e.target.value)
-                      }
-                    />
-                  </td>
+                  <th className="px-4 py-3 font-medium min-w-[200px]">
+                    Produto
+                  </th>
                 )}
-
-                {/* MARCA */}
                 {visibleColumns.brand && (
-                  <td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 font-sans">
-                    {product.brand || (
-                      <span className="opacity-30 italic">Sem marca</span>
-                    )}
-                  </td>
+                  <th className="px-4 py-3 font-medium w-32">Marca</th>
                 )}
-
-                {/* ESTOQUE */}
                 {visibleColumns.stock_quantity && (
-                  <td className="px-4 py-2 text-right">
-                    <div className="relative">
+                  <th className="px-4 py-3 font-medium w-28 text-right">
+                    Estoque
+                  </th>
+                )}
+                {visibleColumns.price && (
+                  <th className="px-4 py-3 font-medium w-36 text-right">
+                    Preço Custo
+                  </th>
+                )}
+                {visibleColumns.sale_price && (
+                  <th className="px-4 py-3 font-medium w-36 text-right">
+                    Preço Venda
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+              {filteredProducts.map((product) => (
+                <tr
+                  key={product.id}
+                  className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition-colors group"
+                >
+                  {/* REF */}
+                  {visibleColumns.reference_code && (
+                    <td className="px-4 py-2">
                       <input
-                        type="number"
-                        className={`w-full text-right bg-transparent border border-transparent hover:border-gray-300 focus:border-[var(--primary)] rounded px-2 py-1 outline-none focus:bg-white dark:focus:bg-slate-950 transition-all text-sm font-sans ${
-                          product.stock_quantity === 0
-                            ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                            : product.stock_quantity < 0
-                              ? 'text-red-700'
-                              : 'text-gray-700 dark:text-gray-300'
-                        }`}
-                        value={product.stock_quantity}
+                        className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-sm text-gray-700 dark:text-gray-300 font-sans"
+                        value={product.reference_code || ''}
                         onChange={(e) =>
                           handleInputChange(
                             product.id,
-                            'stock_quantity',
-                            Number(e.target.value)
-                          )
-                        }
-                      />
-                    </div>
-                  </td>
-                )}
-
-                {/* PREÇO DE CUSTO (Mascara) */}
-                {visibleColumns.price && (
-                  <td className="px-4 py-2 text-right">
-                    <div className="relative group/input">
-                      <span className="absolute left-2 top-1.5 text-gray-400 text-xs pointer-events-none group-focus-within/input:text-blue-500 transition-colors">
-                        R$
-                      </span>
-                      <input
-                        type="text"
-                        className="w-full text-right bg-transparent border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 transition-all text-sm text-gray-700 dark:text-gray-300 font-sans"
-                        value={formatCurrencyDisplay(product.price)}
-                        onChange={(e) =>
-                          handleCurrencyChange(
-                            product.id,
-                            'price',
+                            'reference_code',
                             e.target.value
                           )
                         }
+                        placeholder="-"
                       />
-                    </div>
-                  </td>
-                )}
+                    </td>
+                  )}
 
-                {/* PREÇO DE VENDA (Mascara) */}
-                {visibleColumns.sale_price && (
-                  <td className="px-4 py-2 text-right">
-                    <div className="relative group/input">
-                      <span className="absolute left-2 top-1.5 text-gray-400 text-xs pointer-events-none group-focus-within/input:text-blue-500 transition-colors">
-                        R$
-                      </span>
+                  {/* NOME */}
+                  {visibleColumns.name && (
+                    <td className="px-4 py-2">
                       <input
-                        type="text"
-                        className="w-full text-right bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 transition-all text-sm text-gray-700 dark:text-gray-300 font-sans"
-                        value={formatCurrencyDisplay(product.sale_price)}
+                        className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 outline-none transition-all py-1 text-sm text-gray-700 dark:text-gray-300 font-sans"
+                        value={product.name}
                         onChange={(e) =>
-                          handleCurrencyChange(
-                            product.id,
-                            'sale_price',
-                            e.target.value
-                          )
+                          handleInputChange(product.id, 'name', e.target.value)
                         }
                       />
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
+                    </td>
+                  )}
 
-            {filteredProducts.length === 0 && (
-              <tr>
-                <td colSpan={10} className="text-center py-12 text-gray-400">
-                  <AlertCircle className="mx-auto mb-2 opacity-50" size={32} />
-                  Nenhum produto encontrado com os filtros atuais.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  {/* MARCA */}
+                  {visibleColumns.brand && (
+                    <td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 font-sans">
+                      {product.brand || (
+                        <span className="opacity-30 italic">Sem marca</span>
+                      )}
+                    </td>
+                  )}
+
+                  {/* ESTOQUE */}
+                  {visibleColumns.stock_quantity && (
+                    <td className="px-4 py-2 text-right">
+                      <div className="relative">
+                        <input
+                          type="number"
+                          className={`w-full text-right bg-transparent border border-transparent hover:border-gray-300 focus:border-[var(--primary)] rounded px-2 py-1 outline-none focus:bg-white dark:focus:bg-slate-950 transition-all text-sm font-sans ${
+                            product.stock_quantity === 0
+                              ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                              : product.stock_quantity < 0
+                                ? 'text-red-700'
+                                : 'text-gray-700 dark:text-gray-300'
+                          }`}
+                          value={product.stock_quantity}
+                          onChange={(e) =>
+                            handleInputChange(
+                              product.id,
+                              'stock_quantity',
+                              Number(e.target.value)
+                            )
+                          }
+                        />
+                      </div>
+                    </td>
+                  )}
+
+                  {/* PREÇO DE CUSTO (Mascara) */}
+                  {visibleColumns.price && (
+                    <td className="px-4 py-2 text-right">
+                      <div className="relative group/input">
+                        <span className="absolute left-2 top-1.5 text-gray-400 text-xs pointer-events-none group-focus-within/input:text-blue-500 transition-colors">
+                          R$
+                        </span>
+                        <input
+                          type="text"
+                          className="w-full text-right bg-transparent border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 transition-all text-sm text-gray-700 dark:text-gray-300 font-sans"
+                          value={formatCurrencyDisplay(product.price)}
+                          onChange={(e) =>
+                            handleCurrencyChange(
+                              product.id,
+                              'price',
+                              e.target.value
+                            )
+                          }
+                        />
+                      </div>
+                    </td>
+                  )}
+
+                  {/* PREÇO DE VENDA (Mascara) */}
+                  {visibleColumns.sale_price && (
+                    <td className="px-4 py-2 text-right">
+                      <div className="relative group/input">
+                        <span className="absolute left-2 top-1.5 text-gray-400 text-xs pointer-events-none group-focus-within/input:text-blue-500 transition-colors">
+                          R$
+                        </span>
+                        <input
+                          type="text"
+                          className="w-full text-right bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 pl-6 outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:bg-white dark:focus:bg-slate-950 transition-all text-sm text-gray-700 dark:text-gray-300 font-sans"
+                          value={formatCurrencyDisplay(product.sale_price)}
+                          onChange={(e) =>
+                            handleCurrencyChange(
+                              product.id,
+                              'sale_price',
+                              e.target.value
+                            )
+                          }
+                        />
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+
+              {filteredProducts.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="text-center py-12 text-gray-400">
+                    <AlertCircle
+                      className="mx-auto mb-2 opacity-50"
+                      size={32}
+                    />
+                    Nenhum produto encontrado com os filtros atuais.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="text-xs text-gray-400 text-center">

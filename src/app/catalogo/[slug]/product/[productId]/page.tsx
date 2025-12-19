@@ -66,7 +66,7 @@ interface Settings {
 export default function ProductDetailPage() {
   const supabase = createClient();
   const params = useParams();
-  const userId = params.userId as string;
+  const slug = params.slug as string;
   const productId = params.productId as string;
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
@@ -80,28 +80,40 @@ export default function ProductDetailPage() {
   // usar sonner programático
 
   useEffect(() => {
-    if (userId && productId) {
-      loadProduct();
-      loadUserData();
+    if (slug && productId) {
+      // Carrega configurações da loja (por catalog_slug) e então o produto
+      loadStoreAndProduct();
     }
-  }, [userId, productId]);
+  }, [slug, productId]);
 
-  const loadProduct = async () => {
+  const loadStoreAndProduct = async () => {
     try {
+      // Buscar configurações da loja usando catalog_slug
+      const { data: store, error: storeError } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('catalog_slug', slug)
+        .maybeSingle();
+
+      if (storeError || !store) throw new Error('Loja não encontrada');
+
+      setSettings(store as Settings);
+
+      // Agora buscar produto escopado pelo user_id da loja
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .eq('id', productId)
-        .eq('user_id', userId)
+        .eq('user_id', store.user_id)
         .maybeSingle();
 
       if (error) throw error;
 
-      setProduct(data);
+      setProduct(data as Product);
     } catch (error) {
-      console.error('Erro ao carregar produto:', error);
+      console.error('Erro ao carregar produto/loja:', error);
       toast.error('Produto não encontrado.');
-      router.push(`/catalogo/${userId}`);
+      router.push(`/catalogo/${slug}`);
     } finally {
       setLoading(false);
     }
@@ -118,21 +130,6 @@ export default function ProductDetailPage() {
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setCart(JSON.parse(savedCart));
-    }
-
-    // Carregar configurações do usuário - com resiliência .maybeSingle()
-    try {
-      const { data: userSettings, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (userSettings && !error) {
-        setSettings(userSettings);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
     }
   };
 
@@ -412,26 +409,36 @@ export default function ProductDetailPage() {
 
             {/* Price */}
             <div className="space-y-2">
-              <div className="flex items-baseline space-x-3">
-                <span className="text-4xl font-bold text-gray-900">
-                  R$ {formatPrice(product.price)}
-                </span>
-                {settings?.show_old_price && (
-                  <span className="text-xl text-gray-500 line-through">
-                    R$ {formatPrice(product.price * 1.2)}
-                  </span>
-                )}
-                {settings?.show_discount && (
-                  <span className="text-lg font-medium text-green-600">
-                    17% OFF
-                  </span>
-                )}
-              </div>
-              {settings?.show_installments && (
-                <div className="text-green-600">
-                  12x de R$ {formatPrice(product.price / 12)} sem juros
-                </div>
-              )}
+              {(() => {
+                const salePrice = (product as any).sale_price ?? null;
+                const originalPrice = (product as any).original_price ?? null;
+                const currentPrice = salePrice ?? product.price ?? 0;
+
+                return (
+                  <>
+                    <div className="flex items-baseline space-x-3">
+                      <span className="text-4xl font-bold text-gray-900">
+                        R$ {formatPrice(currentPrice)}
+                      </span>
+                      {settings?.show_old_price && originalPrice && (
+                        <span className="text-xl text-gray-500 line-through">
+                          R$ {formatPrice(originalPrice)}
+                        </span>
+                      )}
+                      {settings?.show_discount && (
+                        <span className="text-lg font-medium text-green-600">
+                          17% OFF
+                        </span>
+                      )}
+                    </div>
+                    {settings?.show_installments && currentPrice > 0 && (
+                      <div className="text-green-600">
+                        12x de R$ {formatPrice(currentPrice / 12)} sem juros
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Shipping */}

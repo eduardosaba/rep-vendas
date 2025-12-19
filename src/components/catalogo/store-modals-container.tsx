@@ -183,8 +183,8 @@ export function StoreModals() {
       );
       if (filtered.length === 0) return null;
       return (
-        <div className="overflow-auto mt-2">
-          <table className="w-full text-sm border-collapse">
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg mt-2">
+          <table className="w-full text-sm border-collapse min-w-full">
             <thead>
               <tr className="bg-gray-50 text-left">
                 <th className="p-2 w-1/3 font-semibold text-gray-700 border border-gray-100">
@@ -218,8 +218,8 @@ export function StoreModals() {
       );
       if (entries.length === 0) return null;
       return (
-        <div className="overflow-auto mt-2">
-          <table className="w-full text-sm border-collapse">
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg mt-2">
+          <table className="w-full text-sm border-collapse min-w-full">
             <thead>
               <tr className="bg-gray-50 text-left">
                 <th className="p-2 w-1/3 font-semibold text-gray-700 border border-gray-100">
@@ -421,47 +421,46 @@ export function StoreModals() {
 
       {/* --- MODAL DETALHES DO PRODUTO (CORRIGIDO) --- */}
       {modals.product && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center md:px-4">
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setModal('product', null)}
           />
-          <div className="relative bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
-            {/* Header */}
+          <div className="relative bg-white dark:bg-slate-900 w-full h-[100dvh] md:h-auto md:max-w-4xl md:rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row md:max-h-[90vh]">
+            {/* Header (Botões de Fechar e Compartilhar) */}
             <div className="absolute top-4 right-4 z-10 flex gap-2">
               <button
                 onClick={() => {
-                  copyToClipboard(window.location.href, 'Link copiado!');
+                  const baseUrl =
+                    window.location.origin + window.location.pathname;
+                  const productUrl = `${baseUrl}?product=${modals.product?.id}`;
+                  copyToClipboard(productUrl, 'Link do produto copiado!');
                 }}
-                className="p-2 bg-white/90 rounded-full shadow-sm hover:bg-gray-100"
+                className="p-2 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-sm hover:bg-gray-100 dark:hover:bg-slate-700"
               >
                 <Share2 size={20} />
               </button>
               <button
                 onClick={() => setModal('product', null)}
-                className="p-2 bg-white/90 rounded-full shadow-sm hover:bg-gray-100"
+                className="p-2 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-sm hover:bg-gray-100 dark:hover:bg-slate-700"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Imagem (Esquerda) */}
-            <div className="w-full md:w-1/2 bg-white relative p-6 border-r border-gray-100 flex flex-col items-center justify-center">
-              <div className="relative w-full h-[300px] flex items-center justify-center">
+            {/* ===== COLUNA ESQUERDA: Imagem + Miniaturas + Botão (Desktop) ===== */}
+            <div className="hidden md:flex md:w-1/2 bg-white dark:bg-slate-900 relative p-6 border-r border-gray-100 dark:border-slate-800 flex-col items-center justify-between overflow-y-auto custom-scrollbar">
+              {/* Imagem Principal */}
+              <div className="relative w-full h-[350px] flex items-center justify-center mb-4">
                 {getProductImages(modals.product).length > 0 ? (
-                  <>
-                    { }
-                    <img
-                      src={
-                        getProductImages(modals.product as any)[
-                          currentImageIndex
-                        ]
-                      }
-                      className="max-w-full max-h-full object-contain"
-                      alt="Product"
-                      onClick={() => setModal('zoom', true)}
-                    />
-                  </>
+                  <img
+                    src={
+                      getProductImages(modals.product as any)[currentImageIndex]
+                    }
+                    className="max-w-full max-h-full object-contain cursor-zoom-in"
+                    alt="Product"
+                    onClick={() => setModal('zoom', true)}
+                  />
                 ) : (
                   <div className="text-gray-300 flex flex-col items-center">
                     <Search size={48} />
@@ -470,9 +469,9 @@ export function StoreModals() {
                 )}
               </div>
 
-              {/* Miniaturas (Thumbs) - AGORA VÃO APARECER! */}
+              {/* Miniaturas */}
               {getProductImages(modals.product).length > 1 && (
-                <div className="mt-6 flex gap-2 overflow-x-auto justify-center w-full py-2">
+                <div className="flex gap-2 overflow-x-auto justify-center w-full py-2 mb-4">
                   {getProductImages(modals.product as any).map((img, idx) => (
                     <button
                       key={idx}
@@ -483,7 +482,6 @@ export function StoreModals() {
                           : 'border-gray-200 hover:border-gray-400'
                       }`}
                     >
-                      { }
                       <img
                         src={img}
                         className="w-full h-full object-contain"
@@ -493,16 +491,218 @@ export function StoreModals() {
                   ))}
                 </div>
               )}
+
+              {/* Botão Adicionar ao Pedido (Desktop - abaixo das miniaturas) */}
+              <div className="w-full mt-auto">
+                <Button
+                  onClick={() => {
+                    addToCart(modals.product!);
+                    setModal('product', null);
+                    toast.success('Adicionado ao carrinho');
+                  }}
+                  className="w-full py-6 text-lg shadow-lg"
+                  leftIcon={<ShoppingCart size={22} />}
+                >
+                  Adicionar ao Pedido
+                </Button>
+              </div>
             </div>
 
-            {/* Detalhes (Direita) */}
-            <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col overflow-y-auto custom-scrollbar bg-white">
+            {/* ===== ÁREA SCROLLÁVEL (Mobile): Imagem + Detalhes ===== */}
+            <div className="flex md:hidden flex-col w-full overflow-y-auto pb-28">
+              {/* Imagem Mobile (dentro da área scrollável) */}
+              <div className="relative w-full h-[200px] flex items-center justify-center bg-white dark:bg-slate-900 p-4">
+                {getProductImages(modals.product).length > 0 ? (
+                  <>
+                    <img
+                      src={
+                        getProductImages(modals.product as any)[
+                          currentImageIndex
+                        ]
+                      }
+                      className="max-w-full max-h-full object-contain cursor-zoom-in"
+                      alt="Product"
+                      onClick={() => setModal('zoom', true)}
+                    />
+
+                    {/* Setas de navegação (só aparecem se tiver mais de 1 imagem) */}
+                    {getProductImages(modals.product).length > 1 && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentImageIndex((prev) =>
+                              prev === 0
+                                ? getProductImages(modals.product).length - 1
+                                : prev - 1
+                            );
+                          }}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 backdrop-blur-sm transition-all"
+                        >
+                          <ChevronLeft size={20} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentImageIndex((prev) =>
+                              prev ===
+                              getProductImages(modals.product).length - 1
+                                ? 0
+                                : prev + 1
+                            );
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 backdrop-blur-sm transition-all"
+                        >
+                          <ChevronRight size={20} />
+                        </button>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-gray-300 flex flex-col items-center">
+                    <Search size={48} />
+                    <span className="text-sm mt-2">Sem imagem</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Miniaturas Mobile */}
+              {getProductImages(modals.product).length > 1 && (
+                <div className="w-full bg-white dark:bg-slate-900 py-3 px-2 border-b border-gray-100 dark:border-slate-800">
+                  <div
+                    className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide"
+                    style={{
+                      scrollBehavior: 'smooth',
+                      WebkitOverflowScrolling: 'touch',
+                    }}
+                  >
+                    {getProductImages(modals.product as any).map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        className={`min-w-[60px] w-[60px] h-[60px] rounded-lg border-2 overflow-hidden transition-all flex-shrink-0 ${
+                          currentImageIndex === idx
+                            ? 'border-primary ring-2 ring-primary/30 scale-105'
+                            : 'border-gray-200 dark:border-slate-700 hover:border-primary/50'
+                        }`}
+                      >
+                        <img
+                          src={img}
+                          className="w-full h-full object-contain bg-white"
+                          alt={`thumb-${idx}`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  {/* Indicador de scroll */}
+                  {getProductImages(modals.product).length > 4 && (
+                    <p className="text-center text-xs text-gray-400 mt-1">
+                      ← Deslize para ver mais →
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Detalhes do Produto (Mobile - rola junto com a imagem) */}
+              <div className="p-4 bg-white dark:bg-slate-900">
+                <div className="flex items-start gap-2">
+                  <h2 className="text-xl font-bold mb-1 dark:text-slate-50 flex-1">
+                    {modals.product?.name}
+                  </h2>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {modals.product?.is_launch && (
+                      <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center">
+                        NOVO
+                      </span>
+                    )}
+                    {modals.product?.is_best_seller && (
+                      <span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center">
+                        Best Seller
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Marca */}
+                {modals.product?.brand && (
+                  <div className="my-2 flex items-center gap-2">
+                    {(() => {
+                      const found = brandsWithLogos.find(
+                        (b) => b.name === modals.product?.brand
+                      );
+                      if (found && found.logo_url) {
+                        return (
+                          <img
+                            src={found.logo_url}
+                            alt={modals.product?.brand || ''}
+                            className="h-6 object-contain"
+                          />
+                        );
+                      }
+                      return (
+                        <span className="text-sm font-semibold text-primary uppercase">
+                          {modals.product?.brand}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                )}
+                <span className="text-xs text-gray-400 font-mono mb-2 block">
+                  Ref: {modals.product?.reference_code}
+                </span>
+
+                {/* Barcode */}
+                {modals.product?.barcode && (
+                  <div className="mb-4 opacity-90">
+                    <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
+                      Código de Barras (EAN)
+                    </div>
+                    <div className="inline-block bg-white dark:bg-slate-800 p-2 rounded border border-gray-100 dark:border-slate-700">
+                      <Barcode value={modals.product.barcode} height={48} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Preço (versão compacta no mobile - principal está na barra fixa) */}
+                <div className="mb-4 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold">
+                    Valor Unitário
+                  </span>
+                  <PriceDisplay
+                    value={modals.product?.price || 0}
+                    size="normal"
+                    isPricesVisible={isPricesVisible}
+                    className="font-bold"
+                  />
+                </div>
+
+                {/* Descrição e Ficha Técnica */}
+                <div className="space-y-3">
+                  <h4 className="font-bold flex gap-2 items-center text-sm uppercase dark:text-slate-50">
+                    <FileText size={16} /> Descrição
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                    {modals.product?.description}
+                  </p>
+                  {modals.product?.technical_specs && (
+                    <div className="mt-3 pt-3 border-t dark:border-slate-700">
+                      <h4 className="font-bold text-sm uppercase mb-2 dark:text-slate-50">
+                        Ficha Técnica
+                      </h4>
+                      {renderSpecs(modals.product.technical_specs)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ===== COLUNA DIREITA: Detalhes (Desktop) ===== */}
+            <div className="hidden md:flex md:w-1/2 p-6 md:p-8 flex-col overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900">
               <div className="flex items-start gap-3">
-                <h2 className="text-2xl font-bold mb-2">
+                <h2 className="text-2xl font-bold mb-2 dark:text-slate-50">
                   {modals.product?.name}
                 </h2>
                 <div className="mt-1">
-                  {/* Tags: Lançamento e Best Seller */}
                   <div className="flex gap-2">
                     {modals.product?.is_launch && (
                       <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center">
@@ -518,7 +718,7 @@ export function StoreModals() {
                 </div>
               </div>
 
-              {/* Marca: logo ou nome */}
+              {/* Marca */}
               {modals.product?.brand && (
                 <div className="my-2 flex items-center gap-2">
                   {(() => {
@@ -527,7 +727,6 @@ export function StoreModals() {
                     );
                     if (found && found.logo_url) {
                       return (
-                         
                         <img
                           src={found.logo_url}
                           alt={modals.product?.brand || ''}
@@ -550,17 +749,17 @@ export function StoreModals() {
               {/* Barcode */}
               {modals.product?.barcode && (
                 <div className="mb-4 opacity-90">
-                  <div className="text-xs font-semibold text-gray-600 mb-2">
+                  <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
                     Código de Barras (EAN)
                   </div>
-                  <div className="inline-block bg-white p-2 rounded border border-gray-100">
+                  <div className="inline-block bg-white dark:bg-slate-800 p-2 rounded border border-gray-100 dark:border-slate-700">
                     <Barcode value={modals.product.barcode} height={48} />
                   </div>
                 </div>
               )}
 
-              <div className="mb-6 p-5 bg-gray-50 rounded-xl border border-gray-100 text-center">
-                <span className="text-xs text-gray-500 uppercase font-bold block mb-1">
+              <div className="mb-6 p-5 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 text-center">
+                <span className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold block mb-1">
                   Valor Unitário
                 </span>
                 <PriceDisplay
@@ -570,36 +769,57 @@ export function StoreModals() {
                 />
               </div>
 
-              {/* Specs */}
+              {/* Descrição e Ficha Técnica */}
               <div className="space-y-4 mb-8">
-                <h4 className="font-bold flex gap-2 items-center text-sm uppercase">
+                <h4 className="font-bold flex gap-2 items-center text-sm uppercase dark:text-slate-50">
                   <FileText size={16} /> Descrição
                 </h4>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                   {modals.product?.description}
                 </p>
                 {modals.product?.technical_specs && (
                   <div className="mt-4">
-                    <h4 className="font-bold text-sm uppercase border-t pt-4">
+                    <h4 className="font-bold text-sm uppercase border-t dark:border-slate-700 pt-4 dark:text-slate-50">
                       Ficha Técnica
                     </h4>
                     {renderSpecs(modals.product.technical_specs)}
                   </div>
                 )}
               </div>
+            </div>
 
-              {/* Botão no final */}
-              <div className="mt-auto pt-4 border-t border-gray-100">
+            {/* ===== BARRA INFERIOR FIXA (Mobile) - Preço + Botão ===== */}
+            <div
+              className="md:hidden absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] z-[70]"
+              style={{
+                paddingBottom: 'env(safe-area-inset-bottom)',
+              }}
+            >
+              <div className="px-4 py-3 flex items-center justify-between gap-4">
+                {/* Preço */}
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold">
+                    Valor Unitário
+                  </span>
+                  <PriceDisplay
+                    value={modals.product?.price || 0}
+                    size="large"
+                    isPricesVisible={isPricesVisible}
+                    className="font-bold"
+                  />
+                </div>
+
+                {/* Botão Adicionar */}
                 <Button
                   onClick={() => {
                     addToCart(modals.product!);
                     setModal('product', null);
                     toast.success('Adicionado ao carrinho');
                   }}
-                  className="w-full py-6 text-lg shadow-lg"
-                  leftIcon={<ShoppingCart size={22} />}
+                  className="py-4 px-6 text-base shadow-lg flex-shrink-0"
+                  leftIcon={<ShoppingCart size={20} />}
                 >
-                  Adicionar ao Pedido
+                  Adicionar
                 </Button>
               </div>
             </div>
@@ -609,10 +829,10 @@ export function StoreModals() {
 
       {/* --- MODAL ZOOM --- */}
       {modals.zoom && modals.product && (
-        <div className="fixed inset-0 z-[70] bg-white flex items-center justify-center">
+        <div className="fixed inset-0 z-[80] bg-white dark:bg-slate-950 flex items-center justify-center">
           <button
             onClick={() => setModal('zoom', false)}
-            className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full z-20 hover:bg-gray-200"
+            className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-slate-800 rounded-full z-20 hover:bg-gray-200 dark:hover:bg-slate-700"
           >
             <X size={24} />
           </button>
@@ -636,7 +856,7 @@ export function StoreModals() {
 
             {/* Imagem Principal Zoom */}
             <div className="max-w-[90vw] max-h-[90vh]">
-              { }
+              {}
               <img
                 src={getProductImages(modals.product as any)[currentImageIndex]}
                 className="max-w-full max-h-full object-contain select-none"
@@ -721,6 +941,7 @@ export function StoreModals() {
             <form onSubmit={onUnlock}>
               <input
                 type="password"
+                autoComplete="current-password"
                 autoFocus
                 placeholder="Senha"
                 className="w-full p-3 border rounded-lg mb-4 text-center outline-none focus:border-indigo-500"

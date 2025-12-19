@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     }
 
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(async () => nextCookies);
+    const supabase = createRouteSupabase(() => nextCookies);
 
     // Resiliência: usar .maybeSingle() para não quebrar se não houver settings
     const { data: settings, error } = await supabase

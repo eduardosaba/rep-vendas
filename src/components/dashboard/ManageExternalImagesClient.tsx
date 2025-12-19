@@ -219,78 +219,83 @@ export default function ManageExternalImagesClient({
 
       {/* TABELA */}
       <div className="flex-1 overflow-y-auto p-0">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 sticky top-0 shadow-sm z-10">
-            <tr>
-              <th className="px-3 sm:px-6 py-3 font-medium w-24">Status</th>
-              <th className="px-3 sm:px-6 py-3 font-medium">Produto</th>
-              <th className="px-3 sm:px-6 py-3 font-medium w-1/3">
-                Link de Origem
-              </th>
-              <th className="px-3 sm:px-6 py-3 font-medium w-1/3">Log</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-            {items.map((item) => (
-              <tr
-                key={item.id}
-                className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group"
-              >
-                <td className="px-3 sm:px-6 py-3">
-                  {item.status === 'idle' && (
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 ml-2"
-                      title="Aguardando"
-                    ></span>
-                  )}
-                  {item.status === 'processing' && (
-                    <Loader2
-                      size={20}
-                      className="text-[var(--primary)] animate-spin"
-                    />
-                  )}
-                  {item.status === 'success' && (
-                    <CheckCircle size={20} className="text-green-500" />
-                  )}
-                  {item.status === 'error' && (
-                    <XCircle size={20} className="text-red-500" />
-                  )}
-                </td>
-                <td className="px-3 sm:px-6 py-3 font-medium text-gray-900 dark:text-white">
-                  <div className="flex flex-col">
-                    <span className="truncate max-w-[250px]" title={item.name}>
-                      {item.name}
-                    </span>
-                    <span className="text-xs text-gray-400 font-mono">
-                      {item.reference_code || 'S/ Ref'}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-3 sm:px-6 py-3">
-                  <a
-                    href={item.external_image_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-blue-500 hover:underline truncate max-w-[200px]"
-                    title={item.external_image_url}
-                  >
-                    Abrir Link <ExternalLink size={12} />
-                  </a>
-                </td>
-                <td className="px-3 sm:px-6 py-3 text-red-500 text-xs font-mono break-all">
-                  {item.message ||
-                    (item.status === 'success' ? (
-                      <span className="text-green-600 font-medium">
-                        Salvo com sucesso
-                      </span>
-                    ) : (
-                      '-'
-                    ))}
-                </td>
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+          <table className="w-full text-sm text-left min-w-full">
+            <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 sticky top-0 shadow-sm z-10">
+              <tr>
+                <th className="px-3 sm:px-6 py-3 font-medium w-24">Status</th>
+                <th className="px-3 sm:px-6 py-3 font-medium">Produto</th>
+                <th className="px-3 sm:px-6 py-3 font-medium w-1/3">
+                  Link de Origem
+                </th>
+                <th className="px-3 sm:px-6 py-3 font-medium w-1/3">Log</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+              {items.map((item) => (
+                <tr
+                  key={item.id}
+                  className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group"
+                >
+                  <td className="px-3 sm:px-6 py-3">
+                    {item.status === 'idle' && (
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 ml-2"
+                        title="Aguardando"
+                      ></span>
+                    )}
+                    {item.status === 'processing' && (
+                      <Loader2
+                        size={20}
+                        className="text-[var(--primary)] animate-spin"
+                      />
+                    )}
+                    {item.status === 'success' && (
+                      <CheckCircle size={20} className="text-green-500" />
+                    )}
+                    {item.status === 'error' && (
+                      <XCircle size={20} className="text-red-500" />
+                    )}
+                  </td>
+                  <td className="px-3 sm:px-6 py-3 font-medium text-gray-900 dark:text-white">
+                    <div className="flex flex-col">
+                      <span
+                        className="truncate max-w-[250px]"
+                        title={item.name}
+                      >
+                        {item.name}
+                      </span>
+                      <span className="text-xs text-gray-400 font-mono">
+                        {item.reference_code || 'S/ Ref'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-3">
+                    <a
+                      href={item.external_image_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-blue-500 hover:underline truncate max-w-[200px]"
+                      title={item.external_image_url}
+                    >
+                      Abrir Link <ExternalLink size={12} />
+                    </a>
+                  </td>
+                  <td className="px-3 sm:px-6 py-3 text-red-500 text-xs font-mono break-all">
+                    {item.message ||
+                      (item.status === 'success' ? (
+                        <span className="text-green-600 font-medium">
+                          Salvo com sucesso
+                        </span>
+                      ) : (
+                        '-'
+                      ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* FOOTER DE ERRO */}

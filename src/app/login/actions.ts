@@ -8,11 +8,10 @@ import { checkSupabaseEnv } from '@/lib/env';
 
 // --- LOGIN COM EMAIL ---
 export async function login(formData: FormData) {
-  // Checar variáveis de ambiente de forma centralizada e amigável
+  // Checar variáveis de ambiente de forma centralizada
   checkSupabaseEnv();
 
   const supabase = await createClient();
-
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
@@ -22,8 +21,6 @@ export async function login(formData: FormData) {
   });
 
   if (error) {
-    // Log detailed error server-side to help debugging (network, fetch, etc.)
-     
     console.error('signInWithPassword error:', error);
     const text = error.message || 'Email ou senha incorretos.';
     return redirect(
@@ -31,7 +28,10 @@ export async function login(formData: FormData) {
     );
   }
 
-  // Verifica se é Master ou User Comum
+  // Define o destino padrão
+  let redirectTo = '/dashboard';
+
+  // Verifica o perfil para decidir se vai para /admin
   if (data.session && data.user) {
     try {
       const { data: profileData } = await supabase
@@ -42,21 +42,21 @@ export async function login(formData: FormData) {
 
       const role = profileData?.role;
 
-      revalidatePath('/', 'layout');
-
       if (role === 'master') {
-        return redirect('/admin');
-      } else {
-        return redirect('/dashboard');
+        redirectTo = '/admin';
       }
+      // Se não for master, mantém '/dashboard'
     } catch (err) {
-       
-      console.error('profile lookup error:', err);
-      return redirect('/dashboard');
+      // Agora este catch só pega erros reais de banco de dados,
+      // não pega mais o erro de redirecionamento.
+      console.error('Erro ao buscar perfil:', err);
+      // Em caso de erro no perfil, mantemos o destino padrão '/dashboard'
     }
   }
 
-  return redirect('/dashboard');
+  // O redirecionamento acontece FORA do try/catch
+  revalidatePath('/', 'layout');
+  return redirect(redirectTo);
 }
 
 // --- CADASTRO COM EMAIL ---
@@ -66,7 +66,6 @@ export async function signup(formData: FormData) {
       !process.env.NEXT_PUBLIC_SUPABASE_URL ||
       !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     ) {
-       
       console.error(
         'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
       );
@@ -108,14 +107,13 @@ export async function signup(formData: FormData) {
   );
 }
 
-// --- LOGIN COM GOOGLE (A Função que faltava) ---
+// --- LOGIN COM GOOGLE ---
 export async function loginWithGoogle() {
   const ensureSupabaseEnv = () => {
     if (
       !process.env.NEXT_PUBLIC_SUPABASE_URL ||
       !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     ) {
-       
       console.error(
         'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
       );
@@ -151,6 +149,6 @@ export async function loginWithGoogle() {
   }
 
   if (data.url) {
-    redirect(data.url); // Redireciona para a página de consentimento do Google
+    redirect(data.url);
   }
 }

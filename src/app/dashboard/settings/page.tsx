@@ -26,6 +26,7 @@ import {
   CreditCard,
   Layout,
   Settings as SettingsIcon,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -115,12 +116,20 @@ const ToggleSetting = ({
   children,
 }: any) => (
   <div
-    className={`p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all ${checked ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/20 shadow-sm' : 'border-gray-200 dark:border-slate-800'}`}
+    className={`p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all ${
+      checked
+        ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/20 shadow-sm'
+        : 'border-gray-200 dark:border-slate-800'
+    }`}
   >
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-start gap-3">
         <div
-          className={`p-2 rounded-lg ${checked ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-gray-400'}`}
+          className={`p-2 rounded-lg ${
+            checked
+              ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+              : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-gray-400'
+          }`}
         >
           <Icon size={18} />
         </div>
@@ -168,11 +177,11 @@ export default function SettingsPage() {
   // Dados do Formulário
   const [formData, setFormData] = useState({
     name: '',
-    phone: '', // Mapeado para 'phone' ou 'support_phone'
+    phone: '',
     email: '',
     catalog_slug: '',
-    primary_color: '#b9722e', // Cor primária padrão
-    secondary_color: '#0d1b2c', // Cor secundária padrão
+    primary_color: '#b9722e',
+    secondary_color: '#0d1b2c',
     header_background_color: '#ffffff',
     price_password: '',
     footer_message: '',
@@ -194,14 +203,20 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [currentBanners, setCurrentBanners] = useState<string[]>([]);
+  const [currentBannersMobile, setCurrentBannersMobile] = useState<string[]>(
+    []
+  );
   const [newBannerFiles, setNewBannerFiles] = useState<
+    { file: File; preview: string; tooSmall?: boolean }[]
+  >([]);
+  const [newBannerFilesMobile, setNewBannerFilesMobile] = useState<
     { file: File; preview: string; tooSmall?: boolean }[]
   >([]);
   const [logoUploading, setLogoUploading] = useState(false);
   const RECOMMENDED_BANNER = { width: 1400, height: 400 };
+  const RECOMMENDED_BANNER_MOBILE = { width: 768, height: 400 };
 
   // --- LIVE PREVIEW DA COR ---
-  // Atualiza as cores em tempo real quando o usuário altera nos inputs
   useEffect(() => {
     applyThemeColors({
       primary: formData.primary_color,
@@ -267,6 +282,9 @@ export default function SettingsPage() {
           if (Array.isArray(settings.banners)) {
             setCurrentBanners(settings.banners);
           }
+          if (Array.isArray(settings.banners_mobile)) {
+            setCurrentBannersMobile(settings.banners_mobile);
+          }
         }
       } catch (error) {
         console.error('Erro Crítico ao carregar:', error);
@@ -303,6 +321,23 @@ export default function SettingsPage() {
       }));
     } else {
       setCatalogSettings((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  // --- NOVO HANDLER: Tipo de Preço Mutuamente Exclusivo ---
+  const handlePriceTypeChange = (type: 'sale' | 'cost') => {
+    if (type === 'sale') {
+      setCatalogSettings((prev) => ({
+        ...prev,
+        show_sale_price: true,
+        show_cost_price: false,
+      }));
+    } else {
+      setCatalogSettings((prev) => ({
+        ...prev,
+        show_sale_price: false,
+        show_cost_price: true,
+      }));
     }
   };
 
@@ -349,6 +384,43 @@ export default function SettingsPage() {
     setNewBannerFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleBannerMobileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!e.target.files) return;
+    const filesArray = Array.from(e.target.files);
+    const processed = await Promise.all(
+      filesArray.map(
+        (file) =>
+          new Promise<{ file: File; preview: string; tooSmall?: boolean }>(
+            (resolve) => {
+              const preview = URL.createObjectURL(file);
+              const img = new window.Image();
+              img.src = preview;
+              img.onload = () => {
+                const tooSmall =
+                  img.naturalWidth < RECOMMENDED_BANNER_MOBILE.width ||
+                  img.naturalHeight < RECOMMENDED_BANNER_MOBILE.height;
+                resolve({ file, preview, tooSmall });
+              };
+              img.onerror = () => resolve({ file, preview, tooSmall: true });
+            }
+          )
+      )
+    );
+    processed.forEach((p) => {
+      if (p.tooSmall)
+        toast(`Imagem mobile ${p.file.name} menor que o recomendado`, {
+          description: 'Qualidade pode ser afetada.',
+        });
+    });
+    setNewBannerFilesMobile((prev) => [...prev, ...processed]);
+  };
+
+  const removeNewBannerMobile = (index: number) => {
+    setNewBannerFilesMobile((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const applyTheme = (theme: (typeof THEME_PRESETS)[0]) => {
     setFormData((prev) => ({
       ...prev,
@@ -356,7 +428,6 @@ export default function SettingsPage() {
       secondary_color: theme.secondary,
       header_background_color: theme.header,
     }));
-    // Aplica o tema imediatamente via ThemeRegistry
     applyThemeColors({
       primary: theme.primary,
       secondary: theme.secondary,
@@ -418,16 +489,39 @@ export default function SettingsPage() {
         }
       }
 
+      // Upload Banners Mobile
+      const uploadedBannersMobile = [];
+      if (newBannerFilesMobile.length > 0) {
+        for (let i = 0; i < newBannerFilesMobile.length; i++) {
+          const item = newBannerFilesMobile[i];
+          const fileExt = item.file.name.split('.').pop();
+          const fileName = `public/${currentUserId}/banners/mobile-banner-${Date.now()}-${i}.${fileExt}`;
+          const { error } = await supabase.storage
+            .from('product-images')
+            .upload(fileName, item.file, { upsert: true });
+          if (!error) {
+            const { data } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(fileName);
+            uploadedBannersMobile.push(data.publicUrl);
+          }
+        }
+      }
+
       const finalBanners = [...currentBanners, ...uploadedBanners];
+      const finalBannersMobile = [
+        ...currentBannersMobile,
+        ...uploadedBannersMobile,
+      ];
 
       const { error } = await supabase.from('settings').upsert(
         {
           user_id: currentUserId,
           name: formData.name,
           phone: formData.phone,
-          support_phone: formData.phone, // Mantém compatibilidade
+          support_phone: formData.phone,
           email: formData.email,
-          support_email: formData.email, // Mantém compatibilidade
+          support_email: formData.email,
           logo_url: logoUrl,
           catalog_slug: formData.catalog_slug,
           primary_color: formData.primary_color,
@@ -436,6 +530,7 @@ export default function SettingsPage() {
           price_password: formData.price_password,
           footer_message: formData.footer_message,
           banners: finalBanners,
+          banners_mobile: finalBannersMobile,
           updated_at: new Date().toISOString(),
           show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
           top_benefit_text: catalogSettings.top_benefit_text,
@@ -460,9 +555,10 @@ export default function SettingsPage() {
       }
 
       setNewBannerFiles([]);
+      setNewBannerFilesMobile([]);
       setCurrentBanners(finalBanners);
+      setCurrentBannersMobile(finalBannersMobile);
 
-      // Atualiza as cores no sistema após salvar
       updateThemeColors({
         primary: formData.primary_color,
         secondary: formData.secondary_color,
@@ -470,8 +566,6 @@ export default function SettingsPage() {
       });
 
       toast.success('Configurações salvas!', { id: toastId });
-
-      // Delay para garantir que o logo atualize visualmente
       setTimeout(() => window.location.reload(), 1000);
     } catch (error: any) {
       console.error(error);
@@ -498,11 +592,6 @@ export default function SettingsPage() {
     { id: 'display', label: 'Exibição', icon: Layout },
     { id: 'stock', label: 'Estoque', icon: Package },
   ];
-
-  // Se está na subpágina de otimização, não precisa renderizar o conteúdo principal
-  const isImagesSubPage =
-    typeof window !== 'undefined' &&
-    window.location.pathname.includes('/settings/images');
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 p-4 sm:p-6 animate-in fade-in duration-500">
@@ -561,7 +650,7 @@ export default function SettingsPage() {
 
       {/* --- CONTEÚDO DAS ABAS --- */}
 
-      {/* ABA: GERAL */}
+      {/* ABA: GERAL (Código Mantido) */}
       {activeTab === 'general' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm md:col-span-2 space-y-6">
@@ -644,7 +733,8 @@ export default function SettingsPage() {
                 placeholder="Ex: 123456"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Se definido, o cliente precisará da senha para ver os preços.
+                Se definido, o cliente precisará da senha para ver os preços
+                (Modo Custo).
               </p>
             </div>
           </div>
@@ -671,9 +761,10 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ABA: APARÊNCIA */}
+      {/* ABA: APARÊNCIA (Código Mantido) */}
       {activeTab === 'appearance' && (
         <div className="grid gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
+          {/* ... (Conteúdo de Aparência mantido igual ao original) ... */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 mb-4">
               <Brush size={18} className="text-[var(--primary)]" /> Temas
@@ -814,7 +905,6 @@ export default function SettingsPage() {
                   key={`cur-${i}`}
                   className="relative h-32 bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden group shadow-sm border border-gray-200 dark:border-slate-700"
                 >
-                  {}
                   <img
                     src={b}
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
@@ -832,13 +922,11 @@ export default function SettingsPage() {
                   </button>
                 </div>
               ))}
-              {/* Previews das novas imagens selecionadas (antes de salvar) */}
               {newBannerFiles.map((nb, idx) => (
                 <div
                   key={`new-${idx}`}
                   className="relative h-32 bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden group shadow-sm border border-dashed border-gray-300 dark:border-slate-700 flex items-center justify-center"
                 >
-                  {}
                   <img
                     src={nb.preview}
                     className="w-full h-full object-cover"
@@ -881,67 +969,164 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* OTIMIZAÇÃO DE IMAGENS */}
-          <div className="bg-gradient-to-br from-[var(--primary)]/10 to-purple-50 dark:from-[var(--primary)]/20 dark:to-purple-950/30 p-6 rounded-xl border border-[var(--primary)]/30 dark:border-[var(--primary)]/40 shadow-sm">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 rounded-xl">
-                <Zap
-                  size={24}
-                  className="text-[var(--primary)] dark:text-[var(--primary)]"
-                />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                  Otimização de Imagens
-                  <span className="text-xs bg-[var(--primary)] text-white px-2 py-0.5 rounded-full">
-                    Novo
-                  </span>
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Converta automaticamente suas imagens para WebP, gere versões
-                  responsivas e reduza até 80% do tamanho. Melhore a performance
-                  do seu catálogo!
-                </p>
-                <a
-                  href="/dashboard/settings/images"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm font-medium transition-all shadow-sm"
+          {/* BANNERS MOBILE (OPCIONAL) */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
+                <ImageIcon size={18} className="text-[var(--primary)]" />{' '}
+                Banners Mobile (Opcional)
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                Se não adicionar banners mobile, os banners desktop serão
+                exibidos com ajuste responsivo.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {currentBannersMobile.map((b, i) => (
+                <div
+                  key={`cur-mobile-${i}`}
+                  className="relative h-32 bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden group shadow-sm border border-gray-200 dark:border-slate-700"
                 >
-                  <Zap size={16} /> Abrir Painel de Otimização
-                </a>
-              </div>
+                  <img
+                    src={b}
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    alt="Banner Mobile"
+                  />
+                  <button
+                    onClick={() =>
+                      setCurrentBannersMobile((prev) =>
+                        prev.filter((_, idx) => idx !== i)
+                      )
+                    }
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 shadow-md hover:bg-red-600 transition-all scale-90 group-hover:scale-100"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              {newBannerFilesMobile.map((nb, idx) => (
+                <div
+                  key={`new-mobile-${idx}`}
+                  className="relative h-32 bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden group shadow-sm border border-dashed border-gray-300 dark:border-slate-700 flex items-center justify-center"
+                >
+                  <img
+                    src={nb.preview}
+                    className="w-full h-full object-cover"
+                    alt={`Preview mobile ${idx}`}
+                  />
+                  <div className="absolute left-2 top-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    Mobile Novo
+                  </div>
+                  <button
+                    onClick={() => removeNewBannerMobile(idx)}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg shadow-md hover:bg-red-600 transition-all"
+                  >
+                    <X size={14} />
+                  </button>
+                  {nb.tooSmall && (
+                    <div className="absolute bottom-2 left-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5 rounded">
+                      Abaixo do recomendado
+                    </div>
+                  )}
+                </div>
+              ))}
+              <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:border-[var(--primary)]/50 transition-all group">
+                <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-[var(--primary)]/10 group-hover:text-[var(--primary)] transition-colors mb-2">
+                  <Plus
+                    size={24}
+                    className="text-gray-400 group-hover:text-[var(--primary)]"
+                  />
+                </div>
+                <span className="text-xs font-medium text-gray-500 dark:text-slate-400 group-hover:text-[var(--primary)]">
+                  Banner Mobile
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBannerMobileUpload}
+                />
+              </label>
             </div>
           </div>
         </div>
       )}
 
-      {/* ABA: EXIBIÇÃO */}
+      {/* ABA: EXIBIÇÃO (MODIFICADA) */}
       {activeTab === 'display' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="grid gap-4">
-            <ToggleSetting
-              label="Mostrar Parcelamento"
-              name="show_installments"
-              description="Exibe 'ou 12x de R$' nos produtos."
-              checked={catalogSettings.show_installments}
-              onChange={handleCatalogSettingsChange}
-              icon={CreditCard}
-            >
-              <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Máximo de Parcelas
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="24"
-                  name="max_installments"
-                  value={catalogSettings.max_installments}
-                  onChange={handleCatalogSettingsChange}
-                  className="w-24 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                />
-              </div>
-            </ToggleSetting>
+          {/* SELEÇÃO DO TIPO DE PREÇO (MUTUAMENTE EXCLUSIVO) */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <DollarSign size={20} className="text-[var(--primary)]" /> Tipo de
+              Preço
+            </h3>
 
+            <div className="grid md:grid-cols-2 gap-4">
+              <div
+                onClick={() => handlePriceTypeChange('sale')}
+                className={`cursor-pointer p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                  catalogSettings.show_sale_price
+                    ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-slate-700'
+                }`}
+              >
+                <div
+                  className={`mt-1 h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                    catalogSettings.show_sale_price
+                      ? 'border-[var(--primary)]'
+                      : 'border-gray-400'
+                  }`}
+                >
+                  {catalogSettings.show_sale_price && (
+                    <div className="h-2.5 w-2.5 rounded-full bg-[var(--primary)]" />
+                  )}
+                </div>
+                <div>
+                  <span className="block font-bold text-gray-900 dark:text-white">
+                    Preço de Venda (Sugerido)
+                  </span>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Exibe o preço público. Ideal para catálogo aberto ao
+                    consumidor final.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => handlePriceTypeChange('cost')}
+                className={`cursor-pointer p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                  catalogSettings.show_cost_price
+                    ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-slate-700'
+                }`}
+              >
+                <div
+                  className={`mt-1 h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                    catalogSettings.show_cost_price
+                      ? 'border-indigo-600'
+                      : 'border-gray-400'
+                  }`}
+                >
+                  {catalogSettings.show_cost_price && (
+                    <div className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
+                  )}
+                </div>
+                <div>
+                  <span className="block font-bold text-gray-900 dark:text-white">
+                    Preço de Custo
+                  </span>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Exibe o custo. Exige senha para visualizar. Ideal para
+                    representantes.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
             <ToggleSetting
               label="Barra de Benefícios"
               name="show_top_benefit_bar"
@@ -965,58 +1150,82 @@ export default function SettingsPage() {
               </div>
             </ToggleSetting>
 
-            <ToggleSetting
-              label="Tag de Desconto à Vista"
-              name="show_discount_tag"
-              description="Mostra selo de % OFF."
-              checked={catalogSettings.show_discount_tag}
-              onChange={handleCatalogSettingsChange}
-              icon={Tag}
+            {/* OPÇÕES VINCULADAS AO PREÇO DE VENDA */}
+            <div
+              className={`transition-opacity duration-300 ${!catalogSettings.show_sale_price ? 'opacity-50 pointer-events-none grayscale' : ''}`}
             >
-              <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Percentual (%)
-                </label>
-                <div className="relative w-32">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    name="cash_price_discount_percent"
-                    value={catalogSettings.cash_price_discount_percent}
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm mb-4">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <CreditCard size={18} className="text-gray-500" /> Condições
+                  de Pagamento
+                  {!catalogSettings.show_sale_price && (
+                    <span className="text-xs text-red-500 font-normal ml-2">
+                      (Apenas Modo Preço de Venda)
+                    </span>
+                  )}
+                </h3>
+
+                <div className="space-y-4">
+                  <ToggleSetting
+                    label="Mostrar Parcelamento"
+                    name="show_installments"
+                    description="Exibe 'ou 12x de R$' nos produtos."
+                    checked={catalogSettings.show_installments}
                     onChange={handleCatalogSettingsChange}
-                    className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white pr-8 focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                  />
-                  <span className="absolute right-3 top-2.5 text-gray-400 font-bold">
-                    %
-                  </span>
+                    icon={CreditCard}
+                  >
+                    <div>
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                        Máximo de Parcelas
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="24"
+                        name="max_installments"
+                        value={catalogSettings.max_installments}
+                        onChange={handleCatalogSettingsChange}
+                        className="w-24 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                      />
+                    </div>
+                  </ToggleSetting>
+
+                  <ToggleSetting
+                    label="Tag de Desconto à Vista"
+                    name="show_discount_tag"
+                    description="Mostra selo de % OFF."
+                    checked={catalogSettings.show_discount_tag}
+                    onChange={handleCatalogSettingsChange}
+                    icon={Tag}
+                  >
+                    <div>
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                        Percentual (%)
+                      </label>
+                      <div className="relative w-32">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          name="cash_price_discount_percent"
+                          value={catalogSettings.cash_price_discount_percent}
+                          onChange={handleCatalogSettingsChange}
+                          className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white pr-8 focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                        />
+                        <span className="absolute right-3 top-2.5 text-gray-400 font-bold">
+                          %
+                        </span>
+                      </div>
+                    </div>
+                  </ToggleSetting>
                 </div>
               </div>
-            </ToggleSetting>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <ToggleSetting
-                label="Mostrar Preço de Venda"
-                name="show_sale_price"
-                description="Exibe o preço sugerido."
-                checked={catalogSettings.show_sale_price ?? true}
-                onChange={handleCatalogSettingsChange}
-                icon={DollarSign}
-              />
-              <ToggleSetting
-                label="Mostrar Preço de Custo"
-                name="show_cost_price"
-                description="Apenas para uso interno."
-                checked={catalogSettings.show_cost_price ?? false}
-                onChange={handleCatalogSettingsChange}
-                icon={Lock}
-              />
             </div>
           </div>
         </div>
       )}
 
-      {/* ABA: ESTOQUE */}
+      {/* ABA: ESTOQUE (Código Mantido) */}
       {activeTab === 'stock' && (
         <div className="grid grid-cols-1 gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">

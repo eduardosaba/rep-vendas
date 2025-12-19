@@ -145,7 +145,7 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
     }).format(item.sale_price ?? item.price),
     new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      // @ts-expect-error
+      currency: 'BRL',
     }).format((item.sale_price ?? item.price) * item.quantity),
   ]);
 
@@ -178,8 +178,10 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
     },
   });
 
-  // @ts-expect-error
-  currentY = doc.lastAutoTable.finalY + 10;
+  // Access lastAutoTable if present (added by autoTable at runtime)
+  currentY =
+    ((doc as any).lastAutoTable?.finalY ?? doc.internal.pageSize.height - 40) +
+    10;
 
   // --- 5. TOTAIS (Correção de Sobreposição) ---
   const totalText = new Intl.NumberFormat('pt-BR', {

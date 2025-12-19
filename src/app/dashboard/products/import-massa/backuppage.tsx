@@ -484,8 +484,8 @@ export default function ImportMassaPage() {
               </button>
             </div>
 
-            <div className="overflow-x-auto border rounded-lg max-h-96">
-              <table className="w-full text-sm text-left">
+            <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg max-h-96">
+              <table className="w-full text-sm text-left min-w-full">
                 <thead className="bg-gray-50 text-gray-600 font-medium sticky top-0">
                   <tr>
                     <th className="px-4 py-3">Referência</th>

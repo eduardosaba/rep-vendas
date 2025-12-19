@@ -806,8 +806,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   );
 
   const renderCell = (product: Product, key: DataKey) => {
-    // @ts-expect-error
-    const val = product[key];
+    const val = (product as any)[key];
     if (key === 'name')
       return (
         <div className="flex items-center gap-3 min-w-[200px]">
@@ -1206,8 +1205,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
       {/* TABELA RESPONSIVA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto relative">
-          <table className="w-full text-left text-sm border-collapse">
+        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+          <table className="w-full text-left text-sm border-collapse min-w-full">
             <thead className="bg-gray-50 dark:bg-slate-950/50 border-b border-gray-200 dark:border-slate-800">
               <tr>
                 <th className="px-4 py-3 w-10">

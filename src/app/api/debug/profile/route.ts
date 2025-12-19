@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     }
 
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(async () => nextCookies);
+    const supabase = createRouteSupabase(() => nextCookies);
 
     const { data, error } = await supabase
       .from('profiles')

@@ -7,12 +7,15 @@ interface Customer {
   email?: string;
   phone?: string;
   address?: string;
+  cnpj?: string;
 }
 
 interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  reference_code?: string | null;
+  brand?: string | null;
 }
 
 interface OrderData {
@@ -76,8 +79,7 @@ export const generateOrderPDF = (
   });
 
   // --- TOTAIS ---
-  // @ts-expect-error (autoTable adiciona lastAutoTable ao doc)
-  const finalY = doc.lastAutoTable.finalY + 10;
+  const finalY = ((doc as any).lastAutoTable?.finalY ?? 260) + 10;
 
   doc.setFontSize(14);
   doc.text(

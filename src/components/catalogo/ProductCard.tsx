@@ -9,7 +9,6 @@ import {
   Lock,
   Plus,
   Minus,
-  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import React, { useState } from 'react';
@@ -24,7 +23,6 @@ import type {
   Product as LibProduct,
   Settings as StoreSettings,
 } from '@/lib/types';
-import Barcode from '../ui/Barcode'; // Se quiser usar barcode, importe
 
 type Product = LibProduct;
 
@@ -98,7 +96,7 @@ export function ProductCard({
 
   const { cart, updateQuantity } = useStore();
 
-  const primaryColor = storeSettings.primary_color || '#4f46e5'; // Fallback padrão se --primary não estiver definido
+  const primaryColor = storeSettings.primary_color || '#4f46e5'; // Fallback padrão
 
   return (
     <div
@@ -173,8 +171,10 @@ export function ProductCard({
           />
         </button>
 
-        {/* ADD CART HOVER */}
-        <div className="absolute bottom-0 inset-x-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-gradient-to-t from-black/60 to-transparent z-20">
+        {/* ADD CART HOVER (DESKTOP APENAS)
+            Adicionado 'hidden md:block' para manter comportamento original só no desktop
+        */}
+        <div className="hidden md:block absolute bottom-0 inset-x-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-gradient-to-t from-black/60 to-transparent z-20">
           <Button
             data-action="no-open"
             onClick={(e) => {
@@ -214,160 +214,178 @@ export function ProductCard({
           )}
         </div>
 
-        {/* --- PREÇOS --- */}
-        <div className="mt-auto pt-3 border-t border-gray-50 flex flex-col gap-1">
-          {isPricesVisible ? (
-            <>
-              {isCostOnlyMode ? (
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-gray-500 uppercase font-bold mb-0.5">
-                    Preço de Custo
-                  </span>
-                  <span className="font-bold text-gray-900 leading-none text-2xl tracking-tight">
-                    {new Intl.NumberFormat('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL',
-                    }).format(costPrice)}
-                  </span>
-                  {/* Exibir aviso de indisponibilidade apenas se o controle de estoque estiver ATIVO e a quantidade for zero */}
-                  {storeSettings.enable_stock_management &&
-                  (product.stock_quantity ?? 0) <= 0 ? (
-                    <span className="text-[10px] text-gray-400 mt-1">
-                      Venda não disponível
+        {/* --- RODAPÉ / PREÇOS --- */}
+        {/* Alterado para flex row para acomodar botão mobile à direita */}
+        <div className="mt-auto pt-3 border-t border-gray-50 flex items-end justify-between gap-2">
+          {/* Coluna de Preços (Ocupa o espaço restante, com overflow hidden) */}
+          <div className="flex flex-col gap-1 flex-1 min-w-0 overflow-hidden">
+            {isPricesVisible ? (
+              <>
+                {isCostOnlyMode ? (
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-gray-500 uppercase font-bold mb-0.5">
+                      Preço de Custo
                     </span>
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  {/* Mostrar ambos os preços quando as duas opções estão ativas */}
-                  {showCost && showSale && costPrice > 0 && (
-                    <div className="flex justify-between items-center bg-yellow-50 px-2 py-1.5 rounded text-[10px] text-yellow-800 border border-yellow-100 mb-2">
-                      <span className="font-bold uppercase tracking-wide">
-                        Custo
+                    <span className="font-bold text-gray-900 leading-none text-lg sm:text-2xl tracking-tight">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(costPrice)}
+                    </span>
+                    {storeSettings.enable_stock_management &&
+                    (product.stock_quantity ?? 0) <= 0 ? (
+                      <span className="text-[10px] text-gray-400 mt-1">
+                        Venda não disponível
                       </span>
-                      <span className="font-mono font-bold text-xs">
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(costPrice)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Preço principal (venda ou custo se só tiver um) */}
-                  {showSale ? (
-                    <>
-                      {hasValidOriginalPrice && (
-                        <span className="text-xs text-gray-400 line-through">
-                          De:{' '}
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
+                    {/* Mostrar ambos os preços quando as duas opções estão ativas */}
+                    {showCost && showSale && costPrice > 0 && (
+                      <div className="flex justify-between items-center bg-yellow-50 px-2 py-1.5 rounded text-[10px] text-yellow-800 border border-yellow-100 mb-2">
+                        <span className="font-bold uppercase tracking-wide">
+                          Custo
+                        </span>
+                        <span className="font-mono font-bold text-xs">
                           {new Intl.NumberFormat('pt-BR', {
                             style: 'currency',
                             currency: 'BRL',
-                          }).format(product.original_price!)}
+                          }).format(costPrice)}
                         </span>
-                      )}
-
-                      <div className="flex items-end justify-between">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-gray-400 uppercase font-bold">
-                            Por apenas
-                          </span>
-                          <PriceDisplay
-                            value={currentPrice}
-                            isPricesVisible={isPricesVisible}
-                            size="normal"
-                            className="font-bold text-red-600 leading-none text-lg"
-                          />
-                        </div>
                       </div>
-                    </>
-                  ) : showCost && costPrice > 0 ? (
-                    /* Modo apenas custo (destaque) */
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">
-                        Preço de Custo
-                      </span>
-                      <PriceDisplay
-                        value={costPrice}
-                        isPricesVisible={isPricesVisible}
-                        size="normal"
-                        className="font-bold text-primary leading-none text-lg"
-                      />
-                    </div>
-                  ) : null}
+                    )}
 
-                  {/* Parcelamento e Desconto - Define qual preço usar */}
-                  {(() => {
-                    // Se mostrar venda (ou ambos), usa sale_price se existir, senão price
-                    // Se mostrar apenas custo, usa price
-                    const priceForInstallment =
-                      showSale && salePrice > 0 ? salePrice : costPrice;
-
-                    return (
+                    {/* Preço principal (venda ou custo se só tiver um) */}
+                    {showSale ? (
                       <>
-                        {storeSettings.show_installments &&
-                          priceForInstallment > 0 &&
-                          getInstallmentText(
-                            priceForInstallment,
-                            storeSettings.max_installments || 1,
-                            isPricesVisible
-                          )}
-                        {storeSettings.show_cash_discount &&
-                          priceForInstallment > 0 &&
-                          getCashDiscountText(
-                            priceForInstallment,
-                            storeSettings.cash_price_discount_percent || 0,
-                            isPricesVisible
-                          )}
-                      </>
-                    );
-                  })()}
+                        {hasValidOriginalPrice && (
+                          <span className="text-xs text-gray-400 line-through">
+                            De:{' '}
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL',
+                            }).format(product.original_price!)}
+                          </span>
+                        )}
 
-                  {/* QUICK QUANTITY CONTROLS (quando já no carrinho) */}
-                  {(() => {
-                    const inCart = cart.find((it) => it.id === product.id);
-                    const qty = inCart ? inCart.quantity : 0;
-                    return qty > 0 ? (
-                      <div className="mt-2 flex items-center gap-2">
-                        <button
-                          data-action="no-open"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateQuantity(product.id, -1);
-                          }}
-                          className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center border"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <div className="min-w-[36px] text-center font-bold">
-                          {qty}
+                        <div className="flex items-end justify-between">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold">
+                              Por apenas
+                            </span>
+                            <PriceDisplay
+                              value={currentPrice}
+                              isPricesVisible={isPricesVisible}
+                              size="normal"
+                              className="font-bold text-red-600 leading-none text-lg"
+                            />
+                          </div>
                         </div>
-                        <button
-                          data-action="no-open"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddToCart(product, 1);
-                          }}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center"
-                          style={{
-                            backgroundColor: primaryColor,
-                            color: '#fff',
-                          }}
-                        >
-                          <Plus size={16} />
-                        </button>
+                      </>
+                    ) : showCost && costPrice > 0 ? (
+                      /* Modo apenas custo (destaque) */
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">
+                          Preço de Custo
+                        </span>
+                        <PriceDisplay
+                          value={costPrice}
+                          isPricesVisible={isPricesVisible}
+                          size="normal"
+                          className="font-bold text-primary leading-none text-lg"
+                        />
                       </div>
-                    ) : null;
-                  })()}
-                </>
-              )}
-            </>
-          ) : (
-            <div className="flex items-center justify-center gap-1.5 py-3 text-xs text-gray-400 bg-gray-50/50 rounded-lg select-none">
-              <Lock size={12} />
-              <span>Preço restrito (Senha)</span>
-            </div>
-          )}
+                    ) : null}
+
+                    {/* Parcelamento e Desconto */}
+                    {(() => {
+                      const priceForInstallment =
+                        showSale && salePrice > 0 ? salePrice : costPrice;
+
+                      return (
+                        <>
+                          {storeSettings.show_installments &&
+                            priceForInstallment > 0 &&
+                            getInstallmentText(
+                              priceForInstallment,
+                              storeSettings.max_installments || 1,
+                              isPricesVisible
+                            )}
+                          {storeSettings.show_cash_discount &&
+                            priceForInstallment > 0 &&
+                            getCashDiscountText(
+                              priceForInstallment,
+                              storeSettings.cash_price_discount_percent || 0,
+                              isPricesVisible
+                            )}
+                        </>
+                      );
+                    })()}
+
+                    {/* QUICK QUANTITY CONTROLS (quando já no carrinho) */}
+                    {(() => {
+                      const inCart = cart.find((it) => it.id === product.id);
+                      const qty = inCart ? inCart.quantity : 0;
+                      return qty > 0 ? (
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            data-action="no-open"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateQuantity(product.id, -1);
+                            }}
+                            className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center border"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <div className="min-w-[36px] text-center font-bold">
+                            {qty}
+                          </div>
+                          <button
+                            data-action="no-open"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAddToCart(product, 1);
+                            }}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center"
+                            style={{
+                              backgroundColor: primaryColor,
+                              color: '#fff',
+                            }}
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      ) : null;
+                    })()}
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-center gap-1.5 py-3 text-xs text-gray-400 bg-gray-50/50 rounded-lg select-none">
+                <Lock size={12} />
+                <span>Preço restrito (Senha)</span>
+              </div>
+            )}
+          </div>
+
+          {/* BOTÃO MOBILE (CARRINHO) 
+            Visível apenas no mobile (md:hidden). Substitui o hover do desktop.
+            flex-shrink-0 garante que o botão não seja comprimido
+          */}
+          <button
+            data-action="no-open"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToCart(product, 1);
+            }}
+            className="md:hidden flex items-center justify-center h-10 w-10 flex-shrink-0 rounded-xl text-white shadow-md hover:opacity-90 active:scale-95 transition-all"
+            style={{ backgroundColor: primaryColor }}
+            aria-label="Adicionar ao carrinho"
+          >
+            <ShoppingCart size={20} />
+          </button>
         </div>
       </div>
     </div>

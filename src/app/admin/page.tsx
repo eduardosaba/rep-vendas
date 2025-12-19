@@ -138,8 +138,8 @@ export default async function AdminDashboardPage() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+          <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+            <table className="w-full text-sm text-left min-w-full">
               <thead className="bg-gray-50 dark:bg-slate-950/50 text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-800">
                 <tr>
                   <th className="px-6 py-3 font-medium">Usuário</th>

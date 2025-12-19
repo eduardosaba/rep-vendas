@@ -589,6 +589,7 @@ export default function UserProfilePage() {
                     />
                     <input
                       type="password"
+                      autoComplete="new-password"
                       value={passData.newPassword}
                       onChange={(e) =>
                         setPassData({
@@ -610,6 +611,7 @@ export default function UserProfilePage() {
                     />
                     <input
                       type="password"
+                      autoComplete="new-password"
                       value={passData.confirmPassword}
                       onChange={(e) =>
                         setPassData({
@@ -800,6 +802,7 @@ export default function UserProfilePage() {
                     setNewUser((p) => ({ ...p, password: e.target.value }))
                   }
                   type="password"
+                  autoComplete="new-password"
                   className="w-full p-2.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-gray-900 dark:text-white"
                 />
               </div>

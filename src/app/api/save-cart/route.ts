@@ -9,7 +9,7 @@ const nanoid = customAlphabet('23456789ABCDEFGHJKLMNPQRSTUVWXYZ', 6);
 export async function POST(request: Request) {
   try {
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(async () => nextCookies);
+    const supabase = createRouteSupabase(() => nextCookies);
 
     const body = await request.json();
     console.log('API save-cart body:', JSON.stringify(body));

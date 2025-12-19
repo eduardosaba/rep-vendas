@@ -265,6 +265,23 @@ export function Sidebar({
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
+      {/* Header */}
+      <div className="flex h-16 items-center justify-center border-b px-4 border-gray-200 dark:border-slate-800">
+        {isCollapsed ? (
+          <span className="font-bold text-xl text-[var(--primary)] dark:text-[var(--primary)]">
+            RV
+          </span>
+        ) : (
+          <div className="flex flex-col items-center">
+            <span className="font-bold text-lg tracking-wide text-slate-800 dark:text-white">
+              Menu
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500">
+              ...
+            </span>
+          </div>
+        )}
+      </div>
       <div
         className={`flex h-16 md:h-20 items-center border-b border-gray-100 dark:border-slate-800/50 px-4 md:px-6 transition-all ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
       >
@@ -379,6 +396,30 @@ export function Sidebar({
           );
         })}
       </nav>
+      {/* Footer: Toggle Theme & Logout */}
+      <div className="border-t p-4 border-gray-200 dark:border-slate-800">
+        <div
+          className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}
+        >
+          <img
+            src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
+            alt="RepVendas"
+            className="h-8 w-auto object-contain"
+            onError={(e) => {
+              const img = e.currentTarget as HTMLImageElement;
+              img.src = '/images/logo.png';
+            }}
+          />
+          {!isCollapsed && (
+            <div className="flex flex-col text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                RepVendas
+              </span>
+              <span>v{process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </aside>
   );
 }

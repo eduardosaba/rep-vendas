@@ -60,7 +60,7 @@ export interface Product {
   description?: string | null;
 
   // --- PREÇIFICAÇÃO ---
-  price: number;              // PREÇO DE CUSTO (Interno)
+  price: number; // PREÇO DE CUSTO (Interno)
   sale_price?: number | null; // PREÇO DE VENDA (Sugerido ao cliente)
   original_price?: number | null; // PREÇO "DE" (Para promoções/comparação)
 
@@ -81,19 +81,19 @@ export interface Product {
   // --- FLAGS E STATUS ---
   // Mantemos compatibilidade entre convenções diferentes (DB vs UI)
   bestseller?: boolean;
-  is_best_seller?: boolean; 
-  
+  is_best_seller?: boolean;
+
   is_launch?: boolean;
   is_active?: boolean; // Controla visibilidade global do produto
-  
+
   // --- OUTROS ---
   technical_specs?: string | Record<string, string> | null;
   user_id?: string;
   created_at?: string;
   updated_at?: string;
-  
+
   // Campos legado ou redundantes mantidos para evitar quebras
-  cost?: number; 
+  cost?: number;
   stock_quantity?: number;
 }
 
@@ -171,6 +171,7 @@ export interface Settings {
   logo_url?: string;
   banner_url?: string;
   banners?: string[];
+  banners_mobile?: string[];
   header_background_color?: string;
   footer_message?: string;
   show_top_benefit_bar?: boolean;

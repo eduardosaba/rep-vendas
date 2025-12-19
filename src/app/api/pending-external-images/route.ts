@@ -5,7 +5,7 @@ import { createRouteSupabase } from '@/lib/supabaseServer';
 export async function GET() {
   try {
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(async () => nextCookies);
+    const supabase = createRouteSupabase(() => nextCookies);
 
     // Support legacy imports: some older imports stored image URLs in `image_url`.
     // We coalesce so that either `external_image_url` or `image_url` will be

@@ -28,12 +28,11 @@ export function useToast() {
   return {
     addToast: (opts: any) => {
       try {
-        // @ts-expect-error -- runtime hook/bridge
+        // runtime hook bridge (window may expose a helper set at runtime)
         if (
           typeof window !== 'undefined' &&
           (window as any).__repvendas_showToast
         ) {
-          // @ts-expect-error
           (window as any).__repvendas_showToast(opts);
           return;
         }
@@ -41,7 +40,7 @@ export function useToast() {
         // swallow
       }
       // Fallback final para não quebrar a execução
-       
+
       console.log('toast fallback:', opts);
     },
     removeToast: () => undefined,
