@@ -125,7 +125,15 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setError('');
     try {
-      await loginWithGoogle();
+      const result = await loginWithGoogle();
+
+      if (result.error) {
+        toast.error(result.error);
+        setGoogleLoading(false);
+      } else if (result.url) {
+        // Redireciona para a URL do Google OAuth
+        window.location.href = result.url;
+      }
     } catch (e) {
       const message =
         e instanceof Error ? e.message : 'Erro ao autenticar com Google';

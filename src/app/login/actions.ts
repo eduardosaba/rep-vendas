@@ -141,14 +141,15 @@ export async function loginWithGoogle() {
   });
 
   if (error) {
-    return redirect(
-      `/login?message_type=error&message_text=${encodeURIComponent(
-        'Erro ao conectar com Google'
-      )}`
-    );
+    return {
+      error: 'Erro ao conectar com Google',
+      url: null,
+    };
   }
 
-  if (data.url) {
-    redirect(data.url);
-  }
+  // Retorna a URL para o cliente fazer o redirecionamento
+  return {
+    error: null,
+    url: data.url,
+  };
 }
