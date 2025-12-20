@@ -1,3 +1,57 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/**
+ * Variáveis CSS Padrão do Sistema
+ * 
+ * Estas são as cores padrão aplicadas antes do ThemeRegistry carregar.
+ * O ThemeRegistry sobrescreve essas variáveis quando carrega as configurações do usuário.
+ * 
+ * IMPORTANTE: Não altere essas cores aqui. Use o ThemeRegistry ou a página de Settings.
+ */
+:root {
+  --primary: #b9722e;
+  --primary-foreground: #ffffff;
+  --secondary: #0d1b2c;
+  --secondary-foreground: #ffffff;
+  --header-bg: #ffffff;
+}
+
+@layer components {
+  /* Garante que inputs sempre tenham fundo legível */
+  .input-field {
+    @apply bg-white text-gray-900 border-gray-300
+           dark:bg-slate-900 dark:text-white dark:border-slate-700;
+  }
+}
+
+/* Utility: Botões padrão do sistema.
+   - Use sempre `text-primary-foreground` ao compor botões.
+   - Para botões primários use `btn btn-primary`.
+   - No modo escuro aplicamos uma borda sutil para evitar que botões com cor muito escura "sumam".
+*/
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-semibold transition-colors;
+  }
+
+  .btn-primary {
+    /* cor de fundo e texto devem vir das CSS variables configuradas em runtime */
+    @apply bg-primary text-primary-foreground border border-transparent;
+  }
+
+  /* Borda sutil no modo escuro para garantir contraste quando primary for muito escuro */
+  .dark .btn-primary {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.to-purple-600 {
+  --tw-gradient-to: #b9722e var(--tw-gradient-to-position);
+}
+.from-indigo-500 {
+  --tw-gradient-from: #6b3605 var(--tw-gradient-from-position);
+  --tw-gradient-to: #b9722e var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}

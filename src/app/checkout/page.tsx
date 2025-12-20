@@ -1,16 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   CreditCard,
-  Truck,
   ArrowLeft,
   CheckCircle,
   MapPin,
   User,
-  Phone,
   ShoppingCart,
 } from 'lucide-react';
 
@@ -65,6 +66,7 @@ interface Client {
 }
 
 export default function Checkout() {
+  const supabase = createClient();
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -127,9 +129,21 @@ export default function Checkout() {
   };
 
   const loadSettings = async () => {
-    const { data: sets } = await supabase.from('settings').select('*').limit(1);
-    if (sets && sets.length > 0) {
-      setSettings(sets[0]);
+    // CRÍTICO: Buscar settings do usuário autenticado (isolamento multi-tenant)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Resiliência: usar .maybeSingle() para não quebrar se não houver settings
+    const { data: sets } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (sets) {
+      setSettings(sets);
     }
   };
 
@@ -153,7 +167,10 @@ export default function Checkout() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        alert('Usuário não autenticado');
+        toast.error('Autenticação necessária', {
+          description: 'Por favor, faça login para continuar.',
+        });
+        router.push('/login');
         return;
       }
 
@@ -169,7 +186,7 @@ export default function Checkout() {
             phone: formData.client_phone?.trim() || null,
           })
           .select()
-          .single();
+          .maybeSingle();
 
         if (clientError) throw clientError;
         clientId = newClient.id;
@@ -209,14 +226,22 @@ export default function Checkout() {
           notes: orderData.notes,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (orderError) throw orderError;
 
       // Inserir os itens do pedido
-      const orderItemsData = orderData.order_items.map((item) => ({
+      const orderItemsData = orderData.order_items.map((item: any) => ({
         order_id: order.id,
-        ...item,
+        product_id: item.product_id ?? item.productId ?? null,
+        product_name: item.product_name ?? item.productName ?? null,
+        product_reference:
+          item.product_reference ?? item.reference_code ?? null,
+        quantity: item.quantity ?? 1,
+        unit_price: item.unit_price ?? item.unitPrice ?? 0,
+        total_price:
+          item.total_price ??
+          (item.unit_price ?? item.unitPrice ?? 0) * (item.quantity ?? 1),
       }));
 
       const { error: itemsError } = await supabase
@@ -358,12 +383,15 @@ export default function Checkout() {
         }
       }
 
-      // Limpar carrinho
+      // Limpar Pedido
       localStorage.removeItem('cart');
       setCompleted(true);
     } catch (error) {
       console.error('Erro ao finalizar pedido:', error);
-      alert('Erro ao finalizar pedido. Tente novamente.');
+      toast.error('Erro ao finalizar pedido', {
+        description:
+          'Ocorreu um erro ao processar seu pedido. Por favor, tente novamente.',
+      });
     } finally {
       setProcessing(false);
     }
@@ -387,15 +415,15 @@ export default function Checkout() {
           <div className="py-16 text-center">
             <ShoppingCart className="mx-auto mb-4 h-24 w-24 text-gray-300" />
             <h3 className="mb-2 text-xl font-medium text-gray-900">
-              Carrinho vazio
+              Pedido vazio
             </h3>
             <p className="mb-6 text-gray-600">
-              Adicione produtos ao carrinho antes de finalizar o pedido.
+              Adicione produtos ao Pedido antes de finalizar o pedido.
             </p>
             <button
               onClick={() => router.push('/')}
               className="rounded-lg bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700"
-              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
+              style={{ backgroundColor: settings?.primary_color || '#4f46e5' }} // Fallback: Indigo-600
             >
               Voltar ao Catálogo
             </button>
@@ -420,7 +448,7 @@ export default function Checkout() {
             <button
               onClick={() => router.push('/dashboard')}
               className="w-full rounded-lg bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700"
-              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
+              style={{ backgroundColor: settings?.primary_color || '#4f46e5' }} // Fallback: Indigo-600
             >
               Ver Meus Pedidos
             </button>
@@ -454,23 +482,15 @@ export default function Checkout() {
                 <ArrowLeft className="mr-2 h-5 w-5" />
                 Voltar
               </button>
-              {settings?.logo_url ? (
-                <img
-                  src={settings.logo_url}
-                  alt="Logo"
-                  className="h-14 w-auto"
+              <div className="relative h-14 w-32">
+                <Image
+                  src={settings?.logo_url || SYSTEM_LOGO_URL}
+                  alt={settings?.name || 'Rep-Vendas'}
+                  fill
+                  sizes="128px"
+                  className="object-contain"
                 />
-              ) : (
-                <h1
-                  className="text-2xl font-bold text-gray-900"
-                  style={{
-                    color: settings?.title_color || '#111827',
-                    fontFamily: settings?.font_family || 'Inter, sans-serif',
-                  }}
-                >
-                  Rep-Vendas
-                </h1>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -685,12 +705,14 @@ export default function Checkout() {
                     key={item.product.id}
                     className="flex items-center space-x-4"
                   >
-                    <div className="h-16 w-16 flex-shrink-0">
+                    <div className="h-16 w-16 flex-shrink-0 relative">
                       {item.product.image_url ? (
-                        <img
+                        <Image
                           src={item.product.image_url}
                           alt={item.product.name}
-                          className="h-full w-full rounded object-cover"
+                          fill
+                          sizes="64px"
+                          className="rounded object-cover"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center rounded bg-gray-100">
@@ -764,7 +786,7 @@ export default function Checkout() {
                   disabled={processing}
                   className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
-                    backgroundColor: settings?.primary_color || '#3B82F6',
+                    backgroundColor: settings?.primary_color || '#4f46e5', // Fallback: Indigo-600
                   }}
                 >
                   {processing ? (

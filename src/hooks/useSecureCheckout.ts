@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { useToast } from '@/hooks/useToast';
+import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 // Tipos para checkout seguro
 export interface SecureCheckoutState {
@@ -80,7 +80,8 @@ const SECURITY_LOGS_KEY = 'secure_checkout_logs';
 const ENCRYPTION_KEY = 'repvendas_secure_key'; // Em produção, usar chave dinâmica
 
 export const useSecureCheckout = (): UseSecureCheckoutReturn => {
-  const { addToast } = useToast();
+  const supabase = createClient();
+  // usar sonner programático
 
   // Estado inicial
   const [state, setState] = useState<SecureCheckoutState>({
@@ -260,18 +261,14 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       sessionToken: null,
     }));
 
-    addToast({
-      title: 'Sessão expirada',
-      message: 'Sua sessão expirou por inatividade. Faça login novamente.',
-      type: 'warning',
-    });
+    toast('Sua sessão expirou por inatividade. Faça login novamente.');
 
     logSecurityEvent(
       'session_timeout',
       true,
       'Sessão expirada por inatividade'
     );
-  }, [addToast]);
+  }, []);
 
   // Salvamento de rascunho de pedido
   const saveDraftOrder = useCallback(
@@ -468,7 +465,7 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
           phone: orderData.clientData.phone || null,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (clientError) throw clientError;
       clientId = newClient.id;
@@ -488,7 +485,7 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
         notes: orderData.notes,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (orderError) throw orderError;
 

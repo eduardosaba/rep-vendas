@@ -1,57 +1,63 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { Toast } from '@/lib/types';
 
-interface Toast {
-  id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
-  title: string;
-  message?: string;
-  duration?: number;
-}
-
-interface ToastContextType {
-  toasts: Toast[];
+interface ToastContextData {
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
+  toasts: Toast[];
 }
 
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+const ToastContext = createContext<ToastContextData>({} as ToastContextData);
 
-interface ToastProviderProps {
-  children: ReactNode;
-}
-
-export function ToastProvider({ children }: ToastProviderProps) {
+export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = (toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).substr(2, 9);
-    const newToast = { ...toast, id, duration: toast.duration || 5000 };
+  const removeToast = useCallback((id: string) => {
+    setToasts((state) => state.filter((toast) => toast.id !== id));
+  }, []);
 
-    setToasts((prev) => [...prev, newToast]);
+  const addToast = useCallback(
+    ({ title, description, type, duration = 3000 }: Omit<Toast, 'id'>) => {
+      const id = Math.random().toString(36).substring(2);
+      const newToast: Toast = {
+        id,
+        title,
+        description,
+        type,
+        duration,
+      } as Toast;
 
-    // Auto remove after duration
-    setTimeout(() => {
-      removeToast(id);
-    }, newToast.duration);
-  };
+      setToasts((state) => [...state, newToast]);
 
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+      if (duration) {
+        setTimeout(() => removeToast(id), duration);
+      }
+    },
+    [removeToast]
+  );
 
   return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
+    <ToastContext.Provider value={{ addToast, removeToast, toasts }}>
       {children}
     </ToastContext.Provider>
   );
-}
+};
 
-export function useToast() {
+export function useToast(): ToastContextData {
   const context = useContext(ToastContext);
-  if (context === undefined) {
-    throw new Error('useToast must be used within a ToastProvider');
+  if (!context) {
+    // Fallback seguro quando o hook é usado fora do provider.
+    // Retornamos funções no-op para evitar crashes nas páginas de debug/IDE
+    // que podem executar fora do tree do provider.
+    return {
+      addToast: () => undefined,
+      removeToast: () => undefined,
+      toasts: [],
+    } as ToastContextData;
   }
   return context;
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { createClient } from '@/lib/supabase/client';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
 import {
   ShoppingCart,
@@ -45,6 +46,7 @@ interface CartItem {
 }
 
 export default function Cart() {
+  const supabase = createClient();
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -92,9 +94,21 @@ export default function Cart() {
   };
 
   const loadSettings = async () => {
-    const { data: sets } = await supabase.from('settings').select('*').limit(1);
-    if (sets && sets.length > 0) {
-      setSettings(sets[0]);
+    // CRÍTICO: Buscar settings do usuário autenticado (isolamento multi-tenant)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Resiliência: usar .maybeSingle() para não quebrar se não houver settings
+    const { data: sets } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (sets) {
+      setSettings(sets);
     }
   };
 
@@ -150,7 +164,7 @@ export default function Cart() {
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Carregando carrinho...</p>
+          <p className="mt-4 text-gray-600">Carregando Pedido...</p>
         </div>
       </div>
     );
@@ -174,23 +188,11 @@ export default function Cart() {
                 <ArrowLeft className="mr-2 h-5 w-5" />
                 Voltar
               </button>
-              {settings?.logo_url ? (
-                <img
-                  src={settings.logo_url}
-                  alt="Logo"
-                  className="h-14 w-auto"
-                />
-              ) : (
-                <h1
-                  className="text-2xl font-bold text-gray-900"
-                  style={{
-                    color: settings?.title_color || '#111827',
-                    fontFamily: settings?.font_family || 'Inter, sans-serif',
-                  }}
-                >
-                  Rep-Vendas
-                </h1>
-              )}
+              <img
+                src={settings?.logo_url || SYSTEM_LOGO_URL}
+                alt={settings?.name || 'Rep-Vendas'}
+                className="h-14 w-auto"
+              />
             </div>
 
             <div className="flex items-center space-x-6">
@@ -199,7 +201,7 @@ export default function Cart() {
                 className="flex flex-col items-center text-blue-600"
               >
                 <ShoppingCart className="h-6 w-6" />
-                <span className="text-xs">Carrinho ({getTotalItems()})</span>
+                <span className="text-xs">Pedido ({getTotalItems()})</span>
               </button>
             </div>
           </div>
@@ -209,13 +211,11 @@ export default function Cart() {
       {/* Main Content */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">
-            Carrinho de Compras
-          </h1>
+          <h1 className="mb-2 text-3xl font-bold text-gray-900">Pedido</h1>
           <p className="text-gray-600">
             {cartItems.length === 0
-              ? 'Seu carrinho está vazio.'
-              : `${getTotalItems()} produto${getTotalItems() > 1 ? 's' : ''} no carrinho`}
+              ? 'Seu Pedido está vazio.'
+              : `${getTotalItems()} produto${getTotalItems() > 1 ? 's' : ''} no Pedido`}
           </p>
         </div>
 
@@ -223,15 +223,15 @@ export default function Cart() {
           <div className="py-16 text-center">
             <ShoppingCart className="mx-auto mb-4 h-24 w-24 text-gray-300" />
             <h3 className="mb-2 text-xl font-medium text-gray-900">
-              Carrinho vazio
+              Pedido vazio
             </h3>
             <p className="mb-6 text-gray-600">
-              Adicione produtos ao seu carrinho para continuar comprando!
+              Adicione produtos ao seu Pedido para continuar comprando!
             </p>
             <button
               onClick={() => router.push('/')}
               className="rounded-lg bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700"
-              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
+              style={{ backgroundColor: settings?.primary_color || '#4f46e5' }} // Fallback: Indigo-600
             >
               Continuar Comprando
             </button>
@@ -244,13 +244,13 @@ export default function Cart() {
                 <div className="border-b border-gray-200 p-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-lg font-medium text-gray-900">
-                      Itens do Carrinho
+                      Itens do Pedido
                     </h2>
                     <button
                       onClick={clearCart}
                       className="text-sm font-medium text-red-600 hover:text-red-700"
                     >
-                      Limpar Carrinho
+                      Limpar Pedido
                     </button>
                   </div>
                 </div>
@@ -370,7 +370,7 @@ export default function Cart() {
                   onClick={() => router.push('/checkout')}
                   className="mb-3 w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                   style={{
-                    backgroundColor: settings?.primary_color || '#3B82F6',
+                    backgroundColor: settings?.primary_color || '#4f46e5', // Fallback: Indigo-600
                   }}
                 >
                   Finalizar Pedido

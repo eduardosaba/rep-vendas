@@ -1,3 +1,66 @@
 {
-  "extends": ["next/core-web-vitals"]
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    "no-undef": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "react/react-in-jsx-scope": "off",
+    "@next/next/no-img-element": "off"
+  }
 }
+{
+  {
+    "root": true,
+    "extends": [
+      "next/core-web-vitals",
+      "plugin:@typescript-eslint/recommended"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "project": ["./tsconfig.json"],
+      "ecmaFeatures": { "jsx": true }
+    },
+    "plugins": ["@typescript-eslint"],
+    "env": {
+      "browser": true,
+      "node": true,
+      "es2021": true
+    },
+    "rules": {
+      "no-undef": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "react/react-in-jsx-scope": "off",
+      "@next/next/no-img-element": "off",
+      "no-console": ["warn", { "allow": ["warn", "error"] }]
+    },
+    "ignorePatterns": [
+      "node_modules/",
+      ".next/",
+      "out/",
+      "build/",
+      "dist/",
+      "**/*.config.js",
+      "**/*.config.ts",
+      "scripts/**",
+      "__tests__/**",
+      "docs/**",
+      "*.test.ts",
+      "*.test.tsx",
+      "*.test.js",
+      "*.test.jsx"
+    ],
+    "overrides": [
+      {
+        "files": ["**/*.ts", "**/*.tsx"],
+        "env": { "browser": true, "node": true },
+        "rules": { "no-undef": "off" }
+      }
+    ]
+  }
+  "settings": {

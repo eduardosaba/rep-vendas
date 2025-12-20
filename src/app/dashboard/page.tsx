@@ -1,661 +1,320 @@
-'use client';
-
-import { useEffect, useState, FormEvent } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { useRouter } from 'next/navigation';
-import StatCard from '../../components/StatCard';
-import SalesBarChart from '../../components/SalesBarChart';
-import RecentOrdersTable from '../../components/RecentOrdersTable';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { StatCard } from '@/components/StatCard';
+import RecentOrdersTable from '@/components/RecentOrdersTable';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import {
   DollarSign,
-  ShoppingCart,
-  Users,
+  ShoppingBag,
   Package,
-  Plus,
+  Users,
+  ExternalLink,
+  PlusCircle,
+  FileSpreadsheet,
   Settings,
-  Eye,
-  Building2,
+  LayoutDashboard,
 } from 'lucide-react';
+import Link from 'next/link';
 
-interface User {
-  id: string;
-  email?: string;
-}
+export const dynamic = 'force-dynamic';
 
-interface Settings {
-  primary_color?: string;
-}
+export default async function DashboardPage() {
+  const supabase = await createClient();
 
-interface Stats {
-  receitaTotal: number;
-  totalPedidos: number;
-  numClientes: number;
-  numProdutos: number;
-  pedidosPendentes?: number;
-  pedidosCompletos?: number;
-  pedidosCatalogo?: number;
-}
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-interface SalesData {
-  name: string;
-  vendas: number;
-}
-
-interface RecentOrder {
-  id: string;
-  client: string;
-  total: string;
-  status: string;
-  type?: string;
-  date: string;
-  items?: number;
-}
-
-interface BrandItem {
-  brand: string;
-  quantity: string;
-  value?: string;
-}
-
-export default function Dashboard() {
-  const [user, setUser] = useState<User | null>(null);
-  const router = useRouter();
-  const [showModal, setShowModal] = useState<boolean>(false);
-  const [client, setClient] = useState<string>('');
-  const [brandItems, setBrandItems] = useState<BrandItem[]>([
-    { brand: '', quantity: '', value: '' },
-  ]);
-  const [settings, setSettings] = useState<Settings>({});
-  const [stats, setStats] = useState<Stats>({
-    receitaTotal: 0,
-    totalPedidos: 0,
-    numClientes: 0,
-    numProdutos: 0,
-  });
-  const [salesData, setSalesData] = useState<SalesData[]>([]);
-  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-      } else {
-        setUser(user);
-        loadDashboardData(user.id);
-        loadSettings();
-      }
-    };
-    getUser();
-  }, [router]);
-
-  const loadSettings = async () => {
-    const { data: sets } = await supabase
-      .from('settings')
-      .select('primary_color')
-      .limit(1);
-    if (sets && sets.length > 0) {
-      setSettings(sets[0]);
-    }
-  };
-
-  const loadDashboardData = async (userId: string) => {
-    // Buscar stats
-    const { data: clients } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('user_id', userId);
-    const { data: products } = await supabase
-      .from('products')
-      .select('id')
-      .eq('user_id', userId);
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('id, total_value, status, order_type')
-      .eq('user_id', userId);
-
-    const totalOrders = orders?.length || 0;
-    const pendingOrders =
-      orders?.filter((order) => order.status === 'Pendente').length || 0;
-    const completedOrders =
-      orders?.filter((order) => order.status === 'Completo').length || 0;
-    const catalogOrders =
-      orders?.filter((order) => order.order_type === 'catalog').length || 0;
-
-    setStats({
-      receitaTotal:
-        orders?.reduce((sum, order) => sum + (order.total_value || 0), 0) || 0,
-      totalPedidos: totalOrders,
-      numClientes: clients?.length || 0,
-      numProdutos: products?.length || 0,
-      pedidosPendentes: pendingOrders,
-      pedidosCompletos: completedOrders,
-      pedidosCatalogo: catalogOrders,
-    });
-
-    // Buscar vendas por tipo de pedido
-    const { data: salesByType } = await supabase
-      .from('orders')
-      .select('order_type, total_value, status')
-      .eq('user_id', userId)
-      .eq('status', 'Completo');
-
-    const typeMap: { [key: string]: number } = {};
-    salesByType?.forEach((order: any) => {
-      const type =
-        order.order_type === 'quick_brand'
-          ? 'Pedido Rápido'
-          : order.order_type === 'catalog'
-            ? 'Catálogo'
-            : 'Outro';
-      if (type) {
-        typeMap[type] = (typeMap[type] || 0) + (order.total_value || 0);
-      }
-    });
-
-    setSalesData(
-      Object.entries(typeMap).map(([name, vendas]) => ({
-        name,
-        vendas: vendas as number,
-      }))
-    );
-
-    // Buscar pedidos recentes com mais detalhes
-    const { data: recent } = await supabase
-      .from('orders')
-      .select(
-        `
-        id,
-        created_at,
-        total_value,
-        status,
-        order_type,
-        clients (name),
-        order_items (
-          quantity,
-          products (name)
-        )
-      `
-      )
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    setRecentOrders(
-      recent?.map((order) => ({
-        id: order.id,
-        client: (order.clients as any)?.name || 'Cliente não informado',
-        total: `R$ ${order.total_value?.toFixed(2) || '0.00'}`,
-        status: order.status,
-        type:
-          order.order_type === 'catalog'
-            ? 'Catálogo'
-            : order.order_type === 'quick_brand'
-              ? 'Rápido'
-              : order.order_type,
-        date: new Date(order.created_at).toLocaleDateString('pt-BR'),
-        items: (order.order_items as any[])?.length || 0,
-      })) || []
-    );
-  };
-
-  const addBrandItem = () => {
-    setBrandItems([...brandItems, { brand: '', quantity: '', value: '' }]);
-  };
-
-  const removeBrandItem = (index: number) => {
-    if (brandItems.length > 1) {
-      setBrandItems(brandItems.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateBrandItem = (
-    index: number,
-    field: keyof BrandItem,
-    value: string
-  ) => {
-    const updated = [...brandItems];
-    updated[index] = { ...updated[index], [field]: value };
-    setBrandItems(updated);
-  };
-
-  const handleNewOrder = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        alert('Usuário não autenticado');
-        return;
-      }
-
-      // Criar cliente se informado
-      let clientId = null;
-      if (client.trim()) {
-        const { data: newClient, error: clientError } = await supabase
-          .from('clients')
-          .insert({
-            user_id: user.id,
-            name: client.trim(),
-          })
-          .select()
-          .single();
-
-        if (clientError) throw clientError;
-        clientId = newClient.id;
-      }
-
-      // Calcular total
-      const totalValue = brandItems.reduce((total, item) => {
-        const qty = parseInt(item.quantity) || 0;
-        const val = item.value ? parseFloat(item.value.replace(',', '.')) : 100;
-        return total + qty * val;
-      }, 0);
-
-      // Criar pedido
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          client_id: clientId,
-          status: 'Pendente',
-          total_value: totalValue,
-          order_type: 'quick_brand',
-          quick_brand: brandItems
-            .map((item) => `${item.brand} (${item.quantity})`)
-            .join(', '),
-          quick_quantity: brandItems.reduce(
-            (total, item) => total + (parseInt(item.quantity) || 0),
-            0
-          ),
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Criar notificação
-      try {
-        await fetch('/api/notifications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            title: 'Novo Pedido Rápido Criado',
-            message: `Pedido #${order.id.slice(-8).toUpperCase()} foi criado com sucesso. Valor: R$ ${totalValue.toFixed(2)}`,
-            type: 'success',
-            data: {
-              orderId: order.id,
-              orderNumber: order.id.slice(-8).toUpperCase(),
-              totalValue: totalValue,
-              clientName: client || 'Cliente não informado',
-            },
-          }),
-        });
-      } catch (notificationError) {
-        console.error('Erro ao criar notificação:', notificationError);
-      }
-
-      // Fechar modal e resetar form
-      setShowModal(false);
-      setClient('');
-      setBrandItems([{ brand: '', quantity: '', value: '' }]);
-
-      // Recarregar dados do dashboard
-      loadDashboardData(user.id);
-
-      alert('Pedido criado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao criar pedido:', error);
-      alert('Erro ao criar pedido. Tente novamente.');
-    }
-  };
-
-  if (!user) {
-    return <div>Carregando...</div>;
+  if (authError || !user) {
+    redirect('/login');
   }
 
-  const statCards = [
-    {
-      title: 'Receita Total',
-      value: `R$ ${stats.receitaTotal.toFixed(2)}`,
-      icon: <DollarSign className="h-6 w-6 text-gray-400" />,
-    },
-    {
-      title: 'Total de Pedidos',
-      value: stats.totalPedidos.toString(),
-      icon: <ShoppingCart className="h-6 w-6 text-gray-400" />,
-    },
-    {
-      title: 'Pedidos Pendentes',
-      value: (stats.pedidosPendentes || 0).toString(),
-      icon: <Package className="h-6 w-6 text-yellow-400" />,
-    },
-    {
-      title: 'Pedidos do Catálogo',
-      value: (stats.pedidosCatalogo || 0).toString(),
-      icon: <Eye className="h-6 w-6 text-blue-400" />,
-    },
-    {
-      title: 'Nº de Clientes',
-      value: stats.numClientes.toString(),
-      icon: <Users className="h-6 w-6 text-gray-400" />,
-    },
-    {
-      title: 'Nº de Produtos',
-      value: stats.numProdutos.toString(),
-      icon: <Package className="h-6 w-6 text-gray-400" />,
-    },
-  ];
+  // Aceita tanto Promises quanto os Builders do Supabase (PostgrestBuilder),
+  // que são "thenable" em runtime mas nem sempre tipados como Promise.
+  async function safeFetch<T>(maybeBuilder: any, fallbackValue: T): Promise<T> {
+    try {
+      const result = await maybeBuilder;
+      if (!result || (result as any).error) return fallbackValue;
+      return result;
+    } catch {
+      return fallbackValue;
+    }
+  }
+
+  // --- BUSCAS DE DADOS (Mantidas iguais) ---
+  const [
+    rpcResult,
+    productsResult,
+    ordersResult,
+    clientsResult,
+    recentOrdersResult,
+    settingsResult,
+    profileResult,
+    chartOrdersResult,
+  ] = await Promise.all([
+    safeFetch(
+      supabase.rpc('get_dashboard_totals', { owner_id: user.id }).maybeSingle(),
+      { data: { total_revenue: 0, total_items_sold: 0 } }
+    ),
+    safeFetch(
+      supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('active', true),
+      { count: 0 }
+    ),
+    safeFetch(
+      supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      { count: 0 }
+    ),
+    safeFetch(
+      supabase
+        .from('clients')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      { count: 0 }
+    ),
+    safeFetch(
+      supabase
+        .from('orders')
+        .select(
+          'id, display_id, client_name_guest, total_value, status, created_at, item_count'
+        )
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      { data: [] }
+    ),
+    safeFetch(
+      supabase
+        .from('settings')
+        .select('catalog_slug, name')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      { data: { catalog_slug: '', name: '' } }
+    ),
+    safeFetch(
+      supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle(),
+      { data: { full_name: '' } }
+    ),
+    safeFetch(
+      supabase
+        .from('orders')
+        .select('total_value, created_at')
+        .eq('user_id', user.id)
+        .gte(
+          'created_at',
+          new Date(
+            new Date().setFullYear(new Date().getFullYear() - 1)
+          ).toISOString()
+        )
+        .order('created_at', { ascending: true }),
+      { data: [] }
+    ),
+  ]);
+
+  const rawTotals = rpcResult.data as any;
+  const totalRevenue = Number(rawTotals?.total_revenue || 0);
+  const productsCount = productsResult.count || 0;
+  const ordersCount = ordersResult.count || 0;
+  const clientsCount = clientsResult.count || 0;
+  const recentOrders = recentOrdersResult.data || [];
+  const catalogSlug = settingsResult.data?.catalog_slug || '';
+  const storeName = settingsResult.data?.name || 'Sua Loja';
+  const userName =
+    profileResult.data?.full_name?.split(' ')[0] || 'Empreendedor';
+  const chartOrdersRaw = chartOrdersResult.data || [];
+  const storeLink = catalogSlug ? `/catalogo/${catalogSlug}` : '#';
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Dashboard do Representante
-            </h1>
-            <p>Bem-vindo, {user.email}</p>
-          </div>
-          <div className="flex space-x-4">
-            <button
-              onClick={() => router.push(`/catalog/${user.id}`)}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Eye className="mr-2 h-5 w-5" />
-              Ver Meu Catálogo
-            </button>
-            <button
-              onClick={() => router.push('/dashboard/products')}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Package className="mr-2 h-5 w-5" />
-              Gerenciar Produtos
-            </button>
-            <button
-              onClick={() => router.push('/dashboard/brands')}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Building2 className="mr-2 h-5 w-5" />
-              Gerenciar Marcas
-            </button>
-            <button
-              onClick={() => router.push('/dashboard/clients')}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Users className="mr-2 h-5 w-5" />
-              Gerenciar Clientes
-            </button>
-            <button
-              onClick={() => router.push('/dashboard/orders')}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Package className="mr-2 h-5 w-5" />
-              Gerenciar Pedidos
-            </button>
-            <button
-              onClick={() => router.push('/settings')}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <Settings className="mr-2 h-5 w-5" />
-              Configurações
-            </button>
-            <button
-              onClick={() => setShowModal(true)}
-              className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              Novo Pedido Rápido
-            </button>
-          </div>
+    // Padding reduzido no mobile (p-4) vs desktop (md:p-8)
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 animate-in fade-in duration-500">
+      {/* HEADER: Stack vertical no mobile, Horizontal no Desktop */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+            Olá, {userName} 👋
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1.5 text-base sm:text-lg">
+            Visão geral da <strong>{storeName}</strong>.
+          </p>
         </div>
-      </header>
-      <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          {/* Link do Catálogo */}
-          <div className="mb-8 overflow-hidden rounded-lg bg-white shadow">
-            <div className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <Eye className="h-8 w-8 text-blue-500" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="truncate text-sm font-medium text-gray-500">
-                      Link do Seu Catálogo
-                    </dt>
-                    <dd className="flex items-center">
-                      <div className="mr-4 text-lg font-medium text-gray-900">
-                        {typeof window !== 'undefined'
-                          ? `${window.location.origin}/catalog/${user.id}`
-                          : `/catalog/${user.id}`}
-                      </div>
-                      <button
-                        onClick={() => {
-                          const url =
-                            typeof window !== 'undefined'
-                              ? `${window.location.origin}/catalog/${user.id}`
-                              : `/catalog/${user.id}`;
-                          navigator.clipboard.writeText(url);
-                          alert('Link copiado para a área de transferência!');
-                        }}
-                        className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium leading-4 text-gray-700 shadow-sm hover:bg-gray-50"
-                      >
-                        Copiar Link
-                      </button>
-                    </dd>
-                  </dl>
-                  <p className="mt-2 text-sm text-gray-600">
-                    Compartilhe este link com seus clientes para que eles possam
-                    acessar seu catálogo e fazer pedidos.
-                  </p>
-                </div>
-              </div>
+
+        {catalogSlug && (
+          // Link ocupa largura total no mobile para facilitar clique
+          <div className="w-full lg:w-auto flex items-center justify-between lg:justify-start gap-3 bg-white dark:bg-slate-900 p-3 pl-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              Loja Online:
+            </span>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-[var(--primary)] dark:text-[var(--primary)] font-mono truncate max-w-[150px] sm:max-w-none">
+                /{catalogSlug}
+              </code>
+              <a
+                href={storeLink}
+                target="_blank"
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-500 hover:text-[var(--primary)] transition-colors"
+                title="Abrir loja"
+              >
+                <ExternalLink size={18} />
+              </a>
             </div>
           </div>
+        )}
+      </div>
 
-          <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {statCards.map((stat, index) => (
-              <StatCard
-                key={index}
-                title={stat.title}
-                value={stat.value}
-                icon={stat.icon}
-              />
-            ))}
-          </div>
-          <div className="mb-8">
-            <SalesBarChart data={salesData} />
-          </div>
-          <div>
-            <RecentOrdersTable orders={recentOrders} />
-          </div>
+      {/* KPI CARDS: 1 col no mobile, 2 no tablet, 4 no desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard
+          title="Receita Total"
+          value={new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          }).format(totalRevenue)}
+          icon={DollarSign}
+          color="green"
+        />
+        <StatCard
+          title="Pedidos"
+          value={ordersCount}
+          icon={ShoppingBag}
+          color="blue"
+        />
+        <StatCard
+          title="Clientes"
+          value={clientsCount}
+          icon={Users}
+          color="purple"
+        />
+        <StatCard
+          title="Produtos"
+          value={productsCount}
+          icon={Package}
+          color="orange"
+        />
+      </div>
+
+      {/* GRID PRINCIPAL: 1 coluna no mobile/tablet, 3 no desktop large */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+        <div className="xl:col-span-2 h-full min-h-[400px]">
+          <DashboardCharts orders={chartOrdersRaw} />
         </div>
-      </main>
 
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 h-full w-full overflow-y-auto bg-gray-600 bg-opacity-50"
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            className="relative top-10 mx-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border bg-white p-6 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mt-3">
-              <h3 className="mb-6 text-lg font-medium text-gray-900">
-                Novo Pedido Rápido
+        <div className="flex flex-col gap-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden h-full flex flex-col">
+            <div className="p-5 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50">
+              <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <LayoutDashboard size={18} className="text-[var(--primary)]" />
+                Acesso Rápido
               </h3>
+            </div>
 
-              <div className="space-y-6">
-                {/* Cliente */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Cliente (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={client}
-                    onChange={(e) => setClient(e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    placeholder="Nome do cliente"
-                  />
-                </div>
+            <div className="p-5 grid grid-cols-2 gap-3">
+              <QuickActionCard
+                href="/dashboard/products/new"
+                icon={PlusCircle}
+                label="Novo Produto"
+                color="indigo"
+              />
+              <QuickActionCard
+                href="/dashboard/products/import-massa"
+                icon={FileSpreadsheet}
+                label="Importar Excel"
+                color="green"
+              />
+              <QuickActionCard
+                href="/dashboard/clients"
+                icon={Users}
+                label="Clientes"
+                color="blue"
+              />
+              <QuickActionCard
+                href="/dashboard/settings"
+                icon={Settings}
+                label="Configurações"
+                color="slate"
+              />
+            </div>
 
-                {/* Marcas e Quantidades */}
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Marcas e Quantidades
-                    </label>
-                    <button
-                      type="button"
-                      onClick={addBrandItem}
-                      className="inline-flex items-center rounded-md border border-transparent bg-green-600 px-3 py-1 text-sm font-medium leading-4 text-white hover:bg-green-700"
-                    >
-                      <Plus className="mr-1 h-4 w-4" />
-                      Adicionar Marca
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {brandItems.map((item, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center space-x-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
-                      >
-                        <div className="flex-1">
-                          <label className="mb-1 block text-xs font-medium text-gray-600">
-                            Marca
-                          </label>
-                          <input
-                            type="text"
-                            value={item.brand}
-                            onChange={(e) =>
-                              updateBrandItem(index, 'brand', e.target.value)
-                            }
-                            className="block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="Nome da marca"
-                            required
-                          />
-                        </div>
-
-                        <div className="w-24">
-                          <label className="mb-1 block text-xs font-medium text-gray-600">
-                            Qtd
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateBrandItem(index, 'quantity', e.target.value)
-                            }
-                            className="block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="0"
-                            required
-                          />
-                        </div>
-
-                        <div className="w-32">
-                          <label className="mb-1 block text-xs font-medium text-gray-600">
-                            Valor Unit. (Opcional)
-                          </label>
-                          <input
-                            type="text"
-                            value={item.value}
-                            onChange={(e) =>
-                              updateBrandItem(index, 'value', e.target.value)
-                            }
-                            className="block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="R$ 0,00"
-                          />
-                        </div>
-
-                        {brandItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeBrandItem(index)}
-                            className="mt-5 rounded p-1 text-red-600 hover:bg-red-50 hover:text-red-800"
-                            title="Remover marca"
-                          >
-                            <svg
-                              className="h-5 w-5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Resumo do Total */}
-                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-blue-900">
-                        Total Estimado:
-                      </span>
-                      <span className="text-lg font-bold text-blue-900">
-                        R${' '}
-                        {brandItems
-                          .reduce((total, item) => {
-                            const qty = parseInt(item.quantity) || 0;
-                            const val = item.value
-                              ? parseFloat(item.value.replace(',', '.'))
-                              : 100;
-                            return total + qty * val;
-                          }, 0)
-                          .toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-blue-700">
-                      * Valores não informados usam estimativa de R$ 100,00 por
-                      unidade
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setClient('');
-                    setBrandItems([{ brand: '', quantity: '', value: '' }]);
-                  }}
-                  className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleNewOrder}
-                  className="rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                  style={{
-                    backgroundColor: settings?.primary_color || '#3B82F6',
-                  }}
-                >
-                  Criar Pedido
-                </button>
-              </div>
+            <div className="mt-auto p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-slate-900 border-t border-gray-100 dark:border-slate-800">
+              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-1">
+                DICA
+              </p>
+              <p className="text-sm text-gray-600 dark:text-slate-300">
+                Divulgue seu link no Instagram para vender mais.
+              </p>
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* TABELA: Overflow Auto para scroll horizontal no mobile */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-900/50">
+          <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+            <ShoppingBag size={18} className="text-[var(--primary)]" />
+            Pedidos Recentes
+          </h3>
+          <Link
+            href="/dashboard/orders"
+            className="text-xs sm:text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:underline flex items-center gap-1 transition-all"
+          >
+            Ver todos <ExternalLink size={12} />
+          </Link>
+        </div>
+        {/* Container wrapper para scroll horizontal */}
+        <div className="overflow-x-auto">
+          <RecentOrdersTable orders={recentOrders} />
+        </div>
+      </div>
     </div>
+  );
+}
+
+// QuickActionCard igual
+function QuickActionCard({
+  href,
+  icon: Icon,
+  label,
+  color,
+}: {
+  href: string;
+  icon: any;
+  label: string;
+  color: string;
+}) {
+  const colorClasses: Record<string, string> = {
+    indigo:
+      'text-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 dark:text-[var(--primary)] group-hover:bg-[var(--primary)]/20',
+    green:
+      'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 group-hover:bg-emerald-100',
+    blue: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300 group-hover:bg-blue-100',
+    slate:
+      'text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 group-hover:bg-slate-200',
+  };
+
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-[var(--primary)]/50 dark:hover:border-[var(--primary)]/50 hover:shadow-md transition-all bg-white dark:bg-slate-800/50 h-24 sm:h-auto"
+    >
+      <div
+        className={`p-2 sm:p-3 rounded-full transition-colors ${colorClasses[color] || colorClasses.slate}`}
+      >
+        <Icon size={20} className="sm:w-6 sm:h-6" />
+      </div>
+      <span className="text-[10px] sm:text-xs font-semibold text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white text-center leading-tight">
+        {label}
+      </span>
+    </Link>
   );
 }

@@ -1,0 +1,1 @@
+ALTER TABLE settings ADD COLUMN catalog_slug TEXT UNIQUE;

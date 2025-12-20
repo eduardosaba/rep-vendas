@@ -1,0 +1,78 @@
+'use client';
+
+import React from 'react';
+import Image from 'next/image';
+import { Store } from 'lucide-react';
+import type { Settings } from '@/lib/types';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
+
+interface LogoProps {
+  settings?: Settings | null;
+  className?: string;
+  showText?: boolean;
+  variant?: 'dark' | 'light';
+  useSystemLogo?: boolean;
+}
+
+export function Logo({
+  settings,
+  className = 'h-12 w-auto',
+  showText = false,
+  variant = 'dark',
+  useSystemLogo = false,
+}: LogoProps) {
+  const SYSTEM_NAME = 'Rep-Vendas';
+
+  if (useSystemLogo) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className={`${className} relative`}>
+          <Image
+            src={SYSTEM_LOGO_URL}
+            alt={SYSTEM_NAME}
+            fill
+            style={{ objectFit: 'contain' }}
+            sizes="48px"
+          />
+        </div>
+        {showText && (
+          <span
+            className={`font-bold text-xl ${variant === 'light' ? 'text-white' : 'text-[#0d1b2c]'}`}
+          >
+            Rep<span className="text-[#b9722e]">Vendas</span>
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (settings?.logo_url) {
+    return (
+      <div className={`${className} relative`}>
+        <Image
+          src={settings.logo_url}
+          alt={settings.name || 'Logo da Loja'}
+          fill
+          style={{ objectFit: 'contain' }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className={`p-2 rounded-lg ${variant === 'light' ? 'bg-white/10 text-white' : 'bg-primary/5 rv-text-primary'}`}
+      >
+        <Store size={24} />
+      </div>
+      <span
+        className={`font-bold text-lg ${variant === 'light' ? 'text-white' : 'text-gray-900'}`}
+      >
+        {settings?.name || 'Minha Loja'}
+      </span>
+    </div>
+  );
+}
+
+export default Logo;

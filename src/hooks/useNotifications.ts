@@ -1,111 +1,94 @@
-import { useState, useEffect, useCallback } from 'react';
+'use client';
 
-interface Notification {
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
+
+export interface Notification {
   id: string;
-  userId: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  data?: any;
+  type: 'success' | 'warning' | 'error' | 'info';
+  link?: string;
   read: boolean;
-  createdAt: string;
+  created_at: string;
 }
 
-interface UseNotificationsReturn {
-  notifications: Notification[];
-  unreadCount: number;
-  loading: boolean;
-  error: string | null;
-  markAsRead: (notificationId: string) => Promise<void>;
-  refreshNotifications: () => Promise<void>;
-}
-
-export function useNotifications(userId?: string): UseNotificationsReturn {
+export function useNotifications(userId?: string) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  // usar sonner programático
+  const supabase = createClient();
 
-  const fetchNotifications = useCallback(async () => {
+  // 1. Carregar notificações iniciais
+  useEffect(() => {
     if (!userId) return;
 
-    setLoading(true);
-    setError(null);
+    const fetchNotifications = async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    try {
-      const response = await fetch(`/api/notifications?userId=${userId}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao buscar notificações');
-      }
-
-      setNotifications(data.notifications || []);
-      setUnreadCount(data.unreadCount || 0);
-    } catch (err) {
-      setError((err as Error).message);
-      console.error('Erro ao buscar notificações:', err);
-    } finally {
+      if (data) setNotifications(data as Notification[]);
       setLoading(false);
-    }
-  }, [userId]);
+    };
 
-  const markAsRead = useCallback(
-    async (notificationId: string) => {
-      if (!userId) return;
-
-      try {
-        const response = await fetch('/api/notifications', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            notificationId,
-            userId,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Erro ao marcar notificação como lida');
-        }
-
-        // Atualizar estado local
-        setNotifications((prev) =>
-          prev.map((notif) =>
-            notif.id === notificationId ? { ...notif, read: true } : notif
-          )
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      } catch (err) {
-        setError((err as Error).message);
-        console.error('Erro ao marcar notificação como lida:', err);
-      }
-    },
-    [userId]
-  );
-
-  const refreshNotifications = useCallback(async () => {
-    await fetchNotifications();
-  }, [fetchNotifications]);
-
-  useEffect(() => {
     fetchNotifications();
 
-    // Polling para atualizar notificações a cada 30 segundos
-    const interval = setInterval(fetchNotifications, 30000);
+    // 2. LIGAR O REALTIME (O Pulo do Gato 🐱)
+    const channel = supabase
+      .channel('realtime-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const newNotif = payload.new as Notification;
 
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
+          // Atualiza a lista visualmente
+          setNotifications((prev) => [newNotif, ...prev]);
 
-  return {
-    notifications,
-    unreadCount,
-    loading,
-    error,
-    markAsRead,
-    refreshNotifications,
+          // Toca um Toast na tela também
+          toast(newNotif.title, { description: newNotif.message });
+
+          // Opcional: Tocar um som
+          // const audio = new Audio('/notification.mp3');
+          // audio.play().catch(() => {});
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, supabase]);
+
+  // Ações
+  const markAsRead = async (id: string) => {
+    // Otimista (atualiza tela antes do banco)
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    await supabase.from('notifications').update({ read: true }).eq('id', id);
   };
+
+  const markAllAsRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+  };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  return { notifications, unreadCount, loading, markAsRead, markAllAsRead };
 }

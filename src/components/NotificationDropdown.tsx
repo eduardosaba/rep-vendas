@@ -1,25 +1,44 @@
-import { useState } from 'react';
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Bell,
-  X,
-  Check,
-  AlertCircle,
-  Info,
   CheckCircle,
   AlertTriangle,
+  AlertCircle,
+  Info,
+  Check,
 } from 'lucide-react';
-import { useNotifications } from '../hooks/useNotifications';
+import { useNotifications } from '@/hooks/useNotifications'; // Ajuste o caminho se necessário
 
 interface NotificationDropdownProps {
-  userId: string;
+  userId?: string;
 }
 
 export default function NotificationDropdown({
   userId,
 }: NotificationDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { notifications, unreadCount, loading, markAsRead } =
+  const { notifications, unreadCount, loading, markAsRead, markAllAsRead } =
     useNotifications(userId);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const displayUnread = unreadCount > 9 ? '9+' : unreadCount;
+
+  // Fechar ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -30,128 +49,102 @@ export default function NotificationDropdown({
       case 'error':
         return <AlertCircle className="h-5 w-5 text-red-500" />;
       default:
-        return <Info className="h-5 w-5 text-blue-500" />;
+        return <Info className="h-5 w-5 text-primary" />;
     }
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'success':
-        return 'border-green-200 bg-green-50';
-      case 'warning':
-        return 'border-yellow-200 bg-yellow-50';
-      case 'error':
-        return 'border-red-200 bg-red-50';
-      default:
-        return 'border-blue-200 bg-blue-50';
-    }
-  };
-
-  const handleMarkAsRead = async (notificationId: string) => {
-    await markAsRead(notificationId);
-  };
-
-  const handleMarkAllAsRead = async () => {
-    const unreadNotifications = notifications.filter((n) => !n.read);
-    await Promise.all(unreadNotifications.map((n) => markAsRead(n.id)));
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative rounded-full p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="relative rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors focus:outline-none"
       >
         <Bell className="h-6 w-6" />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
+          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
+            {displayUnread}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-80 rounded-lg border border-gray-200 bg-white shadow-lg">
-          <div className="border-b border-gray-200 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">
-                Notificações
-              </h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  Marcar todas como lidas
-                </button>
-              )}
-            </div>
+        <div className="absolute right-0 mt-2 w-80 origin-top-right rounded-xl bg-white shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-100">
+          {/* Cabeçalho */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-bold text-gray-900">Notificações</h3>
+            {unreadCount > 0 && (
+              <button
+                onClick={() => markAllAsRead()}
+                className="text-xs text-primary hover:text-primary/90 font-medium"
+              >
+                Marcar todas como lidas
+              </button>
+            )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          {/* Lista */}
+          <div className="max-h-96 overflow-y-auto custom-scrollbar">
             {loading ? (
-              <div className="p-4 text-center text-gray-500">
-                <div className="mx-auto mb-2 h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+              <div className="p-4 text-center text-xs text-gray-400">
                 Carregando...
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                <Bell className="mx-auto mb-2 h-12 w-12 text-gray-300" />
-                <p>Nenhuma notificação</p>
+                <Bell className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+                <p className="text-sm">Tudo limpo por aqui!</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-200">
-                {notifications.map((notification) => (
+              <div className="divide-y divide-gray-50">
+                {notifications.map((notif) => (
                   <div
-                    key={notification.id}
-                    className={`p-4 hover:bg-gray-50 ${!notification.read ? 'bg-blue-50' : ''}`}
+                    key={notif.id}
+                    className={`flex gap-3 p-4 hover:bg-gray-50 transition-colors relative group ${!notif.read ? 'bg-primary/10' : ''}`}
                   >
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0">
-                        {getIcon(notification.type)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <p
-                            className={`text-sm font-medium ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}
-                          >
-                            {notification.title}
-                          </p>
-                          {!notification.read && (
-                            <button
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              className="ml-2 text-blue-600 hover:text-blue-800"
-                              title="Marcar como lida"
-                            >
-                              <Check className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                        <p
-                          className={`text-sm ${!notification.read ? 'text-gray-800' : 'text-gray-600'}`}
+                    <div className="mt-0.5">{getIcon(notif.type)}</div>
+                    <div className="flex-1 min-w-0">
+                      {notif.link ? (
+                        <Link
+                          href={notif.link}
+                          onClick={() => {
+                            setIsOpen(false);
+                            markAsRead(notif.id);
+                          }}
+                          className="block focus:outline-none"
                         >
-                          {notification.message}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {new Date(notification.createdAt).toLocaleString(
-                            'pt-BR'
-                          )}
-                        </p>
-                      </div>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {notif.title}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                            {notif.message}
+                          </p>
+                        </Link>
+                      ) : (
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {notif.title}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {notif.message}
+                          </p>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-gray-400 mt-2">
+                        {new Date(notif.created_at).toLocaleString('pt-BR')}
+                      </p>
                     </div>
+                    {!notif.read && (
+                      <button
+                        onClick={() => markAsRead(notif.id)}
+                        className="text-primary hover:text-primary/90 p-1 self-start opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Marcar como lida"
+                      >
+                        <Check size={14} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="border-t border-gray-200 p-4">
-            <button
-              onClick={() => setIsOpen(false)}
-              className="w-full text-center text-sm text-gray-600 hover:text-gray-900"
-            >
-              Fechar
-            </button>
           </div>
         </div>
       )}

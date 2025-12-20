@@ -1,28 +1,37 @@
+import type { Metadata } from 'next';
+// import { Inter } from 'next/font/google';
 import './globals.css';
-import { Metadata } from 'next';
-import { ToastProvider } from '../hooks/useToast';
-import { ToastContainer } from '../components/ToastContainer';
+import { Toaster } from '@/components/ui/Toaster'; // Use o nosso Toaster customizado!
+import { ThemeProvider } from '@/providers/theme-provider';
+import ThemeRegistry from '@/components/ThemeRegistry';
+
+// const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Rep-Vendas',
-  description: 'Sistema SaaS para catálogo virtual e dashboard de vendas',
-  icons: {
-    icon: '/favicon.svg',
-  },
+  title: 'RepVendas SaaS',
+  description: 'Sistema de Catálogo e Pedidos',
 };
 
-interface RootLayoutProps {
+export default function RootLayout({
+  children,
+}: Readonly<{
   children: React.ReactNode;
-}
-
-export default function RootLayout({ children }: RootLayoutProps) {
+}>) {
   return (
-    <html lang="pt-br">
-      <body>
-        <ToastProvider>
+    <html lang="pt-br" suppressHydrationWarning>
+      <body className="antialiased bg-gray-50 dark:bg-slate-950 font-sans">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {/* ThemeRegistry carrega e aplica cores do banco de dados */}
+          <ThemeRegistry />
           {children}
-          <ToastContainer />
-        </ToastProvider>
+          {/* Nosso Toaster customizado com branding */}
+          <Toaster position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   );

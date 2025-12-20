@@ -290,11 +290,240 @@ export const generateOrderPDF = async (orderData: OrderData): Promise<void> => {
       { align: 'center' }
     );
 
-    // Salvar o PDF
+    // Salvar o PDF localmente para o usuário
     const fileName = `Pedido_${orderData.orderNumber}_${new Date().toISOString().split('T')[0]}.pdf`;
     pdf.save(fileName);
   } catch (error) {
     console.error('Erro ao gerar PDF:', error);
+    throw new Error('Não foi possível gerar o PDF do pedido');
+  }
+};
+
+// Nova função: gera o PDF e retorna um ArrayBuffer (útil para upload server-side)
+export const generateOrderPDFArrayBuffer = async (
+  orderData: OrderData
+): Promise<ArrayBuffer> => {
+  try {
+    // Reuse a lógica de construção de documento, mas exporta como arraybuffer
+    const pdf = new (await import('jspdf')).jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    let yPosition = 20;
+
+    pdf.setFont('helvetica', 'normal');
+
+    if (orderData.settings?.logo_url) {
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(orderData.settings.name || 'Rep-Vendas', 20, yPosition);
+    } else {
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(orderData.settings?.name || 'Rep-Vendas', 20, yPosition);
+    }
+
+    yPosition += 10;
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    if (orderData.settings?.email) {
+      pdf.text(`Email: ${orderData.settings.email}`, 20, yPosition);
+      yPosition += 5;
+    }
+    if (orderData.settings?.phone) {
+      pdf.text(`Telefone: ${orderData.settings.phone}`, 20, yPosition);
+      yPosition += 10;
+    } else {
+      yPosition += 5;
+    }
+
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('PEDIDO DE COMPRA', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 15;
+
+    pdf.setLineWidth(0.5);
+    pdf.line(20, yPosition, pageWidth - 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('INFORMAÇÕES DO PEDIDO', 20, yPosition);
+    yPosition += 8;
+
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Número do Pedido: ${orderData.orderNumber}`, 20, yPosition);
+    yPosition += 6;
+    pdf.text(`Data: ${orderData.createdAt}`, 20, yPosition);
+    yPosition += 6;
+    pdf.text(
+      `Forma de Pagamento: ${getPaymentMethodLabel(orderData.paymentMethod)}`,
+      20,
+      yPosition
+    );
+    yPosition += 10;
+
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('DADOS DO CLIENTE', 20, yPosition);
+    yPosition += 8;
+
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Nome: ${orderData.clientName}`, 20, yPosition);
+    yPosition += 6;
+    if (orderData.clientEmail) {
+      pdf.text(`Email: ${orderData.clientEmail}`, 20, yPosition);
+      yPosition += 6;
+    }
+    if (orderData.clientPhone) {
+      pdf.text(`Telefone: ${orderData.clientPhone}`, 20, yPosition);
+      yPosition += 6;
+    }
+    yPosition += 10;
+
+    if (orderData.deliveryAddress) {
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('ENDEREÇO DE ENTREGA', 20, yPosition);
+      yPosition += 8;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      const addressLines = pdf.splitTextToSize(
+        orderData.deliveryAddress,
+        pageWidth - 40
+      );
+      addressLines.forEach((line: string) => {
+        pdf.text(line, 20, yPosition);
+        yPosition += 6;
+      });
+      yPosition += 10;
+    }
+
+    if (yPosition > pageHeight - 60) {
+      pdf.addPage();
+      yPosition = 20;
+    }
+
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('ITENS DO PEDIDO', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFillColor(240, 240, 240);
+    pdf.rect(20, yPosition - 5, pageWidth - 40, 8, 'F');
+
+    pdf.text('Produto', 22, yPosition + 1);
+    pdf.text('Qtd', pageWidth - 80, yPosition + 1);
+    pdf.text('Preço Unit.', pageWidth - 60, yPosition + 1);
+    pdf.text('Total', pageWidth - 25, yPosition + 1, { align: 'right' });
+
+    yPosition += 8;
+
+    pdf.setFont('helvetica', 'normal');
+    orderData.items.forEach((item) => {
+      if (yPosition > pageHeight - 30) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+
+      const productName = item.brand
+        ? `${item.name} (${item.brand})`
+        : item.name;
+      const nameLines = pdf.splitTextToSize(productName, 80);
+
+      nameLines.forEach((line: string, index: number) => {
+        if (index === 0) {
+          pdf.text(line, 22, yPosition);
+          pdf.text(item.quantity.toString(), pageWidth - 80, yPosition);
+          pdf.text(
+            `R$ ${item.unitPrice.toFixed(2)}`,
+            pageWidth - 60,
+            yPosition
+          );
+          pdf.text(
+            `R$ ${item.totalPrice.toFixed(2)}`,
+            pageWidth - 25,
+            yPosition,
+            { align: 'right' }
+          );
+        } else {
+          pdf.text(line, 22, yPosition);
+        }
+        yPosition += 5;
+      });
+
+      yPosition += 2;
+    });
+
+    yPosition += 5;
+    pdf.setLineWidth(0.3);
+    pdf.line(20, yPosition, pageWidth - 20, yPosition);
+    yPosition += 8;
+
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Subtotal:', pageWidth - 60, yPosition);
+    pdf.text(`R$ ${orderData.subtotal.toFixed(2)}`, pageWidth - 25, yPosition, {
+      align: 'right',
+    });
+    yPosition += 6;
+    pdf.text('Frete:', pageWidth - 60, yPosition);
+    pdf.text('Grátis', pageWidth - 25, yPosition, { align: 'right' });
+    yPosition += 6;
+    pdf.setLineWidth(0.5);
+    pdf.line(pageWidth - 80, yPosition, pageWidth - 20, yPosition);
+    yPosition += 6;
+    pdf.setFontSize(12);
+    pdf.text('TOTAL:', pageWidth - 60, yPosition);
+    pdf.text(
+      `R$ ${orderData.totalValue.toFixed(2)}`,
+      pageWidth - 25,
+      yPosition,
+      { align: 'right' }
+    );
+
+    if (orderData.notes) {
+      yPosition += 20;
+      if (yPosition > pageHeight - 40) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('OBSERVAÇÕES', 20, yPosition);
+      yPosition += 8;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      const notesLines = pdf.splitTextToSize(orderData.notes, pageWidth - 40);
+      notesLines.forEach((line: string) => {
+        pdf.text(line, 20, yPosition);
+        yPosition += 6;
+      });
+    }
+
+    const footerY = pageHeight - 20;
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'italic');
+    pdf.text(
+      'Este documento foi gerado automaticamente pelo sistema Rep-Vendas',
+      pageWidth / 2,
+      footerY,
+      { align: 'center' }
+    );
+    pdf.text(
+      `Data de geração: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`,
+      pageWidth / 2,
+      footerY + 5,
+      { align: 'center' }
+    );
+
+    const arrayBuffer = pdf.output('arraybuffer');
+    return arrayBuffer as ArrayBuffer;
+  } catch (error) {
+    console.error('Erro ao gerar PDF (arraybuffer):', error);
     throw new Error('Não foi possível gerar o PDF do pedido');
   }
 };

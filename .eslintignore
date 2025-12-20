@@ -1,0 +1,7 @@
+.next/
+dist/
+node_modules/
+docs/
+__tests__/
+public/
+*.d.ts
