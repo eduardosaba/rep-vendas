@@ -10,7 +10,6 @@ import ThemeRegistry from '@/components/ThemeRegistry';
 export const metadata: Metadata = {
   title: 'RepVendas SaaS',
   description: 'Sistema de Catálogo e Pedidos',
-  icons: '/favicon.ico',
 };
 
 export default function RootLayout({
