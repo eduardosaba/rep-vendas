@@ -893,7 +893,8 @@ export function StoreModals() {
               <CheckCircle size={48} className="text-green-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Pedido #{orderSuccessData.display_id || orderSuccessData.id} Confirmado!
+              Pedido #{orderSuccessData.display_id || orderSuccessData.id}{' '}
+              Confirmado!
             </h2>
             <p className="text-gray-500 mb-8">
               Obrigado, {orderSuccessData.customer.name}.

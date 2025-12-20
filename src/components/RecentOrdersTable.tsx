@@ -47,9 +47,12 @@ export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
           {orders.map((order) => {
-            const clientName = order.clients?.name || order.client_name_guest || 'Cliente Visitante';
+            const clientName =
+              order.clients?.name ||
+              order.client_name_guest ||
+              'Cliente Visitante';
             const itemCount = order.order_items?.length || 0;
-            
+
             return (
               <tr
                 key={order.id}

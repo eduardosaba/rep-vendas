@@ -18,10 +18,12 @@ export function MobileCatalogNav() {
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const showViewOrder = store?.show_cost_price && showPrices;
-  
+
   return (
     <div className="fixed bottom-0 left-0 z-40 w-full bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 md:hidden pb-safe">
-      <div className={`grid h-16 mx-auto font-medium ${showViewOrder ? 'grid-cols-5' : 'grid-cols-4'}`}>
+      <div
+        className={`grid h-16 mx-auto font-medium ${showViewOrder ? 'grid-cols-5' : 'grid-cols-4'}`}
+      >
         {/* 1. Início */}
         <Link
           href="/" // Ajuste se a home do catálogo for outra rota

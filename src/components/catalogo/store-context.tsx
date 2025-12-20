@@ -425,12 +425,12 @@ export function StoreProvider({
         if (itemsError) throw itemsError;
       }
 
-      setOrderSuccessData({ 
-        id: orderData.id, 
+      setOrderSuccessData({
+        id: orderData.id,
         display_id: orderData.display_id,
         customer,
         items: cart,
-        total: totalValue
+        total: totalValue,
       });
       setCart([]);
       return true;
