@@ -425,7 +425,13 @@ export function StoreProvider({
         if (itemsError) throw itemsError;
       }
 
-      setOrderSuccessData({ id: orderData.id, customer });
+      setOrderSuccessData({ 
+        id: orderData.id, 
+        display_id: orderData.display_id,
+        customer,
+        items: cart,
+        total: totalValue
+      });
       setCart([]);
       return true;
     } catch (e: unknown) {

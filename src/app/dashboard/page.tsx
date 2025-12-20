@@ -83,7 +83,16 @@ export default async function DashboardPage() {
       supabase
         .from('orders')
         .select(
-          'id, display_id, client_name_guest, total_value, status, created_at, item_count'
+          `
+          id, 
+          display_id, 
+          client_name_guest, 
+          total_value, 
+          status, 
+          created_at,
+          clients(name),
+          order_items(id)
+          `
         )
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })

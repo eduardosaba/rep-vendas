@@ -7,10 +7,11 @@ interface Order {
   id: string;
   display_id: number;
   client_name_guest: string | null;
+  clients?: { name: string } | null;
   total_value: number;
   status: string;
   created_at: string;
-  item_count: number;
+  order_items?: { id: string }[];
 }
 
 export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
@@ -45,49 +46,54 @@ export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-          {orders.map((order) => (
-            <tr
-              key={order.id}
-              className="group hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
-            >
-              <td className="px-6 py-4">
-                <Link
-                  href={`/dashboard/orders/${order.id}`}
-                  className="font-bold text-gray-900 dark:text-white group-hover:text-primary dark:group-hover:text-primary transition-colors flex items-center gap-2"
-                >
-                  #{order.display_id}
-                  <Eye
-                    size={14}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-primary"
-                  />
-                </Link>
-                <div className="text-xs text-gray-400 mt-0.5">
-                  {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                </div>
-              </td>
-              <td className="px-6 py-4 text-gray-600 dark:text-slate-300">
-                {order.client_name_guest || 'Cliente Visitante'}
-                <div className="text-xs text-gray-400">
-                  {order.item_count} {order.item_count === 1 ? 'item' : 'itens'}
-                </div>
-              </td>
-              <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(order.total_value)}
-              </td>
-              <td className="px-6 py-4 text-center">
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    statusColors[order.status] || 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  {order.status || 'Pendente'}
-                </span>
-              </td>
-            </tr>
-          ))}
+          {orders.map((order) => {
+            const clientName = order.clients?.name || order.client_name_guest || 'Cliente Visitante';
+            const itemCount = order.order_items?.length || 0;
+            
+            return (
+              <tr
+                key={order.id}
+                className="group hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <td className="px-6 py-4">
+                  <Link
+                    href={`/dashboard/orders/${order.id}`}
+                    className="font-bold text-gray-900 dark:text-white group-hover:text-primary dark:group-hover:text-primary transition-colors flex items-center gap-2"
+                  >
+                    #{order.display_id}
+                    <Eye
+                      size={14}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-primary"
+                    />
+                  </Link>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-gray-600 dark:text-slate-300">
+                  {clientName}
+                  <div className="text-xs text-gray-400">
+                    {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+                  </div>
+                </td>
+                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                  {new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  }).format(order.total_value)}
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      statusColors[order.status] || 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {order.status || 'Pendente'}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

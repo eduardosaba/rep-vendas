@@ -2,8 +2,10 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  // Garantia extra: permitir acesso público ao catálogo sem alterar/redirecionar
   const path = request.nextUrl.pathname;
+
+  // 🛑 FIX: Libera acesso total ao catálogo sem verificar sessão.
+  // Isso impede que o navegador fique preso em loop de redirecionamento.
   if (path.startsWith('/catalogo')) {
     return NextResponse.next({ request });
   }
@@ -39,16 +41,14 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // 3. Atualiza a sessão (Auth getUser)
-  // IMPORTANTE: Não use getSession() em middleware, use getUser() para segurança.
+  // 3. Atualiza a sessão e verifica o usuário
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 4. Proteção de Rotas
+  // 4. Regras de Redirecionamento
 
-  // A. Rotas Protegidas (Exigem Login)
-  // Se o usuário NÃO estiver logado e tentar acessar dashboard, admin ou onboarding -> Login
+  // A. Rotas Protegidas -> Manda para Login se não tiver usuário
   if (
     !user &&
     (path.startsWith('/dashboard') ||
@@ -60,14 +60,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // B. Rotas de Visitante (Bloqueadas para quem já logou)
-  // Se o usuário JÁ estiver logado e tentar ir para login ou register -> Dashboard
+  // B. Rotas de Auth -> Manda para Dashboard se usuário já estiver logado
   if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
-  // Retorna a resposta com os cookies atualizados
+  // Retorna a resposta final com os cookies atualizados
   return supabaseResponse;
 }

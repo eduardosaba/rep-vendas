@@ -886,14 +886,14 @@ export function StoreModals() {
 
       {/* --- MODAL SUCESSO FINAL --- */}
       {orderSuccessData && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 sm:px-8">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl text-center animate-in zoom-in-95">
+          <div className="relative bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-2xl text-center animate-in zoom-in-95">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle size={48} className="text-green-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Pedido #{orderSuccessData.id} Confirmado!
+              Pedido #{orderSuccessData.display_id || orderSuccessData.id} Confirmado!
             </h2>
             <p className="text-gray-500 mb-8">
               Obrigado, {orderSuccessData.customer.name}.
