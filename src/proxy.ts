@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // 🔓 CATÁLOGO PÚBLICO: Libera totalmente sem verificar sessão
@@ -12,6 +12,9 @@ export async function proxy(request: NextRequest) {
   // Delegar toda a lógica de cookies/sessão para o helper centralizado
   return await updateSession(request);
 }
+
+// Alias para compatibilidade (caso ainda seja importado como proxy)
+export const proxy = middleware;
 
 export const config = {
   matcher: [

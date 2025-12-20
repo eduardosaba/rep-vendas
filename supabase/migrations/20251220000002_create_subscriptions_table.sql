@@ -19,12 +19,12 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 -- 2) Habilitar RLS
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 
--- 3) Políticas de acesso
--- Usuários podem ver apenas sua própria assinatura
+-- 3) Políticas de acesso (DROP antes de criar para evitar conflitos)
+DROP POLICY IF EXISTS "Users can view own subscription" ON subscriptions;
 CREATE POLICY "Users can view own subscription" ON subscriptions
     FOR SELECT USING (auth.uid() = user_id);
 
--- Service role pode gerenciar todas as assinaturas
+DROP POLICY IF EXISTS "Service role can manage subscriptions" ON subscriptions;
 CREATE POLICY "Service role can manage subscriptions" ON subscriptions
     FOR ALL USING (true);
 

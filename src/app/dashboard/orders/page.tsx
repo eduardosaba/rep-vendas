@@ -21,7 +21,9 @@ export default async function OrdersPage() {
   // 2. Busca de Dados Otimizada
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('*')
+    .select(
+      'id, display_id, created_at, status, total_value, item_count, client_name_guest, client_phone_guest'
+    )
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 

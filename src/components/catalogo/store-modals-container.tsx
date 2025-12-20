@@ -949,7 +949,11 @@ export function StoreModals() {
                 Enviar via WhatsApp
               </Button>
               <button
-                onClick={() => setOrderSuccessData(null)}
+                onClick={() => {
+                  setOrderSuccessData(null);
+                  setCustomerInfo({ name: '', phone: '', email: '', cnpj: '' });
+                  setModal('checkout', false);
+                }}
                 className="block w-full mt-4 text-sm text-gray-400 hover:text-gray-600 underline"
               >
                 Fechar
@@ -1067,6 +1071,7 @@ export function StoreModals() {
                   const success = await handleFinalizeOrder(customerInfo);
                   if (success) {
                     setModal('checkout', false);
+                    // Não limpa customerInfo aqui, pois será usado no modal de sucesso
                     toast.success('Pedido finalizado com sucesso!');
                   }
                 }}
