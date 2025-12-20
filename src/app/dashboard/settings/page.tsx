@@ -566,19 +566,31 @@ export default function SettingsPage() {
         headerBg: formData.header_background_color,
       });
 
-      // SINCRONIZAR public_catalogs (tabela segura para catálogo público)
+      // SINCRONIZAR public_catalogs via endpoint server (garante credenciais server-side)
       try {
-        await syncPublicCatalog(currentUserId, {
-          slug: formData.catalog_slug,
-          store_name: formData.name,
-          logo_url: logoUrl,
-          primary_color: formData.primary_color,
-          secondary_color: formData.secondary_color,
-          footer_message: formData.footer_message,
+        const resp = await fetch('/api/public_catalogs/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: currentUserId,
+            slug: formData.catalog_slug,
+            store_name: formData.name,
+            logo_url: logoUrl,
+            primary_color: formData.primary_color,
+            secondary_color: formData.secondary_color,
+            footer_message: formData.footer_message,
+          }),
         });
+
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          console.error('Sync API error', resp.status, body);
+        }
       } catch (syncError) {
-        console.error('Erro ao sincronizar catálogo público:', syncError);
-        // Não falha o save principal, apenas loga
+        console.error(
+          'Erro ao sincronizar catálogo público (fetch):',
+          syncError
+        );
       }
 
       toast.success('Configurações salvas!', { id: toastId });
