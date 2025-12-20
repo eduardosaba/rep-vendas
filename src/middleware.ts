@@ -1,13 +1,14 @@
-import { type NextRequest } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
 // REMOVIDO: export const runtime = 'edge';
 
 export async function middleware(request: NextRequest) {
-  // Garantir acesso público ao catálogo: atualiza sessão, mas NÃO redireciona
   const path = request.nextUrl.pathname;
+  
+  // 🔓 CATÁLOGO PÚBLICO: Libera totalmente sem verificar sessão
   if (path.startsWith('/catalogo')) {
-    return await updateSession(request);
+    return NextResponse.next({ request });
   }
 
   // Delegar toda a lógica de cookies/sessão para o helper centralizado
