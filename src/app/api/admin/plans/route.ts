@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
+  }
+  return createClient(url, key);
+}
 
 export async function GET() {
+  const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('plans')
     .select('*')
@@ -19,6 +24,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('plans')
       .insert(body)
@@ -39,6 +45,7 @@ export async function PUT(req: Request) {
   try {
     const body = await req.json();
     const { id, ...rest } = body;
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('plans')
       .update(rest)
@@ -60,6 +67,7 @@ export async function DELETE(req: Request) {
   try {
     const body = await req.json();
     const { id } = body;
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase.from('plans').delete().eq('id', id);
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
