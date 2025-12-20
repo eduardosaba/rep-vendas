@@ -23,7 +23,7 @@ interface OrderData {
   customer: Customer;
 }
 
-export const generateOrderPDF = (
+export const generateOrderPDF = async (
   orderData: OrderData,
   store: StoreSettings,
   items: OrderItem[],
@@ -31,27 +31,51 @@ export const generateOrderPDF = (
 ) => {
   const doc = new jsPDF();
 
+  // --- LOGO ---
+  const logoUrl =
+    store.logo_url ||
+    'https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg';
+  try {
+    const response = await fetch(logoUrl);
+    const blob = await response.blob();
+    const reader = new FileReader();
+    await new Promise((resolve) => {
+      reader.onloadend = () => {
+        try {
+          const base64 = reader.result as string;
+          doc.addImage(base64, 'PNG', 14, 10, 30, 30);
+        } catch (e) {
+          console.warn('Erro ao adicionar logo:', e);
+        }
+        resolve(null);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn('Erro ao carregar logo:', e);
+  }
+
   // --- CABEÇALHO ---
   doc.setFontSize(22);
-  doc.text(store.name || '', 14, 20);
+  doc.text(store.name || '', 50, 20);
 
   doc.setFontSize(10);
-  doc.text(`Pedido #${orderData.id}`, 14, 28);
-  doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 33);
+  doc.text(`Pedido #${orderData.id}`, 50, 28);
+  doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 50, 33);
 
   // --- DADOS DO CLIENTE ---
   doc.setDrawColor(200);
-  doc.line(14, 38, 196, 38);
+  doc.line(14, 45, 196, 45);
 
   doc.setFontSize(12);
-  doc.text('Dados do Cliente', 14, 45);
+  doc.text('Dados do Cliente', 14, 52);
   doc.setFontSize(10);
-  doc.text(`Nome: ${orderData.customer.name}`, 14, 52);
-  doc.text(`Telefone: ${orderData.customer.phone}`, 14, 57);
+  doc.text(`Nome: ${orderData.customer.name}`, 14, 59);
+  doc.text(`Telefone: ${orderData.customer.phone}`, 14, 64);
   if (orderData.customer.email)
-    doc.text(`Email: ${orderData.customer.email}`, 14, 62);
+    doc.text(`Email: ${orderData.customer.email}`, 14, 69);
   if (orderData.customer.cnpj)
-    doc.text(`CPF/CNPJ: ${orderData.customer.cnpj}`, 14, 67);
+    doc.text(`CPF/CNPJ: ${orderData.customer.cnpj}`, 14, 74);
 
   // --- TABELA DE PRODUTOS ---
   const tableBody = items.map((item) => [
@@ -70,7 +94,7 @@ export const generateOrderPDF = (
   ]);
 
   autoTable(doc, {
-    startY: 75,
+    startY: 82,
     head: [['Ref', 'Produto', 'Marca', 'Qtd', 'Unit.', 'Total']],
     body: tableBody,
     theme: 'grid',

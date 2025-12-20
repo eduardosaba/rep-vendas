@@ -120,16 +120,26 @@ export function ProductCard({
             />
           </div>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 bg-gray-50">
-            <ImageIcon size={32} strokeWidth={1.5} />
-            <span className="text-xs mt-2 font-medium">Sem foto</span>
+          <div className="w-full h-full flex items-center justify-center bg-gray-50">
+            <Image
+              src="/placeholder-no-image.svg"
+              alt="Sem imagem"
+              fill
+              style={{ objectFit: 'contain' }}
+              className="p-6 opacity-60"
+            />
           </div>
         )}
 
         {imageFailed && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 bg-gray-50 z-20">
-            <ImageIcon size={32} strokeWidth={1.5} />
-            <span className="text-xs mt-2 font-medium">Foto indisponível</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-20">
+            <Image
+              src="/placeholder-no-image.svg"
+              alt="Imagem não disponível"
+              fill
+              style={{ objectFit: 'contain' }}
+              className="p-6 opacity-60"
+            />
           </div>
         )}
 

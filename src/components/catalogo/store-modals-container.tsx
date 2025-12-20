@@ -141,16 +141,20 @@ export function StoreModals() {
       // Preparar dados do pedido no formato esperado pela função
       const orderData = {
         id: orderSuccessData.display_id || orderSuccessData.id,
-        customerName: orderSuccessData.customer?.name || '',
-        customerPhone: orderSuccessData.customer?.phone || '',
-        customerEmail: orderSuccessData.customer?.email || '',
-        customerDocument: orderSuccessData.customer?.document || '',
-        items: orderSuccessData.items || [],
-        total: orderSuccessData.total || 0,
-        date: new Date().toLocaleDateString('pt-BR'),
+        customer: {
+          name: orderSuccessData.customer?.name || '',
+          phone: orderSuccessData.customer?.phone || '',
+          email: orderSuccessData.customer?.email || '',
+          cnpj: orderSuccessData.customer?.cnpj || '',
+        },
       };
 
-      await generateOrderPDF(orderData, store);
+      await generateOrderPDF(
+        orderData,
+        store,
+        orderSuccessData.items || [],
+        orderSuccessData.total || 0
+      );
 
       toast.dismiss(toastId);
       toast.success('PDF baixado com sucesso!');
@@ -300,14 +304,16 @@ export function StoreModals() {
                       className="flex gap-3 bg-white p-3 rounded border shadow-sm relative"
                     >
                       <div className="h-16 w-16 bg-gray-50 relative">
-                        {item.image_url && (
-                          <Image
-                            src={item.image_url}
-                            alt={item.name}
-                            fill
-                            style={{ objectFit: 'contain' }}
-                          />
-                        )}
+                        <Image
+                          src={item.image_url || '/placeholder-no-image.svg'}
+                          alt={item.name}
+                          fill
+                          style={{ objectFit: 'contain' }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/placeholder-no-image.svg';
+                          }}
+                        />
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-bold line-clamp-1">
@@ -492,9 +498,13 @@ export function StoreModals() {
                       }`}
                     >
                       <img
-                        src={img}
+                        src={img || '/placeholder-no-image.svg'}
                         className="w-full h-full object-contain"
                         alt={`thumb-${idx}`}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = '/placeholder-no-image.svg';
+                        }}
                       />
                     </button>
                   ))}
@@ -527,11 +537,15 @@ export function StoreModals() {
                       src={
                         getProductImages(modals.product as any)[
                           currentImageIndex
-                        ]
+                        ] || '/placeholder-no-image.svg'
                       }
                       className="max-w-full max-h-full object-contain cursor-zoom-in"
                       alt="Product"
                       onClick={() => setModal('zoom', true)}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/placeholder-no-image.svg';
+                      }}
                     />
 
                     {/* Setas de navegação (só aparecem se tiver mais de 1 imagem) */}
@@ -596,9 +610,13 @@ export function StoreModals() {
                         }`}
                       >
                         <img
-                          src={img}
+                          src={img || '/placeholder-no-image.svg'}
                           className="w-full h-full object-contain bg-white"
                           alt={`thumb-${idx}`}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/placeholder-no-image.svg';
+                          }}
                         />
                       </button>
                     ))}
@@ -865,11 +883,17 @@ export function StoreModals() {
 
             {/* Imagem Principal Zoom */}
             <div className="max-w-[90vw] max-h-[90vh]">
-              {}
               <img
-                src={getProductImages(modals.product as any)[currentImageIndex]}
+                src={
+                  getProductImages(modals.product as any)[currentImageIndex] ||
+                  '/placeholder-no-image.svg'
+                }
                 className="max-w-full max-h-full object-contain select-none"
                 alt="Zoom"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/placeholder-no-image.svg';
+                }}
               />
             </div>
 
@@ -1039,7 +1063,13 @@ export function StoreModals() {
                 }
               />
               <Button
-                onClick={() => handleFinalizeOrder(customerInfo)}
+                onClick={async () => {
+                  const success = await handleFinalizeOrder(customerInfo);
+                  if (success) {
+                    setModal('checkout', false);
+                    toast.success('Pedido finalizado com sucesso!');
+                  }
+                }}
                 isLoading={loadingStates.submitting}
                 className="w-full bg-green-600 hover:bg-green-700 border-none"
               >
