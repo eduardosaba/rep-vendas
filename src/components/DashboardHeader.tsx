@@ -296,7 +296,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right z-50">
+            <div className="absolute right-0 md:right-0 left-0 md:left-auto top-full mt-3 w-full md:w-80 max-w-sm mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">
                   Pedidos Pendentes
@@ -305,7 +305,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                   <button
                     onClick={() => {
                       setIsNotifOpen(false);
-                      router.push('/dashboard/orders');
+                      router.push('dashboard/notifications/');
                     }}
                     className="text-xs text-primary hover:underline"
                   >

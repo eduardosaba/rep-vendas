@@ -481,7 +481,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           <span className="hidden sm:inline">Colunas</span>
         </button>
         {isColumnDropdownOpen && (
-          <div className="absolute right-0 mt-2 w-72 rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-slate-800 z-50 max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-800">
+          <div className="absolute right-0 sm:right-0 left-0 sm:left-auto mt-2 w-full sm:w-72 mx-auto sm:mx-0 max-w-xs sm:max-w-none rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-slate-800 z-50 max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-800">
             <div className="p-2">
               <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold mb-2 px-2">
                 Mostrar/Ocultar
