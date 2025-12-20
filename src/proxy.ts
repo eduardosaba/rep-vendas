@@ -4,27 +4,22 @@ import { updateSession } from '@/lib/supabase/middleware';
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // 🔓 CATÁLOGO PÚBLICO: Libera totalmente sem verificar sessão
+  // 🚨 REGRA DE LIBERAÇÃO:
+  // Se o link for do catálogo, deixa passar direto!
+  // Retorna next() imediatamente e nem roda a verificação de sessão.
   if (path.startsWith('/catalogo')) {
-    return NextResponse.next({ request });
+    return NextResponse.next();
   }
 
-  // Delegar toda a lógica de cookies/sessão para o helper centralizado
+  // Para todo o resto (Admin, Dashboard, etc), roda a verificação de login
   return await updateSession(request);
 }
-
-// Alias para compatibilidade (caso ainda seja importado como proxy)
-export const proxy = middleware;
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files
+     * Aplica essa regra em tudo, EXCETO arquivos estáticos e imagens
      */
-    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

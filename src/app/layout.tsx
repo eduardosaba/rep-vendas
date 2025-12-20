@@ -11,7 +11,10 @@ export const metadata: Metadata = {
   title: 'RepVendas SaaS',
   description: 'Sistema de Catálogo e Pedidos',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.ico' },
+    ],
     shortcut: '/favicon.ico',
     apple: '/favicon.ico',
   },

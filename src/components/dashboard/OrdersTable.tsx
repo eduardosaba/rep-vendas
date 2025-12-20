@@ -320,13 +320,13 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                 <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
                   Pedido
                 </th>
-                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap hidden sm:table-cell">
                   Cliente
                 </th>
                 <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
                   Status
                 </th>
-                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">
+                <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap hidden md:table-cell">
                   Data
                 </th>
                 <th className="px-3 sm:px-6 py-4 font-medium text-right whitespace-nowrap">
@@ -367,7 +367,7 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                         {order.item_count} itens
                       </span>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-gray-700 dark:text-slate-300 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-4 text-gray-700 dark:text-slate-300 whitespace-nowrap hidden sm:table-cell">
                       <span className="block font-medium truncate max-w-[150px]">
                         {order.client_name_guest || 'Visitante'}
                       </span>
@@ -378,7 +378,7 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(order.status)}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap hidden md:table-cell">
                       {new Date(order.created_at).toLocaleDateString('pt-BR')}
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">

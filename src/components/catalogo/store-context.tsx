@@ -124,8 +124,10 @@ export function StoreProvider({
   const ITEMS_PER_PAGE = 24;
   const supabase = createClient();
 
-  // ESTADO CORRIGIDO: Declarando showPrices diretamente aqui no topo
-  const [showPrices, setShowPrices] = useState(false);
+  // --- ESTADO CORRIGIDO: showPrices inicia TRUE se NÃO for preço de custo ---
+  // Preço sugerido (sale_price) deve ser sempre visível
+  // Preço de custo (cost_price) precisa de senha
+  const [showPrices, setShowPrices] = useState(!store.show_cost_price);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -245,9 +247,16 @@ export function StoreProvider({
           setFavorites(JSON.parse(savedFavs));
         } catch {}
       }
-      if (priceUnlocked === 'true') setShowPrices(true);
+      // Só aplica o desbloqueio se for modo de custo
+      if (store.show_cost_price && priceUnlocked === 'true') {
+        setShowPrices(true);
+      }
+      // Se for preço sugerido, sempre visível
+      if (!store.show_cost_price) {
+        setShowPrices(true);
+      }
     }
-  }, [store.name]);
+  }, [store.name, store.show_cost_price]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
