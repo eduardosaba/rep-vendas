@@ -4,6 +4,12 @@ import { updateSession } from '@/lib/supabase/middleware';
 // REMOVIDO: export const runtime = 'edge';
 
 export async function middleware(request: NextRequest) {
+  // Garantir acesso público ao catálogo: atualiza sessão, mas NÃO redireciona
+  const path = request.nextUrl.pathname;
+  if (path.startsWith('/catalogo')) {
+    return await updateSession(request);
+  }
+
   // Delegar toda a lógica de cookies/sessão para o helper centralizado
   return await updateSession(request);
 }

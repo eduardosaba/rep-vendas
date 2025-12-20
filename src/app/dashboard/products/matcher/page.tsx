@@ -532,7 +532,7 @@ export default function MatcherPage() {
                       }
                     `}
                   >
-                    { }
+                    {}
                     <img
                       src={img.publicUrl}
                       alt="Staging"

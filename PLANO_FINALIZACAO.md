@@ -366,28 +366,33 @@ pnpm run eduardosaba
 ---
 
 ## �
+
 � Problemas Comuns e Soluções
 
 ### Build falha
+
 - Verificar err
-os de TypeScript
+  os de TypeScript
 - Verificar imports incorretos
 - Verificar uso de APIs do browser em Server Components
 
 ### Erro de variáveis de ambiente
+
 - Verificar se todas as variáveis
- estão configuradas na Vercel
+  estão configuradas na Vercel
 - Verificar se variáveis públicas têm prefixo `NEXT_PUBLIC_`
 
 ### Erro de autenticação
+
 - Verificar configurações do Supabase
 
 - Verificar middleware de autenticação
 - Verificar cookies e sessões
 
 ### Performance ruim
+
 - Verificar otimizaç
-ão de imagens
+  ão de imagens
 - Verificar code splitting
 - Verificar queries do Supabase
 
@@ -396,6 +401,7 @@ os de TypeScript
 ## ✅ Status Final
 
 Após completar todas as verificações acima, o sistema estará pronto para:
+
 - ✅ Build de produção
 
 - ✅ Deploy na Vercel

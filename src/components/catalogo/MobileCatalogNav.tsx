@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@/components/catalogo/store-context';
-import { Home, Eye, EyeOff, Heart, ShoppingCart } from 'lucide-react';
+import { Home, Eye, EyeOff, Heart, ShoppingCart, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 export function MobileCatalogNav() {
@@ -9,6 +9,8 @@ export function MobileCatalogNav() {
     cart,
     showPrices,
     toggleShowPrices,
+    setModal,
+    store,
     // Assumindo que existe setIsFavoritesOpen ou navegação para favoritos
     // Se não tiver, ajuste o link/ação conforme sua lógica
   } = useStore();
@@ -59,7 +61,20 @@ export function MobileCatalogNav() {
           </span>
         </button>
 
-        {/* 4. Carrinho */}
+        {/* 4. Ver Pedido — mostra quando os preços de custo estão visíveis */}
+        {store?.show_cost_price && showPrices && (
+          <button
+            type="button"
+            onClick={() => setModal('cart', true)}
+            className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
+          >
+            <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
+              Ver Pedido
+            </span>
+          </button>
+        )}
+        {/* Carrinho */}
         <button
           type="button"
           // Adicione a lógica de abrir carrinho aqui (ex: setIsCartOpen(true))

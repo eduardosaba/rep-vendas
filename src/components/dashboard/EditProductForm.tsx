@@ -54,7 +54,7 @@ const ImageUploader = ({
                 : 'border-gray-200 dark:border-slate-700'
             }`}
           >
-            { }
+            {}
             <img
               src={url}
               className="w-full h-full object-contain p-1 cursor-zoom-in"
@@ -113,7 +113,7 @@ const ImageUploader = ({
             className="relative max-w-6xl max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            { }
+            {}
             <img
               src={zoomImage}
               alt="Ampliado"
@@ -592,7 +592,7 @@ export function EditProductForm({ product }: { product: Product }) {
                     <span className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider font-semibold">
                       EAN-13
                     </span>
-                    { }
+                    {}
                     <img
                       src={`https://bwipjs-api.metafloor.com/?bcid=ean13&text=${formData.barcode}&scale=2&height=10&includetext`}
                       alt={`Barcode ${formData.barcode}`}

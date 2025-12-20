@@ -197,7 +197,7 @@ export default function ProductDetailPage() {
             Produto não encontrado
           </h3>
           <button
-            onClick={() => router.push(`/catalogo/${userId}`)}
+            onClick={() => router.push(`/catalogo/${slug}`)}
             className="mt-4 rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
           >
             Voltar ao catálogo
@@ -247,14 +247,14 @@ export default function ProductDetailPage() {
                   type="text"
                   placeholder="Buscar produtos..."
                   className="w-full rounded-lg border border-gray-300 py-3 pl-4 pr-12 text-lg focus:border-transparent focus:ring-2 focus:ring-blue-500"
-                  onClick={() => router.push(`/catalogo/${userId}`)}
+                  onClick={() => router.push(`/catalogo/${slug}`)}
                 />
                 <button
                   className="absolute right-2 top-2 rounded bg-blue-600 p-2 text-white hover:bg-blue-700"
                   style={{
                     backgroundColor: settings?.primary_color || '#4f46e5', // Fallback: Indigo-600
                   }}
-                  onClick={() => router.push(`/catalogo/${userId}`)}
+                  onClick={() => router.push(`/catalogo/${slug}`)}
                 >
                   🔍
                 </button>
@@ -271,7 +271,7 @@ export default function ProductDetailPage() {
                 <span className="text-xs">Favoritos ({favorites.size})</span>
               </button>
               <button
-                onClick={() => router.push(`/catalogo/${userId}/checkout`)}
+                onClick={() => router.push(`/catalogo/${slug}/checkout`)}
                 className="flex flex-col items-center text-gray-600 hover:text-gray-900"
                 style={{ color: settings?.icon_color || '#4B5563' }}
               >
@@ -299,7 +299,7 @@ export default function ProductDetailPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center space-x-2 py-4">
             <button
-              onClick={() => router.push(`/catalogo/${userId}`)}
+              onClick={() => router.push(`/catalogo/${slug}`)}
               className="flex items-center text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="mr-1 h-4 w-4" />

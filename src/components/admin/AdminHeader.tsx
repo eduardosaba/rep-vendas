@@ -126,7 +126,6 @@ export default function AdminHeader() {
         </button>
         <div className="flex items-center gap-3 select-none">
           {platform.logo_url ? (
-             
             <img
               src={platform.logo_url}
               alt="Logo"
@@ -246,7 +245,6 @@ export default function AdminHeader() {
             </div>
             <div className="h-9 w-9 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)]/30 dark:bg-[var(--primary)]/20 dark:text-[var(--primary)] dark:border-[var(--primary)]/40 overflow-hidden">
               {userAvatar ? (
-                 
                 <img
                   src={userAvatar}
                   alt="Avatar"

@@ -10,6 +10,7 @@ import ThemeRegistry from '@/components/ThemeRegistry';
 export const metadata: Metadata = {
   title: 'RepVendas SaaS',
   description: 'Sistema de Catálogo e Pedidos',
+  icons: '/favicon.ico',
 };
 
 export default function RootLayout({
@@ -18,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-br" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className="antialiased bg-gray-50 dark:bg-slate-950 font-sans">
         <ThemeProvider
           attribute="class"

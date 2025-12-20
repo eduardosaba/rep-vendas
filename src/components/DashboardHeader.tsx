@@ -51,7 +51,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const supabase = createClient();
 
   // Função para buscar notificações do banco (pedidos pendentes)
-   
+
   const fetchNotifications = async () => {
     const {
       data: { user },

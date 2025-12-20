@@ -8,9 +8,10 @@
 ## ✅ 1. Verificação de Erros e Linting
 
 ### 1.1 TypeScript
+
 - **Status**: ⚠️ Erros Encontrados (Reduzidos)
 - **Comando**: `pnpm run typecheck`
-- **Resultado**: 
+- **Resultado**:
   - ✅ Corrigido: `src/app/api/save-cart/route.ts` - verificação de null
   - ✅ Corrigido: `src/components/dashboard/ProductsTable.tsx` - verificação de null
   - ⚠️ Pendente: `src/utils/generateCatalogPDF.ts` - problemas de inferência de tipo
@@ -18,6 +19,7 @@
   - ⚠️ Pendente: Outros erros menores
 
 ### 1.2 ESLint
+
 - **Status**: ✅ Configurado
 - **Comando**: `pnpm run lint`
 - **Ações Realizadas**:
@@ -29,6 +31,7 @@
 #### Categorias de Erros:
 
 **A) Arquivos Não-Críticos (Podem ser ignorados):**
+
 - `__tests__/` - Arquivos de teste (configurar ambiente Jest)
 - `scripts/` - Scripts Node.js (configurar ambiente Node)
 - `docs/` - Arquivos de documentação/exemplos
@@ -82,17 +85,20 @@
 ## 🔧 Ações Recomendadas
 
 ### Prioridade ALTA (Bloqueiam Build):
+
 1. ✅ Corrigir encoding UTF-8 em `src/app/dashboard/layout.tsx` - **CONCLUÍDO**
 2. ⏳ Configurar ESLint para ignorar arquivos não-críticos
 3. ⏳ Adicionar tipos globais para APIs do browser/Node
 4. ⏳ Corrigir erros em arquivos críticos de `src/app/admin/`
 
 ### Prioridade MÉDIA:
+
 1. ⏳ Substituir tipos `any` por tipos específicos quando possível
 2. ⏳ Adicionar supressões ESLint apropriadas para `console.log` necessários
 3. ⏳ Verificar imports não utilizados
 
 ### Prioridade BAIXA:
+
 1. ⏳ Limpar código comentado
 2. ⏳ Verificar TODOs no código
 
@@ -116,4 +122,3 @@
 - A maioria dos erros são de configuração do ESLint (variáveis globais não reconhecidas)
 - Arquivos de scripts e testes podem ser ignorados do linting
 - Alguns `console.log` são intencionais para debug e devem ter supressão ESLint
-

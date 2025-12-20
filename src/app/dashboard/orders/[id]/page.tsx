@@ -173,7 +173,6 @@ export default async function OrderDetailsPage({
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 overflow-hidden border border-gray-200 dark:border-slate-700 shrink-0">
                       {item.image_url ? (
-                         
                         <img
                           src={item.image_url}
                           alt=""

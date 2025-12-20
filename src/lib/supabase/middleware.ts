@@ -2,6 +2,12 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
+  // Garantia extra: permitir acesso público ao catálogo sem alterar/redirecionar
+  const path = request.nextUrl.pathname;
+  if (path.startsWith('/catalogo')) {
+    return NextResponse.next({ request });
+  }
+
   // 1. Cria uma resposta inicial que permite continuar a requisição
   let supabaseResponse = NextResponse.next({
     request,
@@ -40,7 +46,6 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // 4. Proteção de Rotas
-  const path = request.nextUrl.pathname;
 
   // A. Rotas Protegidas (Exigem Login)
   // Se o usuário NÃO estiver logado e tentar acessar dashboard, admin ou onboarding -> Login

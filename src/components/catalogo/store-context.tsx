@@ -355,23 +355,77 @@ export function StoreProvider({
   const handleFinalizeOrder = async (customer: CustomerInfo) => {
     try {
       setLoadingStates((s) => ({ ...s, submitting: true }));
-      const { data, error } = await supabase
+
+      // Normalizar telefone (apenas dígitos)
+      const normalizedPhone = (customer?.phone || '').replace(/\D/g, '');
+
+      // Procurar client existente pelo telefone
+      let clientId: string | null = null;
+      if (normalizedPhone) {
+        const { data: existingClient, error: findClientError } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('phone', normalizedPhone)
+          .maybeSingle();
+
+        if (findClientError) throw findClientError;
+        if (existingClient && existingClient.id) {
+          clientId = existingClient.id;
+        } else {
+          // Criar novo client vinculado ao user_id do store
+          const { data: newClient, error: createClientError } = await supabase
+            .from('clients')
+            .insert({
+              name: customer?.name || '',
+              phone: normalizedPhone,
+              email: customer?.email || null,
+              user_id: store.user_id,
+            })
+            .select()
+            .maybeSingle();
+
+          if (createClientError) throw createClientError;
+          if (newClient && newClient.id) clientId = newClient.id;
+        }
+      }
+
+      // Calcular valor total compatível com o esquema (total_value)
+      const totalValue = cart.reduce(
+        (acc, item) => acc + item.price * item.quantity,
+        0
+      );
+
+      // Inserir pedido (usar nomes de colunas do esquema), incluindo client_id quando disponível
+      const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
           user_id: store.user_id,
-          customer_info: customer,
-          items: cart,
-          total: cart.reduce(
-            (acc, item) => acc + item.price * item.quantity,
-            0
-          ),
-          status: 'pending',
+          client_id: clientId,
+          total_value: totalValue,
+          status: 'Pendente',
         })
         .select()
         .maybeSingle();
 
-      if (error) throw error;
-      setOrderSuccessData({ id: data.id, customer });
+      if (orderError || !orderData)
+        throw orderError || new Error('Falha ao criar pedido');
+
+      // Inserir items em order_items
+      if (cart.length > 0) {
+        const itemsPayload = cart.map((it) => ({
+          order_id: orderData.id,
+          product_id: it.id,
+          quantity: it.quantity,
+          unit_price: it.price,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(itemsPayload);
+        if (itemsError) throw itemsError;
+      }
+
+      setOrderSuccessData({ id: orderData.id, customer });
       setCart([]);
       return true;
     } catch (e: unknown) {

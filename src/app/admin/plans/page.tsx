@@ -17,6 +17,7 @@ export default function AdminPlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  // client-side admin actions will call server API routes
   const supabase = createClient();
 
   useEffect(() => {
@@ -24,13 +25,17 @@ export default function AdminPlansPage() {
   }, []);
 
   const fetchPlans = async () => {
-    const { data, error } = await supabase
-      .from('plans')
-      .select('*')
-      .order('price');
-    if (error) toast.error('Erro ao buscar planos');
-    else setPlans(data || []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/plans');
+      if (!res.ok) throw new Error('Falha ao buscar planos');
+      const data = await res.json();
+      setPlans(data || []);
+    } catch (err: any) {
+      toast.error('Erro ao buscar planos: ' + (err?.message || String(err)));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleUpdate = async (plan: Plan) => {
@@ -56,27 +61,42 @@ export default function AdminPlansPage() {
   };
 
   const handleCreate = async () => {
-    const { error } = await supabase.from('plans').insert({
-      name: 'Novo Plano',
-      price: 0,
-      max_products: 500,
-      active: true,
-    });
-    if (error) toast.error('Erro ao criar');
-    else {
+    try {
+      const res = await fetch('/api/admin/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Novo Plano',
+          price: 0,
+          max_products: 500,
+          active: true,
+        }),
+      });
+      if (!res.ok) throw new Error('Falha ao criar plano');
+      const data = await res.json();
       toast.success('Plano criado');
-      fetchPlans();
+      if (data) setPlans((prev) => [data as Plan, ...prev]);
+      else fetchPlans();
+    } catch (err: any) {
+      toast.error('Erro ao criar: ' + (err?.message || String(err)));
+      console.error('create plan error', err);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza? Usuários neste plano podem ficar sem acesso.'))
       return;
-    const { error } = await supabase.from('plans').delete().eq('id', id);
-    if (error) toast.error('Erro ao excluir');
-    else {
+    try {
+      const res = await fetch('/api/admin/plans', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error('Falha ao excluir');
       toast.success('Plano excluído');
       setPlans((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: any) {
+      toast.error('Erro ao excluir: ' + (err?.message || String(err)));
     }
   };
 

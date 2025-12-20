@@ -57,14 +57,30 @@ export default function AdminUsersPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    role: 'user',
-    planName: 'Pro',
+    role: 'representante',
+    planName: '',
   });
+
+  const [plansList, setPlansList] = useState<{ id: string; name: string }[]>(
+    []
+  );
 
   const supabase = createClient();
 
   useEffect(() => {
     fetchUsers();
+    // load plans for the create user modal (via server API)
+    const loadPlans = async () => {
+      try {
+        const res = await fetch('/api/admin/plans');
+        if (!res.ok) return setPlansList([]);
+        const data = await res.json();
+        setPlansList((data as any) || []);
+      } catch (err) {
+        console.error('load plans error', err);
+      }
+    };
+    loadPlans();
   }, []);
 
   const fetchUsers = async () => {
@@ -77,13 +93,18 @@ export default function AdminUsersPage() {
 
       if (profileError) throw profileError;
 
-      const { data: subscriptionsData, error: subError } = await supabase
-        .from('subscriptions')
-        .select('user_id, current_period_end, status');
-
-      const safeSubscriptions: SubscriptionRecord[] = subError
-        ? []
-        : ((subscriptionsData || []) as SubscriptionRecord[]);
+      // fetch subscriptions via server-side admin route to avoid RLS/service key needs
+      let safeSubscriptions: SubscriptionRecord[] = [];
+      try {
+        const subsRes = await fetch('/api/admin/subscriptions');
+        if (subsRes.ok) {
+          const subscriptionsData = await subsRes.json();
+          safeSubscriptions = (subscriptionsData || []) as SubscriptionRecord[];
+        }
+      } catch (err) {
+        console.error('subscriptions fetch error', err);
+        safeSubscriptions = [];
+      }
 
       const profiles = (profilesData || []) as ProfileRecord[];
 
@@ -412,8 +433,7 @@ export default function AdminUsersPage() {
                     }
                     className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                   >
-                    <option value="user">Usuário Comum</option>
-                    <option value="admin">Administrador</option>
+                    <option value="representante">Representante</option>
                     <option value="master">Master</option>
                   </select>
                 </div>
@@ -428,9 +448,15 @@ export default function AdminUsersPage() {
                     }
                     className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                   >
-                    <option value="Basic">Basic</option>
-                    <option value="Pro">Pro</option>
-                    <option value="Enterprise">Enterprise</option>
+                    {plansList.length === 0 ? (
+                      <option value="">Nenhum plano</option>
+                    ) : (
+                      plansList.map((p) => (
+                        <option key={p.id} value={p.name}>
+                          {p.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
