@@ -11,29 +11,47 @@ function getSupabaseAdmin() {
 }
 
 export async function GET() {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('plans')
-    .select('*')
-    .order('price');
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('plans')
+      .select('*')
+      .order('price');
+    if (error) {
+      console.error('[API /admin/plans GET] Supabase error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json(data);
+  } catch (err: any) {
+    console.error('[API /admin/plans GET] Exception:', err);
+    return NextResponse.json(
+      { error: err?.message || String(err) },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    console.log('[API /admin/plans POST] Body received:', body);
+
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('plans')
       .insert(body)
       .select()
       .maybeSingle();
-    if (error)
+
+    if (error) {
+      console.error('[API /admin/plans POST] Supabase error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log('[API /admin/plans POST] Success:', data);
     return NextResponse.json(data, { status: 201 });
   } catch (err: any) {
+    console.error('[API /admin/plans POST] Exception:', err);
     return NextResponse.json(
       { error: err?.message || String(err) },
       { status: 500 }
@@ -44,6 +62,8 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
+    console.log('[API /admin/plans PUT] Body received:', body);
+
     const { id, ...rest } = body;
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
@@ -52,10 +72,16 @@ export async function PUT(req: Request) {
       .eq('id', id)
       .select()
       .maybeSingle();
-    if (error)
+
+    if (error) {
+      console.error('[API /admin/plans PUT] Supabase error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log('[API /admin/plans PUT] Success:', data);
     return NextResponse.json(data);
   } catch (err: any) {
+    console.error('[API /admin/plans PUT] Exception:', err);
     return NextResponse.json(
       { error: err?.message || String(err) },
       { status: 500 }

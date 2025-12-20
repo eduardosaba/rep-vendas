@@ -41,20 +41,27 @@ export default function AdminPlansPage() {
   const handleUpdate = async (plan: Plan) => {
     setSavingId(plan.id);
     try {
-      const { error } = await supabase
-        .from('plans')
-        .update({
+      const res = await fetch('/api/admin/plans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: plan.id,
           name: plan.name,
           price: plan.price,
           max_products: plan.max_products,
           active: plan.active,
-        })
-        .eq('id', plan.id);
+        }),
+      });
 
-      if (error) throw error;
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Falha ao atualizar plano');
+      }
+
       toast.success('Plano atualizado com sucesso!');
-    } catch {
-      toast.error('Erro ao salvar');
+    } catch (err: any) {
+      toast.error('Erro ao salvar: ' + (err?.message || String(err)));
+      console.error('update plan error', err);
     } finally {
       setSavingId(null);
     }

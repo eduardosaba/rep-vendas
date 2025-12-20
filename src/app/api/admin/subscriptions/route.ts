@@ -11,11 +11,21 @@ function getSupabaseAdmin() {
 }
 
 export async function GET() {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('subscriptions')
-    .select('user_id, current_period_end, status');
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('user_id, current_period_end, status');
+    if (error) {
+      console.error('[API /admin/subscriptions GET] Supabase error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json(data);
+  } catch (err: any) {
+    console.error('[API /admin/subscriptions GET] Exception:', err);
+    return NextResponse.json(
+      { error: err?.message || String(err) },
+      { status: 500 }
+    );
+  }
 }
