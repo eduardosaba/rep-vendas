@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { revalidatePath } from 'next/cache';
 
 // Definimos o tipo dos dados que vamos receber
@@ -101,6 +102,21 @@ export async function finishOnboarding(data: OnboardingData) {
       throw new Error(
         `Erro ao atualizar perfil: ${(profileError as any).message || JSON.stringify(profileError)}`
       );
+    }
+
+    // 3.5 CRIAR ENTRADA EM public_catalogs (catálogo público seguro)
+    try {
+      await syncPublicCatalog(user.id, {
+        slug: data.slug,
+        store_name: data.name,
+        logo_url: data.logo_url || undefined,
+        primary_color: data.primary_color,
+        secondary_color: undefined, // Usa padrão
+        footer_message: undefined,
+      });
+    } catch (syncError) {
+      console.error('Erro ao criar catálogo público:', syncError);
+      // Não falha o onboarding, apenas loga
     }
 
     // 4. Invalidar cache: revalidamos a raiz, o dashboard e o catálogo

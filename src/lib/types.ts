@@ -160,6 +160,21 @@ export interface Order {
 }
 
 // --- TIPOS DE CONFIGURAÇÃO (SETTINGS) ---
+// Catálogo Público (tabela public_catalogs - SEGURA para exposição pública)
+export interface PublicCatalog {
+  id: string;
+  user_id: string;
+  slug: string;
+  store_name: string;
+  logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  footer_message?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Settings {
   id?: string;
   user_id?: string;

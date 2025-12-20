@@ -17,22 +17,33 @@ import { FloatingCart } from './FloatingCart';
 import type {
   Product as LibProduct,
   Settings as LibSettings,
+  PublicCatalog,
 } from '@/lib/types';
 
 export type Product = LibProduct;
 export type StoreSettings = LibSettings;
 
 interface StorefrontProps {
-  store: StoreSettings;
+  catalog: PublicCatalog;
   initialProducts: Product[];
   startProductId?: string;
 }
 
 export function Storefront({
-  store,
+  catalog,
   initialProducts,
   startProductId,
 }: StorefrontProps) {
+  // Mapear catalog (público) para store (compatibilidade com componentes internos)
+  const store: StoreSettings = {
+    user_id: catalog.user_id,
+    name: catalog.store_name,
+    logo_url: catalog.logo_url,
+    primary_color: catalog.primary_color,
+    secondary_color: catalog.secondary_color,
+    footer_message: catalog.footer_message,
+  };
+
   // Diagnóstico rápido: verificar se alguma dependência de componente é undefined
   if (typeof window !== 'undefined') {
     // apenas em cliente

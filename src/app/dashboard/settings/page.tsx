@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { toast } from 'sonner';
 import { updateThemeColors } from '@/components/ThemeRegistry';
 import { applyThemeColors } from '@/lib/theme';
@@ -564,6 +565,21 @@ export default function SettingsPage() {
         secondary: formData.secondary_color,
         headerBg: formData.header_background_color,
       });
+
+      // SINCRONIZAR public_catalogs (tabela segura para catálogo público)
+      try {
+        await syncPublicCatalog(currentUserId, {
+          slug: formData.catalog_slug,
+          store_name: formData.name,
+          logo_url: logoUrl,
+          primary_color: formData.primary_color,
+          secondary_color: formData.secondary_color,
+          footer_message: formData.footer_message,
+        });
+      } catch (syncError) {
+        console.error('Erro ao sincronizar catálogo público:', syncError);
+        // Não falha o save principal, apenas loga
+      }
 
       toast.success('Configurações salvas!', { id: toastId });
       setTimeout(() => window.location.reload(), 1000);
