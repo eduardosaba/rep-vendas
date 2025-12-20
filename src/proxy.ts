@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
-// REMOVIDO: export const runtime = 'edge';
-
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // 🔓 CATÁLOGO PÚBLICO: Libera totalmente sem verificar sessão

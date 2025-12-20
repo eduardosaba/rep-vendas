@@ -401,6 +401,8 @@ export function StoreProvider({
         .insert({
           user_id: store.user_id,
           client_id: clientId,
+          client_name_guest: customer?.name || '',
+          client_phone_guest: normalizedPhone || customer?.phone || '',
           total_value: totalValue,
           status: 'Pendente',
         })
@@ -425,11 +427,20 @@ export function StoreProvider({
         if (itemsError) throw itemsError;
       }
 
+      // Preparar items para o PDF com referências e preços corretos
+      const pdfItems = cart.map((it) => ({
+        reference_code: it.reference_code || it.sku || '-',
+        name: it.name,
+        quantity: it.quantity,
+        price: it.price,
+        sale_price: it.price,
+      }));
+
       setOrderSuccessData({
         id: orderData.id,
         display_id: orderData.display_id,
         customer,
-        items: cart,
+        items: pdfItems,
         total: totalValue,
       });
       setCart([]);

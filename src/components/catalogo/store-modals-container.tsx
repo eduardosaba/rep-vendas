@@ -132,21 +132,30 @@ export function StoreModals() {
   };
 
   // --- PDF GENERATION ---
-  const onGeneratePDF = () => {
+  const onGeneratePDF = async () => {
     if (!orderSuccessData) return;
 
     const toastId = toast.loading('Gerando arquivo PDF...');
 
     try {
-      const itemsToPrint = (orderSuccessData as any).items || [];
-      const totalToPrint = (orderSuccessData as any).total || 0;
+      // Preparar dados do pedido no formato esperado pela função
+      const orderData = {
+        id: orderSuccessData.display_id || orderSuccessData.id,
+        customerName: orderSuccessData.customer?.name || '',
+        customerPhone: orderSuccessData.customer?.phone || '',
+        customerEmail: orderSuccessData.customer?.email || '',
+        customerDocument: orderSuccessData.customer?.document || '',
+        items: orderSuccessData.items || [],
+        total: orderSuccessData.total || 0,
+        date: new Date().toLocaleDateString('pt-BR'),
+      };
 
-      generateOrderPDF(orderSuccessData, store, itemsToPrint, totalToPrint);
+      await generateOrderPDF(orderData, store);
 
       toast.dismiss(toastId);
       toast.success('PDF baixado com sucesso!');
     } catch (error) {
-      console.error(error);
+      console.error('Erro ao gerar PDF:', error);
       toast.dismiss(toastId);
       toast.error('Falha ao gerar o PDF.');
     }
