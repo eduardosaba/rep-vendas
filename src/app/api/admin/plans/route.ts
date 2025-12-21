@@ -5,17 +5,26 @@ function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    console.error('Missing env vars:', { url: !!url, key: !!key });
-    throw new Error(
-      'NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set'
+    console.warn(
+      'Service role key not present, admin operations will be disabled'
     );
+    return null;
   }
   return createClient(url, key);
 }
 
 export async function GET() {
   try {
-    const supabase = getSupabaseAdmin();
+    // Tenta usar service role, mas permite fallback para anon (SELECT público)
+    let supabase = getSupabaseAdmin();
+    if (!supabase) {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!url || !anon)
+        throw new Error('Supabase envs ausentes para leitura de planos');
+      supabase = createClient(url, anon);
+    }
+
     const { data, error } = await supabase
       .from('plans')
       .select('*')
@@ -78,6 +87,21 @@ export async function PUT(req: Request) {
 
     if (error) {
       console.error('[API /admin/plans PUT] Supabase error:', error);
+
+      // Detect common Postgres trigger/schema mismatch where trigger tries
+      // to set NEW.updated_at but the column doesn't exist.
+      if (
+        String(error.message || '').includes(
+          'record "new" has no field "updated_at"'
+        ) ||
+        String(error.details || '').includes(
+          'record "new" has no field "updated_at"'
+        )
+      ) {
+        const guidance = `Erro de trigger: a tabela \"plans\" parece não ter a coluna \"updated_at\". Execute no Supabase SQL Editor:\n\nALTER TABLE public.plans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();\n\nE então reexecute a migração ENSURE_PLANS_AND_SUBSCRIPTIONS.sql para garantir gatilhos/policies.`;
+        return NextResponse.json({ error: guidance }, { status: 500 });
+      }
+
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

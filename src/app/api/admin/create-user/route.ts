@@ -12,7 +12,17 @@ function getSupabaseAdmin() {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (e: any) {
+      console.error('[API /admin/create-user] JSON parse error:', e);
+      return NextResponse.json(
+        { success: false, error: 'invalid_json' },
+        { status: 400 }
+      );
+    }
+
     const { email, password, full_name } = body || {};
 
     if (!email || !password) {

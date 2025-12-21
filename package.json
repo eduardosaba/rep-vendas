@@ -17,8 +17,14 @@
     "eduardosaba": "pnpm run format && pnpm run typecheck && echo 'Lint skipped - ESLint config issue' && pnpm run dependency-check && pnpm run env-check"
   },
   "dependencies": {
+    "@supabase/auth-js": "^2.89.0",
+    "@supabase/functions-js": "^2.89.0",
+    "@supabase/postgrest-js": "^2.89.0",
+    "@supabase/realtime-js": "^2.89.0",
     "@supabase/ssr": "^0.7.0",
+    "@supabase/storage-js": "^2.89.0",
     "@supabase/supabase-js": "^2.81.1",
+    "cookie": "^1.1.1",
     "date-fns": "^2.30.0",
     "dotenv": "^17.2.3",
     "html2canvas": "^1.4.1",
