@@ -169,7 +169,15 @@ export interface PublicCatalog {
   logo_url?: string;
   primary_color?: string;
   secondary_color?: string;
+  header_background_color?: string;
+  show_sale_price?: boolean;
+  show_cost_price?: boolean;
   footer_message?: string;
+  enable_stock_management?: boolean;
+  show_installments?: boolean;
+  max_installments?: number;
+  show_cash_discount?: boolean;
+  cash_price_discount_percent?: number;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;

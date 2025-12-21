@@ -59,10 +59,10 @@ export default function AdminSidebar() {
 
   return (
     <aside
+      style={{ backgroundColor: 'var(--header-bg)' }}
       className={`
         relative flex flex-col h-screen sticky top-0 transition-all duration-300 border-r
-        bg-white border-gray-200 text-slate-600
-        dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400
+        border-gray-200 text-slate-600 dark:border-slate-800 dark:text-slate-400
         ${isCollapsed ? 'w-20' : 'w-64'}
       `}
     >
@@ -84,10 +84,10 @@ export default function AdminSidebar() {
           </span>
         ) : (
           <div className="flex flex-col items-center">
-            <span className="font-bold text-lg tracking-wide text-slate-800 dark:text-white">
+            <span className="font-bold text-lg tracking-wide text-[var(--primary)] dark:text-[var(--primary-foreground)]">
               TORRE
             </span>
-            <span className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <span className="text-[10px] uppercase tracking-widest text-[var(--primary)]/70 dark:text-[var(--primary-foreground)]/70">
               Controle
             </span>
           </div>

@@ -15,6 +15,7 @@ import {
   Mail,
   FileText,
   MapPin,
+  Hash,
   Tag,
 } from 'lucide-react';
 import OrderStatusControls from '@/components/dashboard/OrderStatusControls';
@@ -60,44 +61,32 @@ function StatusBadge({ status }: { status: string }) {
   const Icon = current.icon;
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${current.bg} ${current.text} ${current.border}`}
-    >
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${current.bg} ${current.text} ${current.border}`}>
       <Icon size={14} />
       {current.label}
     </span>
   );
 }
 
-export default async function OrderDetailsPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function OrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
   const { id } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // --- LÓGICA HÍBRIDA DE BUSCA (UUID vs DisplayID) ---
-  const isDisplayId = /^\d+$/.test(id);
+  const isDisplayId = /^\d+$/.test(id); 
 
-  // 🔴 CORREÇÃO AQUI: Usando 'barcode' em vez de 'ean'
   let query = supabase
     .from('orders')
-    .select(
-      `
+    .select(`
       *,
       clients (*),
       order_items (
         *,
-        products ( reference_code, image_url, brand, barcode ) 
+        products ( reference_code, image_url, brand, barcode, name ) 
       )
-    `
-    )
+    `)
     .eq('user_id', user.id);
 
   if (isDisplayId) {
@@ -111,54 +100,44 @@ export default async function OrderDetailsPage({
   if (error) {
     console.error('Erro ao buscar pedido:', error.message);
     return (
-      <div className="p-8 text-center text-red-500">
-        <h2 className="font-bold">Erro ao carregar pedido</h2>
-        <p className="text-sm">
-          Verifique se as colunas 'brand' e 'barcode' existem na tabela
-          'products'.
-        </p>
-        <p className="text-xs mt-2 text-gray-400">{error.message}</p>
-      </div>
+        <div className="p-8 text-center text-red-500">
+            <h2 className="font-bold">Erro ao carregar pedido</h2>
+            <p className="text-xs mt-2 text-gray-400">{error.message}</p>
+        </div>
     );
   }
-
+  
   if (!order) return notFound();
 
-  // 2. Settings (para PDF)
+  // Settings
   const { data: storeSettings } = await supabase
     .from('settings')
     .select('*')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  const safeSettings = storeSettings || {
-    name: 'Loja',
-    primary_color: '#4f46e5',
-  };
+  const safeSettings = storeSettings || { name: 'Loja', primary_color: '#4f46e5' };
   const statusKey = getUiStatusKey(order.status);
 
-  // Lógica de Cliente
-  const clientData = Array.isArray(order.clients)
-    ? order.clients[0]
-    : order.clients;
-  const clientName =
-    clientData?.name || order.client_name_guest || 'Cliente não identificado';
+  // Cliente
+  const clientData = Array.isArray(order.clients) ? order.clients[0] : order.clients;
+  const clientName = clientData?.name || order.client_name_guest || 'Cliente não identificado';
   const clientPhone = clientData?.phone || order.client_phone_guest;
   const clientEmail = clientData?.email || order.client_email_guest;
-  const clientDoc =
-    clientData?.document ||
-    order.client_document_guest ||
-    order.client_cnpj_guest;
+  
+  // LÓGICA DO DOCUMENTO (Prioriza client_cnpj_guest)
+  const clientDoc = order.client_cnpj_guest || clientData?.document || order.client_document_guest;
+  
   const clientAddress = clientData?.address || order.client_address_guest;
 
-  // Recalcula o total do pedido
-  const calculatedTotal =
-    order.order_items?.reduce((acc: number, item: any) => {
-      return acc + (item.quantity || 0) * (item.unit_price || 0);
-    }, 0) || 0;
+  // Total
+  const calculatedTotal = order.order_items?.reduce((acc: number, item: any) => {
+    return acc + ((item.quantity || 0) * (item.unit_price || 0));
+  }, 0) || 0;
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden animate-in fade-in">
+      
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
@@ -171,7 +150,7 @@ export default async function OrderDetailsPage({
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Pedido #{order.display_id || order.id.slice(0, 8)}
+                Pedido #{order.display_id || order.id.slice(0,8)}
               </h1>
               <StatusBadge status={order.status} />
             </div>
@@ -195,6 +174,7 @@ export default async function OrderDetailsPage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
         {/* COLUNA ESQUERDA: ITENS */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -203,95 +183,87 @@ export default async function OrderDetailsPage({
                 <Package size={18} /> Itens do Pedido
               </h2>
               <span className="text-xs font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300">
-                {order.order_items?.reduce(
-                  (acc: number, item: any) => acc + (item.quantity || 0),
-                  0
-                ) || 0}{' '}
-                un.
+                {order.order_items?.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) || 0} un.
               </span>
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-slate-800">
               {order.order_items?.map((item: any) => {
                 const finalImg = item.image_url || item.products?.image_url;
+                const productName = item.products?.name || item.product_name;
                 const brand = item.products?.brand;
-                const barcode = item.products?.barcode; // 🔴 Usando 'barcode' aqui
-
+                const barcode = item.products?.barcode; 
+                const refCode = item.products?.reference_code || item.product_reference;
+                
                 const realTotal = (item.quantity || 0) * (item.unit_price || 0);
-
+                
                 return (
-                  <div
-                    key={item.id}
-                    className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors gap-4"
-                  >
+                  <div key={item.id} className="p-4 md:p-6 flex flex-col md:flex-row md:items-start justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors gap-4">
+                    
+                    {/* ESQUERDA: FOTO E DETALHES */}
                     <div className="flex items-start gap-4 flex-1">
-                      {/* Imagem do Produto */}
-                      <div className="h-16 w-16 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 overflow-hidden border border-gray-200 dark:border-slate-700 shrink-0">
+                      
+                      {/* 1. Imagem */}
+                      <div className="h-20 w-20 md:h-24 md:w-24 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 overflow-hidden border border-gray-200 dark:border-slate-700 shrink-0">
                         {finalImg ? (
-                          <img
-                            src={finalImg}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={finalImg} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <Package size={24} />
+                          <Package size={28} />
                         )}
                       </div>
-
-                      {/* Detalhes do Produto */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 dark:text-white text-base line-clamp-2">
-                          {item.product_name}
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-3 mt-2">
-                          {/* Marca */}
-                          {brand && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-slate-700 uppercase tracking-wide">
-                              <Tag size={10} /> {brand}
+                      
+                      {/* 2. Dados do Produto */}
+                      <div className="flex-1 min-w-0 flex flex-col h-full pt-0.5 space-y-2">
+                        
+                        <div>
+                            <p className="font-bold text-gray-900 dark:text-white text-base leading-tight">
+                            {productName}
+                            </p>
+                            
+                            {brand && (
+                            <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 uppercase tracking-wide">
+                                <Tag size={10} /> {brand}
                             </span>
-                          )}
+                            )}
+                        </div>
 
-                          {/* Código de Barras (Desenho) */}
-                          {barcode && (
-                            <div
-                              className="flex items-center gap-1"
-                              title={`Barcode: ${barcode}`}
-                            >
-                              {/* Gerador de Barcode via API */}
-                              <img
-                                src={`https://bwipjs-api.metafloor.com/?bcid=ean13&text=${barcode}&scale=2&height=10&includetext`}
-                                alt={barcode}
-                                className="h-8 mix-blend-multiply dark:mix-blend-normal dark:invert"
-                              />
-                            </div>
-                          )}
+                        <div className="flex flex-wrap items-center gap-4 mt-auto">
+                            {refCode && (
+                                <div className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                                    <Hash size={14} className="text-[var(--primary)]" />
+                                    <span>{refCode}</span>
+                                </div>
+                            )}
 
-                          {/* Fallback para Ref se não tiver Barcode */}
-                          {!barcode && item.products?.reference_code && (
-                            <span className="text-xs text-gray-400 font-mono">
-                              Ref: {item.products.reference_code}
-                            </span>
-                          )}
+                            {barcode && (
+                                <div className="bg-white p-1 rounded border border-gray-200 shadow-sm" title={`EAN: ${barcode}`}>
+                                    <img 
+                                        src={`https://bwipjs-api.metafloor.com/?bcid=ean13&text=${barcode}&scale=2&height=8&includetext&guardwhitespace`} 
+                                        alt={barcode} 
+                                        className="h-8 md:h-10 object-contain max-w-[140px]"
+                                    />
+                                </div>
+                            )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Preços */}
-                    <div className="text-right pl-4 min-w-[100px]">
-                      <p className="font-bold text-gray-900 dark:text-white text-lg">
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(realTotal)}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-medium">
-                        {item.quantity} un. x{' '}
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(item.unit_price)}
-                      </p>
+                    {/* DIREITA: VALORES */}
+                    <div className="flex flex-row md:flex-col justify-between md:justify-start items-center md:items-end pl-0 md:pl-4 min-w-[120px] border-t md:border-0 border-gray-100 dark:border-slate-800 pt-3 md:pt-1 mt-2 md:mt-0">
+                      
+                      <div className="text-left md:text-right">
+                         <span className="text-[10px] text-gray-400 uppercase md:hidden block mb-1">Valor Total</span>
+                         <p className="font-bold text-gray-900 dark:text-white text-lg md:text-xl">
+                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(realTotal)}
+                         </p>
+                      </div>
+                      
+                      <div className="text-right mt-0 md:mt-1">
+                         <span className="text-[10px] text-gray-400 uppercase md:hidden block mb-1">Qtd x Unit</span>
+                         <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                           {item.quantity} un. x {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unit_price)}
+                         </p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -299,14 +271,9 @@ export default async function OrderDetailsPage({
             </div>
 
             <div className="bg-gray-50 dark:bg-slate-900/50 px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex justify-between items-center">
-              <span className="font-medium text-gray-600 dark:text-gray-400">
-                Total do Pedido
-              </span>
-              <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(calculatedTotal)}
+              <span className="font-medium text-gray-600 dark:text-gray-400">Total do Pedido</span>
+              <span className="text-2xl md:text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculatedTotal)}
               </span>
             </div>
           </div>
@@ -316,22 +283,17 @@ export default async function OrderDetailsPage({
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-800">
-              <User size={18} className="text-blue-600 dark:text-blue-400" />{' '}
-              Dados do Cliente
+              <User size={18} className="text-blue-600 dark:text-blue-400" /> Dados do Cliente
             </h3>
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                  Nome
-                </label>
+                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Nome</label>
                 <p className="text-gray-900 dark:text-white font-medium text-lg break-words">
                   {clientName}
                 </p>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full ${order.client_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
-                >
-                  {order.client_id ? 'Cadastrado' : 'Visitante'}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${order.client_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {order.client_id ? 'Cadastrado' : 'Visitante'}
                 </span>
               </div>
 
@@ -339,9 +301,7 @@ export default async function OrderDetailsPage({
                 <div className="grid grid-cols-1 gap-3">
                   {clientPhone && (
                     <div>
-                      <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                        Contato
-                      </label>
+                      <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Contato</label>
                       <div className="flex items-center gap-2 mt-1">
                         <a
                           href={`https://wa.me/55${clientPhone.replace(/\D/g, '')}`}
@@ -357,9 +317,7 @@ export default async function OrderDetailsPage({
 
                   {clientEmail && (
                     <div>
-                      <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                        Email
-                      </label>
+                      <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Email</label>
                       <div className="flex items-center gap-2 mt-1 text-sm text-gray-700 dark:text-gray-300">
                         <Mail size={14} />
                         <span className="truncate">{clientEmail}</span>
@@ -369,21 +327,27 @@ export default async function OrderDetailsPage({
                 </div>
               )}
 
-              {clientDoc && (
+              {/* CORREÇÃO NA EXIBIÇÃO: Mostra sempre se tiver dado, com rótulo explícito */}
+              {clientDoc ? (
                 <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <FileText size={12} />
-                    <span className="font-mono">
-                      {formatDocument(clientDoc) || clientDoc}
-                    </span>
+                  <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">CPF/CNPJ</label>
+                  <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <FileText size={14} />
+                    <span className="font-mono">{formatDocument(clientDoc) || clientDoc}</span>
                   </div>
                 </div>
+              ) : (
+                // Opcional: Mostrar que não tem documento cadastrado (útil para debug)
+                 <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2 opacity-50">
+                    <span className="text-xs text-gray-400 italic">Documento não informado</span>
+                 </div>
               )}
-
+              
               {clientAddress && (
-                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
-                  <div className="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <MapPin size={12} className="mt-0.5" />
+                 <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
+                   <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">Endereço</label>
+                   <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <MapPin size={14} className="mt-0.5" />
                     <span>{clientAddress}</span>
                   </div>
                 </div>
@@ -395,16 +359,11 @@ export default async function OrderDetailsPage({
           {statusKey !== 'cancelled' && statusKey !== 'delivered' && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <CheckCircle
-                  size={18}
-                  className="text-green-600 dark:text-green-400"
-                />{' '}
-                Ações do Pedido
+                <CheckCircle size={18} className="text-green-600 dark:text-green-400" /> Ações do Pedido
               </h3>
               <OrderStatusControls orderId={order.id} statusKey={statusKey} />
               <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-3 border-t border-gray-100 dark:border-slate-800 mt-4">
-                Ações de status atualizam o estoque e notificam (se
-                configurado).
+                Ações de status atualizam o estoque e notificam (se configurado).
               </p>
             </div>
           )}

@@ -112,13 +112,19 @@ export function StoreModals() {
     toast.success(message);
   };
 
-  const onUnlock = (e: React.FormEvent) => {
+  const onUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (unlockPrices(passwordInput)) {
-      setModal('password', false);
-      toast.success('Preços liberados com sucesso!');
-    } else {
-      toast.error('Senha incorreta. Tente novamente.');
+    try {
+      const ok = await unlockPrices(passwordInput);
+      if (ok) {
+        setModal('password', false);
+        toast.success('Preços liberados com sucesso!');
+      } else {
+        toast.error('Senha incorreta. Tente novamente.');
+      }
+    } catch (err) {
+      console.error('Erro ao desbloquear preços:', err);
+      toast.error('Erro ao verificar senha.');
     }
   };
 

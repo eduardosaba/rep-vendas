@@ -515,6 +515,25 @@ export default function SettingsPage() {
         ...uploadedBannersMobile,
       ];
 
+      // Garantir exclusividade entre flags de preço antes de salvar
+      let finalShowSale = catalogSettings.show_sale_price ?? true;
+      let finalShowCost = catalogSettings.show_cost_price ?? false;
+      if (finalShowSale && finalShowCost) {
+        // Preferir mostrar preço de venda quando ambos estiverem marcados
+        finalShowCost = false;
+      }
+
+      // Normalizar parcelas, desconto e estoque
+      const finalShowInstallments = catalogSettings.show_installments ?? false;
+      const finalMaxInstallments = Number(
+        catalogSettings.max_installments || 1
+      );
+      const finalShowCashDiscount = catalogSettings.show_discount_tag ?? false;
+      const finalCashDiscountPercent = Number(
+        catalogSettings.cash_price_discount_percent || 0
+      );
+      const finalEnableStock = catalogSettings.enable_stock_management ?? false;
+
       const { error } = await supabase.from('settings').upsert(
         {
           user_id: currentUserId,
@@ -543,8 +562,13 @@ export default function SettingsPage() {
           ),
           enable_stock_management: catalogSettings.enable_stock_management,
           global_allow_backorder: catalogSettings.global_allow_backorder,
-          show_cost_price: catalogSettings.show_cost_price,
-          show_sale_price: catalogSettings.show_sale_price,
+          show_cost_price: finalShowCost,
+          show_sale_price: finalShowSale,
+          show_installments: finalShowInstallments,
+          max_installments: finalMaxInstallments,
+          show_discount_tag: finalShowCashDiscount,
+          cash_price_discount_percent: finalCashDiscountPercent,
+          enable_stock_management: finalEnableStock,
         },
         { onConflict: 'user_id' }
       );
@@ -579,6 +603,15 @@ export default function SettingsPage() {
             primary_color: formData.primary_color,
             secondary_color: formData.secondary_color,
             footer_message: formData.footer_message,
+            show_sale_price: finalShowSale,
+            show_cost_price: finalShowCost,
+            show_installments: finalShowInstallments,
+            max_installments: finalMaxInstallments,
+            show_cash_discount: finalShowCashDiscount,
+            cash_price_discount_percent: finalCashDiscountPercent,
+            enable_stock_management: finalEnableStock,
+            // Do NOT send password to public_catalogs - keep it only in settings
+            header_background_color: formData.header_background_color,
           }),
         });
 

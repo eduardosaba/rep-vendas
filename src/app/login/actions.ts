@@ -31,24 +31,26 @@ export async function login(formData: FormData) {
   // Define o destino padrão
   let redirectTo = '/dashboard';
 
-  // Verifica o perfil para decidir se vai para /admin
+  // Verifica o perfil para decidir para onde redirecionar
   if (data.session && data.user) {
     try {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, onboarding_completed')
         .eq('id', data.user.id)
         .maybeSingle();
 
       const role = profileData?.role;
+      const onboardingCompleted = profileData?.onboarding_completed;
 
-      if (role === 'master') {
+      // Se o onboarding não foi concluído, direciona para /onboarding
+      if (!onboardingCompleted) {
+        redirectTo = '/onboarding';
+      } else if (role === 'master') {
+        // Só vai para /admin se já concluiu o onboarding
         redirectTo = '/admin';
       }
-      // Se não for master, mantém '/dashboard'
     } catch (err) {
-      // Agora este catch só pega erros reais de banco de dados,
-      // não pega mais o erro de redirecionamento.
       console.error('Erro ao buscar perfil:', err);
       // Em caso de erro no perfil, mantemos o destino padrão '/dashboard'
     }

@@ -24,11 +24,42 @@ export async function GET(request: Request) {
 
     ensureSupabaseEnv();
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data: exchangeData, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error) {
-      // Login com sucesso, redireciona para o dashboard
-      return NextResponse.redirect(`${origin}${next}`);
+    if (!exchangeError) {
+      // Tenta obter o id do usuário da sessão criada
+      const userId = exchangeData?.session?.user?.id;
+
+      if (userId) {
+        try {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('role, onboarding_completed')
+            .eq('id', userId)
+            .maybeSingle();
+
+          const onboardingCompleted = profileData?.onboarding_completed;
+          const role = profileData?.role;
+
+          // Se não completou o onboarding, vai para /onboarding
+          if (!onboardingCompleted) {
+            return NextResponse.redirect(`${origin}/onboarding`);
+          }
+
+          // Se for master e já completou onboarding, vai para /admin
+          if (role === 'master') {
+            return NextResponse.redirect(`${origin}/admin`);
+          }
+
+          // Caso padrão: dashboard
+          return NextResponse.redirect(`${origin}/dashboard`);
+        } catch (err) {
+          console.error('Erro ao buscar perfil após OAuth:', err);
+          // Em caso de falha, redireciona para dashboard como fallback
+          return NextResponse.redirect(`${origin}/dashboard`);
+        }
+      }
     }
   }
 

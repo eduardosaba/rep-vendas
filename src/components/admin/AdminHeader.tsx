@@ -118,7 +118,10 @@ export default function AdminHeader() {
     return <div className="h-16 border-b bg-white dark:bg-slate-950" />;
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-white px-6 transition-colors dark:bg-slate-950 dark:border-slate-800">
+    <header
+      style={{ backgroundColor: 'var(--header-bg)' }}
+      className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b px-6 transition-colors dark:border-slate-800"
+    >
       {/* Esquerda: Logo */}
       <div className="flex items-center gap-4">
         <button className="mr-2 md:hidden text-gray-500 hover:text-[var(--primary)] dark:text-slate-400">
@@ -132,11 +135,18 @@ export default function AdminHeader() {
               className="h-9 w-auto object-contain max-w-[150px]"
             />
           ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--primary)] text-white shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm">
               <LayoutDashboard size={20} strokeWidth={2.5} />
             </div>
           )}
-          <span className="ml-2 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+          <span
+            className="ml-2 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase border"
+            style={{
+              backgroundColor: 'var(--primary)',
+              color: 'var(--primary-foreground)',
+              borderColor: 'rgba(0,0,0,0.06)',
+            }}
+          >
             Torre de Controle
           </span>
         </div>

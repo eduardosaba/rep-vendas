@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-// FIX: Importando do arquivo local na mesma pasta (catalogo)
 import { StoreProvider } from './store-context';
 import {
   StoreTopBar,
@@ -11,7 +10,7 @@ import {
 } from './store-layout';
 import { StoreBanners, ProductGrid } from './product-components';
 import { StoreModals } from './store-modals-container';
-import { InstallPrompt } from './InstallPrompt'; // Certifique-se que este arquivo existe nesta pasta ou remova
+import { InstallPrompt } from './InstallPrompt';
 import { FloatingCart } from './FloatingCart';
 
 import type {
@@ -34,37 +33,41 @@ export function Storefront({
   initialProducts,
   startProductId,
 }: StorefrontProps) {
-  // Mapear catalog (público) para store (compatibilidade com componentes internos)
+  // Mapear catalog (público) para store
   const store: StoreSettings = {
     user_id: catalog.user_id,
     name: catalog.store_name,
     logo_url: catalog.logo_url,
     primary_color: catalog.primary_color,
     secondary_color: catalog.secondary_color,
+    show_cost_price: (catalog as any).show_cost_price,
+    show_sale_price: (catalog as any).show_sale_price,
+    price_password_hash: (catalog as any).price_password_hash,
     footer_message: catalog.footer_message,
-  };
+    enable_stock_management: (catalog as any).enable_stock_management,
+    show_installments: (catalog as any).show_installments,
+    max_installments: (catalog as any).max_installments,
+    show_cash_discount: (catalog as any).show_cash_discount,
+    cash_price_discount_percent: (catalog as any).cash_price_discount_percent,
 
-  // Diagnóstico rápido: verificar se alguma dependência de componente é undefined
+    // NOVO: Passando o Hash da senha para o contexto
+    // Usamos 'as any' caso o tipo StoreSettings ainda não tenha esse campo definido
+    price_password_hash: (catalog as any).price_password_hash,
+  } as StoreSettings;
+
+  // ... (Resto do código de cores e estilos mantido igual) ...
+  // Diagnóstico rápido
   if (typeof window !== 'undefined') {
-    // apenas em cliente
-
-    console.log('Storefront components:', {
-      StoreTopBar: typeof StoreTopBar,
-      StoreHeader: typeof StoreHeader,
-      StoreSidebar: typeof StoreSidebar,
-      StoreBanners: typeof StoreBanners,
-      ProductGrid: typeof ProductGrid,
-      StoreModals: typeof StoreModals,
-      InstallPrompt: typeof InstallPrompt,
-      FloatingCart: typeof FloatingCart,
-    });
+    // console.log para debug se necessário
   }
-  // Configuração de Cores (com fallbacks padrão)
-  const primaryColor = store.primary_color || '#4f46e5'; // Fallback: Indigo-600
-  const secondaryColor = store.secondary_color || '#64748b'; // Fallback: Slate-500
-  const headerBg = store.header_background_color || '#ffffff';
 
-  // Função auxiliar para gerar cores hover (darken/lighten)
+  const primaryColor = store.primary_color || '#4f46e5';
+  const secondaryColor = store.secondary_color || '#64748b';
+  const headerBg =
+    (catalog as any).header_background_color ||
+    store.header_background_color ||
+    '#ffffff';
+
   const shadeColor = (hex: string, percent: number) => {
     let c = hex.replace('#', '');
     if (c.length === 3)
@@ -88,7 +91,6 @@ export function Storefront({
     );
   };
 
-  // Variáveis CSS Dinâmicas para o Tema da Loja
   const cssVars = {
     ['--primary']: primaryColor,
     ['--primary-hover']: shadeColor(primaryColor, -18),
@@ -96,7 +98,6 @@ export function Storefront({
     ['--header-bg']: headerBg,
   } as React.CSSProperties;
 
-  // Lógica de contraste para a barra superior
   const getContrastColor = (hex?: string) => {
     if (!hex) return '#000000';
     let c = hex.replace('#', '');
@@ -135,7 +136,7 @@ export function Storefront({
         style={cssVars}
         className="min-h-screen bg-[#F4F4F5] font-sans flex flex-col"
       >
-        {/* Barra Superior de Contato */}
+        {/* Barra Superior */}
         {(store.name || store.email || store.phone) && (
           <div
             className="w-full border-b"
@@ -181,38 +182,22 @@ export function Storefront({
           </div>
         )}
 
-        {/* Top Bar Promocional (Frete Grátis, etc) */}
         {store.show_top_benefit_bar !== false && <StoreTopBar />}
-
-        {/* Header Principal (Logo e Busca) */}
         <StoreHeader />
-
-        {/* Banners Rotativos */}
         <StoreBanners />
 
-        {/* LAYOUT PRINCIPAL: 
-            Usa max-w-[1920px] para telas grandes e flex-row para Sidebar + Grid 
-        */}
         <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8 flex flex-col md:flex-row gap-8 items-start flex-1 relative">
-          {/* Sidebar de Filtros (Fixo) */}
           <StoreSidebar />
-
-          {/* Grid de Produtos (Expansível) */}
           <div className="flex-1 w-full min-w-0">
             <ProductGrid />
           </div>
         </main>
 
-        {/* Barra de A\u00e7\u00f5es Mobile (Ver Pre\u00e7os, Pedidos, Favoritos, Carrinho) */}
         <StoreMobileActionBar />
-
-        {/* FloatingCart apenas no Desktop (md+) */}
         <div className="hidden md:block">
           <FloatingCart />
         </div>
-
         <StoreModals />
-
         <InstallPrompt />
       </div>
     </StoreProvider>

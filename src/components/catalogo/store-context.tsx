@@ -47,7 +47,6 @@ interface StoreContextType {
   cart: CartItem[];
   favorites: string[];
 
-  // Mantendo compatibilidade com ambos os nomes
   isPricesVisible: boolean;
   setIsPricesVisible: (visible: boolean) => void;
   showPrices: boolean;
@@ -72,7 +71,6 @@ interface StoreContextType {
   sortOrder: string;
   setSortOrder: (s: any) => void;
 
-  // NOVOS FILTROS
   showOnlyNew: boolean;
   setShowOnlyNew: (b: boolean) => void;
   showOnlyBestsellers: boolean;
@@ -99,7 +97,7 @@ interface StoreContextType {
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
-  unlockPrices: (password: string) => boolean;
+  unlockPrices: (password: string) => Promise<boolean>;
 
   handleFinalizeOrder: (customer: CustomerInfo) => Promise<boolean>;
   handleSaveCart: () => Promise<string | null>;
@@ -110,6 +108,14 @@ interface StoreContextType {
   setOrderSuccessData: (data: any) => void;
   handleDownloadPDF: () => void;
   handleSendWhatsApp: () => void;
+}
+
+// --- FUNÇÃO AUXILIAR DE HASH (CLIENT-SIDE) ---
+async function sha256(message: string) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -124,9 +130,6 @@ export function StoreProvider({
   const ITEMS_PER_PAGE = 24;
   const supabase = createClient();
 
-  // --- ESTADO CORRIGIDO: showPrices inicia TRUE se NÃO for preço de custo ---
-  // Preço sugerido (sale_price) deve ser sempre visível
-  // Preço de custo (cost_price) precisa de senha
   const [showPrices, setShowPrices] = useState(!store.show_cost_price);
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -235,7 +238,11 @@ export function StoreProvider({
     if (typeof window !== 'undefined') {
       const savedCart = localStorage.getItem(`cart-${store.name}`);
       const savedFavs = localStorage.getItem(`favs-${store.name}`);
-      const priceUnlocked = sessionStorage.getItem(`prices-${store.name}`);
+      
+      // Verifica LocalStorage (persistente) ou SessionStorage (retrocompatibilidade)
+      const priceUnlockedLocal = localStorage.getItem(`unlocked_${store.user_id}`);
+      const priceUnlockedSession = sessionStorage.getItem(`prices-${store.name}`);
+      
       if (savedCart) {
         try {
           const parsed = JSON.parse(savedCart);
@@ -247,16 +254,18 @@ export function StoreProvider({
           setFavorites(JSON.parse(savedFavs));
         } catch {}
       }
-      // Só aplica o desbloqueio se for modo de custo
-      if (store.show_cost_price && priceUnlocked === 'true') {
-        setShowPrices(true);
-      }
-      // Se for preço sugerido, sempre visível
-      if (!store.show_cost_price) {
+      
+      // Lógica de desbloqueio automático
+      if (store.show_cost_price) {
+        if (priceUnlockedLocal === 'true' || priceUnlockedSession === 'true') {
+          setShowPrices(true);
+        }
+      } else {
+        // Se for preço de venda, é sempre visível
         setShowPrices(true);
       }
     }
-  }, [store.name, store.show_cost_price]);
+  }, [store.name, store.show_cost_price, store.user_id]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -264,19 +273,14 @@ export function StoreProvider({
     const keyCart = `cart-${store.name}`;
     const keyFavs = `favs-${store.name}`;
 
-    // Debounce writes to avoid frequent synchronous localStorage I/O
     let timer: number | null = null;
     timer = window.setTimeout(() => {
       try {
         localStorage.setItem(keyCart, JSON.stringify(cart));
-      } catch (err) {
-        // ignore storage errors
-      }
+      } catch (err) {}
       try {
         localStorage.setItem(keyFavs, JSON.stringify(favorites));
-      } catch (err) {
-        // ignore storage errors
-      }
+      } catch (err) {}
     }, 400);
 
     return () => {
@@ -293,7 +297,6 @@ export function StoreProvider({
     }
   }, [store.banners]);
 
-  // Abrir modal automaticamente se houver parâmetro ?product=ID na URL
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -304,7 +307,6 @@ export function StoreProvider({
       const product = initialProducts.find((p) => p.id === productId);
       if (product) {
         setModal('product', product);
-        // Limpar o parâmetro da URL sem recarregar a página
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
@@ -346,17 +348,40 @@ export function StoreProvider({
       f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
     );
 
-  const unlockPrices = (password: string) => {
-    const ok = password === (store.price_password || '');
-    if (ok) {
-      setShowPrices(true);
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.setItem(`prices-${store.name}`, 'true');
-        } catch {}
+  // --- NOVA LÓGICA: VALIDAÇÃO DE SENHA CLIENT-SIDE (INSTANTÂNEA) ---
+  const unlockPrices = async (passwordInput: string) => {
+    try {
+      // 1. Pega o hash que passamos via Storefront (veja Storefront.tsx)
+      const storedHash = (store as any).price_password_hash;
+
+      if (!storedHash) {
+        if (typeof addToast === 'function') {
+           addToast({ type: 'error', message: 'Este catálogo não possui senha configurada.' } as Toast);
+        }
+        return false;
       }
+
+      // 2. Calcula o hash do input
+      const inputHash = await sha256(passwordInput.trim());
+
+      // 3. Compara
+      if (inputHash === storedHash) {
+        setShowPrices(true);
+        if (typeof window !== 'undefined') {
+          // Salva no LocalStorage para não pedir mais a senha
+          localStorage.setItem(`unlocked_${store.user_id}`, 'true');
+        }
+        return true;
+      } else {
+        if (typeof addToast === 'function') {
+           addToast({ type: 'error', message: 'Senha incorreta.' } as Toast);
+        }
+        return false;
+      }
+    } catch (err) {
+      console.error('Erro ao validar senha:', err);
+      return false;
     }
-    return ok;
   };
 
   const toggleShowPrices = () => setShowPrices((v) => !v);
@@ -365,10 +390,8 @@ export function StoreProvider({
     try {
       setLoadingStates((s) => ({ ...s, submitting: true }));
 
-      // Normalizar telefone (apenas dígitos)
       const normalizedPhone = (customer?.phone || '').replace(/\D/g, '');
 
-      // Procurar client existente pelo telefone
       let clientId: string | null = null;
       if (normalizedPhone) {
         const { data: existingClient, error: findClientError } = await supabase
@@ -381,7 +404,6 @@ export function StoreProvider({
         if (existingClient && existingClient.id) {
           clientId = existingClient.id;
         } else {
-          // Criar novo client vinculado ao user_id do store
           const { data: newClient, error: createClientError } = await supabase
             .from('clients')
             .insert({
@@ -398,13 +420,11 @@ export function StoreProvider({
         }
       }
 
-      // Calcular valor total compatível com o esquema (total_value)
       const totalValue = cart.reduce(
         (acc, item) => acc + item.price * item.quantity,
         0
       );
 
-      // Inserir pedido (usar nomes de colunas do esquema), incluindo client_id quando disponível
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -412,6 +432,7 @@ export function StoreProvider({
           client_id: clientId,
           client_name_guest: customer?.name || '',
           client_phone_guest: normalizedPhone || customer?.phone || '',
+          client_cnpj_guest: customer?.cnpj || '', // Garante que o CNPJ seja salvo
           total_value: totalValue,
           status: 'Pendente',
         })
@@ -421,7 +442,6 @@ export function StoreProvider({
       if (orderError || !orderData)
         throw orderError || new Error('Falha ao criar pedido');
 
-      // Inserir items em order_items
       if (cart.length > 0) {
         const itemsPayload = cart.map((it) => ({
           order_id: orderData.id,
@@ -436,13 +456,13 @@ export function StoreProvider({
         if (itemsError) throw itemsError;
       }
 
-      // Preparar items para o PDF com referências e preços corretos
       const pdfItems = cart.map((it) => ({
         reference_code: it.reference_code || it.sku || '-',
         name: it.name,
         quantity: it.quantity,
         price: it.price,
         sale_price: it.price,
+        brand: it.brand
       }));
 
       setOrderSuccessData({
@@ -519,11 +539,18 @@ export function StoreProvider({
     const orderObj = {
       id: orderSuccessData?.id || 0,
       customer: orderSuccessData?.customer || { name: '', phone: '' },
+      created_at: new Date().toISOString(), // Necessário para o novo gerador
     };
     generateOrderPDF(
       orderObj as any,
       store,
-      itemsToPrint,
+      itemsToPrint.map(i => ({
+        name: i.name,
+        quantity: i.quantity,
+        price: i.price,
+        reference_code: i.reference_code,
+        brand: i.brand
+      })),
       itemsToPrint.reduce((acc, i) => acc + i.price * i.quantity, 0)
     );
   };
@@ -531,7 +558,7 @@ export function StoreProvider({
   const handleSendWhatsApp = () => {
     if (!orderSuccessData) return;
     const { customer } = orderSuccessData;
-    const message = `Olá, meu nome é ${customer.name}. Fiz o pedido #${orderSuccessData.id}.`;
+    const message = `Olá, meu nome é ${customer.name}. Fiz o pedido #${orderSuccessData.display_id || orderSuccessData.id}.`;
     const num = (store.phone || '').replace(/\D/g, '');
     window.open(
       `https://wa.me/${num}?text=${encodeURIComponent(message)}`,
@@ -591,7 +618,6 @@ export function StoreProvider({
         initialProducts,
         cart,
         favorites,
-        // Resolvemos o problema mapeando ambos para o mesmo state
         showPrices,
         isPricesVisible: showPrices,
         setIsPricesVisible: setShowPrices,

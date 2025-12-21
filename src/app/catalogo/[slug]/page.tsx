@@ -4,8 +4,6 @@ import { Storefront } from '@/components/catalogo/Storefront';
 import { Metadata, ResolvingMetadata } from 'next';
 
 export const revalidate = 0;
-
-// Força carregamento dinâmico para evitar fetchs durante o build
 export const dynamic = 'force-dynamic';
 
 type Props = {
@@ -13,17 +11,15 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-// 1. GERADOR DE METADADOS (SEO)
+// 1. GERADOR DE METADADOS (SEO) - Mantido igual, foco no branding
 export async function generateMetadata(
   { params, searchParams }: Props,
   _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const { slug } = await params;
   const { productId } = await searchParams;
-
   const supabase = await createClient();
 
-  // Busca catálogo público (tabela segura, expõe apenas branding)
   const { data: catalog } = await supabase
     .from('public_catalogs')
     .select('store_name, logo_url, footer_message, user_id')
@@ -39,7 +35,7 @@ export async function generateMetadata(
       .select('name, price, image_url, external_image_url, description')
       .eq('id', productId)
       .eq('user_id', catalog.user_id)
-      .eq('is_active', true) // GARANTE QUE SÓ MOSTRA SE ATIVO
+      .eq('is_active', true)
       .maybeSingle();
 
     if (product) {
@@ -66,9 +62,7 @@ export async function generateMetadata(
 
   return {
     title: `${catalog.store_name} | Catálogo Digital`,
-    description:
-      catalog.footer_message ||
-      'Confira nossos produtos e faça seu pedido online.',
+    description: catalog.footer_message || 'Confira nossos produtos e faça seu pedido online.',
     openGraph: {
       title: catalog.store_name,
       images: catalog.logo_url ? [catalog.logo_url] : [],
@@ -80,25 +74,23 @@ export async function generateMetadata(
 export default async function CatalogPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { productId } = await searchParams;
-
   const supabase = await createClient();
 
-  // Busca catálogo público (apenas dados seguros)
+  // AQUI: Adicionamos explicitamente o price_password_hash na query
   const { data: catalog, error: catalogError } = await supabase
     .from('public_catalogs')
-    .select('*')
+    .select('*, price_password_hash') 
     .eq('slug', slug)
     .eq('is_active', true)
     .maybeSingle();
 
   if (catalogError || !catalog) return notFound();
 
-  // BUSCA APENAS PRODUTOS ATIVOS DO OWNER DO CATÁLOGO
   const { data: products } = await supabase
     .from('products')
     .select('*')
     .eq('user_id', catalog.user_id)
-    .eq('is_active', true) // <--- FILTRO IMPORTANTE
+    .eq('is_active', true)
     .order('created_at', { ascending: false });
 
   return (

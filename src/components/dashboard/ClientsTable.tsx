@@ -4,26 +4,21 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Search,
-  Filter,
   User,
   Phone,
-  Calendar,
   ChevronLeft,
   ChevronRight,
-  TrendingUp,
-  DollarSign,
   ShoppingBag,
   Star,
   ArrowRight,
   X,
   MessageCircle,
   History,
-  MapPin,
+  Mail as MailIcon,
   Package,
-  Mail as MailIcon, // Importando MailIcon
 } from 'lucide-react';
 
-// Tipos vindos do Banco
+// 1. ATUALIZAÇÃO DA INTERFACE: Aceitar dados do JOIN
 interface Order {
   id: number;
   display_id: number;
@@ -31,9 +26,17 @@ interface Order {
   status: string;
   total_value: number;
   item_count: number;
-  client_name_guest: string | null; // Pode vir null do banco
+  // Campos Guest
+  client_name_guest: string | null;
   client_phone_guest: string | null;
   client_email_guest?: string | null;
+  // Campos Cadastro (Novo)
+  client_id?: string | null;
+  clients?: {
+    name: string;
+    email?: string;
+    phone?: string;
+  } | null;
 }
 
 // Tipo calculado do Cliente
@@ -46,6 +49,7 @@ interface ClientProfile {
   orderCount: number;
   lastOrderDate: string;
   firstOrderDate: string;
+  isGuest: boolean; // Novo campo para saber se é visitante
   orders: Order[];
 }
 
@@ -61,39 +65,58 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // --- 1. PROCESSAMENTO DE DADOS (Agrupar Pedidos em Clientes) ---
+  // --- PROCESSAMENTO DE DADOS ---
   const clientsData = useMemo(() => {
     const map = new Map<string, ClientProfile>();
 
     initialOrders.forEach((order) => {
-      // CORREÇÃO: Proteção contra valores nulos (Null Safety)
-      const cleanPhone = order.client_phone_guest?.replace(/\D/g, '') || '';
-      const safeName = order.client_name_guest || 'Cliente Sem Nome';
+      // 2. LÓGICA DE PRIORIDADE: Cadastro > Visitante > Fallback
+      const dbClient = order.clients; // Dados da tabela clients
+      
+      const rawName = dbClient?.name || order.client_name_guest;
+      const rawPhone = dbClient?.phone || order.client_phone_guest;
+      const rawEmail = dbClient?.email || order.client_email_guest;
 
-      // Chave única: Telefone (se tiver) ou Nome
-      const key = cleanPhone || safeName.toLowerCase().trim();
+      const safeName = rawName || 'Cliente Sem Nome';
+      const cleanPhone = rawPhone?.replace(/\D/g, '') || '';
+      
+      // Identifica se é um cliente cadastrado ou visitante
+      const isGuest = !order.client_id;
+
+      // 3. CHAVE ÚNICA DE AGRUPAMENTO
+      // Se tem ID de cadastro, usa ele. Se não, tenta agrupar por telefone ou nome.
+      let key = '';
+      if (order.client_id) {
+        key = `reg_${order.client_id}`;
+      } else {
+        // Fallback para visitantes: Agrupa por telefone (se tiver) ou nome
+        key = cleanPhone ? `guest_ph_${cleanPhone}` : `guest_nm_${safeName.toLowerCase().trim()}`;
+      }
 
       if (!map.has(key)) {
         map.set(key, {
           id: key,
           name: safeName,
-          phone: order.client_phone_guest || '',
-          email: order.client_email_guest || '',
+          phone: rawPhone || '',
+          email: rawEmail || '',
           totalSpent: 0,
           orderCount: 0,
           lastOrderDate: order.created_at,
           firstOrderDate: order.created_at,
+          isGuest: isGuest,
           orders: [],
         });
       }
 
       const client = map.get(key)!;
 
+      // Atualiza métricas se não for cancelado
       if (order.status !== 'cancelled') {
         client.totalSpent += order.total_value;
         client.orderCount += 1;
       }
 
+      // Atualiza datas
       if (new Date(order.created_at) > new Date(client.lastOrderDate))
         client.lastOrderDate = order.created_at;
       if (new Date(order.created_at) < new Date(client.firstOrderDate))
@@ -104,7 +127,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
 
     let array = Array.from(map.values());
 
-    // Filtro de Busca (Seguro contra nulls)
+    // Filtro de Busca
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
       array = array.filter(
@@ -115,6 +138,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
       );
     }
 
+    // Ordenação
     array.sort((a, b) => {
       if (sortKey === 'totalSpent') return b.totalSpent - a.totalSpent;
       if (sortKey === 'orderCount') return b.orderCount - a.orderCount;
@@ -140,7 +164,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
     const vipCount = Math.ceil(totalClients * 0.1);
     const topClientsValue = [...clientsData]
       .sort((a, b) => b.totalSpent - a.totalSpent)
-      .slice(0, vipCount)
+      .slice(0, vipCount || 1)
       .reduce((acc, c) => acc + c.totalSpent, 0);
 
     return { totalClients, activeClients, topClientsValue };
@@ -224,11 +248,14 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-sm text-gray-500 whitespace-nowrap">
-            Ordenar por:
-          </span>
+          <Link
+             href="/dashboard/clients/new"
+             className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
+           >
+             <User size={18} /> Novo Cliente
+           </Link>
           <select
-            className="p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none cursor-pointer flex-1"
+            className="p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none cursor-pointer"
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as any)}
           >
@@ -270,16 +297,22 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                   >
                     <td className="px-3 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0">
                           {client.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">
                             {client.name}
                           </p>
-                          <p className="text-xs text-gray-400">
-                            Desde {formatDate(client.firstOrderDate)}
-                          </p>
+                          <div className="flex items-center gap-2">
+                             {/* Badge de Visitante vs Cadastrado */}
+                             <span className={`text-[10px] px-1.5 py-0.5 rounded border ${client.isGuest ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                {client.isGuest ? 'Visitante' : 'Cadastrado'}
+                             </span>
+                             <p className="text-xs text-gray-400">
+                               Desde {formatDate(client.firstOrderDate)}
+                             </p>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -374,10 +407,11 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                   <h2 className="text-xl font-bold text-gray-900">
                     {selectedClient.name}
                   </h2>
-                  <p className="text-sm text-gray-500 flex items-center gap-1">
-                    <History size={12} /> Cliente desde{' '}
-                    {new Date(selectedClient.firstOrderDate).getFullYear()}
-                  </p>
+                   <div className="flex gap-2 mt-1">
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${selectedClient.isGuest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {selectedClient.isGuest ? 'Visitante' : 'Cadastrado'}
+                      </span>
+                   </div>
                 </div>
               </div>
               <button
@@ -434,6 +468,19 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                   </a>
                 ) : (
                   <p className="text-sm text-gray-400 italic">Sem telefone</p>
+                )}
+                 {selectedClient.email && (
+                    <div className="flex items-center gap-3 p-3 border rounded-lg">
+                        <div className="p-2 bg-gray-100 text-gray-600 rounded-full">
+                          <MailIcon size={18} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Email</p>
+                          <p className="text-sm text-gray-500">
+                            {selectedClient.email}
+                          </p>
+                        </div>
+                    </div>
                 )}
               </div>
 

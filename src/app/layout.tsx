@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 // import { Inter } from 'next/font/google';
 import './globals.css';
-import { Toaster } from '@/components/ui/Toaster'; // Use o nosso Toaster customizado!
+import { Toaster } from '@/components/ui/Toaster';
 import { ThemeProvider } from '@/providers/theme-provider';
 import ThemeRegistry from '@/components/ThemeRegistry';
 
@@ -10,11 +10,8 @@ import ThemeRegistry from '@/components/ThemeRegistry';
 export const metadata: Metadata = {
   title: 'RepVendas SaaS',
   description: 'Sistema de Catálogo e Pedidos',
-  icons: {
-    icon: [{ url: '/favicon.ico' }, { url: '/icon.ico' }],
-    shortcut: '/favicon.ico',
-    apple: '/favicon.ico',
-  },
+  // REMOVIDO: icons: { ... }
+  // O Next.js vai ler automaticamente o src/app/favicon.ico
 };
 
 export default function RootLayout({

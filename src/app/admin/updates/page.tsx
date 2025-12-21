@@ -1,40 +1,47 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import {
   Rocket,
   Calendar,
   CheckCircle2,
   AlertCircle,
   Code,
+  Loader2,
 } from 'lucide-react';
-// Nota: não precisamos de LATEST_UPDATE nesta página (preview foi removido)
 
-type UpdateType = 'feature' | 'improvement' | 'bugfix';
-
+// Tipagem correta baseada no Banco de Dados
 interface UpdateItem {
   id: number;
   version: string;
   date: string;
-  type: UpdateType;
   title: string;
-  description: string;
-  status: 'completed' | 'in-progress';
+  highlights: string[];
+  color_from: string;
+  color_to: string;
+  created_at: string;
 }
 
 export default function AdminUpdatesPage() {
   const currentVersion = process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0';
+  const supabase = createClient();
+  
   const [activeTab, setActiveTab] = useState<'editor' | 'history'>('editor');
+  
+  // Estados de Carregamento e Salvamento
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
+  
+  // Estado do Histórico
+  const [historyUpdates, setHistoryUpdates] = useState<UpdateItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Estados do editor visual
-  const [editorTitle, setEditorTitle] = useState(
-    '🎉 Bem-vindo ao RepVendas 1.0!'
-  );
+  const [editorTitle, setEditorTitle] = useState('🎉 Bem-vindo ao RepVendas 2.0!');
   const [editorVersion, setEditorVersion] = useState(currentVersion);
-  const [editorDate, setEditorDate] = useState('2024-12-19');
+  const [editorDate, setEditorDate] = useState(new Date().toISOString().split('T')[0]);
   const [editorHighlights, setEditorHighlights] = useState([
     '🎨 Sistema de temas personalizáveis',
     '📄 Geração de PDF otimizada',
@@ -44,56 +51,22 @@ export default function AdminUpdatesPage() {
   const [editorColorTo, setEditorColorTo] = useState('#b9722e');
   const [newHighlight, setNewHighlight] = useState('');
 
-  const updates: UpdateItem[] = [
-    {
-      id: 1,
-      version: '1.0.0',
-      date: '2024-12-19',
-      type: 'feature',
-      title: 'Sistema de Temas Personalizados',
-      description:
-        'Implementação completa do sistema de cores personalizáveis com suporte a temas pré-definidos.',
-      status: 'completed',
-    },
-    {
-      id: 2,
-      version: '1.0.0',
-      date: '2024-12-19',
-      type: 'improvement',
-      title: 'Otimização de Geração de PDF',
-      description:
-        'Melhorias na compressão de imagens e redução do tamanho dos arquivos PDF gerados.',
-      status: 'completed',
-    },
-    {
-      id: 3,
-      version: '1.0.0',
-      date: '2024-12-19',
-      type: 'feature',
-      title: 'Barra de Progresso em PDF',
-      description:
-        'Adição de barra de progresso em tempo real durante a geração de catálogos PDF.',
-      status: 'completed',
-    },
-  ];
-
-  // getTypeColor removed — não é mais usado na versão simplificada do Histórico
-
-  const getStatusIcon = (
-    status: UpdateItem['status']
-  ): React.ReactElement | null => {
-    switch (status) {
-      case 'completed':
-        return (
-          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-        );
-      case 'in-progress':
-        return (
-          <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-        );
-      default:
-        return null;
+  // Carregar histórico ao mudar de aba
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchHistory();
     }
+  }, [activeTab]);
+
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    const { data, error } = await supabase
+      .from('system_updates')
+      .select('*')
+      .order('date', { ascending: false });
+    
+    if (data) setHistoryUpdates(data);
+    setLoadingHistory(false);
   };
 
   const addHighlight = () => {
@@ -137,10 +110,10 @@ export default function AdminUpdatesPage() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 5000);
 
-      // Recarregar a página após 2 segundos para aplicar mudanças
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Limpa os campos após salvar
+      setEditorTitle('');
+      setEditorHighlights([]);
+      
     } catch (error) {
       setSaveError(
         error instanceof Error ? error.message : 'Erro desconhecido'
@@ -151,7 +124,7 @@ export default function AdminUpdatesPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 animate-in fade-in duration-500 min-h-screen bg-gray-50 dark:bg-slate-950">
+    <div className="p-6 md:p-8 animate-in fade-in duration-500 min-h-screen bg-gray-50 dark:bg-slate-950 pb-20">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Rocket className="h-8 w-8 text-[var(--primary)]" />
@@ -160,7 +133,7 @@ export default function AdminUpdatesPage() {
           </h1>
         </div>
         <p className="text-gray-500 dark:text-gray-400">
-          Configure e visualize as notificações de atualização do sistema
+          Publique novidades e changelogs para todos os usuários do sistema.
         </p>
       </div>
 
@@ -189,7 +162,7 @@ export default function AdminUpdatesPage() {
           }`}
         >
           <Calendar className="inline-block w-4 h-4 mr-2" />
-          Histórico
+          Histórico Publicado
           {activeTab === 'history' && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
           )}
@@ -203,7 +176,7 @@ export default function AdminUpdatesPage() {
           <div className="space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                ✏️ Editar Conteúdo
+                ✏️ Criar Nova Versão
               </h3>
 
               <div className="space-y-4">
@@ -297,7 +270,7 @@ export default function AdminUpdatesPage() {
             {/* Cores */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                🎨 Personalizar Cores
+                🎨 Personalizar Gradiente
               </h3>
 
               <div className="grid grid-cols-2 gap-4">
@@ -354,8 +327,7 @@ export default function AdminUpdatesPage() {
               <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-800 dark:text-green-300 flex items-center gap-2">
                   <CheckCircle2 size={16} />
-                  <strong>Atualização publicada com sucesso!</strong> A página
-                  será recarregada...
+                  <strong>Atualização publicada com sucesso!</strong>
                 </p>
               </div>
             )}
@@ -375,7 +347,7 @@ export default function AdminUpdatesPage() {
             >
               {saving ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                  <Loader2 className="animate-spin" size={20} />
                   Salvando...
                 </>
               ) : saveSuccess ? (
@@ -392,10 +364,9 @@ export default function AdminUpdatesPage() {
             </button>
 
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              🔒 Isso atualizará automaticamente package.json, .env.local e o
-              arquivo de configuração.
+              🔒 Isso registrará uma nova versão no banco de dados.
               <br />
-              Todos os usuários verão o popup ao fazer login.
+              Todos os usuários verão este popup ao fazer login.
             </p>
           </div>
 
@@ -411,28 +382,11 @@ export default function AdminUpdatesPage() {
               >
                 <div className="flex items-center gap-3 text-white">
                   <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                    {/* Logo RepVendas (hosted) - fallback para iniciais se falhar */}
-                    <img
-                      src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
-                      alt="RepVendas"
-                      className="w-8 h-8 object-contain"
-                      onError={(e) => {
-                        const img = e.currentTarget as HTMLImageElement;
-                        const next =
-                          img.nextElementSibling as HTMLElement | null;
-                        if (next) next.style.display = 'flex';
-                        img.style.display = 'none';
-                      }}
-                    />
-                    <div
-                      className="w-8 h-8 items-center justify-center bg-white/20 rounded text-sm font-semibold text-slate-900 dark:text-white"
-                      style={{ display: 'none' }}
-                    >
-                      RV
-                    </div>
+                    {/* Placeholder Logo */}
+                    <Rocket className="text-white h-8 w-8" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">{editorTitle}</h2>
+                    <h2 className="text-2xl font-bold">{editorTitle || 'Título da Atualização'}</h2>
                     <p className="text-white/90 text-sm mt-1">
                       Versão {editorVersion} •{' '}
                       {new Date(editorDate).toLocaleDateString('pt-BR')}
@@ -449,11 +403,11 @@ export default function AdminUpdatesPage() {
 
                 <ul className="space-y-3 mb-6">
                   {editorHighlights.map((highlight, index) => {
-                    // Separa emoji do texto de forma mais robusta
+                    // Separa emoji do texto
                     const emojiMatch = highlight.match(
                       /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\s*/u
                     );
-                    const emoji = emojiMatch ? emojiMatch[0].trim() : '✓';
+                    const emoji = emojiMatch ? emojiMatch[0].trim() : '✅';
                     const text = emojiMatch
                       ? highlight.slice(emojiMatch[0].length)
                       : highlight;
@@ -477,14 +431,14 @@ export default function AdminUpdatesPage() {
                       background: `linear-gradient(to right, ${editorColorFrom}, ${editorColorTo})`,
                     }}
                   >
-                    OK
+                    Entendi, obrigado!
                   </button>
                 </div>
               </div>
             </div>
 
             <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
-              👁️ Preview em tempo real
+              👁️ Preview em tempo real de como o usuário verá
             </p>
           </div>
         </div>
@@ -493,42 +447,48 @@ export default function AdminUpdatesPage() {
       {/* Tab Content: History */}
       {activeTab === 'history' && (
         <div className="space-y-6">
-          {updates.map((u) => (
-            <div
-              key={u.id}
-              className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {u.title}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    v{u.version} •{' '}
-                    {new Date(u.date).toLocaleDateString('pt-BR')}
-                  </p>
+            {loadingHistory ? (
+                 <div className="flex justify-center py-10">
+                     <Loader2 className="animate-spin text-gray-400" size={32} />
+                 </div>
+            ) : historyUpdates.length === 0 ? (
+                <div className="text-center py-10 text-gray-500">
+                    Nenhuma atualização publicada ainda.
                 </div>
-                <div>{getStatusIcon(u.status)}</div>
-              </div>
-            </div>
-          ))}
-
-          <div className="mt-8 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-bold text-blue-900 dark:text-blue-300">
-                Próximas Atualizações
-              </h3>
-              <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">
-                Versão Atual: v{currentVersion}
-              </span>
-            </div>
-            <ul className="list-disc list-inside text-blue-800 dark:text-blue-400 space-y-1">
-              <li>Integração com APIs de terceiros</li>
-              <li>Dashboard de analytics avançado</li>
-              <li>Sistema de notificações em tempo real</li>
-              <li>Exportação de relatórios em múltiplos formatos</li>
-            </ul>
-          </div>
+            ) : (
+                historyUpdates.map((u) => (
+                    <div
+                    key={u.id}
+                    className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm"
+                    >
+                    <div className="flex items-center justify-between">
+                        <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {u.title}
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                            v{u.version} •{' '}
+                            {new Date(u.date).toLocaleDateString('pt-BR')}
+                        </p>
+                        
+                        {/* Exibe os highlights de forma compacta */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            {u.highlights?.slice(0, 3).map((h, i) => (
+                                <span key={i} className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-gray-600 dark:text-gray-300">
+                                    {h.substring(0, 50)}{h.length > 50 ? '...' : ''}
+                                </span>
+                            ))}
+                            {u.highlights?.length > 3 && (
+                                <span className="text-xs text-gray-400 self-center">+ {u.highlights.length - 3} mais</span>
+                            )}
+                        </div>
+                        </div>
+                        
+                        <CheckCircle2 className="text-green-500" />
+                    </div>
+                    </div>
+                ))
+            )}
         </div>
       )}
     </div>

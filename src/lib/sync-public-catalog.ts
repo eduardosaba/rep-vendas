@@ -13,6 +13,14 @@ export interface SyncCatalogData {
   primary_color?: string;
   secondary_color?: string;
   footer_message?: string;
+  show_sale_price?: boolean;
+  show_cost_price?: boolean;
+  header_background_color?: string | null;
+  enable_stock_management?: boolean;
+  show_installments?: boolean;
+  max_installments?: number;
+  show_cash_discount?: boolean;
+  cash_price_discount_percent?: number;
 }
 
 /**
@@ -35,6 +43,26 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     supabase = await createAnonClient();
   }
 
+  // Valida slug: somente a-z0-9- e tamanho entre 3 e 50
+  const slug = (data.slug || '').toLowerCase();
+  if (!/^[a-z0-9-]{3,50}$/.test(slug)) {
+    throw new Error('Invalid slug format: use a-z, 0-9 and dashes, 3-50 chars');
+  }
+
+  // Normalizar flags e garantir exclusividade (um ou outro)
+  let showSale = data.show_sale_price ?? true;
+  let showCost = data.show_cost_price ?? false;
+  if (showSale && showCost) {
+    // Padrão: preferir mostrar preço de venda e ocultar preço de custo
+    showCost = false;
+  }
+  // Normalizar outras flags e valores numéricos
+  const enableStock = data.enable_stock_management ?? false;
+  let showInstallments = data.show_installments ?? false;
+  let maxInstallments = Number(data.max_installments ?? 1);
+  const showCashDiscount = data.show_cash_discount ?? false;
+  const cashDiscountPercent = Number(data.cash_price_discount_percent ?? 0);
+
   // Verifica se já existe um catálogo para este usuário
   const { data: existing } = await supabase
     .from('public_catalogs')
@@ -51,8 +79,16 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         store_name: data.store_name,
         logo_url: data.logo_url,
         primary_color: data.primary_color || '#2563eb',
+        header_background_color: data.header_background_color || '#ffffff',
+        show_sale_price: showSale,
+        show_cost_price: showCost,
         secondary_color: data.secondary_color || '#3b82f6',
         footer_message: data.footer_message,
+        enable_stock_management: enableStock,
+        show_installments: showInstallments,
+        max_installments: maxInstallments,
+        show_cash_discount: showCashDiscount,
+        cash_price_discount_percent: cashDiscountPercent,
         is_active: true,
         updated_at: new Date().toISOString(),
       })
@@ -64,20 +100,35 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     }
   } else {
     // Cria novo catálogo
-    const { error } = await supabase.from('public_catalogs').insert({
-      user_id: userId,
-      slug: data.slug,
-      store_name: data.store_name,
-      logo_url: data.logo_url,
-      primary_color: data.primary_color || '#2563eb',
-      secondary_color: data.secondary_color || '#3b82f6',
-      footer_message: data.footer_message,
-      is_active: true,
-    });
-
-    if (error) {
-      console.error('Erro ao criar public_catalog:', error);
-      throw error;
+    try {
+      const { error } = await supabase.from('public_catalogs').insert({
+        user_id: userId,
+        slug,
+        store_name: data.store_name,
+        logo_url: data.logo_url,
+        primary_color: data.primary_color || '#2563eb',
+        header_background_color: data.header_background_color || '#ffffff',
+        show_sale_price: showSale,
+        show_cost_price: showCost,
+        secondary_color: data.secondary_color || '#3b82f6',
+        footer_message: data.footer_message,
+        enable_stock_management: enableStock,
+        show_installments: showInstallments,
+        max_installments: maxInstallments,
+        show_cash_discount: showCashDiscount,
+        cash_price_discount_percent: cashDiscountPercent,
+        is_active: true,
+      });
+      if (error) {
+        console.error('Erro ao criar public_catalog:', error);
+        // Erro de slug duplicado -> retorna mensagem legível
+        if ((error?.code || '').toString().includes('23505')) {
+          throw new Error('Slug já em uso por outro usuário');
+        }
+        throw error;
+      }
+    } catch (err) {
+      throw err;
     }
   }
 
@@ -89,7 +140,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
  * Útil para "ocultar" temporariamente a loja sem deletar dados
  */
 export async function deactivatePublicCatalog(userId: string) {
-  const supabase = await createClient();
+  const supabase = await createAnonClient();
 
   const { error } = await supabase
     .from('public_catalogs')
@@ -108,7 +159,7 @@ export async function deactivatePublicCatalog(userId: string) {
  * Reativa o catálogo público do usuário
  */
 export async function activatePublicCatalog(userId: string) {
-  const supabase = await createClient();
+  const supabase = await createAnonClient();
 
   const { error } = await supabase
     .from('public_catalogs')
