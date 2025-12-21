@@ -28,8 +28,14 @@ export default function AdminPlansPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/admin/plans');
-      if (!res.ok) throw new Error('Falha ao buscar planos');
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const serverMessage =
+          (data && (data.error || data.message)) ||
+          res.statusText ||
+          'Erro desconhecido';
+        throw new Error(serverMessage);
+      }
       setPlans(data || []);
     } catch (err: any) {
       toast.error('Erro ao buscar planos: ' + (err?.message || String(err)));

@@ -22,7 +22,7 @@ export default async function OrdersPage() {
   const { data: orders, error } = await supabase
     .from('orders')
     .select(
-      'id, display_id, created_at, status, total_value, item_count, client_name_guest, client_phone_guest'
+      `id, display_id, created_at, status, total_value, item_count, client_name_guest, client_phone_guest, client_id, clients(name,phone)`
     )
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
@@ -59,8 +59,20 @@ export default async function OrdersPage() {
 
       {/* CONTAINER DA TABELA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
-        {/* Passamos os dados para o Client Component */}
-        <OrdersTable initialOrders={safeOrders} />
+        {/* Mapear dados para a forma esperada pelo OrdersTable: usar campos guest se existirem, caso contrário pegar dos clients relacionados */}
+        <OrdersTable
+          initialOrders={(safeOrders as any[]).map((o) => ({
+            id: o.id,
+            display_id: o.display_id,
+            created_at: o.created_at,
+            status: o.status,
+            total_value: o.total_value || 0,
+            item_count: o.item_count || 0,
+            client_name_guest:
+              o.client_name_guest || o.clients?.name || 'Visitante',
+            client_phone_guest: o.client_phone_guest || o.clients?.phone || '',
+          }))}
+        />
       </div>
     </div>
   );

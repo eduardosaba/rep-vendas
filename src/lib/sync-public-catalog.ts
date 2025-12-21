@@ -3,7 +3,8 @@
  * Mantém a tabela pública sempre atualizada com os dados de branding
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient as createAnonClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 export interface SyncCatalogData {
   slug: string;
@@ -19,7 +20,20 @@ export interface SyncCatalogData {
  * Chamado quando o usuário atualiza configurações no dashboard
  */
 export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
-  const supabase = await createClient();
+  // Usar service role para garantir permissões de escrita em todas as tabelas
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  let supabase: any;
+  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    supabase = createServiceClient(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY as string
+    );
+  } else {
+    // fallback para client anônimo (apenas para ambientes de desenvolvimento)
+    supabase = await createAnonClient();
+  }
 
   // Verifica se já existe um catálogo para este usuário
   const { data: existing } = await supabase

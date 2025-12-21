@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/Button';
 import type { Product } from '@/components/catalogo/Storefront';
 import Barcode from '../ui/Barcode';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
 
 export function StoreModals() {
@@ -48,6 +49,7 @@ export function StoreModals() {
     unlockPrices,
     isPricesVisible,
   } = useStore();
+  const router = useRouter();
   const { brandsWithLogos } = useStore();
 
   const [passwordInput, setPasswordInput] = useState('');
@@ -953,6 +955,16 @@ export function StoreModals() {
                   setOrderSuccessData(null);
                   setCustomerInfo({ name: '', phone: '', email: '', cnpj: '' });
                   setModal('checkout', false);
+                  try {
+                    const slug = store?.slug || '';
+                    if (slug) router.replace(`/catalogo/${slug}`);
+                  } catch (e) {
+                    // fallback: do a full navigation
+                    if (typeof window !== 'undefined') {
+                      const slug = store?.slug || '';
+                      if (slug) window.location.href = `/catalogo/${slug}`;
+                    }
+                  }
                 }}
                 className="block w-full mt-4 text-sm text-gray-400 hover:text-gray-600 underline"
               >
