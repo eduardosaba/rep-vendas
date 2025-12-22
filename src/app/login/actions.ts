@@ -8,7 +8,6 @@ import { checkSupabaseEnv } from '@/lib/env';
 
 // --- LOGIN COM EMAIL ---
 export async function login(formData: FormData) {
-  // Checar variáveis de ambiente de forma centralizada
   checkSupabaseEnv();
 
   const supabase = await createClient();
@@ -28,10 +27,11 @@ export async function login(formData: FormData) {
     );
   }
 
-  // Define o destino padrão
+  // ESSENCIAL: Revalida o layout para garantir que o cookie de sessão seja propagado
+  revalidatePath('/', 'layout');
+
   let redirectTo = '/dashboard';
 
-  // Verifica o perfil para decidir para onde redirecionar
   if (data.session && data.user) {
     try {
       const { data: profileData } = await supabase
@@ -43,47 +43,26 @@ export async function login(formData: FormData) {
       const role = profileData?.role;
       const onboardingCompleted = profileData?.onboarding_completed;
 
-      // Se o onboarding não foi concluído, direciona para /onboarding
       if (!onboardingCompleted) {
         redirectTo = '/onboarding';
       } else if (role === 'master') {
-        // Só vai para /admin se já concluiu o onboarding
         redirectTo = '/admin';
       }
     } catch (err) {
       console.error('Erro ao buscar perfil:', err);
-      // Em caso de erro no perfil, mantemos o destino padrão '/dashboard'
     }
   }
 
-  // O redirecionamento acontece FORA do try/catch
-  revalidatePath('/', 'layout');
   return redirect(redirectTo);
 }
 
 // --- CADASTRO COM EMAIL ---
 export async function signup(formData: FormData) {
-  const ensureSupabaseEnv = () => {
-    if (
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) {
-      console.error(
-        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-      throw new Error(
-        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-    }
-  };
-
-  ensureSupabaseEnv();
+  checkSupabaseEnv();
   const supabase = await createClient();
 
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
-
-  // Pega a origem atual (localhost ou produção)
   const origin = (await headers()).get('origin');
 
   const { error } = await supabase.auth.signUp({
@@ -96,9 +75,7 @@ export async function signup(formData: FormData) {
 
   if (error) {
     return redirect(
-      `/register?message_type=error&message_text=${encodeURIComponent(
-        error.message
-      )}`
+      `/register?message_type=error&message_text=${encodeURIComponent(error.message)}`
     );
   }
 
@@ -111,24 +88,8 @@ export async function signup(formData: FormData) {
 
 // --- LOGIN COM GOOGLE ---
 export async function loginWithGoogle() {
-  const ensureSupabaseEnv = () => {
-    if (
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) {
-      console.error(
-        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-      throw new Error(
-        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-    }
-  };
-
-  ensureSupabaseEnv();
+  checkSupabaseEnv();
   const supabase = await createClient();
-
-  // Determina a URL base dinamicamente
   const origin = (await headers()).get('origin');
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -143,15 +104,8 @@ export async function loginWithGoogle() {
   });
 
   if (error) {
-    return {
-      error: 'Erro ao conectar com Google',
-      url: null,
-    };
+    return { error: 'Erro ao conectar com Google', url: null };
   }
 
-  // Retorna a URL para o cliente fazer o redirecionamento
-  return {
-    error: null,
-    url: data.url,
-  };
+  return { error: null, url: data.url };
 }

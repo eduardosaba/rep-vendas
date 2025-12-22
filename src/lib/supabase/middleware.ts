@@ -4,18 +4,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // 🛑 FIX: Libera acesso total ao catálogo sem verificar sessão.
-  // Isso impede que o navegador fique preso em loop de redirecionamento.
+  // 1. Liberação imediata para catálogo (performance e evitar loops)
   if (path.startsWith('/catalogo')) {
     return NextResponse.next({ request });
   }
 
-  // 1. Cria uma resposta inicial que permite continuar a requisição
+  // 2. Resposta base
   let supabaseResponse = NextResponse.next({
     request,
   });
 
-  // 2. Cria o cliente Supabase para gerenciar cookies nesta requisição
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,16 +22,18 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        // CORREÇÃO AQUI: Adicionado a tipagem ': any[]' para satisfazer o TypeScript
         setAll(cookiesToSet: any[]) {
-          // A mágica acontece aqui:
-          // Atualiza os cookies no request E no response para garantir que a sessão persista
+          // Sincroniza cookies no Request para que o Next.js veja a mudança nesta requisição
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
+
+          // Gera uma nova resposta para incluir os novos headers de cookie
           supabaseResponse = NextResponse.next({
             request,
           });
+
+          // Sincroniza cookies na Resposta para o navegador salvar
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -42,33 +42,30 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // 3. Atualiza a sessão e verifica o usuário
-  // IMPORTANTE: getUser é mais seguro que getSession para middleware
+  // 3. Obtém o usuário (getUser é essencial para validar o JWT)
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 4. Regras de Redirecionamento
+  // 4. Regras de Redirecionamento Protegidas
+  const isProtectedRoute =
+    path.startsWith('/dashboard') ||
+    path.startsWith('/admin') ||
+    path.startsWith('/onboarding');
 
-  // A. Rotas Protegidas -> Manda para Login se não tiver usuário
-  if (
-    !user &&
-    (path.startsWith('/dashboard') ||
-      path.startsWith('/admin') ||
-      path.startsWith('/onboarding'))
-  ) {
+  if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // B. Rotas de Auth -> Manda para Dashboard se usuário já estiver logado
-  if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
+  // 5. Redireciona usuários logados para fora das páginas de Auth
+  const isAuthRoute = path.startsWith('/login') || path.startsWith('/register');
+  if (user && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
-  // Retorna a resposta final com os cookies atualizados
   return supabaseResponse;
 }

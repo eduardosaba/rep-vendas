@@ -244,7 +244,10 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-gray-700 ml-1">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-semibold text-gray-700 ml-1"
+                >
                   Email
                 </label>
                 <div className="relative group">
@@ -252,6 +255,7 @@ export default function LoginPage() {
                     <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-[#b9722e] transition-colors" />
                   </div>
                   <input
+                    id="email"
                     name="email"
                     type="email"
                     value={email}
@@ -266,7 +270,10 @@ export default function LoginPage() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between ml-1">
-                  <label className="block text-sm font-semibold text-gray-700">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-semibold text-gray-700"
+                  >
                     Senha
                   </label>
                   <button
@@ -282,6 +289,7 @@ export default function LoginPage() {
                     <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-[#b9722e] transition-colors" />
                   </div>
                   <input
+                    id="password"
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
