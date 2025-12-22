@@ -1,70 +1,61 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server'; // O seu cliente server-side
+import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  // Se houver um parâmetro "next", usamos para redirecionar depois (ex: /dashboard)
-  const next = searchParams.get('next') ?? '/dashboard';
 
   if (code) {
-    const ensureSupabaseEnv = () => {
-      if (
-        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      ) {
-        console.error(
-          'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
-        );
-        throw new Error(
-          'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
-        );
-      }
-    };
-
-    ensureSupabaseEnv();
     const supabase = await createClient();
     const { data: exchangeData, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
 
-    if (!exchangeError) {
-      // Tenta obter o id do usuário da sessão criada
-      const userId = exchangeData?.session?.user?.id;
+    try {
+      try {
+        console.log(
+          '[auth/callback] request.cookies=',
+          JSON.stringify(cookies().getAll())
+        );
+      } catch (e) {
+        console.log('[auth/callback] cookies logging failed');
+      }
+      console.log(
+        '[auth/callback] exchangeError=',
+        JSON.stringify(exchangeError || null)
+      );
+      console.log(
+        '[auth/callback] exchangeData=',
+        JSON.stringify(exchangeData || null)
+      );
+    } catch (e) {
+      console.log('[auth/callback] logging failed');
+    }
 
-      if (userId) {
-        try {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('role, onboarding_completed')
-            .eq('id', userId)
-            .maybeSingle();
+    if (!exchangeError && exchangeData?.session?.user) {
+      const user = exchangeData.session.user;
 
-          const onboardingCompleted = profileData?.onboarding_completed;
-          const role = profileData?.role;
+      try {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role, onboarding_completed')
+          .eq('id', user.id)
+          .maybeSingle();
 
-          // Se não completou o onboarding, vai para /onboarding
-          if (!onboardingCompleted) {
-            return NextResponse.redirect(`${origin}/onboarding`);
-          }
+        const onboardingCompleted = profileData?.onboarding_completed;
+        const role = profileData?.role;
 
-          // Se for master e já completou onboarding, vai para /admin
-          if (role === 'master') {
-            return NextResponse.redirect(`${origin}/admin`);
-          }
+        // Redirecionamento baseado no perfil
+        let targetPath = '/dashboard';
+        if (!onboardingCompleted) targetPath = '/onboarding';
+        else if (role === 'master') targetPath = '/admin';
 
-          // Caso padrão: dashboard
-          return NextResponse.redirect(`${origin}/dashboard`);
-        } catch (err) {
-          console.error('Erro ao buscar perfil após OAuth:', err);
-          // Em caso de falha, redireciona para dashboard como fallback
-          return NextResponse.redirect(`${origin}/dashboard`);
-        }
+        return NextResponse.redirect(`${origin}${targetPath}`);
+      } catch (err) {
+        return NextResponse.redirect(`${origin}/dashboard`);
       }
     }
   }
 
-  // Se der erro, volta para o login com mensagem
-  return NextResponse.redirect(
-    `${origin}/login?message=Erro ao autenticar com Google`
-  );
+  return NextResponse.redirect(`${origin}/login?message=Erro ao autenticar`);
 }
