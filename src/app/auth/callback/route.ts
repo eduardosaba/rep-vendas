@@ -13,9 +13,10 @@ export async function GET(request: Request) {
 
     try {
       try {
+        const cookieStore = await cookies();
         console.log(
           '[auth/callback] request.cookies=',
-          JSON.stringify(cookies().getAll())
+          JSON.stringify(cookieStore.getAll())
         );
       } catch (e) {
         console.log('[auth/callback] cookies logging failed');
