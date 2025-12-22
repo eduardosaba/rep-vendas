@@ -108,6 +108,9 @@ importers:
       '@types/react':
         specifier: ^19.2.4
         version: 19.2.7
+      '@types/react-dom':
+        specifier: 18.2.7
+        version: 18.2.7
       '@types/react-dropzone':
         specifier: ^5.1.0
         version: 5.1.0(react@19.2.3)
@@ -952,6 +955,9 @@ packages:
 
   '@types/raf@3.4.3':
     resolution: {integrity: sha512-c4YAvMedbPZ5tEyxzQdMoOhhJ4RD3rngZIdwC2/qDN3d7JpEhB6fiBRKVY1lg5B7Wk+uPBjn5f39j1/2MY1oOw==}
+
+  '@types/react-dom@18.2.7':
+    resolution: {integrity: sha512-GRaAEriuT4zp9N4p1i8BDBYmEyfo+xQ3yHjJU4eiK5NDa1RmUZG+unZABUTK4/Ox/M+GaHwb6Ow8rUITrtjszA==}
 
   '@types/react-dropzone@5.1.0':
     resolution: {integrity: sha512-VCdDCwSsr1MT2frsVl5p8qH+LWwUGzsaNtGkEQekHviZqK0dmTbiIp2Pzfb8lTkH4oTE2JtBbWnbuM6B4FH80A==}
@@ -4608,6 +4614,10 @@ snapshots:
 
   '@types/raf@3.4.3':
     optional: true
+
+  '@types/react-dom@18.2.7':
+    dependencies:
+      '@types/react': 19.2.7
 
   '@types/react-dropzone@5.1.0(react@19.2.3)':
     dependencies:

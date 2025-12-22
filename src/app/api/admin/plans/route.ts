@@ -49,6 +49,11 @@ export async function POST(req: Request) {
     console.log('[API /admin/plans POST] Body received:', body);
 
     const supabase = getSupabaseAdmin();
+    if (!supabase)
+      return NextResponse.json(
+        { error: 'Service role key missing' },
+        { status: 500 }
+      );
     const { data, error } = await supabase
       .from('plans')
       .insert(body)
@@ -78,6 +83,11 @@ export async function PUT(req: Request) {
 
     const { id, ...rest } = body;
     const supabase = getSupabaseAdmin();
+    if (!supabase)
+      return NextResponse.json(
+        { error: 'Service role key missing' },
+        { status: 500 }
+      );
     const { data, error } = await supabase
       .from('plans')
       .update(rest)
@@ -121,6 +131,11 @@ export async function DELETE(req: Request) {
     const body = await req.json();
     const { id } = body;
     const supabase = getSupabaseAdmin();
+    if (!supabase)
+      return NextResponse.json(
+        { error: 'Service role key missing' },
+        { status: 500 }
+      );
     const { error } = await supabase.from('plans').delete().eq('id', id);
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });

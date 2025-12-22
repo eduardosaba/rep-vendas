@@ -46,12 +46,10 @@ interface StoreContextType {
   initialProducts: Product[];
   cart: CartItem[];
   favorites: string[];
-
   isPricesVisible: boolean;
   setIsPricesVisible: (visible: boolean) => void;
   showPrices: boolean;
   toggleShowPrices: () => void;
-
   displayProducts: Product[];
   totalProducts: number;
   currentPage: number;
@@ -64,24 +62,22 @@ interface StoreContextType {
   categories: string[];
   searchTerm: string;
   setSearchTerm: (s: string) => void;
+  isLoadingSearch: boolean;
   selectedBrand: string | string[];
   setSelectedBrand: (s: string | string[]) => void;
   selectedCategory: string;
   setSelectedCategory: (s: string) => void;
   sortOrder: string;
   setSortOrder: (s: any) => void;
-
   showOnlyNew: boolean;
   setShowOnlyNew: (b: boolean) => void;
   showOnlyBestsellers: boolean;
   setShowOnlyBestsellers: (b: boolean) => void;
-
   showFavorites: boolean;
   setShowFavorites: (b: boolean) => void;
   isFilterOpen: boolean;
   setIsFilterOpen: (b: boolean) => void;
   currentBanner: number;
-
   modals: {
     cart: boolean;
     checkout: boolean;
@@ -92,17 +88,14 @@ interface StoreContextType {
     product: Product | null;
   };
   setModal: (name: string, value: any) => void;
-
   addToCart: (p: Product, qty?: number) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
   unlockPrices: (password: string) => Promise<boolean>;
-
   handleFinalizeOrder: (customer: CustomerInfo) => Promise<boolean>;
   handleSaveCart: () => Promise<string | null>;
   handleLoadCart: (code: string) => Promise<boolean>;
-
   loadingStates: { submitting: boolean; saving: boolean; loadingCart: boolean };
   orderSuccessData: any;
   setOrderSuccessData: (data: any) => void;
@@ -131,11 +124,14 @@ export function StoreProvider({
   const supabase = createClient();
 
   const [showPrices, setShowPrices] = useState(!store.show_cost_price);
-
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[] | null>(null);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
+
   const [selectedBrand, setSelectedBrand] = useState<string | string[]>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortOrder, setSortOrder] = useState<
@@ -220,7 +216,7 @@ export function StoreProvider({
       }
     };
     fetchBrands();
-  }, [store.user_id, initialProducts, brands]);
+  }, [store.user_id, initialProducts, brands]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setCurrentPage(1);
@@ -238,11 +234,13 @@ export function StoreProvider({
     if (typeof window !== 'undefined') {
       const savedCart = localStorage.getItem(`cart-${store.name}`);
       const savedFavs = localStorage.getItem(`favs-${store.name}`);
-      
-      // Verifica LocalStorage (persistente) ou SessionStorage (retrocompatibilidade)
-      const priceUnlockedLocal = localStorage.getItem(`unlocked_${store.user_id}`);
-      const priceUnlockedSession = sessionStorage.getItem(`prices-${store.name}`);
-      
+      const priceUnlockedLocal = localStorage.getItem(
+        `unlocked_${store.user_id}`
+      );
+      const priceUnlockedSession = sessionStorage.getItem(
+        `prices-${store.name}`
+      );
+
       if (savedCart) {
         try {
           const parsed = JSON.parse(savedCart);
@@ -254,14 +252,11 @@ export function StoreProvider({
           setFavorites(JSON.parse(savedFavs));
         } catch {}
       }
-      
-      // Lógica de desbloqueio automático
       if (store.show_cost_price) {
         if (priceUnlockedLocal === 'true' || priceUnlockedSession === 'true') {
           setShowPrices(true);
         }
       } else {
-        // Se for preço de venda, é sempre visível
         setShowPrices(true);
       }
     }
@@ -269,23 +264,17 @@ export function StoreProvider({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const keyCart = `cart-${store.name}`;
     const keyFavs = `favs-${store.name}`;
-
-    let timer: number | null = null;
-    timer = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       try {
         localStorage.setItem(keyCart, JSON.stringify(cart));
-      } catch (err) {}
+      } catch {}
       try {
         localStorage.setItem(keyFavs, JSON.stringify(favorites));
-      } catch (err) {}
+      } catch {}
     }, 400);
-
-    return () => {
-      if (timer) window.clearTimeout(timer);
-    };
+    return () => window.clearTimeout(timer);
   }, [cart, favorites, store.name]);
 
   useEffect(() => {
@@ -299,10 +288,8 @@ export function StoreProvider({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const urlParams = new URLSearchParams(window.location.search);
     const productId = urlParams.get('product');
-
     if (productId && !modals.product) {
       const product = initialProducts.find((p) => p.id === productId);
       if (product) {
@@ -310,7 +297,45 @@ export function StoreProvider({
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
-  }, [initialProducts]);
+  }, [initialProducts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- LÓGICA DE BUSCA MOVIDA PARA CÁ (CORREÇÃO) ---
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let mounted = true;
+    const runSearch = async () => {
+      if (!debouncedSearchTerm) {
+        if (mounted) setSearchResults(null);
+        return;
+      }
+      try {
+        setIsLoadingSearch(true);
+        const { data, error } = await supabase.rpc('search_products', {
+          search_term: debouncedSearchTerm,
+          catalog_user_id: store.user_id,
+        });
+        if (error) {
+          console.error('search_products rpc error', error);
+          if (mounted) setSearchResults([]);
+        } else {
+          if (mounted) setSearchResults((data as Product[]) || []);
+        }
+      } catch (err) {
+        console.error('Error calling search_products RPC', err);
+        if (mounted) setSearchResults([]);
+      } finally {
+        if (mounted) setIsLoadingSearch(false);
+      }
+    };
+    runSearch();
+    return () => {
+      mounted = false;
+    };
+  }, [debouncedSearchTerm, store.user_id, supabase]);
 
   // --- ACTIONS ---
   const addToCart = (p: Product, qty = 1) => {
@@ -323,6 +348,7 @@ export function StoreProvider({
       }
       return [...c, { ...p, quantity: qty } as CartItem];
     });
+
     if (typeof addToast === 'function') {
       addToast({
         type: 'success',
@@ -348,38 +374,29 @@ export function StoreProvider({
       f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
     );
 
-  // --- NOVA LÓGICA: VALIDAÇÃO DE SENHA CLIENT-SIDE (INSTANTÂNEA) ---
   const unlockPrices = async (passwordInput: string) => {
     try {
-      // 1. Pega o hash que passamos via Storefront (veja Storefront.tsx)
       const storedHash = (store as any).price_password_hash;
-
       if (!storedHash) {
-        if (typeof addToast === 'function') {
-           addToast({ type: 'error', message: 'Este catálogo não possui senha configurada.' } as Toast);
-        }
+        if (typeof addToast === 'function')
+          addToast({
+            type: 'error',
+            message: 'Senha não configurada.',
+          } as Toast);
         return false;
       }
-
-      // 2. Calcula o hash do input
       const inputHash = await sha256(passwordInput.trim());
-
-      // 3. Compara
       if (inputHash === storedHash) {
         setShowPrices(true);
-        if (typeof window !== 'undefined') {
-          // Salva no LocalStorage para não pedir mais a senha
+        if (typeof window !== 'undefined')
           localStorage.setItem(`unlocked_${store.user_id}`, 'true');
-        }
         return true;
       } else {
-        if (typeof addToast === 'function') {
-           addToast({ type: 'error', message: 'Senha incorreta.' } as Toast);
-        }
+        if (typeof addToast === 'function')
+          addToast({ type: 'error', message: 'Senha incorreta.' } as Toast);
         return false;
       }
     } catch (err) {
-      console.error('Erro ao validar senha:', err);
       return false;
     }
   };
@@ -389,22 +406,18 @@ export function StoreProvider({
   const handleFinalizeOrder = async (customer: CustomerInfo) => {
     try {
       setLoadingStates((s) => ({ ...s, submitting: true }));
-
       const normalizedPhone = (customer?.phone || '').replace(/\D/g, '');
-
       let clientId: string | null = null;
+
       if (normalizedPhone) {
-        const { data: existingClient, error: findClientError } = await supabase
+        const { data: existingClient } = await supabase
           .from('clients')
           .select('id')
           .eq('phone', normalizedPhone)
           .maybeSingle();
-
-        if (findClientError) throw findClientError;
-        if (existingClient && existingClient.id) {
-          clientId = existingClient.id;
-        } else {
-          const { data: newClient, error: createClientError } = await supabase
+        if (existingClient?.id) clientId = existingClient.id;
+        else {
+          const { data: newClient } = await supabase
             .from('clients')
             .insert({
               name: customer?.name || '',
@@ -414,9 +427,7 @@ export function StoreProvider({
             })
             .select()
             .maybeSingle();
-
-          if (createClientError) throw createClientError;
-          if (newClient && newClient.id) clientId = newClient.id;
+          if (newClient?.id) clientId = newClient.id;
         }
       }
 
@@ -424,7 +435,6 @@ export function StoreProvider({
         (acc, item) => acc + item.price * item.quantity,
         0
       );
-
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -432,7 +442,7 @@ export function StoreProvider({
           client_id: clientId,
           client_name_guest: customer?.name || '',
           client_phone_guest: normalizedPhone || customer?.phone || '',
-          client_cnpj_guest: customer?.cnpj || '', // Garante que o CNPJ seja salvo
+          client_cnpj_guest: customer?.cnpj || '',
           total_value: totalValue,
           status: 'Pendente',
         })
@@ -449,7 +459,6 @@ export function StoreProvider({
           quantity: it.quantity,
           unit_price: it.price,
         }));
-
         const { error: itemsError } = await supabase
           .from('order_items')
           .insert(itemsPayload);
@@ -462,9 +471,8 @@ export function StoreProvider({
         quantity: it.quantity,
         price: it.price,
         sale_price: it.price,
-        brand: it.brand
+        brand: it.brand,
       }));
-
       setOrderSuccessData({
         id: orderData.id,
         display_id: orderData.display_id,
@@ -475,10 +483,11 @@ export function StoreProvider({
       setCart([]);
       return true;
     } catch (e: unknown) {
-      console.error('Erro finalizar pedido:', e);
-      let message = 'Erro ao processar pedido.';
       if (typeof addToast === 'function')
-        addToast({ type: 'error', message } as Toast);
+        addToast({
+          type: 'error',
+          message: 'Erro ao processar pedido.',
+        } as Toast);
       return false;
     } finally {
       setLoadingStates((s) => ({ ...s, submitting: false }));
@@ -490,14 +499,12 @@ export function StoreProvider({
     try {
       setLoadingStates((s) => ({ ...s, saving: true }));
       const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const { error } = await supabase.from('saved_carts').insert({
-        short_id: shortId,
-        items: cart,
-      });
+      const { error } = await supabase
+        .from('saved_carts')
+        .insert({ short_id: shortId, items: cart });
       if (error) throw error;
       return shortId;
     } catch (e) {
-      console.error(e);
       return null;
     } finally {
       setLoadingStates((s) => ({ ...s, saving: false }));
@@ -513,7 +520,6 @@ export function StoreProvider({
         .select('items')
         .eq('short_id', code.toUpperCase().trim())
         .maybeSingle();
-
       if (error || !data) {
         if (typeof addToast === 'function')
           addToast({
@@ -539,17 +545,17 @@ export function StoreProvider({
     const orderObj = {
       id: orderSuccessData?.id || 0,
       customer: orderSuccessData?.customer || { name: '', phone: '' },
-      created_at: new Date().toISOString(), // Necessário para o novo gerador
+      created_at: new Date().toISOString(),
     };
     generateOrderPDF(
       orderObj as any,
       store,
-      itemsToPrint.map(i => ({
+      itemsToPrint.map((i) => ({
         name: i.name,
         quantity: i.quantity,
         price: i.price,
         reference_code: i.reference_code,
-        brand: i.brand
+        brand: i.brand,
       })),
       itemsToPrint.reduce((acc, i) => acc + i.price * i.quantity, 0)
     );
@@ -569,12 +575,13 @@ export function StoreProvider({
   const setModal = (name: string, value: any) =>
     setModals((m) => ({ ...m, [name]: value }));
 
-  const displayProducts = initialProducts
+  const baseProducts = searchResults !== null ? searchResults : initialProducts;
+
+  const displayProducts = baseProducts
     .filter((p) => {
       if (showFavorites && !favorites.includes(p.id)) return false;
       if (showOnlyNew && !p.is_launch) return false;
       if (showOnlyBestsellers && !p.is_best_seller) return false;
-
       if (selectedBrand && selectedBrand !== 'all') {
         if (Array.isArray(selectedBrand)) {
           if (
@@ -594,6 +601,7 @@ export function StoreProvider({
         return false;
       if (
         searchTerm &&
+        searchResults === null &&
         !p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
         !(p.reference_code || '')
           .toLowerCase()
@@ -634,6 +642,7 @@ export function StoreProvider({
         categories,
         searchTerm,
         setSearchTerm,
+        isLoadingSearch,
         selectedBrand,
         setSelectedBrand,
         selectedCategory,

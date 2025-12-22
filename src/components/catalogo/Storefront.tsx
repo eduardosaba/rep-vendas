@@ -1,12 +1,14 @@
 'use client';
 
 import React from 'react';
+import { Phone } from 'lucide-react';
 import { StoreProvider } from './store-context';
 import {
   StoreTopBar,
   StoreHeader,
   StoreSidebar,
   StoreMobileActionBar,
+  StoreFooter,
 } from './store-layout';
 import { StoreBanners, ProductGrid } from './product-components';
 import { StoreModals } from './store-modals-container';
@@ -40,9 +42,20 @@ export function Storefront({
     logo_url: catalog.logo_url,
     primary_color: catalog.primary_color,
     secondary_color: catalog.secondary_color,
+    email: (catalog as any).email || (catalog as any).support_email || null,
+    phone: (catalog as any).phone || (catalog as any).support_phone || null,
+    // Top benefit fields (sincronizados para public_catalogs)
+    show_top_benefit_bar: (catalog as any).show_top_benefit_bar ?? false,
+    top_benefit_text: (catalog as any).top_benefit_text || '',
+    top_benefit_image_url: (catalog as any).top_benefit_image_url || null,
+    top_benefit_height: (catalog as any).top_benefit_height || 36,
+    top_benefit_text_size: (catalog as any).top_benefit_text_size || 11,
+    top_benefit_bg_color: (catalog as any).top_benefit_bg_color || '#f3f4f6',
+    top_benefit_text_color:
+      (catalog as any).top_benefit_text_color || '#0f172a',
+    footer_background_color: (catalog as any).footer_background_color || null,
     show_cost_price: (catalog as any).show_cost_price,
     show_sale_price: (catalog as any).show_sale_price,
-    price_password_hash: (catalog as any).price_password_hash,
     footer_message: catalog.footer_message,
     enable_stock_management: (catalog as any).enable_stock_management,
     show_installments: (catalog as any).show_installments,
@@ -53,6 +66,8 @@ export function Storefront({
     // NOVO: Passando o Hash da senha para o contexto
     // Usamos 'as any' caso o tipo StoreSettings ainda não tenha esse campo definido
     price_password_hash: (catalog as any).price_password_hash,
+    // Show top info bar (nome / email / telefone)
+    show_top_info_bar: (catalog as any).show_top_info_bar ?? true,
   } as StoreSettings;
 
   // ... (Resto do código de cores e estilos mantido igual) ...
@@ -96,6 +111,7 @@ export function Storefront({
     ['--primary-hover']: shadeColor(primaryColor, -18),
     ['--secondary']: secondaryColor,
     ['--header-bg']: headerBg,
+    ['--footer-bg']: store.footer_background_color || secondaryColor,
   } as React.CSSProperties;
 
   const getContrastColor = (hex?: string) => {
@@ -126,6 +142,21 @@ export function Storefront({
     return `https://wa.me/${num}`;
   };
 
+  const formatPhoneDisplay = (phone?: string) => {
+    if (!phone) return '';
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (!digits) return phone;
+    const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
+    const local = withCountry.slice(2);
+    if (local.length === 11) {
+      return `+${withCountry.slice(0, 2)} (${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+    }
+    if (local.length === 10) {
+      return `+${withCountry.slice(0, 2)} (${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+    }
+    return `+${withCountry}`;
+  };
+
   return (
     <StoreProvider
       store={store}
@@ -137,50 +168,58 @@ export function Storefront({
         className="min-h-screen bg-[#F4F4F5] font-sans flex flex-col"
       >
         {/* Barra Superior */}
-        {(store.name || store.email || store.phone) && (
-          <div
-            className="w-full border-b"
-            style={{ backgroundColor: topBarBg }}
-          >
+        {store.show_top_info_bar !== false &&
+          (store.name || store.email || store.phone) && (
             <div
-              className="max-w-[1920px] mx-auto px-4 lg:px-8 py-2 text-sm flex items-center justify-between gap-4"
-              style={{ color: topBarText }}
+              className="w-full border-b"
+              style={{ backgroundColor: topBarBg }}
             >
-              <div className="flex items-center gap-4">
-                {store.name && (
-                  <span className="font-medium hidden sm:inline">
-                    {store.name}
-                  </span>
-                )}
-                <div className="flex gap-3 text-xs sm:text-sm">
-                  {store.email && (
-                    <a
-                      href={`mailto:${store.email}`}
-                      className="hover:underline opacity-90 hover:opacity-100"
-                      style={{ color: topBarText }}
-                    >
-                      {store.email}
-                    </a>
+              <div
+                className="max-w-[1920px] mx-auto px-4 lg:px-8 py-2 text-sm flex items-center justify-between gap-4"
+                style={{ color: topBarText }}
+              >
+                <div className="flex items-center gap-4">
+                  {store.name && (
+                    <span className="font-medium hidden sm:inline">
+                      {store.name}
+                    </span>
+                  )}
+                  <div className="flex gap-3 text-xs sm:text-sm">
+                    {store.email && (
+                      <a
+                        href={`mailto:${store.email}`}
+                        className="hover:underline opacity-90 hover:opacity-100"
+                        style={{ color: topBarText }}
+                      >
+                        {store.email}
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 ml-auto">
+                  {store.footer_message && (
+                    <div className="text-xs opacity-80 hidden md:block">
+                      {store.footer_message}
+                    </div>
                   )}
                   {store.phone && (
                     <a
                       href={formatWhatsappUrl(store.phone)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:underline opacity-90 hover:opacity-100"
+                      className="flex items-center gap-2 hover:underline opacity-90 hover:opacity-100"
                       style={{ color: topBarText }}
                     >
-                      {store.phone}
+                      <Phone size={14} />
+                      <span className="font-medium">
+                        {formatPhoneDisplay(store.phone)}
+                      </span>
                     </a>
                   )}
                 </div>
               </div>
-              <div className="text-xs opacity-80 hidden md:block">
-                {store.footer_message || ''}
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {store.show_top_benefit_bar !== false && <StoreTopBar />}
         <StoreHeader />
@@ -198,6 +237,7 @@ export function Storefront({
           <FloatingCart />
         </div>
         <StoreModals />
+        <StoreFooter />
         <InstallPrompt />
       </div>
     </StoreProvider>

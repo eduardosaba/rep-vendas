@@ -9,8 +9,8 @@ export interface UserProfile {
   role: UserRole;
   status: AccountStatus;
   plan_id: string;
-  license_expires_at: string; // Data em formato ISO string
-  onboarding_completed?: boolean; // flag para controlar fluxo de onboarding
+  license_expires_at: string;
+  onboarding_completed?: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -19,12 +19,10 @@ export interface UserProfile {
 export interface SecurityLog {
   id: string;
   user_id?: string;
-  event?: string; // ex: 'login', 'failed_login', 'password_change'
+  event?: string;
   details?: string;
   ip_address?: string;
   created_at?: string;
-  // Campos adicionais usados pelo componente de SecurityLogs
-  // manter compatibilidade com formatos diferentes (timestamp numérico ou string)
   timestamp?: number | string;
   action?: string;
   success?: boolean;
@@ -34,8 +32,8 @@ export interface SecurityLog {
 export interface Toast {
   id: string;
   title: string;
-  description?: string; // Padrão novo
-  message?: string; // Mantido para compatibilidade com código antigo
+  description?: string;
+  message?: string;
   type: 'success' | 'error' | 'info' | 'warning';
   duration?: number;
 }
@@ -58,41 +56,27 @@ export interface Product {
   brand?: string | null;
   reference_code?: string | null;
   description?: string | null;
-
-  // --- PREÇIFICAÇÃO ---
-  price: number; // PREÇO DE CUSTO (Interno)
-  sale_price?: number | null; // PREÇO DE VENDA (Sugerido ao cliente)
-  original_price?: number | null; // PREÇO "DE" (Para promoções/comparação)
-
-  // --- IMAGENS ---
-  image_url?: string | null; // URL da imagem principal (Capa)
-  image_path?: string | null; // caminho no storage
-  external_image_url?: string | null; // url externa alternativa
-  images?: string[]; // Galeria de imagens
-
-  // --- IDENTIFICADORES E ORGANIZAÇÃO ---
-  slug?: string | null; // URL Amigável (ex: oculos-sol-rayban)
-  category?: string | null; // Nome da categoria
-  category_id?: string | null; // ID da categoria (Relação)
+  price: number;
+  sale_price?: number | null;
+  original_price?: number | null;
+  image_url?: string | null;
+  image_path?: string | null;
+  external_image_url?: string | null;
+  images?: string[];
+  slug?: string | null;
+  category?: string | null;
+  category_id?: string | null;
   barcode?: string | null;
   sku?: string | null;
   color?: string | null;
-
-  // --- FLAGS E STATUS ---
-  // Mantemos compatibilidade entre convenções diferentes (DB vs UI)
   bestseller?: boolean;
   is_best_seller?: boolean;
-
   is_launch?: boolean;
-  is_active?: boolean; // Controla visibilidade global do produto
-
-  // --- OUTROS ---
+  is_active?: boolean;
   technical_specs?: string | Record<string, string> | null;
   user_id?: string;
   created_at?: string;
   updated_at?: string;
-
-  // Campos legado ou redundantes mantidos para evitar quebras
   cost?: number;
   stock_quantity?: number;
 }
@@ -120,21 +104,17 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   total_price: number;
-  products?: Product; // Para joins no Supabase
+  products?: Product;
 }
 
 export interface Order {
   id: string;
-  display_id?: number; // ID curto amigável (ex: 1001)
-  user_id: string; // Representante dono do pedido
-
-  // Dados do Cliente
+  display_id?: number;
+  user_id: string;
   client_id?: string;
   client_name_guest?: string;
   client_email_guest?: string;
   company_name?: string;
-
-  // Dados do Pedido
   status:
     | 'Pendente'
     | 'Confirmado'
@@ -146,21 +126,18 @@ export interface Order {
     | 'Orçamento';
   total_value: number;
   order_type: 'catalog' | 'manual' | 'quick_brand' | 'catalog_guest';
-
-  // Detalhes de Entrega/Pagamento
   delivery_address?: string;
   payment_method?: string;
   tracking_code?: string;
   estimated_delivery?: string;
   notes?: string;
-
   created_at: string;
-  order_items?: OrderItem[]; // Relação
-  clients?: Client; // Relação
+  order_items?: OrderItem[];
+  clients?: Client;
 }
 
 // --- TIPOS DE CONFIGURAÇÃO (SETTINGS) ---
-// Catálogo Público (tabela public_catalogs - SEGURA para exposição pública)
+
 export interface PublicCatalog {
   id: string;
   user_id: string;
@@ -170,6 +147,7 @@ export interface PublicCatalog {
   primary_color?: string;
   secondary_color?: string;
   header_background_color?: string;
+  footer_background_color?: string;
   show_sale_price?: boolean;
   show_cost_price?: boolean;
   footer_message?: string;
@@ -181,6 +159,8 @@ export interface PublicCatalog {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+  // Campos de hash e banners na tabela pública (opcionais na interface pública se não usados diretamente)
+  price_password_hash?: string;
 }
 
 export interface Settings {
@@ -191,14 +171,29 @@ export interface Settings {
   name?: string;
   email?: string;
   phone?: string;
-  logo_url?: string;
+  support_phone?: string;
+  support_email?: string;
+  logo_url?: string | null;
   banner_url?: string;
-  banners?: string[];
-  banners_mobile?: string[];
+  banners?: string[] | null;
+  banners_mobile?: string[] | null; // Adicionado
+
   header_background_color?: string;
+  footer_background_color?: string; // Adicionado
   footer_message?: string;
+
+  // Top Bar (Novos Campos)
   show_top_benefit_bar?: boolean;
+  show_top_info_bar?: boolean;
   top_benefit_text?: string;
+  top_benefit_bg_color?: string;
+  top_benefit_text_color?: string;
+  top_benefit_height?: number;
+  top_benefit_text_size?: number;
+  top_benefit_image_url?: string | null;
+  top_benefit_image_fit?: 'cover' | 'contain';
+  top_benefit_image_scale?: number;
+
   enable_stock_management?: boolean;
   global_allow_backorder?: boolean;
   price_password?: string | null;
@@ -220,34 +215,34 @@ export interface Settings {
   show_delivery_address_checkout?: boolean;
   show_payment_method_checkout?: boolean;
 
-  // Configurações de Catálogo (Filtros e Exibição)
+  // Configurações de Catálogo
   show_old_price?: boolean;
   show_filter_price?: boolean;
   show_filter_category?: boolean;
   show_filter_bestseller?: boolean;
   show_filter_new?: boolean;
-  // Exibição de descontos e percentuais
+
   show_cash_discount?: boolean;
-  cash_price_discount_percent?: number;
-  // Novas opções usadas pelo catálogo
+  show_discount_tag?: boolean; // Alias
+  cash_price_discount_percent?: number; // Pode vir como string do banco, converter
+
   max_installments?: number;
   show_sale_price?: boolean;
   show_cost_price?: boolean;
-  show_discount_tag?: boolean;
 
   // Segurança e Acesso
   catalog_price_password?: string | null;
-  // Nome usado em telas/inputs antigos
   price_access_password?: string | null;
-  catalog_slug?: string;
 
-  // Integrações (Futuro)
+  catalog_slug?: string;
+  slug?: string;
+
+  // Integrações
   email_provider?: string;
   email_api_key?: string;
   email_from?: string;
 }
 
-// Props esperadas pelos componentes de produto (cards)
 export interface ProductCardProps {
   product: Product;
   isFavorite: boolean;
@@ -259,7 +254,6 @@ export interface ProductCardProps {
   formatPrice: (price: number) => string;
 }
 
-// --- TIPOS DE DASHBOARD ---
 export interface DashboardTotals {
   total_revenue: number;
   total_items_sold: number;

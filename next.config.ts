@@ -5,6 +5,7 @@ const nextConfig = {
     middlewarePrefetch: 'strict',
   },
   images: {
+    // Sem a linha 'qualities', o Next aceita qualquer valor (ex: 80) e otimiza automaticamente.
     remotePatterns: [
       {
         protocol: 'https',

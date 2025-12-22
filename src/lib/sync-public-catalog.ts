@@ -12,6 +12,9 @@ export interface SyncCatalogData {
   logo_url?: string;
   primary_color?: string;
   secondary_color?: string;
+  phone?: string;
+  email?: string;
+  footer_background_color?: string;
   footer_message?: string;
   show_sale_price?: boolean;
   show_cost_price?: boolean;
@@ -21,6 +24,18 @@ export interface SyncCatalogData {
   max_installments?: number;
   show_cash_discount?: boolean;
   cash_price_discount_percent?: number;
+  // Top benefit visual metadata
+  top_benefit_image_url?: string;
+  top_benefit_image_fit?: 'cover' | 'contain';
+  top_benefit_image_scale?: number;
+  top_benefit_height?: number;
+  top_benefit_text_size?: number;
+  top_benefit_bg_color?: string;
+  top_benefit_text_color?: string;
+  // Top benefit content + visibility
+  top_benefit_text?: string;
+  show_top_benefit_bar?: boolean;
+  show_top_info_bar?: boolean;
 }
 
 /**
@@ -78,17 +93,31 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         slug: data.slug,
         store_name: data.store_name,
         logo_url: data.logo_url,
+        phone: data.phone,
+        email: data.email,
         primary_color: data.primary_color || '#2563eb',
         header_background_color: data.header_background_color || '#ffffff',
         show_sale_price: showSale,
         show_cost_price: showCost,
         secondary_color: data.secondary_color || '#3b82f6',
         footer_message: data.footer_message,
+        footer_background_color: data.footer_background_color,
         enable_stock_management: enableStock,
         show_installments: showInstallments,
         max_installments: maxInstallments,
         show_cash_discount: showCashDiscount,
         cash_price_discount_percent: cashDiscountPercent,
+        // Top benefit fields
+        top_benefit_image_url: data.top_benefit_image_url,
+        top_benefit_image_fit: data.top_benefit_image_fit,
+        top_benefit_image_scale: data.top_benefit_image_scale,
+        top_benefit_height: data.top_benefit_height,
+        top_benefit_text_size: data.top_benefit_text_size,
+        top_benefit_bg_color: data.top_benefit_bg_color,
+        top_benefit_text_color: data.top_benefit_text_color,
+        top_benefit_text: data.top_benefit_text,
+        show_top_benefit_bar: data.show_top_benefit_bar,
+        show_top_info_bar: data.show_top_info_bar,
         is_active: true,
         updated_at: new Date().toISOString(),
       })
@@ -105,6 +134,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         user_id: userId,
         slug,
         store_name: data.store_name,
+        phone: data.phone,
+        email: data.email,
         logo_url: data.logo_url,
         primary_color: data.primary_color || '#2563eb',
         header_background_color: data.header_background_color || '#ffffff',
@@ -112,9 +143,21 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         show_cost_price: showCost,
         secondary_color: data.secondary_color || '#3b82f6',
         footer_message: data.footer_message,
+        footer_background_color: data.footer_background_color,
         enable_stock_management: enableStock,
         show_installments: showInstallments,
         max_installments: maxInstallments,
+        // Top benefit fields
+        top_benefit_image_url: data.top_benefit_image_url,
+        top_benefit_image_fit: data.top_benefit_image_fit,
+        top_benefit_image_scale: data.top_benefit_image_scale,
+        top_benefit_height: data.top_benefit_height,
+        top_benefit_text_size: data.top_benefit_text_size,
+        top_benefit_bg_color: data.top_benefit_bg_color,
+        top_benefit_text_color: data.top_benefit_text_color,
+        top_benefit_text: data.top_benefit_text,
+        show_top_benefit_bar: data.show_top_benefit_bar,
+        show_top_info_bar: data.show_top_info_bar,
         show_cash_discount: showCashDiscount,
         cash_price_discount_percent: cashDiscountPercent,
         is_active: true,

@@ -155,6 +155,7 @@ export function StoreModals() {
           email: orderSuccessData.customer?.email || '',
           cnpj: orderSuccessData.customer?.cnpj || '',
         },
+        created_at: orderSuccessData.created_at || new Date().toISOString(),
       };
 
       await generateOrderPDF(

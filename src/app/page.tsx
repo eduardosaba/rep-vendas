@@ -72,7 +72,7 @@ export default async function LandingPage() {
               href="/demo/catalogo"
               className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide flex items-center gap-1"
             >
-              Exemplo de Loja <ExternalLink size={14} className="mb-0.5" />
+              Catálogo Demo <ExternalLink size={14} className="mb-0.5" />
             </Link>
 
             <Link

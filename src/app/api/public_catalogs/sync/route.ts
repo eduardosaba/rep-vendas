@@ -20,6 +20,15 @@ export async function POST(request: Request) {
       max_installments,
       show_cash_discount,
       cash_price_discount_percent,
+      // Top benefit visual metadata
+      top_benefit_image_url,
+      top_benefit_height,
+      top_benefit_text_size,
+      top_benefit_bg_color,
+      top_benefit_text_color,
+      top_benefit_text,
+      show_top_benefit_bar,
+      show_top_info_bar,
     } = body;
 
     if (!user_id || !slug) {
@@ -44,6 +53,15 @@ export async function POST(request: Request) {
       max_installments,
       show_cash_discount,
       cash_price_discount_percent,
+      // Forward top benefit fields so public_catalogs gets updated
+      top_benefit_image_url,
+      top_benefit_height,
+      top_benefit_text_size,
+      top_benefit_bg_color,
+      top_benefit_text_color,
+      top_benefit_text,
+      show_top_benefit_bar,
+      show_top_info_bar,
     });
 
     return NextResponse.json({ success: true });

@@ -73,34 +73,69 @@ function formatPhoneDisplay(phone?: string | null) {
 // --- TOP BAR ---
 export function StoreTopBar() {
   const { store } = useStore();
+  const bgColor = store.top_benefit_bg_color || '#f3f4f6';
+  const textColor = store.top_benefit_text_color || 'var(--primary)';
+  const height = store.top_benefit_height || 36;
+  const fontSize = store.top_benefit_text_size || 11;
+
   return (
-    <div className="bg-gray-100 border-b border-gray-200 py-2 text-[11px] text-[var(--primary)] uppercase tracking-wide font-medium relative z-50">
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex justify-between items-center overflow-x-auto whitespace-nowrap gap-6 scrollbar-hide">
-        {store.top_benefit_text ? (
-          <span className="flex items-center gap-1.5 text-[var(--primary)] font-bold">
+    <div
+      className="border-b relative z-50"
+      style={{ backgroundColor: bgColor, borderColor: 'transparent' }}
+    >
+      <div
+        className="max-w-[1920px] mx-auto px-4 lg:px-8 flex justify-between items-center overflow-x-auto whitespace-nowrap gap-6 scrollbar-hide"
+        style={{ height, color: textColor, fontSize }}
+      >
+        {store.top_benefit_image_url ? (
+          store.top_benefit_text ? (
+            <div
+              className="w-full flex flex-col md:flex-row items-center"
+              style={{ height }}
+            >
+              <div
+                className="w-full md:w-2/5 flex-shrink-0 overflow-hidden rounded"
+                style={{ maxHeight: height }}
+              >
+                <img
+                  src={store.top_benefit_image_url}
+                  alt="Barra de benefícios"
+                  className="h-full w-full"
+                  style={{
+                    objectFit: (store.top_benefit_image_fit as any) || 'cover',
+                    transform: `scale(${(Number(store.top_benefit_image_scale) || 100) / 100})`,
+                    transition: 'transform 150ms ease-out',
+                  }}
+                />
+              </div>
+              <div className="w-full md:flex-1 md:pl-4 px-3 py-2">
+                <span className="font-bold block">
+                  {store.top_benefit_text}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 w-full">
+              <img
+                src={store.top_benefit_image_url}
+                alt="Barra de benefícios"
+                className="h-full w-full"
+                style={{
+                  maxHeight: height,
+                  objectFit: (store.top_benefit_image_fit as any) || 'cover',
+                  transform: `scale(${(Number(store.top_benefit_image_scale) || 100) / 100})`,
+                  transition: 'transform 150ms ease-out',
+                }}
+              />
+            </div>
+          )
+        ) : store.top_benefit_text ? (
+          <span className="flex items-center gap-1.5 font-bold">
             <Star size={14} /> {store.top_benefit_text}
           </span>
-        ) : (
-          <>
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck size={14} /> Compra 100% Segura
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Truck size={14} /> Enviamos para todo Brasil
-            </span>
-          </>
-        )}
-        <span className="flex items-center gap-1.5 ml-auto">
-          <Phone size={14} />
-          <a
-            href={whatsappHref(store.phone)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-1 text-[var(--primary)] font-medium hover:underline"
-          >
-            Suporte: {formatPhoneDisplay(store.phone)}
-          </a>
-        </span>
+        ) : null}
+
+        {/* contact phone intentionally not shown here; displayed in top info bar */}
       </div>
     </div>
   );
@@ -720,9 +755,32 @@ export function StoreMobileActionBar() {
 export function StoreFooter() {
   const { store } = useStore();
   const router = useRouter();
+  const footerBg = store.footer_background_color || 'var(--secondary)';
+  let footerTextColor = 'white';
+  if (
+    typeof footerBg === 'string' &&
+    /^#([0-9A-F]{3}|[0-9A-F]{6})$/i.test(footerBg)
+  ) {
+    const hex = footerBg.replace('#', '');
+    const fullHex =
+      hex.length === 3
+        ? hex
+            .split('')
+            .map((ch) => ch + ch)
+            .join('')
+        : hex;
+    const r = parseInt(fullHex.substring(0, 2), 16) / 255;
+    const g = parseInt(fullHex.substring(2, 4), 16) / 255;
+    const b = parseInt(fullHex.substring(4, 6), 16) / 255;
+    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    footerTextColor = L > 0.6 ? '#000000' : '#FFFFFF';
+  }
 
   return (
-    <footer className="bg-[var(--secondary)] border-t border-white/10 pt-12 pb-6 mt-auto relative z-10 text-white">
+    <footer
+      className="border-t border-white/10 pt-12 pb-6 mt-auto relative z-10"
+      style={{ backgroundColor: footerBg, color: footerTextColor }}
+    >
       <div className="max-w-[1920px] mx-auto px-4 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="col-span-1">
