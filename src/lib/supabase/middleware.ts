@@ -48,15 +48,35 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // 4. Regras de Redirecionamento Protegidas
-  // Permitimos que a rota de onboarding seja acessada inicialmente sem sessão
-  // para evitar loops: o cliente fará a revalidação da sessão e redirecionará
-  // se necessário depois.
+  // Se for a rota de onboarding, garantimos que apenas usuários que
+  // precisam completar o onboarding a vejam. Usuários não autenticados
+  // recebem a página (o componente fará redirect para /login). Usuários
+  // autenticados que já completaram serão enviados ao dashboard.
   if (path.startsWith('/onboarding')) {
+    if (user) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile && profile.onboarding_completed) {
+          const url = request.nextUrl.clone();
+          url.pathname = '/dashboard';
+          return NextResponse.redirect(url);
+        }
+      } catch (e) {
+        // Em caso de erro ao buscar profile, permitimos renderizar a página
+        // para que o fluxo cliente possa tentar revalidar e reportar.
+        // Não bloqueamos por segurança.
+      }
+    }
+
     return supabaseResponse;
   }
 
-  const isProtectedRoute =
-    path.startsWith('/dashboard') || path.startsWith('/admin');
+  const isProtectedRoute = path.startsWith('/dashboard') || path.startsWith('/admin');
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
