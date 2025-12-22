@@ -49,7 +49,7 @@ export default function AdminSidebar() {
       icon: ToggleLeft,
     },
     { label: 'Métricas', href: '/admin/metrics', icon: BarChart2 },
-    { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
+    // { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert }, // Desabilitado temporariamente - usa fs que não funciona em build
     // 2. Adicionei o item aqui
     { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket },
     { label: 'Configurações', href: '/admin/settings', icon: Settings },

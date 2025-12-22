@@ -10,7 +10,7 @@ import {
   ArrowUpRight,
   Shield,
   CreditCard,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -32,44 +32,49 @@ export default async function AdminDashboardPage() {
     .single();
 
   const isAllowed =
-    currentUserProfile?.role === 'admin' || currentUserProfile?.role === 'master';
+    currentUserProfile?.role === 'admin' ||
+    currentUserProfile?.role === 'master';
 
   if (!isAllowed) {
     // Redireciona usuários comuns para a área deles
-    redirect('/dashboard'); 
+    redirect('/dashboard');
   }
 
   // 2. BUSCAR DADOS (Em paralelo para performance)
-  const [usersReq, productsReq, subscriptionsReq, recentUsersReq] = await Promise.all([
-    // Contagem de Usuários
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    
-    // Contagem de Produtos
-    supabase.from('products').select('*', { count: 'exact', head: true }),
-    
-    // Cálculo de Receita (MRR) - Apenas assinaturas ativas
-    supabase.from('subscriptions').select('price').eq('status', 'active'),
-    
-    // Lista de Usuários Recentes
-    supabase
-      .from('profiles')
-      .select('id, email, created_at, role, full_name')
-      .order('created_at', { ascending: false })
-      .limit(5),
-  ]);
+  const [usersReq, productsReq, subscriptionsReq, recentUsersReq] =
+    await Promise.all([
+      // Contagem de Usuários
+      supabase.from('profiles').select('*', { count: 'exact', head: true }),
+
+      // Contagem de Produtos
+      supabase.from('products').select('*', { count: 'exact', head: true }),
+
+      // Cálculo de Receita (MRR) - Apenas assinaturas ativas
+      supabase.from('subscriptions').select('price').eq('status', 'active'),
+
+      // Lista de Usuários Recentes
+      supabase
+        .from('profiles')
+        .select('id, email, created_at, role, full_name')
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
 
   // 3. PROCESSAR DADOS
   const usersCount = usersReq.count || 0;
   const productsCount = productsReq.count || 0;
-  
+
   // Calcula o MRR somando os preços das assinaturas ativas
-  const mrr = subscriptionsReq.data?.reduce((acc, sub) => acc + (Number(sub.price) || 0), 0) || 0;
+  const mrr =
+    subscriptionsReq.data?.reduce(
+      (acc, sub) => acc + (Number(sub.price) || 0),
+      0
+    ) || 0;
 
   const recentUsers = recentUsersReq.data || [];
 
   return (
     <div className="p-6 md:p-8 animate-in fade-in duration-500 min-h-screen space-y-8">
-      
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -127,7 +132,7 @@ export default async function AdminDashboardPage() {
         {/* Card 3: MRR (Receita) */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
           <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-             <DollarSign size={80} />
+            <DollarSign size={80} />
           </div>
           <div className="flex items-center justify-between mb-4 relative z-10">
             <h3 className="text-gray-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -138,7 +143,10 @@ export default async function AdminDashboardPage() {
             </div>
           </div>
           <p className="text-3xl font-bold text-gray-900 dark:text-white relative z-10">
-            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(mrr)}
+            {new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }).format(mrr)}
           </p>
         </div>
 
@@ -161,15 +169,14 @@ export default async function AdminDashboardPage() {
 
       {/* SEÇÃO PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
         {/* LISTA DE USUÁRIOS RECENTES */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50/50 dark:bg-slate-950/30">
             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Users size={18} className="text-indigo-600"/> Novos Usuários
+              <Users size={18} className="text-indigo-600" /> Novos Usuários
             </h3>
-            <Link 
-              href="/admin/users" 
+            <Link
+              href="/admin/users"
               className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
             >
               Ver todos <ChevronRight size={12} />
@@ -188,7 +195,10 @@ export default async function AdminDashboardPage() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
                 {recentUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group">
+                  <tr
+                    key={u.id}
+                    className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group"
+                  >
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-900 dark:text-white">
                         {u.full_name || 'Sem nome'}
@@ -238,33 +248,49 @@ export default async function AdminDashboardPage() {
 
         {/* SIDEBAR WIDGETS */}
         <div className="space-y-6">
-            
-            {/* Widget: Ações Rápidas */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
-                <h3 className="font-bold text-gray-900 dark:text-white mb-4 text-sm uppercase tracking-wider">Acesso Rápido</h3>
-                <div className="space-y-3">
-                    <Link href="/admin/users" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-700 group">
-                        <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
-                            <Users size={18} />
-                        </div>
-                        <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">Criar Usuário</div>
-                            <div className="text-xs text-gray-500">Adicionar manualmente</div>
-                        </div>
-                        <ChevronRight size={16} className="text-gray-400" />
-                    </Link>
+          {/* Widget: Ações Rápidas */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
+            <h3 className="font-bold text-gray-900 dark:text-white mb-4 text-sm uppercase tracking-wider">
+              Acesso Rápido
+            </h3>
+            <div className="space-y-3">
+              <Link
+                href="/admin/users"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-700 group"
+              >
+                <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                  <Users size={18} />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                    Criar Usuário
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Adicionar manualmente
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-gray-400" />
+              </Link>
 
-                    <Link href="/admin/plans" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-700 group">
-                        <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
-                            <CreditCard size={18} />
-                        </div>
-                        <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">Editar Planos</div>
-                            <div className="text-xs text-gray-500">Ajustar preços/limites</div>
-                        </div>
-                        <ChevronRight size={16} className="text-gray-400" />
-                    </Link>
+              <Link
+                href="/admin/plans"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-700 group"
+              >
+                <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                  <CreditCard size={18} />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                    Editar Planos
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Ajustar preços/limites
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-gray-400" />
+              </Link>
 
+              {/* Debug desabilitado temporariamente - usa fs que não funciona em build
                     <Link href="/admin/debug" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-slate-700 group">
                         <div className="bg-orange-100 dark:bg-orange-900/30 text-orange-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
                             <Shield size={18} />
@@ -275,23 +301,33 @@ export default async function AdminDashboardPage() {
                         </div>
                         <ChevronRight size={16} className="text-gray-400" />
                     </Link>
-                </div>
+                    */}
             </div>
+          </div>
 
-            {/* Widget: Status Financeiro Simples */}
-            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
-                <div className="relative z-10">
-                    <h3 className="font-bold text-indigo-100 text-sm mb-1">Previsão Mensal</h3>
-                    <p className="text-2xl font-bold mb-4">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(mrr * 1)}
-                    </p>
-                    <div className="w-full bg-white/20 rounded-full h-1.5 mb-2">
-                        <div className="bg-white h-1.5 rounded-full" style={{ width: '75%' }}></div>
-                    </div>
-                    <p className="text-xs text-indigo-200">Meta do mês: 75% atingida</p>
-                </div>
+          {/* Widget: Status Financeiro Simples */}
+          <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <h3 className="font-bold text-indigo-100 text-sm mb-1">
+                Previsão Mensal
+              </h3>
+              <p className="text-2xl font-bold mb-4">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(mrr * 1)}
+              </p>
+              <div className="w-full bg-white/20 rounded-full h-1.5 mb-2">
+                <div
+                  className="bg-white h-1.5 rounded-full"
+                  style={{ width: '75%' }}
+                ></div>
+              </div>
+              <p className="text-xs text-indigo-200">
+                Meta do mês: 75% atingida
+              </p>
             </div>
-
+          </div>
         </div>
       </div>
     </div>
