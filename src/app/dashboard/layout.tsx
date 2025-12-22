@@ -64,7 +64,6 @@ export default function DashboardLayout({
         if (result?.error) throw result.error;
 
         if (!result?.data?.session) {
-          // Sem sessão? Redireciona
           router.replace('/login');
         } else {
           setAuthorized(true);

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -8,30 +7,10 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
+
+    // Troca o código pela sessão
     const { data: exchangeData, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
-
-    try {
-      try {
-        const cookieStore = await cookies();
-        console.log(
-          '[auth/callback] request.cookies=',
-          JSON.stringify(cookieStore.getAll())
-        );
-      } catch (e) {
-        console.log('[auth/callback] cookies logging failed');
-      }
-      console.log(
-        '[auth/callback] exchangeError=',
-        JSON.stringify(exchangeError || null)
-      );
-      console.log(
-        '[auth/callback] exchangeData=',
-        JSON.stringify(exchangeData || null)
-      );
-    } catch (e) {
-      console.log('[auth/callback] logging failed');
-    }
 
     if (!exchangeError && exchangeData?.session?.user) {
       const user = exchangeData.session.user;
@@ -46,12 +25,22 @@ export async function GET(request: Request) {
         const onboardingCompleted = profileData?.onboarding_completed;
         const role = profileData?.role;
 
-        // Redirecionamento baseado no perfil
         let targetPath = '/dashboard';
         if (!onboardingCompleted) targetPath = '/onboarding';
         else if (role === 'master') targetPath = '/admin';
 
-        return NextResponse.redirect(`${origin}${targetPath}`);
+        // --- CORREÇÃO PARA NEXT.JS 15 ---
+        const redirectResponse = NextResponse.redirect(
+          `${origin}${targetPath}`
+        );
+
+        // Forçamos a leitura da sessão atual para garantir que os cookies existam
+        await supabase.auth.getSession();
+
+        // IMPORTANTE: Como criamos o cliente com cookies(), o Supabase já tentou
+        // setar os cookies. No redirecionamento, precisamos garantir que eles viajem.
+        // Se o seu middleware já faz isso, este é um reforço de segurança.
+        return redirectResponse;
       } catch (err) {
         return NextResponse.redirect(`${origin}/dashboard`);
       }

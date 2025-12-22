@@ -42,28 +42,10 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // 3. Regra: Logado tentando acessar Login/Register
+  // 3. Regra: Logado tentando acessar Login/Register → vai para dashboard
   if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('role, onboarding_completed')
-      .eq('id', user.id)
-      .maybeSingle();
-
     const url = request.nextUrl.clone();
-    if (!profileData?.onboarding_completed) {
-      url.pathname = '/onboarding';
-    } else if (profileData?.role === 'master') {
-      url.pathname = '/admin';
-    } else {
-      url.pathname = '/dashboard';
-    }
-
-    const redirectResponse = NextResponse.redirect(url);
-    // COPIA COOKIES: Garante que o token de login chegue ao navegador
-    response.cookies
-      .getAll()
-      .forEach((c) => redirectResponse.cookies.set(c.name, c.value));
+    url.pathname = '/dashboard';
     return redirectResponse;
   }
 
