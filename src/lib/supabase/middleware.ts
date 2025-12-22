@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  // 1. Cria a resposta base
+  // 1. Criamos a resposta inicial
   let response = NextResponse.next({
     request,
   });
@@ -15,19 +15,19 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet: any[]) {
-          // Sincroniza o request para que o getUser() veja as mudanças nesta execução
-          cookiesToSet.forEach(({ name, value }: any) =>
+        setAll(cookiesToSet) {
+          // Atualiza o request para que o getUser() veja as mudanças nesta execução
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
 
-          // Atualiza a resposta base para incluir os cabeçalhos Set-Cookie
+          // Re-instancia a resposta para garantir que os cookies do middleware sejam incluídos
           response = NextResponse.next({
             request,
           });
 
-          // Define os cookies na resposta para o navegador gravar no domínio oficial
-          cookiesToSet.forEach(({ name, value, options }: any) =>
+          // Define os cookies na resposta final
+          cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
         },
@@ -35,35 +35,46 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // 2. Valida o usuário (Isso dispara o setAll se o token precisar de renovação)
+  // 2. Valida o usuário (dispara o setAll se o token precisar de renovação)
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   const path = request.nextUrl.pathname;
 
-  // 3. Regra: Logado tentando acessar Login/Register → vai para dashboard
-  if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return redirectResponse;
-  }
-
-  // 4. Regra: Deslogado tentando acessar área restrita
+  // 3. Lógica de Redirecionamento Blindada
   const isProtectedRoute =
     path.startsWith('/dashboard') ||
     path.startsWith('/admin') ||
     path.startsWith('/onboarding');
-  if (!user && isProtectedRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    // Importante: Mesmo no redirect para login, passamos a response atual
-    // para limpar cookies expirados se houver
-    const redirectResponse = NextResponse.redirect(url);
+  const isAuthPage = path.startsWith('/login') || path.startsWith('/register');
+
+  if (user && isAuthPage) {
+    // Busca o perfil para saber onde redirecionar (opcional, mas evita loops internos)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('onboarding_completed, role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    let target = '/dashboard';
+    if (!profile?.onboarding_completed) target = '/onboarding';
+    else if (profile?.role === 'master') target = '/admin';
+
+    const redirectRes = NextResponse.redirect(new URL(target, request.url));
+    // COPIA MANUAL DE COOKIES: Essencial para o Next.js 15 persistir a sessão
     response.cookies
       .getAll()
-      .forEach((c) => redirectResponse.cookies.set(c.name, c.value));
-    return redirectResponse;
+      .forEach((c) => redirectRes.cookies.set(c.name, c.value));
+    return redirectRes;
+  }
+
+  if (!user && isProtectedRoute) {
+    const redirectRes = NextResponse.redirect(new URL('/login', request.url));
+    // Copia cookies mesmo no erro para limpar sessões inválidas
+    response.cookies
+      .getAll()
+      .forEach((c) => redirectRes.cookies.set(c.name, c.value));
+    return redirectRes;
   }
 
   return response;

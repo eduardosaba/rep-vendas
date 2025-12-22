@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -30,16 +31,24 @@ export async function GET(request: Request) {
         else if (role === 'master') targetPath = '/admin';
 
         // --- CORREÇÃO PARA NEXT.JS 15 ---
-        const redirectResponse = NextResponse.redirect(
-          `${origin}${targetPath}`
-        );
+        const redirectUrl = new URL(targetPath, request.url);
+        const redirectResponse = NextResponse.redirect(redirectUrl);
 
-        // Forçamos a leitura da sessão atual para garantir que os cookies existam
+        // Forçamos a leitura da sessão atual para garantir que o adapter de cookies execute
         await supabase.auth.getSession();
 
-        // IMPORTANTE: Como criamos o cliente com cookies(), o Supabase já tentou
-        // setar os cookies. No redirecionamento, precisamos garantir que eles viajem.
-        // Se o seu middleware já faz isso, este é um reforço de segurança.
+        // COPIA COOKIES: lê os cookies atuais (pode ter sido setado pelo client do supabase)
+        try {
+          const cookieStore = await cookies();
+          cookieStore.getAll().forEach((c) => {
+            // c: { name, value }
+            redirectResponse.cookies.set(c.name, c.value);
+          });
+        } catch (e) {
+          // se falhar, apenas prosseguimos com o redirect
+          console.warn('[auth/callback] failed copying cookies to redirect', e);
+        }
+
         return redirectResponse;
       } catch (err) {
         return NextResponse.redirect(`${origin}/dashboard`);

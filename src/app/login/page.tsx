@@ -15,7 +15,7 @@ import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
 import { loginWithGoogle, login } from '@/app/login/actions';
 
-// Botão Local estilizado para a página de Login (para manter a identidade da marca)
+// Componente de Botão estilizado
 const LoginButton = ({
   children,
   className = '',
@@ -63,11 +63,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
 
-  // Processar mensagens de erro/sucesso vindas da URL (Server Actions redirects)
+  // Processar mensagens vindas da URL
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     const sp = new URLSearchParams(window.location.search);
-
     const msgType = sp.get('message_type');
     const msgText = sp.get('message_text');
     const message = sp.get('message');
@@ -75,12 +73,8 @@ export default function LoginPage() {
     if (msgType && msgText) {
       if (msgType === 'success') toast.success(msgText);
       else toast.error(msgText);
-      // Limpa a URL
       window.history.replaceState({}, '', window.location.pathname);
-      return;
-    }
-
-    if (message) {
+    } else if (message) {
       if (message.includes('realizado') || message.includes('Verifique')) {
         toast.success(message);
       } else {
@@ -91,32 +85,31 @@ export default function LoginPage() {
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    // Validação Cliente
-    if (isPending || googleLoading) {
-      e.preventDefault();
-      return;
-    }
+    e.preventDefault();
+    if (isPending || googleLoading) return;
 
-    const emailTrim = String(email || '').trim();
-    if (!emailTrim) {
-      e.preventDefault();
-      setError('Por favor, informe seu e-mail.');
-      return;
-    }
-
-    if (!password || !String(password).trim()) {
-      e.preventDefault();
-      setError('Por favor, informe sua senha.');
+    const emailTrim = email.trim();
+    if (!emailTrim || !password) {
+      setError('Por favor, preencha todos os campos.');
       return;
     }
 
     setError('');
 
-    // Inicia transição para o Server Action
-    // O formulário prossegue com o submit nativo (action={login})
-    // O startTransition aqui serve apenas para setar o estado de loading da UI
-    startTransition(() => {
-      // O estado isPending ficará true enquanto a Server Action processa
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.append('email', emailTrim);
+      formData.append('password', password);
+
+      const result = await login(formData);
+
+      if (result?.error) {
+        setError(result.error);
+        toast.error(result.error);
+      } else if (result?.redirectTo) {
+        // Redirecionamento via window.location garante o processamento dos cookies no Next 15
+        window.location.href = result.redirectTo;
+      }
     });
   };
 
@@ -126,18 +119,14 @@ export default function LoginPage() {
     setError('');
     try {
       const result = await loginWithGoogle();
-
       if (result.error) {
         toast.error(result.error);
         setGoogleLoading(false);
       } else if (result.url) {
-        // Redireciona para a URL do Google OAuth
         window.location.href = result.url;
       }
     } catch (e) {
-      const message =
-        e instanceof Error ? e.message : 'Erro ao autenticar com Google';
-      toast.error(message);
+      toast.error('Erro ao autenticar com Google');
       setGoogleLoading(false);
     }
   };
@@ -146,15 +135,12 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen w-full overflow-hidden font-sans bg-[#0d1b2c]">
-      {/* COLUNA ESQUERDA: Onboarding / Marketing */}
       <div className="hidden flex-1 lg:block relative animate-in fade-in duration-700">
         <div className="absolute inset-0 bg-gradient-to-br from-[#0d1b2c]/90 to-[#0d1b2c]/40 z-10 pointer-events-none"></div>
         <LoginOnboarding />
       </div>
 
-      {/* COLUNA DIREITA: Formulário */}
       <div className="flex flex-1 items-center justify-center p-4 lg:p-12 bg-gray-50 dark:bg-[#0b1623] relative">
-        {/* Fundo decorativo sutil */}
         <div
           className="absolute inset-0 opacity-5 pointer-events-none"
           style={{
@@ -165,7 +151,6 @@ export default function LoginPage() {
 
         <div className="w-full max-w-[440px] z-10 animate-in slide-in-from-bottom-8 duration-500 fade-in">
           <div className="bg-white rounded-3xl p-8 shadow-2xl ring-1 ring-gray-100 sm:p-12 relative overflow-hidden">
-            {/* Loading Overlay */}
             {isLoading && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm animate-in fade-in duration-200">
                 <div className="flex flex-col items-center gap-3">
@@ -177,7 +162,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Cabeçalho do Card */}
             <div className="mb-10 text-center">
               <div className="flex justify-center mb-6">
                 <Logo useSystemLogo={true} className="h-14" />
@@ -190,10 +174,8 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Botão Google */}
             <div className="mb-8">
               <LoginButton
-                type="button"
                 variant="google"
                 onClick={handleGoogleLogin}
                 loading={googleLoading}
@@ -234,8 +216,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Formulário de Email */}
-            <form action={login} onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
                 <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 animate-in slide-in-from-top-2">
                   <AlertCircle size={18} className="shrink-0" />
@@ -256,14 +237,12 @@ export default function LoginPage() {
                   </div>
                   <input
                     id="email"
-                    name="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isLoading}
                     className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-3 text-gray-900 placeholder:text-gray-400 focus:border-[#b9722e] focus:bg-white focus:ring-2 focus:ring-[#b9722e]/20 transition-all outline-none"
                     placeholder="exemplo@empresa.com"
-                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -290,14 +269,12 @@ export default function LoginPage() {
                   </div>
                   <input
                     id="password"
-                    name="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
                     className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-11 text-gray-900 placeholder:text-gray-400 focus:border-[#b9722e] focus:bg-white focus:ring-2 focus:ring-[#b9722e]/20 transition-all outline-none"
                     placeholder="••••••••"
-                    autoComplete="current-password"
                   />
                   <button
                     type="button"
