@@ -483,10 +483,19 @@ export function StoreProvider({
       setCart([]);
       return true;
     } catch (e: unknown) {
+      // Log detalhado para ajudar debugging em produção
+      console.error('handleFinalizeOrder error:', e);
+
+      const message =
+        e && typeof e === 'object' && 'message' in e
+          ? (e as any).message
+          : 'Erro ao processar pedido.';
+
       if (typeof addToast === 'function')
         addToast({
           type: 'error',
           message: 'Erro ao processar pedido.',
+          description: String(message),
         } as Toast);
       return false;
     } finally {
