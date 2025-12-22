@@ -1,11 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    // Next.js 16 experimental flag para middleware
-    middlewarePrefetch: 'strict',
-  },
+  // Removida a flag 'experimental' que estava causando conflito na build
   images: {
-    // Sem a linha 'qualities', o Next aceita qualquer valor (ex: 80) e otimiza automaticamente.
     remotePatterns: [
       {
         protocol: 'https',

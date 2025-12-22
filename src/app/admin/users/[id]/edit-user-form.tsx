@@ -1,6 +1,6 @@
 'use client';
 
-// @ts-ignore - useFormState/useFormStatus são hooks experimentais do React DOM no Next.js
+// @ts-ignore - useFormState é suportado pelo Next.js App Router mesmo no React 18
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,7 +18,6 @@ import {
   KeyRound,
   AlertTriangle,
   Trash2,
-  X,
   Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -72,7 +71,7 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
   const updateLicenseBind = updateUserLicense.bind(null, userId);
   const resetPassBind = adminResetPassword.bind(null, userId);
 
-  // Hooks do Formulário com @ts-ignore para evitar erros de tipagem do canal experimental
+  // Hooks do Formulário
   // @ts-ignore
   const [profileState, profileAction] = useFormState(
     updateProfileBind,

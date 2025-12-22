@@ -149,7 +149,8 @@ export default function SettingsPage() {
   const [topBenefitBgColor, setTopBenefitBgColor] = useState<string>('#f3f4f6');
   const [topBenefitTextColor, setTopBenefitTextColor] =
     useState<string>('#b9722e');
-  // Adicionando estados faltantes para evitar erro de variável não definida
+
+  // Estados faltantes para o Preview
   const [topBenefitImageFit, setTopBenefitImageFit] = useState<
     'cover' | 'contain'
   >('cover');
@@ -189,13 +190,11 @@ export default function SettingsPage() {
           return;
         }
 
-        const { data: settings, error } = await supabase
+        const { data: settings } = await supabase
           .from('settings')
           .select('*')
           .eq('user_id', user.id)
           .maybeSingle();
-
-        if (error) console.error('Erro ao buscar settings:', error);
 
         if (settings) {
           setFormData({
@@ -239,8 +238,11 @@ export default function SettingsPage() {
               formData.primary_color ||
               '#b9722e'
           );
-          setTopBenefitImageFit(settings.top_benefit_image_fit || 'cover');
-          setTopBenefitImageScale(settings.top_benefit_image_scale || 100);
+
+          if (settings.top_benefit_image_fit)
+            setTopBenefitImageFit(settings.top_benefit_image_fit);
+          if (settings.top_benefit_image_scale)
+            setTopBenefitImageScale(settings.top_benefit_image_scale);
 
           if (Array.isArray(settings.banners))
             setCurrentBanners(settings.banners);
@@ -476,7 +478,6 @@ export default function SettingsPage() {
       let finalShowCost = catalogSettings.show_cost_price ?? false;
       if (finalShowSale && finalShowCost) finalShowCost = false;
 
-      // Variáveis finais calculadas para uso no UPSERT (evitar duplicatas)
       const finalShowInstallments = catalogSettings.show_installments ?? false;
       const finalMaxInstallments = Number(
         catalogSettings.max_installments || 1
@@ -507,7 +508,6 @@ export default function SettingsPage() {
           banners_mobile: finalBannersMobile,
           updated_at: new Date().toISOString(),
 
-          // Top Bar
           show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
           top_benefit_text: catalogSettings.top_benefit_text,
           show_top_info_bar: catalogSettings.show_top_info_bar,
@@ -519,13 +519,11 @@ export default function SettingsPage() {
           top_benefit_image_fit: topBenefitImageFit,
           top_benefit_image_scale: topBenefitImageScale,
 
-          // Usando as variáveis finais calculadas acima para evitar duplicatas
           show_installments: finalShowInstallments,
           max_installments: finalMaxInstallments,
           show_discount_tag: finalShowCashDiscount,
           cash_price_discount_percent: finalCashDiscountPercent,
           enable_stock_management: finalEnableStock,
-
           global_allow_backorder: catalogSettings.global_allow_backorder,
           show_cost_price: finalShowCost,
           show_sale_price: finalShowSale,
@@ -549,7 +547,6 @@ export default function SettingsPage() {
         headerBg: formData.header_background_color,
       });
 
-      // Sync Public Catalog
       try {
         await fetch('/api/public_catalogs/sync', {
           method: 'POST',
@@ -631,6 +628,13 @@ export default function SettingsPage() {
     Math.max(10, Number(topBenefitTextSize || 11))
   );
 
+  // --- REINSERIDO AQUI ---
+  const previewErrors: string[] = [];
+  if (!isValidHex(topBenefitBgColor))
+    previewErrors.push('Cor de fundo inválida');
+  if (!isValidHex(topBenefitTextColor))
+    previewErrors.push('Cor do texto inválida');
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 p-4 sm:p-6 animate-in fade-in duration-500">
       {/* HEADER */}
@@ -697,6 +701,8 @@ export default function SettingsPage() {
 
       {activeTab === 'appearance' && (
         <div className="grid gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
+          {/* ... conteúdo de aparência ... */}
+          {/* Use aqui o mesmo conteúdo visual de aparência ou o novo componente TabAppearance se tiver criado */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 mb-4">
               <Brush size={18} className="text-[var(--primary)]" /> Temas
@@ -1057,6 +1063,7 @@ export default function SettingsPage() {
                 placeholder="Ex: Frete Grátis para todo Brasil!"
                 className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
               />
+
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
                 <div>
                   <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
@@ -1164,7 +1171,7 @@ export default function SettingsPage() {
             </div>
           </ToggleSetting>
 
-          {/* PREVIEW DA BARRA */}
+          {/* PREVIEW DA BARRA DE BENEFÍCIOS */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm mb-4">
             <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
               Preview: Barra de Benefícios
@@ -1269,6 +1276,8 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* O ERRO ESTAVA AQUI: previewErrors não existia */}
             {previewErrors.length > 0 && (
               <div className="text-sm text-yellow-700 dark:text-yellow-300">
                 <strong>Atenção:</strong>
@@ -1371,7 +1380,6 @@ export default function SettingsPage() {
 
       {activeTab === 'stock' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-          {/* STOCK SETTINGS CONTENT IF NEEDED */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
               Configurações de Estoque
