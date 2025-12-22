@@ -52,3 +52,26 @@ export async function loginWithGoogle() {
   if (error) return { error: 'Erro ao conectar com Google' };
   return { url: data.url };
 }
+
+export async function signup(formData: FormData) {
+  const supabase = await createClient();
+  const email = formData.get('email') as string;
+  const password = formData.get('password') as string;
+
+  try {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error: error.message || 'Erro ao criar conta.' };
+
+    // revalida para atualizar possíveis caches server-side
+    revalidatePath('/', 'layout');
+
+    return {
+      success: true,
+      message:
+        'Cadastro realizado. Verifique seu e-mail para confirmar a conta antes de fazer login.',
+      user: data.user ?? null,
+    };
+  } catch (e) {
+    return { error: 'Erro interno ao cadastrar usuário.' };
+  }
+}
