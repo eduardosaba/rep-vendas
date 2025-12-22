@@ -15,9 +15,9 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: any[]) {
           // Sincroniza o request para que o getUser() veja as mudanças nesta execução
-          cookiesToSet.forEach(({ name, value }) =>
+          cookiesToSet.forEach(({ name, value }: any) =>
             request.cookies.set(name, value)
           );
 
@@ -27,7 +27,7 @@ export async function updateSession(request: NextRequest) {
           });
 
           // Define os cookies na resposta para o navegador gravar no domínio oficial
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }: any) =>
             response.cookies.set(name, value, options)
           );
         },
