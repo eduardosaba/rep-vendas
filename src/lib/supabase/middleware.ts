@@ -2,7 +2,10 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  // 1. Cria a resposta base que permite a continuação da requisição
+  let response = NextResponse.next({
+    request,
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,57 +16,57 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet: any[]) {
-          try {
-            console.log(
-              '[middleware] setAll cookiesToSet=',
-              JSON.stringify(cookiesToSet)
-            );
-          } catch (e) {
-            console.log(
-              '[middleware] setAll cookiesToSet (unable to stringify)'
-            );
-          }
-
-          cookiesToSet.forEach(({ name, value }) =>
+          // Atualiza o request para que o Next.js veja as mudanças nesta execução
+          cookiesToSet.forEach(({ name, value }: any) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+
+          // Cria uma nova resposta baseada no request atualizado
+          response = NextResponse.next({
+            request,
+          });
+
+          // Define os cookies na resposta para que o navegador os grave no domínio
+          cookiesToSet.forEach(({ name, value, options }: any) =>
+            response.cookies.set(name, value, options)
           );
         },
       },
     }
   );
 
+  // 2. Valida o usuário (dispara o setAll se o token precisar de renovação)
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   const path = request.nextUrl.pathname;
 
-  try {
-    console.log('[middleware] path=', path);
-    console.log(
-      '[middleware] request.cookies=',
-      JSON.stringify(request.cookies.getAll())
-    );
-    console.log('[middleware] auth.getUser=', JSON.stringify(user || null));
-  } catch (e) {
-    console.log('[middleware] logging failed');
+  // 3. Regra de Redirecionamento: Logado tentando acessar Login/Register
+  if (user && (path.startsWith('/login') || path.startsWith('/register'))) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+
+    // REDIRECIONAMENTO COM PERSISTÊNCIA:
+    // Criamos o redirecionamento e COPIAMOS todos os cookies da resposta anterior
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+    return redirectResponse;
   }
 
-  if (user && (path === '/login' || path === '/register')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-
+  // 4. Regra de Redirecionamento: Deslogado tentando acessar área restrita
   if (
     !user &&
     (path.startsWith('/dashboard') ||
       path.startsWith('/admin') ||
       path.startsWith('/onboarding'))
   ) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
   }
 
-  return supabaseResponse;
+  return response;
 }
