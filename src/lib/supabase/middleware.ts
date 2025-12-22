@@ -24,10 +24,11 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        // CORREÇÃO AQUI: Adicionado a tipagem ': any[]' para satisfazer o TypeScript
+        setAll(cookiesToSet: any[]) {
           // A mágica acontece aqui:
           // Atualiza os cookies no request E no response para garantir que a sessão persista
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({
@@ -42,6 +43,7 @@ export async function updateSession(request: NextRequest) {
   );
 
   // 3. Atualiza a sessão e verifica o usuário
+  // IMPORTANTE: getUser é mais seguro que getSession para middleware
   const {
     data: { user },
   } = await supabase.auth.getUser();

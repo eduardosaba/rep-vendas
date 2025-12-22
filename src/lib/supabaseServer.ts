@@ -17,7 +17,8 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        // CORREÇÃO AQUI: Adicionado ': any[]'
+        setAll(cookiesToSet: any[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
@@ -48,7 +49,8 @@ export function createRouteSupabase(
           }
           return (store as any).getAll();
         },
-        setAll(cookiesToSet) {
+        // CORREÇÃO AQUI TAMBÉM: Adicionado ': any[]'
+        setAll(cookiesToSet: any[]) {
           try {
             const store = cookieStoreFactory();
             if (store && typeof (store as any).then === 'function') return;

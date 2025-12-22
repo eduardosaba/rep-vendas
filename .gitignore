@@ -120,3 +120,7 @@ temp/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Allow specific public icons (added to track new PWA icons)
+!public/icon-192.png
+!public/icon-512.png

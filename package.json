@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .js,.ts,.tsx --fix",
+    "lint": "next lint --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
@@ -17,14 +17,8 @@
     "eduardosaba": "pnpm run format && pnpm run typecheck && echo 'Lint skipped - ESLint config issue' && pnpm run dependency-check && pnpm run env-check"
   },
   "dependencies": {
-    "@supabase/auth-js": "^2.6.0",
-    "@supabase/functions-js": "^2.4.0",
-    "@supabase/postgrest-js": "^1.15.0",
-    "@supabase/realtime-js": "^2.10.0",
     "@supabase/ssr": "^0.3.0",
-    "@supabase/storage-js": "^2.5.5",
     "@supabase/supabase-js": "^2.43.0",
-    "cookie": "^0.6.0",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
     "html2canvas": "^1.4.1",
@@ -40,7 +34,6 @@
     "react-dropzone": "^14.2.3",
     "recharts": "^2.12.7",
     "sonner": "^1.4.41",
-    "tus-js-client": "^3.1.1",
     "xlsx": "^0.18.5",
     "zustand": "^4.5.2"
   },
