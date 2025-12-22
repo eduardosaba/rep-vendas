@@ -76,7 +76,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  const isProtectedRoute = path.startsWith('/dashboard') || path.startsWith('/admin');
+  const isProtectedRoute =
+    path.startsWith('/dashboard') || path.startsWith('/admin');
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();

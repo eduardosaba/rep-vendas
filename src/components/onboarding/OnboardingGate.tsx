@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -8,7 +8,9 @@ import { OnboardingForm } from './OnboardingForm';
 export default function OnboardingGate() {
   const router = useRouter();
   const supabase = createClient();
-  const [status, setStatus] = useState<'loading' | 'no-user' | 'ready'>('loading');
+  const [status, setStatus] = useState<'loading' | 'no-user' | 'ready'>(
+    'loading'
+  );
   const [user, setUser] = useState<any | null>(null);
 
   useEffect(() => {
