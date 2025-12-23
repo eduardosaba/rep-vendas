@@ -22,6 +22,23 @@ export async function updateSession(request: NextRequest) {
             options?: Record<string, any>;
           }>
         ) {
+          try {
+            const summary = cookiesToSet.map((c) => ({
+              name: c.name,
+              hasValue: !!c.value,
+              options: c.options ?? null,
+            }));
+            console.log(
+              '[supabase.middleware] setAll called:',
+              JSON.stringify(summary)
+            );
+          } catch (e) {
+            console.warn(
+              '[supabase.middleware] failed to stringify cookies summary',
+              e
+            );
+          }
+
           // Atualiza o request para que o getUser() veja as mudanças nesta execução
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
