@@ -20,6 +20,23 @@ export async function createClient() {
         // CORREÇÃO AQUI: Adicionado ': any[]'
         setAll(cookiesToSet: any[]) {
           try {
+            try {
+              const summary = cookiesToSet.map((c: any) => ({
+                name: c.name,
+                hasValue: !!c.value,
+                options: c.options ?? null,
+              }));
+              console.log(
+                '[supabase.server.route] setAll called:',
+                JSON.stringify(summary)
+              );
+            } catch (e) {
+              console.warn(
+                '[supabase.server.route] failed to stringify cookies summary',
+                e
+              );
+            }
+
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             );
