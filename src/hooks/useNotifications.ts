@@ -39,6 +39,53 @@ export function useNotifications(userId?: string) {
     fetchNotifications();
 
     // 2. LIGAR O REALTIME (O Pulo do Gato 🐱)
+    // Buffer + throttle to avoid UI jank when many notifications arrive quickly
+    const buffer: Notification[] = [];
+    let flushTimer: NodeJS.Timeout | null = null;
+
+    const flushBuffer = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+
+      if (buffer.length === 0) return;
+
+      // Flush all buffered notifications in one state update
+      setNotifications((prev) => {
+        const merged = [...buffer.reverse(), ...prev];
+        // keep list bounded to 100 items to avoid memory growth
+        return merged.slice(0, 100);
+      });
+
+      // Show toasts in idle time to avoid blocking
+      if (typeof window !== 'undefined') {
+        const showNext = () => {
+          const n = buffer.shift();
+          if (!n) return;
+          try {
+            // Use requestIdleCallback when available
+            if ('requestIdleCallback' in window) {
+              (window as any).requestIdleCallback(() => {
+                toast(n.title, { description: n.message });
+                showNext();
+              });
+            } else {
+              setTimeout(() => {
+                toast(n.title, { description: n.message });
+                showNext();
+              }, 100);
+            }
+          } catch (e) {
+            // swallow errors from toast to avoid crashing real-time handler
+            showNext();
+          }
+        };
+
+        showNext();
+      }
+    };
+
     const channel = supabase
       .channel('realtime-notifications')
       .on(
@@ -51,21 +98,17 @@ export function useNotifications(userId?: string) {
         },
         (payload) => {
           const newNotif = payload.new as Notification;
-
-          // Atualiza a lista visualmente
-          setNotifications((prev) => [newNotif, ...prev]);
-
-          // Toca um Toast na tela também
-          toast(newNotif.title, { description: newNotif.message });
-
-          // Opcional: Tocar um som
-          // const audio = new Audio('/notification.mp3');
-          // audio.play().catch(() => {});
+          // push into buffer and schedule a flush
+          buffer.push(newNotif);
+          if (!flushTimer) {
+            flushTimer = setTimeout(flushBuffer, 200);
+          }
         }
       )
       .subscribe();
 
     return () => {
+      if (flushTimer) clearTimeout(flushTimer);
       supabase.removeChannel(channel);
     };
   }, [userId, supabase]);

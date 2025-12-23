@@ -216,7 +216,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-5"
+              autoComplete="on"
+            >
               {error && (
                 <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 animate-in slide-in-from-top-2">
                   <AlertCircle size={18} className="shrink-0" />
@@ -237,7 +241,9 @@ export default function LoginPage() {
                   </div>
                   <input
                     id="email"
+                    name="email"
                     type="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isLoading}
@@ -269,7 +275,9 @@ export default function LoginPage() {
                   </div>
                   <input
                     id="password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
@@ -290,7 +298,7 @@ export default function LoginPage() {
               <div className="pt-2">
                 <LoginButton
                   type="submit"
-                  loading={isPending}
+                  loading={isLoading}
                   disabled={isLoading}
                   variant="primary"
                 >
