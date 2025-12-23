@@ -10,54 +10,47 @@ import { headers } from 'next/headers';
  * faça o redirecionamento, garantindo a gravação dos cookies no Next.js 15.
  */
 export async function login(formData: FormData) {
-  const supabase = await createClient();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  // 1. Tenta a autenticação
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    return { error: error.message || 'Email ou senha incorretos.' };
+  if (!email || !password) {
+    return { error: 'Email e senha são obrigatórios.' };
   }
 
-  // 2. FORÇA a leitura do usuário no servidor logo após o login.
-  // Isso garante que os cabeçalhos Set-Cookie sejam preparados corretamente.
-  await supabase.auth.getUser();
-
-  // 3. Invalida o cache para que o layout reconheça a nova sessão
-  revalidatePath('/', 'layout');
-
-  // 4. Determina o destino baseado no perfil
-  let redirectTo = '/dashboard';
-
-  if (data.user) {
+  try {
+    // Use the API route that sets cookies server-side to ensure the browser receives Set-Cookie
+    let base = process.env.NEXT_PUBLIC_BASE_URL || '';
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, onboarding_completed')
-        .eq('id', data.user.id)
-        .maybeSingle();
-
-      if (profile) {
-        if (!profile.onboarding_completed) {
-          redirectTo = '/onboarding';
-        } else if (profile.role === 'master') {
-          redirectTo = '/admin';
-        }
-      }
-    } catch (err) {
-      console.error('[login] Erro ao buscar perfil:', err);
-      // Mantém o redirecionamento padrão para /dashboard em caso de erro no perfil
+      const hdrs = headers();
+      const origin = hdrs.get && hdrs.get('origin');
+      if (!base && origin) base = origin;
+    } catch (e) {
+      // ignore if headers() not available in this context
     }
-  }
 
-  // 5. Retornamos o destino para que o Client-Side faça o redirecionamento.
-  // Isso previne o loop de login causado por redirecionamentos de servidor que limpam cookies.
-  return { success: true, redirectTo };
+    // If still no base, default to localhost dev port so Node fetch gets a valid absolute URL
+    if (!base) {
+      base = `http://localhost:${process.env.PORT || 3001}`;
+    }
+
+    const resp = await fetch(`${base}/api/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+      credentials: 'include',
+    });
+
+    const json = await resp.json();
+    if (!resp.ok) return { error: json?.text || 'Erro ao autenticar.' };
+
+    // Revalida para garantir que o cache do servidor não ignore a nova sessão
+    revalidatePath('/');
+
+    return { success: true, redirectTo: json.redirect };
+  } catch (e) {
+    console.error('[login] fetch /api/login failed', e);
+    return { error: 'Erro interno ao autenticar.' };
+  }
 }
 
 /**
