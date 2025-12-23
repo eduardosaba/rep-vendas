@@ -12,7 +12,13 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet: any[]) {
+        setAll(
+          cookiesToSet: Array<{
+            name: string;
+            value: string;
+            options?: Record<string, any>;
+          }>
+        ) {
           try {
             // Log cookie names and options (avoid printing raw token values)
             const summary = cookiesToSet.map((c: any) => ({

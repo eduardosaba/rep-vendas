@@ -15,7 +15,13 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(
+          cookiesToSet: Array<{
+            name: string;
+            value: string;
+            options?: Record<string, any>;
+          }>
+        ) {
           // Atualiza o request para que o getUser() veja as mudanças nesta execução
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
