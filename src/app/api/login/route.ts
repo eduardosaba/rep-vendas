@@ -22,27 +22,60 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json(
-        { type: 'error', text: error.message || 'Erro ao autenticar.' },
-        { status: 401 }
-      );
-    }
+        // Se o adapter não escreveu cookies, gravamos manualmente os tokens
+        const res = NextResponse.json({
+          type: 'success',
+          text: 'Autenticado com sucesso',
+          redirect,
+        });
 
-    if (data?.user) {
-      try {
-        // Força leitura da sessão para acionar o adapter de cookies do Supabase
         try {
-          const sessionCheck = await supabase.auth.getSession();
-          console.log(
-            '[api/login] getSession result',
-            JSON.stringify({ hasSession: !!sessionCheck?.data?.session })
-          );
+          const session = (data as any).session;
+          if (session) {
+            const accessToken = session.access_token;
+            const refreshToken = session.refresh_token;
+            const expiresIn = session.expires_in ?? null;
+
+            const secure = process.env.NODE_ENV === 'production';
+            const cookieOptions: any = {
+              httpOnly: true,
+              path: '/',
+              sameSite: 'lax',
+              secure,
+            };
+
+            if (typeof expiresIn === 'number') {
+              cookieOptions.maxAge = Number(expiresIn);
+              cookieOptions.expires = new Date(Date.now() + expiresIn * 1000);
+            }
+
+            if (accessToken) {
+              res.cookies.set('sb-access-token', accessToken, cookieOptions);
+              console.log('[api/login] set sb-access-token cookie');
+            }
+            if (refreshToken) {
+              // refresh token usually long lived
+              const refreshOpts = { ...cookieOptions, maxAge: cookieOptions.maxAge ? cookieOptions.maxAge * 24 : undefined };
+              res.cookies.set('sb-refresh-token', refreshToken, refreshOpts);
+              console.log('[api/login] set sb-refresh-token cookie');
+            }
+          }
         } catch (e) {
-          console.warn('[api/login] getSession failed', e);
+          console.warn('[api/login] manual cookie set failed', e);
         }
 
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('role')
+        // também tentamos copiar qualquer cookie do cookie store (fallback)
+        try {
+          const nextCookies = await cookies();
+          nextCookies.getAll().forEach((c: any) => {
+            if (c.options) res.cookies.set(c.name, c.value, c.options);
+            else res.cookies.set(c.name, c.value);
+          });
+        } catch (e) {
+          console.warn('[api/login] failed to copy cookie store to response', e);
+        }
+
+        return res;
           .eq('id', data.user.id)
           .maybeSingle();
 
