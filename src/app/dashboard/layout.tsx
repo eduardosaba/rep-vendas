@@ -38,35 +38,36 @@ export default function DashboardLayout({
 
     const checkSession = async () => {
       try {
-        // Timeout Promise
-        const timeoutPromise = new Promise((resolve) =>
-          setTimeout(() => resolve({ timeout: true }), 15000)
-        );
+        const maxAttempts = 6;
+        const delayMs = 500; // total ~3s of retrying
 
-        const sessionPromise = supabase.auth.getSession();
+        for (let attempt = 0; attempt < maxAttempts && mounted; attempt++) {
+          try {
+            const { data, error } = await supabase.auth.getSession();
 
-        // Corrida entre obter sessão e timeout
-        const result: any = await Promise.race([
-          sessionPromise,
-          timeoutPromise,
-        ]);
+            if (error) throw error;
 
-        // Se o componente desmontou durante a espera, paramos aqui
-        if (!mounted) return;
+            if (data?.session?.user) {
+              setAuthorized(true);
+              return;
+            }
 
-        if (result && result.timeout) {
-          console.warn('Timeout ao obter sessão Supabase (15s)');
-          setConnectionError(true);
-          setLoading(false);
-          return;
+            // Se ainda não há sessão, espera um pouco antes de tentar novamente.
+            await new Promise((r) => setTimeout(r, delayMs));
+            continue;
+          } catch (innerErr) {
+            // Em caso de erro transitório, tentamos novamente até o limite
+            console.warn('Tentativa de obter sessão falhou, tentando novamente', {
+              attempt,
+              error: innerErr,
+            });
+            await new Promise((r) => setTimeout(r, delayMs));
+          }
         }
 
-        if (result?.error) throw result.error;
-
-        if (!result?.data?.session) {
+        // Após tentativas, se não houver sessão, considera não autorizado.
+        if (mounted && !authorized) {
           router.replace('/login');
-        } else {
-          setAuthorized(true);
         }
       } catch (error) {
         console.error('Falha na conexão com Supabase:', error);

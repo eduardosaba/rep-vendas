@@ -19,7 +19,7 @@ export async function login(formData: FormData) {
   }
 
   // Revalida para garantir que o cache do servidor não ignore a nova sessão
-  revalidatePath('/', 'layout');
+  revalidatePath('/');
 
   let redirectTo = '/dashboard';
   if (data.user) {
@@ -63,7 +63,7 @@ export async function signup(formData: FormData) {
     if (error) return { error: error.message || 'Erro ao criar conta.' };
 
     // revalida para atualizar possíveis caches server-side
-    revalidatePath('/', 'layout');
+    revalidatePath('/');
 
     return {
       success: true,
