@@ -21,8 +21,9 @@ export async function login(formData: FormData) {
     // Use the API route that sets cookies server-side to ensure the browser receives Set-Cookie
     let base = process.env.NEXT_PUBLIC_BASE_URL || '';
     try {
-      const hdrs = headers();
-      const origin = hdrs.get && hdrs.get('origin');
+      const hdrs = await headers();
+      const origin =
+        typeof hdrs.get === 'function' ? hdrs.get('origin') : undefined;
       if (!base && origin) base = origin;
     } catch (e) {
       // ignore if headers() not available in this context
