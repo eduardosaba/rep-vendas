@@ -22,7 +22,35 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json(
-        // Se o adapter não escreveu cookies, gravamos manualmente os tokens
+        { type: 'error', text: error.message || 'Erro ao autenticar.' },
+        { status: 401 }
+      );
+    }
+
+    if (data?.user) {
+      try {
+        // Força leitura da sessão para acionar o adapter de cookies do Supabase
+        try {
+          const sessionCheck = await supabase.auth.getSession();
+          console.log(
+            '[api/login] getSession result',
+            JSON.stringify({ hasSession: !!sessionCheck?.data?.session })
+          );
+        } catch (e) {
+          console.warn('[api/login] getSession failed', e);
+        }
+
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        const role = profileData?.role;
+        const redirect = role === 'master' ? '/admin' : '/dashboard';
+
+        // Construímos a resposta e, caso o adapter não tenha gravado cookies,
+        // escrevemos manualmente os tokens retornados pela sessão.
         const res = NextResponse.json({
           type: 'success',
           text: 'Autenticado com sucesso',
@@ -36,35 +64,46 @@ export async function POST(request: Request) {
             const refreshToken = session.refresh_token;
             const expiresIn = session.expires_in ?? null;
 
-            const secure = process.env.NODE_ENV === 'production';
+            const isProd = process.env.NODE_ENV === 'production';
             const cookieOptions: any = {
               httpOnly: true,
               path: '/',
               sameSite: 'lax',
-              secure,
+              secure: isProd,
             };
+
+            if (isProd) {
+              // domain-wide cookie for production
+              cookieOptions.domain = '.repvendas.com.br';
+            }
 
             if (typeof expiresIn === 'number') {
               cookieOptions.maxAge = Number(expiresIn);
               cookieOptions.expires = new Date(Date.now() + expiresIn * 1000);
             }
 
+            const accessName = isProd
+              ? '__Secure-sb-access-token'
+              : 'sb-access-token';
+            const refreshName = isProd
+              ? '__Secure-sb-refresh-token'
+              : 'sb-refresh-token';
+
             if (accessToken) {
-              res.cookies.set('sb-access-token', accessToken, cookieOptions);
-              console.log('[api/login] set sb-access-token cookie');
+              res.cookies.set(accessName, accessToken, cookieOptions);
+              console.log('[api/login] set', accessName, 'cookie');
             }
             if (refreshToken) {
-              // refresh token usually long lived
-              const refreshOpts = { ...cookieOptions, maxAge: cookieOptions.maxAge ? cookieOptions.maxAge * 24 : undefined };
-              res.cookies.set('sb-refresh-token', refreshToken, refreshOpts);
-              console.log('[api/login] set sb-refresh-token cookie');
+              const refreshOpts = { ...cookieOptions };
+              res.cookies.set(refreshName, refreshToken, refreshOpts);
+              console.log('[api/login] set', refreshName, 'cookie');
             }
           }
         } catch (e) {
           console.warn('[api/login] manual cookie set failed', e);
         }
 
-        // também tentamos copiar qualquer cookie do cookie store (fallback)
+        // fallback: copiar do cookie store se houver algo
         try {
           const nextCookies = await cookies();
           nextCookies.getAll().forEach((c: any) => {
@@ -72,34 +111,10 @@ export async function POST(request: Request) {
             else res.cookies.set(c.name, c.value);
           });
         } catch (e) {
-          console.warn('[api/login] failed to copy cookie store to response', e);
-        }
-
-        return res;
-          .eq('id', data.user.id)
-          .maybeSingle();
-
-        const role = profileData?.role;
-        const redirect = role === 'master' ? '/admin' : '/dashboard';
-
-        // Garante que quaisquer cookies gravados pelo adapter do Supabase
-        // sejam copiados para a resposta que vamos retornar ao cliente.
-        const nextCookies = await cookies();
-        const res = NextResponse.json({
-          type: 'success',
-          text: 'Autenticado com sucesso',
-          redirect,
-        });
-
-        try {
-          nextCookies.getAll().forEach((c: any) => {
-            // c pode conter name, value e options
-            if (c.options) res.cookies.set(c.name, c.value, c.options);
-            else res.cookies.set(c.name, c.value);
-          });
-        } catch (e) {
-          // se algo falhar ao copiar cookies, continuamos sem bloquear o fluxo
-          console.warn('[api/login] failed to copy cookies to response', e);
+          console.warn(
+            '[api/login] failed to copy cookie store to response',
+            e
+          );
         }
 
         return res;
