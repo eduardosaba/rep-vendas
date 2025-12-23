@@ -57,10 +57,13 @@ export default function DashboardLayout({
             continue;
           } catch (innerErr) {
             // Em caso de erro transitório, tentamos novamente até o limite
-            console.warn('Tentativa de obter sessão falhou, tentando novamente', {
-              attempt,
-              error: innerErr,
-            });
+            console.warn(
+              'Tentativa de obter sessão falhou, tentando novamente',
+              {
+                attempt,
+                error: innerErr,
+              }
+            );
             await new Promise((r) => setTimeout(r, delayMs));
           }
         }

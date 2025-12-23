@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import createClient from '@/lib/supabaseServer';
 
 export async function POST(request: Request) {
@@ -36,11 +37,28 @@ export async function POST(request: Request) {
 
         const role = profileData?.role;
         const redirect = role === 'master' ? '/admin' : '/dashboard';
-        return NextResponse.json({
+
+        // Garante que quaisquer cookies gravados pelo adapter do Supabase
+        // sejam copiados para a resposta que vamos retornar ao cliente.
+        const nextCookies = await cookies();
+        const res = NextResponse.json({
           type: 'success',
           text: 'Autenticado com sucesso',
           redirect,
         });
+
+        try {
+          nextCookies.getAll().forEach((c: any) => {
+            // c pode conter name, value e options
+            if (c.options) res.cookies.set(c.name, c.value, c.options);
+            else res.cookies.set(c.name, c.value);
+          });
+        } catch (e) {
+          // se algo falhar ao copiar cookies, continuamos sem bloquear o fluxo
+          console.warn('[api/login] failed to copy cookies to response', e);
+        }
+
+        return res;
       } catch (err) {
         return NextResponse.json({
           type: 'success',
