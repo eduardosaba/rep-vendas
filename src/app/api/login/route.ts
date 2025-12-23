@@ -29,6 +29,17 @@ export async function POST(request: Request) {
 
     if (data?.user) {
       try {
+        // Força leitura da sessão para acionar o adapter de cookies do Supabase
+        try {
+          const sessionCheck = await supabase.auth.getSession();
+          console.log(
+            '[api/login] getSession result',
+            JSON.stringify({ hasSession: !!sessionCheck?.data?.session })
+          );
+        } catch (e) {
+          console.warn('[api/login] getSession failed', e);
+        }
+
         const { data: profileData } = await supabase
           .from('profiles')
           .select('role')
