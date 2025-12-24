@@ -36,7 +36,38 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          // Normaliza nomes: se o cookie estiver gravado com prefixo __Secure-
+          // expomos também o nome sem prefixo (ex: __Secure-sb-access-token -> sb-access-token)
+          try {
+            const raw = request.cookies.getAll();
+            const out = [...raw];
+            raw.forEach((c: any) => {
+              if (
+                typeof c.name === 'string' &&
+                c.name.startsWith('__Secure-')
+              ) {
+                const base = c.name.replace(/^__Secure-/, '');
+                const exists =
+                  raw.some((r: any) => r.name === base) ||
+                  out.some((r: any) => r.name === base);
+                if (!exists) {
+                  // Duplica o cookie com nome base para o Supabase reconhecer
+                  out.push({ ...c, name: base });
+                }
+              }
+            });
+            console.log(
+              '[supabase.middleware] getAll normalized cookies:',
+              out.map((c) => c.name)
+            );
+            return out;
+          } catch (e) {
+            console.warn(
+              '[supabase.middleware] getAll normalization failed',
+              e
+            );
+            return request.cookies.getAll();
+          }
         },
         setAll(
           cookiesToSet: Array<{

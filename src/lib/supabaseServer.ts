@@ -15,7 +15,30 @@ export async function createClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          // Normaliza nomes: se o cookie estiver gravado com prefixo __Secure-
+          // expomos também o nome sem prefixo (ex: __Secure-sb-access-token -> sb-access-token)
+          try {
+            const raw = cookieStore.getAll();
+            const out = [...raw];
+            raw.forEach((c: any) => {
+              if (
+                typeof c.name === 'string' &&
+                c.name.startsWith('__Secure-')
+              ) {
+                const base = c.name.replace(/^__Secure-/, '');
+                const exists =
+                  raw.some((r: any) => r.name === base) ||
+                  out.some((r: any) => r.name === base);
+                if (!exists) {
+                  out.push({ ...c, name: base });
+                }
+              }
+            });
+            return out;
+          } catch (e) {
+            console.warn('[supabaseServer] getAll normalization failed', e);
+            return cookieStore.getAll();
+          }
         },
         // CORREÇÃO AQUI: Adicionado ': any[]'
         setAll(cookiesToSet: any[]) {
@@ -37,8 +60,8 @@ export async function createClient() {
               );
             }
 
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+            cookiesToSet.forEach((c: any) =>
+              cookieStore.set(c.name, c.value, c.options)
             );
           } catch {
             // O método setAll pode falhar em alguns contextos (ex: Server Component).
@@ -64,7 +87,28 @@ export function createRouteSupabase(
           if (store && typeof (store as any).then === 'function') {
             return [] as any;
           }
-          return (store as any).getAll();
+          // Normaliza nomes: __Secure-* -> sb-*
+          try {
+            const raw = (store as any).getAll();
+            const out = [...raw];
+            raw.forEach((c: any) => {
+              if (
+                typeof c.name === 'string' &&
+                c.name.startsWith('__Secure-')
+              ) {
+                const base = c.name.replace(/^__Secure-/, '');
+                const exists =
+                  raw.some((r: any) => r.name === base) ||
+                  out.some((r: any) => r.name === base);
+                if (!exists) {
+                  out.push({ ...c, name: base });
+                }
+              }
+            });
+            return out;
+          } catch (e) {
+            return (store as any).getAll();
+          }
         },
         // CORREÇÃO AQUI TAMBÉM: Adicionado ': any[]'
         setAll(cookiesToSet: any[]) {
@@ -72,8 +116,8 @@ export function createRouteSupabase(
             const store = cookieStoreFactory();
             if (store && typeof (store as any).then === 'function') return;
             (store as any).getAll &&
-              cookiesToSet.forEach(({ name, value, options }) =>
-                (store as any).set(name, value, options)
+              cookiesToSet.forEach((c: any) =>
+                (store as any).set(c.name, c.value, c.options)
               );
           } catch {
             // ignorar se não for possível setar aqui
