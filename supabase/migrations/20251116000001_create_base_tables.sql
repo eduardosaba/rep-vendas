@@ -23,21 +23,25 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clients' AND policyname = 'Users can view own clients') THEN
+DROP POLICY IF EXISTS "Users can view own clients" ON clients;
         CREATE POLICY "Users can view own clients" ON clients
             FOR SELECT USING (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clients' AND policyname = 'Users can insert own clients') THEN
+DROP POLICY IF EXISTS "Users can insert own clients" ON clients;
         CREATE POLICY "Users can insert own clients" ON clients
             FOR INSERT WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clients' AND policyname = 'Users can update own clients') THEN
+DROP POLICY IF EXISTS "Users can update own clients" ON clients;
         CREATE POLICY "Users can update own clients" ON clients
             FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'clients' AND policyname = 'Users can delete own clients') THEN
+DROP POLICY IF EXISTS "Users can delete own clients" ON clients;
         CREATE POLICY "Users can delete own clients" ON clients
             FOR DELETE USING (auth.uid() = user_id);
     END IF;
@@ -67,21 +71,25 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'products' AND policyname = 'Products are public for viewing') THEN
+DROP POLICY IF EXISTS "Products are public for viewing" ON products;
         CREATE POLICY "Products are public for viewing" ON products
             FOR SELECT USING (true);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'products' AND policyname = 'Users can insert own products') THEN
+DROP POLICY IF EXISTS "Users can insert own products" ON products;
         CREATE POLICY "Users can insert own products" ON products
             FOR INSERT WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'products' AND policyname = 'Users can update own products') THEN
+DROP POLICY IF EXISTS "Users can update own products" ON products;
         CREATE POLICY "Users can update own products" ON products
             FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'products' AND policyname = 'Users can delete own products') THEN
+DROP POLICY IF EXISTS "Users can delete own products" ON products;
         CREATE POLICY "Users can delete own products" ON products
             FOR DELETE USING (auth.uid() = user_id);
     END IF;
@@ -112,21 +120,25 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'orders' AND policyname = 'Users can view own orders') THEN
+DROP POLICY IF EXISTS "Users can view own orders" ON orders;
         CREATE POLICY "Users can view own orders" ON orders
             FOR SELECT USING (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'orders' AND policyname = 'Users can insert own orders') THEN
+DROP POLICY IF EXISTS "Users can insert own orders" ON orders;
         CREATE POLICY "Users can insert own orders" ON orders
             FOR INSERT WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'orders' AND policyname = 'Users can update own orders') THEN
+DROP POLICY IF EXISTS "Users can update own orders" ON orders;
         CREATE POLICY "Users can update own orders" ON orders
             FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'orders' AND policyname = 'Users can delete own orders') THEN
+DROP POLICY IF EXISTS "Users can delete own orders" ON orders;
         CREATE POLICY "Users can delete own orders" ON orders
             FOR DELETE USING (auth.uid() = user_id);
     END IF;
@@ -153,6 +165,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'order_items' AND policyname = 'Users can view own order items') THEN
+DROP POLICY IF EXISTS "Users can view own order items" ON order_items;
         CREATE POLICY "Users can view own order items" ON order_items
             FOR SELECT USING (
                 EXISTS (
@@ -164,6 +177,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'order_items' AND policyname = 'Users can insert own order items') THEN
+DROP POLICY IF EXISTS "Users can insert own order items" ON order_items;
         CREATE POLICY "Users can insert own order items" ON order_items
             FOR INSERT WITH CHECK (
                 EXISTS (
@@ -175,6 +189,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'order_items' AND policyname = 'Users can update own order items') THEN
+DROP POLICY IF EXISTS "Users can update own order items" ON order_items;
         CREATE POLICY "Users can update own order items" ON order_items
             FOR UPDATE USING (
                 EXISTS (
@@ -192,6 +207,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'order_items' AND policyname = 'Users can delete own order items') THEN
+DROP POLICY IF EXISTS "Users can delete own order items" ON order_items;
         CREATE POLICY "Users can delete own order items" ON order_items
             FOR DELETE USING (
                 EXISTS (

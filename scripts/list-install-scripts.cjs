@@ -33,9 +33,15 @@ function scanNodeModules(dir) {
           const pkg = readPkg(pkgPath);
           if (pkg && pkg.scripts) {
             const keys = Object.keys(pkg.scripts);
-            const interesting = keys.filter(k => /install|postinstall|prepare/i.test(k));
+            const interesting = keys.filter((k) =>
+              /install|postinstall|prepare/i.test(k)
+            );
             if (interesting.length) {
-              results.push({ name: `${ent.name}/${s.name}`, version: pkg.version, scripts: interesting });
+              results.push({
+                name: `${ent.name}/${s.name}`,
+                version: pkg.version,
+                scripts: interesting,
+              });
             }
           }
         }
@@ -44,9 +50,15 @@ function scanNodeModules(dir) {
         const pkg = readPkg(pkgPath);
         if (pkg && pkg.scripts) {
           const keys = Object.keys(pkg.scripts);
-          const interesting = keys.filter(k => /install|postinstall|prepare/i.test(k));
+          const interesting = keys.filter((k) =>
+            /install|postinstall|prepare/i.test(k)
+          );
           if (interesting.length) {
-            results.push({ name: ent.name, version: pkg.version, scripts: interesting });
+            results.push({
+              name: ent.name,
+              version: pkg.version,
+              scripts: interesting,
+            });
           }
         }
       }
@@ -58,13 +70,17 @@ function scanNodeModules(dir) {
 
 const out = scanNodeModules(nm);
 if (!out.length) {
-  console.log('No packages with install/postinstall/prepare scripts found in node_modules.');
+  console.log(
+    'No packages with install/postinstall/prepare scripts found in node_modules.'
+  );
   process.exit(0);
 }
 
 console.log('Packages with install/postinstall/prepare scripts:');
-out.sort((a,b)=>a.name.localeCompare(b.name)).forEach(p=>{
-  console.log(`- ${p.name}@${p.version} -> scripts: ${p.scripts.join(', ')}`);
-});
+out
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .forEach((p) => {
+    console.log(`- ${p.name}@${p.version} -> scripts: ${p.scripts.join(', ')}`);
+  });
 
 console.log('\nTotal:', out.length);

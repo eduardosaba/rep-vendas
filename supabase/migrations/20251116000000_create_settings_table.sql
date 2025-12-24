@@ -39,21 +39,25 @@ ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'settings' AND policyname = 'Users can view own settings') THEN
+DROP POLICY IF EXISTS "Users can view own settings" ON settings;
         CREATE POLICY "Users can view own settings" ON settings
             FOR SELECT USING (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'settings' AND policyname = 'Users can insert own settings') THEN
+DROP POLICY IF EXISTS "Users can insert own settings" ON settings;
         CREATE POLICY "Users can insert own settings" ON settings
             FOR INSERT WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'settings' AND policyname = 'Users can update own settings') THEN
+DROP POLICY IF EXISTS "Users can update own settings" ON settings;
         CREATE POLICY "Users can update own settings" ON settings
             FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'settings' AND policyname = 'Users can delete own settings') THEN
+DROP POLICY IF EXISTS "Users can delete own settings" ON settings;
         CREATE POLICY "Users can delete own settings" ON settings
             FOR DELETE USING (auth.uid() = user_id);
     END IF;

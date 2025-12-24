@@ -62,6 +62,7 @@ ALTER TABLE staging_images ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'staging_images' AND policyname = 'Users can manage own staging images') THEN
+DROP POLICY IF EXISTS "Users can manage own staging images" ON staging_images;
     CREATE POLICY "Users can manage own staging images" ON staging_images
       FOR ALL
       USING (user_id IS NULL OR auth.uid() = user_id)
@@ -97,12 +98,14 @@ END$$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='orders' AND policyname='Users can insert own orders') THEN
+DROP POLICY IF EXISTS "Users can insert own orders" ON orders;
     CREATE POLICY "Users can insert own orders" ON orders
       FOR INSERT
       WITH CHECK (auth.uid() = user_id);
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='order_items' AND policyname='Users can insert own order items') THEN
+DROP POLICY IF EXISTS "Users can insert own order items" ON order_items;
     CREATE POLICY "Users can insert own order items" ON order_items
       FOR INSERT
       WITH CHECK (
@@ -132,11 +135,13 @@ BEGIN
 
   -- Create canonical policies
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='saved_carts' AND policyname='Public insert carts') THEN
+DROP POLICY IF EXISTS "Public insert carts" ON saved_carts;
     CREATE POLICY "Public insert carts" ON saved_carts
       FOR INSERT
       WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='saved_carts' AND policyname='Public select carts') THEN
+DROP POLICY IF EXISTS "Public select carts" ON saved_carts;
     CREATE POLICY "Public select carts" ON saved_carts
       FOR SELECT
       USING (true);

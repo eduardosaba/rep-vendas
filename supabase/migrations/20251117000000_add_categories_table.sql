@@ -22,6 +22,7 @@ BEGIN
     SELECT 1 FROM pg_policies
     WHERE tablename = 'categories' AND policyname = 'Users can view their own categories'
   ) THEN
+DROP POLICY IF EXISTS "Users can view their own categories" ON categories;
     CREATE POLICY "Users can view their own categories" ON categories
       FOR SELECT USING (auth.uid() = user_id);
   END IF;
@@ -31,6 +32,7 @@ BEGIN
     SELECT 1 FROM pg_policies
     WHERE tablename = 'categories' AND policyname = 'Users can insert their own categories'
   ) THEN
+DROP POLICY IF EXISTS "Users can insert their own categories" ON categories;
     CREATE POLICY "Users can insert their own categories" ON categories
       FOR INSERT WITH CHECK (auth.uid() = user_id);
   END IF;
@@ -40,6 +42,7 @@ BEGIN
     SELECT 1 FROM pg_policies
     WHERE tablename = 'categories' AND policyname = 'Users can update their own categories'
   ) THEN
+DROP POLICY IF EXISTS "Users can update their own categories" ON categories;
     CREATE POLICY "Users can update their own categories" ON categories
       FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
   END IF;
@@ -49,6 +52,7 @@ BEGIN
     SELECT 1 FROM pg_policies
     WHERE tablename = 'categories' AND policyname = 'Users can delete their own categories'
   ) THEN
+DROP POLICY IF EXISTS "Users can delete their own categories" ON categories;
     CREATE POLICY "Users can delete their own categories" ON categories
       FOR DELETE USING (auth.uid() = user_id);
   END IF;

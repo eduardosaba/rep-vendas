@@ -26,6 +26,7 @@ END$$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='orders' AND policyname='Users can insert own orders') THEN
+DROP POLICY IF EXISTS "Users can insert own orders" ON orders;
     CREATE POLICY "Users can insert own orders" ON orders
       FOR INSERT
       WITH CHECK (auth.uid() = user_id);
@@ -36,6 +37,7 @@ END$$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='order_items' AND policyname='Users can insert own order items') THEN
+DROP POLICY IF EXISTS "Users can insert own order items" ON order_items;
     CREATE POLICY "Users can insert own order items" ON order_items
       FOR INSERT
       WITH CHECK (

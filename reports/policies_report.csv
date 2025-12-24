@@ -1,0 +1,196 @@
+file,table,policy_name,command,using_expr,with_check_expr
+20251116000000_create_settings_table.sql,settings,Users can view own settings,SELECT,"auth.uid(",""
+20251116000000_create_settings_table.sql,settings,Users can insert own settings,INSERT,"","auth.uid("
+20251116000000_create_settings_table.sql,settings,Users can update own settings,UPDATE,"auth.uid(","auth.uid("
+20251116000000_create_settings_table.sql,settings,Users can delete own settings,DELETE,"auth.uid(",""
+20251116000001_create_base_tables.sql,clients,Users can view own clients,SELECT,"auth.uid(",""
+20251116000001_create_base_tables.sql,clients,Users can insert own clients,INSERT,"","auth.uid("
+20251116000001_create_base_tables.sql,clients,Users can update own clients,UPDATE,"auth.uid(","auth.uid("
+20251116000001_create_base_tables.sql,clients,Users can delete own clients,DELETE,"auth.uid(",""
+20251116000001_create_base_tables.sql,products,Products are public for viewing,SELECT,"true",""
+20251116000001_create_base_tables.sql,products,Users can insert own products,INSERT,"","auth.uid("
+20251116000001_create_base_tables.sql,products,Users can update own products,UPDATE,"auth.uid(","auth.uid("
+20251116000001_create_base_tables.sql,products,Users can delete own products,DELETE,"auth.uid(",""
+20251116000001_create_base_tables.sql,orders,Users can view own orders,SELECT,"auth.uid(",""
+20251116000001_create_base_tables.sql,orders,Users can insert own orders,INSERT,"","auth.uid("
+20251116000001_create_base_tables.sql,orders,Users can update own orders,UPDATE,"auth.uid(","auth.uid("
+20251116000001_create_base_tables.sql,orders,Users can delete own orders,DELETE,"auth.uid(",""
+20251116000001_create_base_tables.sql,order_items,Users can view own order items,SELECT,"EXISTS (
+                    SELECT 1 FROM orders
+                    WHERE orders.id = order_items.order_id
+                    AND orders.user_id = auth.uid(",""
+20251116000001_create_base_tables.sql,order_items,Users can insert own order items,INSERT,"","EXISTS (
+                    SELECT 1 FROM orders
+                    WHERE orders.id = order_items.order_id
+                    AND orders.user_id = auth.uid("
+20251116000001_create_base_tables.sql,order_items,Users can update own order items,UPDATE,"EXISTS (
+                    SELECT 1 FROM orders
+                    WHERE orders.id = order_items.order_id
+                    AND orders.user_id = auth.uid(","EXISTS (
+                    SELECT 1 FROM orders
+                    WHERE orders.id = order_items.order_id
+                    AND orders.user_id = auth.uid("
+20251116000001_create_base_tables.sql,order_items,Users can delete own order items,DELETE,"EXISTS (
+                    SELECT 1 FROM orders
+                    WHERE orders.id = order_items.order_id
+                    AND orders.user_id = auth.uid(",""
+20251117000000_add_categories_table.sql,categories,Users can view their own categories,SELECT,"auth.uid(",""
+20251117000000_add_categories_table.sql,categories,Users can insert their own categories,INSERT,"","auth.uid("
+20251117000000_add_categories_table.sql,categories,Users can update their own categories,UPDATE,"auth.uid(","auth.uid("
+20251117000000_add_categories_table.sql,categories,Users can delete their own categories,DELETE,"auth.uid(",""
+20251125000000_rename_saved_carts_items_and_user_owner.sql,saved_carts,Users can view own saved carts (owner),SELECT,"auth.uid(",""
+20251125000000_rename_saved_carts_items_and_user_owner.sql,saved_carts,Users can insert own saved carts (owner),INSERT,"","auth.uid("
+20251125000000_rename_saved_carts_items_and_user_owner.sql,saved_carts,Users can update own saved carts (owner),UPDATE,"auth.uid(",""
+20251125000000_rename_saved_carts_items_and_user_owner.sql,saved_carts,Users can delete own saved carts (owner),DELETE,"auth.uid(",""
+20251125000000_rename_saved_carts_items_and_user_owner.sql,saved_carts,Anyone can view guest saved carts by short_id (owner),SELECT,"user_id_owner IS NULL",""
+20251125083000_fix_profiles_policies.sql,public.profiles,Users can view own profile,SELECT,"auth.uid(",""
+20251125083000_fix_profiles_policies.sql,public.profiles,Users can update own profile,UPDATE,"auth.uid(","auth.uid("
+20251125091000_add_is_master_function_and_policies.sql,public.profiles,Users can view own profile,SELECT,"auth.uid(",""
+20251125091000_add_is_master_function_and_policies.sql,public.profiles,Users can update own profile,UPDATE,"auth.uid(","auth.uid("
+20251127133000_create_staging_images_table.sql,staging_images,Users can manage own staging images,ALL,"user_id IS NULL OR auth.uid(","user_id IS NULL OR auth.uid("
+20251127143000_restrict_orders_inserts.sql,orders,Users can insert own orders,INSERT,"","auth.uid("
+20251127143000_restrict_orders_inserts.sql,order_items,Users can insert own order items,INSERT,"","EXISTS (
+          SELECT 1 FROM orders
+          WHERE orders.id = order_items.order_id
+            AND orders.user_id = auth.uid("
+20251127150000_consolidated_stabilization.sql,staging_images,Users can manage own staging images,ALL,"user_id IS NULL OR auth.uid(","user_id IS NULL OR auth.uid("
+20251127150000_consolidated_stabilization.sql,orders,Users can insert own orders,INSERT,"","auth.uid("
+20251127150000_consolidated_stabilization.sql,order_items,Users can insert own order items,INSERT,"","EXISTS (
+          SELECT 1 FROM orders
+          WHERE orders.id = order_items.order_id
+            AND orders.user_id = auth.uid("
+20251127150000_consolidated_stabilization.sql,saved_carts,Public insert carts,INSERT,"","true"
+20251127150000_consolidated_stabilization.sql,saved_carts,Public select carts,SELECT,"true",""
+20251127171000_restrict_public_inserts_orders_order_items.sql,public.orders,Users can insert their own orders,INSERT,"","auth.uid("
+20251127171000_restrict_public_inserts_orders_order_items.sql,public.order_items,Users can insert their own order items,INSERT,"","EXISTS ( SELECT 1 FROM public.orders o WHERE o.id = order_items.order_id AND o.user_id = auth.uid("
+20251127171000_restrict_public_inserts_orders_order_items.sql,public.orders,Users can insert their own orders,INSERT,"","auth.uid("
+20251127171000_restrict_public_inserts_orders_order_items.sql,public.order_items,Users can insert their own order items,INSERT,"","EXISTS ( SELECT 1 FROM public.orders o WHERE o.id = order_items.order_id AND o.user_id = auth.uid("
+20251127193000_profiles_rls_policies.sql,public.profiles,Users can select own profile,SELECT,"(auth.uid(",""
+20251127193000_profiles_rls_policies.sql,public.profiles,Users can update own profile,UPDATE,"(auth.uid(","(auth.uid("
+20251127193000_profiles_rls_policies.sql,public.profiles,Users can insert own profile,INSERT,"","auth.uid("
+20251127193000_profiles_rls_policies.sql,public.profiles,Users can select own profile,SELECT,"(auth.uid(",""
+20251127193000_profiles_rls_policies.sql,public.profiles,Users can update own profile,UPDATE,"(auth.uid(","(auth.uid("
+20251127193000_profiles_rls_policies.sql,public.profiles,Users can insert own profile,INSERT,"","auth.uid("
+20251204120000_create_imported_images_bucket.sql,storage.objects,Users can upload imported-images,INSERT,"","bucket_id = ''imported-images'' AND auth.role("
+20251204120000_create_imported_images_bucket.sql,storage.objects,Anyone can view imported-images,SELECT,"bucket_id = ''imported-images''",""
+20251212090000_add_guest_id_saved_carts.sql,saved_carts,Users can view own saved carts (owner),SELECT,"auth.uid(",""
+20251212090000_add_guest_id_saved_carts.sql,saved_carts,Users can insert own saved carts (owner),INSERT,"","auth.uid("
+20251212090000_add_guest_id_saved_carts.sql,saved_carts,Users can update own saved carts (owner),UPDATE,"auth.uid(","auth.uid("
+20251212090000_add_guest_id_saved_carts.sql,saved_carts,Users can delete own saved carts (owner),DELETE,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,products,Public read products,SELECT,"true",""
+20251212100000_fix_rls_and_missing_fields.sql,products,Users can insert their own products,INSERT,"","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,products,Users can update their own products,UPDATE,"auth.uid(","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,products,Users can delete their own products,DELETE,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,brands,Public read brands,SELECT,"true",""
+20251212100000_fix_rls_and_missing_fields.sql,brands,Users can insert their own brands,INSERT,"","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,brands,Users can update their own brands,UPDATE,"auth.uid(","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,brands,Users can delete their own brands,DELETE,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,saved_carts,Users can view own saved carts (owner),SELECT,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,saved_carts,Users can insert own saved carts (owner),INSERT,"","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,saved_carts,Users can update own saved carts (owner),UPDATE,"auth.uid(","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,saved_carts,Users can delete own saved carts (owner),DELETE,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,orders,Users can view their own orders,SELECT,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,orders,Users can insert their own orders,INSERT,"","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,orders,Users can update their own orders,UPDATE,"auth.uid(","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,orders,Users can delete their own orders,DELETE,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,order_items,Users can view their own order items,SELECT,"EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_items.order_id
+      AND orders.user_id = auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,order_items,Users can insert their own order items,INSERT,"","EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_items.order_id
+      AND orders.user_id = auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,order_items,Users can update their own order items,UPDATE,"EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_items.order_id
+      AND orders.user_id = auth.uid(","EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_items.order_id
+      AND orders.user_id = auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,order_items,Users can delete their own order items,DELETE,"EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_items.order_id
+      AND orders.user_id = auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,clients,Users can view their own clients,SELECT,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,clients,Users can insert their own clients,INSERT,"","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,clients,Users can update their own clients,UPDATE,"auth.uid(","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,clients,Users can delete their own clients,DELETE,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,settings,Users can view their own settings,SELECT,"auth.uid(",""
+20251212100000_fix_rls_and_missing_fields.sql,settings,Users can insert their own settings,INSERT,"","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,settings,Users can update their own settings,UPDATE,"auth.uid(","auth.uid("
+20251212100000_fix_rls_and_missing_fields.sql,settings,Users can delete their own settings,DELETE,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.profiles,Users can select own profile,SELECT,"(auth.uid(",""
+20251212113000_replace_all_policies.sql,public.profiles,Users can update own profile,UPDATE,"(auth.uid(","(auth.uid("
+20251212113000_replace_all_policies.sql,public.profiles,Master can manage profiles,ALL,"is_master(","is_master("
+20251212113000_replace_all_policies.sql,public.products,Public read products,SELECT,"true",""
+20251212113000_replace_all_policies.sql,public.products,Users can insert their own products,INSERT,"","auth.uid("
+20251212113000_replace_all_policies.sql,public.products,Users can update their own products,UPDATE,"auth.uid(","auth.uid("
+20251212113000_replace_all_policies.sql,public.products,Users can delete their own products,DELETE,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.brands,Public read brands,SELECT,"true",""
+20251212113000_replace_all_policies.sql,public.brands,Users can insert their own brands,INSERT,"","auth.uid("
+20251212113000_replace_all_policies.sql,public.brands,Users can update their own brands,UPDATE,"auth.uid(","auth.uid("
+20251212113000_replace_all_policies.sql,public.brands,Users can delete their own brands,DELETE,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.settings,Users can view their own settings,SELECT,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.settings,Users can insert their own settings,INSERT,"","auth.uid("
+20251212113000_replace_all_policies.sql,public.settings,Users can update their own settings,UPDATE,"auth.uid(","auth.uid("
+20251212113000_replace_all_policies.sql,public.settings,Users can delete their own settings,DELETE,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.clients,Users can view their own clients,SELECT,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.clients,Users can insert their own clients,INSERT,"","auth.uid("
+20251212113000_replace_all_policies.sql,public.clients,Users can update their own clients,UPDATE,"auth.uid(","auth.uid("
+20251212113000_replace_all_policies.sql,public.clients,Users can delete their own clients,DELETE,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.orders,Users can view their own orders,SELECT,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.orders,Users can insert their own orders,INSERT,"","auth.uid("
+20251212113000_replace_all_policies.sql,public.orders,Users can update their own orders,UPDATE,"auth.uid(","auth.uid("
+20251212113000_replace_all_policies.sql,public.orders,Users can delete their own orders,DELETE,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.order_items,Users can view their own order items,SELECT,"EXISTS (
+      SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid(",""
+20251212113000_replace_all_policies.sql,public.order_items,Users can insert their own order items,INSERT,"","EXISTS (
+      SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid("
+20251212113000_replace_all_policies.sql,public.order_items,Users can update their own order items,UPDATE,"EXISTS (
+      SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid(","EXISTS (
+      SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid("
+20251212113000_replace_all_policies.sql,public.order_items,Users can delete their own order items,DELETE,"EXISTS (
+      SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid(",""
+20251212113000_replace_all_policies.sql,public.saved_carts,Users can view own saved carts (owner),SELECT,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.saved_carts,Users can insert own saved carts (owner),INSERT,"","auth.uid("
+20251212113000_replace_all_policies.sql,public.saved_carts,Users can update own saved carts (owner),UPDATE,"auth.uid(","auth.uid("
+20251212113000_replace_all_policies.sql,public.saved_carts,Users can delete own saved carts (owner),DELETE,"auth.uid(",""
+20251212113000_replace_all_policies.sql,public.staging_images,Public read staging_images,SELECT,"true",""
+20251212113000_replace_all_policies.sql,public.imported_images,Public read imported_images,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.profiles,Users can select own profile,SELECT,"(auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.profiles,Users can update own profile,UPDATE,"(auth.uid(","(auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.profiles,Master can manage profiles,ALL,"is_master(","is_master("
+20251212120000_guard_policies_missing_tables.sql,public.products,Public read products,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.products,Users can insert their own products,INSERT,"","auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.products,Users can update their own products,UPDATE,"auth.uid(","auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.products,Users can delete their own products,DELETE,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.brands,Public read brands,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.brands,Users can insert their own brands,INSERT,"","auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.settings,Users can view their own settings,SELECT,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.clients,Users can view their own clients,SELECT,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.orders,Users can view their own orders,SELECT,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.order_items,Users can view their own order items,SELECT,"EXISTS (SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.saved_carts,Users can view own saved carts (owner),SELECT,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.saved_carts,Users can insert own saved carts (owner),INSERT,"","auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.staging_images,Public read staging_images,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.imported_images,Public read imported_images,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.profiles,Users can select own profile,SELECT,"(auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.profiles,Users can update own profile,UPDATE,"(auth.uid(","(auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.profiles,Master can manage profiles,ALL,"is_master(","is_master("
+20251212120000_guard_policies_missing_tables.sql,public.products,Public read products,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.products,Users can insert their own products,INSERT,"","auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.products,Users can update their own products,UPDATE,"auth.uid(","auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.products,Users can delete their own products,DELETE,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.brands,Public read brands,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.brands,Users can insert their own brands,INSERT,"","auth.uid("
+20251212120000_guard_policies_missing_tables.sql,public.settings,Users can view their own settings,SELECT,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.clients,Users can view their own clients,SELECT,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.orders,Users can view their own orders,SELECT,"auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.order_items,Users can view their own order items,SELECT,"EXISTS (SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid(",""
+20251212120000_guard_policies_missing_tables.sql,public.staging_images,Public read staging_images,SELECT,"true",""
+20251212120000_guard_policies_missing_tables.sql,public.imported_images,Public read imported_images,SELECT,"true",""
+20251220000001_create_plans_table.sql,plans,Anyone can view plans,SELECT,"true",""
+20251220000001_create_plans_table.sql,plans,Service role can manage plans,ALL,"true",""
+20251220000002_create_subscriptions_table.sql,subscriptions,Users can view own subscription,SELECT,"auth.uid(",""
+20251220000002_create_subscriptions_table.sql,subscriptions,Service role can manage subscriptions,ALL,"true",""
