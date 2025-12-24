@@ -21,10 +21,18 @@ function extractFromFile(filePath) {
     const withMatch = body.match(/WITH CHECK\s*\(([^)]*)\)/i);
     const usingExpr = usingMatch ? usingMatch[1].trim() : '';
     const withExpr = withMatch ? withMatch[1].trim() : '';
-    results.push({ file: path.relative(migrationsDir, filePath), name, table, cmd, usingExpr, withExpr });
+    results.push({
+      file: path.relative(migrationsDir, filePath),
+      name,
+      table,
+      cmd,
+      usingExpr,
+      withExpr,
+    });
   }
   // also match EXECUTE 'CREATE POLICY ...' occurrences
-  const reExec = /EXECUTE\s+'CREATE POLICY\s+"([^']+)"\s+ON\s+([\w\.]+)\s+([^']*)';/gi;
+  const reExec =
+    /EXECUTE\s+'CREATE POLICY\s+"([^']+)"\s+ON\s+([\w\.]+)\s+([^']*)';/gi;
   while ((m = reExec.exec(txt))) {
     const name = m[1];
     const table = m[2];
@@ -35,7 +43,14 @@ function extractFromFile(filePath) {
     const withMatch = body.match(/WITH CHECK\s*\(([^)]*)\)/i);
     const usingExpr = usingMatch ? usingMatch[1].trim() : '';
     const withExpr = withMatch ? withMatch[1].trim() : '';
-    results.push({ file: path.relative(migrationsDir, filePath), name, table, cmd, usingExpr, withExpr });
+    results.push({
+      file: path.relative(migrationsDir, filePath),
+      name,
+      table,
+      cmd,
+      usingExpr,
+      withExpr,
+    });
   }
   return results;
 }
@@ -54,7 +69,24 @@ function walk(dir) {
 const policies = walk(migrationsDir);
 const csv = ['file,table,policy_name,command,using_expr,with_check_expr'];
 for (const p of policies) {
-  csv.push([p.file, p.table, p.name, p.cmd, `"${p.usingExpr.replace(/"/g,'""')}"`, `"${p.withExpr.replace(/"/g,'""')}"`].join(','));
+  csv.push(
+    [
+      p.file,
+      p.table,
+      p.name,
+      p.cmd,
+      `"${p.usingExpr.replace(/"/g, '""')}"`,
+      `"${p.withExpr.replace(/"/g, '""')}"`,
+    ].join(',')
+  );
 }
-fs.writeFileSync(path.join(outDir, 'policies_report.csv'), csv.join('\n'), 'utf8');
-console.log('Wrote reports/policies_report.csv with', policies.length, 'entries');
+fs.writeFileSync(
+  path.join(outDir, 'policies_report.csv'),
+  csv.join('\n'),
+  'utf8'
+);
+console.log(
+  'Wrote reports/policies_report.csv with',
+  policies.length,
+  'entries'
+);

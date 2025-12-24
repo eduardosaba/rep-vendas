@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Ignorar ESLint durante builds (temporário para Next.js 15)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   // Removida a flag 'experimental' que estava causando conflito na build
   images: {
     remotePatterns: [

@@ -67,29 +67,29 @@ export async function createClient() {
               JSON.stringify(summary)
             );
 
-            cookiesToSet.forEach(({ name, value, options }: any) => {
+            cookiesToSet.forEach((c: any) => {
               try {
-                cookieStore.set(name, value, options);
+                cookieStore.set(c.name, c.value, c.options);
                 console.log('[supabase.server] cookieStore.set OK', {
-                  name,
-                  options,
+                  name: c.name,
+                  options: c.options,
                 });
               } catch (e) {
                 console.error('[supabase.server] cookieStore.set FAILED', {
-                  name,
+                  name: c.name,
                   error: (e as any)?.message ?? e,
                 });
                 // fallback: try set without options
                 try {
-                  cookieStore.set(name, value);
+                  cookieStore.set(c.name, c.value);
                   console.log(
                     '[supabase.server] cookieStore.set OK (fallback no options)',
-                    { name }
+                    { name: c.name }
                   );
                 } catch (inner) {
                   console.error(
                     '[supabase.server] cookieStore.set fallback FAILED',
-                    { name, error: (inner as any)?.message ?? inner }
+                    { name: c.name, error: (inner as any)?.message ?? inner }
                   );
                 }
               }
