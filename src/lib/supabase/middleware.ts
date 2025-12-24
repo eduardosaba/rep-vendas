@@ -155,34 +155,9 @@ export async function updateSession(request: NextRequest) {
       console.warn('[supabase.middleware] fallback JWT decode failed', e);
     }
   }
-  // Dev fallback: quando rodando em ambiente de desenvolvimento, se o
-  // Supabase SDK não reconheceu a sessão mas conseguimos decodificar o JWT,
-  // marque a resposta com um cookie/header temporário para permitir render
-  // sem bloqueio enquanto investigamos a causa raiz.
-  // TODO: REMOVE BEFORE DEPLOY - development fallback: allow progressing while investigating SDK session issues
-  // This sets a dev-only cookie/header when we decoded a JWT fallback but Supabase SDK returned no session.
-  try {
-    const isDev =
-      process.env.NODE_ENV !== 'production' ||
-      process.env.SKIP_SECURE_COOKIES === 'true' ||
-      process.env.SKIP_SECURE_COOKIES === '1';
-    if (isDev && user) {
-      // cookie temporário visível apenas no servidor (httpOnly)
-      response.cookies.set('repvendas-dev-user', user.id, {
-        httpOnly: true,
-        path: '/',
-        sameSite: 'lax',
-        secure: false,
-      });
-      // também expomos um header para fácil diagnóstico
-      response.headers.set('x-dev-user-id', String(user.id));
-      console.log(
-        '[supabase.middleware] dev-fallback: set repvendas-dev-user cookie'
-      );
-    }
-  } catch (e) {
-    console.warn('[supabase.middleware] dev-fallback cookie/header failed', e);
-  }
+  // NOTE: development fallback (previously set a dev-only cookie/header)
+  // has been removed for production safety. Keep the JWT decode fallback above
+  // which logs the userId when possible, but do not set any persistent dev cookies.
   const path = request.nextUrl.pathname;
 
   // 3. Lógica de Redirecionamento Blindada

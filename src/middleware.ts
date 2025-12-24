@@ -4,17 +4,10 @@ import { updateSession } from '@/lib/supabase/middleware';
 // Startup diagnostic: log environment and cookie naming strategy for middleware
 try {
   const isProd = process.env.NODE_ENV === 'production';
-  const skipSecure =
-    process.env.SKIP_SECURE_COOKIES === '1' ||
-    process.env.SKIP_SECURE_COOKIES === 'true';
-  const cookieStrategy = isProd && !skipSecure ? '__Secure-*' : 'sb-*';
+  const cookieStrategy = isProd ? '__Secure-*' : 'sb-*';
   console.log(
     '[middleware] startup env:',
-    JSON.stringify({
-      NODE_ENV: process.env.NODE_ENV,
-      SKIP_SECURE_COOKIES: process.env.SKIP_SECURE_COOKIES,
-      cookieStrategy,
-    })
+    JSON.stringify({ NODE_ENV: process.env.NODE_ENV, cookieStrategy })
   );
 } catch (e) {
   console.warn('[middleware] failed to log startup diagnostics', e);

@@ -68,14 +68,11 @@ export async function POST(request: Request) {
             const expiresIn = session.expires_in ?? null;
 
             const isProd = process.env.NODE_ENV === 'production';
-            // TODO: REMOVE BEFORE DEPLOY - allows local testing without __Secure- cookie names
-            const skipSecure = process.env.SKIP_SECURE_COOKIES === '1';
-            const useSecure = isProd && !skipSecure;
             const cookieOptions: any = {
               httpOnly: true,
               path: '/',
               sameSite: 'lax',
-              secure: useSecure,
+              secure: isProd,
             };
 
             if (isProd) {
@@ -88,10 +85,10 @@ export async function POST(request: Request) {
               cookieOptions.expires = new Date(Date.now() + expiresIn * 1000);
             }
 
-            const accessName = useSecure
+            const accessName = isProd
               ? '__Secure-sb-access-token'
               : 'sb-access-token';
-            const refreshName = useSecure
+            const refreshName = isProd
               ? '__Secure-sb-refresh-token'
               : 'sb-refresh-token';
 

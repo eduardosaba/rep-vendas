@@ -7,18 +7,10 @@ export async function createClient() {
   // Startup diagnostic: log environment and cookie naming strategy
   try {
     const isProd = process.env.NODE_ENV === 'production';
-    // TODO: REMOVE BEFORE DEPLOY - skipSecure override is intended for local testing only
-    const skipSecure =
-      process.env.SKIP_SECURE_COOKIES === '1' ||
-      process.env.SKIP_SECURE_COOKIES === 'true';
-    const cookieStrategy = isProd && !skipSecure ? '__Secure-*' : 'sb-*';
+    const cookieStrategy = isProd ? '__Secure-*' : 'sb-*';
     console.log(
       '[supabase.server] createClient env:',
-      JSON.stringify({
-        NODE_ENV: process.env.NODE_ENV,
-        SKIP_SECURE_COOKIES: process.env.SKIP_SECURE_COOKIES,
-        cookieStrategy,
-      })
+      JSON.stringify({ NODE_ENV: process.env.NODE_ENV, cookieStrategy })
     );
   } catch (e) {
     console.warn('[supabase.server] failed to log startup diagnostics', e);
