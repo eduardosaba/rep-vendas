@@ -34,7 +34,23 @@ export async function login(formData: FormData) {
       base = `http://localhost:${process.env.PORT || 3001}`;
     }
 
-    const resp = await fetch(`${base}/api/login`, {
+    // Build a robust absolute URL even if `base` is malformed or a relative path
+    let loginUrl = base.trim();
+    if (!loginUrl) loginUrl = `http://localhost:${process.env.PORT || 3001}`;
+    // If base is just a path like '/api' or starts with '/', use localhost origin
+    if (loginUrl.startsWith('/')) {
+      loginUrl = `http://localhost:${process.env.PORT || 3001}${loginUrl}`;
+    }
+    // If base doesn't include protocol, assume http
+    if (!/^https?:\/\//i.test(loginUrl)) {
+      loginUrl = `http://${loginUrl}`;
+    }
+    // Ensure no trailing slash and append /api/login
+    loginUrl = loginUrl.replace(/\/+$/g, '') + '/api/login';
+
+    console.log('[login] using loginUrl:', loginUrl);
+
+    const resp = await fetch(loginUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email, password }),

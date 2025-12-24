@@ -57,6 +57,9 @@ export async function POST(request: Request) {
           redirect,
         });
 
+        // debug: registrar cookies que vamos definir no response
+        const __debugCookies: Array<any> = [];
+
         try {
           const session = (data as any).session;
           if (session) {
@@ -65,11 +68,14 @@ export async function POST(request: Request) {
             const expiresIn = session.expires_in ?? null;
 
             const isProd = process.env.NODE_ENV === 'production';
+            // TODO: REMOVE BEFORE DEPLOY - allows local testing without __Secure- cookie names
+            const skipSecure = process.env.SKIP_SECURE_COOKIES === '1';
+            const useSecure = isProd && !skipSecure;
             const cookieOptions: any = {
               httpOnly: true,
               path: '/',
               sameSite: 'lax',
-              secure: isProd,
+              secure: useSecure,
             };
 
             if (isProd) {
@@ -82,20 +88,30 @@ export async function POST(request: Request) {
               cookieOptions.expires = new Date(Date.now() + expiresIn * 1000);
             }
 
-            const accessName = isProd
+            const accessName = useSecure
               ? '__Secure-sb-access-token'
               : 'sb-access-token';
-            const refreshName = isProd
+            const refreshName = useSecure
               ? '__Secure-sb-refresh-token'
               : 'sb-refresh-token';
 
             if (accessToken) {
               res.cookies.set(accessName, accessToken, cookieOptions);
+              __debugCookies.push({
+                name: accessName,
+                value: accessToken,
+                options: cookieOptions,
+              });
               console.log('[api/login] set', accessName, 'cookie');
             }
             if (refreshToken) {
               const refreshOpts = { ...cookieOptions };
               res.cookies.set(refreshName, refreshToken, refreshOpts);
+              __debugCookies.push({
+                name: refreshName,
+                value: refreshToken,
+                options: refreshOpts,
+              });
               console.log('[api/login] set', refreshName, 'cookie');
             }
           }
@@ -107,14 +123,50 @@ export async function POST(request: Request) {
         try {
           const nextCookies = await cookies();
           nextCookies.getAll().forEach((c: any) => {
-            if (c.options) res.cookies.set(c.name, c.value, c.options);
-            else res.cookies.set(c.name, c.value);
+            if (c.options) {
+              res.cookies.set(c.name, c.value, c.options);
+              __debugCookies.push({
+                name: c.name,
+                value: c.value,
+                options: c.options,
+              });
+            } else {
+              res.cookies.set(c.name, c.value);
+              __debugCookies.push({
+                name: c.name,
+                value: c.value,
+                options: null,
+              });
+            }
           });
         } catch (e) {
           console.warn(
             '[api/login] failed to copy cookie store to response',
             e
           );
+        }
+
+        try {
+          console.log(
+            '[api/login] response cookies:',
+            JSON.stringify(__debugCookies)
+          );
+        } catch (e) {
+          console.log(
+            '[api/login] response cookies (stringify failed)',
+            __debugCookies
+          );
+        }
+
+        // debug: log all response headers (incl. set-cookie)
+        try {
+          const hdrs: Array<[string, string]> = Array.from(
+            // @ts-ignore nextResponse headers
+            (res.headers as any).entries()
+          );
+          console.log('[api/login] response headers:', JSON.stringify(hdrs));
+        } catch (e) {
+          console.log('[api/login] could not stringify response headers', e);
         }
 
         return res;

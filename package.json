@@ -7,14 +7,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint --fix",
+    "lint": "next lint",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "optimize-images": "node scripts/optimize-images.mjs",
     "dependency-check": "echo 'Checking for unused dependencies...' && npx depcheck --ignores='@types/*,autoprefixer,postcss,tailwindcss,baseline-browser-mapping,jest-environment-jsdom'",
     "env-check": "node -e \"const fs = require('fs'); const envExists = fs.existsSync('.env.local'); console.log(envExists ? '✅ .env.local file exists' : '❌ .env.local file missing'); if(envExists){ const env = fs.readFileSync('.env.local', 'utf8'); const hasSupabase = env.includes('NEXT_PUBLIC_SUPABASE_URL') && env.includes('NEXT_PUBLIC_SUPABASE_ANON_KEY'); console.log(hasSupabase ? '✅ Supabase environment variables found' : '❌ Supabase environment variables missing'); }\"",
-    "eduardosaba": "pnpm run format && pnpm run typecheck && echo 'Lint skipped - ESLint config issue' && pnpm run dependency-check && pnpm run env-check"
+    "eduardosaba": "pnpm run format && pnpm run typecheck && echo 'Lint skipped - ESLint config issue' && pnpm run dependency-check && pnpm run env-check",
+    "dev:ca": "NODE_EXTRA_CA_CERTS=/path/to/cacert.pem next dev",
+    "dev:ca:win": "set NODE_EXTRA_CA_CERTS=C:\\path\\to\\cacert.pem && next dev"
   },
   "dependencies": {
     "@supabase/ssr": "^0.3.0",

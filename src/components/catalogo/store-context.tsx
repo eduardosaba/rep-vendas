@@ -484,18 +484,38 @@ export function StoreProvider({
       return true;
     } catch (e: unknown) {
       // Log detalhado para ajudar debugging em produção
-      console.error('handleFinalizeOrder error:', e);
+      try {
+        // Tenta serializar erros complexos (Supabase errors, etc.)
+        const serialized = JSON.stringify(
+          e,
+          Object.getOwnPropertyNames(e as object)
+        );
+        console.error('handleFinalizeOrder error (serialized):', serialized);
+      } catch (errSerial) {
+        console.error('handleFinalizeOrder error (raw):', e);
+      }
 
-      const message =
-        e && typeof e === 'object' && 'message' in e
-          ? (e as any).message
-          : 'Erro ao processar pedido.';
+      // Extrai mensagem amigável
+      let message = 'Erro ao processar pedido.';
+      if (e && typeof e === 'object') {
+        const anyE = e as any;
+        if (anyE.message) message = String(anyE.message);
+        else if (anyE.error) message = String(anyE.error);
+        else {
+          // tenta pegar campos comuns do Supabase
+          const parts = [] as string[];
+          if (anyE.status) parts.push(`status:${anyE.status}`);
+          if (anyE.code) parts.push(`code:${anyE.code}`);
+          if (anyE.details) parts.push(`details:${anyE.details}`);
+          if (parts.length) message = parts.join(' | ');
+        }
+      }
 
       if (typeof addToast === 'function')
         addToast({
           type: 'error',
           message: 'Erro ao processar pedido.',
-          description: String(message),
+          description: message,
         } as Toast);
       return false;
     } finally {

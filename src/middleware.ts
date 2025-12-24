@@ -1,7 +1,38 @@
 import { type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
+// Startup diagnostic: log environment and cookie naming strategy for middleware
+try {
+  const isProd = process.env.NODE_ENV === 'production';
+  const skipSecure =
+    process.env.SKIP_SECURE_COOKIES === '1' ||
+    process.env.SKIP_SECURE_COOKIES === 'true';
+  const cookieStrategy = isProd && !skipSecure ? '__Secure-*' : 'sb-*';
+  console.log(
+    '[middleware] startup env:',
+    JSON.stringify({
+      NODE_ENV: process.env.NODE_ENV,
+      SKIP_SECURE_COOKIES: process.env.SKIP_SECURE_COOKIES,
+      cookieStrategy,
+    })
+  );
+} catch (e) {
+  console.warn('[middleware] failed to log startup diagnostics', e);
+}
+
 export async function middleware(request: NextRequest) {
+  // Intercept /icon.ico and redirect permanently to /favicon.ico
+  try {
+    if (request.nextUrl.pathname === '/icon.ico') {
+      return new Response(null, {
+        status: 301,
+        headers: { Location: '/favicon.ico' },
+      });
+    }
+  } catch (e) {
+    // ignore
+  }
+
   // Apenas delegamos para o updateSession.
   // Ele já contém a lógica de liberação de catálogo e proteção de rotas.
   return await updateSession(request);

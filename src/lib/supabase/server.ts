@@ -4,13 +4,57 @@ import { cookies } from 'next/headers';
 export async function createClient() {
   const cookieStore = await cookies();
 
+  // Startup diagnostic: log environment and cookie naming strategy
+  try {
+    const isProd = process.env.NODE_ENV === 'production';
+    // TODO: REMOVE BEFORE DEPLOY - skipSecure override is intended for local testing only
+    const skipSecure =
+      process.env.SKIP_SECURE_COOKIES === '1' ||
+      process.env.SKIP_SECURE_COOKIES === 'true';
+    const cookieStrategy = isProd && !skipSecure ? '__Secure-*' : 'sb-*';
+    console.log(
+      '[supabase.server] createClient env:',
+      JSON.stringify({
+        NODE_ENV: process.env.NODE_ENV,
+        SKIP_SECURE_COOKIES: process.env.SKIP_SECURE_COOKIES,
+        cookieStrategy,
+      })
+    );
+  } catch (e) {
+    console.warn('[supabase.server] failed to log startup diagnostics', e);
+  }
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          // Normaliza nomes: se o cookie estiver gravado com prefixo __Secure-
+          // expomos também o nome sem prefixo (ex: __Secure-sb-access-token -> sb-access-token)
+          try {
+            const raw = cookieStore.getAll();
+            const out = [...raw];
+            raw.forEach((c: any) => {
+              if (
+                typeof c.name === 'string' &&
+                c.name.startsWith('__Secure-')
+              ) {
+                const base = c.name.replace(/^__Secure-/, '');
+                const exists =
+                  raw.some((r: any) => r.name === base) ||
+                  out.some((r: any) => r.name === base);
+                if (!exists) {
+                  // Preserve the original cookie object properties from cookieStore
+                  out.push({ ...c, name: base });
+                }
+              }
+            });
+            return out;
+          } catch (e) {
+            console.warn('[supabase.server] getAll normalization failed', e);
+            return cookieStore.getAll();
+          }
         },
         setAll(
           cookiesToSet: Array<{

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
-import { loginWithGoogle, login } from '@/app/login/actions';
+import { loginWithGoogle } from '@/app/login/actions';
 
 // Componente de Botão estilizado
 const LoginButton = ({
@@ -97,18 +97,32 @@ export default function LoginPage() {
     setError('');
 
     startTransition(async () => {
-      const formData = new FormData();
-      formData.append('email', emailTrim);
-      formData.append('password', password);
+      try {
+        const resp = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: emailTrim, password }),
+          credentials: 'include',
+        });
 
-      const result = await login(formData);
+        const result = await resp.json();
 
-      if (result?.error) {
-        setError(result.error);
-        toast.error(result.error);
-      } else if (result?.redirectTo) {
-        // Redirecionamento via window.location garante o processamento dos cookies no Next 15
-        window.location.href = result.redirectTo;
+        if (!resp.ok) {
+          setError(result?.text || 'Erro ao autenticar.');
+          toast.error(result?.text || 'Erro ao autenticar.');
+          return;
+        }
+
+        if (result?.redirect) {
+          window.location.href = result.redirect;
+        } else {
+          // fallback
+          window.location.href = '/dashboard';
+        }
+      } catch (err) {
+        console.error('[login] client fetch /api/login failed', err);
+        setError('Erro interno ao autenticar.');
+        toast.error('Erro interno ao autenticar.');
       }
     });
   };
