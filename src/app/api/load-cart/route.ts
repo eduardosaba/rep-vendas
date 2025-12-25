@@ -1,5 +1,4 @@
-import { cookies } from 'next/headers';
-import { createRouteSupabase } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -13,12 +12,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const nextCookies = await cookies();
-  const supabase = createRouteSupabase(() => nextCookies);
+  // Uso correto da função unificada
+  const supabase = await createClient();
 
-  // Buscar os itens baseados no código curto
-  // Nota: usamos 'items' conforme a padronização do banco de dados
-  // Resiliência: usar .maybeSingle() para não quebrar se não houver carrinho
   const { data, error } = await supabase
     .from('saved_carts')
     .select('items')
@@ -32,6 +28,5 @@ export async function GET(request: Request) {
     );
   }
 
-  // Retorna os itens para o frontend restaurar o carrinho
   return NextResponse.json({ success: true, items: data.items });
 }

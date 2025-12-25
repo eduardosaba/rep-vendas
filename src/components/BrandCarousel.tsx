@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useStore, Product } from '@/components/catalogo/store-context';
+import { useStore } from '@/components/catalogo/store-context';
+import type { Product } from '@/lib/types';
 
 export function BrandCarousel() {
   // 1. Acessamos os produtos filtrados do contexto (displayProducts)

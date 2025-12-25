@@ -1,45 +1,71 @@
-import { type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
-
-// Startup diagnostic: log environment and cookie naming strategy for middleware
-try {
-  const isProd = process.env.NODE_ENV === 'production';
-  const cookieStrategy = isProd ? '__Secure-*' : 'sb-*';
-  console.log(
-    '[middleware] startup env:',
-    JSON.stringify({ NODE_ENV: process.env.NODE_ENV, cookieStrategy })
-  );
-} catch (e) {
-  console.warn('[middleware] failed to log startup diagnostics', e);
-}
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  // Intercept /icon.ico and redirect permanently to /favicon.ico
-  try {
-    if (request.nextUrl.pathname === '/icon.ico') {
-      return new Response(null, {
-        status: 301,
-        headers: { Location: '/favicon.ico' },
-      });
+  // 1. Cria a resposta inicial
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  // 2. Instancia o cliente com sincronização bidirecional de cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(
+          cookiesToSet: Array<{ name: string; value: string; options?: any }>
+        ) {
+          // Sincroniza cookies com a REQUISIÇÃO (para Server Components verem agora)
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+
+          // Sincroniza cookies com a RESPOSTA (para o navegador gravar)
+          response = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
     }
-  } catch (e) {
-    // ignore
+  );
+
+  // 3. Validação segura do usuário
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isProtectedRoute =
+    request.nextUrl.pathname.startsWith('/dashboard') ||
+    request.nextUrl.pathname.startsWith('/admin');
+  const isAuthRoute =
+    request.nextUrl.pathname === '/login' ||
+    request.nextUrl.pathname === '/register' ||
+    request.nextUrl.pathname === '/';
+
+  // REGRA 1: Proteção de rotas privadas
+  if (!user && isProtectedRoute) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Apenas delegamos para o updateSession.
-  // Ele já contém a lógica de liberação de catálogo e proteção de rotas.
-  return await updateSession(request);
+  // REGRA 2: Redireciona logados para fora das rotas de auth
+  if (user && isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Aplica o middleware em todas as rotas, exceto:
-     * - _next/static (arquivos estáticos)
-     * - _next/image (otimização de imagens)
-     * - favicon.ico e ícones
-     * - imagens públicas (svg, png, etc)
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

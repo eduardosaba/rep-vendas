@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
   applyThemeColors,
@@ -9,69 +10,79 @@ import {
   DEFAULT_SECONDARY_COLOR,
 } from '@/lib/theme';
 
-/**
- * ThemeRegistry - Sistema Centralizado de Cores
- *
- * Este componente é a ÚNICA fonte de verdade para aplicar cores no sistema.
- *
- * Funcionamento:
- * 1. Carrega as cores do banco de dados (tabela 'settings')
- * 2. Aplica as cores via CSS variables usando applyThemeColors()
- * 3. Se não houver cores configuradas, usa os valores padrão
- *
- * As cores são aplicadas em :root via CSS variables:
- * - --primary: Cor primária do sistema
- * - --primary-foreground: Cor de contraste para texto sobre primária
- * - --secondary: Cor secundária do sistema
- * - --secondary-foreground: Cor de contraste para texto sobre secundária
- * - --header-bg: Cor de fundo do header
- */
 export default function ThemeRegistry() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const pathname = usePathname();
 
   useEffect(() => {
     const loadAndApplyTheme = async () => {
       try {
-        // 1. Verifica se há usuário logado
+        // Remove a classe 'dark' do HTML para garantir fundo claro no catálogo
+        document.documentElement.classList.remove('dark');
+
+        // 1. Verifica se há usuário logado (Contexto Dashboard/Admin)
         const {
           data: { user },
         } = await supabase.auth.getUser();
 
-        if (!user) {
-          // Se não houver usuário, aplica tema padrão
-          applyDefaultTheme();
-          return;
+        if (user) {
+          const { data: settings } = await supabase
+            .from('settings')
+            .select('primary_color, secondary_color, header_background_color')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (settings) {
+            applyThemeColors({
+              primary: settings.primary_color || DEFAULT_PRIMARY_COLOR,
+              secondary: settings.secondary_color || DEFAULT_SECONDARY_COLOR,
+              headerBg: settings.header_background_color,
+            });
+            return;
+          }
         }
 
-        // 2. Busca configurações do usuário no banco
-        const { data: settings } = await supabase
-          .from('settings')
-          .select('primary_color, secondary_color, header_background_color')
-          .eq('user_id', user.id)
-          .maybeSingle();
+        /**
+         * 2. Lógica para Visitante (Catálogo Virtual)
+         * Identifica o slug pela URL (ex: repvendas.com.br/v/clinica-exemplo)
+         */
+        const pathParts = pathname?.split('/') || [];
+        // Se a rota for /v/[slug], o slug estará na posição 2
+        const catalogSlug = pathParts[1] === 'v' ? pathParts[2] : null;
 
-        // 3. Aplica as cores (usa padrão se não configurado)
-        applyThemeColors({
-          primary: settings?.primary_color || DEFAULT_PRIMARY_COLOR,
-          secondary: settings?.secondary_color || DEFAULT_SECONDARY_COLOR,
-          headerBg: settings?.header_background_color,
-        });
-      } catch {
-        // Em caso de erro, aplica tema padrão silenciosamente
+        if (catalogSlug) {
+          // Busca cores na tabela pública para visitantes
+          const { data: publicCatalog } = await supabase
+            .from('public_catalogs')
+            .select('primary_color, secondary_color, header_background_color')
+            .eq('slug', catalogSlug)
+            .maybeSingle();
+
+          if (publicCatalog) {
+            applyThemeColors({
+              primary: publicCatalog.primary_color,
+              secondary: publicCatalog.secondary_color,
+              headerBg: publicCatalog.header_background_color,
+            });
+            return;
+          }
+        }
+
+        // 3. Fallback: Tema padrão do sistema
+        applyDefaultTheme();
+      } catch (err) {
+        console.warn('[ThemeRegistry] Erro ao carregar tema:', err);
         applyDefaultTheme();
       }
     };
 
     loadAndApplyTheme();
-  }, [supabase]);
+  }, [supabase, pathname]);
 
   return null;
 }
 
-/**
- * Função utilitária para atualizar cores em tempo real
- * Pode ser chamada da página de settings quando o usuário altera cores
- */
+// Export helper to update theme colors programmatically from other components
 export function updateThemeColors(colors: {
   primary?: string;
   secondary?: string;

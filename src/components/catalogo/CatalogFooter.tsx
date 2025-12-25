@@ -148,8 +148,8 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
           <div className="flex flex-col items-center justify-between md:flex-row">
             <div className="mb-4 text-sm text-gray-400 md:mb-0">
               <p>
-                &copy; 2025 {settings?.name || 'Rep-Vendas'}. Todos os direitos
-                reservados.
+                &copy; 2025 {settings?.store_name || 'Rep-Vendas'}. Todos os
+                direitos reservados.
               </p>
               <p>Sistema de vendas B2B - CNPJ: XX.XXX.XXX/XXXX-XX</p>
             </div>

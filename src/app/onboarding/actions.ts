@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { revalidatePath } from 'next/cache';
 
-// Definimos o tipo dos dados que vamos receber
 type OnboardingData = {
   name: string;
   email: string;
@@ -15,139 +14,69 @@ type OnboardingData = {
 };
 
 export async function finishOnboarding(data: OnboardingData) {
-  const ensureSupabaseEnv = () => {
-    if (
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) {
-      console.error(
-        'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-      throw new Error(
-        'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
-      );
-    }
-  };
-
-  ensureSupabaseEnv();
   const supabase = await createClient();
 
-  // Pegamos o usuário autenticado no servidor
+  // 1. Validar Sessão
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error('Usuário não autenticado');
-  }
+  if (!user)
+    throw new Error('Sessão expirada. Por favor, faça login novamente.');
 
   try {
-    // 1. VERIFICAÇÃO DE UNICIDADE DO SLUG
-    const { data: existingSlug, error: slugError } = await supabase
+    // 2. Validar se o Slug (Link) já existe
+    const { data: existing } = await supabase
       .from('settings')
       .select('user_id')
-      .eq('catalog_slug', data.slug)
+      .eq('catalog_slug', data.slug.toLowerCase().trim())
       .maybeSingle();
 
-    if (slugError) {
-      console.error('finishOnboarding: slug check error', slugError);
-      throw new Error('Erro ao verificar disponibilidade do link da loja.');
-    }
-
-    if (
-      existingSlug &&
-      (existingSlug as any).user_id &&
-      (existingSlug as any).user_id !== user.id
-    ) {
+    if (existing && existing.user_id !== user.id) {
       throw new Error(
-        'Este link da loja já está em uso. Por favor, altere o "Link do Catálogo" para outro nome.'
+        'Este link de catálogo já está em uso por outro representante.'
       );
     }
 
-    // 2. Atualizar a tabela settings (upsert por user_id)
-    const { data: upsertData, error: settingsError } = await supabase
-      .from('settings')
-      .upsert({
-        user_id: user.id,
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        catalog_slug: data.slug,
-        primary_color: data.primary_color,
-        logo_url: data.logo_url,
-        header_color: '#FFFFFF',
-        show_filter_price: true,
-        show_shipping: true,
-        updated_at: new Date().toISOString(),
-      });
+    // 3. Salvar Configurações (Upsert)
+    const { error: settingsError } = await supabase.from('settings').upsert({
+      user_id: user.id,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      catalog_slug: data.slug.toLowerCase().trim(),
+      primary_color: data.primary_color,
+      logo_url: data.logo_url,
+      updated_at: new Date().toISOString(),
+    });
 
-    if (settingsError) {
-      console.error('finishOnboarding: settings upsert failed', settingsError);
-      if ((settingsError as any).code === '23505') {
-        throw new Error('Este link da loja já está em uso. Tente outro.');
-      }
-      throw new Error(
-        `Erro ao salvar configurações: ${(settingsError as any).message || JSON.stringify(settingsError)}`
-      );
-    }
+    if (settingsError)
+      throw new Error('Falha ao salvar as configurações da loja.');
 
-    // 3. Marcar onboarding como completo no perfil
+    // 4. Sincronizar com o Catálogo Público (Importante para a visibilidade do cliente)
+    await syncPublicCatalog(user.id, {
+      slug: data.slug.toLowerCase().trim(),
+      store_name: data.name,
+      logo_url: data.logo_url || undefined,
+      primary_color: data.primary_color,
+    });
+
+    // 5. Finalizar processo no perfil
     const { error: profileError } = await supabase
       .from('profiles')
       .update({ onboarding_completed: true })
       .eq('id', user.id);
 
-    if (profileError) {
-      console.error('finishOnboarding: profile update failed', profileError);
-      throw new Error(
-        `Erro ao atualizar perfil: ${(profileError as any).message || JSON.stringify(profileError)}`
-      );
-    }
+    if (profileError) throw new Error('Erro ao atualizar status do perfil.');
 
-    // 3.5 CRIAR ENTRADA EM public_catalogs (catálogo público seguro)
-    try {
-      await syncPublicCatalog(user.id, {
-        slug: data.slug,
-        store_name: data.name,
-        logo_url: data.logo_url || undefined,
-        primary_color: data.primary_color,
-        secondary_color: undefined, // Usa padrão
-        footer_message: undefined,
-      });
-    } catch (syncError) {
-      console.error('Erro ao criar catálogo público:', syncError);
-      // Não falha o onboarding, apenas loga
-    }
-
-    // 4. Invalidar cache: revalidamos a raiz, o dashboard e o catálogo
-    // para garantir que mudanças de branding (cor/logo/slug) sejam visíveis
-    // imediatamente nas páginas server-rendered.
-    try {
-      revalidatePath('/');
-    } catch (e) {
-      console.warn('finishOnboarding: revalidatePath(/) warning', e);
-    }
-
-    try {
-      // Revalidar dashboard
-      revalidatePath('/dashboard');
-    } catch (e) {
-      console.warn('finishOnboarding: revalidatePath(/dashboard) warning', e);
-    }
-
-    try {
-      // Revalidar o catálogo público para o slug criado/atualizado
-      if (data.slug) revalidatePath(`/catalogo/${data.slug}`);
-    } catch (e) {
-      console.warn(
-        'finishOnboarding: revalidatePath(/catalogo/:slug) warning',
-        e
-      );
-    }
+    // 6. Limpar Cache do Next.js para forçar renderização do Dashboard
+    // Revalidamos tudo que depende do estado do usuário
+    revalidatePath('/', 'layout');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/onboarding', 'page');
 
     return { success: true };
-  } catch (err) {
-    console.error('finishOnboarding: unexpected error', err);
+  } catch (err: any) {
+    console.error('[Onboarding Action Error]:', err.message);
     throw err;
   }
 }

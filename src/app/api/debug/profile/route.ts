@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createRouteSupabase } from '@/lib/supabaseServer';
+import { createRouteSupabase } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 
 export async function GET(req: Request) {
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     }
 
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(() => nextCookies);
+    const supabase = await createRouteSupabase(() => nextCookies);
 
     const { data, error } = await supabase
       .from('profiles')

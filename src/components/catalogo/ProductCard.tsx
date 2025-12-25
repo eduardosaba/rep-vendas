@@ -5,7 +5,6 @@ import {
   Zap,
   Star,
   ShoppingCart,
-  Image as ImageIcon,
   Lock,
   Plus,
   Minus,
@@ -24,16 +23,14 @@ import type {
   Settings as StoreSettings,
 } from '@/lib/types';
 
-type Product = LibProduct;
-
 interface ProductCardProps {
-  product: Product;
+  product: LibProduct;
   storeSettings: StoreSettings;
   isFavorite: boolean;
   isPricesVisible: boolean;
-  onAddToCart: (product: Product, quantity?: number) => void;
+  onAddToCart: (product: LibProduct, quantity?: number) => void;
   onToggleFavorite: (id: string) => void;
-  onViewDetails: (product: Product) => void;
+  onViewDetails: (product: LibProduct) => void;
 }
 
 export function ProductCard({
@@ -45,30 +42,20 @@ export function ProductCard({
   onToggleFavorite,
   onViewDetails,
 }: ProductCardProps) {
-  // --- IMAGEM (Pega a capa) ---
-  const getDisplayImage = () => {
-    // Prioridade 1: Caminho local no storage
-    if (product.image_path)
-      return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`;
-
-    // Prioridade 2: URL Externa direta
-    if (product.image_url) return product.image_url;
-    if (product.external_image_url) return product.external_image_url;
-
-    // Prioridade 3: Array de imagens (pega a primeira)
-    if (product.images && product.images.length > 0) return product.images[0];
-
-    return null;
-  };
-
-  const displayImage = getDisplayImage();
   const [imageFailed, setImageFailed] = useState(false);
+  const { cart, updateQuantity } = useStore();
+
+  // --- LÓGICA DE IMAGEM ---
+  const displayImage = product.image_path
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`
+    : product.image_url ||
+      product.external_image_url ||
+      product.images?.[0] ||
+      null;
 
   // --- LÓGICA DE PREÇOS ---
-  // CORRETO: price = custo, sale_price = preço de venda sugerido
   const costPrice = product.price || 0;
   const salePrice = (product as any).sale_price || 0;
-  // Se não tiver sale_price, usa costPrice como preço de venda também
   const currentPrice = salePrice > 0 ? salePrice : costPrice;
 
   const hasValidOriginalPrice =
@@ -80,124 +67,82 @@ export function ProductCard({
       )
     : 0;
 
-  // VISIBILIDADE
   const showSale = isPricesVisible && storeSettings.show_sale_price !== false;
   const showCost = isPricesVisible && storeSettings.show_cost_price === true;
   const isCostOnlyMode = showCost && !showSale;
 
-  const handleViewDetails = (e: React.MouseEvent) => {
-    // Evita abrir detalhes se clicar em botões de ação
-    if (
-      !(e.target as HTMLElement).closest('button, a, [data-action="no-open"]')
-    ) {
-      onViewDetails(product);
-    }
-  };
-
-  const { cart, updateQuantity } = useStore();
-
-  const primaryColor = storeSettings.primary_color || '#4f46e5'; // Fallback padrão
+  const inCart = cart.find((it) => it.id === product.id);
+  const qty = inCart ? inCart.quantity : 0;
 
   return (
     <div
-      onClick={handleViewDetails}
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full group cursor-pointer relative"
+      onClick={() => onViewDetails(product)}
+      className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/10"
     >
-      {/* --- IMAGEM --- */}
-      <div className="aspect-[4/5] relative bg-white overflow-hidden border-b border-gray-50">
+      {/* --- SEÇÃO DA IMAGEM --- */}
+      <div className="relative aspect-[4/5] overflow-hidden border-b border-gray-50 bg-white p-4">
         {displayImage && !imageFailed ? (
-          <div className="relative w-full h-full">
-            <Image
-              src={displayImage}
-              alt={product.name}
-              fill
-              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
-              style={{ objectFit: 'contain' }}
-              className="group-hover:scale-105 transition-transform duration-700 p-6"
-              loading="lazy"
-              quality={80}
-              onError={() => setImageFailed(true)}
-            />
-          </div>
+          <Image
+            src={displayImage}
+            alt={product.name}
+            fill
+            sizes="(max-width: 768px) 50vw, 33vw"
+            className="p-4 transition-transform duration-700 group-hover:scale-105"
+            style={{ objectFit: 'contain' }}
+            onError={() => setImageFailed(true)}
+          />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-50">
+          <div className="flex h-full w-full items-center justify-center bg-gray-50 opacity-40">
             <Image
               src="/placeholder-no-image.svg"
               alt="Sem imagem"
               fill
-              style={{ objectFit: 'contain' }}
-              className="p-6 opacity-60"
+              className="p-10"
             />
           </div>
         )}
 
-        {imageFailed && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-20">
-            <Image
-              src="/placeholder-no-image.svg"
-              alt="Imagem não disponível"
-              fill
-              style={{ objectFit: 'contain' }}
-              className="p-6 opacity-60"
-            />
-          </div>
-        )}
-
-        {/* TAGS */}
-        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1 items-start">
+        {/* TAGS DE DESTAQUE COM OPACIDADE */}
+        <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
           {product.is_launch && (
-            <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center gap-1">
+            <span className="flex items-center gap-1 rounded-md bg-purple-600 px-2 py-1 text-[10px] font-black text-white shadow-sm">
               <Zap size={10} fill="currentColor" /> NOVO
             </span>
           )}
           {product.is_best_seller && (
-            <span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center gap-1">
-              <Star size={10} fill="currentColor" /> BEST SELLER
+            <span className="flex items-center gap-1 rounded-md bg-yellow-400 px-2 py-1 text-[10px] font-black text-yellow-900 shadow-sm">
+              <Star size={10} fill="currentColor" /> MAIS VENDIDO
             </span>
           )}
-          {!isCostOnlyMode &&
-            showSale &&
-            storeSettings.show_cash_discount &&
-            hasValidOriginalPrice &&
-            discountPercent > 0 && (
-              <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md">
-                -{discountPercent}% OFF
-              </span>
-            )}
+          {discountPercent > 0 && showSale && (
+            <span className="rounded-md bg-red-600 px-2 py-1 text-[10px] font-black text-white shadow-md">
+              -{discountPercent}% OFF
+            </span>
+          )}
         </div>
 
-        {/* FAVORITO */}
+        {/* BOTÃO FAVORITO */}
         <button
-          data-action="no-open"
           onClick={(e) => {
             e.stopPropagation();
             onToggleFavorite(product.id);
           }}
-          className="absolute top-3 right-3 z-10 p-2 bg-white/80 backdrop-blur rounded-full shadow-sm hover:bg-white transition-colors group/fav"
+          className="absolute right-3 top-3 z-10 rounded-full bg-white/90 p-2.5 text-gray-400 shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:text-red-500"
         >
           <Heart
             size={16}
-            className={`transition-colors ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400 group-hover/fav:text-red-400'}`}
+            className={isFavorite ? 'fill-red-500 text-red-500' : ''}
           />
         </button>
 
-        {/* ADD CART HOVER (DESKTOP APENAS)
-            Adicionado 'hidden md:block' para manter comportamento original só no desktop
-        */}
-        <div className="hidden md:block absolute bottom-0 inset-x-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-gradient-to-t from-black/60 to-transparent z-20">
+        {/* OVERLAY DE COMPRA RÁPIDA (DESKTOP) */}
+        <div className="absolute inset-x-0 bottom-0 z-20 hidden translate-y-full bg-gradient-to-t from-black/40 p-4 transition-transform duration-300 group-hover:translate-y-0 md:block">
           <Button
-            data-action="no-open"
             onClick={(e) => {
               e.stopPropagation();
               onAddToCart(product);
             }}
-            style={{
-              backgroundColor: primaryColor,
-              color: '#ffffff',
-              borderColor: primaryColor,
-            }}
-            className="w-full shadow-lg hover:opacity-90 active:scale-95 border-0"
-            size="md"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             leftIcon={<ShoppingCart size={16} />}
           >
             Adicionar
@@ -205,197 +150,144 @@ export function ProductCard({
         </div>
       </div>
 
-      {/* --- INFO PRODUTO --- */}
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex-1">
-          <p className="text-[10px] text-gray-400 font-mono mb-1 tracking-wide">
+      {/* --- INFO DO PRODUTO --- */}
+      <div className="flex flex-1 flex-col p-4">
+        <div className="mb-3 flex-1">
+          <p className="mb-1 font-mono text-[9px] tracking-widest text-gray-400">
             REF: {product.reference_code}
           </p>
-          <h3
-            className="font-bold text-gray-900 text-sm leading-snug line-clamp-2 mb-1 min-h-[2.5em]"
-            title={product.name}
-          >
+          <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold text-secondary transition-colors group-hover:text-primary">
             {product.name}
           </h3>
           {product.brand && (
-            <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
+            <span className="mt-1 inline-block text-[10px] font-black uppercase tracking-widest text-primary/80">
               {product.brand}
-            </p>
+            </span>
           )}
         </div>
 
-        {/* --- RODAPÉ / PREÇOS --- */}
-        {/* Alterado para flex row para acomodar botão mobile à direita */}
-        <div className="mt-auto pt-3 border-t border-gray-50 flex items-end justify-between gap-2">
-          {/* Coluna de Preços (Ocupa o espaço restante, com overflow hidden) */}
-          <div className="flex flex-col gap-1 flex-1 min-w-0 overflow-hidden">
-            {isPricesVisible ? (
-              <>
-                {isCostOnlyMode ? (
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-gray-500 uppercase font-bold mb-0.5">
-                      Preço de Custo
-                    </span>
-                    <span className="font-bold text-gray-900 leading-none text-lg sm:text-2xl tracking-tight">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(costPrice)}
-                    </span>
-                    {storeSettings.enable_stock_management &&
-                    (product.stock_quantity ?? 0) <= 0 ? (
-                      <span className="text-[10px] text-gray-400 mt-1">
-                        Venda não disponível
+        {/* --- RODAPÉ E PREÇOS --- */}
+        <div className="mt-auto border-t border-gray-50 pt-3">
+          <div className="flex items-end justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              {isPricesVisible ? (
+                <div className="space-y-0.5">
+                  {showCost && showSale && costPrice > 0 && (
+                    <div className="mb-2 flex items-center justify-between rounded-lg border border-yellow-100 bg-yellow-50/50 px-2 py-1">
+                      <span className="text-[9px] font-black uppercase text-yellow-700">
+                        Custo
                       </span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <>
-                    {/* Mostrar ambos os preços quando as duas opções estão ativas */}
-                    {showCost && showSale && costPrice > 0 && (
-                      <div className="flex justify-between items-center bg-yellow-50 px-2 py-1.5 rounded text-[10px] text-yellow-800 border border-yellow-100 mb-2">
-                        <span className="font-bold uppercase tracking-wide">
-                          Custo
-                        </span>
-                        <span className="font-mono font-bold text-xs">
+                      <span className="text-[11px] font-bold text-yellow-800">
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(costPrice)}
+                      </span>
+                    </div>
+                  )}
+
+                  {showSale ? (
+                    <div className="flex flex-col">
+                      {hasValidOriginalPrice && (
+                        <span className="text-[10px] text-gray-400 line-through">
+                          De:{' '}
                           {new Intl.NumberFormat('pt-BR', {
                             style: 'currency',
                             currency: 'BRL',
-                          }).format(costPrice)}
+                          }).format(product.original_price!)}
                         </span>
+                      )}
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">
+                          Por
+                        </span>
+                        <PriceDisplay
+                          value={currentPrice}
+                          isPricesVisible={isPricesVisible}
+                          className="text-xl font-black text-red-600"
+                        />
                       </div>
-                    )}
-
-                    {/* Preço principal (venda ou custo se só tiver um) */}
-                    {showSale ? (
-                      <>
-                        {hasValidOriginalPrice && (
-                          <span className="text-xs text-gray-400 line-through">
-                            De:{' '}
-                            {new Intl.NumberFormat('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL',
-                            }).format(product.original_price!)}
-                          </span>
-                        )}
-
-                        <div className="flex items-end justify-between">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-400 uppercase font-bold">
-                              Por apenas
-                            </span>
-                            <PriceDisplay
-                              value={currentPrice}
-                              isPricesVisible={isPricesVisible}
-                              size="normal"
-                              className="font-bold text-red-600 leading-none text-lg"
-                            />
-                          </div>
-                        </div>
-                      </>
-                    ) : showCost && costPrice > 0 ? (
-                      /* Modo apenas custo (destaque) */
+                    </div>
+                  ) : (
+                    showCost && (
                       <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">
+                        <span className="text-[9px] font-black uppercase text-gray-400">
                           Preço de Custo
                         </span>
                         <PriceDisplay
                           value={costPrice}
                           isPricesVisible={isPricesVisible}
-                          size="normal"
-                          className="font-bold text-primary leading-none text-lg"
+                          className="text-xl font-black text-primary"
                         />
                       </div>
-                    ) : null}
+                    )
+                  )}
 
-                    {/* Parcelamento e Desconto */}
-                    {(() => {
-                      const priceForInstallment =
-                        showSale && salePrice > 0 ? salePrice : costPrice;
+                  {/* INFO DE PARCELAMENTO */}
+                  <div className="mt-1 flex flex-col text-[10px] font-medium text-gray-500">
+                    {storeSettings.show_installments &&
+                      currentPrice > 0 &&
+                      getInstallmentText(
+                        currentPrice,
+                        storeSettings.max_installments || 1,
+                        true
+                      )}
+                    {storeSettings.show_cash_discount &&
+                      currentPrice > 0 &&
+                      getCashDiscountText(
+                        currentPrice,
+                        storeSettings.cash_price_discount_percent || 0,
+                        true
+                      )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg bg-gray-50 py-3 text-center text-[10px] font-bold text-gray-400">
+                  <Lock size={12} className="ml-auto" />
+                  <span className="mr-auto uppercase">Preço Restrito</span>
+                </div>
+              )}
+            </div>
 
-                      return (
-                        <>
-                          {storeSettings.show_installments &&
-                            priceForInstallment > 0 &&
-                            getInstallmentText(
-                              priceForInstallment,
-                              storeSettings.max_installments || 1,
-                              isPricesVisible
-                            )}
-                          {storeSettings.show_cash_discount &&
-                            priceForInstallment > 0 &&
-                            getCashDiscountText(
-                              priceForInstallment,
-                              storeSettings.cash_price_discount_percent || 0,
-                              isPricesVisible
-                            )}
-                        </>
-                      );
-                    })()}
-
-                    {/* QUICK QUANTITY CONTROLS (quando já no carrinho) */}
-                    {(() => {
-                      const inCart = cart.find((it) => it.id === product.id);
-                      const qty = inCart ? inCart.quantity : 0;
-                      return qty > 0 ? (
-                        <div className="mt-2 flex items-center gap-2">
-                          <button
-                            data-action="no-open"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateQuantity(product.id, -1);
-                            }}
-                            className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center border"
-                          >
-                            <Minus size={16} />
-                          </button>
-                          <div className="min-w-[36px] text-center font-bold">
-                            {qty}
-                          </div>
-                          <button
-                            data-action="no-open"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onAddToCart(product, 1);
-                            }}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center"
-                            style={{
-                              backgroundColor: primaryColor,
-                              color: '#fff',
-                            }}
-                          >
-                            <Plus size={16} />
-                          </button>
-                        </div>
-                      ) : null;
-                    })()}
-                  </>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center justify-center gap-1.5 py-3 text-xs text-gray-400 bg-gray-50/50 rounded-lg select-none">
-                <Lock size={12} />
-                <span>Preço restrito (Senha)</span>
-              </div>
-            )}
+            {/* AÇÕES MOBILE / QUANTIDADE */}
+            <div className="flex flex-col items-center gap-2">
+              {qty > 0 ? (
+                <div className="flex items-center overflow-hidden rounded-xl border border-primary/20 bg-primary/5 p-1 shadow-sm">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateQuantity(product.id, -1);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white text-primary transition-colors"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="w-8 text-center text-sm font-black text-secondary">
+                    {qty}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddToCart(product, 1);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddToCart(product, 1);
+                  }}
+                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-90 md:hidden"
+                >
+                  <ShoppingCart size={22} />
+                </button>
+              )}
+            </div>
           </div>
-
-          {/* BOTÃO MOBILE (CARRINHO) 
-            Visível apenas no mobile (md:hidden). Substitui o hover do desktop.
-            flex-shrink-0 garante que o botão não seja comprimido
-          */}
-          <button
-            data-action="no-open"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddToCart(product, 1);
-            }}
-            className="md:hidden flex items-center justify-center h-10 w-10 flex-shrink-0 rounded-xl text-white shadow-md hover:opacity-90 active:scale-95 transition-all"
-            style={{ backgroundColor: primaryColor }}
-            aria-label="Adicionar ao carrinho"
-          >
-            <ShoppingCart size={20} />
-          </button>
         </div>
       </div>
     </div>

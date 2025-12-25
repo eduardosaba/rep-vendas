@@ -13,6 +13,7 @@ import {
   Palette,
   Layout,
   Settings as SettingsIcon,
+  Power,
   ImageIcon,
   X,
   Plus,
@@ -137,6 +138,9 @@ export default function SettingsPage() {
     []
   );
 
+  // Loja Online / Offline
+  const [isActive, setIsActive] = useState<boolean>(true);
+
   // Top Benefit
   const [topBenefitImagePreview, setTopBenefitImagePreview] = useState<
     string | null
@@ -243,6 +247,8 @@ export default function SettingsPage() {
             setTopBenefitImageFit(settings.top_benefit_image_fit);
           if (settings.top_benefit_image_scale)
             setTopBenefitImageScale(settings.top_benefit_image_scale);
+
+          setIsActive(settings.is_active ?? true);
 
           if (Array.isArray(settings.banners))
             setCurrentBanners(settings.banners);
@@ -527,6 +533,7 @@ export default function SettingsPage() {
           global_allow_backorder: catalogSettings.global_allow_backorder,
           show_cost_price: finalShowCost,
           show_sale_price: finalShowSale,
+          is_active: isActive,
         },
         { onConflict: 'user_id' }
       );
@@ -577,6 +584,7 @@ export default function SettingsPage() {
             top_benefit_text_color: topBenefitTextColor,
             top_benefit_text: catalogSettings.top_benefit_text,
             show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
+            is_active: isActive,
           }),
         });
       } catch (err) {
@@ -657,6 +665,35 @@ export default function SettingsPage() {
         >
           Salvar Alterações
         </Button>
+      </div>
+
+      {/* STATUS CARD: Loja Online / Offline */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 flex items-center gap-4">
+          <div
+            className={`h-10 w-10 flex items-center justify-center rounded-full ${isActive ? 'bg-green-50' : 'bg-red-50'}`}
+          >
+            <Power
+              className={`${isActive ? 'text-green-600' : 'text-red-600'} animate-pulse`}
+            />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-900 dark:text-white">
+              {isActive ? 'Loja Online' : 'Loja Offline'}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-slate-400">
+              Produtos públicos serão exibidos apenas quando Online.
+            </div>
+          </div>
+          <div className="ml-auto">
+            <button
+              onClick={() => setIsActive((v) => !v)}
+              className={`px-3 py-1 rounded-lg font-medium border ${isActive ? 'border-green-600 text-green-700 bg-green-50 hover:bg-green-100' : 'border-red-600 text-red-700 bg-red-50 hover:bg-red-100'}`}
+            >
+              {isActive ? 'Desativar' : 'Ativar'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* TABS */}

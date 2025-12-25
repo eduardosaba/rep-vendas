@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createRouteSupabase } from '@/lib/supabaseServer';
+import { createRouteSupabase } from '@/lib/supabase/server';
 
 export async function POST(req: Request) {
   try {
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(() => nextCookies);
+    const supabase = await createRouteSupabase(() => nextCookies);
     const body = await req.json();
     const { productId, stagingImageId } = body || {};
 

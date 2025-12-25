@@ -1,60 +1,46 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
+  const next = searchParams.get('next') ?? '/dashboard';
 
   if (code) {
-    const supabase = await createClient();
+    const supabase = await createClient(); //
 
-    // Troca o código pela sessão
-    const { data: exchangeData, error: exchangeError } =
-      await supabase.auth.exchangeCodeForSession(code);
+    // Troca o código pela sessão. O 'setAll' no server.ts gravará os cookies.
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!exchangeError && exchangeData?.session?.user) {
-      const user = exchangeData.session.user;
-
+    if (!error) {
       try {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('role, onboarding_completed')
-          .eq('id', user.id)
-          .maybeSingle();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-        const onboardingCompleted = profileData?.onboarding_completed;
-        const role = profileData?.role;
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, onboarding_completed')
+            .eq('id', user.id)
+            .maybeSingle();
 
-        let targetPath = '/dashboard';
-        if (!onboardingCompleted) targetPath = '/onboarding';
-        else if (role === 'master') targetPath = '/admin';
+          // Lógica de redirecionamento baseada no perfil
+          let targetPath = next;
+          if (profile?.role === 'master') {
+            targetPath = '/admin';
+          } else if (!profile?.onboarding_completed) {
+            targetPath = '/onboarding';
+          }
 
-        // --- CORREÇÃO PARA NEXT.JS 15 ---
-        const redirectUrl = new URL(targetPath, request.url);
-        const redirectResponse = NextResponse.redirect(redirectUrl);
-
-        // Forçamos a leitura da sessão atual para garantir que o adapter de cookies execute
-        await supabase.auth.getSession();
-
-        // COPIA COOKIES: lê os cookies atuais (pode ter sido setado pelo client do supabase)
-        try {
-          const cookieStore = await cookies();
-          cookieStore.getAll().forEach((c) => {
-            // c: { name, value }
-            redirectResponse.cookies.set(c.name, c.value);
-          });
-        } catch (e) {
-          // se falhar, apenas prosseguimos com o redirect
-          console.warn('[auth/callback] failed copying cookies to redirect', e);
+          return NextResponse.redirect(`${origin}${targetPath}`);
         }
-
-        return redirectResponse;
       } catch (err) {
-        return NextResponse.redirect(`${origin}/dashboard`);
+        console.error('[auth/callback] erro ao processar perfil:', err);
       }
     }
   }
 
+  // Retorno em caso de erro
   return NextResponse.redirect(`${origin}/login?message=Erro ao autenticar`);
 }

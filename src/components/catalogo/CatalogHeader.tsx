@@ -30,7 +30,9 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
   return (
     <header
       className="border-b border-gray-200 bg-white"
-      style={{ backgroundColor: settings?.header_color || '#FFFFFF' }}
+      style={{
+        backgroundColor: settings?.header_background_color || '#FFFFFF',
+      }}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div
@@ -53,7 +55,7 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
             <div className="relative h-14 w-auto">
               <Image
                 src={settings?.logo_url || SYSTEM_LOGO_URL}
-                alt={settings?.name || 'Rep-Vendas'}
+                alt={settings?.store_name || 'Rep-Vendas'}
                 fill
                 style={{ objectFit: 'contain' }}
               />

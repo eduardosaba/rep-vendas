@@ -5,34 +5,20 @@ import {
   useContext,
   useState,
   useEffect,
+  useMemo,
   ReactNode,
 } from 'react';
-import { useToast } from '@/hooks/useToast';
+import { toast } from 'sonner';
 import type {
-  Product as LibProduct,
-  Toast,
+  Product,
   Settings as StoreSettings,
+  PublicCatalog,
+  CartItem,
+  CustomerInfo,
+  BrandWithLogo,
 } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
-
-export type Product = LibProduct;
-
-export interface CartItem extends LibProduct {
-  quantity: number;
-}
-
-export interface BrandWithLogo {
-  name: string;
-  logo_url: string | null;
-}
-
-export interface CustomerInfo {
-  name: string;
-  phone: string;
-  email: string;
-  cnpj: string;
-}
 
 interface StoreProviderProps {
   children: ReactNode;
@@ -47,16 +33,16 @@ interface StoreContextType {
   cart: CartItem[];
   favorites: string[];
   isPricesVisible: boolean;
-  setIsPricesVisible: (visible: boolean) => void;
+  setIsPricesVisible: (v: boolean) => void;
   showPrices: boolean;
   toggleShowPrices: () => void;
   displayProducts: Product[];
   totalProducts: number;
   currentPage: number;
   totalPages: number;
-  setCurrentPage: (page: number) => void;
+  setCurrentPage: (p: number) => void;
   viewMode: 'grid' | 'list';
-  setViewMode: (mode: 'grid' | 'list') => void;
+  setViewMode: (m: 'grid' | 'list') => void;
   brands: string[];
   brandsWithLogos: BrandWithLogo[];
   categories: string[];
@@ -103,12 +89,12 @@ interface StoreContextType {
   handleSendWhatsApp: () => void;
 }
 
-// --- FUNÇÃO AUXILIAR DE HASH (CLIENT-SIDE) ---
 async function sha256(message: string) {
   const msgBuffer = new TextEncoder().encode(message);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -119,39 +105,36 @@ export function StoreProvider({
   initialProducts,
   startProductId,
 }: StoreProviderProps) {
-  const { addToast } = useToast();
-  const ITEMS_PER_PAGE = 24;
   const supabase = createClient();
+  const ITEMS_PER_PAGE = 24;
 
+  // Estados
   const [showPrices, setShowPrices] = useState(!store.show_cost_price);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Product[] | null>(null);
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
-
   const [selectedBrand, setSelectedBrand] = useState<string | string[]>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortOrder, setSortOrder] = useState<
     'name' | 'price_asc' | 'price_desc'
   >('name');
-
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
-
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
   const [brandsWithLogos, setBrandsWithLogos] = useState<BrandWithLogo[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
-
-  const initialProduct = startProductId
-    ? initialProducts.find((p) => p.id === startProductId) || null
-    : null;
+  const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
+  const [loadingStates, setLoadingStates] = useState({
+    submitting: false,
+    saving: false,
+    loadingCart: false,
+  });
 
   const [modals, setModals] = useState({
     cart: false,
@@ -160,493 +143,271 @@ export function StoreProvider({
     load: false,
     save: false,
     zoom: false,
-    product: initialProduct,
+    product: startProductId
+      ? initialProducts.find((p) => p.id === startProductId) || null
+      : null,
   });
 
-  const [loadingStates, setLoadingStates] = useState({
-    submitting: false,
-    saving: false,
-    loadingCart: false,
-  });
+  // Memoização para performance
+  const brands = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts
+            .map((p) => p.brand?.trim())
+            .filter(Boolean) as string[]
+        )
+      ),
+    [initialProducts]
+  );
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts
+            .map((p) => p.category?.trim())
+            .filter(Boolean) as string[]
+        )
+      ),
+    [initialProducts]
+  );
 
-  const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
-
-  // --- DERIVAR DADOS ---
-  const brands = Array.from(
-    new Set(
-      initialProducts
-        .map((p) => (p.brand || '').toString().trim())
-        .filter(Boolean)
-    )
-  ) as string[];
-
-  const categories = Array.from(
-    new Set(
-      initialProducts
-        .map((p) => (p.category || '').toString().trim())
-        .filter(Boolean)
-    )
-  ) as string[];
-
-  // --- EFEITOS ---
+  // Persistência e busca de marcas
   useEffect(() => {
-    const fetchBrands = async () => {
-      const productBrands = brands;
-      if (productBrands.length === 0) {
-        setBrandsWithLogos([]);
-        return;
-      }
+    const fetchLogos = async () => {
       const { data } = await supabase
         .from('brands')
         .select('name, logo_url')
         .eq('user_id', store.user_id)
-        .in('name', productBrands);
-
-      if (data) {
-        const byName: Record<string, any> = {};
-        data.forEach((d: any) => (byName[(d.name || '').toString()] = d));
-        const ordered = productBrands.map(
-          (b) => byName[b] || { name: b, logo_url: null }
-        );
-        setBrandsWithLogos(ordered);
-      } else {
+        .in('name', brands);
+      if (data)
         setBrandsWithLogos(
-          productBrands.map((b) => ({ name: b, logo_url: null }))
+          brands.map(
+            (b) => data.find((d) => d.name === b) || { name: b, logo_url: null }
+          )
         );
-      }
     };
-    fetchBrands();
-  }, [store.user_id, initialProducts, brands]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (brands.length > 0) fetchLogos();
+  }, [brands, store.user_id]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchTerm,
-    selectedBrand,
-    selectedCategory,
-    sortOrder,
-    showFavorites,
-    showOnlyNew,
-    showOnlyBestsellers,
-  ]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCart = localStorage.getItem(`cart-${store.name}`);
-      const savedFavs = localStorage.getItem(`favs-${store.name}`);
-      const priceUnlockedLocal = localStorage.getItem(
-        `unlocked_${store.user_id}`
-      );
-      const priceUnlockedSession = sessionStorage.getItem(
-        `prices-${store.name}`
-      );
-
-      if (savedCart) {
-        try {
-          const parsed = JSON.parse(savedCart);
-          if (Array.isArray(parsed)) setCart(parsed);
-        } catch {}
-      }
-      if (savedFavs) {
-        try {
-          setFavorites(JSON.parse(savedFavs));
-        } catch {}
-      }
-      if (store.show_cost_price) {
-        if (priceUnlockedLocal === 'true' || priceUnlockedSession === 'true') {
-          setShowPrices(true);
-        }
-      } else {
-        setShowPrices(true);
-      }
-    }
-  }, [store.name, store.show_cost_price, store.user_id]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const keyCart = `cart-${store.name}`;
-    const keyFavs = `favs-${store.name}`;
-    const timer = window.setTimeout(() => {
+    const savedCart = localStorage.getItem(`cart-${store.name}`);
+    if (savedCart)
       try {
-        localStorage.setItem(keyCart, JSON.stringify(cart));
+        setCart(JSON.parse(savedCart));
       } catch {}
-      try {
-        localStorage.setItem(keyFavs, JSON.stringify(favorites));
-      } catch {}
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [cart, favorites, store.name]);
+  }, [store.name]);
 
   useEffect(() => {
-    if (store.banners && store.banners.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentBanner((b) => (b + 1) % (store.banners?.length || 1));
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [store.banners]);
+    localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
+  }, [cart, store.name]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const urlParams = new URLSearchParams(window.location.search);
-    const productId = urlParams.get('product');
-    if (productId && !modals.product) {
-      const product = initialProducts.find((p) => p.id === productId);
-      if (product) {
-        setModal('product', product);
-        window.history.replaceState({}, '', window.location.pathname);
-      }
-    }
-  }, [initialProducts]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // --- LÓGICA DE BUSCA MOVIDA PARA CÁ (CORREÇÃO) ---
+  // Lógica de Busca Debounced
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 300);
     return () => clearTimeout(t);
   }, [searchTerm]);
 
   useEffect(() => {
-    let mounted = true;
+    if (!debouncedSearchTerm) {
+      setSearchResults(null);
+      return;
+    }
     const runSearch = async () => {
-      if (!debouncedSearchTerm) {
-        if (mounted) setSearchResults(null);
-        return;
-      }
-      try {
-        setIsLoadingSearch(true);
-        const { data, error } = await supabase.rpc('search_products', {
-          search_term: debouncedSearchTerm,
-          catalog_user_id: store.user_id,
-        });
-        if (error) {
-          console.error('search_products rpc error', error);
-          if (mounted) setSearchResults([]);
-        } else {
-          if (mounted) setSearchResults((data as Product[]) || []);
-        }
-      } catch (err) {
-        console.error('Error calling search_products RPC', err);
-        if (mounted) setSearchResults([]);
-      } finally {
-        if (mounted) setIsLoadingSearch(false);
-      }
+      setIsLoadingSearch(true);
+      const { data } = await supabase.rpc('search_products', {
+        search_term: debouncedSearchTerm,
+        catalog_user_id: store.user_id,
+      });
+      if (data) setSearchResults(data as Product[]);
+      setIsLoadingSearch(false);
     };
     runSearch();
-    return () => {
-      mounted = false;
-    };
-  }, [debouncedSearchTerm, store.user_id, supabase]);
+  }, [debouncedSearchTerm, store.user_id]);
 
-  // --- ACTIONS ---
+  // Ações do Carrinho
   const addToCart = (p: Product, qty = 1) => {
-    setCart((c) => {
-      const exists = c.find((it) => it.id === p.id);
-      if (exists) {
-        return c.map((it) =>
-          it.id === p.id ? { ...it, quantity: it.quantity + qty } : it
+    setCart((prev) => {
+      const exists = prev.find((i) => i.id === p.id);
+      if (exists)
+        return prev.map((i) =>
+          i.id === p.id ? { ...i, quantity: i.quantity + qty } : i
         );
-      }
-      return [...c, { ...p, quantity: qty } as CartItem];
+      return [...prev, { ...p, quantity: qty }];
     });
-
-    if (typeof addToast === 'function') {
-      addToast({
-        type: 'success',
-        message: 'Produto adicionado ao carrinho.',
-      } as Toast);
-    }
+    toast.success('Adicionado ao carrinho!');
   };
 
-  const removeFromCart = (id: string) =>
-    setCart((c) => c.filter((it) => it.id !== id));
-
-  const updateQuantity = (id: string, delta: number) =>
-    setCart((c) =>
-      c.map((it) =>
-        it.id === id
-          ? { ...it, quantity: Math.max(1, it.quantity + delta) }
-          : it
+  const updateQuantity = (id: string, delta: number) => {
+    setCart((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i
       )
     );
-
-  const toggleFavorite = (id: string) =>
-    setFavorites((f) =>
-      f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
-    );
-
-  const unlockPrices = async (passwordInput: string) => {
-    try {
-      const storedHash = (store as any).price_password_hash;
-      if (!storedHash) {
-        if (typeof addToast === 'function')
-          addToast({
-            type: 'error',
-            message: 'Senha não configurada.',
-          } as Toast);
-        return false;
-      }
-      const inputHash = await sha256(passwordInput.trim());
-      if (inputHash === storedHash) {
-        setShowPrices(true);
-        if (typeof window !== 'undefined')
-          localStorage.setItem(`unlocked_${store.user_id}`, 'true');
-        return true;
-      } else {
-        if (typeof addToast === 'function')
-          addToast({ type: 'error', message: 'Senha incorreta.' } as Toast);
-        return false;
-      }
-    } catch (err) {
-      return false;
-    }
   };
 
-  const toggleShowPrices = () => setShowPrices((v) => !v);
-
+  /**
+   * FINALIZAÇÃO DE PEDIDO COM UPLOAD DE PDF
+   */
   const handleFinalizeOrder = async (customer: CustomerInfo) => {
+    setLoadingStates((s) => ({ ...s, submitting: true }));
     try {
-      setLoadingStates((s) => ({ ...s, submitting: true }));
-      const normalizedPhone = (customer?.phone || '').replace(/\D/g, '');
-      let clientId: string | null = null;
+      const totalValue = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
 
-      if (normalizedPhone) {
-        const { data: existingClient } = await supabase
-          .from('clients')
-          .select('id')
-          .eq('phone', normalizedPhone)
-          .maybeSingle();
-        if (existingClient?.id) clientId = existingClient.id;
-        else {
-          const { data: newClient } = await supabase
-            .from('clients')
-            .insert({
-              name: customer?.name || '',
-              phone: normalizedPhone,
-              email: customer?.email || null,
-              user_id: store.user_id,
-            })
-            .select()
-            .maybeSingle();
-          if (newClient?.id) clientId = newClient.id;
-        }
-      }
-
-      const totalValue = cart.reduce(
-        (acc, item) => acc + item.price * item.quantity,
-        0
-      );
-      const { data: orderData, error: orderError } = await supabase
+      // 1. Salva Pedido no Banco
+      const { data: order, error } = await supabase
         .from('orders')
         .insert({
           user_id: store.user_id,
-          client_id: clientId,
-          client_name_guest: customer?.name || '',
-          client_phone_guest: normalizedPhone || customer?.phone || '',
-          client_cnpj_guest: customer?.cnpj || '',
+          client_name_guest: customer.name,
+          client_phone_guest: customer.phone.replace(/\D/g, ''),
+          client_cnpj_guest: customer.cnpj,
           total_value: totalValue,
           status: 'Pendente',
         })
         .select()
         .maybeSingle();
 
-      if (orderError || !orderData)
-        throw orderError || new Error('Falha ao criar pedido');
+      if (error || !order) throw error;
 
-      if (cart.length > 0) {
-        const itemsPayload = cart.map((it) => ({
-          order_id: orderData.id,
+      // 2. Salva Itens
+      await supabase.from('order_items').insert(
+        cart.map((it) => ({
+          order_id: order.id,
           product_id: it.id,
           quantity: it.quantity,
           unit_price: it.price,
-        }));
-        const { error: itemsError } = await supabase
-          .from('order_items')
-          .insert(itemsPayload);
-        if (itemsError) throw itemsError;
+        }))
+      );
+
+      // 3. Upload do PDF para o Storage
+      let publicUrl = null;
+      try {
+        const doc = await generateOrderPDF(
+          { ...order, customer },
+          store,
+          cart,
+          totalValue,
+          true
+        ); // true = retorna blob
+        if (doc instanceof Blob) {
+          const fileName = `pedidos/${order.id}_${Date.now()}.pdf`;
+          const { error: uploadError } = await supabase.storage
+            .from('order-receipts')
+            .upload(fileName, doc);
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage
+              .from('order-receipts')
+              .getPublicUrl(fileName);
+            publicUrl = urlData.publicUrl;
+          }
+        }
+      } catch (pdfErr) {
+        console.error('Erro ao processar PDF para nuvem', pdfErr);
       }
 
-      const pdfItems = cart.map((it) => ({
-        reference_code: it.reference_code || it.sku || '-',
-        name: it.name,
-        quantity: it.quantity,
-        price: it.price,
-        sale_price: it.price,
-        brand: it.brand,
-      }));
       setOrderSuccessData({
-        id: orderData.id,
-        display_id: orderData.display_id,
+        ...order,
         customer,
-        items: pdfItems,
+        items: cart,
         total: totalValue,
+        pdf_url: publicUrl,
       });
       setCart([]);
       return true;
-    } catch (e: unknown) {
-      // Log detalhado para ajudar debugging em produção
-      try {
-        // Tenta serializar erros complexos (Supabase errors, etc.)
-        const serialized = JSON.stringify(
-          e,
-          Object.getOwnPropertyNames(e as object)
-        );
-        console.error('handleFinalizeOrder error (serialized):', serialized);
-      } catch (errSerial) {
-        console.error('handleFinalizeOrder error (raw):', e);
-      }
-
-      // Extrai mensagem amigável
-      let message = 'Erro ao processar pedido.';
-      if (e && typeof e === 'object') {
-        const anyE = e as any;
-        if (anyE.message) message = String(anyE.message);
-        else if (anyE.error) message = String(anyE.error);
-        else {
-          // tenta pegar campos comuns do Supabase
-          const parts = [] as string[];
-          if (anyE.status) parts.push(`status:${anyE.status}`);
-          if (anyE.code) parts.push(`code:${anyE.code}`);
-          if (anyE.details) parts.push(`details:${anyE.details}`);
-          if (parts.length) message = parts.join(' | ');
-        }
-      }
-
-      if (typeof addToast === 'function')
-        addToast({
-          type: 'error',
-          message: 'Erro ao processar pedido.',
-          description: message,
-        } as Toast);
+    } catch (e) {
+      toast.error('Erro ao processar pedido.');
       return false;
     } finally {
       setLoadingStates((s) => ({ ...s, submitting: false }));
     }
   };
 
-  const handleSaveCart = async () => {
-    if (cart.length === 0) return null;
-    try {
-      setLoadingStates((s) => ({ ...s, saving: true }));
-      const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const { error } = await supabase
-        .from('saved_carts')
-        .insert({ short_id: shortId, items: cart });
-      if (error) throw error;
-      return shortId;
-    } catch (e) {
-      return null;
-    } finally {
-      setLoadingStates((s) => ({ ...s, saving: false }));
-    }
-  };
-
-  const handleLoadCart = async (code: string) => {
-    if (!code) return false;
-    try {
-      setLoadingStates((s) => ({ ...s, loadingCart: true }));
-      const { data, error } = await supabase
-        .from('saved_carts')
-        .select('items')
-        .eq('short_id', code.toUpperCase().trim())
-        .maybeSingle();
-      if (error || !data) {
-        if (typeof addToast === 'function')
-          addToast({
-            type: 'error',
-            message: 'Carrinho não encontrado.',
-          } as Toast);
-        return false;
-      }
-      if (data.items && Array.isArray(data.items)) {
-        setCart(data.items as CartItem[]);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    } finally {
-      setLoadingStates((s) => ({ ...s, loadingCart: false }));
-    }
-  };
-
-  const handleDownloadPDF = () => {
-    const itemsToPrint = cart.length > 0 ? cart : [];
-    const orderObj = {
-      id: orderSuccessData?.id || 0,
-      customer: orderSuccessData?.customer || { name: '', phone: '' },
-      created_at: new Date().toISOString(),
-    };
-    generateOrderPDF(
-      orderObj as any,
-      store,
-      itemsToPrint.map((i) => ({
-        name: i.name,
-        quantity: i.quantity,
-        price: i.price,
-        reference_code: i.reference_code,
-        brand: i.brand,
-      })),
-      itemsToPrint.reduce((acc, i) => acc + i.price * i.quantity, 0)
-    );
-  };
-
+  /**
+   * WHATSAPP COM RESUMO EXECUTIVO E LINK DO PDF
+   */
   const handleSendWhatsApp = () => {
     if (!orderSuccessData) return;
-    const { customer } = orderSuccessData;
-    const message = `Olá, meu nome é ${customer.name}. Fiz o pedido #${orderSuccessData.display_id || orderSuccessData.id}.`;
-    const num = (store.phone || '').replace(/\D/g, '');
+    const { customer, items, total, display_id, id, pdf_url } =
+      orderSuccessData;
+    const phone = (store.phone || '').replace(/\D/g, '');
+
+    let msg = `*📦 NOVO PEDIDO: #${display_id || id}*\n`;
+    msg += `--------------------------------\n\n`;
+    msg += `*CLIENTE:* ${customer.name}\n`;
+    msg += `*WHATSAPP:* ${customer.phone}\n\n`;
+    msg += `*ITENS:*\n`;
+    items
+      .slice(0, 10)
+      .forEach((i: any) => (msg += `▪️ ${i.quantity}x ${i.name}\n`));
+    if (items.length > 10) msg += `_...e outros ${items.length - 10} itens._\n`;
+
+    msg += `\n*TOTAL: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}*\n`;
+
+    if (pdf_url) {
+      msg += `\n*📄 COMPROVANTE PDF:*\n${pdf_url}\n`;
+    }
+
+    msg += `\n_Gerado por RepVendas SaaS_`;
     window.open(
-      `https://wa.me/${num}?text=${encodeURIComponent(message)}`,
+      `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,
       '_blank'
     );
   };
 
-  const setModal = (name: string, value: any) =>
-    setModals((m) => ({ ...m, [name]: value }));
+  const handleSaveCart = async () => {
+    setLoadingStates((s) => ({ ...s, saving: true }));
+    const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const { error } = await supabase
+      .from('saved_carts')
+      .insert({ short_id: shortId, items: cart });
+    setLoadingStates((s) => ({ ...s, saving: false }));
+    return error ? null : shortId;
+  };
 
-  const baseProducts = searchResults !== null ? searchResults : initialProducts;
-
-  const displayProducts = baseProducts
-    .filter((p) => {
-      if (showFavorites && !favorites.includes(p.id)) return false;
-      if (showOnlyNew && !p.is_launch) return false;
-      if (showOnlyBestsellers && !p.is_best_seller) return false;
-      if (selectedBrand && selectedBrand !== 'all') {
-        if (Array.isArray(selectedBrand)) {
-          if (
-            selectedBrand.length > 0 &&
-            !selectedBrand.includes(p.brand || '')
-          )
-            return false;
-        } else {
-          if (p.brand !== selectedBrand) return false;
-        }
-      }
-      if (
-        selectedCategory &&
-        selectedCategory !== 'all' &&
-        p.category !== selectedCategory
-      )
-        return false;
-      if (
-        searchTerm &&
-        searchResults === null &&
-        !p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !(p.reference_code || '')
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
-      )
-        return false;
+  const handleLoadCart = async (code: string) => {
+    setLoadingStates((s) => ({ ...s, loadingCart: true }));
+    const { data } = await supabase
+      .from('saved_carts')
+      .select('items')
+      .eq('short_id', code.toUpperCase())
+      .maybeSingle();
+    setLoadingStates((s) => ({ ...s, loadingCart: false }));
+    if (data?.items) {
+      setCart(data.items as CartItem[]);
       return true;
-    })
-    .sort((a, b) => {
-      if (sortOrder === 'price_asc') return a.price - b.price;
-      if (sortOrder === 'price_desc') return b.price - a.price;
-      return a.name.localeCompare(b.name);
-    });
+    }
+    return false;
+  };
 
-  const totalProducts = displayProducts.length;
-  const totalPages = Math.max(1, Math.ceil(totalProducts / ITEMS_PER_PAGE));
+  const displayProducts = useMemo(() => {
+    const base = searchResults || initialProducts;
+    return base
+      .filter((p) => {
+        if (showFavorites && !favorites.includes(p.id)) return false;
+        if (showOnlyNew && !p.is_launch) return false;
+        if (showOnlyBestsellers && !p.is_best_seller) return false;
+        if (selectedBrand !== 'all' && p.brand !== selectedBrand) return false;
+        if (selectedCategory !== 'all' && p.category !== selectedCategory)
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortOrder === 'price_asc') return a.price - b.price;
+        if (sortOrder === 'price_desc') return b.price - a.price;
+        return a.name.localeCompare(b.name);
+      });
+  }, [
+    searchResults,
+    initialProducts,
+    favorites,
+    showFavorites,
+    showOnlyNew,
+    showOnlyBestsellers,
+    selectedBrand,
+    selectedCategory,
+    sortOrder,
+  ]);
 
   return (
     <StoreContext.Provider
@@ -658,11 +419,11 @@ export function StoreProvider({
         showPrices,
         isPricesVisible: showPrices,
         setIsPricesVisible: setShowPrices,
-        toggleShowPrices,
+        toggleShowPrices: () => setShowPrices(!showPrices),
         displayProducts,
-        totalProducts,
+        totalProducts: displayProducts.length,
         currentPage,
-        totalPages,
+        totalPages: Math.ceil(displayProducts.length / ITEMS_PER_PAGE),
         setCurrentPage,
         viewMode,
         setViewMode,
@@ -688,19 +449,29 @@ export function StoreProvider({
         setIsFilterOpen,
         currentBanner,
         modals,
-        setModal,
+        setModal: (n, v) => setModals((m) => ({ ...m, [n]: v })),
         addToCart,
-        removeFromCart,
+        removeFromCart: (id) => setCart((c) => c.filter((i) => i.id !== id)),
         updateQuantity,
-        toggleFavorite,
-        unlockPrices,
+        toggleFavorite: (id) =>
+          setFavorites((f) =>
+            f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
+          ),
+        unlockPrices: async (p) => {
+          const hash = await sha256(p.trim());
+          if (hash === (store as any).price_password_hash) {
+            setShowPrices(true);
+            return true;
+          }
+          return false;
+        },
         handleFinalizeOrder,
         handleSaveCart,
         handleLoadCart,
         loadingStates,
         orderSuccessData,
         setOrderSuccessData,
-        handleDownloadPDF,
+        handleDownloadPDF: () => {},
         handleSendWhatsApp,
       }}
     >

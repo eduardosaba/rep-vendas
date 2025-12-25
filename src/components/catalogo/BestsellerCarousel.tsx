@@ -92,7 +92,7 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
                   <span className="text-lg font-bold text-gray-900">
                     R$ {formatPrice(product.price)}
                   </span>
-                  {settings?.show_old_price && (
+                  {settings?.show_sale_price && (
                     <span className="text-sm text-gray-500 line-through">
                       R$ {formatPrice(product.price * 1.2)}
                     </span>

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
 import { ProductsTable } from '@/components/dashboard/ProductsTable';
 import { DiagnosticPanel } from '@/components/products/diagnostic-panel';
 import {
@@ -23,7 +24,15 @@ export default async function ProductsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  let finalUser = user;
+  if (!finalUser) {
+    try {
+      const fb = await getServerUserFallback();
+      if (fb) finalUser = fb;
+    } catch (e) {}
+  }
+
+  if (!finalUser) {
     redirect('/login');
   }
 
@@ -32,7 +41,7 @@ export default async function ProductsPage() {
   const { data: products, error } = await supabase
     .from('products')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', finalUser.id)
     .order('created_at', { ascending: false });
 
   if (error) {
