@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useActionState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   Eye,
@@ -13,68 +13,85 @@ import {
 } from 'lucide-react';
 import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
-import { login, loginWithGoogle } from '@/app/login/actions';
+import { loginWithGoogle } from './actions';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const [state, formAction, isPending] = useActionState(login, null as any);
-
-  useEffect(() => {
-    if (state?.success && state?.redirectTo) {
-      toast.success('Login realizado com sucesso!');
-      window.location.href = state.redirectTo;
-    }
-    if (state?.error) {
-      toast.error(state.error);
-    }
-  }, [state]);
+  // handled on submit via API
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
       const result = await loginWithGoogle();
       if (result?.url) window.location.href = result.url;
-    } catch (e) {
+    } catch {
       toast.error('Erro ao conectar com Google');
     } finally {
       setGoogleLoading(false);
     }
   };
 
-  const isLoading = isPending || googleLoading;
+  const isLoading = isSubmitting || googleLoading;
+  const effectiveLoading = isLoading || redirecting;
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError(null);
+    try {
+      const form = e.currentTarget as HTMLFormElement;
+      const formData = new FormData(form);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Login realizado com sucesso!');
+        setRedirecting(true);
+        window.location.href = data.redirectTo;
+      } else {
+        setFormError(data.error || 'Erro ao autenticar');
+        toast.error(data.error || 'Erro ao autenticar');
+        setIsSubmitting(false);
+      }
+    } catch (err) {
+      toast.error('Erro ao conectar com servidor');
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen w-full overflow-hidden font-sans bg-[#0d1b2c]">
       <div className="hidden flex-1 lg:block relative">
         <LoginOnboarding />
       </div>
-
       <div className="flex flex-1 items-center justify-center p-4 lg:p-12 bg-gray-50 dark:bg-[#0b1623] relative">
         <div className="w-full max-w-[440px] z-10">
           <div className="bg-white rounded-3xl p-8 shadow-2xl ring-1 ring-gray-100 sm:p-12 relative overflow-hidden">
-            {isLoading && (
+            {effectiveLoading && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
                 <Loader2 className="h-8 w-8 animate-spin text-[#b9722e]" />
               </div>
             )}
-
             <div className="mb-10 text-center">
-              <Logo useSystemLogo={true} className="h-14 mx-auto mb-6" />
+              <Logo useSystemLogo className="h-14 mx-auto mb-6" />
               <h2 className="text-2xl font-bold text-[#0d1b2c]">
                 Bem-vindo de volta
               </h2>
             </div>
-
             <button
               onClick={handleGoogleLogin}
-              disabled={isLoading}
+              disabled={effectiveLoading}
               className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white py-3.5 font-bold text-gray-700 hover:bg-gray-50 transition-all"
             >
               Continuar com Google
             </button>
-
             <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-200" />
@@ -85,15 +102,13 @@ export default function LoginPage() {
                 </span>
               </div>
             </div>
-
-            <form action={formAction} className="space-y-5">
-              {state?.error && (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {formError && (
                 <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                   <AlertCircle size={18} />
-                  <p>{state.error}</p>
+                  <p>{formError}</p>
                 </div>
               )}
-
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-gray-700 ml-1">
                   Email
@@ -109,7 +124,6 @@ export default function LoginPage() {
                   />
                 </div>
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-gray-700 ml-1">
                   Senha
@@ -132,18 +146,17 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={effectiveLoading}
                 className="flex w-full items-center justify-center rounded-xl bg-[#b9722e] py-3.5 font-bold text-white hover:bg-[#a06328] transition-all disabled:opacity-70"
               >
-                {isPending ? (
+                {isSubmitting ? (
                   <Loader2 className="animate-spin mr-2" />
                 ) : (
                   'Acessar Sistema'
                 )}
-                {!isPending && <ArrowRight className="ml-2 h-4 w-4" />}
+                {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
               </button>
             </form>
           </div>

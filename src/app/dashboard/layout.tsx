@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/Toaster';
 import { ThemeProvider } from '@/providers/theme-provider';
 import ThemeRegistry from '@/components/ThemeRegistry';
 import { Suspense } from 'react';
+import Sidebar from '@/components/Sidebar';
 
 export default function RootLayout({
   children,
@@ -24,7 +25,10 @@ export default function RootLayout({
             <ThemeRegistry />
           </Suspense>
 
-          <main className="min-h-screen">{children}</main>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1">{children}</main>
+          </div>
 
           <Toaster position="top-right" />
         </ThemeProvider>

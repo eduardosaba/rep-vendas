@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { StoreMaintenance } from '@/components/catalogo/StoreMaintenance';
 import { Metadata } from 'next';
-import { CatalogClientView } from '@/components/catalogo/CatalogClientView';
+import { Storefront } from '@/components/catalogo/Storefront';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -80,12 +80,12 @@ export default async function CatalogPage({ params }: Props) {
   const products = productsRes.data || [];
 
   // E. Renderiza a visualização do cliente (Client Component Wrapper)
-  // O CatalogClientView deve conter o StoreProvider para gerenciar o carrinho.
+  // Usa `Storefront`, que envolve os providers necessários.
   return (
-    <CatalogClientView
-      initialStore={store}
+    <Storefront
+      catalog={store}
       initialProducts={products}
-      initialCategories={categories}
+      // startProductId pode ser usado para abrir um produto específico
     />
   );
 }

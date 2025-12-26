@@ -3,88 +3,74 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
 
-export async function login(prevState: any, formData: FormData) {
+export async function login(_: any, formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  if (!email || !password) {
-    return { error: 'Email e senha são obrigatórios.' };
-  }
+  const supabase = createClient();
 
-  try {
-    const supabase = await createClient(); //
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  if (error) return { error: error.message };
 
-    if (error) {
-      return { error: error.message || 'Erro ao autenticar.' };
-    }
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', data.user.id)
+    .maybeSingle();
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .maybeSingle();
-
-    const redirectTo = profile?.role === 'master' ? '/admin' : '/dashboard';
-
-    revalidatePath('/', 'layout'); //
-
-    return { success: true, redirectTo };
-  } catch (e) {
-    console.error('[login] Erro interno:', e);
-    return { error: 'Erro interno ao autenticar.' };
-  }
-}
-
-export async function logout() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
   revalidatePath('/', 'layout');
 
-  // O redirect DEVE ficar fora de blocos try/catch para funcionar em Server Actions
-  redirect('/login');
+  return {
+    success: true,
+    redirectTo: profile?.role === 'master' ? '/admin' : '/dashboard',
+  };
 }
 
-export async function signup(formData: FormData) {
-  const supabase = await createClient();
+export async function signup(...args: any[]) {
+  const formData: FormData = args.length === 1 ? args[0] : args[1];
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  try {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message || 'Erro ao criar conta.' };
+  const supabase = createClient();
 
-    revalidatePath('/', 'layout');
-    return {
-      success: true,
-      message:
-        'Cadastro realizado. Verifique seu e-mail para confirmar a conta.',
-      user: data.user ?? null,
-    };
-  } catch (e) {
-    return { error: 'Erro interno ao cadastrar usuário.' };
-  }
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/', 'layout');
+
+  return { success: true };
 }
 
 export async function loginWithGoogle() {
-  const supabase = await createClient();
-  const hdr = await headers();
-  const origin = hdr.get('origin');
+  const supabase = createClient();
+  const origin = (await headers()).get('origin');
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
+  const { data } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${origin}/auth/callback`, //
-      queryParams: { access_type: 'offline', prompt: 'consent' },
+      redirectTo: `${origin}/auth/callback`,
     },
   });
 
-  if (error) return { error: 'Erro ao conectar com Google' };
-  return { url: data.url };
+  return { url: data?.url };
+}
+
+export async function logout() {
+  const supabase = createClient();
+  try {
+    await supabase.auth.signOut();
+  } catch (e) {
+    // ignore
+  }
+  revalidatePath('/', 'layout');
+  return { success: true };
 }

@@ -133,7 +133,12 @@ export function Sidebar({
   };
   const isLightHex = (hex?: string) => getLuminance(hex) > 0.7;
   const pathname = usePathname();
-  const isDashboardRoute = pathname?.startsWith('/dashboard');
+  // Se o pathname ainda não estiver definido no primeiro render (hydration),
+  // assume que estamos em rota de dashboard temporariamente para evitar
+  // que a sidebar desapareça durante o mount. Quando o pathname for conhecido,
+  // o botão abaixo controlará se deve ou não renderizar a sidebar.
+  const isDashboardRoute =
+    pathname == null ? true : pathname.startsWith('/dashboard');
   const supabase = createClient();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -242,9 +247,22 @@ export function Sidebar({
   const secondary =
     getLuminance(secondaryRaw) > 0.96 ? '#f3f4f6' : secondaryRaw;
 
-  if (!mounted) return null;
+  if (!mounted) {
+    // Render a placeholder para evitar que a dashboard abra sem a área da sidebar
+    return (
+      <aside
+        className={`relative flex flex-col border-r h-full bg-[#f8fafc] dark:bg-slate-950 ${isCollapsed ? 'w-20' : 'w-72'}`}
+        aria-hidden
+      >
+        <div className="h-16 border-b border-gray-200 dark:border-slate-800" />
+        <div className="h-12 border-b border-gray-100 dark:border-slate-800/50" />
+        <div className="flex-1 p-4" />
+      </aside>
+    );
+  }
 
-  // Only render the sidebar inside dashboard routes
+  // Only render the full sidebar inside dashboard routes; if pathname is known
+  // e não começa com /dashboard, não renderiza.
   if (!isDashboardRoute) return null;
 
   return (

@@ -1,4 +1,4 @@
-'use client'; // Adicione isto para garantir que é um componente de cliente
+'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
 
