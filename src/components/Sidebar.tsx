@@ -281,6 +281,7 @@ export function Sidebar({
     '--primary': primary,
     '--primary-foreground': primaryForeground,
     '--secondary': secondary,
+    fontFamily: 'var(--rv-font)',
   } as React.CSSProperties & Record<string, string>;
 
   if (!mounted) {
