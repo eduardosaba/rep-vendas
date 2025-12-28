@@ -40,6 +40,35 @@ export default function ThemeRegistry() {
         if (isPublicCatalog) {
           try {
             const disableAuto =
+        // 0. Checa configurações globais da plataforma (system-wide)
+        try {
+          const { data: platform } = await supabase
+            .from('platform_settings')
+            .select('font_family, font_url')
+            .eq('id', 1)
+            .maybeSingle();
+
+          if (platform && platform.font_family) {
+            // inject @font-face if url provided
+            try {
+              if (platform.font_url) {
+                const id = `rv-platform-font-${btoa(platform.font_family).replace(/=/g, '')}`;
+                if (!document.getElementById(id)) {
+                  const style = document.createElement('style');
+                  style.id = id;
+                  style.innerHTML = `@font-face { font-family: '${platform.font_family}'; src: url('${platform.font_url}') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }`;
+                  document.head.appendChild(style);
+                }
+              }
+              document.documentElement.style.setProperty('--rv-font', platform.font_family);
+            } catch (e) {
+              console.debug('[ThemeRegistry] failed to apply platform font', e);
+            }
+            // If a platform font is set, treat it as highest priority for font only (do not return)
+          }
+        } catch (e) {
+          console.debug('[ThemeRegistry] could not load platform_settings', e);
+        }
               typeof window !== 'undefined' &&
               localStorage.getItem('rv_disable_auto_theme') === '1';
             console.debug(
@@ -87,20 +116,37 @@ export default function ThemeRegistry() {
         if (user) {
           const { data: settings } = await supabase
             .from('settings')
-            .select('primary_color, secondary_color, header_background_color')
+            .select('primary_color, secondary_color, header_background_color, font_family, font_url')
             .eq('user_id', user.id)
             .maybeSingle();
 
           if (settings) {
-            console.debug(
-              '[ThemeRegistry] applying theme from settings',
-              settings
-            );
+            console.debug('[ThemeRegistry] applying theme from settings', settings);
             applyThemeColors({
               primary: settings.primary_color || DEFAULT_PRIMARY_COLOR,
               secondary: settings.secondary_color || DEFAULT_SECONDARY_COLOR,
               headerBg: settings.header_background_color,
             });
+
+            // Apply global font if present
+            if (settings.font_family) {
+              try {
+                // If a font_url is provided, inject @font-face once
+                if (settings.font_url) {
+                  const id = `rv-font-${btoa(settings.font_family).replace(/=/g, '')}`;
+                  if (!document.getElementById(id)) {
+                    const style = document.createElement('style');
+                    style.id = id;
+                    style.innerHTML = `@font-face { font-family: '${settings.font_family}'; src: url('${settings.font_url}') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }`;
+                    document.head.appendChild(style);
+                  }
+                }
+                document.documentElement.style.setProperty('--rv-font', settings.font_family);
+              } catch (e) {
+                console.debug('[ThemeRegistry] failed to apply font from settings', e);
+              }
+            }
+
             return;
           }
         }
@@ -111,20 +157,35 @@ export default function ThemeRegistry() {
         if (catalogSlug) {
           const { data: publicCatalog } = await supabase
             .from('public_catalogs')
-            .select('primary_color, secondary_color, header_background_color')
+            .select('primary_color, secondary_color, header_background_color, font_family, font_url')
             .eq('slug', catalogSlug)
             .maybeSingle();
 
           if (publicCatalog) {
-            console.debug(
-              '[ThemeRegistry] applying theme from publicCatalog',
-              publicCatalog
-            );
+            console.debug('[ThemeRegistry] applying theme from publicCatalog', publicCatalog);
             applyThemeColors({
               primary: publicCatalog.primary_color,
               secondary: publicCatalog.secondary_color,
               headerBg: publicCatalog.header_background_color,
             });
+
+            if (publicCatalog.font_family) {
+              try {
+                if (publicCatalog.font_url) {
+                  const id = `rv-font-${btoa(publicCatalog.font_family).replace(/=/g, '')}`;
+                  if (!document.getElementById(id)) {
+                    const style = document.createElement('style');
+                    style.id = id;
+                    style.innerHTML = `@font-face { font-family: '${publicCatalog.font_family}'; src: url('${publicCatalog.font_url}') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }`;
+                    document.head.appendChild(style);
+                  }
+                }
+                document.documentElement.style.setProperty('--rv-font', publicCatalog.font_family);
+              } catch (e) {
+                console.debug('[ThemeRegistry] failed to apply font from publicCatalog', e);
+              }
+            }
+
             return;
           }
         }

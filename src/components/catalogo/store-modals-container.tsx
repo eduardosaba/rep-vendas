@@ -528,7 +528,17 @@ export function StoreModals() {
         setIsModalOpen={(v: boolean) => setModal('load', v)}
         loadCodeInput={loadCodeInput}
         setLoadCodeInput={setLoadCodeInput}
-        handleLoadCart={handleLoadSubmit}
+        handleLoadCart={async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!loadCodeInput) return;
+          const ok = await handleLoadCart(loadCodeInput);
+          if (ok) {
+            toast.success('Carrinho carregado com sucesso!');
+            setModal('load', false);
+          } else {
+            toast.error('Código não encontrado ou erro de conexão.');
+          }
+        }}
         isLoadingCart={loadingStates.loadingCart}
       />
 
@@ -537,7 +547,22 @@ export function StoreModals() {
         setIsPasswordModalOpen={(v: boolean) => setModal('password', v)}
         passwordInput={passwordInput}
         setPasswordInput={setPasswordInput}
-        handleUnlockPrices={handleUnlockPrices}
+        handleUnlockPrices={async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!passwordInput) return toast.error('Digite a senha');
+          try {
+            const ok = await unlockPrices(passwordInput);
+            if (ok) {
+              toast.success('Preços desbloqueados');
+              setModal('password', false);
+            } else {
+              toast.error('Senha inválida');
+            }
+          } catch (err) {
+            console.error('Erro ao validar senha', err);
+            toast.error('Erro ao validar senha');
+          }
+        }}
       />
     </>
   );
