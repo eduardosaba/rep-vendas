@@ -43,7 +43,7 @@ interface CatalogSettings {
   max_installments: string;
   show_discount_tag: boolean;
   cash_price_discount_percent: string;
-  enable_stock_management: boolean;
+  manage_stock: boolean;
   global_allow_backorder: boolean;
   show_cost_price: boolean;
   show_sale_price: boolean;
@@ -138,7 +138,7 @@ export default function SettingsPage() {
     max_installments: '12',
     show_discount_tag: false,
     cash_price_discount_percent: '5',
-    enable_stock_management: false,
+    manage_stock: false,
     global_allow_backorder: false,
     show_cost_price: false,
     show_sale_price: true,
@@ -267,7 +267,7 @@ export default function SettingsPage() {
             cash_price_discount_percent: String(
               settings.cash_price_discount_percent || 5
             ),
-            enable_stock_management: settings.enable_stock_management ?? false,
+            manage_stock: settings.manage_stock ?? false,
             global_allow_backorder: settings.global_allow_backorder ?? false,
             show_cost_price: settings.show_cost_price ?? false,
             show_sale_price: settings.show_sale_price ?? true,
@@ -580,7 +580,7 @@ export default function SettingsPage() {
       const finalCashDiscountPercent = Number(
         catalogSettings.cash_price_discount_percent || 0
       );
-      const finalEnableStock = catalogSettings.enable_stock_management ?? false;
+      const finalEnableStock = catalogSettings.manage_stock ?? false;
 
       const fullSettings = {
         user_id: currentUserId,
@@ -641,7 +641,7 @@ export default function SettingsPage() {
           max_installments: finalMaxInstallments,
           show_cash_discount: finalShowCashDiscount,
           cash_price_discount_percent: finalCashDiscountPercent,
-          enable_stock_management: finalEnableStock,
+          manage_stock: finalEnableStock,
           header_background_color: formData.header_background_color,
           top_benefit_image_url: topBenefitImageUrl,
           top_benefit_height: topBenefitHeight,
@@ -1706,9 +1706,9 @@ export default function SettingsPage() {
             </h3>
             <ToggleSetting
               label="Controle de Estoque"
-              name="enable_stock_management"
+              name="manage_stock"
               description="Habilita o controle de quantidades."
-              checked={catalogSettings.enable_stock_management}
+              checked={catalogSettings.manage_stock}
               onChange={handleCatalogSettingsChange}
               icon={Package}
             >

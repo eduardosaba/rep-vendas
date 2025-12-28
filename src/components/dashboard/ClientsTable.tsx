@@ -407,26 +407,26 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
 
       {/* --- MODAL DE DETALHES DO CLIENTE --- */}
       {selectedClient && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-end">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center md:justify-end">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
             onClick={() => setSelectedClient(null)}
           />
 
           {/* Drawer Lateral */}
-          <div className="relative w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-start bg-gray-50">
+          <div className="relative w-full md:max-w-md h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="p-6 border-b border-gray-200 dark:border-slate-800 flex justify-between items-start bg-gray-50 dark:bg-slate-800/50">
               <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full bg-white border-4 border-white shadow-sm flex items-center justify-center text-2xl font-bold text-indigo-600 uppercase">
+                <div className="h-16 w-16 rounded-full bg-white dark:bg-slate-700 border-4 border-white dark:border-slate-600 shadow-sm flex items-center justify-center text-2xl font-bold text-indigo-600 dark:text-indigo-400 uppercase">
                   {selectedClient.name.charAt(0)}
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                     {selectedClient.name}
                   </h2>
                   <div className="flex gap-2 mt-1">
                     <span
-                      className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${selectedClient.isGuest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}
+                      className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${selectedClient.isGuest ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}`}
                     >
                       {selectedClient.isGuest ? 'Visitante' : 'Cadastrado'}
                     </span>
@@ -435,7 +435,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
               </div>
               <button
                 onClick={() => setSelectedClient(null)}
-                className="p-2 hover:bg-white rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 <X size={24} />
               </button>
@@ -443,59 +443,65 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-green-50 rounded-xl border border-green-100 text-center">
-                  <p className="text-xs font-bold text-green-600 uppercase">
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-900/30 text-center">
+                  <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase">
                     Total Gasto
                   </p>
-                  <p className="text-xl font-bold text-green-800 mt-1">
+                  <p className="text-xl font-bold text-green-800 dark:text-green-300 mt-1">
                     {formatCurrency(selectedClient.totalSpent)}
                   </p>
                 </div>
-                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-center">
-                  <p className="text-xs font-bold text-blue-600 uppercase">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30 text-center">
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase">
                     Pedidos
                   </p>
-                  <p className="text-xl font-bold text-blue-800 mt-1">
+                  <p className="text-xl font-bold text-blue-800 dark:text-blue-300 mt-1">
                     {selectedClient.orderCount}
                   </p>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <h3 className="font-bold text-gray-900 border-b pb-2">
+                <h3 className="font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-slate-700 pb-2">
                   Contatos
                 </h3>
                 {selectedClient.phone ? (
                   <a
                     href={`https://wa.me/55${selectedClient.phone.replace(/\D/g, '')}`}
                     target="_blank"
-                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors group"
+                    className="flex items-center gap-3 p-3 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors group"
                   >
-                    <div className="p-2 bg-green-100 text-green-600 rounded-full group-hover:bg-green-200">
+                    <div className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full group-hover:bg-green-200 dark:group-hover:bg-green-900/50">
                       <MessageCircle size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">WhatsApp</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        WhatsApp
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {selectedClient.phone}
                       </p>
                     </div>
                     <ArrowRight
                       size={16}
-                      className="ml-auto text-gray-300 group-hover:text-green-600"
+                      className="ml-auto text-gray-300 dark:text-gray-600 group-hover:text-green-600 dark:group-hover:text-green-400"
                     />
                   </a>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">Sem telefone</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                    Sem telefone
+                  </p>
                 )}
                 {selectedClient.email && (
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <div className="p-2 bg-gray-100 text-gray-600 rounded-full">
+                  <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-slate-700 rounded-lg">
+                    <div className="p-2 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 rounded-full">
                       <MailIcon size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Email</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Email
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {selectedClient.email}
                       </p>
                     </div>
@@ -504,9 +510,9 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
               </div>
 
               <div>
-                <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center justify-between">
+                <h3 className="font-bold text-gray-900 dark:text-white border-b border-gray-200 dark:border-slate-700 pb-2 mb-4 flex items-center justify-between">
                   Histórico{' '}
-                  <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
+                  <span className="text-xs bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded-full text-gray-600 dark:text-gray-400">
                     {selectedClient.orders.length}
                   </span>
                 </h3>
@@ -523,33 +529,33 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                         key={order.id}
                         className="block group"
                       >
-                        <div className="p-4 border rounded-xl hover:border-[var(--primary)]/50 hover:shadow-md transition-all bg-white">
+                        <div className="p-4 border border-gray-200 dark:border-slate-700 rounded-xl hover:border-[var(--primary)]/50 hover:shadow-md transition-all bg-white dark:bg-slate-800/50">
                           <div className="flex justify-between items-start mb-2">
                             <div>
                               <span className="font-bold text-[var(--primary)] text-sm">
                                 Pedido #{order.display_id}
                               </span>
-                              <p className="text-xs text-gray-400">
+                              <p className="text-xs text-gray-400 dark:text-gray-500">
                                 {formatDate(order.created_at)}
                               </p>
                             </div>
                             <span
                               className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${
                                 order.status === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-700'
+                                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
                                   : order.status === 'cancelled'
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-green-100 text-green-700'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                    : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                               }`}
                             >
                               {order.status}
                             </span>
                           </div>
                           <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500 flex items-center gap-1">
+                            <span className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
                               <Package size={14} /> {order.item_count} itens
                             </span>
-                            <span className="font-bold text-gray-900">
+                            <span className="font-bold text-gray-900 dark:text-white">
                               {formatCurrency(order.total_value)}
                             </span>
                           </div>

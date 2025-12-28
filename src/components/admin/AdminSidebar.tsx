@@ -97,8 +97,13 @@ export default function AdminSidebar() {
 
   if (!mounted) return null;
 
+  const rootVars: React.CSSProperties = {
+    fontFamily: 'var(--rv-font)',
+  };
+
   return (
     <aside
+      style={rootVars}
       className={`bg-white dark:bg-slate-950
         flex flex-col h-screen sticky top-0 transition-all duration-300 border-r
         border-gray-200 text-slate-600 dark:border-slate-800 dark:text-slate-400

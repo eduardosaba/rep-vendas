@@ -86,14 +86,14 @@ const MENU_ITEMS: MenuItem[] = [
     href: '#tools',
     children: [
       {
-        title: 'Sincronizador PROCV',
-        href: '/dashboard/products/sync',
-        icon: Zap,
-      },
-      {
         title: 'Saúde dos Dados', // Logs de Sincronização
         href: '/dashboard/products/sync/history',
         icon: History,
+      },
+      {
+        title: 'Sincronizador PROCV',
+        href: '/dashboard/products/sync',
+        icon: Zap,
       },
       {
         title: 'Importar Excel',
@@ -215,7 +215,7 @@ export function Sidebar({
         if (!user) return;
         const { data } = await supabase
           .from('settings')
-          .select('logo_url, primary_color, name')
+          .select('logo_url, primary_color, name, manage_stock')
           .eq('user_id', user.id)
           .maybeSingle();
         if (data) setBranding(data as Settings);
@@ -223,6 +223,21 @@ export function Sidebar({
       loadData();
     }
   }, [mounted, initialSettings, supabase]);
+
+  // Filtrar menu items baseado em configurações
+  const filteredMenuItems = MENU_ITEMS.map((item) => {
+    if (item.children) {
+      const filteredChildren = item.children.filter((child) => {
+        // Ocultar Gestão de Estoque se manage_stock não estiver ativo
+        if (child.href === '/dashboard/inventory') {
+          return branding?.manage_stock === true;
+        }
+        return true;
+      });
+      return { ...item, children: filteredChildren };
+    }
+    return item;
+  });
 
   const toggleSubmenu = (label: string) => {
     if (isCollapsed) {
@@ -344,7 +359,7 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
-        {MENU_ITEMS.map((item) => {
+        {filteredMenuItems.map((item) => {
           const active = isItemActive(item);
           const label = item.label || item.title || '';
           const expanded = expandedMenus.includes(label);

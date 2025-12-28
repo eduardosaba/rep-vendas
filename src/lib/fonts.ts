@@ -7,6 +7,18 @@ export const SYSTEM_FONTS = [
       'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap',
   },
   {
+    name: 'Roboto',
+    family: 'Roboto, sans-serif',
+    import:
+      'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap',
+  },
+  {
+    name: 'Open Sans',
+    family: 'Open Sans, sans-serif',
+    import:
+      'https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;700;800&display=swap',
+  },
+  {
     name: 'Montserrat',
     family: 'Montserrat, sans-serif',
     import:
@@ -17,6 +29,29 @@ export const SYSTEM_FONTS = [
     family: 'Poppins, sans-serif',
     import:
       'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;700;900&display=swap',
+  },
+  {
+    name: 'Lato',
+    family: 'Lato, sans-serif',
+    import:
+      'https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap',
+  },
+  {
+    name: 'Raleway',
+    family: 'Raleway, sans-serif',
+    import:
+      'https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&display=swap',
+  },
+  {
+    name: 'Ubuntu',
+    family: 'Ubuntu, sans-serif',
+    import:
+      'https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;700&display=swap',
+  },
+  {
+    name: 'Bebas Neue',
+    family: 'Bebas Neue, sans-serif',
+    import: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap',
   },
   {
     name: 'Playfair Display',

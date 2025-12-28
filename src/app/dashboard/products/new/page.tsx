@@ -19,6 +19,7 @@ import {
   UploadCloud,
   Zap,
   Star,
+  Trash2,
 } from 'lucide-react';
 
 // --- TIPAGEM ---

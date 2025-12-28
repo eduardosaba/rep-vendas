@@ -94,6 +94,7 @@ export interface BaseStoreSettings {
   show_cash_discount?: boolean;
   cash_price_discount_percent?: number;
   enable_stock_management?: boolean;
+  manage_stock?: boolean;
   show_shipping?: boolean;
   global_allow_backorder?: boolean;
   // UI-specific quick filters

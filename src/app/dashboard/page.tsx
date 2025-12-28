@@ -249,10 +249,10 @@ export default async function DashboardPage({
           <DashboardCharts orders={chartData.data || []} />
         </div>
         <div className="bg-white p-6 rounded-[2.5rem] border border-gray-200 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-4 uppercase text-xs tracking-widest text-gray-400">
+          <h3 className="font-bold text-slate-800 mb-5 uppercase text-xs tracking-widest text-gray-400">
             Ações Rápidas
           </h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <QuickActionCard
               href="/dashboard/products/new"
               icon={PlusCircle}

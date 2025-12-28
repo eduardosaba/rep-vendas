@@ -287,7 +287,7 @@ export default function AdminHeader() {
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+            <div className="fixed md:absolute left-4 right-4 md:left-auto md:right-0 top-20 md:top-full mt-0 md:mt-3 w-auto md:w-80 max-w-sm mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">
                   Notificações
@@ -374,7 +374,7 @@ export default function AdminHeader() {
           </button>
 
           {isMenuOpen && (
-            <div className="absolute right-0 top-full mt-3 w-64 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+            <div className="fixed md:absolute left-4 right-4 md:left-auto md:right-0 top-20 md:top-full mt-0 md:mt-3 w-auto md:w-64 max-w-sm mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 z-50">
               <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-800">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">
                   Conta Master
