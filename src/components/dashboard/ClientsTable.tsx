@@ -72,14 +72,14 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
     initialOrders.forEach((order) => {
       // 2. LÓGICA DE PRIORIDADE: Cadastro > Visitante > Fallback
       const dbClient = order.clients; // Dados da tabela clients
-      
+
       const rawName = dbClient?.name || order.client_name_guest;
       const rawPhone = dbClient?.phone || order.client_phone_guest;
       const rawEmail = dbClient?.email || order.client_email_guest;
 
       const safeName = rawName || 'Cliente Sem Nome';
       const cleanPhone = rawPhone?.replace(/\D/g, '') || '';
-      
+
       // Identifica se é um cliente cadastrado ou visitante
       const isGuest = !order.client_id;
 
@@ -90,7 +90,9 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
         key = `reg_${order.client_id}`;
       } else {
         // Fallback para visitantes: Agrupa por telefone (se tiver) ou nome
-        key = cleanPhone ? `guest_ph_${cleanPhone}` : `guest_nm_${safeName.toLowerCase().trim()}`;
+        key = cleanPhone
+          ? `guest_ph_${cleanPhone}`
+          : `guest_nm_${safeName.toLowerCase().trim()}`;
       }
 
       if (!map.has(key)) {
@@ -249,11 +251,11 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Link
-             href="/dashboard/clients/new"
-             className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
-           >
-             <User size={18} /> Novo Cliente
-           </Link>
+            href="/dashboard/clients/new"
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap"
+          >
+            <User size={18} /> Novo Cliente
+          </Link>
           <select
             className="p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none cursor-pointer"
             value={sortKey}
@@ -269,17 +271,30 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
       {/* 3. TABELA DE CLIENTES */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 rounded-lg">
-          <table className="w-full text-left text-sm" style={{minWidth: '800px'}}>
+          <table
+            className="w-full text-left text-sm"
+            style={{ minWidth: '800px' }}
+          >
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <tr>
-                <th className="px-3 sm:px-6 py-4 font-medium min-w-[180px]">Cliente</th>
-                <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">Contato</th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[180px]">
+                  Cliente
+                </th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">
+                  Contato
+                </th>
                 <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">
                   Total Gasto (LTV)
                 </th>
-                <th className="px-3 sm:px-6 py-4 font-medium min-w-[80px]">Pedidos</th>
-                <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">Última Compra</th>
-                <th className="px-3 sm:px-6 py-4 text-right sticky right-0 bg-gray-50 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)] min-w-[100px]">Ações</th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[80px]">
+                  Pedidos
+                </th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">
+                  Última Compra
+                </th>
+                <th className="px-3 sm:px-6 py-4 text-right sticky right-0 bg-gray-50 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)] min-w-[100px]">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -305,13 +320,15 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                             {client.name}
                           </p>
                           <div className="flex items-center gap-2">
-                             {/* Badge de Visitante vs Cadastrado */}
-                             <span className={`text-[10px] px-1.5 py-0.5 rounded border ${client.isGuest ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-                                {client.isGuest ? 'Visitante' : 'Cadastrado'}
-                             </span>
-                             <p className="text-xs text-gray-400">
-                               Desde {formatDate(client.firstOrderDate)}
-                             </p>
+                            {/* Badge de Visitante vs Cadastrado */}
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded border ${client.isGuest ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                            >
+                              {client.isGuest ? 'Visitante' : 'Cadastrado'}
+                            </span>
+                            <p className="text-xs text-gray-400">
+                              Desde {formatDate(client.firstOrderDate)}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -407,11 +424,13 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                   <h2 className="text-xl font-bold text-gray-900">
                     {selectedClient.name}
                   </h2>
-                   <div className="flex gap-2 mt-1">
-                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${selectedClient.isGuest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {selectedClient.isGuest ? 'Visitante' : 'Cadastrado'}
-                      </span>
-                   </div>
+                  <div className="flex gap-2 mt-1">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${selectedClient.isGuest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}
+                    >
+                      {selectedClient.isGuest ? 'Visitante' : 'Cadastrado'}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
@@ -469,18 +488,18 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                 ) : (
                   <p className="text-sm text-gray-400 italic">Sem telefone</p>
                 )}
-                 {selectedClient.email && (
-                    <div className="flex items-center gap-3 p-3 border rounded-lg">
-                        <div className="p-2 bg-gray-100 text-gray-600 rounded-full">
-                          <MailIcon size={18} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Email</p>
-                          <p className="text-sm text-gray-500">
-                            {selectedClient.email}
-                          </p>
-                        </div>
+                {selectedClient.email && (
+                  <div className="flex items-center gap-3 p-3 border rounded-lg">
+                    <div className="p-2 bg-gray-100 text-gray-600 rounded-full">
+                      <MailIcon size={18} />
                     </div>
+                    <div>
+                      <p className="text-sm font-medium">Email</p>
+                      <p className="text-sm text-gray-500">
+                        {selectedClient.email}
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
 

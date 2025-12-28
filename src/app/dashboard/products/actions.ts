@@ -231,5 +231,5 @@ export async function bulkDelete(
   }
 
   revalidatePath('/dashboard/products');
-  return { success: true };
+  return { success: true, deletedIds, softDeletedIds };
 }

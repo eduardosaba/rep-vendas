@@ -1206,7 +1206,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       {/* TABELA RESPONSIVA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
-          <table className="w-full text-left text-sm border-collapse" style={{minWidth: '1000px'}}>
+          <table
+            className="w-full text-left text-sm border-collapse"
+            style={{ minWidth: '1000px' }}
+          >
             <thead className="bg-gray-50 dark:bg-slate-950/50 border-b border-gray-200 dark:border-slate-800">
               <tr>
                 <th className="px-4 py-3 w-10">

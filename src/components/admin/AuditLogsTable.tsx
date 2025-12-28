@@ -27,60 +27,75 @@ export default function AuditLogsTable({ logs }: { logs: Log[] }) {
   return (
     <div className="mt-6 bg-white border rounded-2xl overflow-hidden shadow-sm">
       <div className="w-full overflow-x-auto scrollbar-thin">
-      <table className="w-full text-left border-collapse" style={{minWidth: '700px'}}>
-        <thead>
-          <tr className="bg-slate-50 border-b">
-            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[120px]">Usuário</th>
-            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[150px]">Ação</th>
-            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[180px]">Detalhes</th>
-            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[140px]">Quando</th>
-            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[100px]">Ações</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {logs.map((l) => (
-            <React.Fragment key={l.id}>
-              <tr>
-                <td className="p-3 text-sm">{l.user_id || '—'}</td>
-                <td className="p-3 text-sm font-semibold">
-                  {humanizeAction(l.action)}
-                </td>
-                <td className="p-3 text-sm text-slate-600">
-                  {typeof l.payload === 'string'
-                    ? l.payload.slice(0, 120)
-                    : JSON.stringify(l.payload).slice(0, 120)}
-                </td>
-                <td className="p-3 text-sm text-slate-400">
-                  {l.created_at ? new Date(l.created_at).toLocaleString() : '—'}
-                </td>
-                <td className="p-3 text-sm">
-                  <button
-                    className="text-primary font-medium hover:underline"
-                    onClick={() => setOpenId(openId === l.id ? null : l.id)}
-                  >
-                    {openId === l.id ? 'Fechar' : 'Ver Detalhes'}
-                  </button>
-                </td>
-              </tr>
-
-              {openId === l.id && (
+        <table
+          className="w-full text-left border-collapse"
+          style={{ minWidth: '700px' }}
+        >
+          <thead>
+            <tr className="bg-slate-50 border-b">
+              <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[120px]">
+                Usuário
+              </th>
+              <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[150px]">
+                Ação
+              </th>
+              <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[180px]">
+                Detalhes
+              </th>
+              <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[140px]">
+                Quando
+              </th>
+              <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[100px]">
+                Ações
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {logs.map((l) => (
+              <React.Fragment key={l.id}>
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="p-4 bg-slate-50 text-sm text-slate-700"
-                  >
-                    <pre className="whitespace-pre-wrap break-words text-[13px]">
-                      {typeof l.payload === 'string'
-                        ? l.payload
-                        : JSON.stringify(l.payload, null, 2)}
-                    </pre>
+                  <td className="p-3 text-sm">{l.user_id || '—'}</td>
+                  <td className="p-3 text-sm font-semibold">
+                    {humanizeAction(l.action)}
+                  </td>
+                  <td className="p-3 text-sm text-slate-600">
+                    {typeof l.payload === 'string'
+                      ? l.payload.slice(0, 120)
+                      : JSON.stringify(l.payload).slice(0, 120)}
+                  </td>
+                  <td className="p-3 text-sm text-slate-400">
+                    {l.created_at
+                      ? new Date(l.created_at).toLocaleString()
+                      : '—'}
+                  </td>
+                  <td className="p-3 text-sm">
+                    <button
+                      className="text-primary font-medium hover:underline"
+                      onClick={() => setOpenId(openId === l.id ? null : l.id)}
+                    >
+                      {openId === l.id ? 'Fechar' : 'Ver Detalhes'}
+                    </button>
                   </td>
                 </tr>
-              )}
-            </React.Fragment>
-          ))}
-        </tbody>
-      </table>
+
+                {openId === l.id && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="p-4 bg-slate-50 text-sm text-slate-700"
+                    >
+                      <pre className="whitespace-pre-wrap break-words text-[13px]">
+                        {typeof l.payload === 'string'
+                          ? l.payload
+                          : JSON.stringify(l.payload, null, 2)}
+                      </pre>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

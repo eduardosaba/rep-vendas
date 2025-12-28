@@ -65,7 +65,10 @@ export default function RecentOrdersTable({
       </div>
 
       <div className="overflow-x-auto scrollbar-thin">
-        <table className="w-full text-left text-sm" style={{minWidth: '600px'}}>
+        <table
+          className="w-full text-left text-sm"
+          style={{ minWidth: '600px' }}
+        >
           {/* Tabela mantida igual, agora populada com RecentOrders */}
           <thead className="bg-gray-50 dark:bg-slate-800/50 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-800">
             <tr>

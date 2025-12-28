@@ -314,7 +314,10 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
       {/* 3. TABELA DE PEDIDOS */}
       <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
-          <table className="w-full text-left text-sm border-collapse" style={{minWidth: '700px'}}>
+          <table
+            className="w-full text-left text-sm border-collapse"
+            style={{ minWidth: '700px' }}
+          >
             <thead className="bg-gray-50 dark:bg-slate-950/50 text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-800">
               <tr>
                 <th className="px-3 sm:px-6 py-4 font-medium whitespace-nowrap">

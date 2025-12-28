@@ -621,10 +621,10 @@ export default function NewProductPage() {
                       <button
                         type="button"
                         onClick={() => removeTechRow(idx)}
-                        className="px-2 py-1 rounded-md bg-red-50 text-red-600 border border-red-100"
+                        className="p-2 rounded-md bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors"
                         title="Remover linha"
                       >
-                        Rem
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   ))}

@@ -251,14 +251,19 @@ export default function AdminUsersPage() {
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
-          <table className="w-full text-sm text-left" style={{minWidth: '800px'}}>
+          <table
+            className="w-full text-sm text-left"
+            style={{ minWidth: '800px' }}
+          >
             <thead className="bg-gray-50 dark:bg-slate-950 text-gray-500 dark:text-slate-400 font-medium border-b border-gray-200 dark:border-slate-800">
               <tr>
                 <th className="px-4 sm:px-6 py-4 min-w-[200px]">Usuário</th>
                 <th className="px-4 sm:px-6 py-4 min-w-[100px]">Role</th>
                 <th className="px-4 sm:px-6 py-4 min-w-[120px]">Cadastro</th>
                 <th className="px-4 sm:px-6 py-4 min-w-[150px]">Vencimento</th>
-                <th className="px-4 sm:px-6 py-4 text-right min-w-[140px] sticky right-0 bg-gray-50 dark:bg-slate-950 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">Ações</th>
+                <th className="px-4 sm:px-6 py-4 text-right min-w-[140px] sticky right-0 bg-gray-50 dark:bg-slate-950 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -318,7 +323,9 @@ export default function AdminUsersPage() {
                     <td className="px-4 sm:px-6 py-4 text-gray-500 dark:text-slate-400">
                       {new Date(user.created_at).toLocaleDateString('pt-BR')}
                     </td>
-                    <td className="px-4 sm:px-6 py-4">{renderExpirationDate(user)}</td>
+                    <td className="px-4 sm:px-6 py-4">
+                      {renderExpirationDate(user)}
+                    </td>
                     <td className="px-4 sm:px-6 py-4 text-right sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
                       <div className="flex justify-end gap-2">
                         <Link
@@ -446,11 +453,7 @@ export default function AdminUsersPage() {
                 >
                   Cancelar
                 </Button>
-                <Button
-                  type="submit"
-                  isLoading={isCreating}
-                  className="flex-1"
-                >
+                <Button type="submit" isLoading={isCreating} className="flex-1">
                   <Save size={18} className="mr-2" /> Criar Usuário
                 </Button>
               </div>

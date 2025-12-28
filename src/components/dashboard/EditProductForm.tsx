@@ -163,6 +163,52 @@ export function EditProductForm({ product }: { product: Product }) {
     });
   };
 
+  // Helper para parsear technical_specs (detecta JSON strings)
+  const parseTechnicalSpecs = (specs: any) => {
+    if (!specs)
+      return { mode: 'text', text: '', table: [{ key: '', value: '' }] };
+
+    // Se for objeto, usa modo tabela
+    if (typeof specs === 'object' && !Array.isArray(specs)) {
+      return {
+        mode: 'table',
+        text: JSON.stringify(specs, null, 2),
+        table: Object.entries(specs).map(([k, v]) => ({
+          key: k,
+          value: String(v),
+        })),
+      };
+    }
+
+    // Se for string, tenta parsear como JSON
+    if (typeof specs === 'string') {
+      try {
+        const parsed = JSON.parse(specs);
+        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return {
+            mode: 'table',
+            text: specs,
+            table: Object.entries(parsed).map(([k, v]) => ({
+              key: k,
+              value: String(v),
+            })),
+          };
+        }
+      } catch (e) {
+        // Não é JSON válido, mantém como texto
+      }
+      return {
+        mode: 'text',
+        text: specs,
+        table: [{ key: '', value: '' }],
+      };
+    }
+
+    return { mode: 'text', text: '', table: [{ key: '', value: '' }] };
+  };
+
+  const techSpecs = parseTechnicalSpecs(product.technical_specs);
+
   // Inicializa o formulário
   const [formData, setFormData] = useState({
     name: product.name || '',
@@ -181,23 +227,9 @@ export function EditProductForm({ product }: { product: Product }) {
     brand: product.brand || '',
     category: product.category || '',
     description: product.description || '',
-    technical_specs_mode:
-      product.technical_specs && typeof product.technical_specs === 'object'
-        ? 'table'
-        : 'text',
-    technical_specs_text:
-      product.technical_specs && typeof product.technical_specs === 'string'
-        ? product.technical_specs
-        : product.technical_specs && typeof product.technical_specs === 'object'
-          ? JSON.stringify(product.technical_specs, null, 2)
-          : '',
-    technical_specs_table:
-      product.technical_specs && typeof product.technical_specs === 'object'
-        ? Object.entries(product.technical_specs).map(([k, v]) => ({
-            key: k,
-            value: String(v),
-          }))
-        : [{ key: '', value: '' }],
+    technical_specs_mode: techSpecs.mode,
+    technical_specs_text: techSpecs.text,
+    technical_specs_table: techSpecs.table,
     track_stock: true,
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
@@ -750,10 +782,10 @@ export function EditProductForm({ product }: { product: Product }) {
                         <button
                           type="button"
                           onClick={() => removeTechRow(idx)}
-                          className="px-2 py-1 rounded-md bg-red-50 text-red-600 border border-red-100"
+                          className="p-2 rounded-md bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors"
                           title="Remover linha"
                         >
-                          Rem
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     )
