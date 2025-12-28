@@ -1,8 +1,14 @@
 'use client';
+// @ts-nocheck - legacy fallback hooks and dynamic runtime hook resolution
 
-// @ts-ignore - useFormState é suportado pelo Next.js App Router mesmo no React 18
-import { useFormState, useFormStatus } from 'react-dom';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+// Fallback hooks: algumas versões do Next/React expõem hooks de formulário em 'react-dom'.
+// Usamos esses exports legados quando as APIs novas (`React.useActionState`) não existem.
+// @ts-ignore
+import {
+  useFormState as useFormStateLegacy,
+  useFormStatus as useFormStatusLegacy,
+} from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   updateUserLicense,
@@ -28,8 +34,9 @@ function SubmitButton({
   loadingLabel = 'Salvando...',
   variant = 'primary',
 }: any) {
-  // @ts-ignore
-  const { pending } = useFormStatus();
+  const useActionStatusHook: any =
+    (React as any).useActionStatus ?? useFormStatusLegacy;
+  const { pending } = useActionStatusHook();
   const baseStyles =
     'flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed';
   const variants: any = {
@@ -72,18 +79,20 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
   const resetPassBind = adminResetPassword.bind(null, userId);
 
   // Hooks do Formulário
-  // @ts-ignore
-  const [profileState, profileAction] = useFormState(
+  const useActionStateHook: any =
+    (React as any).useActionState ?? useFormStateLegacy;
+  const [profileState, profileAction] = useActionStateHook(
     updateProfileBind,
     initialState
   );
-  // @ts-ignore
-  const [licenseState, licenseAction] = useFormState(
+  const [licenseState, licenseAction] = useActionStateHook(
     updateLicenseBind,
     initialState
   );
-  // @ts-ignore
-  const [passState, passAction] = useFormState(resetPassBind, initialState);
+  const [passState, passAction] = useActionStateHook(
+    resetPassBind,
+    initialState
+  );
 
   const passFormRef = useRef<HTMLFormElement>(null);
 

@@ -247,7 +247,11 @@ export default function DashboardDemo() {
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               Últimos Pedidos
             </h3>
-            <RecentOrdersTable orders={MOCK_ORDERS} />
+            <RecentOrdersTable
+              orders={MOCK_ORDERS}
+              store={null}
+              rangeLabel="Últimos 30 dias"
+            />
           </div>
         </div>
       </main>

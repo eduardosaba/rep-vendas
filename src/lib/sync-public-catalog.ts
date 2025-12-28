@@ -37,6 +37,10 @@ export interface SyncCatalogData {
   top_benefit_text?: string;
   show_top_benefit_bar?: boolean;
   show_top_info_bar?: boolean;
+  // Fonte customizada (nome conforme SYSTEM_FONTS.name) - opcional
+  font_family?: string | null;
+  // URL de fonte customizada (ex: woff2 público)
+  font_url?: string | null;
 }
 
 /**
@@ -73,8 +77,84 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     .eq('user_id', userId)
     .maybeSingle();
 
+  // helper: tentar registrar auditoria (se tabela existir), não bloquear fluxo
+  const recordAudit = async (payload: Record<string, any>) => {
+    try {
+      await supabase.from('audit_logs').insert(payload);
+    } catch (e) {
+      // se não existir a tabela ou falhar, apenas logamos no servidor
+      console.info(
+        'audit log skipped or failed',
+        payload,
+        e instanceof Error ? e.message : e
+      );
+    }
+  };
+
   if (existing) {
     // ATUALIZAÇÃO
+    // -- gating: verificar global config e plano do usuário para permitir font_family
+    let finalFont: string | null = null;
+    let auditReason = 'unknown';
+    try {
+      const { data: gc } = await supabase
+        .from('global_configs')
+        .select('allow_custom_fonts, font_family')
+        .maybeSingle();
+      const allowGlobal =
+        typeof gc?.allow_custom_fonts === 'boolean'
+          ? gc.allow_custom_fonts
+          : true;
+
+      if (!allowGlobal) {
+        finalFont = gc?.font_family ?? null;
+        auditReason = 'global_disabled';
+      } else if (allowGlobal && data.font_family) {
+        // verificar role e plan do usuário
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        const { data: settings } = await supabase
+          .from('settings')
+          .select('plan_type')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        const role = profile?.role || null;
+        const plan = settings?.plan_type || null;
+        const allowed =
+          role === 'master' || plan === 'pro' || plan === 'premium';
+        finalFont = allowed ? data.font_family : null;
+        auditReason = allowed
+          ? 'allowed_by_role_or_plan'
+          : 'blocked_by_role_or_plan';
+      } else {
+        finalFont = gc?.font_family ?? null;
+        auditReason = 'no_store_font_use_global';
+      }
+    } catch (e) {
+      finalFont = data.font_family ?? null;
+      auditReason = 'error_fallback';
+    }
+
+    // registrar auditoria (não bloquear fluxo)
+    try {
+      await recordAudit({
+        user_id: userId,
+        action: 'sync_font_update',
+        attempted_font: data.font_family ?? null,
+        final_font: finalFont,
+        allowed: !!finalFont,
+        reason: auditReason,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      /* ignore */
+    }
+
     const { error } = await supabase
       .from('public_catalogs')
       .update({
@@ -107,6 +187,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         top_benefit_text: data.top_benefit_text,
         show_top_benefit_bar: data.show_top_benefit_bar,
         show_top_info_bar: data.show_top_info_bar,
+        font_family: finalFont,
+        font_url: data.font_url ?? null,
         is_active: isActive, // AGORA USA O VALOR DINÂMICO
         updated_at: new Date().toISOString(),
       })
@@ -115,6 +197,62 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     if (error) throw error;
   } else {
     // INSERÇÃO
+    // -- gating identical to update path
+    let finalFontInsert: string | null = null;
+    let auditReasonInsert = 'unknown';
+    try {
+      const { data: gc } = await supabase
+        .from('global_configs')
+        .select('allow_custom_fonts, font_family')
+        .maybeSingle();
+      const allowGlobal =
+        typeof gc?.allow_custom_fonts === 'boolean'
+          ? gc.allow_custom_fonts
+          : true;
+      if (!allowGlobal) {
+        finalFontInsert = gc?.font_family ?? null;
+        auditReasonInsert = 'global_disabled';
+      } else if (allowGlobal && data.font_family) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+        const { data: settings } = await supabase
+          .from('settings')
+          .select('plan_type')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const role = profile?.role || null;
+        const plan = settings?.plan_type || null;
+        const allowed =
+          role === 'master' || plan === 'pro' || plan === 'premium';
+        finalFontInsert = allowed ? data.font_family : null;
+        auditReasonInsert = allowed
+          ? 'allowed_by_role_or_plan'
+          : 'blocked_by_role_or_plan';
+      } else {
+        finalFontInsert = gc?.font_family ?? null;
+        auditReasonInsert = 'no_store_font_use_global';
+      }
+    } catch (e) {
+      finalFontInsert = data.font_family ?? null;
+      auditReasonInsert = 'error_fallback';
+    }
+
+    try {
+      await recordAudit({
+        user_id: userId,
+        action: 'sync_font_insert',
+        attempted_font: data.font_family ?? null,
+        final_font: finalFontInsert,
+        allowed: !!finalFontInsert,
+        reason: auditReasonInsert,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      /* ignore */
+    }
     const { error } = await supabase.from('public_catalogs').insert({
       user_id: userId,
       slug,
@@ -146,6 +284,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       top_benefit_text: data.top_benefit_text,
       show_top_benefit_bar: data.show_top_benefit_bar,
       show_top_info_bar: data.show_top_info_bar,
+      font_family: finalFontInsert,
+      font_url: data.font_url ?? null,
       is_active: isActive, // AGORA USA O VALOR DINÂMICO
     });
 

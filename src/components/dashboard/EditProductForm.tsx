@@ -60,6 +60,7 @@ const ImageUploader = ({
               className="w-full h-full object-contain p-1 cursor-zoom-in"
               alt={`Product ${index}`}
               onClick={() => setZoomImage(url)}
+              style={{ height: 'auto' }}
             />
 
             <button

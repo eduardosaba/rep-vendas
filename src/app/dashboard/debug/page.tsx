@@ -246,7 +246,7 @@ export default function SystemHealthPage() {
 
       <div className="grid gap-4">
         {/* VARIAVEIS DE AMBIENTE */}
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
           <div className="p-2 bg-gray-100 rounded-lg">
             <Server size={24} className="text-gray-600" />
           </div>
@@ -265,7 +265,7 @@ export default function SystemHealthPage() {
         </div>
 
         {/* AUTENTICAÇÃO */}
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
           <div className="p-2 bg-blue-100 rounded-lg">
             <Shield size={24} className="text-blue-600" />
           </div>
@@ -289,7 +289,7 @@ export default function SystemHealthPage() {
         </div>
 
         {/* BANCO DE DADOS */}
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
           <div className="p-2 bg-green-100 rounded-lg">
             <Database size={24} className="text-green-600" />
           </div>
@@ -310,7 +310,7 @@ export default function SystemHealthPage() {
         </div>
 
         {/* TABELA SETTINGS (CRÍTICO) */}
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
           <div className="p-2 bg-orange-100 rounded-lg">
             <AlertTriangle size={24} className="text-orange-600" />
           </div>
@@ -335,7 +335,7 @@ export default function SystemHealthPage() {
         </div>
 
         {/* STORAGE */}
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 shadow-sm flex items-start gap-4">
           <div className="p-2 bg-purple-100 rounded-lg">
             <ImageIcon size={24} className="text-purple-600" />
           </div>

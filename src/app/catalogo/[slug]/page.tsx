@@ -1,91 +1,110 @@
-import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
-import { StoreMaintenance } from '@/components/catalogo/StoreMaintenance';
-import { Metadata } from 'next';
+import { createClient } from '@/lib/supabase/server';
 import { Storefront } from '@/components/catalogo/Storefront';
+import { Metadata, ResolvingMetadata } from 'next';
 
-interface Props {
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
+
+type Props = {
   params: Promise<{ slug: string }>;
-}
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
 
-/**
- * 1. Geração Dinâmica de Metadados (SEO)
- * Garante que ao compartilhar o link, o nome e logo da loja apareçam no card.
- */
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+// 1. GERADOR DE METADADOS (SEO) - Mantido igual, foco no branding
+export async function generateMetadata(
+  { params, searchParams }: Props,
+  _parent: ResolvingMetadata
+): Promise<Metadata> {
   const { slug } = await params;
+  const { productId } = await searchParams;
   const supabase = await createClient();
 
-  const { data: store } = await supabase
+  const { data: catalog } = await supabase
     .from('public_catalogs')
-    .select('store_name, logo_url')
+    .select('store_name, logo_url, footer_message, user_id')
     .eq('slug', slug)
+    .eq('is_active', true)
     .maybeSingle();
 
-  if (!store) return { title: 'Catálogo não encontrado' };
+  if (!catalog) return { title: 'Loja não encontrada' };
+
+  if (productId && typeof productId === 'string') {
+    const { data: product } = await supabase
+      .from('products')
+      .select('name, price, image_url, external_image_url, description')
+      .eq('id', productId)
+      .eq('user_id', catalog.user_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (product) {
+      const priceFormatted = new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(product.price);
+      const ogImage =
+        product.image_url ||
+        product.external_image_url ||
+        catalog.logo_url ||
+        null;
+      return {
+        title: `${product.name} | ${catalog.store_name}`,
+        description: `Por apenas ${priceFormatted}. ${product.description || 'Confira os detalhes!'}`,
+        openGraph: {
+          title: `${product.name} - ${priceFormatted}`,
+          description: product.description || 'Confira este produto incrível!',
+          images: ogImage ? [ogImage] : [],
+        },
+      };
+    }
+  }
 
   return {
-    title: `${store.store_name} | RepVendas`,
-    description: `Confira o catálogo digital de ${store.store_name}. Faça seu pedido online via WhatsApp.`,
+    title: `${catalog.store_name} | Catálogo Digital`,
+    description:
+      catalog.footer_message ||
+      'Confira nossos produtos e faça seu pedido online.',
     openGraph: {
-      title: store.store_name,
-      images: store.logo_url ? [store.logo_url] : [],
+      title: catalog.store_name,
+      images: catalog.logo_url ? [catalog.logo_url] : [],
     },
   };
 }
 
-/**
- * 2. Página do Catálogo (Server Component)
- */
-export default async function CatalogPage({ params }: Props) {
+// 2. PÁGINA DO CATÁLOGO
+export default async function CatalogPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { productId } = await searchParams;
   const supabase = await createClient();
 
-  // A. Busca os dados fundamentais do catálogo na tabela pública
-  const { data: store, error: storeError } = await supabase
+  // Buscar catálogo SEM filtrar por is_active para verificar se existe
+  const { data: catalog, error: catalogError } = await supabase
     .from('public_catalogs')
-    .select('*')
+    .select('*, price_password_hash')
     .eq('slug', slug)
     .maybeSingle();
 
-  // B. Validação de existência (Se o slug não existir, mostra 404 padrão)
-  if (!store || storeError) {
-    return notFound();
+  if (catalogError || !catalog) return notFound();
+
+  // Se a loja estiver desativada, redirecionar para página de manutenção
+  if (!catalog.is_active) {
+    const { redirect } = await import('next/navigation');
+    redirect(`/catalogo/${slug}/maintenance`);
   }
 
-  // C. TRAVA DE SEGURANÇA: Chave Mestra Online/Offline
-  // Se is_active for false, o catálogo é bloqueado e mostra a página de manutenção.
-  if (store.is_active === false) {
-    return (
-      <StoreMaintenance storeName={store.store_name} phone={store.phone} />
-    );
-  }
+  const { data: products } = await supabase
+    .from('products')
+    .select('*')
+    .eq('user_id', catalog.user_id)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
 
-  // D. Busca paralela de Categorias e Produtos (Performance Otimizada)
-  const [categoriesRes, productsRes] = await Promise.all([
-    supabase
-      .from('categories')
-      .select('*')
-      .eq('user_id', store.user_id)
-      .order('name'),
-    supabase
-      .from('products')
-      .select('*')
-      .eq('user_id', store.user_id)
-      .eq('active', true) // Filtro crítico: apenas produtos marcados como ativos
-      .order('created_at', { ascending: false }),
-  ]);
-
-  const categories = categoriesRes.data || [];
-  const products = productsRes.data || [];
-
-  // E. Renderiza a visualização do cliente (Client Component Wrapper)
-  // Usa `Storefront`, que envolve os providers necessários.
   return (
     <Storefront
-      catalog={store}
-      initialProducts={products}
-      // startProductId pode ser usado para abrir um produto específico
+      catalog={catalog}
+      initialProducts={products || []}
+      startProductId={typeof productId === 'string' ? productId : undefined}
     />
   );
 }

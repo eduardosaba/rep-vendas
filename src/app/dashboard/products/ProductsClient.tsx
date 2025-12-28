@@ -129,7 +129,7 @@ export default function ProductsClient({
 
           <Link
             href="/dashboard/products/import-visual"
-            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
           >
             <UploadCloud size={18} />
             Importar
@@ -150,7 +150,7 @@ export default function ProductsClient({
       </div>
 
       {/* Tabela de Produtos */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-gray-200 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
           <table className="w-full text-left text-sm min-w-full">
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">

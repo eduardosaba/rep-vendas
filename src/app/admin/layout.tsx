@@ -1,8 +1,6 @@
 import React from 'react';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import AdminHeader from '@/components/admin/AdminHeader';
-import ThemeRegistry from '@/components/ThemeRegistry';
-
 export default function AdminLayout({
   children,
 }: {
@@ -10,8 +8,7 @@ export default function AdminLayout({
 }) {
   return (
     <>
-      {/* ThemeRegistry carrega e aplica cores do banco de dados */}
-      <ThemeRegistry />
+      {/* ThemeRegistry é carregado no RootLayout (src/app/layout.tsx) */}
       <div className="flex min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors">
         {/* 1. Sidebar Fixo na Esquerda */}
         <AdminSidebar />

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Phone } from 'lucide-react';
 import { StoreProvider } from './store-context';
 import {
@@ -15,6 +15,7 @@ import { StoreModals } from './store-modals-container';
 import { InstallPrompt } from './InstallPrompt';
 import { FloatingCart } from './FloatingCart';
 import { hexToRgb } from '@/lib/colors'; // Importando nossa função utilitária
+import { SYSTEM_FONTS } from '@/lib/fonts';
 
 import type {
   Product,
@@ -33,20 +34,21 @@ export function Storefront({
   initialProducts,
   startProductId,
 }: StorefrontProps) {
+  const c = catalog as unknown as Record<string, unknown>;
   /**
    * 1. MAPEAMENTO DE DADOS (Multi-tenant)
    * Transformamos o registro público do catálogo na interface de Settings usada pelo sistema.
    */
   const store: StoreSettings = useMemo(
     () => ({
-      user_id: catalog.user_id,
-      name: catalog.store_name,
-      logo_url: catalog.logo_url,
-      primary_color: catalog.primary_color || '#b9722e',
-      secondary_color: catalog.secondary_color || '#0d1b2c',
-      phone: catalog.phone,
-      email: catalog.email,
-      footer_message: catalog.footer_message,
+      user_id: (c['user_id'] as string) || '',
+      name: (c['store_name'] as string) || '',
+      logo_url: (c['logo_url'] as string) || null,
+      primary_color: (c['primary_color'] as string) || '#b9722e',
+      secondary_color: (c['secondary_color'] as string) || '#0d1b2c',
+      phone: (c['phone'] as string) || undefined,
+      email: (c['email'] as string) || undefined,
+      footer_message: (c['footer_message'] as string) || undefined,
 
       // Configurações de exibição vindas da tabela public_catalogs
       show_cost_price: catalog.show_cost_price,
@@ -57,8 +59,24 @@ export function Storefront({
       cash_price_discount_percent: catalog.cash_price_discount_percent,
       enable_stock_management: catalog.enable_stock_management,
       price_password_hash: catalog.price_password_hash,
+      // Top benefit / banner
+      top_benefit_image_url:
+        (c['top_benefit_image_url'] as string) || undefined,
+      top_benefit_image_fit:
+        (c['top_benefit_image_fit'] as string) || undefined,
+      top_benefit_image_scale:
+        (c['top_benefit_image_scale'] as number) || undefined,
+      top_benefit_height: (c['top_benefit_height'] as number) || undefined,
+      top_benefit_text_size:
+        (c['top_benefit_text_size'] as number) || undefined,
+      top_benefit_bg_color: (c['top_benefit_bg_color'] as string) || undefined,
+      top_benefit_text_color:
+        (c['top_benefit_text_color'] as string) || undefined,
+      top_benefit_text: (c['top_benefit_text'] as string) || undefined,
+      show_top_benefit_bar: (c['show_top_benefit_bar'] as boolean) || false,
+      show_top_info_bar: (c['show_top_info_bar'] as boolean) || false,
     }),
-    [catalog]
+    [catalog, c]
   );
 
   /**
@@ -74,10 +92,10 @@ export function Storefront({
       '--primary-rgb': hexToRgb(primary), // Habilita opacidades dinâmicas
       '--secondary': secondary,
       '--secondary-rgb': hexToRgb(secondary),
-      '--header-bg': catalog.header_background_color || '#ffffff',
-      '--footer-bg': catalog.footer_background_color || secondary,
+      '--header-bg': (c['header_background_color'] as string) || '#ffffff',
+      '--footer-bg': (c['footer_background_color'] as string) || secondary,
     } as React.CSSProperties;
-  }, [store, catalog]);
+  }, [store, c]);
 
   // Helpers de Formatação (Poderiam ser movidos para @/lib/utils no futuro)
   const formatWhatsappUrl = (phone?: string) => {
@@ -86,7 +104,84 @@ export function Storefront({
     return `https://wa.me/${digits.startsWith('55') ? digits : `55${digits}`}`;
   };
 
-  if (!catalog) return null; // Proteção contra slug não encontrado
+  // FONT OPTIONS centralizadas via src/lib/fonts
+
+  const [globalFont, setGlobalFont] = React.useState<string | null>(null);
+  const [allowCustomFonts, setAllowCustomFonts] = React.useState(true);
+
+  const selectedFontName = (c['font_family'] as string) || null;
+
+  // Fetch global config to support cascade: store.font_family -> global.font_family -> Inter
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/global_config')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!mounted) return;
+        setGlobalFont(j?.font_family ?? null);
+        setAllowCustomFonts(
+          typeof j?.allow_custom_fonts === 'boolean'
+            ? j.allow_custom_fonts
+            : true
+        );
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Se o admin global desabilitou fontes customizadas, respeitamos essa escolha
+  const finalSelectedName =
+    allowCustomFonts === false
+      ? globalFont || 'Inter'
+      : selectedFontName || globalFont || 'Inter';
+  const finalSelected = SYSTEM_FONTS.find((f) => f.name === finalSelectedName);
+  const finalFamily = finalSelected ? finalSelected.family : finalSelectedName;
+
+  // If the catalog provides a direct font URL (uploaded by user or admin), inject @font-face
+  const catalogFontUrl = (c['font_url'] as string) || null;
+  const globalFontUrlFromApi = React.useRef<string | null>(null);
+
+  // fetch global_config.font_url if needed
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/global_config')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!mounted) return;
+        globalFontUrlFromApi.current = j?.font_url ?? null;
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const fontUrl = catalogFontUrl || globalFontUrlFromApi.current;
+    if (fontUrl) {
+      const familyName = finalSelectedName || 'CustomFont';
+      const id = `rv-font-face-${familyName.replace(/\s+/g, '-')}`;
+      if (document.getElementById(id)) return;
+      const style = document.createElement('style');
+      style.id = id;
+      style.innerHTML = `@font-face{font-family:'${familyName}';src: url('${fontUrl}') format('woff2');font-weight:400;font-style:normal;font-display:swap;}`;
+      document.head.appendChild(style);
+    } else if (finalSelected && finalSelected.import) {
+      if (
+        !document.querySelector(`link[data-rv-font="${finalSelected.name}"]`)
+      ) {
+        const l = document.createElement('link');
+        l.setAttribute('rel', 'stylesheet');
+        l.setAttribute('href', finalSelected.import as string);
+        l.setAttribute('data-rv-font', finalSelected.name);
+        document.head.appendChild(l);
+      }
+    }
+  }, [catalogFontUrl, finalSelected, finalSelectedName]);
 
   return (
     <StoreProvider
@@ -95,8 +190,8 @@ export function Storefront({
       startProductId={startProductId}
     >
       <div
-        style={cssVars}
-        className="min-h-screen bg-gray-50 font-sans flex flex-col selection:bg-primary/20 selection:text-primary"
+        style={{ ...cssVars, fontFamily: finalFamily }}
+        className="min-h-screen bg-gray-50 flex flex-col selection:bg-primary/20 selection:text-primary"
       >
         {/* Barra de Informações do Topo */}
         {(store.name || store.phone) && (

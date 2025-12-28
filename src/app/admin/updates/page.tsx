@@ -26,29 +26,33 @@ interface UpdateItem {
 export default function AdminUpdatesPage() {
   const currentVersion = process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0';
   const supabase = createClient();
-  
+
   const [activeTab, setActiveTab] = useState<'editor' | 'history'>('editor');
-  
+
   // Estados de Carregamento e Salvamento
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
-  
+
   // Estado do Histórico
   const [historyUpdates, setHistoryUpdates] = useState<UpdateItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Estados do editor visual
-  const [editorTitle, setEditorTitle] = useState('🎉 Bem-vindo ao RepVendas 2.0!');
+  const [editorTitle, setEditorTitle] = useState(
+    '🎉 Bem-vindo ao RepVendas 2.0!'
+  );
   const [editorVersion, setEditorVersion] = useState(currentVersion);
-  const [editorDate, setEditorDate] = useState(new Date().toISOString().split('T')[0]);
+  const [editorDate, setEditorDate] = useState(
+    new Date().toISOString().split('T')[0]
+  );
   const [editorHighlights, setEditorHighlights] = useState([
     '🎨 Sistema de temas personalizáveis',
     '📄 Geração de PDF otimizada',
     '🚀 Interface administrativa completa',
   ]);
   const [editorColorFrom, setEditorColorFrom] = useState('#0d1b2c');
-  const [editorColorTo, setEditorColorTo] = useState('#b9722e');
+  const [editorColorTo, setEditorColorTo] = useState('#0d1b2c');
   const [newHighlight, setNewHighlight] = useState('');
 
   // Carregar histórico ao mudar de aba
@@ -64,7 +68,7 @@ export default function AdminUpdatesPage() {
       .from('system_updates')
       .select('*')
       .order('date', { ascending: false });
-    
+
     if (data) setHistoryUpdates(data);
     setLoadingHistory(false);
   };
@@ -113,7 +117,6 @@ export default function AdminUpdatesPage() {
       // Limpa os campos após salvar
       setEditorTitle('');
       setEditorHighlights([]);
-      
     } catch (error) {
       setSaveError(
         error instanceof Error ? error.message : 'Erro desconhecido'
@@ -386,7 +389,9 @@ export default function AdminUpdatesPage() {
                     <Rocket className="text-white h-8 w-8" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">{editorTitle || 'Título da Atualização'}</h2>
+                    <h2 className="text-2xl font-bold">
+                      {editorTitle || 'Título da Atualização'}
+                    </h2>
                     <p className="text-white/90 text-sm mt-1">
                       Versão {editorVersion} •{' '}
                       {new Date(editorDate).toLocaleDateString('pt-BR')}
@@ -447,48 +452,54 @@ export default function AdminUpdatesPage() {
       {/* Tab Content: History */}
       {activeTab === 'history' && (
         <div className="space-y-6">
-            {loadingHistory ? (
-                 <div className="flex justify-center py-10">
-                     <Loader2 className="animate-spin text-gray-400" size={32} />
-                 </div>
-            ) : historyUpdates.length === 0 ? (
-                <div className="text-center py-10 text-gray-500">
-                    Nenhuma atualização publicada ainda.
+          {loadingHistory ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="animate-spin text-gray-400" size={32} />
+            </div>
+          ) : historyUpdates.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">
+              Nenhuma atualização publicada ainda.
+            </div>
+          ) : (
+            historyUpdates.map((u) => (
+              <div
+                key={u.id}
+                className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {u.title}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      v{u.version} •{' '}
+                      {new Date(u.date).toLocaleDateString('pt-BR')}
+                    </p>
+
+                    {/* Exibe os highlights de forma compacta */}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {u.highlights?.slice(0, 3).map((h, i) => (
+                        <span
+                          key={i}
+                          className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-gray-600 dark:text-gray-300"
+                        >
+                          {h.substring(0, 50)}
+                          {h.length > 50 ? '...' : ''}
+                        </span>
+                      ))}
+                      {u.highlights?.length > 3 && (
+                        <span className="text-xs text-gray-400 self-center">
+                          + {u.highlights.length - 3} mais
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <CheckCircle2 className="text-green-500" />
                 </div>
-            ) : (
-                historyUpdates.map((u) => (
-                    <div
-                    key={u.id}
-                    className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm"
-                    >
-                    <div className="flex items-center justify-between">
-                        <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {u.title}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                            v{u.version} •{' '}
-                            {new Date(u.date).toLocaleDateString('pt-BR')}
-                        </p>
-                        
-                        {/* Exibe os highlights de forma compacta */}
-                        <div className="flex flex-wrap gap-2 mt-2">
-                            {u.highlights?.slice(0, 3).map((h, i) => (
-                                <span key={i} className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-gray-600 dark:text-gray-300">
-                                    {h.substring(0, 50)}{h.length > 50 ? '...' : ''}
-                                </span>
-                            ))}
-                            {u.highlights?.length > 3 && (
-                                <span className="text-xs text-gray-400 self-center">+ {u.highlights.length - 3} mais</span>
-                            )}
-                        </div>
-                        </div>
-                        
-                        <CheckCircle2 className="text-green-500" />
-                    </div>
-                    </div>
-                ))
-            )}
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

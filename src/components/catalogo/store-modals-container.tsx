@@ -13,13 +13,16 @@ import {
   ShoppingCart,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
   Package,
 } from 'lucide-react';
+import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
 import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
 import Barcode from '../ui/Barcode';
 import { toast } from 'sonner';
+import { PasswordModal } from './modals/PasswordModal';
 
 export function StoreModals() {
   const {
@@ -31,6 +34,7 @@ export function StoreModals() {
     removeFromCart,
     addToCart,
     handleSaveCart,
+    handleLoadCart,
     handleFinalizeOrder,
     loadingStates,
     orderSuccessData,
@@ -38,29 +42,36 @@ export function StoreModals() {
     handleSendWhatsApp,
     isPricesVisible,
     displayProducts,
+    customerSession,
+    clearCustomerSession,
   } = useStore();
+  const { unlockPrices } = useStore();
 
   // --- ESTADOS LOCAIS ---
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [detailQuantity, setDetailQuantity] = useState(1);
+  const [passwordInput, setPasswordInput] = useState('');
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
     email: '',
     cnpj: '',
   });
+  const [savedCode, setSavedCode] = useState<string | null>(null);
+  const [loadCodeInput, setLoadCodeInput] = useState('');
+  const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
 
   // --- PERSISTÊNCIA DE DADOS DO CLIENTE (AUTO-FILL) ---
   useEffect(() => {
-    const savedCustomer = localStorage.getItem('repvendas_customer_info');
-    if (savedCustomer) {
-      try {
-        setCustomerInfo(JSON.parse(savedCustomer));
-      } catch (e) {
-        console.error('Erro ao carregar dados salvos');
-      }
+    if (customerSession) {
+      setCustomerInfo({
+        name: customerSession.name || '',
+        phone: customerSession.phone || '',
+        email: customerSession.email || '',
+        cnpj: customerSession.cnpj || '',
+      });
     }
-  }, []);
+  }, [customerSession]);
 
   // --- MEMOIZAÇÕES ---
   const cartTotal = useMemo(
@@ -103,10 +114,6 @@ export function StoreModals() {
     e.preventDefault();
     const success = await handleFinalizeOrder(customerInfo);
     if (success) {
-      localStorage.setItem(
-        'repvendas_customer_info',
-        JSON.stringify(customerInfo)
-      );
       setModal('checkout', false);
     }
   };
@@ -116,6 +123,56 @@ export function StoreModals() {
       window.open(orderSuccessData.pdf_url, '_blank');
     } else {
       toast.error('Comprovante não disponível no momento.');
+    }
+  };
+
+  const copyToClipboard = (text: string, message: string = 'Copiado!') => {
+    try {
+      navigator.clipboard.writeText(text);
+      toast.success(message);
+    } catch {
+      toast.error('Não foi possível copiar.');
+    }
+  };
+
+  const onSaveCart = async () => {
+    const code = await handleSaveCart();
+    if (code) {
+      setSavedCode(code);
+      setModal('save', true);
+      toast.success('Carrinho salvo!');
+    } else {
+      toast.error('Erro ao salvar o carrinho.');
+    }
+  };
+
+  const handleLoadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loadCodeInput) return;
+    const ok = await handleLoadCart(loadCodeInput);
+    if (ok) {
+      toast.success('Carrinho carregado com sucesso!');
+      setModal('load', false);
+    } else {
+      toast.error('Código não encontrado ou erro de conexão.');
+    }
+  };
+
+  // --- MODAL DE SENHA (para mostrar preços) ---
+  const handleUnlockPrices = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordInput) return toast.error('Digite a senha');
+    try {
+      const ok = await unlockPrices(passwordInput);
+      if (ok) {
+        toast.success('Preços desbloqueados');
+        setModal('password', false);
+      } else {
+        toast.error('Senha inválida');
+      }
+    } catch (err) {
+      console.error('Erro ao validar senha', err);
+      toast.error('Erro ao validar senha');
     }
   };
 
@@ -216,11 +273,45 @@ export function StoreModals() {
                 >
                   Finalizar Pedido <Send size={20} className="ml-2" />
                 </Button>
+                <Button
+                  variant="ghost"
+                  onClick={onSaveCart}
+                  isLoading={loadingStates.saving}
+                  className="w-full text-primary"
+                >
+                  Salvar para depois
+                </Button>
               </div>
             )}
           </div>
         </div>
       )}
+
+      {/* Save / Load Modals (external components) */}
+      <SaveCodeModal
+        isSaveModalOpen={!!modals.save && !!savedCode}
+        setIsModalOpen={(v: boolean) => setModal('save', v)}
+        savedCode={savedCode}
+        copyToClipboard={() => savedCode && copyToClipboard(savedCode)}
+      />
+
+      <LoadCodeModal
+        isLoadModalOpen={!!modals.load}
+        setIsModalOpen={(v: boolean) => setModal('load', v)}
+        loadCodeInput={loadCodeInput}
+        setLoadCodeInput={setLoadCodeInput}
+        handleLoadCart={handleLoadSubmit}
+        isLoadingCart={loadingStates.loadingCart}
+      />
+
+      {/* --- MODAL SENHA (Ver Preços) --- */}
+      <PasswordModal
+        isPasswordModalOpen={!!modals.password}
+        setIsPasswordModalOpen={(v: boolean) => setModal('password', v)}
+        passwordInput={passwordInput}
+        setPasswordInput={setPasswordInput}
+        handleUnlockPrices={handleUnlockPrices}
+      />
 
       {/* --- MODAL DETALHES DO PRODUTO (IMERSIVO) --- */}
       {modals.product && (
@@ -229,18 +320,29 @@ export function StoreModals() {
             className="absolute inset-0 bg-[#0d1b2c]/70 backdrop-blur-md animate-in fade-in duration-500"
             onClick={() => setModal('product', null)}
           />
-          <div className="relative flex h-[90dvh] w-full flex-col overflow-hidden bg-white shadow-2xl animate-in slide-in-from-bottom duration-500 md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-[3rem]">
+
+          <div className="relative flex h-[90dvh] w-full flex-col overflow-hidden bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-bottom duration-500 md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-[3rem]">
+            <button
+              onClick={() => setModal('product', null)}
+              className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 text-gray-700 dark:text-gray-200 shadow hover:scale-105 transition-transform"
+              aria-label="Fechar"
+            >
+              <X size={18} />
+            </button>
+
             <div className="flex-1 overflow-y-auto custom-scrollbar md:flex md:flex-row">
-              <div className="relative md:w-1/2 bg-white flex flex-col p-6 md:p-10">
-                <div className="relative aspect-square w-full rounded-[2rem] bg-gray-50 flex items-center justify-center overflow-hidden">
+              {/* Left: Image + Thumbnails */}
+              <div className="md:w-1/2 p-6 md:p-10 flex flex-col">
+                <div className="relative aspect-square w-full rounded-[2rem] bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
                   <Image
                     src={productImages[currentImageIndex]}
-                    alt="Produto"
+                    alt={(modals.product as any).name || 'Produto'}
                     fill
                     className="object-contain p-12 transition-all duration-500"
                   />
+
                   {productImages.length > 1 && (
-                    <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between">
+                    <>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -248,7 +350,8 @@ export function StoreModals() {
                             p === 0 ? productImages.length - 1 : p - 1
                           );
                         }}
-                        className="p-3 rounded-full bg-white/80 shadow-lg hover:bg-white"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
+                        aria-label="Imagem anterior"
                       >
                         <ChevronLeft size={24} />
                       </button>
@@ -259,29 +362,108 @@ export function StoreModals() {
                             p === productImages.length - 1 ? 0 : p + 1
                           );
                         }}
-                        className="p-3 rounded-full bg-white/80 shadow-lg hover:bg-white"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
+                        aria-label="Próxima imagem"
                       >
                         <ChevronRight size={24} />
                       </button>
-                    </div>
+                      <button
+                        onClick={() => setIsImageZoomOpen(true)}
+                        className="absolute right-4 bottom-4 z-20 p-2 rounded-full bg-white/90 dark:bg-slate-800/80 shadow hover:scale-105"
+                        aria-label="Ampliar imagem"
+                      >
+                        <Maximize2 size={18} />
+                      </button>
+                    </>
                   )}
                 </div>
+
+                {productImages.length > 1 && (
+                  <div className="mt-4 w-full">
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {productImages.map((src, idx) => (
+                        <button
+                          key={idx}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentImageIndex(idx);
+                          }}
+                          className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border ${currentImageIndex === idx ? 'ring-2 ring-primary/50' : 'border-gray-100 dark:border-slate-700'} bg-white dark:bg-slate-800`}
+                        >
+                          <img
+                            src={src}
+                            alt={`thumb-${idx}`}
+                            className="w-full h-full object-contain p-2"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex flex-col p-8 md:w-1/2 bg-gray-50/50">
-                <div className="mb-6">
-                  <span className="text-xs font-black uppercase tracking-[0.2em] text-primary/60">
-                    {modals.product.brand || 'Original'}
-                  </span>
-                  <h2 className="text-4xl font-black text-secondary mt-1">
-                    {modals.product.name}
-                  </h2>
+
+              {/* Right: Details */}
+              <div className="md:w-1/2 p-8 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white flex flex-col">
+                <div className="mb-6 flex items-start gap-4">
+                  {(modals.product as any)?.brand_logo_url ||
+                  (modals.product as any)?.logo_url ? (
+                    <img
+                      src={
+                        (modals.product as any).brand_logo_url ||
+                        (modals.product as any).logo_url
+                      }
+                      alt={(modals.product as any).brand || 'logo'}
+                      className="w-12 h-12 object-contain rounded-lg bg-white p-1"
+                    />
+                  ) : null}
+
+                  <div className="flex-1">
+                    <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
+                      {modals.product.brand || 'Original'}
+                    </span>
+                    <h2 className="text-4xl font-black mt-1">
+                      {modals.product.name}
+                    </h2>
+                    <div className="mt-3">
+                      <PriceDisplay
+                        value={modals.product.price}
+                        isPricesVisible={isPricesVisible}
+                        className="text-2xl font-black"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm mb-6">
-                  <p className="text-sm leading-relaxed text-gray-500">
+
+                <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-gray-700 dark:text-gray-200">
+                  <p className="text-sm leading-relaxed">
                     {modals.product.description ||
                       'Descrição premium para este item.'}
                   </p>
                 </div>
+
+                {(modals.product as any)?.specs && (
+                  <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-sm text-gray-700 dark:text-gray-200">
+                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">
+                      Ficha técnica
+                    </h3>
+                    <pre className="whitespace-pre-wrap">
+                      {(modals.product as any).specs}
+                    </pre>
+                  </div>
+                )}
+
+                {((modals.product as any)?.barcode ||
+                  (modals.product as any)?.sku) && (
+                  <div className="flex items-center justify-center bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
+                    <Barcode
+                      value={
+                        (modals.product as any).barcode ||
+                        (modals.product as any).sku
+                      }
+                    />
+                  </div>
+                )}
+
                 <div className="mt-auto space-y-4 rounded-[2.5rem] bg-secondary p-8 text-white shadow-2xl">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold opacity-60">
@@ -307,6 +489,7 @@ export function StoreModals() {
                       </button>
                     </div>
                   </div>
+
                   <div className="flex items-center justify-between border-t border-white/10 pt-6">
                     <span className="text-sm font-bold opacity-60">
                       Subtotal
@@ -318,6 +501,7 @@ export function StoreModals() {
                       className="text-white"
                     />
                   </div>
+
                   <Button
                     onClick={() => {
                       addToCart(modals.product!, detailQuantity);
@@ -330,6 +514,29 @@ export function StoreModals() {
                 </div>
               </div>
             </div>
+
+            {/* Zoom overlay */}
+            {isImageZoomOpen && (
+              <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+                <div
+                  className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                  onClick={() => setIsImageZoomOpen(false)}
+                />
+                <div className="relative max-w-4xl w-full mx-auto">
+                  <button
+                    onClick={() => setIsImageZoomOpen(false)}
+                    className="absolute top-4 right-4 z-30 p-2 rounded-full bg-white/10 text-white"
+                  >
+                    <X size={20} />
+                  </button>
+                  <img
+                    src={productImages[currentImageIndex]}
+                    alt="Zoom"
+                    className="w-full h-auto object-contain rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -343,6 +550,27 @@ export function StoreModals() {
           />
           <div className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
             <div className="p-10">
+              {isImageZoomOpen && (
+                <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+                  <div
+                    className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                    onClick={() => setIsImageZoomOpen(false)}
+                  />
+                  <div className="relative max-w-4xl w-full mx-auto">
+                    <button
+                      onClick={() => setIsImageZoomOpen(false)}
+                      className="absolute top-4 right-4 z-30 p-2 rounded-full bg-white/10 text-white"
+                    >
+                      <X size={20} />
+                    </button>
+                    <img
+                      src={productImages[currentImageIndex]}
+                      alt="Zoom"
+                      className="w-full h-auto object-contain rounded-lg"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-2xl font-black text-secondary tracking-tight">
                   Identificação
@@ -354,6 +582,26 @@ export function StoreModals() {
                   <X size={20} />
                 </button>
               </div>
+              {/* Quick actions: if we recognize the customer, allow clearing session */}
+              {customerSession && (
+                <div className="mb-6 flex items-center justify-end">
+                  <button
+                    onClick={() => {
+                      clearCustomerSession();
+                      setCustomerInfo({
+                        name: '',
+                        phone: '',
+                        email: '',
+                        cnpj: '',
+                      });
+                      toast.info('Dados de cliente removidos.');
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 underline"
+                  >
+                    Não é você?
+                  </button>
+                </div>
+              )}
               <div className="bg-primary/5 rounded-[2rem] p-6 mb-8 border border-primary/10 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm">
@@ -413,6 +661,24 @@ export function StoreModals() {
                       }
                     />
                   </div>
+                </div>
+                <div className="space-y-2 mt-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
+                    Email
+                  </label>
+                  <input
+                    required
+                    type="email"
+                    placeholder="seu@email.com"
+                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
+                    value={customerInfo.email}
+                    onChange={(e) =>
+                      setCustomerInfo({
+                        ...customerInfo,
+                        email: e.target.value,
+                      })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 ml-4">

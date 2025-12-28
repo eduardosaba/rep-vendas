@@ -25,6 +25,9 @@ import {
   FileText,
   Circle,
   Box,
+  Zap,
+  History, // Ícone para Saúde dos Dados
+  ClipboardList, // Ícone para Gestão de Estoque
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@/lib/supabase/client';
@@ -64,7 +67,12 @@ const MENU_ITEMS: MenuItem[] = [
         icon: PlusCircle,
       },
       {
-        title: 'Tabela de Produtos',
+        title: 'Gestão de Estoque',
+        href: '/dashboard/inventory',
+        icon: ClipboardList,
+      },
+      {
+        title: 'Tabela de Produtos', // Bulk Edit
         href: '/dashboard/products/bulk-edit',
         icon: Edit,
       },
@@ -78,9 +86,24 @@ const MENU_ITEMS: MenuItem[] = [
     href: '#tools',
     children: [
       {
+        title: 'Sincronizador PROCV',
+        href: '/dashboard/products/sync',
+        icon: Zap,
+      },
+      {
+        title: 'Saúde dos Dados', // Logs de Sincronização
+        href: '/dashboard/products/sync/history',
+        icon: History,
+      },
+      {
         title: 'Importar Excel',
         href: '/dashboard/products/import-massa',
         icon: RefreshCcw,
+      },
+      {
+        title: 'Histórico de Importação',
+        href: '/dashboard/products/import-history',
+        icon: FileText,
       },
       {
         title: 'Importar Fotos',
@@ -112,8 +135,12 @@ const MENU_ITEMS: MenuItem[] = [
 export function Sidebar({
   settings: initialSettings,
   isMobile = false,
-}: { settings?: Settings | null; isMobile?: boolean } = {}) {
-  // Helpers: get luminance and detect if a hex color is light
+  onNavigate,
+}: {
+  settings?: Settings | null;
+  isMobile?: boolean;
+  onNavigate?: () => void;
+} = {}) {
   const getLuminance = (hex?: string) => {
     if (!hex) return 0;
     const h = hex.replace('#', '').trim();
@@ -131,12 +158,9 @@ export function Sidebar({
       v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
     return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
   };
+
   const isLightHex = (hex?: string) => getLuminance(hex) > 0.7;
   const pathname = usePathname();
-  // Se o pathname ainda não estiver definido no primeiro render (hydration),
-  // assume que estamos em rota de dashboard temporariamente para evitar
-  // que a sidebar desapareça durante o mount. Quando o pathname for conhecido,
-  // o botão abaixo controlará se deve ou não renderizar a sidebar.
   const isDashboardRoute =
     pathname == null ? true : pathname.startsWith('/dashboard');
   const supabase = createClient();
@@ -165,7 +189,6 @@ export function Sidebar({
     if (initialSettings) setBranding(initialSettings);
   }, [initialSettings]);
 
-  // Se não vier via props, busca no client (fallback)
   useEffect(() => {
     if (mounted && !initialSettings) {
       const loadData = async () => {
@@ -204,14 +227,11 @@ export function Sidebar({
     return pathname?.startsWith(item.href);
   };
 
-  // Estado para sincronizar com as variáveis CSS do ThemeRegistry
   const [cssPrimary, setCssPrimary] = useState<string>('#b9722e');
   const [cssSecondary, setCssSecondary] = useState<string>('#0d1b2c');
 
-  // Observa mudanças nas variáveis CSS do ThemeRegistry
   useEffect(() => {
     if (!mounted) return;
-
     const updateColors = () => {
       const root = document.documentElement;
       const primaryFromCSS =
@@ -225,101 +245,87 @@ export function Sidebar({
       setCssPrimary(primaryFromCSS);
       setCssSecondary(secondaryFromCSS);
     };
-
-    // Atualiza imediatamente
     updateColors();
-
-    // Observa mudanças na variável CSS
     const observer = new MutationObserver(updateColors);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['style'],
     });
-
     return () => observer.disconnect();
   }, [mounted]);
 
-  // Usa a cor do branding se disponível, senão usa a cor do CSS (ThemeRegistry)
   const primary = branding?.primary_color || cssPrimary;
   const primaryForeground = isLightHex(primary) ? '#0f172a' : '#ffffff';
   const secondaryRaw = branding?.secondary_color || cssSecondary;
-  // If secondary is almost white, use a slightly darker fallback so it's visible
   const secondary =
     getLuminance(secondaryRaw) > 0.96 ? '#f3f4f6' : secondaryRaw;
 
+  const rootVars: React.CSSProperties & Record<string, string> = {
+    '--primary': primary,
+    '--primary-foreground': primaryForeground,
+    '--secondary': secondary,
+  } as React.CSSProperties & Record<string, string>;
+
   if (!mounted) {
-    // Render a placeholder para evitar que a dashboard abra sem a área da sidebar
     return (
       <aside
         className={`relative flex flex-col border-r h-full bg-[#f8fafc] dark:bg-slate-950 ${isCollapsed ? 'w-20' : 'w-72'}`}
         aria-hidden
       >
         <div className="h-16 border-b border-gray-200 dark:border-slate-800" />
-        <div className="h-12 border-b border-gray-100 dark:border-slate-800/50" />
         <div className="flex-1 p-4" />
       </aside>
     );
   }
 
-  // Only render the full sidebar inside dashboard routes; if pathname is known
-  // e não começa com /dashboard, não renderiza.
   if (!isDashboardRoute) return null;
 
   return (
     <aside
-      style={{
-        ['--primary' as any]: primary,
-        ['--primary-foreground' as any]: primaryForeground,
-        ['--secondary' as any]: secondary,
-      }}
+      style={rootVars}
       className={`${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative flex flex-col border-r dark:border-slate-800 h-full z-30'} bg-[#f8fafc] dark:bg-slate-950 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'}`}
       role="navigation"
     >
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="hidden md:flex absolute -right-3 top-4 md:top-6 flex h-7 w-7 items-center justify-center rounded-full border bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 shadow-md text-gray-500 dark:text-slate-400 hover:text-[var(--primary)] dark:hover:text-[var(--primary)] transition-colors z-50 hover:bg-gray-50 dark:hover:bg-slate-800"
-        aria-label={isCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
+        className="hidden md:flex absolute -right-3 top-4 md:top-6 h-7 w-7 items-center justify-center rounded-full border bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 shadow-md text-gray-500 hover:text-[var(--primary)] transition-colors z-50 hover:bg-gray-50"
       >
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      {/* Header */}
+      {/* Header Identificador */}
       <div className="flex h-16 items-center justify-center border-b px-4 border-gray-200 dark:border-slate-800">
         {isCollapsed ? (
-          <span className="font-bold text-xl text-[var(--primary)] dark:text-[var(--primary)]">
-            RV
-          </span>
+          <span className="font-bold text-xl text-[var(--primary)]">RV</span>
         ) : (
           <div className="flex flex-col items-center">
             <span className="font-bold text-lg tracking-wide text-slate-800 dark:text-white">
-              Menu
+              Painel Gestão
             </span>
-            <span className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500">
-              ...
+            <span className="text-[9px] uppercase tracking-widest text-slate-400 font-semibold">
+              RepVendas v0.1
             </span>
           </div>
         )}
       </div>
+
+      {/* Logo Component */}
       <div
         className={`flex h-16 md:h-20 items-center border-b border-gray-100 dark:border-slate-800/50 px-4 md:px-6 transition-all ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
       >
-        {Logo ? (
+        {Logo && (
           <div className="w-full flex items-center justify-center overflow-hidden">
             <Logo
               settings={branding}
               showText={!isCollapsed}
               useSystemLogo={!branding?.logo_url}
-              className={isCollapsed ? 'h-8 w-auto' : 'h-8 w-auto'}
+              className="h-8 w-auto"
             />
           </div>
-        ) : (
-          <span className="font-bold text-xl truncate text-[var(--primary)] dark:text-white">
-            {isCollapsed ? 'RV' : 'Rep Vendas'}
-          </span>
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-800">
+      <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
         {MENU_ITEMS.map((item) => {
           const active = isItemActive(item);
           const label = item.label || item.title || '';
@@ -328,29 +334,23 @@ export function Sidebar({
           const isLink = item.href && !item.href.startsWith('#');
           const Icon = item.icon || Circle;
 
-          // BRANDING DINÂMICO AQUI:
-          const baseItemClass = `group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-medium transition-colors duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] border-l-4 border-transparent`;
-          const activeClass = `bg-[var(--primary)] bg-opacity-10 shadow-sm border-[var(--primary)] transition-colors duration-200 ease-in-out`;
-          const inactiveClass = `text-gray-600 hover:bg-[var(--primary)] hover:bg-opacity-10 dark:text-slate-400 dark:hover:bg-[var(--primary)] dark:hover:bg-opacity-10`;
-
-          const labelClass = active
-            ? 'truncate text-[var(--primary-foreground)] font-medium'
-            : 'truncate text-gray-700 dark:text-slate-400 group-hover:text-[var(--primary-foreground)] dark:group-hover:text-[var(--primary-foreground)]';
+          const baseItemClass = `group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold transition-all duration-200 border-l-4 border-transparent`;
+          const activeClass = `bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)] shadow-sm`;
+          const inactiveClass = `text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/50 hover:text-slate-900`;
 
           const content = (
             <div className="w-full flex items-center justify-between">
-              <div className="flex items-center gap-3.5 min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
                 <Icon
-                  size={20}
-                  className={`flex-shrink-0 transition-colors text-gray-500 dark:text-slate-500 ${active ? 'text-[var(--primary-foreground)]' : 'group-hover:text-[var(--primary-foreground)] dark:group-hover:text-[var(--primary-foreground)]'}`}
-                  aria-hidden
+                  size={18}
+                  className={`flex-shrink-0 transition-colors ${active ? 'text-[var(--primary)]' : 'text-slate-400 group-hover:text-slate-600'}`}
                 />
-                {!isCollapsed && <span className={labelClass}>{label}</span>}
+                {!isCollapsed && <span className="truncate">{label}</span>}
               </div>
               {hasChildren && !isCollapsed && (
                 <ChevronDown
-                  size={16}
-                  className={`flex-shrink-0 text-gray-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+                  size={14}
+                  className={`flex-shrink-0 text-slate-300 transition-transform duration-300 ${expanded ? 'rotate-180' : ' '}`}
                 />
               )}
             </div>
@@ -365,10 +365,11 @@ export function Sidebar({
                     if (hasChildren) {
                       e.preventDefault();
                       toggleSubmenu(label);
+                      return;
                     }
+                    if (onNavigate) onNavigate();
                   }}
                   className={`${baseItemClass} ${active ? activeClass : inactiveClass}`}
-                  title={isCollapsed ? label : ''}
                 >
                   {content}
                 </Link>
@@ -376,35 +377,32 @@ export function Sidebar({
                 <button
                   onClick={() => toggleSubmenu(label)}
                   className={`w-full ${baseItemClass} ${active ? activeClass : inactiveClass}`}
-                  title={isCollapsed ? label : ''}
                 >
                   {content}
                 </button>
               )}
 
               {hasChildren && expanded && !isCollapsed && (
-                <div className="mt-1 ml-4 space-y-0.5 border-l-2 border-gray-100 dark:border-slate-800 pl-3 animate-in slide-in-from-left-2 duration-200">
+                <div className="mt-1 ml-4 space-y-0.5 border-l-2 border-slate-100 dark:border-slate-800 pl-3 animate-in slide-in-from-left-2">
                   {item.children!.map((child) => {
-                    const childActive = child.exact
-                      ? pathname === child.href
-                      : pathname?.startsWith(child.href);
+                    const childActive = pathname?.startsWith(child.href);
                     const ChildIcon = child.icon || Circle;
                     return (
                       <Link
                         key={child.href}
                         href={child.href}
-                        className={`group/sub flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-200 ease-in-out border-l-4 ${childActive ? 'bg-[var(--primary)] bg-opacity-10 font-medium border-[var(--primary)]' : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-[var(--primary)] hover:bg-opacity-10 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-[var(--primary)] dark:hover:bg-opacity-10'}`}
+                        onClick={() => onNavigate && onNavigate()}
+                        className={`group/sub flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-wider transition-all ${childActive ? 'text-[var(--primary)] bg-[var(--primary)]/5' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
                       >
                         <ChildIcon
-                          size={16}
-                          className={`flex-shrink-0 transition-colors text-gray-400 dark:text-slate-600 ${childActive ? 'text-[var(--primary-foreground)]' : 'group-hover/sub:text-[var(--primary-foreground)] dark:group-hover/sub:text-[var(--primary-foreground)]'}`}
-                          aria-hidden
+                          size={14}
+                          className={
+                            childActive
+                              ? 'text-[var(--primary)]'
+                              : 'text-slate-300'
+                          }
                         />
-                        <span
-                          className={`truncate ${childActive ? 'text-[var(--primary-foreground)] font-medium' : 'text-gray-500 dark:text-slate-500 group-hover/sub:text-[var(--primary-foreground)] dark:group-hover/sub:text-[var(--primary-foreground)]'}`}
-                        >
-                          {child.title}
-                        </span>
+                        <span className="truncate">{child.title}</span>
                       </Link>
                     );
                   })}
@@ -414,26 +412,26 @@ export function Sidebar({
           );
         })}
       </nav>
-      {/* Footer: Toggle Theme & Logout */}
+
+      {/* Footer Branding */}
       <div className="border-t p-4 border-gray-200 dark:border-slate-800">
         <div
-          className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ' '}`}
         >
           <img
             src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
             alt="RepVendas"
-            className="h-8 w-auto object-contain"
+            className="h-6 w-auto max-w-[120px] object-contain"
+            style={{ height: 'auto' }}
             onError={(e) => {
               const img = e.currentTarget as HTMLImageElement;
-              img.src = '/images/logo.png';
+              img.src = '/images/default-logo.png';
             }}
           />
           {!isCollapsed && (
-            <div className="flex flex-col text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-slate-700 dark:text-slate-200">
-                RepVendas
-              </span>
-              <span>v{process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'}</span>
+            <div className="flex flex-col text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+              <span>Plataforma</span>
+              <span className="text-[var(--primary)]">RepVendas 2025</span>
             </div>
           )}
         </div>

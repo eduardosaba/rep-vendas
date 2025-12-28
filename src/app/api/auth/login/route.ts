@@ -3,24 +3,36 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: Request) {
   try {
-    const formData = await req.formData();
-    const email = String(formData.get('email') || '');
-    const password = String(formData.get('password') || '');
+    // 1. Tenta ler o corpo como JSON
+    const body = await req.json();
+    const { email, password } = body;
 
-    const supabase = createClient();
+    // Log para você ver no terminal se os dados chegaram
+    console.log('Tentativa de login para:', email);
 
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'Por favor, preencha e-mail e senha.' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await createClient();
+
+    // 2. Autenticação
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error || !data?.user) {
+    if (error) {
       return NextResponse.json(
-        { error: error?.message || 'Credenciais inválidas' },
-        { status: 400 }
+        { error: 'E-mail ou senha incorretos' },
+        { status: 401 }
       );
     }
 
+    // 3. Redirecionamento baseado no perfil
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -30,7 +42,11 @@ export async function POST(req: Request) {
     const redirectTo = profile?.role === 'master' ? '/admin' : '/dashboard';
 
     return NextResponse.json({ success: true, redirectTo });
-  } catch (err) {
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+  } catch (err: any) {
+    console.error('ERRO INTERNO NO LOGIN:', err.message);
+    return NextResponse.json(
+      { error: 'Erro ao processar login' },
+      { status: 500 }
+    );
   }
 }

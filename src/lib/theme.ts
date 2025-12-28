@@ -18,34 +18,34 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
 
   const root = document.documentElement;
 
-  // --- COR PRIMÁRIA ---
+  // Build all variable assignments first, then apply in one atomic cssText write
   const primaryColor = colors.primary || DEFAULT_PRIMARY_COLOR;
-  root.style.setProperty('--primary', primaryColor);
-
-  // Gera a variável RGB para permitir opacidade: rgba(var(--primary-rgb), 0.5)
   const primaryRgb = hexToRgb(primaryColor);
-  root.style.setProperty('--primary-rgb', primaryRgb);
-
   const primaryContrast = getContrastColor(primaryColor);
-  root.style.setProperty('--primary-foreground', primaryContrast);
 
-  // --- COR SECUNDÁRIA ---
   const secondaryColor = colors.secondary || DEFAULT_SECONDARY_COLOR;
-  root.style.setProperty('--secondary', secondaryColor);
-
-  // Também geramos para a secundária para manter a consistência
   const secondaryRgb = hexToRgb(secondaryColor);
-  root.style.setProperty('--secondary-rgb', secondaryRgb);
-
   const secondaryContrast = getContrastColor(secondaryColor);
-  root.style.setProperty('--secondary-foreground', secondaryContrast);
 
-  // --- HEADER ---
+  const vars: string[] = [];
+  vars.push(`--primary: ${primaryColor}`);
+  vars.push(`--primary-rgb: ${primaryRgb}`);
+  vars.push(`--primary-foreground: ${primaryContrast}`);
+
+  vars.push(`--secondary: ${secondaryColor}`);
+  vars.push(`--secondary-rgb: ${secondaryRgb}`);
+  vars.push(`--secondary-foreground: ${secondaryContrast}`);
+
   if (colors.headerBg) {
-    root.style.setProperty('--header-bg', colors.headerBg);
     const headerRgb = hexToRgb(colors.headerBg);
-    root.style.setProperty('--header-bg-rgb', headerRgb);
+    vars.push(`--header-bg: ${colors.headerBg}`);
+    vars.push(`--header-bg-rgb: ${headerRgb}`);
   }
+
+  // Apply all variables in a single assignment to reduce layout jumps
+  const existing = root.style.cssText || '';
+  const appended = vars.join('; ');
+  root.style.cssText = `${existing}; ${appended}`;
 }
 
 /**

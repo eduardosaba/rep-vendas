@@ -1,13 +1,23 @@
 import React from 'react';
-import { Store, Phone, MessageSquare, Lock } from 'lucide-react';
+import { Store, Phone, MessageSquare, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface TabGeneralProps {
   formData: any;
-  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  handleChange: (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => void;
   handleSlugChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  showPassword?: boolean;
+  onToggleShowPassword?: () => void;
 }
 
-export function TabGeneral({ formData, handleChange, handleSlugChange }: TabGeneralProps) {
+export function TabGeneral({
+  formData,
+  handleChange,
+  handleSlugChange,
+  showPassword = false,
+  onToggleShowPassword,
+}: TabGeneralProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
       <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm md:col-span-2 space-y-6">
@@ -80,16 +90,32 @@ export function TabGeneral({ formData, handleChange, handleSlugChange }: TabGene
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
             Senha de Preços (Opcional)
           </label>
-          <input
-            name="price_password"
-            value={formData.price_password}
-            onChange={handleChange}
-            className="w-full p-2.5 border rounded-lg font-mono bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-            placeholder="Ex: 123456"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Se definido, o cliente precisará da senha para ver os preços (Modo Custo).
-          </p>
+          <div className="flex items-center gap-2">
+            <input
+              name="price_password"
+              type={showPassword ? 'text' : 'password'}
+              value={formData.price_password}
+              onChange={handleChange}
+              className="flex-1 p-2.5 border rounded-lg font-mono bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
+              placeholder="Ex: 123456"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onToggleShowPassword}
+                className="p-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-md"
+                aria-label="Mostrar senha"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          <div className="mt-2">
+            <p className="text-xs text-gray-500">
+              Se definido, o cliente precisará da senha para ver os preços (Modo
+              Custo).
+            </p>
+          </div>
         </div>
       </div>
 

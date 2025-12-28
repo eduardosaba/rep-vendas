@@ -134,7 +134,6 @@ export default function UpdatePricesPage() {
   const autoMapColumns = (cols: string[]) => {
     const map: typeof mapping = {};
 
-    // Tenta achar colunas comuns
     map.ref = cols.find((c) => /ref|sku|codigo|code/i.test(normalizeKey(c)));
     map.price = cols.find((c) =>
       /preco|price|valor|custo|novo/i.test(normalizeKey(c))
@@ -154,7 +153,7 @@ export default function UpdatePricesPage() {
     }
   };
 
-  // --- 2. Processamento e Atualização ---
+  // --- 2. Processamento e Atualização com Auditoria ---
   const handleUpdate = async () => {
     if (!mapping.ref || !mapping.price) {
       toast.error('Mapeie as colunas de Referência e Preço.');
@@ -173,8 +172,8 @@ export default function UpdatePricesPage() {
       let updatedCount = 0;
       let notFoundCount = 0;
       let errorCount = 0;
+      const mismatches: any[] = []; // Lista para auditoria
 
-      // Processamento em lotes (Batch) com delay para não sobrecarregar
       const BATCH_SIZE = 20;
 
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
@@ -183,7 +182,7 @@ export default function UpdatePricesPage() {
         await Promise.all(
           batch.map(async (row) => {
             const refValue = getField(row, mapping.ref);
-            if (!refValue) return; // Pula linha vazia
+            if (!refValue) return;
 
             const priceRaw = mapping.price
               ? getField(row, mapping.price)
@@ -197,13 +196,10 @@ export default function UpdatePricesPage() {
                 return undefined;
               if (typeof raw === 'number') return raw;
               if (typeof raw === 'string') {
-                // Tenta lidar com formatos R$ 1.200,00 ou 1200.00
                 const clean = raw.replace(/[^\d,.-]/g, '');
                 if (clean.includes(',') && !clean.includes('.')) {
-                  // Formato BR (1,50)
                   return parseFloat(clean.replace(',', '.'));
                 } else if (clean.includes('.') && clean.includes(',')) {
-                  // Formato misto (1.200,50) -> remove ponto, troca vírgula
                   return parseFloat(clean.replace(/\./g, '').replace(',', '.'));
                 }
                 return parseFloat(clean);
@@ -214,10 +210,7 @@ export default function UpdatePricesPage() {
             const newPrice = parseRawToNumber(priceRaw);
             const newSalePrice = parseRawToNumber(saleRaw);
 
-            if (newPrice === undefined && newSalePrice === undefined) {
-              // addLog(`Ignorado: Ref ${refValue} (sem preço)`, 'warn');
-              return;
-            }
+            if (newPrice === undefined && newSalePrice === undefined) return;
 
             if (
               (newPrice !== undefined && isNaN(newPrice)) ||
@@ -235,13 +228,12 @@ export default function UpdatePricesPage() {
             if (newSalePrice !== undefined)
               updatePayload.sale_price = newSalePrice;
 
-            // Executa Update
             const { error, data } = await supabase
               .from('products')
               .update(updatePayload)
               .eq('user_id', user.id)
               .eq('reference_code', String(refValue))
-              .select('id'); // Select para confirmar que existia
+              .select('id');
 
             if (error) {
               addLog(
@@ -252,17 +244,26 @@ export default function UpdatePricesPage() {
             } else if (!data || data.length === 0) {
               addLog(`Produto não encontrado: ${refValue}`, 'warn');
               notFoundCount++;
+              mismatches.push({ key: String(refValue) }); // Adiciona à lista de falhas
             } else {
               updatedCount++;
-              // Log opcional para sucesso (comentado para não poluir em grandes arquivos)
-              // addLog(`OK: ${refValue}`, 'success');
             }
           })
         );
 
-        // Pequeno delay para aliviar o banco
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
+
+      // --- GRAVAÇÃO DA AUDITORIA (SYNC_LOGS) ---
+      await supabase.from('sync_logs').insert({
+        user_id: user.id,
+        filename: fileName || 'Atualização de Preços',
+        target_column: 'update_prices', // Identificador da ferramenta
+        total_processed: rows.length,
+        updated_count: updatedCount,
+        mismatch_count: notFoundCount,
+        mismatch_list: mismatches,
+      });
 
       setStats({
         total: rows.length,
@@ -271,9 +272,9 @@ export default function UpdatePricesPage() {
         errors: errorCount,
       });
 
-      addLog('--- PROCESSO FINALIZADO ---');
+      addLog('--- PROCESSO FINALIZADO E REGISTRADO ---', 'success');
       setStep(3);
-      toast.success('Atualização concluída com sucesso!');
+      toast.success('Atualização concluída e auditada!');
     } catch (err: any) {
       console.error(err);
       toast.error('Erro durante o processamento.');
@@ -302,11 +303,9 @@ export default function UpdatePricesPage() {
             <DollarSign size={24} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Atualização de Preços
-              </h1>
-            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Atualização de Preços
+            </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Atualize valores em massa via planilha Excel.
             </p>
@@ -346,7 +345,6 @@ export default function UpdatePricesPage() {
                 <Upload size={18} />
                 Escolher Arquivo (.xlsx)
               </button>
-
               <input
                 ref={fileInputRef}
                 type="file"
@@ -354,10 +352,9 @@ export default function UpdatePricesPage() {
                 className="hidden"
                 onChange={handleFileChange}
               />
-
               <button
                 onClick={downloadTemplate}
-                className="text-sm text-[var(--primary)] dark:text-[var(--primary)] hover:underline mt-2 font-medium flex items-center gap-1"
+                className="text-sm text-[var(--primary)] hover:underline mt-2 font-medium flex items-center gap-1"
               >
                 <Download size={14} /> Baixar modelo de exemplo
               </button>
@@ -375,13 +372,12 @@ export default function UpdatePricesPage() {
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Coluna Referência */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase">
-                  Referência (Obrigatório) *
+                  Referência *
                 </label>
                 <select
-                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white transition-all cursor-pointer"
+                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 outline-none dark:text-white"
                   value={mapping.ref || ''}
                   onChange={(e) =>
                     setMapping({ ...mapping, ref: e.target.value })
@@ -396,13 +392,12 @@ export default function UpdatePricesPage() {
                 </select>
               </div>
 
-              {/* Coluna Preço */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase">
-                  Novo Preço (Obrigatório) *
+                  Novo Preço *
                 </label>
                 <select
-                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white transition-all cursor-pointer"
+                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 outline-none dark:text-white"
                   value={mapping.price || ''}
                   onChange={(e) =>
                     setMapping({ ...mapping, price: e.target.value })
@@ -417,13 +412,12 @@ export default function UpdatePricesPage() {
                 </select>
               </div>
 
-              {/* Coluna Preço Sugerido */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase">
-                  Preço Promocional (Opcional)
+                  Preço Promocional
                 </label>
                 <select
-                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white transition-all cursor-pointer"
+                  className="w-full border-gray-300 dark:border-slate-700 rounded-lg text-sm p-2.5 border bg-gray-50 dark:bg-slate-800 outline-none dark:text-white"
                   value={mapping.sale_price || ''}
                   onChange={(e) =>
                     setMapping({ ...mapping, sale_price: e.target.value })
@@ -442,14 +436,14 @@ export default function UpdatePricesPage() {
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-slate-800">
               <button
                 onClick={() => setStep(1)}
-                className="px-5 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-300 font-medium transition-colors"
+                className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 dark:text-gray-300 font-medium transition-colors"
               >
                 Voltar
               </button>
               <button
                 onClick={handleUpdate}
                 disabled={loading}
-                className="px-8 py-2.5 bg-[var(--primary)] text-white hover:opacity-90 rounded-lg font-bold shadow-md active:scale-95 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                className="px-8 py-2.5 bg-[var(--primary)] text-white hover:opacity-90 rounded-lg font-bold shadow-md active:scale-95 flex items-center gap-2 disabled:opacity-70"
               >
                 {loading ? (
                   <Loader2 className="animate-spin" size={18} />
@@ -461,7 +455,6 @@ export default function UpdatePricesPage() {
             </div>
           </div>
 
-          {/* Console de Logs */}
           <div className="bg-gray-900 text-green-400 p-4 rounded-xl text-xs font-mono shadow-inner border border-gray-800 flex-1 overflow-y-auto">
             <div className="mb-3 text-gray-500 border-b border-gray-700 pb-2 font-bold flex items-center gap-2 sticky top-0 bg-gray-900">
               <Terminal size={14} /> LOG DE EXECUÇÃO
@@ -500,57 +493,46 @@ export default function UpdatePricesPage() {
               Processo Finalizado!
             </h2>
             <p className="text-gray-500 dark:text-gray-400 mb-8">
-              O processamento do arquivo foi concluído. Veja o resumo abaixo:
+              O histórico foi registrado na aba Saúde dos Dados.
             </p>
 
             <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20">
-                <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+              <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20 text-center">
+                <p className="text-3xl font-bold text-green-600">
                   {stats.updated}
                 </p>
-                <p className="text-xs uppercase font-bold text-green-800 dark:text-green-300 mt-1">
+                <p className="text-[10px] uppercase font-black text-green-800 mt-1">
                   Atualizados
                 </p>
               </div>
-              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/10 rounded-xl border border-yellow-100 dark:border-yellow-900/20">
-                <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/10 rounded-xl border border-yellow-100 dark:border-yellow-900/20 text-center">
+                <p className="text-3xl font-bold text-yellow-600">
                   {stats.notFound}
                 </p>
-                <p className="text-xs uppercase font-bold text-yellow-800 dark:text-yellow-300 mt-1">
-                  Não Achados
+                <p className="text-[10px] uppercase font-black text-yellow-800 mt-1">
+                  Ignorados
                 </p>
               </div>
-              <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20">
-                <p className="text-3xl font-bold text-red-600 dark:text-red-400">
+              <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20 text-center">
+                <p className="text-3xl font-bold text-red-600">
                   {stats.errors}
                 </p>
-                <p className="text-xs uppercase font-bold text-red-800 dark:text-red-300 mt-1">
+                <p className="text-[10px] uppercase font-black text-red-800 mt-1">
                   Erros
                 </p>
               </div>
             </div>
 
-            {stats.notFound > 0 && (
-              <div className="text-sm text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg mb-8 text-left flex gap-3 border border-yellow-100 dark:border-yellow-900/30">
-                <AlertTriangle className="flex-shrink-0" size={20} />
-                <p>
-                  Alguns produtos da planilha não foram encontrados no sistema.
-                  Verifique se o <b>Código de Referência</b> está digitado
-                  exatamente igual.
-                </p>
-              </div>
-            )}
-
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => window.location.reload()}
-                className="px-6 py-2.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-colors font-medium"
+                className="px-6 py-2.5 text-sm text-gray-700 bg-gray-100 rounded-lg font-medium transition-colors"
               >
                 Nova Atualização
               </button>
               <Link
                 href="/dashboard/products"
-                className="px-6 py-2.5 text-sm text-white bg-[var(--primary)] hover:opacity-90 rounded-lg transition-all font-bold shadow-md"
+                className="px-6 py-2.5 text-sm text-white bg-[var(--primary)] rounded-lg font-bold shadow-md"
               >
                 Voltar ao Catálogo
               </Link>

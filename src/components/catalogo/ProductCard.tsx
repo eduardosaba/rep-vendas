@@ -45,6 +45,10 @@ export function ProductCard({
   const [imageFailed, setImageFailed] = useState(false);
   const { cart, updateQuantity } = useStore();
 
+  const isStockManaged = Boolean(storeSettings.enable_stock_management);
+  const stockQty = (product.stock_quantity ?? 0) as number;
+  const isOutOfStock = isStockManaged && stockQty <= 0;
+
   // --- LÓGICA DE IMAGEM ---
   const displayImage = product.image_path
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`
@@ -77,7 +81,7 @@ export function ProductCard({
   return (
     <div
       onClick={() => onViewDetails(product)}
-      className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/10"
+      className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/10 ${isOutOfStock ? 'opacity-60 grayscale' : ''}`}
     >
       {/* --- SEÇÃO DA IMAGEM --- */}
       <div className="relative aspect-[4/5] overflow-hidden border-b border-gray-50 bg-white p-4">
@@ -106,17 +110,22 @@ export function ProductCard({
         <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
           {product.is_launch && (
             <span className="flex items-center gap-1 rounded-md bg-purple-600 px-2 py-1 text-[10px] font-black text-white shadow-sm">
-              <Zap size={10} fill="currentColor" /> NOVO
+              <Zap size={10} fill="currentColor" /> Lançamento
             </span>
           )}
           {product.is_best_seller && (
             <span className="flex items-center gap-1 rounded-md bg-yellow-400 px-2 py-1 text-[10px] font-black text-yellow-900 shadow-sm">
-              <Star size={10} fill="currentColor" /> MAIS VENDIDO
+              <Star size={10} fill="currentColor" /> Best Seller
             </span>
           )}
           {discountPercent > 0 && showSale && (
             <span className="rounded-md bg-red-600 px-2 py-1 text-[10px] font-black text-white shadow-md">
               -{discountPercent}% OFF
+            </span>
+          )}
+          {isOutOfStock && (
+            <span className="ml-auto rounded-md bg-red-600 px-2 py-1 text-[10px] font-black text-white shadow-md">
+              ESGOTADO
             </span>
           )}
         </div>
@@ -140,12 +149,14 @@ export function ProductCard({
           <Button
             onClick={(e) => {
               e.stopPropagation();
+              if (isOutOfStock) return;
               onAddToCart(product);
             }}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            disabled={isOutOfStock}
+            className={`w-full ${isOutOfStock ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
             leftIcon={<ShoppingCart size={16} />}
           >
-            Adicionar
+            {isOutOfStock ? 'Indisponível' : 'Adicionar'}
           </Button>
         </div>
       </div>
@@ -230,14 +241,14 @@ export function ProductCard({
                       getInstallmentText(
                         currentPrice,
                         storeSettings.max_installments || 1,
-                        true
+                        showSale
                       )}
                     {storeSettings.show_cash_discount &&
                       currentPrice > 0 &&
                       getCashDiscountText(
                         currentPrice,
                         storeSettings.cash_price_discount_percent || 0,
-                        true
+                        showSale
                       )}
                   </div>
                 </div>
@@ -268,7 +279,7 @@ export function ProductCard({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onAddToCart(product, 1);
+                      if (!isOutOfStock) onAddToCart(product, 1);
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm"
                   >
@@ -279,9 +290,10 @@ export function ProductCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onAddToCart(product, 1);
+                    if (!isOutOfStock) onAddToCart(product, 1);
                   }}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-90 md:hidden"
+                  disabled={isOutOfStock}
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isOutOfStock ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'} transition-all active:scale-90 md:hidden`}
                 >
                   <ShoppingCart size={22} />
                 </button>

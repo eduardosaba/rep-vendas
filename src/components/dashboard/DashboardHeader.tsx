@@ -135,7 +135,7 @@ export default function DashboardHeader({
         >
           <Menu size={20} />
         </button>
-        <h1 className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block">
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white hidden sm:block">
           {getPageTitle(pathname || '')}
         </h1>
       </div>
@@ -165,8 +165,8 @@ export default function DashboardHeader({
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="flex items-center gap-3 cursor-pointer group focus:outline-none"
           >
-            <div className="flex flex-col items-end hidden sm:flex">
-              <span className="text-sm font-semibold text-gray-700 dark:text-white">
+            <div className="hidden sm:flex flex-col items-end">
+              <span className="text-sm font-medium text-gray-700 dark:text-white">
                 Minha Conta
               </span>
               <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate max-w-[100px]">
@@ -181,7 +181,7 @@ export default function DashboardHeader({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span className="font-bold text-xs">
+                <span className="font-semibold text-xs">
                   {getInitials(userEmail)}
                 </span>
               )}

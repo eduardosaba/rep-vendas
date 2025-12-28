@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -16,8 +17,15 @@ import {
   Moon,
   LogOut,
   Settings,
-  X,
 } from 'lucide-react';
+
+type Notification = {
+  id: string;
+  title: string;
+  description?: string;
+  created_at: string;
+  read_at: string | null;
+};
 
 export default function AdminHeader() {
   const router = useRouter();
@@ -27,7 +35,7 @@ export default function AdminHeader() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [platform, setPlatform] = useState({ logo_url: null as string | null });
-  const [notifications, setNotifications] = useState<any[]>([]); // Dados Reais
+  const [notifications, setNotifications] = useState<Notification[]>([]); // Dados Reais
 
   // UI
   const [mounted, setMounted] = useState(false);
@@ -38,6 +46,42 @@ export default function AdminHeader() {
   const notifRef = useRef<HTMLDivElement>(null);
 
   const supabase = createClient();
+
+  type PresenceRow = {
+    user_id: string;
+    is_online: boolean;
+    last_seen?: string;
+    users?: { email?: string };
+  };
+
+  // 2. Função para buscar notificações do banco
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('user_status')
+        .select('user_id, is_online, last_seen, users(email)')
+        .order('last_seen', { ascending: false })
+        .limit(10);
+
+      if (data) {
+        const mapped = (data as PresenceRow[]).map((row) => {
+          const email = row.users?.email;
+          return {
+            id: `${row.user_id}-${row.last_seen}`,
+            title: row.is_online
+              ? `Usuário online: ${email || row.user_id}`
+              : `Usuário offline: ${email || row.user_id}`,
+            description: '',
+            created_at: row.last_seen || new Date().toISOString(),
+            read_at: null,
+          } as Notification;
+        });
+        setNotifications(mapped);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar presença para notificações', err);
+    }
+  }, [supabase]);
 
   // 1. Carregar Dados Iniciais
   useEffect(() => {
@@ -62,39 +106,99 @@ export default function AdminHeader() {
       if (settings) setPlatform({ logo_url: settings.logo_url });
     };
     getData();
-  }, []);
+  }, [fetchNotifications, supabase]);
 
-  // 2. Função para buscar notificações do banco
-  const fetchNotifications = async () => {
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(10); // Pega as 10 últimas
-
-    if (data) setNotifications(data);
-  };
+  // (fetchNotifications moved earlier)
 
   // 3. Listener Realtime (Opcional - Atualiza quando chega notificação nova)
   useEffect(() => {
-    const channel = supabase
-      .channel('admin-notif')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        (payload) => {
-          setNotifications((prev) => [payload.new, ...prev]);
+    // Realtime: Inscrições de novos usuários e mudanças de presença em `user_status`
+    const channel: RealtimeChannel = supabase.channel(
+      'admin-presence'
+    ) as RealtimeChannel;
+
+    // (Removido listener direto em `users`) — usamos `user_status` como fonte de presença/notificações
+
+    // Inserção em user_status (novo registro de presença)
+    (channel as any).on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'user_status' },
+      async (payload: { new?: PresenceRow }) => {
+        const s = payload.new;
+        if (!s) return;
+        try {
+          const { data: user } = await supabase
+            .from('users')
+            .select('email')
+            .eq('id', s.user_id)
+            .maybeSingle();
+          const email = user?.email;
+          if (s.is_online) {
+            const notif = {
+              id: `${s.user_id}-online-${Date.now()}`,
+              title: email ? `Usuário online: ${email}` : 'Usuário online',
+              description: '',
+              created_at: new Date().toISOString(),
+              read_at: null,
+            };
+            setNotifications((prev) => [notif, ...prev].slice(0, 10));
+          }
+        } catch (err) {
+          console.error('Erro ao buscar usuário para presence INSERT', err);
         }
-      )
-      .subscribe();
+      }
+    );
+
+    // Atualizações em user_status (mudança de online/offline)
+    (channel as any).on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'user_status' },
+      async (payload: { new?: PresenceRow; old?: PresenceRow }) => {
+        const n = payload.new;
+        const o = payload.old;
+        if (!n) return;
+        try {
+          const { data: user } = await supabase
+            .from('users')
+            .select('email')
+            .eq('id', n.user_id)
+            .maybeSingle();
+          const email = user?.email;
+          if (n.is_online && !o?.is_online) {
+            const notif = {
+              id: `${n.user_id}-online-${Date.now()}`,
+              title: email ? `Usuário online: ${email}` : 'Usuário online',
+              description: '',
+              created_at: new Date().toISOString(),
+              read_at: null,
+            };
+            setNotifications((prev) => [notif, ...prev].slice(0, 10));
+          } else if (!n.is_online && o?.is_online) {
+            const notif = {
+              id: `${n.user_id}-offline-${Date.now()}`,
+              title: email ? `Usuário offline: ${email}` : 'Usuário offline',
+              description: '',
+              created_at: new Date().toISOString(),
+              read_at: null,
+            };
+            setNotifications((prev) => [notif, ...prev].slice(0, 10));
+          }
+        } catch (err) {
+          console.error('Erro ao buscar usuário para presence UPDATE', err);
+        }
+      }
+    );
+
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [supabase]);
 
   // 4. Fechar ao clicar fora
   useEffect(() => {
+    console.debug('[AdminHeader] theme', theme);
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node))
         setIsMenuOpen(false);
@@ -118,10 +222,7 @@ export default function AdminHeader() {
     return <div className="h-16 border-b bg-white dark:bg-slate-950" />;
 
   return (
-    <header
-      style={{ backgroundColor: 'var(--header-bg)' }}
-      className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b px-6 transition-colors dark:border-slate-800"
-    >
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b px-6 transition-colors bg-white dark:bg-slate-950 dark:border-slate-800">
       {/* Esquerda: Logo */}
       <div className="flex items-center gap-4">
         <button className="mr-2 md:hidden text-gray-500 hover:text-[var(--primary)] dark:text-slate-400">
@@ -220,7 +321,7 @@ export default function AdminHeader() {
                         )}
                       </div>
                       <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2">
-                        {notif.description || notif.content}
+                        {notif.description || ''}
                       </p>
                       <p className="text-[10px] text-gray-400 mt-1">
                         {new Date(notif.created_at).toLocaleTimeString([], {
@@ -245,7 +346,7 @@ export default function AdminHeader() {
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="flex items-center gap-3 cursor-pointer group focus:outline-none"
           >
-            <div className="flex flex-col items-end hidden sm:flex">
+            <div className="hidden sm:flex flex-col items-end">
               <span className="text-sm font-semibold text-gray-700 dark:text-white group-hover:text-indigo-600 transition-colors">
                 Master
               </span>
@@ -284,7 +385,7 @@ export default function AdminHeader() {
               </div>
               <div className="p-1">
                 <Link
-                  href="/dashboard/user"
+                  href="/admin/user"
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >

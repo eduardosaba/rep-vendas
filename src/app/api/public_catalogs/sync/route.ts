@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       top_benefit_text,
       show_top_benefit_bar,
       show_top_info_bar,
+      font_family,
     } = body;
 
     // Validação básica: precisamos do ID e do Link para saber quem atualizar
@@ -70,6 +71,8 @@ export async function POST(request: Request) {
       top_benefit_text,
       show_top_benefit_bar,
       show_top_info_bar,
+      font_family,
+      font_url: body.font_url ?? null,
     });
 
     return NextResponse.json({

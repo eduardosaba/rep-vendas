@@ -4,6 +4,28 @@ module.exports = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'Noto Sans',
+          'sans-serif',
+        ],
+        mono: [
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Roboto Mono',
+          'monospace',
+        ],
+      },
       colors: {
         // CONFIGURAÇÃO DE CORES DINÂMICAS COM OPACIDADE
         primary: {

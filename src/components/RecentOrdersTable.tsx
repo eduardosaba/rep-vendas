@@ -1,7 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { Eye } from 'lucide-react';
+import { Eye, FileDown } from 'lucide-react';
+import { exportDashboardPDF } from '@/lib/exportDashboardPDF';
+
+interface OrderItem {
+  id: string;
+  quantity: number;
+}
 
 interface Order {
   id: string;
@@ -11,10 +17,22 @@ interface Order {
   total_value: number;
   status: string;
   created_at: string;
-  order_items?: { id: string }[];
+  order_items?: OrderItem[];
 }
 
-export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
+export default function RecentOrdersTable({
+  orders,
+  store,
+  rangeLabel,
+}: {
+  orders: Order[];
+  store: any;
+  rangeLabel: string;
+}) {
+  const handleExport = () => {
+    exportDashboardPDF(orders, store, rangeLabel);
+  };
+
   if (!orders || orders.length === 0) {
     return (
       <div className="p-8 text-center text-gray-500 dark:text-gray-400">
@@ -23,7 +41,6 @@ export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
     );
   }
 
-  // Mapa de cores para status
   const statusColors: Record<string, string> = {
     Pendente:
       'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -35,70 +52,96 @@ export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
   };
 
   return (
-    <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
-      <table className="w-full text-left text-sm min-w-full">
-        <thead className="bg-gray-50 dark:bg-slate-800/50 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-800">
-          <tr>
-            <th className="px-6 py-4 font-medium">Pedido</th>
-            <th className="px-6 py-4 font-medium">Cliente</th>
-            <th className="px-6 py-4 font-medium">Valor</th>
-            <th className="px-6 py-4 font-medium text-center">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-          {orders.map((order) => {
-            const clientName =
-              order.clients?.name ||
-              order.client_name_guest ||
-              'Cliente Visitante';
-            const itemCount = order.order_items?.length || 0;
+    <div className="w-full">
+      {/* Botão de Exportação com o Branding */}
+      <div className="p-4 flex justify-end bg-gray-50/50 dark:bg-slate-800/30 border-b border-gray-100 dark:border-slate-800">
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-300 hover:text-primary transition-all shadow-sm active:scale-95"
+        >
+          <FileDown size={14} />
+          Exportar Relatório PDF
+        </button>
+      </div>
 
-            return (
-              <tr
-                key={order.id}
-                className="group hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
-              >
-                <td className="px-6 py-4">
-                  <Link
-                    href={`/dashboard/orders/${order.id}`}
-                    className="font-bold text-gray-900 dark:text-white group-hover:text-primary dark:group-hover:text-primary transition-colors flex items-center gap-2"
-                  >
-                    #{order.display_id}
-                    <Eye
-                      size={14}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-primary"
-                    />
-                  </Link>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-gray-600 dark:text-slate-300">
-                  {clientName}
-                  <div className="text-xs text-gray-400">
-                    {itemCount} {itemCount === 1 ? 'item' : 'itens'}
-                  </div>
-                </td>
-                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                  {new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                  }).format(order.total_value)}
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      statusColors[order.status] || 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {order.status || 'Pendente'}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm min-w-full">
+          {/* Tabela mantida igual, agora populada com RecentOrders */}
+          <thead className="bg-gray-50 dark:bg-slate-800/50 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-800">
+            <tr>
+              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
+                Pedido
+              </th>
+              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
+                Cliente
+              </th>
+              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
+                Valor
+              </th>
+              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest text-center">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+            {orders.map((order) => {
+              const clientName =
+                order.clients?.name ||
+                order.client_name_guest ||
+                'Cliente Visitante';
+              const totalItems =
+                order.order_items?.reduce(
+                  (sum, item) => sum + (item.quantity || 0),
+                  0
+                ) || 0;
+
+              return (
+                <tr
+                  key={order.id}
+                  className="group hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
+                >
+                  <td className="px-6 py-4">
+                    <Link
+                      href={`/dashboard/orders/${order.id}`}
+                      className="font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors flex items-center gap-2"
+                    >
+                      #{order.display_id}
+                      <Eye
+                        size={14}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-primary"
+                      />
+                    </Link>
+                    <div className="text-[10px] text-gray-400 mt-0.5 font-medium">
+                      {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-gray-700 dark:text-slate-200">
+                      {clientName}
+                    </div>
+                    <div className="text-[10px] font-black text-primary/60 uppercase">
+                      {totalItems} {totalItems === 1 ? 'unidade' : 'unidades'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 font-black text-gray-900 dark:text-white">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    }).format(order.total_value)}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}
+                    >
+                      {order.status || 'Pendente'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

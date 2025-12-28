@@ -87,7 +87,7 @@ export default async function AdminDashboardPage() {
         </div>
         <div className="flex items-center gap-2 text-xs font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-3 py-1 rounded-full">
           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-          SYSTEM ONLINE
+          SISTEMA ONLINE
         </div>
       </div>
 

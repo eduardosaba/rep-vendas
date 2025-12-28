@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies as nextCookies } from 'next/headers';
 
-export function createClient() {
-  const cookieStore: any = (nextCookies as any)();
+export async function createClient() {
+  // next/headers `cookies()` can be async in newer Next versions — await it.
+  const cookieStore: any = await (nextCookies as any)();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

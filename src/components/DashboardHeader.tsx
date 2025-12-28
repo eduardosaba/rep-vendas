@@ -43,7 +43,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const [storeName, setStoreName] = useState('Painel de Controle');
   const [catalogSlug, setCatalogSlug] = useState('');
   const [storeLogo, setStoreLogo] = useState<string | null>(null);
-  
+
   // Estado tipado
   const [notifications, setNotifications] = useState<NotificationOrder[]>([]);
 
@@ -67,7 +67,9 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
     // CORREÇÃO: Adicionado 'clients(name)' para buscar nome de cadastrados
     const { data } = await supabase
       .from('orders')
-      .select('id, client_name_guest, total_value, created_at, display_id, clients(name)')
+      .select(
+        'id, client_name_guest, total_value, created_at, display_id, clients(name)'
+      )
       .eq('user_id', user.id)
       .eq('status', 'Pendente')
       .order('created_at', { ascending: false })
@@ -215,6 +217,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
 
   // 4. Fechar ao clicar fora
   useEffect(() => {
+    console.debug('[DashboardHeader] theme', theme);
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node))
         setIsMenuOpen(false);
@@ -260,6 +263,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
               width={112}
               height={40}
               className="object-contain object-left"
+              style={{ height: 'auto' }}
               sizes="(max-width: 768px) 100px, 120px"
               priority
             />
@@ -329,8 +333,11 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                 ) : (
                   notifications.map((order) => {
                     // LÓGICA DE NOME: Prioriza cadastro > Visitante > Padrão
-                    const clientName = order.clients?.name || order.client_name_guest || 'Cliente';
-                    
+                    const clientName =
+                      order.clients?.name ||
+                      order.client_name_guest ||
+                      'Cliente';
+
                     return (
                       <div
                         key={order.id}
@@ -393,6 +400,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                   width={40}
                   height={40}
                   className="object-cover"
+                  style={{ height: 'auto' }}
                 />
               ) : (
                 <span className="font-bold text-xs">

@@ -304,7 +304,7 @@ export default function ImportMassaPage() {
 
       {/* Passo 1: Upload */}
       {step === 1 && (
-        <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm text-center">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-xl border border-gray-200 shadow-sm text-center">
           <div className="mx-auto w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
             <FileSpreadsheet size={32} />
           </div>
@@ -343,7 +343,7 @@ export default function ImportMassaPage() {
       {step === 2 && (
         <div className="space-y-6">
           {/* Mapeamento de colunas: escolha qual coluna equivale a cada campo */}
-          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 shadow-sm">
             <h4 className="font-semibold mb-3">Mapeamento de Colunas</h4>
             <p className="text-sm text-gray-500 mb-4">
               Selecione as colunas do arquivo que correspondem aos campos do

@@ -728,7 +728,7 @@ export default function NewProductPage() {
               },
               {
                 key: 'is_best_seller',
-                label: 'Mais Vendido',
+                label: 'Best Seller',
                 color: 'text-yellow-600',
                 icon: Star,
               },

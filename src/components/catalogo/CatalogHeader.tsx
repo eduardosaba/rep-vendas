@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useStore } from './store-context';
 import { Search, Heart, ShoppingCart, LogIn } from 'lucide-react';
 import Image from 'next/image';
 import { Settings } from '../../lib/types';
@@ -26,6 +27,7 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
   loadedOrderCode,
 }) => {
   const router = useRouter();
+  const { customerSession, clearCustomerSession } = useStore();
 
   return (
     <header
@@ -83,6 +85,32 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
           </div>
 
           <div className="flex items-center space-x-6">
+            {customerSession ? (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black text-xs">
+                  {customerSession.name?.charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden md:block text-left">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                    Que bom ver você de novo!
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black text-gray-900">
+                      Olá, {customerSession.name.split(' ')[0]} 👋
+                    </h3>
+                    <button
+                      onClick={() => {
+                        clearCustomerSession();
+                        router.refresh();
+                      }}
+                      className="text-xs text-gray-500 hover:underline"
+                    >
+                      Não é você?
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <button
               onClick={() => router.push('/favorites')}
               className="flex flex-col items-center text-gray-600 hover:text-gray-900"

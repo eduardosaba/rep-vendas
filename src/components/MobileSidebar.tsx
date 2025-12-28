@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Menu, X } from 'lucide-react';
 import Sidebar from './Sidebar';
+import { usePathname } from 'next/navigation';
 
 export default function MobileSidebar() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -15,6 +18,39 @@ export default function MobileSidebar() {
     }
     return () => {
       document.body.style.overflow = '';
+    };
+  }, [open]);
+
+  // Close when route changes (user navigated)
+  useEffect(() => {
+    if (open) setOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  // Close on physical scroll/wheel/touch move (user intent to scroll page)
+  useEffect(() => {
+    if (!open) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > 20) setOpen(false);
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartY.current = e.touches?.[0]?.clientY ?? null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const start = touchStartY.current;
+      if (start == null) return;
+      const y = e.touches?.[0]?.clientY ?? 0;
+      if (Math.abs(y - start) > 30) setOpen(false);
+    };
+
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      touchStartY.current = null;
     };
   }, [open]);
 
@@ -49,7 +85,7 @@ export default function MobileSidebar() {
             </div>
 
             <div className="h-full overflow-auto">
-              <Sidebar isMobile />
+              <Sidebar isMobile onNavigate={() => setOpen(false)} />
             </div>
           </div>
         </div>

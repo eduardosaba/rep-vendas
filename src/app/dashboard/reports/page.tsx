@@ -28,7 +28,7 @@ export default function ReportsPage() {
     },
     {
       title: 'Giro de Estoque',
-      description: 'Identifique produtos parados e os mais vendidos.',
+      description: 'Identifique produtos parados e os Best Sellers.',
       icon: Package,
       color: 'text-blue-600',
       bg: 'bg-blue-100 dark:bg-blue-900/20',

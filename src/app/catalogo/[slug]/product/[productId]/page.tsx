@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
+  ZoomIn,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -76,6 +77,7 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [modalView, setModalView] = useState<'image' | 'specs'>('image');
   const [loading, setLoading] = useState(true);
   // usar sonner programático
 
@@ -174,8 +176,26 @@ export default function ProductDetailPage() {
 
   const openImageModal = (index: number) => {
     setCurrentImageIndex(index);
+    setModalView('image');
     setShowImageModal(true);
   };
+
+  useEffect(() => {
+    if (!showImageModal) return;
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        prevImage();
+      } else if (e.key === 'ArrowRight') {
+        nextImage();
+      } else if (e.key === 'Escape') {
+        setShowImageModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [showImageModal, product]);
 
   if (loading) {
     return (
@@ -320,12 +340,24 @@ export default function ProductDetailPage() {
             <div className="relative overflow-hidden rounded-lg bg-white shadow-sm">
               {product.images && product.images.length > 0 ? (
                 <>
-                  <img
-                    src={product.images[currentImageIndex]}
-                    alt={product.name}
-                    className="h-96 w-full cursor-pointer object-cover"
-                    onClick={() => openImageModal(currentImageIndex)}
-                  />
+                  <div className="relative">
+                    <img
+                      src={product.images[currentImageIndex]}
+                      alt={product.name}
+                      className="h-96 w-full cursor-pointer object-cover"
+                      onClick={() => openImageModal(currentImageIndex)}
+                    />
+                    <button
+                      aria-label="Ampliar imagem"
+                      onClick={() => openImageModal(currentImageIndex)}
+                      className="absolute right-3 bottom-3 rounded-full bg-white bg-opacity-90 p-2 shadow hover:bg-opacity-100"
+                      style={{
+                        color: settings?.icon_color || '#374151',
+                      }}
+                    >
+                      <ZoomIn className="h-5 w-5" />
+                    </button>
+                  </div>
                   {/* Navigation arrows */}
                   {product.images.length > 1 && (
                     <>
@@ -549,13 +581,26 @@ export default function ProductDetailPage() {
             className="relative max-h-full max-w-5xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={product.images[currentImageIndex]}
-              alt={product.name}
-              className="max-h-full max-w-full object-contain"
-            />
+            <div className="flex items-center justify-center">
+              {modalView === 'image' ? (
+                <img
+                  src={product.images[currentImageIndex]}
+                  alt={product.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : (
+                <div className="max-h-[80vh] w-[min(900px,90vw)] overflow-auto rounded bg-white p-6">
+                  <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                    Ficha Técnica
+                  </h3>
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                    {product.technical_specs}
+                  </pre>
+                </div>
+              )}
+            </div>
             {/* Navigation in modal */}
-            {product.images.length > 1 && (
+            {modalView === 'image' && product.images.length > 1 && (
               <>
                 <button
                   onClick={prevImage}
@@ -577,6 +622,18 @@ export default function ProductDetailPage() {
             >
               <X className="h-6 w-6 text-gray-700" />
             </button>
+            {product.technical_specs && (
+              <div className="absolute left-4 top-4 flex items-center space-x-2">
+                <button
+                  onClick={() =>
+                    setModalView((v) => (v === 'image' ? 'specs' : 'image'))
+                  }
+                  className="rounded bg-white bg-opacity-90 px-3 py-1 text-sm font-medium text-gray-800 hover:bg-opacity-100"
+                >
+                  {modalView === 'image' ? 'Ficha Técnica' : 'Ver Imagem'}
+                </button>
+              </div>
+            )}
             {/* Image counter */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transform rounded bg-black bg-opacity-50 px-3 py-1 text-white">
               {currentImageIndex + 1} / {product.images.length}

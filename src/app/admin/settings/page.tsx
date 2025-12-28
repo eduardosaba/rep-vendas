@@ -11,6 +11,7 @@ import {
   Layout,
   Smartphone,
 } from 'lucide-react';
+import { SYSTEM_FONTS } from '@/lib/fonts';
 import { logger } from '@/lib/logger';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 
@@ -18,6 +19,8 @@ interface PlatformSettings {
   system_name: string;
   logo_url: string | null;
   primary_color: string;
+  font_family?: string | null;
+  font_url?: string | null;
   support_email: string;
   support_phone: string;
 }
@@ -27,6 +30,8 @@ export default function AdminSettingsPage() {
     system_name: '',
     logo_url: null,
     primary_color: '#4f46e5', // Cor default (Indigo)
+    font_family: null,
+    font_url: null,
     support_email: '',
     support_phone: '',
   });
@@ -40,10 +45,47 @@ export default function AdminSettingsPage() {
 
   const supabase = createClient();
 
+  const [globalFont, setGlobalFont] = useState<string | null>(null);
+  const [globalAllowCustomFonts, setGlobalAllowCustomFonts] =
+    useState<boolean>(true);
+
   // 1. Carregar Configurações ao abrir
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  // buscar config global para preview de fonte
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/global_config')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!mounted) return;
+        setGlobalFont(j?.font_family ?? null);
+        setGlobalAllowCustomFonts(
+          typeof j?.allow_custom_fonts === 'boolean'
+            ? j.allow_custom_fonts
+            : true
+        );
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // injetar Google Font do global se necessário
+  useEffect(() => {
+    if (!globalFont) return;
+    const f = SYSTEM_FONTS.find((x) => x.name === globalFont);
+    if (!f || !f.import) return;
+    if (document.querySelector(`link[data-rv-font="${f.name}"]`)) return;
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = f.import as string;
+    l.setAttribute('data-rv-font', f.name);
+    document.head.appendChild(l);
+  }, [globalFont]);
 
   const fetchSettings = async () => {
     try {
@@ -61,6 +103,8 @@ export default function AdminSettingsPage() {
           system_name: data.system_name || '',
           logo_url: data.logo_url,
           primary_color: data.primary_color || '#4f46e5',
+          font_family: data.font_family ?? null,
+          font_url: data.font_url ?? null,
           support_email: data.support_email || '',
           support_phone: data.support_phone || '',
         });
@@ -82,6 +126,38 @@ export default function AdminSettingsPage() {
       const file = e.target.files[0];
       setLogoFile(file);
       setLogoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // Upload de fonte global (extraiido do JSX para evitar aninhamento pesado)
+  const handleGlobalFontUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('name', f.name.replace(/\.(woff2|woff|ttf|otf)$/i, ''));
+    try {
+      const res = await fetch('/api/fonts/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      const json = await res.json();
+      if (json?.url) {
+        setSettings((p) => ({
+          ...p,
+          font_family:
+            json.name || f.name.replace(/\.(woff2|woff|ttf|otf)$/i, ''),
+          font_url: json.url,
+        }));
+        toast.success('Fonte global enviada');
+      } else {
+        toast.error('Erro ao enviar fonte global');
+      }
+    } catch (err) {
+      console.error('upload global font', err);
+      toast.error('Erro no upload');
     }
   };
 
@@ -119,7 +195,7 @@ export default function AdminSettingsPage() {
       }
 
       // Upsert na tabela (Sempre ID 1)
-      const { error } = await supabase.from('platform_settings').upsert({
+      const basePayload: any = {
         id: 1,
         system_name: settings.system_name,
         primary_color: settings.primary_color,
@@ -128,9 +204,41 @@ export default function AdminSettingsPage() {
         logo_url: finalLogoUrl,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
-      });
+      };
 
-      if (error) throw error;
+      // Tentativa inicial incluindo campos de fonte (caso a coluna exista)
+      const payloadWithFonts = {
+        ...basePayload,
+        font_family: settings.font_family ?? null,
+        font_url: settings.font_url ?? null,
+      };
+
+      let upsertError: any = null;
+      try {
+        const { error } = await supabase
+          .from('platform_settings')
+          .upsert(payloadWithFonts);
+        if (error) throw error;
+      } catch (err: any) {
+        upsertError = err;
+      }
+
+      // Se falhou por causa de schema (coluna ausente), tentamos sem os campos de fonte
+      if (upsertError) {
+        const message = String(upsertError?.message || upsertError);
+        if (
+          upsertError?.code === 'PGRST116' ||
+          /font_family/.test(message) ||
+          /font_url/.test(message)
+        ) {
+          const { error: err2 } = await supabase
+            .from('platform_settings')
+            .upsert(basePayload);
+          if (err2) throw err2;
+        } else {
+          throw upsertError;
+        }
+      }
 
       toast.success('Configurações salvas!', {
         id: toastId,
@@ -237,6 +345,105 @@ export default function AdminSettingsPage() {
                   Essa cor será usada em botões, links e destaques no painel do
                   cliente.
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Fonte Global (Torre de Controle)
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Envie uma fonte customizada (woff2 recomendado) que será usada
+                  como padrão para lojas que não escolheram sua própria fonte.
+                </p>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept=".woff2,.woff,.ttf,.otf"
+                    onChange={handleGlobalFontUpload}
+                    className=""
+                  />
+                  {settings.font_url && (
+                    <div className="text-sm text-gray-600">
+                      {settings.font_family} —{' '}
+                      <a
+                        href={settings.font_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline"
+                      >
+                        ver
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Fonte do Sistema
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Escolha a fonte padrão que será aplicada quando o lojista não
+                  escolher uma fonte customizada.
+                </p>
+
+                {/* Preview da fonte global */}
+                <div className="mb-3">
+                  <div className="text-xs text-gray-500 mb-2">
+                    Fonte Global (Torre de Controle)
+                  </div>
+                  <div className="p-3 rounded-lg border border-gray-100 bg-gray-50 dark:bg-slate-950 flex items-center justify-between">
+                    <div>
+                      <div
+                        style={{
+                          fontFamily:
+                            SYSTEM_FONTS.find((s) => s.name === globalFont)
+                              ?.family || 'Inter, system-ui',
+                        }}
+                        className="text-lg"
+                      >
+                        Aa Bb Cc
+                      </div>
+                      <div className="text-[10px] font-bold text-gray-600 mt-1">
+                        {globalFont || 'Inter (padrão)'}
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {globalAllowCustomFonts
+                        ? 'Customização habilitada'
+                        : 'Customização bloqueada'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <button
+                    onClick={() =>
+                      setSettings((p) => ({ ...p, font_family: null }))
+                    }
+                    className={`p-3 rounded-lg border text-left ${settings.font_family === null ? 'border-primary bg-primary/5' : 'border-gray-100 hover:border-gray-200'}`}
+                  >
+                    <div className="text-lg">Aa Bb Cc</div>
+                    <div className="text-[10px] font-bold text-gray-600 mt-1">
+                      Padrão do Sistema
+                    </div>
+                  </button>
+                  {SYSTEM_FONTS.map((f) => (
+                    <button
+                      key={f.name}
+                      onClick={() =>
+                        setSettings((p) => ({ ...p, font_family: f.name }))
+                      }
+                      style={{ fontFamily: f.family }}
+                      className={`p-3 rounded-lg border text-left ${settings.font_family === f.name ? 'border-primary bg-primary/5' : 'border-gray-100 hover:border-gray-200'}`}
+                    >
+                      <div className="text-lg">Aa Bb Cc</div>
+                      <div className="text-[10px] font-bold text-gray-600 mt-1">
+                        {f.name}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

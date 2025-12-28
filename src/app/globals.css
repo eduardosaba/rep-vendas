@@ -11,11 +11,29 @@
  * IMPORTANTE: Não altere essas cores aqui. Use o ThemeRegistry ou a página de Settings.
  */
 :root {
+  /* Garantia: força altura automática para imagens que tenham apenas
+   uma dimensão controlada via CSS, evitando warnings do React
+   sobre alteração de apenas width/height. */
   --primary: #b9722e;
   --primary-foreground: #ffffff;
   --secondary: #0d1b2c;
   --secondary-foreground: #ffffff;
   --header-bg: #ffffff;
+}
+
+/* Garantia: força altura automática para imagens que tenham apenas
+   uma dimensão controlada via CSS, evitando warnings do React
+   sobre alteração de apenas width/height. */
+img {
+  height: auto;
+}
+
+/* Aplica a fonte padrão do Tailwind em todo o sistema */
+html,
+body {
+  @apply font-sans antialiased font-normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer components {
@@ -54,4 +72,11 @@
   --tw-gradient-from: #6b3605 var(--tw-gradient-from-position);
   --tw-gradient-to: #b9722e var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+/* Scope dark-mode correction for dashboard children that still use `bg-white` without dark variant.
+   This helps prevent isolated children remaining white when toggling dark mode.
+   Scoped under [data-dashboard] to avoid touching other app areas. */
+.dark [data-dashboard] .bg-white {
+  background-color: #0f172a; /* slate-900 */
 }

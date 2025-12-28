@@ -87,6 +87,8 @@ interface StoreContextType {
   setOrderSuccessData: (data: any) => void;
   handleDownloadPDF: () => void;
   handleSendWhatsApp: () => void;
+  customerSession: CustomerInfo | null;
+  clearCustomerSession: () => void;
 }
 
 async function sha256(message: string) {
@@ -109,7 +111,12 @@ export function StoreProvider({
   const ITEMS_PER_PAGE = 24;
 
   // Estados
-  const [showPrices, setShowPrices] = useState(!store.show_cost_price);
+  // Determina o modo de preços: se o catálogo estiver em "preço de custo"
+  // (show_cost_price=true e show_sale_price!=true) então os preços começam ocultos.
+  const isCostMode =
+    (store as any).show_cost_price === true &&
+    (store as any).show_sale_price !== true;
+  const [showPrices, setShowPrices] = useState(!isCostMode);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -147,6 +154,11 @@ export function StoreProvider({
       ? initialProducts.find((p) => p.id === startProductId) || null
       : null,
   });
+
+  // LOGIN INVISÍVEL: estado para armazenar dados do cliente reconhecido
+  const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(
+    null
+  );
 
   // Memoização para performance
   const brands = useMemo(
@@ -196,7 +208,17 @@ export function StoreProvider({
       try {
         setCart(JSON.parse(savedCart));
       } catch {}
-  }, [store.name]);
+
+    // LOGIN INVISÍVEL: carregar dados do cliente salvo para este user/store
+    try {
+      const savedCustomer = localStorage.getItem(`customer-${store.user_id}`);
+      if (savedCustomer) {
+        const parsed = JSON.parse(savedCustomer) as CustomerInfo;
+        setCustomerSession(parsed);
+        console.log('Cliente reconhecido:', parsed?.name);
+      }
+    } catch {}
+  }, [store.name, store.user_id]);
 
   useEffect(() => {
     localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
@@ -261,6 +283,7 @@ export function StoreProvider({
           user_id: store.user_id,
           client_name_guest: customer.name,
           client_phone_guest: customer.phone.replace(/\D/g, ''),
+          client_email_guest: customer.email,
           client_cnpj_guest: customer.cnpj,
           total_value: totalValue,
           status: 'Pendente',
@@ -313,6 +336,15 @@ export function StoreProvider({
         total: totalValue,
         pdf_url: publicUrl,
       });
+      // LOGIN INVISÍVEL: grava dados do cliente para próximas visitas
+      try {
+        localStorage.setItem(
+          `customer-${store.user_id}`,
+          JSON.stringify(customer)
+        );
+        setCustomerSession(customer);
+      } catch {}
+
       setCart([]);
       return true;
     } catch (e) {
@@ -458,8 +490,20 @@ export function StoreProvider({
             f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
           ),
         unlockPrices: async (p) => {
-          const hash = await sha256(p.trim());
-          if (hash === (store as any).price_password_hash) {
+          const plain = p.trim();
+          // Primeiro, se existe hash no sistema (compatibilidade), verifique-o
+          if ((store as any).price_password_hash) {
+            const hash = await sha256(plain);
+            if (hash === (store as any).price_password_hash) {
+              setShowPrices(true);
+              return true;
+            }
+          }
+          // Em seguida, suporte a senha em texto simples (legado/solicitado)
+          if (
+            (store as any).price_password &&
+            plain === (store as any).price_password
+          ) {
             setShowPrices(true);
             return true;
           }
@@ -473,6 +517,13 @@ export function StoreProvider({
         setOrderSuccessData,
         handleDownloadPDF: () => {},
         handleSendWhatsApp,
+        customerSession,
+        clearCustomerSession: () => {
+          try {
+            localStorage.removeItem(`customer-${store.user_id}`);
+          } catch {}
+          setCustomerSession(null);
+        },
       }}
     >
       {children}

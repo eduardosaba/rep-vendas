@@ -4,17 +4,22 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 
-// Cliente Admin para ignorar RLS e garantir escrita
+// Cliente Admin para ignorar RLS e garantir escrita em tabelas sensíveis
 const supabaseAdmin = createSupabaseAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// Helper de Permissão
+/**
+ * Helper de Permissão
+ * Garante que apenas usuários com role 'admin' ou 'master' acessem estas funções
+ */
 async function requireAdminPermission() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error('Não autenticado.');
 
   const { data: profile } = await supabase
@@ -24,7 +29,7 @@ async function requireAdminPermission() {
     .single();
 
   if (profile?.role !== 'admin' && profile?.role !== 'master') {
-    throw new Error('Acesso negado.');
+    throw new Error('Acesso negado. Permissão insuficiente.');
   }
 }
 
@@ -32,7 +37,8 @@ async function requireAdminPermission() {
 export async function getPlans() {
   try {
     await requireAdminPermission();
-    // Ordena por preço para ficar visualmente organizado
+
+    // Ordena por preço para manter a hierarquia visual (do mais barato ao mais caro)
     const { data, error } = await supabaseAdmin
       .from('plans')
       .select('*')
@@ -50,28 +56,41 @@ export async function upsertPlan(plan: any) {
   try {
     await requireAdminPermission();
 
-    // Validação básica
+    // Validação básica de integridade
     if (!plan.name) throw new Error('O nome do plano é obrigatório');
-    
-    // Removemos ID se for criar novo, ou mantemos se for update
+
+    /**
+     * O .upsert identifica automaticamente se deve inserir ou atualizar
+     * baseando-se na presença ou ausência do 'id'.
+     */
     const { data, error } = await supabaseAdmin
       .from('plans')
       .upsert({
-        id: plan.id, // Se tiver ID atualiza, se não tiver cria (ou gera no banco)
+        id: plan.id, // Se for nulo, o Supabase gera um novo UUID
         name: plan.name,
         price: plan.price,
         max_products: plan.max_products,
         active: plan.active,
-        updated_at: new Date().toISOString()
+
+        // --- NOVAS FUNCIONALIDADES (FEATURE FLAGS) ---
+        has_custom_fonts: plan.has_custom_fonts ?? false,
+        remove_branding: plan.remove_branding ?? false,
+        has_excel_sync: plan.has_excel_sync ?? false,
+
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
 
     if (error) throw error;
 
+    // Limpa o cache das páginas que utilizam estes dados
     revalidatePath('/admin/plans');
+    revalidatePath('/admin/plans/features');
+
     return { success: true, data };
   } catch (error: any) {
+    console.error('Erro no upsertPlan:', error);
     return { success: false, error: error.message };
   }
 }
@@ -81,10 +100,7 @@ export async function deletePlan(id: string) {
   try {
     await requireAdminPermission();
 
-    const { error } = await supabaseAdmin
-      .from('plans')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabaseAdmin.from('plans').delete().eq('id', id);
 
     if (error) throw error;
 

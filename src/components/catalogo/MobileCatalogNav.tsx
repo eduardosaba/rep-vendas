@@ -56,7 +56,7 @@ export function MobileCatalogNav() {
         {showCostPrice ? (
           <button
             type="button"
-            onClick={() => setModal('cart', true)}
+            onClick={() => setModal('load', true)}
             className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
           >
             <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />

@@ -73,14 +73,43 @@ function formatPhoneDisplay(phone?: string | null) {
 // --- TOP BAR ---
 export function StoreTopBar() {
   const { store } = useStore();
+  // respeita flag de visibilidade configurada no catálogo
+  if (store.show_top_benefit_bar === false) return null;
   const bgColor = store.top_benefit_bg_color || '#f3f4f6';
   const textColor = store.top_benefit_text_color || 'var(--primary)';
   const height = store.top_benefit_height || 36;
   const fontSize = store.top_benefit_text_size || 11;
 
+  const [hidden, setHidden] = useState(false);
+  const lastY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
+  const lastDir = useRef(0);
+
+  useEffect(() => {
+    const threshold = 15;
+    const onScroll = () => {
+      const y = window.scrollY || window.pageYOffset;
+      const delta = y - lastY.current;
+      let dir = 0;
+      if (delta > threshold && y > 50) dir = 1;
+      else if (delta < -threshold) dir = -1;
+
+      if (dir === 1 && lastDir.current !== 1) {
+        setHidden(true);
+        lastDir.current = 1;
+      } else if (dir === -1 && lastDir.current !== -1) {
+        setHidden(false);
+        lastDir.current = -1;
+      }
+
+      lastY.current = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <div
-      className="border-b relative z-50"
+      className={`border-b relative z-50 transition-transform duration-300 ${hidden ? '-translate-y-full' : 'translate-y-0'}`}
       style={{ backgroundColor: bgColor, borderColor: 'transparent' }}
     >
       <div
@@ -308,20 +337,21 @@ export function StoreHeader() {
               <span>Favoritos</span>
             </button>
 
-            {/* SÓ MOSTRA O BOTÃO VER PREÇOS SE FOR PREÇO DE CUSTO */}
-            {store.show_cost_price && (
-              <button
-                onClick={() =>
-                  isPricesVisible
-                    ? setIsPricesVisible(false)
-                    : setModal('password', true)
-                }
-                className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
-              >
-                {isPricesVisible ? <Unlock size={24} /> : <Lock size={24} />}
-                <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
-              </button>
-            )}
+            {/* Botão "Ver Preços" aparece apenas quando o catálogo está em modo 'custo' */}
+            {store.show_cost_price === true &&
+              store.show_sale_price !== true && (
+                <button
+                  onClick={() =>
+                    isPricesVisible
+                      ? setIsPricesVisible(false)
+                      : setModal('password', true)
+                  }
+                  className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
+                >
+                  {isPricesVisible ? <Unlock size={24} /> : <Lock size={24} />}
+                  <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
+                </button>
+              )}
 
             <button
               onClick={() => setModal('load', true)}
