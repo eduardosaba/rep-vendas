@@ -29,6 +29,19 @@ export default function AdminSidebar() {
 
   useEffect(() => {
     setMounted(true);
+    try {
+      const stored = localStorage.getItem('sidebarCollapsed');
+      if (stored !== null) {
+        setIsCollapsed(stored === 'true');
+      } else if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        // On mobile, default to collapsed for better UX
+        setIsCollapsed(true);
+      }
+    } catch (e) {
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        setIsCollapsed(true);
+      }
+    }
   }, []);
 
   useEffect(() => {

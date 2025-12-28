@@ -177,8 +177,25 @@ export function Sidebar({
 
   useEffect(() => {
     setMounted(true);
-    const storedState = localStorage.getItem('sidebarCollapsed');
-    if (storedState) setIsCollapsed(storedState === 'true');
+    try {
+      const storedState = localStorage.getItem('sidebarCollapsed');
+      if (storedState !== null) {
+        setIsCollapsed(storedState === 'true');
+      } else if (
+        isMobile ||
+        (typeof window !== 'undefined' && window.innerWidth < 768)
+      ) {
+        // Default to collapsed on mobile for better UX
+        setIsCollapsed(true);
+      }
+    } catch (e) {
+      if (
+        isMobile ||
+        (typeof window !== 'undefined' && window.innerWidth < 768)
+      ) {
+        setIsCollapsed(true);
+      }
+    }
   }, []);
 
   useEffect(() => {
