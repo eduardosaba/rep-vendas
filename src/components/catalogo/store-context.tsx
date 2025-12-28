@@ -74,7 +74,7 @@ interface StoreContextType {
     product: Product | null;
   };
   setModal: (name: string, value: any) => void;
-  addToCart: (p: Product, qty?: number) => void;
+  addToCart: (p: Product | string, qty?: number) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
@@ -248,14 +248,26 @@ export function StoreProvider({
   }, [debouncedSearchTerm, store.user_id]);
 
   // Ações do Carrinho
-  const addToCart = (p: Product, qty = 1) => {
+  const addToCart = (p: Product | string, qty = 1) => {
+    // Suporta receber o objeto Product ou apenas o product id (string).
+    let productObj: Product | undefined;
+    if (typeof p === 'string') {
+      productObj = initialProducts.find((ip) => ip.id === p);
+    } else {
+      productObj = p;
+    }
+    if (!productObj) {
+      toast.error('Produto não encontrado.');
+      return;
+    }
+
     setCart((prev) => {
-      const exists = prev.find((i) => i.id === p.id);
+      const exists = prev.find((i) => i.id === productObj!.id);
       if (exists)
         return prev.map((i) =>
-          i.id === p.id ? { ...i, quantity: i.quantity + qty } : i
+          i.id === productObj!.id ? { ...i, quantity: i.quantity + qty } : i
         );
-      return [...prev, { ...p, quantity: qty }];
+      return [...prev, { ...productObj!, quantity: qty }];
     });
     toast.success('Adicionado ao carrinho!');
   };

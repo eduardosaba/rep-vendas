@@ -169,6 +169,9 @@ export default function NewProductPage() {
     is_best_seller: false,
     is_active: true,
     images: [] as string[],
+    technical_specs_mode: 'text',
+    technical_specs_text: '',
+    technical_specs_table: [{ key: '', value: '' }],
   });
 
   // --- CARREGAMENTO DE DADOS (CORRIGIDO) ---
@@ -300,6 +303,40 @@ export default function NewProductPage() {
     }, 1000);
   };
 
+  // Ficha técnica helpers (novo produto)
+  const addTechRow = () => {
+    setFormData((prev) => ({
+      ...prev,
+      technical_specs_table: [
+        ...(prev.technical_specs_table || []),
+        { key: '', value: '' },
+      ],
+    }));
+  };
+
+  const removeTechRow = (idx: number) => {
+    setFormData((prev) => {
+      const copy = [...(prev.technical_specs_table || [])];
+      copy.splice(idx, 1);
+      return {
+        ...prev,
+        technical_specs_table: copy.length ? copy : [{ key: '', value: '' }],
+      };
+    });
+  };
+
+  const updateTechRow = (
+    idx: number,
+    field: 'key' | 'value',
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const copy = [...(prev.technical_specs_table || [])];
+      copy[idx] = { ...copy[idx], [field]: value };
+      return { ...prev, technical_specs_table: copy };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -328,6 +365,20 @@ export default function NewProductPage() {
           .replace(/-+/g, '-');
 
       const slugBase = slugify(formData.name || 'produto');
+      // Prepara technical_specs conforme o modo selecionado
+      let technical_specs: any = null;
+      if (formData.technical_specs_mode === 'table') {
+        const obj: Record<string, string> = {};
+        (formData.technical_specs_table || []).forEach((r: any) => {
+          if (r.key && r.key.trim() !== '') obj[r.key] = r.value;
+        });
+        technical_specs = Object.keys(obj).length > 0 ? obj : null;
+      } else {
+        technical_specs = formData.technical_specs_text
+          ? String(formData.technical_specs_text)
+          : null;
+      }
+
       const payload = {
         user_id: user.id,
         name: formData.name,
@@ -353,6 +404,7 @@ export default function NewProductPage() {
         images: formData.images,
         image_url: formData.images[0] || null,
         slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
+        technical_specs,
       };
 
       const { error } = await supabase.from('products').insert(payload);
@@ -497,6 +549,96 @@ export default function NewProductPage() {
                 className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm leading-relaxed"
                 placeholder="Detalhes técnicos e comerciais do produto..."
               />
+            </div>
+
+            {/* FICHA TÉCNICA (Texto / Tabela) */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Ficha Técnica
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((f) => ({
+                        ...f,
+                        technical_specs_mode: 'text',
+                      }))
+                    }
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'text' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    Texto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((f) => ({
+                        ...f,
+                        technical_specs_mode: 'table',
+                      }))
+                    }
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    Tabela
+                  </button>
+                </div>
+              </div>
+
+              {formData.technical_specs_mode === 'text' ? (
+                <textarea
+                  rows={6}
+                  value={formData.technical_specs_text}
+                  onChange={(e) =>
+                    setFormData((f) => ({
+                      ...f,
+                      technical_specs_text: e.target.value,
+                    }))
+                  }
+                  placeholder="Digite a ficha técnica em texto livre..."
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm leading-relaxed"
+                />
+              ) : (
+                <div className="space-y-2">
+                  {(formData.technical_specs_table || []).map((row, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <input
+                        value={row.key}
+                        onChange={(e) =>
+                          updateTechRow(idx, 'key', e.target.value)
+                        }
+                        placeholder="Atributo"
+                        className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                      />
+                      <input
+                        value={row.value}
+                        onChange={(e) =>
+                          updateTechRow(idx, 'value', e.target.value)
+                        }
+                        placeholder="Valor"
+                        className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeTechRow(idx)}
+                        className="px-2 py-1 rounded-md bg-red-50 text-red-600 border border-red-100"
+                        title="Remover linha"
+                      >
+                        Rem
+                      </button>
+                    </div>
+                  ))}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={addTechRow}
+                      className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm"
+                    >
+                      Adicionar linha
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

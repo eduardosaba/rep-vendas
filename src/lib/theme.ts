@@ -42,10 +42,13 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
     vars.push(`--header-bg-rgb: ${headerRgb}`);
   }
 
-  // Apply all variables in a single assignment to reduce layout jumps
-  const existing = root.style.cssText || '';
-  const appended = vars.join('; ');
-  root.style.cssText = `${existing}; ${appended}`;
+  // Apply variables using setProperty to avoid overwriting unrelated inline styles
+  vars.forEach((v) => {
+    const [name, value] = v.split(':').map((s) => s.trim());
+    if (name && value !== undefined) {
+      root.style.setProperty(name, value);
+    }
+  });
 }
 
 /**

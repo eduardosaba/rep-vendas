@@ -181,6 +181,23 @@ export function EditProductForm({ product }: { product: Product }) {
     brand: product.brand || '',
     category: product.category || '',
     description: product.description || '',
+    technical_specs_mode:
+      product.technical_specs && typeof product.technical_specs === 'object'
+        ? 'table'
+        : 'text',
+    technical_specs_text:
+      product.technical_specs && typeof product.technical_specs === 'string'
+        ? product.technical_specs
+        : product.technical_specs && typeof product.technical_specs === 'object'
+          ? JSON.stringify(product.technical_specs, null, 2)
+          : '',
+    technical_specs_table:
+      product.technical_specs && typeof product.technical_specs === 'object'
+        ? Object.entries(product.technical_specs).map(([k, v]) => ({
+            key: k,
+            value: String(v),
+          }))
+        : [{ key: '', value: '' }],
     track_stock: true,
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
@@ -360,6 +377,33 @@ export function EditProductForm({ product }: { product: Product }) {
     updateField(field, formatCurrency(value));
   };
 
+  // Ficha técnica: manipulação de linhas da tabela
+  const addTechRow = () => {
+    updateField('technical_specs_table', [
+      ...(formData.technical_specs_table || []),
+      { key: '', value: '' },
+    ]);
+  };
+
+  const removeTechRow = (idx: number) => {
+    const copy = [...(formData.technical_specs_table || [])];
+    copy.splice(idx, 1);
+    updateField(
+      'technical_specs_table',
+      copy.length ? copy : [{ key: '', value: '' }]
+    );
+  };
+
+  const updateTechRow = (
+    idx: number,
+    field: 'key' | 'value',
+    value: string
+  ) => {
+    const copy = [...(formData.technical_specs_table || [])];
+    copy[idx] = { ...copy[idx], [field]: value };
+    updateField('technical_specs_table', copy);
+  };
+
   const handleDeleteProduct = async () => {
     setLoading(true);
     try {
@@ -392,6 +436,20 @@ export function EditProductForm({ product }: { product: Product }) {
           )
         : null;
 
+      // Prepara technical_specs conforme o modo selecionado
+      let technical_specs: any = null;
+      if (formData.technical_specs_mode === 'table') {
+        const obj: Record<string, string> = {};
+        (formData.technical_specs_table || []).forEach((r: any) => {
+          if (r.key && r.key.trim() !== '') obj[r.key] = r.value;
+        });
+        technical_specs = Object.keys(obj).length > 0 ? obj : null;
+      } else {
+        technical_specs = formData.technical_specs_text
+          ? String(formData.technical_specs_text)
+          : null;
+      }
+
       const payload = {
         name: formData.name,
         slug: formData.slug || null,
@@ -416,6 +474,7 @@ export function EditProductForm({ product }: { product: Product }) {
           formData.images && formData.images.length > 0
             ? formData.images[0]
             : null,
+        technical_specs,
         updated_at: new Date().toISOString(),
       };
 
@@ -632,6 +691,84 @@ export function EditProductForm({ product }: { product: Product }) {
                 onChange={(e) => updateField('description', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm leading-relaxed"
               />
+            </div>
+            {/* FICHA TÉCNICA (Texto / Tabela) */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Ficha Técnica
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateField('technical_specs_mode', 'text')}
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'text' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    Texto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateField('technical_specs_mode', 'table')}
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'table' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'}`}
+                  >
+                    Tabela
+                  </button>
+                </div>
+              </div>
+
+              {formData.technical_specs_mode === 'text' ? (
+                <textarea
+                  rows={6}
+                  value={formData.technical_specs_text}
+                  onChange={(e) =>
+                    updateField('technical_specs_text', e.target.value)
+                  }
+                  placeholder="Digite a ficha técnica em texto livre..."
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm leading-relaxed"
+                />
+              ) : (
+                <div className="space-y-2">
+                  {(formData.technical_specs_table || []).map(
+                    (row: any, idx: number) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input
+                          value={row.key}
+                          onChange={(e) =>
+                            updateTechRow(idx, 'key', e.target.value)
+                          }
+                          placeholder="Atributo"
+                          className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                        />
+                        <input
+                          value={row.value}
+                          onChange={(e) =>
+                            updateTechRow(idx, 'value', e.target.value)
+                          }
+                          placeholder="Valor"
+                          className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeTechRow(idx)}
+                          className="px-2 py-1 rounded-md bg-red-50 text-red-600 border border-red-100"
+                          title="Remover linha"
+                        >
+                          Rem
+                        </button>
+                      </div>
+                    )
+                  )}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={addTechRow}
+                      className="px-3 py-2 rounded-md bg-primary text-white text-sm"
+                    >
+                      Adicionar linha
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
