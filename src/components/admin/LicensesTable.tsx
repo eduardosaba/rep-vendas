@@ -77,15 +77,15 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
 
       {/* Tabela */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
-          <table className="w-full text-sm text-left min-w-full">
+        <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
+          <table className="w-full text-sm text-left" style={{minWidth: '700px'}}>
             <thead className="bg-gray-50 dark:bg-slate-950/50 text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-800">
               <tr>
-                <th className="px-6 py-4 font-medium">Cliente</th>
-                <th className="px-6 py-4 font-medium">Plano</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium text-right">Preço</th>
-                <th className="px-6 py-4 font-medium">Início</th>
+                <th className="px-4 sm:px-6 py-4 font-medium min-w-[180px]">Cliente</th>
+                <th className="px-4 sm:px-6 py-4 font-medium min-w-[100px]">Plano</th>
+                <th className="px-4 sm:px-6 py-4 font-medium min-w-[100px]">Status</th>
+                <th className="px-4 sm:px-6 py-4 font-medium text-right min-w-[100px]">Preço</th>
+                <th className="px-4 sm:px-6 py-4 font-medium min-w-[120px]">Início</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">

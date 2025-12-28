@@ -26,14 +26,15 @@ export default function AuditLogsTable({ logs }: { logs: Log[] }) {
 
   return (
     <div className="mt-6 bg-white border rounded-2xl overflow-hidden shadow-sm">
-      <table className="w-full text-left border-collapse">
+      <div className="w-full overflow-x-auto scrollbar-thin">
+      <table className="w-full text-left border-collapse" style={{minWidth: '700px'}}>
         <thead>
           <tr className="bg-slate-50 border-b">
-            <th className="p-3 text-sm font-bold">Usuário</th>
-            <th className="p-3 text-sm font-bold">Ação</th>
-            <th className="p-3 text-sm font-bold">Detalhes</th>
-            <th className="p-3 text-sm font-bold">Quando</th>
-            <th className="p-3 text-sm font-bold">Ações</th>
+            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[120px]">Usuário</th>
+            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[150px]">Ação</th>
+            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[180px]">Detalhes</th>
+            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[140px]">Quando</th>
+            <th className="p-2 sm:p-3 text-xs sm:text-sm font-bold min-w-[100px]">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -80,6 +81,7 @@ export default function AuditLogsTable({ logs }: { logs: Log[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

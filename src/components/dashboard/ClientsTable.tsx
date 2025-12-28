@@ -268,18 +268,18 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
 
       {/* 3. TABELA DE CLIENTES */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
-          <table className="w-full text-left text-sm min-w-full">
+        <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 rounded-lg">
+          <table className="w-full text-left text-sm" style={{minWidth: '800px'}}>
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <tr>
-                <th className="px-3 sm:px-6 py-4 font-medium">Cliente</th>
-                <th className="px-3 sm:px-6 py-4 font-medium">Contato</th>
-                <th className="px-3 sm:px-6 py-4 font-medium">
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[180px]">Cliente</th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">Contato</th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">
                   Total Gasto (LTV)
                 </th>
-                <th className="px-3 sm:px-6 py-4 font-medium">Pedidos</th>
-                <th className="px-3 sm:px-6 py-4 font-medium">Última Compra</th>
-                <th className="px-3 sm:px-6 py-4 text-right">Ações</th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[80px]">Pedidos</th>
+                <th className="px-3 sm:px-6 py-4 font-medium min-w-[120px]">Última Compra</th>
+                <th className="px-3 sm:px-6 py-4 text-right sticky right-0 bg-gray-50 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)] min-w-[100px]">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -349,7 +349,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                     <td className="px-3 sm:px-6 py-4 text-gray-500">
                       {formatDate(client.lastOrderDate)}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 text-right">
+                    <td className="px-3 sm:px-6 py-4 text-right sticky right-0 bg-white group-hover:bg-gray-50 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
                       <button
                         onClick={() => setSelectedClient(client)}
                         className="text-[var(--primary)] hover:bg-[var(--primary)]/10 p-2 rounded-lg transition-colors font-medium text-sm inline-flex items-center gap-1"

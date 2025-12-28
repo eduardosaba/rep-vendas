@@ -64,21 +64,21 @@ export default function RecentOrdersTable({
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm min-w-full">
+      <div className="overflow-x-auto scrollbar-thin">
+        <table className="w-full text-left text-sm" style={{minWidth: '600px'}}>
           {/* Tabela mantida igual, agora populada com RecentOrders */}
           <thead className="bg-gray-50 dark:bg-slate-800/50 text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-800">
             <tr>
-              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
+              <th className="px-4 sm:px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
                 Pedido
               </th>
-              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
+              <th className="px-4 sm:px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
                 Cliente
               </th>
-              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
+              <th className="px-4 sm:px-6 py-4 font-bold uppercase text-[10px] tracking-widest">
                 Valor
               </th>
-              <th className="px-6 py-4 font-bold uppercase text-[10px] tracking-widest text-center">
+              <th className="px-4 sm:px-6 py-4 font-bold uppercase text-[10px] tracking-widest text-center">
                 Status
               </th>
             </tr>
