@@ -13,8 +13,13 @@ import {
   ShoppingCart,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
+  ZoomIn,
   Package,
+  FileText,
+  Tag,
+  Info,
+  QrCode,
+  ShieldCheck,
 } from 'lucide-react';
 import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
@@ -44,8 +49,8 @@ export function StoreModals() {
     displayProducts,
     customerSession,
     clearCustomerSession,
+    unlockPrices,
   } = useStore();
-  const { unlockPrices } = useStore();
 
   // --- ESTADOS LOCAIS ---
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -61,7 +66,7 @@ export function StoreModals() {
   const [loadCodeInput, setLoadCodeInput] = useState('');
   const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
 
-  // --- PERSISTÊNCIA DE DADOS DO CLIENTE (AUTO-FILL) ---
+  // --- PERSISTÊNCIA DE DADOS DO CLIENTE ---
   useEffect(() => {
     if (customerSession) {
       setCustomerInfo({
@@ -73,6 +78,12 @@ export function StoreModals() {
     }
   }, [customerSession]);
 
+  // Reset ao trocar de produto
+  useEffect(() => {
+    setCurrentImageIndex(0);
+    setDetailQuantity(1);
+  }, [modals.product]);
+
   // --- MEMOIZAÇÕES ---
   const cartTotal = useMemo(
     () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
@@ -82,9 +93,19 @@ export function StoreModals() {
   const productImages = useMemo(() => {
     if (!modals.product) return [];
     const images: string[] = [];
-    if (modals.product.image_url) images.push(modals.product.image_url);
-    if (modals.product.external_image_url)
+
+    // Prioridade para o image_path interno se existir (usando URL do Supabase)
+    if (modals.product.image_path) {
+      images.push(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${modals.product.image_path}`
+      );
+    } else if (modals.product.image_url) {
+      images.push(modals.product.image_url);
+    } else if (modals.product.external_image_url) {
       images.push(modals.product.external_image_url);
+    }
+
+    // Adiciona galeria extra
     if (modals.product.images && Array.isArray(modals.product.images)) {
       modals.product.images.forEach((img) => {
         if (img && !images.includes(img)) images.push(img);
@@ -93,206 +114,384 @@ export function StoreModals() {
     return images.length > 0 ? images : ['/placeholder-no-image.svg'];
   }, [modals.product]);
 
-  const relatedProducts = useMemo(() => {
-    if (!modals.product) return [];
-    return displayProducts
-      .filter(
-        (p) =>
-          p.category === modals.product?.category && p.id !== modals.product?.id
-      )
-      .slice(0, 4);
-  }, [modals.product, displayProducts]);
+  // --- NAVEGAÇÃO DE IMAGEM ---
+  const nextImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setCurrentImageIndex((prev) =>
+      prev === productImages.length - 1 ? 0 : prev + 1
+    );
+  };
 
-  // Reset ao trocar de produto
-  useEffect(() => {
-    setCurrentImageIndex(0);
-    setDetailQuantity(1);
-  }, [modals.product]);
+  const prevImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setCurrentImageIndex((prev) =>
+      prev === 0 ? productImages.length - 1 : prev - 1
+    );
+  };
 
   // --- HANDLERS ---
   const onFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
     const success = await handleFinalizeOrder(customerInfo);
-    if (success) {
-      setModal('checkout', false);
-    }
+    if (success) setModal('checkout', false);
   };
 
-  const onGeneratePDF = () => {
-    if (orderSuccessData?.pdf_url) {
-      window.open(orderSuccessData.pdf_url, '_blank');
-    } else {
-      toast.error('Comprovante não disponível no momento.');
-    }
-  };
-
-  const copyToClipboard = (text: string, message: string = 'Copiado!') => {
-    try {
-      navigator.clipboard.writeText(text);
-      toast.success(message);
-    } catch {
-      toast.error('Não foi possível copiar.');
-    }
-  };
-
-  const onSaveCart = async () => {
-    const code = await handleSaveCart();
-    if (code) {
-      setSavedCode(code);
-      setModal('save', true);
-      toast.success('Carrinho salvo!');
-    } else {
-      toast.error('Erro ao salvar o carrinho.');
-    }
-  };
-
-  const handleLoadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loadCodeInput) return;
-    const ok = await handleLoadCart(loadCodeInput);
-    if (ok) {
-      toast.success('Carrinho carregado com sucesso!');
-      setModal('load', false);
-    } else {
-      toast.error('Código não encontrado ou erro de conexão.');
-    }
-  };
-
-  // --- MODAL DE SENHA (para mostrar preços) ---
-  const handleUnlockPrices = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passwordInput) return toast.error('Digite a senha');
-    try {
-      const ok = await unlockPrices(passwordInput);
-      if (ok) {
-        toast.success('Preços desbloqueados');
-        setModal('password', false);
-      } else {
-        toast.error('Senha inválida');
-      }
-    } catch (err) {
-      console.error('Erro ao validar senha', err);
-      toast.error('Erro ao validar senha');
-    }
-  };
+  if (!store) return null;
 
   return (
     <>
-      {/* --- MODAL CARRINHO (SIDEBAR) --- */}
-      {modals.cart && (
-        <div className="fixed inset-0 z-[100] flex justify-end">
+      {/* --- 1. MODAL DETALHES DO PRODUTO (O "NOTA 10") --- */}
+      {modals.product && (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center md:items-center md:px-4">
           <div
-            className="absolute inset-0 bg-[#0d1b2c]/40 backdrop-blur-sm animate-in fade-in duration-300"
-            onClick={() => setModal('cart', false)}
+            className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md animate-in fade-in duration-500"
+            onClick={() => setModal('product', null)}
           />
-          <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
-            <div className="flex items-center justify-between border-b p-6">
-              <h2 className="flex items-center gap-2 text-xl font-black text-secondary">
-                <ShoppingCart size={24} className="text-primary" /> Meu Carrinho
-              </h2>
-              <button
-                onClick={() => setModal('cart', false)}
-                className="rounded-xl p-2 hover:bg-gray-100 text-gray-400"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-              {cart.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-gray-400 opacity-30">
-                  <ShoppingCart size={80} strokeWidth={1} />
-                  <p className="font-bold text-lg mt-4 text-center">
-                    O carrinho está pronto <br /> para o seu primeiro item.
-                  </p>
-                </div>
-              ) : (
-                cart.map((item) => (
-                  <div
-                    key={item.id}
-                    className="group relative flex gap-4 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-all"
+
+          <div className="relative flex h-[94dvh] md:h-auto md:max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden bg-white dark:bg-slate-950 shadow-2xl animate-in slide-in-from-bottom duration-500 md:rounded-[3rem]">
+            {/* Botão Fechar Master */}
+            <button
+              onClick={() => setModal('product', null)}
+              className="absolute top-4 right-4 z-50 p-2.5 rounded-full bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-200 shadow-lg hover:scale-110 transition-all border border-gray-100 dark:border-slate-700"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar md:flex md:flex-row">
+              {/* COLUNA ESQUERDA: IMAGEM E GALERIA */}
+              <div className="md:w-[55%] p-4 md:p-8 flex flex-col bg-white dark:bg-slate-950">
+                <div className="relative aspect-square w-full rounded-[2.5rem] bg-gray-50 dark:bg-slate-900/50 flex items-center justify-center overflow-hidden border border-gray-100 dark:border-slate-800 group">
+                  <Image
+                    src={productImages[currentImageIndex]}
+                    alt={modals.product.name}
+                    fill
+                    className="object-contain p-8 md:p-12 transition-all duration-700 group-hover:scale-105"
+                    priority
+                  />
+
+                  {/* Lupa com Sinal de Mais (+) */}
+                  <button
+                    onClick={() => setIsImageZoomOpen(true)}
+                    className="absolute bottom-6 right-6 p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-2xl text-primary hover:scale-110 transition-all border border-gray-100 dark:border-slate-700 z-10"
+                    title="Ampliar Foto"
                   >
-                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-gray-50 border border-gray-100">
-                      <Image
-                        src={item.image_url || '/placeholder-no-image.svg'}
-                        alt={item.name}
-                        fill
-                        className="object-contain p-2"
-                      />
-                    </div>
-                    <div className="flex flex-1 flex-col justify-center pr-6">
-                      <p className="text-sm font-black text-secondary line-clamp-1">
-                        {item.name}
-                      </p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <PriceDisplay
-                          value={item.price * item.quantity}
-                          className="text-primary font-black text-base"
-                          isPricesVisible={isPricesVisible}
+                    <ZoomIn size={26} />
+                  </button>
+
+                  {/* Setas Laterais na Visualização Principal */}
+                  {productImages.length > 1 && (
+                    <>
+                      <button
+                        onClick={prevImage}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronLeft size={24} />
+                      </button>
+                      <button
+                        onClick={nextImage}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronRight size={24} />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Seletor de Miniaturas */}
+                {productImages.length > 1 && (
+                  <div className="mt-6 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {productImages.map((src, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        className={`flex-shrink-0 w-20 h-20 rounded-2xl overflow-hidden border-2 transition-all ${currentImageIndex === idx ? 'border-primary ring-4 ring-primary/10 scale-95' : 'border-gray-100 dark:border-slate-800 opacity-50 hover:opacity-100'}`}
+                      >
+                        <img
+                          src={src}
+                          alt="thumb"
+                          className="w-full h-full object-cover p-1"
                         />
-                        <div className="flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 p-1">
-                          <button
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="p-1 hover:text-primary transition-colors"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="min-w-[20px] text-center text-xs font-black">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => updateQuantity(item.id, 1)}
-                            className="p-1 hover:text-primary transition-colors"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* COLUNA DIREITA: INFORMAÇÕES RICAS */}
+              <div className="md:w-[45%] p-6 md:p-10 bg-gray-50/50 dark:bg-slate-900/30 flex flex-col border-l border-gray-100 dark:border-slate-800">
+                {/* Brand & Badge Header */}
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center p-1 border border-gray-100 dark:border-slate-700 text-primary">
+                      <Tag size={20} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 block">
+                        Marca
+                      </span>
+                      <span className="text-sm font-bold text-secondary dark:text-white uppercase">
+                        {modals.product.brand || 'Original'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-1">
+                    <CheckCircle size={12} /> Em Estoque
+                  </div>
+                </div>
+
+                <h2 className="text-3xl md:text-4xl font-black text-secondary dark:text-white mb-2 leading-tight tracking-tighter">
+                  {modals.product.name}
+                </h2>
+                <div className="flex items-center gap-2 text-[10px] font-mono text-gray-400 mb-8 uppercase tracking-widest bg-gray-100 dark:bg-slate-800 w-fit px-2 py-1 rounded">
+                  <QrCode size={12} /> REF: {modals.product.reference_code}
+                </div>
+
+                <div className="mb-8 p-6 bg-white dark:bg-slate-800 rounded-[2rem] border border-gray-100 dark:border-slate-700 shadow-sm">
+                  <PriceDisplay
+                    value={modals.product.price}
+                    isPricesVisible={isPricesVisible}
+                    className="text-4xl font-black text-primary tracking-tighter"
+                  />
+                  {isPricesVisible && (
+                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-2 flex items-center gap-1">
+                      <ShieldCheck size={12} /> Preço garantido para faturamento
+                      à vista
+                    </p>
+                  )}
+                </div>
+
+                {/* Seções de Conteúdo */}
+                <div className="space-y-8 flex-1">
+                  {/* Descrição */}
+                  <div className="space-y-3">
+                    <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400">
+                      <Info size={14} className="text-primary" /> Descrição do
+                      Representante
+                    </h4>
+                    <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                      {modals.product.description ||
+                        'Nenhuma descrição detalhada fornecida para este item.'}
+                    </p>
+                  </div>
+
+                  {/* Ficha Técnica Extra (Specs) */}
+                  {(modals.product as any).specs && (
+                    <div className="space-y-3">
+                      <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400">
+                        <FileText size={14} className="text-primary" /> Ficha
+                        Técnica Detalhada
+                      </h4>
+                      <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                        <pre className="text-xs font-sans whitespace-pre-wrap text-gray-600 dark:text-gray-300 leading-loose">
+                          {(modals.product as any).specs}
+                        </pre>
                       </div>
                     </div>
+                  )}
+
+                  {/* Código de Barras / Identificador */}
+                  {((modals.product as any).barcode ||
+                    (modals.product as any).sku) && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-gray-400">
+                        Identificação Logística
+                      </h4>
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm flex flex-col items-center justify-center">
+                        <Barcode
+                          value={
+                            (modals.product as any).barcode ||
+                            (modals.product as any).sku
+                          }
+                        />
+                        <span className="text-[11px] font-mono mt-3 text-gray-400 tracking-[0.3em]">
+                          {(modals.product as any).barcode ||
+                            (modals.product as any).sku}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* FOOTER FIXO: QUANTIDADE E COMPRA */}
+                <div className="mt-8 pt-8 border-t border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row gap-4 items-center">
+                  <div className="flex items-center gap-4 bg-white dark:bg-slate-800 rounded-2xl p-2 border border-gray-200 dark:border-slate-700 shadow-sm w-full sm:w-auto justify-between">
                     <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="absolute right-2 top-2 text-gray-300 hover:text-red-500 transition-colors"
+                      onClick={() =>
+                        setDetailQuantity((q) => Math.max(1, q - 1))
+                      }
+                      className="p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 transition-colors"
                     >
-                      <Trash2 size={16} />
+                      <Minus size={20} />
+                    </button>
+                    <span className="min-w-[40px] text-center text-2xl font-black text-secondary dark:text-white">
+                      {detailQuantity}
+                    </span>
+                    <button
+                      onClick={() => setDetailQuantity((q) => q + 1)}
+                      className="p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 transition-colors"
+                    >
+                      <Plus size={20} />
                     </button>
                   </div>
-                ))
-              )}
-            </div>
-            {cart.length > 0 && (
-              <div className="border-t bg-white p-6 space-y-4">
-                <div className="flex items-center justify-between text-xl font-black text-secondary">
-                  <span>Subtotal</span>
-                  <PriceDisplay
-                    value={cartTotal}
-                    isPricesVisible={isPricesVisible}
-                  />
+
+                  <Button
+                    onClick={() => {
+                      addToCart(modals.product!, detailQuantity);
+                      setModal('product', null);
+                    }}
+                    className="w-full py-8 text-lg font-black uppercase tracking-widest shadow-2xl shadow-primary/30"
+                  >
+                    Adicionar ao Pedido
+                  </Button>
                 </div>
-                <Button
-                  onClick={() => setModal('checkout', true)}
-                  className="w-full py-7 text-lg shadow-xl shadow-primary/20"
-                >
-                  Finalizar Pedido <Send size={20} className="ml-2" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={onSaveCart}
-                  isLoading={loadingStates.saving}
-                  className="w-full text-primary"
-                >
-                  Salvar para depois
-                </Button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Save / Load Modals (external components) */}
+      {/* --- 2. ZOOM DA IMAGEM (IMERSIVO) --- */}
+      {isImageZoomOpen && modals.product && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300">
+          {/* Header do Zoom: X para fechar */}
+          <div className="absolute top-0 inset-x-0 p-6 flex justify-between items-center z-50">
+            <div className="text-white/50 text-xs font-mono tracking-widest uppercase hidden md:block">
+              Visualização em Alta Resolução
+            </div>
+            <button
+              onClick={() => setIsImageZoomOpen(false)}
+              className="p-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all active:scale-90"
+            >
+              <X size={32} />
+            </button>
+          </div>
+
+          {/* Navegação Lateral no Zoom */}
+          {productImages.length > 1 && (
+            <>
+              <button
+                onClick={prevImage}
+                className="absolute left-4 md:left-10 top-1/2 -translate-y-1/2 z-50 p-5 rounded-full bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-all backdrop-blur-md"
+              >
+                <ChevronLeft size={40} />
+              </button>
+              <button
+                onClick={nextImage}
+                className="absolute right-4 md:right-10 top-1/2 -translate-y-1/2 z-50 p-5 rounded-full bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-all backdrop-blur-md"
+              >
+                <ChevronRight size={40} />
+              </button>
+            </>
+          )}
+
+          <div className="relative w-full h-full p-4 md:p-24 flex items-center justify-center">
+            <img
+              src={productImages[currentImageIndex]}
+              alt="Zoom"
+              className="max-w-full max-h-full object-contain animate-in zoom-in-110 duration-700"
+            />
+
+            {/* Contador de Imagens no Rodapé do Zoom */}
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full bg-white/10 text-white text-sm font-black backdrop-blur-md border border-white/10">
+              {currentImageIndex + 1} / {productImages.length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- OUTROS MODAIS (CHECKOUT, SENHA, ETC) --- */}
+
+      {modals.checkout && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md"
+            onClick={() => setModal('checkout', false)}
+          />
+          <div className="relative w-full max-w-xl bg-white rounded-[3rem] p-10 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-black text-secondary uppercase tracking-tighter">
+                Finalizar Pedido
+              </h2>
+              <button
+                onClick={() => setModal('checkout', false)}
+                className="p-2 text-gray-400"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={onFinalize} className="space-y-4">
+              <input
+                required
+                placeholder="Seu Nome"
+                className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none"
+                value={customerInfo.name}
+                onChange={(e) =>
+                  setCustomerInfo({ ...customerInfo, name: e.target.value })
+                }
+              />
+              <input
+                required
+                placeholder="WhatsApp"
+                className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none"
+                value={customerInfo.phone}
+                onChange={(e) =>
+                  setCustomerInfo({ ...customerInfo, phone: e.target.value })
+                }
+              />
+              <Button
+                type="submit"
+                isLoading={loadingStates.submitting}
+                className="w-full py-8 text-xl mt-4"
+              >
+                Confirmar Pedido
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {orderSuccessData && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md" />
+          <div className="relative w-full max-w-lg bg-white rounded-[3.5rem] p-10 md:p-14 text-center shadow-2xl animate-in zoom-in-95">
+            <div className="mx-auto mb-8 w-24 h-24 flex items-center justify-center rounded-full bg-green-50 text-green-500">
+              <CheckCircle size={64} />
+            </div>
+            <h2 className="text-3xl font-black text-secondary mb-2 uppercase tracking-tighter">
+              Pedido Realizado!
+            </h2>
+            <p className="text-gray-500 mb-8">
+              Seu pedido foi processado com sucesso.
+            </p>
+            <button
+              onClick={handleSendWhatsApp}
+              className="w-full py-6 bg-[#25D366] text-white rounded-full font-black text-xl flex items-center justify-center gap-3"
+            >
+              <Send size={20} /> Enviar no WhatsApp
+            </button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setOrderSuccessData(null);
+                setModal('cart', false);
+              }}
+              className="mt-4 w-full"
+            >
+              Voltar para a loja
+            </Button>
+          </div>
+        </div>
+      )}
+
       <SaveCodeModal
         isSaveModalOpen={!!modals.save && !!savedCode}
         setIsModalOpen={(v: boolean) => setModal('save', v)}
         savedCode={savedCode}
-        copyToClipboard={() => savedCode && copyToClipboard(savedCode)}
+        copyToClipboard={() =>
+          savedCode &&
+          (navigator.clipboard.writeText(savedCode),
+          toast.success('Código copiado!'))
+        }
       />
 
       <LoadCodeModal
@@ -304,7 +503,6 @@ export function StoreModals() {
         isLoadingCart={loadingStates.loadingCart}
       />
 
-      {/* --- MODAL SENHA (Ver Preços) --- */}
       <PasswordModal
         isPasswordModalOpen={!!modals.password}
         setIsPasswordModalOpen={(v: boolean) => setModal('password', v)}
@@ -312,455 +510,6 @@ export function StoreModals() {
         setPasswordInput={setPasswordInput}
         handleUnlockPrices={handleUnlockPrices}
       />
-
-      {/* --- MODAL DETALHES DO PRODUTO (IMERSIVO) --- */}
-      {modals.product && (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center md:items-center md:px-4">
-          <div
-            className="absolute inset-0 bg-[#0d1b2c]/70 backdrop-blur-md animate-in fade-in duration-500"
-            onClick={() => setModal('product', null)}
-          />
-
-          <div className="relative flex h-[90dvh] w-full flex-col overflow-hidden bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-bottom duration-500 md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-[3rem]">
-            <button
-              onClick={() => setModal('product', null)}
-              className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 text-gray-700 dark:text-gray-200 shadow hover:scale-105 transition-transform"
-              aria-label="Fechar"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar md:flex md:flex-row">
-              {/* Left: Image + Thumbnails */}
-              <div className="md:w-1/2 p-6 md:p-10 flex flex-col">
-                <div className="relative aspect-square w-full rounded-[2rem] bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <Image
-                    src={productImages[currentImageIndex]}
-                    alt={(modals.product as any).name || 'Produto'}
-                    fill
-                    className="object-contain p-12 transition-all duration-500"
-                  />
-
-                  {productImages.length > 1 && (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentImageIndex((p) =>
-                            p === 0 ? productImages.length - 1 : p - 1
-                          );
-                        }}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
-                        aria-label="Imagem anterior"
-                      >
-                        <ChevronLeft size={24} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentImageIndex((p) =>
-                            p === productImages.length - 1 ? 0 : p + 1
-                          );
-                        }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
-                        aria-label="Próxima imagem"
-                      >
-                        <ChevronRight size={24} />
-                      </button>
-                      <button
-                        onClick={() => setIsImageZoomOpen(true)}
-                        className="absolute right-4 bottom-4 z-20 p-2 rounded-full bg-white/90 dark:bg-slate-800/80 shadow hover:scale-105"
-                        aria-label="Ampliar imagem"
-                      >
-                        <Maximize2 size={18} />
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {productImages.length > 1 && (
-                  <div className="mt-4 w-full">
-                    <div className="flex gap-2 overflow-x-auto pb-2">
-                      {productImages.map((src, idx) => (
-                        <button
-                          key={idx}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCurrentImageIndex(idx);
-                          }}
-                          className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border ${currentImageIndex === idx ? 'ring-2 ring-primary/50' : 'border-gray-100 dark:border-slate-700'} bg-white dark:bg-slate-800`}
-                        >
-                          <img
-                            src={src}
-                            alt={`thumb-${idx}`}
-                            className="w-full h-full object-contain p-2"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right: Details */}
-              <div className="md:w-1/2 p-8 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white flex flex-col">
-                <div className="mb-6 flex items-start gap-4">
-                  {(modals.product as any)?.brand_logo_url ||
-                  (modals.product as any)?.logo_url ? (
-                    <img
-                      src={
-                        (modals.product as any).brand_logo_url ||
-                        (modals.product as any).logo_url
-                      }
-                      alt={(modals.product as any).brand || 'logo'}
-                      className="w-12 h-12 object-contain rounded-lg bg-white p-1"
-                    />
-                  ) : null}
-
-                  <div className="flex-1">
-                    <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
-                      {modals.product.brand || 'Original'}
-                    </span>
-                    <h2 className="text-4xl font-black mt-1">
-                      {modals.product.name}
-                    </h2>
-                    <div className="mt-3">
-                      <PriceDisplay
-                        value={modals.product.price}
-                        isPricesVisible={isPricesVisible}
-                        className="text-2xl font-black"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-gray-700 dark:text-gray-200">
-                  <p className="text-sm leading-relaxed">
-                    {modals.product.description ||
-                      'Descrição premium para este item.'}
-                  </p>
-                </div>
-
-                {(modals.product as any)?.specs && (
-                  <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-sm text-gray-700 dark:text-gray-200">
-                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">
-                      Ficha técnica
-                    </h3>
-                    <pre className="whitespace-pre-wrap">
-                      {(modals.product as any).specs}
-                    </pre>
-                  </div>
-                )}
-
-                {((modals.product as any)?.barcode ||
-                  (modals.product as any)?.sku) && (
-                  <div className="flex items-center justify-center bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
-                    <Barcode
-                      value={
-                        (modals.product as any).barcode ||
-                        (modals.product as any).sku
-                      }
-                    />
-                  </div>
-                )}
-
-                <div className="mt-auto space-y-4 rounded-[2.5rem] bg-secondary p-8 text-white shadow-2xl">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold opacity-60">
-                      Quantidade
-                    </span>
-                    <div className="flex items-center gap-4 bg-white/10 rounded-2xl p-2 border border-white/10">
-                      <button
-                        onClick={() =>
-                          setDetailQuantity((q) => Math.max(1, q - 1))
-                        }
-                        className="p-1 hover:text-primary transition-colors"
-                      >
-                        <Minus size={20} />
-                      </button>
-                      <span className="min-w-[40px] text-center text-xl font-black">
-                        {detailQuantity}
-                      </span>
-                      <button
-                        onClick={() => setDetailQuantity((q) => q + 1)}
-                        className="p-1 hover:text-primary transition-colors"
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-white/10 pt-6">
-                    <span className="text-sm font-bold opacity-60">
-                      Subtotal
-                    </span>
-                    <PriceDisplay
-                      value={modals.product.price * detailQuantity}
-                      size="large"
-                      isPricesVisible={isPricesVisible}
-                      className="text-white"
-                    />
-                  </div>
-
-                  <Button
-                    onClick={() => {
-                      addToCart(modals.product!, detailQuantity);
-                      setModal('product', null);
-                    }}
-                    className="w-full py-8 text-xl bg-primary text-white hover:bg-primary/90"
-                  >
-                    Adicionar ao Carrinho
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Zoom overlay */}
-            {isImageZoomOpen && (
-              <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
-                <div
-                  className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-                  onClick={() => setIsImageZoomOpen(false)}
-                />
-                <div className="relative max-w-4xl w-full mx-auto">
-                  <button
-                    onClick={() => setIsImageZoomOpen(false)}
-                    className="absolute top-4 right-4 z-30 p-2 rounded-full bg-white/10 text-white"
-                  >
-                    <X size={20} />
-                  </button>
-                  <img
-                    src={productImages[currentImageIndex]}
-                    alt="Zoom"
-                    className="w-full h-auto object-contain rounded-lg"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* --- MODAL CHECKOUT (RESUMO E AUTO-FILL) --- */}
-      {modals.checkout && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md animate-in fade-in duration-500"
-            onClick={() => setModal('checkout', false)}
-          />
-          <div className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-10">
-              {isImageZoomOpen && (
-                <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
-                  <div
-                    className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-                    onClick={() => setIsImageZoomOpen(false)}
-                  />
-                  <div className="relative max-w-4xl w-full mx-auto">
-                    <button
-                      onClick={() => setIsImageZoomOpen(false)}
-                      className="absolute top-4 right-4 z-30 p-2 rounded-full bg-white/10 text-white"
-                    >
-                      <X size={20} />
-                    </button>
-                    <img
-                      src={productImages[currentImageIndex]}
-                      alt="Zoom"
-                      className="w-full h-auto object-contain rounded-lg"
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-black text-secondary tracking-tight">
-                  Identificação
-                </h2>
-                <button
-                  onClick={() => setModal('checkout', false)}
-                  className="p-2 bg-gray-50 rounded-xl text-gray-400 hover:text-secondary"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              {/* Quick actions: if we recognize the customer, allow clearing session */}
-              {customerSession && (
-                <div className="mb-6 flex items-center justify-end">
-                  <button
-                    onClick={() => {
-                      clearCustomerSession();
-                      setCustomerInfo({
-                        name: '',
-                        phone: '',
-                        email: '',
-                        cnpj: '',
-                      });
-                      toast.info('Dados de cliente removidos.');
-                    }}
-                    className="text-sm text-gray-600 hover:text-gray-900 underline"
-                  >
-                    Não é você?
-                  </button>
-                </div>
-              )}
-              <div className="bg-primary/5 rounded-[2rem] p-6 mb-8 border border-primary/10 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm">
-                    <Package size={24} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">
-                      Resumo
-                    </p>
-                    <p className="text-lg font-black text-secondary">
-                      {cart.length} Itens
-                    </p>
-                  </div>
-                </div>
-                <PriceDisplay
-                  value={cartTotal}
-                  size="large"
-                  className="text-secondary"
-                  isPricesVisible={isPricesVisible}
-                />
-              </div>
-              <form onSubmit={onFinalize} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
-                      Nome Completo
-                    </label>
-                    <input
-                      required
-                      type="text"
-                      placeholder="Nome"
-                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
-                      value={customerInfo.name}
-                      onChange={(e) =>
-                        setCustomerInfo({
-                          ...customerInfo,
-                          name: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
-                      WhatsApp (DDD)
-                    </label>
-                    <input
-                      required
-                      type="tel"
-                      placeholder="(00) 00000-0000"
-                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
-                      value={customerInfo.phone}
-                      onChange={(e) =>
-                        setCustomerInfo({
-                          ...customerInfo,
-                          phone: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2 mt-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
-                    Email
-                  </label>
-                  <input
-                    required
-                    type="email"
-                    placeholder="seu@email.com"
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
-                    value={customerInfo.email}
-                    onChange={(e) =>
-                      setCustomerInfo({
-                        ...customerInfo,
-                        email: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
-                    CPF / CNPJ (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Documento"
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
-                    value={customerInfo.cnpj}
-                    onChange={(e) =>
-                      setCustomerInfo({ ...customerInfo, cnpj: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="pt-6">
-                  <Button
-                    type="submit"
-                    disabled={loadingStates.submitting}
-                    className="w-full py-8 text-xl shadow-xl shadow-primary/20"
-                  >
-                    {loadingStates.submitting
-                      ? 'Processando...'
-                      : 'Confirmar e Enviar Pedido'}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- PÁGINA DE SUCESSO (CONVERSÃO PREMIUM) --- */}
-      {orderSuccessData && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md animate-in fade-in duration-500" />
-          <div className="relative w-full max-w-lg bg-white rounded-[3.5rem] p-10 md:p-14 text-center shadow-2xl animate-in zoom-in-95 duration-500">
-            <div className="relative mx-auto mb-10 w-28 h-28 flex items-center justify-center rounded-full bg-green-50 text-green-500 shadow-inner">
-              <CheckCircle size={72} strokeWidth={1.5} />
-            </div>
-            <h2 className="text-4xl font-black text-secondary mb-3 tracking-tight">
-              Pedido Enviado! 🎉
-            </h2>
-            <p className="text-gray-500 text-lg mb-10 leading-relaxed">
-              Olá,{' '}
-              <span className="font-bold text-secondary">
-                {orderSuccessData.customer.name}
-              </span>
-              ! <br /> Seu pedido{' '}
-              <span className="text-primary font-black">
-                #{orderSuccessData.display_id || orderSuccessData.id}
-              </span>{' '}
-              está pronto.
-            </p>
-            <div className="space-y-4">
-              <button
-                onClick={handleSendWhatsApp}
-                className="w-full py-6 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-[2rem] font-black text-xl shadow-[0_20px_40px_rgba(37,211,102,0.3)] transition-all flex items-center justify-center gap-3"
-              >
-                <Send size={24} /> Confirmar no WhatsApp
-              </button>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={onGeneratePDF}
-                  className="flex items-center justify-center gap-2 py-5 bg-white border-2 border-gray-100 text-gray-500 rounded-2xl font-bold text-sm hover:bg-gray-50"
-                >
-                  <Download size={20} /> Recibo PDF
-                </button>
-                <button
-                  onClick={() => {
-                    setOrderSuccessData(null);
-                    setModal('cart', false);
-                  }}
-                  className="flex items-center justify-center gap-2 py-5 bg-secondary text-white rounded-2xl font-bold text-sm hover:bg-black"
-                >
-                  <ShoppingCart size={20} /> Nova Compra
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
