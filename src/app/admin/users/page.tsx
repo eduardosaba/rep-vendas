@@ -249,7 +249,8 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      {/* DESKTOP: Tabela Tradicional */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto scrollbar-thin">
           <table
             className="w-full text-sm text-left"
@@ -359,6 +360,110 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* MOBILE: Cards Verticais */}
+      <div className="grid grid-cols-1 gap-4 md:hidden">
+        {loading ? (
+          <div className="p-12 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800">
+            <div className="flex justify-center items-center gap-2">
+              <Loader2
+                className="animate-spin text-[var(--primary)]"
+                size={24}
+              />
+              <span>Carregando...</span>
+            </div>
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="p-12 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800">
+            Nenhum usuário encontrado.
+          </div>
+        ) : (
+          filteredUsers.map((user) => (
+            <div
+              key={user.id}
+              className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 flex-shrink-0">
+                    {user.email?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                      {user.email}
+                    </span>
+                    <span
+                      className="text-[10px] text-gray-400 font-mono truncate"
+                      title={user.id}
+                    >
+                      {user.id.slice(0, 8)}...
+                    </span>
+                  </div>
+                </div>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${
+                    user.role === 'master' || user.role === 'admin'
+                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
+                      : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                  }`}
+                >
+                  {user.role || 'user'}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-sm mb-4">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-slate-400">
+                    Cadastro:
+                  </span>
+                  <span className="text-gray-900 dark:text-white font-medium">
+                    {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-slate-400">
+                    Vencimento:
+                  </span>
+                  <span className="text-gray-900 dark:text-white">
+                    {renderExpirationDate(user)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-slate-800">
+                <Link
+                  href={`/admin/users/${user.id}`}
+                  className="flex-1 flex items-center justify-center gap-2 p-2 text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded-lg transition-all"
+                >
+                  <Edit size={16} />
+                  <span className="text-sm font-medium">Editar</span>
+                </Link>
+                <button
+                  onClick={() => confirmAddTrial(user.id, user.email)}
+                  disabled={updatingUser === user.id}
+                  className="flex-1 flex items-center justify-center gap-2 p-2 text-green-600 bg-green-50 border border-green-200 hover:bg-green-100 rounded-lg transition-all disabled:opacity-50"
+                >
+                  {updatingUser === user.id ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <CalendarPlus size={16} />
+                      <span className="text-sm font-medium">Trial</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleImpersonate(user.email)}
+                  className="p-2 text-gray-400 border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"
+                  title="Impersonar usuário"
+                >
+                  <LogIn size={16} />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {isCreateOpen && (

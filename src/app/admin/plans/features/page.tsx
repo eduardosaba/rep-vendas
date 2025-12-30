@@ -79,38 +79,41 @@ export default function PlanFeaturesMatrix() {
         </button>
       </div>
 
-      <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
+      {/* DESKTOP: Tabela Matricial */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto scrollbar-thin">
           <table
             className="w-full text-left border-collapse"
             style={{ minWidth: '700px' }}
           >
             <thead>
-              <tr className="bg-slate-50 border-b">
-                <th className="p-4 font-bold text-slate-400 uppercase text-[10px] tracking-widest">
+              <tr className="bg-slate-50 dark:bg-slate-950/50 border-b dark:border-slate-800">
+                <th className="p-4 font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-widest">
                   Funcionalidade
                 </th>
                 {plans.map((plan) => (
                   <th
                     key={plan.id}
-                    className="p-4 text-center font-black text-slate-900"
+                    className="p-4 text-center font-black text-slate-900 dark:text-white"
                   >
                     {plan.name}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y dark:divide-slate-800">
               {/* LINHA: FONTES CUSTOMIZADAS */}
-              <tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
                       <Type size={18} />
                     </div>
                     <div>
-                      <p className="font-bold text-sm">Escolher Fontes</p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="font-bold text-sm text-gray-900 dark:text-white">
+                        Escolher Fontes
+                      </p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
                         Permite alterar a tipografia do catálogo.
                       </p>
                     </div>
@@ -124,24 +127,24 @@ export default function PlanFeaturesMatrix() {
                       onChange={() =>
                         toggleFeature(plan.id, 'has_custom_fonts')
                       }
-                      className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
                     />
                   </td>
                 ))}
               </tr>
 
               {/* LINHA: REMOVER BRANDING */}
-              <tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                    <div className="p-2 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg">
                       <EyeOff size={18} />
                     </div>
                     <div>
-                      <p className="font-bold text-sm">
+                      <p className="font-bold text-sm text-gray-900 dark:text-white">
                         Remover Selo "RepVendas"
                       </p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
                         Oculta a marca do sistema no rodapé.
                       </p>
                     </div>
@@ -153,22 +156,24 @@ export default function PlanFeaturesMatrix() {
                       type="checkbox"
                       checked={plan.remove_branding}
                       onChange={() => toggleFeature(plan.id, 'remove_branding')}
-                      className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
                     />
                   </td>
                 ))}
               </tr>
 
               {/* LINHA: SINCRONIZAÇÃO EXCEL */}
-              <tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                    <div className="p-2 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg">
                       <RefreshCw size={18} />
                     </div>
                     <div>
-                      <p className="font-bold text-sm">Sincronizador PROCV</p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="font-bold text-sm text-gray-900 dark:text-white">
+                        Sincronizador PROCV
+                      </p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
                         Importação avançada via planilhas.
                       </p>
                     </div>
@@ -180,13 +185,121 @@ export default function PlanFeaturesMatrix() {
                       type="checkbox"
                       checked={plan.has_excel_sync}
                       onChange={() => toggleFeature(plan.id, 'has_excel_sync')}
-                      className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
                     />
                   </td>
                 ))}
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* MOBILE: Cards por Funcionalidade */}
+      <div className="grid grid-cols-1 gap-4 md:hidden">
+        {/* FONTES CUSTOMIZADAS */}
+        <div className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+              <Type size={18} />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-gray-900 dark:text-white">
+                Escolher Fontes
+              </p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                Permite alterar a tipografia do catálogo.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {plans.map((plan) => (
+              <label
+                key={plan.id}
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-950/50 rounded-lg border border-gray-100 dark:border-slate-800"
+              >
+                <span className="font-medium text-sm text-gray-900 dark:text-white">
+                  {plan.name}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={plan.has_custom_fonts}
+                  onChange={() => toggleFeature(plan.id, 'has_custom_fonts')}
+                  className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* REMOVER BRANDING */}
+        <div className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg">
+              <EyeOff size={18} />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-gray-900 dark:text-white">
+                Remover Selo "RepVendas"
+              </p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                Oculta a marca do sistema no rodapé.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {plans.map((plan) => (
+              <label
+                key={plan.id}
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-950/50 rounded-lg border border-gray-100 dark:border-slate-800"
+              >
+                <span className="font-medium text-sm text-gray-900 dark:text-white">
+                  {plan.name}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={plan.remove_branding}
+                  onChange={() => toggleFeature(plan.id, 'remove_branding')}
+                  className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* SINCRONIZAÇÃO EXCEL */}
+        <div className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg">
+              <RefreshCw size={18} />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-gray-900 dark:text-white">
+                Sincronizador PROCV
+              </p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                Importação avançada via planilhas.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {plans.map((plan) => (
+              <label
+                key={plan.id}
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-950/50 rounded-lg border border-gray-100 dark:border-slate-800"
+              >
+                <span className="font-medium text-sm text-gray-900 dark:text-white">
+                  {plan.name}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={plan.has_excel_sync}
+                  onChange={() => toggleFeature(plan.id, 'has_excel_sync')}
+                  className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                />
+              </label>
+            ))}
+          </div>
         </div>
       </div>
     </div>

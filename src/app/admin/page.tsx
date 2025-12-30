@@ -183,7 +183,8 @@ export default async function AdminDashboardPage() {
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* DESKTOP: Tabela */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 dark:bg-slate-950/50 text-gray-500 dark:text-slate-400 font-medium">
                 <tr>
@@ -243,6 +244,55 @@ export default async function AdminDashboardPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* MOBILE: Cards */}
+          <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
+            {recentUsers.length === 0 ? (
+              <div className="p-8 text-center text-gray-500 dark:text-slate-400">
+                Nenhum usuário recente.
+              </div>
+            ) : (
+              recentUsers.map((u) => (
+                <div
+                  key={u.id}
+                  className="p-4 bg-gray-50 dark:bg-slate-950/50 rounded-lg border border-gray-100 dark:border-slate-800"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                        {u.full_name || 'Sem nome'}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+                        {u.email}
+                      </div>
+                    </div>
+                    <span
+                      className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase border flex-shrink-0 ${
+                        u.role === 'admin' || u.role === 'master'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800'
+                          : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                      }`}
+                    >
+                      {u.role || 'user'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-slate-700">
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      {u.created_at
+                        ? new Date(u.created_at).toLocaleDateString('pt-BR')
+                        : '-'}
+                    </span>
+                    <Link
+                      href={`/admin/users/${u.id}`}
+                      className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1 rounded-lg transition-colors"
+                    >
+                      Gerenciar
+                    </Link>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

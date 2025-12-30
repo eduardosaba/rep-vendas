@@ -75,9 +75,9 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
         </div>
       </div>
 
-      {/* Tabela */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
+      {/* DESKTOP: Tabela Tradicional */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="w-full overflow-x-auto scrollbar-thin">
           <table
             className="w-full text-sm text-left"
             style={{ minWidth: '700px' }}
@@ -145,6 +145,55 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* MOBILE: Cards Verticais */}
+      <div className="grid grid-cols-1 gap-4 md:hidden">
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800">
+            Nenhuma assinatura encontrada.
+          </div>
+        ) : (
+          filtered.map((sub) => (
+            <div
+              key={sub.id}
+              className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm active:bg-gray-50 dark:active:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                    {sub.email}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
+                    <Package size={12} className="text-primary flex-shrink-0" />
+                    <span className="truncate">
+                      {sub.plan_name || 'Sem Plano'}
+                    </span>
+                  </p>
+                </div>
+                <div className="ml-2 flex-shrink-0">
+                  {getStatusBadge(sub.status)}
+                </div>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                    <Clock size={12} />
+                    {sub.created_at
+                      ? new Date(sub.created_at).toLocaleDateString('pt-BR')
+                      : '-'}
+                  </p>
+                  <p className="text-lg font-black text-[var(--primary)] mt-1">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    }).format(sub.price || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
