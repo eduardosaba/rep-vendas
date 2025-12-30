@@ -310,47 +310,98 @@ export default function ProductSyncPage() {
           </div>
           <div className="flex-1 overflow-y-auto">
             {preview.length > 0 ? (
-              <table className="w-full text-left">
-                <thead className="sticky top-0 bg-white border-b z-10">
-                  <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                    <th className="p-6">Produto</th>
-                    <th className="p-6 text-right">Atual</th>
-                    <th className="p-6 text-right text-primary">Novo</th>
-                    <th className="p-6 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+              <>
+                {/* DESKTOP: tabela de preview */}
+                <div className="hidden md:block">
+                  <table className="w-full text-left">
+                    <thead className="sticky top-0 bg-white border-b z-10">
+                      <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                        <th className="p-6">Produto</th>
+                        <th className="p-6 text-right">Atual</th>
+                        <th className="p-6 text-right text-primary">Novo</th>
+                        <th className="p-6 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {preview.map((item, i) => (
+                        <tr key={i} className="text-xs group hover:bg-gray-50">
+                          <td className="p-6">
+                            <div className="font-bold text-slate-800">
+                              {item.productName}
+                            </div>
+                            <div className="text-[10px] text-gray-400">
+                              Ref: {item.key}
+                            </div>
+                          </td>
+                          <td className="p-6 text-right text-gray-400">
+                            {item.currentValue ?? '--'}
+                          </td>
+                          <td className="p-6 text-right font-black text-primary">
+                            {item.newValue}
+                          </td>
+                          <td className="p-6 text-center">
+                            <span
+                              className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${item.status === 'match' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}
+                            >
+                              {item.status === 'match'
+                                ? 'Alterar'
+                                : item.status === 'no_change'
+                                  ? 'Igual'
+                                  : 'Erro'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* MOBILE: cards */}
+                <div className="grid grid-cols-1 gap-3 md:hidden p-4">
                   {preview.map((item, i) => (
-                    <tr key={i} className="text-xs group hover:bg-gray-50">
-                      <td className="p-6">
-                        <div className="font-bold text-slate-800">
-                          {item.productName}
+                    <div
+                      key={i}
+                      className="p-3 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-lg"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                            {item.productName}
+                          </div>
+                          <div className="text-[10px] text-gray-400">
+                            Ref: {item.key}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-gray-400">
-                          Ref: {item.key}
+                        <div className="text-xs">
+                          <span
+                            className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${item.status === 'match' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}
+                          >
+                            {item.status === 'match'
+                              ? 'Alterar'
+                              : item.status === 'no_change'
+                                ? 'Igual'
+                                : 'Erro'}
+                          </span>
                         </div>
-                      </td>
-                      <td className="p-6 text-right text-gray-400">
-                        {item.currentValue ?? '--'}
-                      </td>
-                      <td className="p-6 text-right font-black text-primary">
-                        {item.newValue}
-                      </td>
-                      <td className="p-6 text-center">
-                        <span
-                          className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${item.status === 'match' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}
-                        >
-                          {item.status === 'match'
-                            ? 'Alterar'
-                            : item.status === 'no_change'
-                              ? 'Igual'
-                              : 'Erro'}
-                        </span>
-                      </td>
-                    </tr>
+                      </div>
+                      <div className="flex justify-between items-end">
+                        <div className="text-xs text-gray-400">
+                          Atual:{' '}
+                          <span className="text-gray-700 font-medium">
+                            {item.currentValue ?? '--'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-primary font-black">
+                          Novo:{' '}
+                          <span className="ml-1 text-primary font-black">
+                            {item.newValue}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-20">
                 <Database size={64} />

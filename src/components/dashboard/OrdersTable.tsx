@@ -313,7 +313,8 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
 
       {/* 3. TABELA DE PEDIDOS */}
       <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
+        {/* Desktop: tabela tradicional */}
+        <div className="hidden md:block w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
           <table
             className="w-full text-left text-sm border-collapse"
             style={{ minWidth: '700px' }}
@@ -404,6 +405,59 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile: cards */}
+        <div className="md:hidden grid grid-cols-1 gap-3 p-4">
+          {processedOrders.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
+              Nenhum pedido encontrado
+            </div>
+          ) : (
+            paginatedOrders.map((order) => (
+              <div
+                key={order.id}
+                className="p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                        #{order.display_id}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {order.item_count} itens
+                      </div>
+                    </div>
+                    <div className="text-sm font-medium text-gray-700 dark:text-slate-200 mt-2 truncate">
+                      {order.client_name_guest || 'Visitante'}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {order.client_phone_guest}
+                    </div>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-2">
+                    <div className="font-black text-gray-900 dark:text-white">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(order.total_value)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                    </div>
+                    <div>{getStatusBadge(order.status)}</div>
+                    <Link
+                      href={`/dashboard/orders/${order.display_id}`}
+                      className="mt-2 inline-flex px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-medium"
+                    >
+                      Ver
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Paginação */}

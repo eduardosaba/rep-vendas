@@ -1205,7 +1205,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
       {/* TABELA RESPONSIVA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
+        {/* Desktop: tabela tradicional */}
+        <div className="hidden md:block w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
           <table
             className="w-full text-left text-sm border-collapse"
             style={{ minWidth: '1000px' }}
@@ -1310,6 +1311,96 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile: cards */}
+        <div className="md:hidden p-4 grid grid-cols-1 gap-4">
+          {paginatedProducts.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
+              Nenhum produto encontrado.
+            </div>
+          ) : (
+            paginatedProducts.map((product) => (
+              <div
+                key={product.id}
+                className={`p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl shadow-sm ${selectedIds.includes(product.id) ? 'ring-2 ring-primary/30' : ''}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-16 w-16 rounded-lg bg-gray-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                    {product.image_path ||
+                    product.image_url ||
+                    product.external_image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={
+                          product.image_url ||
+                          product.external_image_url ||
+                          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`
+                        }
+                        alt=""
+                        className="object-contain h-full w-full"
+                      />
+                    ) : (
+                      <div className="text-gray-300">
+                        <ImageIcon size={28} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                          {product.name}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 truncate">
+                          {product.brand ||
+                            product.category ||
+                            product.reference_code}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-gray-900 dark:text-white">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(product.price)}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {product.stock_quantity ?? 0} em estoque
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        onClick={() => toggleSelectOne(product.id)}
+                        className="px-3 py-1 border rounded text-sm"
+                      >
+                        {selectedIds.includes(product.id)
+                          ? 'Selecionado'
+                          : 'Selecionar'}
+                      </button>
+                      <Link
+                        href={`/dashboard/products/${product.slug || product.id}`}
+                        className="px-3 py-1 rounded bg-[var(--primary)] text-white text-sm"
+                      >
+                        Abrir
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setViewProduct(product);
+                        }}
+                        className="px-3 py-1 border rounded text-sm"
+                      >
+                        Visualizar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* PAGINAÇÃO */}

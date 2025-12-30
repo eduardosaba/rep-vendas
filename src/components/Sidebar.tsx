@@ -237,9 +237,13 @@ export function Sidebar({
           return (
             <div key={item.label} className="mb-1">
               <div
-                onClick={() =>
-                  hasChildren ? toggleSubmenu(item.label) : onNavigate?.()
-                }
+                onClick={() => {
+                  if (hasChildren) toggleSubmenu(item.label);
+                  else {
+                    onNavigate?.();
+                    if (isMobile && setIsCollapsed) setIsCollapsed(true);
+                  }
+                }}
                 className={`group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold cursor-pointer transition-all border-l-4 ${
                   active
                     ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]'
@@ -280,7 +284,10 @@ export function Sidebar({
                     <Link
                       key={child.href}
                       href={child.href}
-                      onClick={() => onNavigate?.()}
+                      onClick={() => {
+                        onNavigate?.();
+                        if (isMobile && setIsCollapsed) setIsCollapsed(true);
+                      }}
                       className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-wider ${
                         pathname === child.href
                           ? 'text-[var(--primary)] bg-[var(--primary)]/5'

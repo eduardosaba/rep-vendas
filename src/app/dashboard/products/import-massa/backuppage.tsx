@@ -484,37 +484,94 @@ export default function ImportMassaPage() {
               </button>
             </div>
 
-            <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg max-h-96">
-              <table className="w-full text-sm text-left min-w-full">
-                <thead className="bg-gray-50 text-gray-600 font-medium sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3">Referência</th>
-                    <th className="px-4 py-3">Nome</th>
-                    <th className="px-4 py-3">Preço</th>
-                    <th className="px-4 py-3">Marca</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {previewData.slice(0, 50).map((row, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 font-mono text-xs">
-                        {String(
-                          getField(row, mapping.ref) ||
-                            getField(row, 'Referencia') ||
-                            getField(row, 'Ref') ||
-                            getField(row, 'sku') ||
-                            '-'
-                        )}
-                      </td>
-                      <td className="px-4 py-2 font-medium">
-                        {String(
-                          getField(row, mapping.name) ||
-                            getField(row, 'Nome') ||
-                            getField(row, 'name') ||
-                            'Sem Nome'
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
+            <div className="w-full">
+              {/* DESKTOP: tabela de preview */}
+              <div className="hidden md:block w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg max-h-96">
+                <table className="w-full text-sm text-left min-w-full">
+                  <thead className="bg-gray-50 text-gray-600 font-medium sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3">Referência</th>
+                      <th className="px-4 py-3">Nome</th>
+                      <th className="px-4 py-3">Preço</th>
+                      <th className="px-4 py-3">Marca</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {previewData.slice(0, 50).map((row, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-mono text-xs">
+                          {String(
+                            getField(row, mapping.ref) ||
+                              getField(row, 'Referencia') ||
+                              getField(row, 'Ref') ||
+                              getField(row, 'sku') ||
+                              '-'
+                          )}
+                        </td>
+                        <td className="px-4 py-2 font-medium">
+                          {String(
+                            getField(row, mapping.name) ||
+                              getField(row, 'Nome') ||
+                              getField(row, 'name') ||
+                              'Sem Nome'
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          {String(
+                            getField(row, mapping.price) ||
+                              getField(row, 'Preco') ||
+                              getField(row, 'valor') ||
+                              getField(row, 'price') ||
+                              '0'
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500">
+                          {String(
+                            getField(row, mapping.brand) ||
+                              getField(row, 'Marca') ||
+                              getField(row, 'brand') ||
+                              '-'
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {previewData.length > 50 && (
+                  <p className="p-4 text-center text-xs text-gray-500 bg-gray-50">
+                    ... e mais {previewData.length - 50} itens.
+                  </p>
+                )}
+              </div>
+
+              {/* MOBILE: cards de preview */}
+              <div className="grid grid-cols-1 gap-3 md:hidden">
+                {previewData.slice(0, 50).map((row, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-lg"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                          {String(
+                            getField(row, mapping.name) ||
+                              getField(row, 'Nome') ||
+                              getField(row, 'name') ||
+                              'Sem Nome'
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 font-mono truncate">
+                          {String(
+                            getField(row, mapping.ref) ||
+                              getField(row, 'Referencia') ||
+                              getField(row, 'Ref') ||
+                              getField(row, 'sku') ||
+                              '-'
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
                         {String(
                           getField(row, mapping.price) ||
                             getField(row, 'Preco') ||
@@ -522,24 +579,19 @@ export default function ImportMassaPage() {
                             getField(row, 'price') ||
                             '0'
                         )}
-                      </td>
-                      <td className="px-4 py-2 text-gray-500">
-                        {String(
-                          getField(row, mapping.brand) ||
-                            getField(row, 'Marca') ||
-                            getField(row, 'brand') ||
-                            '-'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {previewData.length > 50 && (
-                <p className="p-4 text-center text-xs text-gray-500 bg-gray-50">
-                  ... e mais {previewData.length - 50} itens.
-                </p>
-              )}
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {String(
+                        getField(row, mapping.brand) ||
+                          getField(row, 'Marca') ||
+                          getField(row, 'brand') ||
+                          '-'
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

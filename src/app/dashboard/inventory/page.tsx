@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { InventoryRow } from './InventoryRow';
+import { InventoryCard } from './InventoryCard';
 import { InventoryHeader } from './InventoryHeader';
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,8 @@ export default async function InventoryPage() {
       <InventoryHeader products={products || []} store={settings} />
 
       <div className="bg-white rounded-[2.5rem] border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* DESKTOP: tabela */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -58,6 +60,13 @@ export default async function InventoryPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* MOBILE: cards */}
+        <div className="grid grid-cols-1 gap-4 md:hidden p-4">
+          {products?.map((product) => (
+            <InventoryCard key={product.id} product={product} />
+          ))}
         </div>
       </div>
     </div>

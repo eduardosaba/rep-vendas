@@ -323,9 +323,10 @@ export default function BulkEditClient({
         </div>
       </div>
 
-      {/* TABELA */}
+      {/* TABELA / CARDS */}
       <div className="flex-1 overflow-auto border border-gray-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm relative">
-        <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
+        {/* Desktop: tabela tradicional */}
+        <div className="hidden md:block w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
           <table className="w-full text-sm text-left min-w-full">
             <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 sticky top-0 z-10 shadow-sm">
               <tr>
@@ -363,7 +364,6 @@ export default function BulkEditClient({
                   key={product.id}
                   className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition-colors group"
                 >
-                  {/* REF */}
                   {visibleColumns.reference_code && (
                     <td className="px-4 py-2">
                       <input
@@ -381,7 +381,6 @@ export default function BulkEditClient({
                     </td>
                   )}
 
-                  {/* NOME */}
                   {visibleColumns.name && (
                     <td className="px-4 py-2">
                       <input
@@ -394,7 +393,6 @@ export default function BulkEditClient({
                     </td>
                   )}
 
-                  {/* MARCA */}
                   {visibleColumns.brand && (
                     <td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 font-sans">
                       {product.brand || (
@@ -403,19 +401,12 @@ export default function BulkEditClient({
                     </td>
                   )}
 
-                  {/* ESTOQUE */}
                   {visibleColumns.stock_quantity && (
                     <td className="px-4 py-2 text-right">
                       <div className="relative">
                         <input
                           type="number"
-                          className={`w-full text-right bg-transparent border border-transparent hover:border-gray-300 focus:border-[var(--primary)] rounded px-2 py-1 outline-none focus:bg-white dark:focus:bg-slate-950 transition-all text-sm font-sans ${
-                            product.stock_quantity === 0
-                              ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                              : product.stock_quantity < 0
-                                ? 'text-red-700'
-                                : 'text-gray-700 dark:text-gray-300'
-                          }`}
+                          className={`w-full text-right bg-transparent border border-transparent hover:border-gray-300 focus:border-[var(--primary)] rounded px-2 py-1 outline-none focus:bg-white dark:focus:bg-slate-950 transition-all text-sm font-sans ${product.stock_quantity === 0 ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : product.stock_quantity < 0 ? 'text-red-700' : 'text-gray-700 dark:text-gray-300'}`}
                           value={product.stock_quantity}
                           onChange={(e) =>
                             handleInputChange(
@@ -429,7 +420,6 @@ export default function BulkEditClient({
                     </td>
                   )}
 
-                  {/* PREÇO DE CUSTO (Mascara) */}
                   {visibleColumns.price && (
                     <td className="px-4 py-2 text-right">
                       <div className="relative group/input">
@@ -452,7 +442,6 @@ export default function BulkEditClient({
                     </td>
                   )}
 
-                  {/* PREÇO DE VENDA (Mascara) */}
                   {visibleColumns.sale_price && (
                     <td className="px-4 py-2 text-right">
                       <div className="relative group/input">
@@ -490,6 +479,113 @@ export default function BulkEditClient({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile: cards com campos editáveis */}
+        <div className="md:hidden p-4 grid grid-cols-1 gap-3">
+          {filteredProducts.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
+              Nenhum produto encontrado com os filtros atuais.
+            </div>
+          ) : (
+            filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                className="p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-900 dark:text-white truncate">
+                      {product.name}
+                    </div>
+                    {visibleColumns.reference_code && (
+                      <div className="text-xs text-gray-400">
+                        Ref: {product.reference_code || '-'}
+                      </div>
+                    )}
+                    {visibleColumns.brand && (
+                      <div className="text-xs text-gray-400">
+                        {product.brand || 'Sem marca'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    {visibleColumns.stock_quantity && (
+                      <div className="text-sm font-bold">
+                        {product.stock_quantity}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {visibleColumns.reference_code && (
+                    <input
+                      className="w-full p-2 border rounded text-sm"
+                      value={product.reference_code || ''}
+                      onChange={(e) =>
+                        handleInputChange(
+                          product.id,
+                          'reference_code',
+                          e.target.value
+                        )
+                      }
+                      placeholder="Ref"
+                    />
+                  )}
+                  {visibleColumns.name && (
+                    <input
+                      className="w-full p-2 border rounded text-sm"
+                      value={product.name}
+                      onChange={(e) =>
+                        handleInputChange(product.id, 'name', e.target.value)
+                      }
+                    />
+                  )}
+                  {visibleColumns.stock_quantity && (
+                    <input
+                      type="number"
+                      className="w-full p-2 border rounded text-sm"
+                      value={product.stock_quantity}
+                      onChange={(e) =>
+                        handleInputChange(
+                          product.id,
+                          'stock_quantity',
+                          Number(e.target.value)
+                        )
+                      }
+                    />
+                  )}
+                  {visibleColumns.price && (
+                    <input
+                      className="w-full p-2 border rounded text-sm"
+                      value={formatCurrencyDisplay(product.price)}
+                      onChange={(e) =>
+                        handleCurrencyChange(
+                          product.id,
+                          'price',
+                          e.target.value
+                        )
+                      }
+                    />
+                  )}
+                  {visibleColumns.sale_price && (
+                    <input
+                      className="w-full p-2 border rounded text-sm"
+                      value={formatCurrencyDisplay(product.sale_price)}
+                      onChange={(e) =>
+                        handleCurrencyChange(
+                          product.id,
+                          'sale_price',
+                          e.target.value
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

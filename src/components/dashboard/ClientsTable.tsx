@@ -5,7 +5,6 @@ import Link from 'next/link';
 import {
   Search,
   User,
-  Phone,
   ChevronLeft,
   ChevronRight,
   ShoppingBag,
@@ -13,12 +12,11 @@ import {
   ArrowRight,
   X,
   MessageCircle,
-  History,
   Mail as MailIcon,
   Package,
+  Loader2,
 } from 'lucide-react';
 
-// 1. ATUALIZAÇÃO DA INTERFACE: Aceitar dados do JOIN
 interface Order {
   id: number;
   display_id: number;
@@ -26,20 +24,13 @@ interface Order {
   status: string;
   total_value: number;
   item_count: number;
-  // Campos Guest
   client_name_guest: string | null;
   client_phone_guest: string | null;
   client_email_guest?: string | null;
-  // Campos Cadastro (Novo)
   client_id?: string | null;
-  clients?: {
-    name: string;
-    email?: string;
-    phone?: string;
-  } | null;
+  clients?: { name?: string; email?: string; phone?: string } | null;
 }
 
-// Tipo calculado do Cliente
 interface ClientProfile {
   id: string;
   name: string;
@@ -49,7 +40,7 @@ interface ClientProfile {
   orderCount: number;
   lastOrderDate: string;
   firstOrderDate: string;
-  isGuest: boolean; // Novo campo para saber se é visitante
+  isGuest: boolean;
   orders: Order[];
 }
 
@@ -65,82 +56,61 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // --- PROCESSAMENTO DE DADOS ---
   const clientsData = useMemo(() => {
     const map = new Map<string, ClientProfile>();
 
     initialOrders.forEach((order) => {
-      // 2. LÓGICA DE PRIORIDADE: Cadastro > Visitante > Fallback
-      const dbClient = order.clients; // Dados da tabela clients
-
-      const rawName = dbClient?.name || order.client_name_guest;
-      const rawPhone = dbClient?.phone || order.client_phone_guest;
-      const rawEmail = dbClient?.email || order.client_email_guest;
-
-      const safeName = rawName || 'Cliente Sem Nome';
-      const cleanPhone = rawPhone?.replace(/\D/g, '') || '';
-
-      // Identifica se é um cliente cadastrado ou visitante
+      const dbClient = order.clients;
+      const rawName =
+        dbClient?.name || order.client_name_guest || 'Cliente Sem Nome';
+      const rawPhone = dbClient?.phone || order.client_phone_guest || '';
+      const rawEmail = dbClient?.email || order.client_email_guest || '';
       const isGuest = !order.client_id;
 
-      // 3. CHAVE ÚNICA DE AGRUPAMENTO
-      // Se tem ID de cadastro, usa ele. Se não, tenta agrupar por telefone ou nome.
       let key = '';
-      if (order.client_id) {
-        key = `reg_${order.client_id}`;
-      } else {
-        // Fallback para visitantes: Agrupa por telefone (se tiver) ou nome
-        key = cleanPhone
-          ? `guest_ph_${cleanPhone}`
-          : `guest_nm_${safeName.toLowerCase().trim()}`;
-      }
+      if (order.client_id) key = `reg_${order.client_id}`;
+      else if (rawPhone) key = `guest_ph_${rawPhone.replace(/\D/g, '')}`;
+      else key = `guest_nm_${rawName.toLowerCase().trim()}`;
 
       if (!map.has(key)) {
         map.set(key, {
           id: key,
-          name: safeName,
-          phone: rawPhone || '',
-          email: rawEmail || '',
+          name: rawName,
+          phone: rawPhone,
+          email: rawEmail,
           totalSpent: 0,
           orderCount: 0,
           lastOrderDate: order.created_at,
           firstOrderDate: order.created_at,
-          isGuest: isGuest,
+          isGuest,
           orders: [],
         });
       }
 
       const client = map.get(key)!;
-
-      // Atualiza métricas se não for cancelado
       if (order.status !== 'cancelled') {
-        client.totalSpent += order.total_value;
+        client.totalSpent += order.total_value || 0;
         client.orderCount += 1;
       }
-
-      // Atualiza datas
       if (new Date(order.created_at) > new Date(client.lastOrderDate))
         client.lastOrderDate = order.created_at;
       if (new Date(order.created_at) < new Date(client.firstOrderDate))
         client.firstOrderDate = order.created_at;
-
       client.orders.push(order);
     });
 
     let array = Array.from(map.values());
 
-    // Filtro de Busca
     if (searchTerm) {
-      const lowerTerm = searchTerm.toLowerCase();
+      const lt = searchTerm.toLowerCase();
       array = array.filter(
         (c) =>
-          (c.name || '').toLowerCase().includes(lowerTerm) ||
-          (c.phone || '').includes(lowerTerm) ||
-          (c.email || '').toLowerCase().includes(lowerTerm)
+          c.name.toLowerCase().includes(lt) ||
+          (c.phone || '').includes(lt) ||
+          (c.email || '').toLowerCase().includes(lt)
       );
     }
 
-    // Ordenação
     array.sort((a, b) => {
       if (sortKey === 'totalSpent') return b.totalSpent - a.totalSpent;
       if (sortKey === 'orderCount') return b.orderCount - a.orderCount;
@@ -153,44 +123,36 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
     return array;
   }, [initialOrders, searchTerm, sortKey]);
 
-  // --- KPIS ---
   const kpis = useMemo(() => {
     const totalClients = clientsData.length;
     const activeClients = clientsData.filter((c) => {
-      const daysSinceLastOrder =
-        (new Date().getTime() - new Date(c.lastOrderDate).getTime()) /
-        (1000 * 3600 * 24);
-      return daysSinceLastOrder <= 30;
+      const days =
+        (Date.now() - new Date(c.lastOrderDate).getTime()) / (1000 * 3600 * 24);
+      return days <= 30;
     }).length;
-
-    const vipCount = Math.ceil(totalClients * 0.1);
+    const vipCount = Math.max(1, Math.ceil(totalClients * 0.1));
     const topClientsValue = [...clientsData]
       .sort((a, b) => b.totalSpent - a.totalSpent)
-      .slice(0, vipCount || 1)
+      .slice(0, vipCount)
       .reduce((acc, c) => acc + c.totalSpent, 0);
-
     return { totalClients, activeClients, topClientsValue };
   }, [clientsData]);
 
-  // --- PAGINAÇÃO ---
-  const totalPages = Math.ceil(clientsData.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(clientsData.length / itemsPerPage));
   const paginatedClients = clientsData.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  // Helpers
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(val);
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString('pt-BR');
+  const formatDate = (d: string) => new Date(d).toLocaleDateString('pt-BR');
 
   return (
     <div className="space-y-6 pb-20">
-      {/* 1. DASHBOARD DE CLIENTES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
           <div className="p-3 bg-[var(--primary)]/10 text-[var(--primary)] rounded-full">
@@ -205,6 +167,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
             </p>
           </div>
         </div>
+
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
           <div className="p-3 bg-green-50 text-green-600 rounded-full">
             <ShoppingBag size={24} />
@@ -218,6 +181,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
             </p>
           </div>
         </div>
+
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
           <div className="p-3 bg-yellow-50 text-yellow-600 rounded-full">
             <Star size={24} />
@@ -233,7 +197,6 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
         </div>
       </div>
 
-      {/* 2. BARRA DE FERRAMENTAS */}
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-center">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
@@ -257,9 +220,9 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
             <User size={18} /> Novo Cliente
           </Link>
           <select
-            className="p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none cursor-pointer"
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as any)}
+            className="p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none cursor-pointer"
           >
             <option value="lastOrderDate">Recentes</option>
             <option value="totalSpent">Maior Valor (LTV)</option>
@@ -268,9 +231,8 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
         </div>
       </div>
 
-      {/* 3. TABELA DE CLIENTES */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 rounded-lg">
+        <div className="hidden md:block w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 rounded-lg">
           <table
             className="w-full text-left text-sm"
             style={{ minWidth: '800px' }}
@@ -320,7 +282,6 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                             {client.name}
                           </p>
                           <div className="flex items-center gap-2">
-                            {/* Badge de Visitante vs Cadastrado */}
                             <span
                               className={`text-[10px] px-1.5 py-0.5 rounded border ${client.isGuest ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
                             >
@@ -381,7 +342,85 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
           </table>
         </div>
 
-        {/* Paginação */}
+        <div className="grid md:hidden p-4 gap-4">
+          {paginatedClients.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 bg-white rounded-lg border border-gray-100">
+              Nenhum cliente encontrado.
+            </div>
+          ) : (
+            paginatedClients.map((client) => (
+              <div
+                key={client.id}
+                className="p-4 bg-white border border-gray-100 rounded-lg shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0">
+                    {client.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {client.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded border ${client.isGuest ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                          >
+                            {client.isGuest ? 'Visitante' : 'Cadastrado'}
+                          </span>
+                          <p className="text-xs text-gray-400">
+                            Desde {formatDate(client.firstOrderDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">
+                          {formatCurrency(client.totalSpent)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {client.orderCount} pedidos
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-3">
+                      {client.phone ? (
+                        <a
+                          href={`https://wa.me/55${client.phone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600"
+                        >
+                          <MessageCircle size={14} /> {client.phone}
+                        </a>
+                      ) : (
+                        <span className="text-sm text-gray-400 italic">
+                          Sem telefone
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedClient(client)}
+                        className="px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium"
+                      >
+                        Ver Detalhes
+                      </button>
+                      <Link
+                        href={`/dashboard/clients/${client.id}`}
+                        className="text-sm text-gray-500 hover:text-[var(--primary)]"
+                      >
+                        Abrir
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
         <div className="p-4 border-t border-gray-200 flex justify-between items-center">
           <span className="text-sm text-gray-500">
             Mostrando {paginatedClients.length} de {clientsData.length} clientes
@@ -405,15 +444,12 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
         </div>
       </div>
 
-      {/* --- MODAL DE DETALHES DO CLIENTE --- */}
       {selectedClient && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center md:justify-end">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
             onClick={() => setSelectedClient(null)}
           />
-
-          {/* Drawer Lateral */}
           <div className="relative w-full md:max-w-md h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             <div className="p-6 border-b border-gray-200 dark:border-slate-800 flex justify-between items-start bg-gray-50 dark:bg-slate-800/50">
               <div className="flex items-center gap-4">
@@ -525,8 +561,8 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                     )
                     .map((order) => (
                       <Link
-                        href={`/dashboard/orders/${order.id}`}
                         key={order.id}
+                        href={`/dashboard/orders/${order.id}`}
                         className="block group"
                       >
                         <div className="p-4 border border-gray-200 dark:border-slate-700 rounded-xl hover:border-[var(--primary)]/50 hover:shadow-md transition-all bg-white dark:bg-slate-800/50">
@@ -540,13 +576,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                               </p>
                             </div>
                             <span
-                              className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${
-                                order.status === 'pending'
-                                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
-                                  : order.status === 'cancelled'
-                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                                    : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                              }`}
+                              className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
                             >
                               {order.status}
                             </span>

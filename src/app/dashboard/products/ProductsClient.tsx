@@ -149,8 +149,8 @@ export default function ProductsClient({
         />
       </div>
 
-      {/* Tabela de Produtos */}
-      <div className="rounded-xl border border-gray-200 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+      {/* DESKTOP: Tabela de Produtos */}
+      <div className="hidden md:block rounded-xl border border-gray-200 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto shadow-sm border border-gray-100 rounded-lg">
           <table className="w-full text-left text-sm min-w-full">
             <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
@@ -188,8 +188,6 @@ export default function ProductsClient({
                           ? 'Você ainda não cadastrou nenhum produto.'
                           : 'Nenhum produto corresponde à sua busca.'}
                       </p>
-
-                      {/* INFO DE DEBUG (Só aparece se não tiver produtos) */}
                       {initialUserId && (
                         <div className="bg-yellow-50 border border-yellow-200 p-3 rounded text-left text-xs text-yellow-800 w-full">
                           <div className="flex items-center gap-2 font-bold mb-1">
@@ -226,6 +224,7 @@ export default function ProductsClient({
                               (product as any).external_image_url ||
                               null;
                             return img ? (
+                              // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={img}
                                 alt={product.name}
@@ -259,7 +258,6 @@ export default function ProductsClient({
                         >
                           <Edit2 size={18} />
                         </Link>
-
                         <button
                           onClick={() => handleDelete(product.id)}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -275,6 +273,90 @@ export default function ProductsClient({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* MOBILE: Cards de Produtos */}
+      <div className="grid grid-cols-1 gap-4 md:hidden">
+        {loading && products.length === 0 ? (
+          <div className="p-12 text-center text-gray-500 bg-white dark:bg-slate-900 rounded-xl border border-gray-200">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="animate-spin text-indigo-600 h-8 w-8" />
+              <span className="text-gray-500 text-sm">Carregando...</span>
+            </div>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="p-12 text-center text-gray-500 bg-white dark:bg-slate-900 rounded-xl border border-gray-200">
+            <div className="flex flex-col items-center justify-center max-w-md mx-auto">
+              <ImageIcon className="h-12 w-12 text-gray-300 mb-3" />
+              <p className="text-lg font-medium text-gray-900">
+                Nenhum produto encontrado
+              </p>
+              <p className="text-sm text-gray-500 mb-4">
+                {products.length === 0
+                  ? 'Você ainda não cadastrou nenhum produto.'
+                  : 'Nenhum produto corresponde à sua busca.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          filteredProducts.map((product) => (
+            <div
+              key={product.id}
+              className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                  {(() => {
+                    const img =
+                      (product as any).image_url ||
+                      (product as any).external_image_url ||
+                      null;
+                    return img ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={img}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon size={18} className="text-gray-400" />
+                    );
+                  })()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                    {product.name}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 font-mono truncate">
+                    {product.reference_code || '-'}
+                  </p>
+                </div>
+                <div className="ml-3 text-right">
+                  <div className="text-sm text-gray-500">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    }).format(product.price)}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Link
+                      href={`/dashboard/products/${product.slug || product.id}`}
+                      className="p-2 text-gray-400 hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors"
+                    >
+                      <Edit2 size={18} />
+                    </Link>
+                    <button
+                      onClick={() => handleDelete(product.id)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

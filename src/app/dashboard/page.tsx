@@ -27,10 +27,13 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { range?: string };
+  searchParams: any;
 }) {
   const supabase = await createClient();
-  const range = searchParams.range || '30d';
+  const resolvedSearchParams = (await searchParams) as
+    | { range?: string }
+    | undefined;
+  const range = resolvedSearchParams?.range || '30d';
 
   const {
     data: { user },
