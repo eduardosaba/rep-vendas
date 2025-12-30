@@ -5,16 +5,7 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import {
-  Bell,
-  Search,
-  User,
-  Menu,
-  ChevronDown,
-  Sun,
-  Moon,
-  LogOut,
-} from 'lucide-react';
+import { Bell, User, Menu, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
 // Importamos a Server Action de logout para garantir a limpeza dos cookies
 import { logout } from '@/app/login/actions';
 
@@ -117,10 +108,8 @@ export default function DashboardHeader({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Alterado para usar a Server Action
   const handleLogout = async () => {
     await logout();
-    // O redirecionamento agora é controlado pela Server Action ou pelo Middleware
   };
 
   const getInitials = (email: string) =>
@@ -129,27 +118,32 @@ export default function DashboardHeader({
   return (
     <header className="sticky top-0 z-20 flex h-20 w-full items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 transition-colors dark:bg-slate-950/80 dark:border-slate-800">
       <div className="flex items-center gap-4">
+        {/* Botão de Menu - Visível apenas em telas menores que LG para controle do Sidebar */}
         <button
           onClick={onMenuClick}
-          className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800 rounded-lg"
+          className="lg:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="Abrir menu"
         >
-          <Menu size={20} />
+          <Menu size={22} />
         </button>
+
         <h1 className="text-xl font-semibold text-gray-800 dark:text-white hidden sm:block">
           {getPageTitle(pathname || '')}
         </h1>
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Alternador de Tema */}
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800"
+          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
+        {/* Notificações */}
         <button
-          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 relative"
+          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 relative transition-colors"
           onClick={() => setIsNotifOpen(!isNotifOpen)}
         >
           <Bell size={20} />
@@ -160,20 +154,21 @@ export default function DashboardHeader({
 
         <div className="h-8 w-px bg-gray-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
 
+        {/* Menu do Usuário */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="flex items-center gap-3 cursor-pointer group focus:outline-none"
           >
             <div className="hidden sm:flex flex-col items-end">
-              <span className="text-sm font-medium text-gray-700 dark:text-white">
+              <span className="text-sm font-medium text-gray-700 dark:text-white group-hover:text-[var(--primary)] transition-colors">
                 Minha Conta
               </span>
-              <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate max-w-[100px]">
+              <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate max-w-[120px]">
                 {userEmail}
               </span>
             </div>
-            <div className="h-10 w-10 rounded-full bg-[var(--primary)] bg-opacity-10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)] border-opacity-20 overflow-hidden">
+            <div className="h-10 w-10 rounded-full bg-[var(--primary)] bg-opacity-10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)] border-opacity-20 overflow-hidden ring-offset-2 ring-offset-white dark:ring-offset-slate-950 group-hover:ring-2 ring-[var(--primary)]/30 transition-all">
               {userAvatar ? (
                 <img
                   src={userAvatar}
@@ -188,7 +183,7 @@ export default function DashboardHeader({
             </div>
             <ChevronDown
               size={14}
-              className={`text-gray-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`}
+              className={`text-gray-400 transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
@@ -197,13 +192,14 @@ export default function DashboardHeader({
               <div className="p-1">
                 <Link
                   href="/dashboard/user"
-                  className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
                   <User size={16} /> Meu Perfil
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors"
                 >
                   <LogOut size={16} /> Sair
                 </button>

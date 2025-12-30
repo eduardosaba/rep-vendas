@@ -6,7 +6,11 @@ type Log = {
   id: string;
   user_id: string | null;
   action: string | null;
-  payload: any;
+  meta: any;
+  allowed: boolean | null;
+  reason: string | null;
+  attempted_font: string | null;
+  final_font: string | null;
   created_at: string | null;
 };
 
@@ -59,9 +63,10 @@ export default function AuditLogsTable({ logs }: { logs: Log[] }) {
                     {humanizeAction(l.action)}
                   </td>
                   <td className="p-3 text-sm text-slate-600">
-                    {typeof l.payload === 'string'
-                      ? l.payload.slice(0, 120)
-                      : JSON.stringify(l.payload).slice(0, 120)}
+                    {l.reason ||
+                      (typeof l.meta === 'string'
+                        ? l.meta.slice(0, 120)
+                        : JSON.stringify(l.meta).slice(0, 120))}
                   </td>
                   <td className="p-3 text-sm text-slate-400">
                     {l.created_at
@@ -84,11 +89,39 @@ export default function AuditLogsTable({ logs }: { logs: Log[] }) {
                       colSpan={5}
                       className="p-4 bg-slate-50 text-sm text-slate-700"
                     >
-                      <pre className="whitespace-pre-wrap break-words text-[13px]">
-                        {typeof l.payload === 'string'
-                          ? l.payload
-                          : JSON.stringify(l.payload, null, 2)}
-                      </pre>
+                      <div className="space-y-2">
+                        {l.allowed !== null && (
+                          <div>
+                            <strong>Permitido:</strong>{' '}
+                            {l.allowed ? 'Sim' : 'Não'}
+                          </div>
+                        )}
+                        {l.reason && (
+                          <div>
+                            <strong>Motivo:</strong> {l.reason}
+                          </div>
+                        )}
+                        {l.attempted_font && (
+                          <div>
+                            <strong>Fonte Tentada:</strong> {l.attempted_font}
+                          </div>
+                        )}
+                        {l.final_font && (
+                          <div>
+                            <strong>Fonte Final:</strong> {l.final_font}
+                          </div>
+                        )}
+                        {l.meta && (
+                          <div>
+                            <strong>Metadados:</strong>
+                            <pre className="whitespace-pre-wrap break-words text-[13px] mt-1">
+                              {typeof l.meta === 'string'
+                                ? l.meta
+                                : JSON.stringify(l.meta, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}

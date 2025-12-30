@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 import {
   Rocket,
   Calendar,
@@ -112,11 +113,20 @@ export default function AdminUpdatesPage() {
       }
 
       setSaveSuccess(true);
+
+      // Limpar o localStorage para forçar o modal aparecer novamente
+      localStorage.removeItem('repvendas_last_seen_version');
+
       setTimeout(() => setSaveSuccess(false), 5000);
 
       // Limpa os campos após salvar
       setEditorTitle('');
       setEditorHighlights([]);
+
+      // Recarrega o histórico
+      if (activeTab === 'history') {
+        fetchHistory();
+      }
     } catch (error) {
       setSaveError(
         error instanceof Error ? error.message : 'Erro desconhecido'
@@ -371,6 +381,24 @@ export default function AdminUpdatesPage() {
               <br />
               Todos os usuários verão este popup ao fazer login.
             </p>
+
+            {/* Botão de Debug para Limpar Cache */}
+            <div className="border-t border-gray-200 dark:border-slate-800 pt-4 mt-4">
+              <button
+                onClick={() => {
+                  localStorage.removeItem('repvendas_last_seen_version');
+                  toast.success(
+                    'Cache limpo! Recarregue a página para ver o modal.'
+                  );
+                }}
+                className="w-full px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                🔄 Limpar Cache do Modal (Teste)
+              </button>
+              <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-2">
+                Use para testar o modal novamente sem publicar nova versão
+              </p>
+            </div>
           </div>
 
           {/* Preview Ao Vivo */}

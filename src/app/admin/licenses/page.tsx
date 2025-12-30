@@ -1,13 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { LicensesTable } from '@/components/admin/LicensesTable';
-import { 
-  CreditCard, 
-  AlertTriangle, 
-  Users, 
-  Download, 
-  TrendingUp, 
-  Wallet 
+import {
+  CreditCard,
+  AlertTriangle,
+  Users,
+  Download,
+  TrendingUp,
+  Wallet,
 } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
@@ -26,7 +26,8 @@ export default async function AdminLicensesPage() {
   // Nota: O nome da foreign key 'subscriptions_user_id_fkey_profiles' deve estar exato
   const { data: rawData, error } = await supabase
     .from('subscriptions')
-    .select(`
+    .select(
+      `
       id,
       status,
       plan_name,
@@ -35,7 +36,8 @@ export default async function AdminLicensesPage() {
       user:profiles!subscriptions_user_id_fkey_profiles (
         email
       )
-    `)
+    `
+    )
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -62,10 +64,12 @@ export default async function AdminLicensesPage() {
   const subscriptions = list.map((sub) => {
     const price = Number(sub.price) || 0;
     const statusLower = (sub.status || '').toLowerCase();
-    
+
     // Normalização de status
     const isActive = ['active', 'ativo', 'trialing'].includes(statusLower);
-    const isCanceled = ['canceled', 'cancelado', 'unpaid'].includes(statusLower);
+    const isCanceled = ['canceled', 'cancelado', 'unpaid'].includes(
+      statusLower
+    );
 
     if (isActive) {
       activeCount++;
@@ -85,13 +89,11 @@ export default async function AdminLicensesPage() {
 
   // Cálculos de Porcentagem
   const totalSubs = subscriptions.length;
-  const churnRate = totalSubs > 0 
-    ? ((canceledCount / totalSubs) * 100).toFixed(1) 
-    : '0';
+  const churnRate =
+    totalSubs > 0 ? ((canceledCount / totalSubs) * 100).toFixed(1) : '0';
 
   return (
-    <div className="space-y-8 p-6 md:p-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
-      
+    <div className="space-y-8 p-4 md:p-6 lg:p-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -110,14 +112,13 @@ export default async function AdminLicensesPage() {
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
         {/* CARD 1: MRR (Destaque) */}
         <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-700 text-white p-6 rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-none">
           {/* Efeito de fundo */}
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <CreditCard size={100} />
           </div>
-          
+
           <div className="relative z-10">
             <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-2">
               MRR (Receita Recorrente)
@@ -129,7 +130,7 @@ export default async function AdminLicensesPage() {
               }).format(totalMRR)}
             </h3>
             <div className="mt-4 flex items-center gap-2 text-indigo-100 text-sm bg-white/10 w-fit px-2 py-1 rounded-lg backdrop-blur-sm">
-              <TrendingUp size={14} /> 
+              <TrendingUp size={14} />
               <span>Baseado em assinaturas ativas</span>
             </div>
           </div>
@@ -154,8 +155,8 @@ export default async function AdminLicensesPage() {
             </p>
           </div>
           <div className="mt-4 w-full bg-gray-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-blue-500 h-full rounded-full transition-all duration-1000" 
+            <div
+              className="bg-blue-500 h-full rounded-full transition-all duration-1000"
               style={{ width: `${(activeCount / (totalSubs || 1)) * 100}%` }}
             />
           </div>
@@ -166,7 +167,10 @@ export default async function AdminLicensesPage() {
           <div>
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <AlertTriangle className="text-red-600 dark:text-red-400" size={20} />
+                <AlertTriangle
+                  className="text-red-600 dark:text-red-400"
+                  size={20}
+                />
               </div>
               <span className="text-xs font-medium text-gray-500 bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded-full">
                 Risco

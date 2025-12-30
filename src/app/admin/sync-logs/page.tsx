@@ -16,9 +16,10 @@ const supabaseAdmin = createSupabaseAdmin(
 export default async function SyncLogsPage({
   searchParams,
 }: {
-  searchParams?: { user?: string };
+  searchParams?: Promise<{ user?: string }>;
 }) {
   try {
+    const params = await searchParams;
     const supabase = await createClient();
     const {
       data: { user },
@@ -52,12 +53,14 @@ export default async function SyncLogsPage({
 
     const query = supabaseAdmin
       .from('audit_logs')
-      .select('id, user_id, action, payload, created_at')
+      .select(
+        'id, user_id, action, meta, allowed, reason, attempted_font, final_font, created_at'
+      )
       .order('created_at', { ascending: false })
       .limit(200);
 
-    if (searchParams?.user) {
-      query.eq('user_id', searchParams.user);
+    if (params?.user) {
+      query.eq('user_id', params.user);
     }
 
     const { data: logs, error } = await query;
@@ -97,7 +100,7 @@ export default async function SyncLogsPage({
               </label>
               <input
                 name="user"
-                defaultValue={searchParams?.user || ''}
+                defaultValue={params?.user || ''}
                 className="w-full border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 outline-none transition-all"
                 placeholder="Ex: 550e8400-e29b-41d4-a716..."
               />
@@ -109,7 +112,7 @@ export default async function SyncLogsPage({
               </button>
 
               {/* Botão para Limpar Filtro - Só aparece se houver filtro ativo */}
-              {searchParams?.user && (
+              {params?.user && (
                 <Link
                   href="/admin/sync-logs"
                   className="px-6 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"

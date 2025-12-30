@@ -250,7 +250,7 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
+        <div className="w-full overflow-x-auto scrollbar-thin">
           <table
             className="w-full text-sm text-left"
             style={{ minWidth: '800px' }}

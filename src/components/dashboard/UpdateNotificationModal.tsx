@@ -1,8 +1,20 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
-import { LATEST_UPDATE, LAST_SEEN_VERSION_KEY } from '@/config/updates-config';
+import { X, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+
+const LAST_SEEN_VERSION_KEY = 'repvendas_last_seen_version';
+
+interface UpdateData {
+  id: number;
+  version: string;
+  date: string;
+  title: string;
+  highlights: string[];
+  color_from: string;
+  color_to: string;
+}
 
 /**
  * MODAL DE NOTIFICAÇÃO DE ATUALIZAÇÃO
@@ -11,35 +23,69 @@ import { LATEST_UPDATE, LAST_SEEN_VERSION_KEY } from '@/config/updates-config';
  * - O usuário faz login no dashboard
  * - A versão do sistema é diferente da última versão vista pelo usuário
  *
+ * Busca os dados diretamente do banco de dados (system_updates)
  * O controle é feito via localStorage para não aparecer repetidamente
  */
 export default function UpdateNotificationModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [updateData, setUpdateData] = useState<UpdateData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
-
-    // Verificar se deve exibir o modal
-    const lastSeenVersion = localStorage.getItem(LAST_SEEN_VERSION_KEY);
-    const currentVersion = LATEST_UPDATE.version;
-
-    // Exibir apenas se:
-    // 1. Nunca viu nenhuma versão (novo usuário)
-    // 2. Viu uma versão diferente da atual (atualização)
-    if (!lastSeenVersion || lastSeenVersion !== currentVersion) {
-      setIsOpen(true);
-    }
+    loadLatestUpdate();
   }, []);
 
+  const loadLatestUpdate = async () => {
+    try {
+      const supabase = createClient();
+
+      // Buscar a última atualização publicada (mais recente por data)
+      const { data, error } = await supabase
+        .from('system_updates')
+        .select('*')
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error('Erro ao buscar atualização:', error);
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
+        setUpdateData(data);
+
+        // Verificar se deve exibir o modal
+        const lastSeenVersion = localStorage.getItem(LAST_SEEN_VERSION_KEY);
+        const currentVersion = data.version;
+
+        // Exibir apenas se:
+        // 1. Nunca viu nenhuma versão (novo usuário)
+        // 2. Viu uma versão diferente da atual (atualização)
+        if (!lastSeenVersion || lastSeenVersion !== currentVersion) {
+          setIsOpen(true);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar atualização:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleClose = () => {
-    // Salvar que o usuário já viu esta versão
-    localStorage.setItem(LAST_SEEN_VERSION_KEY, LATEST_UPDATE.version);
+    if (updateData) {
+      // Salvar que o usuário já viu esta versão
+      localStorage.setItem(LAST_SEEN_VERSION_KEY, updateData.version);
+    }
     setIsOpen(false);
   };
 
-  // Não renderizar no servidor (SSR)
-  if (!mounted || !isOpen) return null;
+  // Não renderizar no servidor (SSR) ou se não houver dados
+  if (!mounted || !isOpen || !updateData || loading) return null;
 
   return (
     <>
@@ -59,7 +105,7 @@ export default function UpdateNotificationModal() {
           <div
             className="relative p-6 rounded-t-2xl"
             style={{
-              background: 'linear-gradient(to right, #0d1b2c, #b9722e)',
+              background: `linear-gradient(to right, ${updateData.color_from}, ${updateData.color_to})`,
             }}
           >
             <button
@@ -90,10 +136,10 @@ export default function UpdateNotificationModal() {
                 RV
               </div>
 
-              <h2 className="text-2xl font-bold mt-4">{LATEST_UPDATE.title}</h2>
+              <h2 className="text-2xl font-bold mt-4">{updateData.title}</h2>
               <p className="text-white/90 text-sm mt-1">
-                Versão {LATEST_UPDATE.version} •{' '}
-                {new Date(LATEST_UPDATE.date).toLocaleDateString('pt-BR')}
+                Versão {updateData.version} •{' '}
+                {new Date(updateData.date).toLocaleDateString('pt-BR')}
               </p>
             </div>
           </div>
@@ -105,7 +151,7 @@ export default function UpdateNotificationModal() {
             </h3>
 
             <ul className="space-y-3 mb-6">
-              {LATEST_UPDATE.highlights.map((highlight, index) => {
+              {updateData.highlights.map((highlight, index) => {
                 // Separa emoji do texto de forma robusta para evitar hydration mismatch
                 const emojiMatch = highlight.match(
                   /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\s*/u
@@ -133,10 +179,10 @@ export default function UpdateNotificationModal() {
                 onClick={handleClose}
                 className="px-8 py-2.5 rounded-lg text-white font-medium transition-all shadow-lg hover:shadow-xl"
                 style={{
-                  background: 'linear-gradient(to right, #0d1b2c, #b9722e)',
+                  background: `linear-gradient(to right, ${updateData.color_from}, ${updateData.color_to})`,
                 }}
               >
-                OK
+                Entendi, obrigado!
               </button>
             </div>
           </div>
