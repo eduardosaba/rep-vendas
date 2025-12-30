@@ -35,6 +35,127 @@ interface LayoutStore {
   closeSidebar: () => void;
 }
 
+// --- MOBILE ACTION BAR (Estilo Mercado Livre) ---
+export function StoreMobileActionBar() {
+  const {
+    isPricesVisible,
+    setIsPricesVisible,
+    setModal,
+    cart,
+    favorites,
+    showFavorites,
+    setShowFavorites,
+  } = useStore();
+
+  // Cálculo da quantidade de itens no carrinho
+  const cartCount = Array.isArray(cart)
+    ? cart.reduce((acc, item) => acc + (item?.quantity || 0), 0)
+    : 0;
+
+  // Função para voltar ao topo (Início)
+  const scrollToTop = () => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    if (showFavorites) setShowFavorites(false);
+  };
+
+  return (
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2">
+      <div className="flex items-center justify-between px-2 relative">
+        {/* 1. INÍCIO */}
+        <button
+          onClick={scrollToTop}
+          className="flex flex-col items-center justify-center gap-1 flex-1 min-w-[60px] py-1 text-gray-500 dark:text-gray-400 active:scale-95 transition-transform"
+        >
+          <Home
+            size={22}
+            className={!showFavorites ? 'text-[var(--primary)]' : ''}
+          />
+          <span
+            className={`text-[10px] font-bold uppercase tracking-tighter ${!showFavorites ? 'text-[var(--primary)]' : ''}`}
+          >
+            Início
+          </span>
+        </button>
+
+        {/* 2. VER PREÇO */}
+        <button
+          onClick={() =>
+            isPricesVisible
+              ? setIsPricesVisible(false)
+              : setModal('password', true)
+          }
+          className="flex flex-col items-center justify-center gap-1 flex-1 min-w-[60px] py-1 text-gray-500 dark:text-gray-400 active:scale-95 transition-transform"
+        >
+          {isPricesVisible ? (
+            <Unlock size={22} className="text-green-500" />
+          ) : (
+            <Lock size={22} />
+          )}
+          <span
+            className={`text-[10px] font-bold uppercase tracking-tighter ${isPricesVisible ? 'text-green-600' : ''}`}
+          >
+            {isPricesVisible ? 'Preços ON' : 'Ver Preço'}
+          </span>
+        </button>
+
+        {/* 3. CARRINHO EM DESTAQUE (Raised Button) */}
+        <div className="flex-1 flex justify-center -mt-10 relative">
+          <button
+            onClick={() => setModal('cart', true)}
+            className="flex flex-col items-center justify-center w-16 h-16 bg-[var(--primary)] rounded-full shadow-[0_8px_25px_rgba(0,0,0,0.2)] border-4 border-white dark:border-slate-900 active:scale-90 transition-all group"
+          >
+            <div className="relative">
+              <ShoppingCart size={26} className="text-white" />
+              {cartCount > 0 && (
+                <span className="absolute -top-3 -right-3 bg-red-600 text-white text-[10px] font-black h-5 w-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 animate-in zoom-in">
+                  {cartCount}
+                </span>
+              )}
+            </div>
+          </button>
+          <span className="absolute -bottom-6 text-[10px] font-black uppercase text-[var(--primary)] tracking-tighter">
+            Carrinho
+          </span>
+        </div>
+
+        {/* 4. VER PEDIDOS (Load Cart / Histórico) */}
+        <button
+          onClick={() => setModal('load', true)}
+          className="flex flex-col items-center justify-center gap-1 flex-1 min-w-[60px] py-1 text-gray-500 dark:text-gray-400 active:scale-95 transition-transform"
+        >
+          <Download size={22} />
+          <span className="text-[10px] font-bold uppercase tracking-tighter">
+            Pedidos
+          </span>
+        </button>
+
+        {/* 5. FAVORITOS */}
+        <button
+          onClick={() => setShowFavorites(!showFavorites)}
+          className="flex flex-col items-center justify-center gap-1 flex-1 min-w-[60px] py-1 text-gray-500 dark:text-gray-400 active:scale-95 transition-transform"
+        >
+          <div className="relative">
+            <Heart
+              size={22}
+              className={showFavorites ? 'fill-red-500 text-red-500' : ''}
+            />
+            {favorites && favorites.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 h-2 w-2 bg-red-500 rounded-full border border-white dark:border-slate-900" />
+            )}
+          </div>
+          <span
+            className={`text-[10px] font-bold uppercase tracking-tighter ${showFavorites ? 'text-red-600' : ''}`}
+          >
+            Favoritos
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const useLayoutStore = create<LayoutStore>((set) => ({
   isSidebarOpen: false,
   toggleSidebar: () =>
@@ -657,127 +778,6 @@ export function StoreSidebar() {
         </div>
       </aside>
     </>
-  );
-}
-
-// --- MOBILE ACTION BAR (Fixed Bottom) ---
-export function StoreMobileActionBar() {
-  const {
-    store,
-    isPricesVisible,
-    setIsPricesVisible,
-    setModal,
-    cart,
-    favorites,
-    showFavorites,
-    setShowFavorites,
-    setSelectedCategory,
-    setSearchTerm,
-    setSelectedBrand,
-  } = useStore();
-  const { closeSidebar } = useLayoutStore();
-
-  const getCartCount = (c: any) => {
-    if (!c) return 0;
-    if (Array.isArray(c))
-      return c.reduce((acc, item) => acc + (item?.quantity || 0), 0);
-    if (typeof c === 'object') {
-      return Object.values(c).reduce((acc: number, v: any) => {
-        if (typeof v === 'number') return acc + v;
-        if (v && typeof v === 'object') return acc + (v.quantity || 0);
-        return acc;
-      }, 0);
-    }
-    return 0;
-  };
-  const cartCount = getCartCount(cart);
-
-  const goHome = () => {
-    setSelectedCategory('all');
-    setSelectedBrand('all');
-    setSearchTerm('');
-    setShowFavorites(false);
-    closeSidebar();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-around px-2 py-2">
-        {/* Início */}
-        <button
-          onClick={goHome}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
-        >
-          <Home size={20} className="text-gray-600" />
-          <span className="text-[10px] font-medium text-gray-700">Início</span>
-        </button>
-
-        {/* Ver Preços - SÓ MOSTRA SE FOR PREÇO DE CUSTO */}
-        {store.show_cost_price && (
-          <button
-            onClick={() => {
-              if (isPricesVisible) {
-                setIsPricesVisible(false);
-              } else {
-                setModal('password', true); // ABRE O MODAL CORRETAMENTE
-              }
-            }}
-            className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
-          >
-            {isPricesVisible ? (
-              <Unlock size={20} className="text-green-600" />
-            ) : (
-              <Lock size={20} className="text-gray-600" />
-            )}
-            <span className="text-[10px] font-medium text-gray-700">
-              {isPricesVisible ? 'Preços ON' : 'Ver Preços'}
-            </span>
-          </button>
-        )}
-
-        {/* Favoritos */}
-        <button
-          onClick={() => setShowFavorites(!showFavorites)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
-        >
-          <div className="relative">
-            <Heart
-              size={20}
-              className={
-                showFavorites ? 'fill-current text-red-500' : 'text-gray-600'
-              }
-            />
-            {favorites.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
-                {favorites.length}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-medium text-gray-700">
-            Favoritos
-          </span>
-        </button>
-
-        {/* Carrinho */}
-        <button
-          onClick={() => setModal('cart', true)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
-        >
-          <div className="relative">
-            <ShoppingCart size={20} className="text-gray-600" />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
-                {cartCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-medium text-gray-700">
-            Carrinho
-          </span>
-        </button>
-      </div>
-    </div>
   );
 }
 
