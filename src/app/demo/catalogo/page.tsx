@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import {
   ShoppingCart,
@@ -16,6 +17,7 @@ import {
   Flame,
   Heart,
   Filter,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -308,11 +310,13 @@ export default function CatalogoDemoFull() {
       {activeCategory === 'Todos' && !searchTerm && (
         <div className="max-w-md mx-auto mt-4 px-4">
           <div className="rounded-xl overflow-hidden shadow-sm aspect-[21/9] relative group">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={DEMO_STORE.banners[0]}
               alt="Banner"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+              fill
+              sizes="100vw"
+              className="object-cover group-hover:scale-105 transition-transform duration-700"
+              priority
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-5">
               <div>
@@ -356,12 +360,15 @@ export default function CatalogoDemoFull() {
               >
                 {/* Imagem & Badges */}
                 <div className="relative aspect-square bg-gray-100 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  <div className="w-full h-full relative">
+                    <Image
+                      src={product.image}
+                      alt={product.name}
+                      fill
+                      sizes="(max-width: 640px) 50vw, 33vw"
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
 
                   {/* Botão Favorito */}
                   <button

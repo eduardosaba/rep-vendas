@@ -5,14 +5,26 @@
    ANTES - SEM OTIMIZAÇÃO
    ============================================ */
 
+// Tipagem mínima para exemplos
+interface ExampleProduct {
+  image_url?: string | null;
+  name?: string | null;
+}
+
 // ❌ Componente antigo (SEM otimização)
-function ProductCardBefore({ product }) {
+function ProductCardBefore({ product }: { product: ExampleProduct }) {
   return (
     <div>
       {/* Sem lazy loading - carrega tudo de uma vez */}
       {/* Sem width/height - causa Layout Shift (CLS) */}
       {/* Sem quality control - usa padrão 75 sempre */}
-      <Image src={product.image_url} alt={product.name} fill />
+      {/* Usamos <img> simples no exemplo para evitar tipagens específicas do Next/Image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={product.image_url || ''}
+        alt={product.name || ''}
+        className="w-full h-auto"
+      />
     </div>
   );
 }
@@ -30,12 +42,12 @@ function ProductCardBefore({ product }) {
 // ✅ Componente otimizado (COM todas as melhorias)
 import OptimizedImage from '@/components/ui/OptimizedImage';
 
-function ProductCardAfter({ product }) {
+function ProductCardAfter({ product }: { product: ExampleProduct }) {
   return (
     <div>
       <OptimizedImage
-        src={product.image_url}
-        alt={product.name}
+        src={product.image_url ?? ''}
+        alt={product.name ?? ''}
         width={400} // ✅ Previne Layout Shift
         height={400} // ✅ Dimensões explícitas
         quality={80} // ✅ Balanço qualidade/tamanho
@@ -72,11 +84,11 @@ function HeroBanner() {
 }
 
 // 2️⃣ PRODUTO EM GRID/LISTA
-function ProductInGrid({ product }) {
+function ProductInGrid({ product }: { product: ExampleProduct }) {
   return (
     <OptimizedImage
-      src={product.image_url}
-      alt={product.name}
+      src={product.image_url ?? ''}
+      alt={product.name ?? ''}
       width={300}
       height={300}
       priority={false} // ✅ Lazy load
@@ -87,11 +99,11 @@ function ProductInGrid({ product }) {
 }
 
 // 3️⃣ THUMBNAIL (Miniatura em tabela)
-function ProductThumbnail({ product }) {
+function ProductThumbnail({ product }: { product: ExampleProduct }) {
   return (
     <OptimizedImage
-      src={product.image_url}
-      alt={product.name}
+      src={product.image_url ?? ''}
+      alt={product.name ?? ''}
       width={48}
       height={48}
       priority={false}
@@ -102,19 +114,24 @@ function ProductThumbnail({ product }) {
 }
 
 // 4️⃣ MODAL / LIGHTBOX (Já aberto)
-function ProductModal({ product, isOpen }) {
+function ProductModal({
+  product,
+  isOpen,
+}: {
+  product: ExampleProduct;
+  isOpen: boolean;
+}) {
   if (!isOpen) return null;
 
   return (
     <div className="modal">
       <OptimizedImage
-        src={product.image_url}
-        alt={product.name}
+        src={product.image_url ?? ''}
+        alt={product.name ?? ''}
         width={800}
         height={800}
         priority={false}
         quality={90} // ⚠️ Qualidade alta (usuário quer ver detalhes)
-        loading="eager" // ⚠️ Eager - modal já está visível
         sizes="(max-width: 768px) 100vw, 800px"
       />
     </div>
@@ -122,7 +139,7 @@ function ProductModal({ product, isOpen }) {
 }
 
 // 5️⃣ ZOOM FULL SCREEN
-function ZoomView({ imageUrl }) {
+function ZoomView({ imageUrl }: { imageUrl: string }) {
   return (
     <div className="zoom-fullscreen">
       <OptimizedImage
@@ -132,7 +149,6 @@ function ZoomView({ imageUrl }) {
         height={1920}
         priority={false}
         quality={95} // ⚠️ Qualidade máxima (zoom = detalhe)
-        loading="eager"
         sizes="100vw"
       />
     </div>

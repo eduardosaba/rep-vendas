@@ -448,6 +448,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     savePreferences(newOrder, visibleColumnKeys);
   };
 
+  const openTextModal = (field: 'brand' | 'category' | '', label: string) => {
+    setTextConfig({ field, value: '', label });
+    setShowTextModal(true);
+  };
+
   // --- COMPONENTE DROPDOWN DE COLUNAS ---
   const ColumnSelectorDropdown = () => {
     const dropdownRef = useRef<any>(null);
@@ -768,7 +773,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         setSortConfig({
           key: sortKey,
           direction:
-            sortConfig?.key === sortKey && sortConfig.direction === 'asc'
+            sortConfig?.key === sortKey && sortConfig?.direction === 'asc'
               ? 'desc'
               : 'asc',
         })
@@ -824,7 +829,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         <div className="flex flex-col items-start gap-1">
           {isValid ? (
             <div className="h-6 overflow-hidden">
-              <ProductBarcode value={raw} height={25} width={1} fontSize={0} />
+              <ProductBarcode value={raw} height={25} />
             </div>
           ) : null}
           <span className="text-[10px] text-gray-500 font-mono">
@@ -1153,9 +1158,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               </span>
             </button>
             <button
-              onClick={() =>
-                setDeleteTargetId(null) || setShowDeleteModal(true)
-              }
+              onClick={() => {
+                setDeleteTargetId(null);
+                setShowDeleteModal(true);
+              }}
               className="flex flex-col items-center gap-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg min-w-[60px]"
             >
               <Trash2 size={18} className="text-red-500" />{' '}
@@ -1262,10 +1268,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                           <Eye size={16} />
                         </button>
                         <button
-                          onClick={() =>
-                            setDeleteTargetId(product.id) ||
-                            setShowDeleteModal(true)
-                          }
+                          onClick={() => {
+                            setDeleteTargetId(product.id);
+                            setShowDeleteModal(true);
+                          }}
                           className="p-1.5 text-gray-400 hover:text-red-500 rounded-md transition-colors"
                         >
                           <Trash2 size={16} />

@@ -9,6 +9,7 @@ import {
   Search,
   Lock,
   Unlock,
+  Home,
   Download,
   ShieldCheck,
   Truck,
@@ -592,9 +593,10 @@ export function StoreSidebar() {
   );
 }
 
-// --- MOBILE ACTION BAR (Fixed Bottom) ---
+// --- MOBILE ACTION BAR (Fixed Bottom) - 5 ÍCONES (Estilo Mercado Livre) ---
 export function StoreMobileActionBar() {
   const {
+    store,
     isPricesVisible,
     setIsPricesVisible,
     setModal,
@@ -602,7 +604,12 @@ export function StoreMobileActionBar() {
     favorites,
     showFavorites,
     setShowFavorites,
+    searchTerm,
+    setSearchTerm,
   } = useStore();
+
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const router = useRouter();
 
   const getCartCount = (c: any) => {
     if (!c) return 0;
@@ -619,79 +626,120 @@ export function StoreMobileActionBar() {
   };
   const cartCount = getCartCount(cart);
 
+  // Verifica se está configurado para mostrar preço sugerido
+  const showSalePrice = store?.show_sale_price;
+
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-around px-2 py-2">
-        {/* Ver Preços */}
-        <button
-          onClick={() =>
-            isPricesVisible
-              ? setIsPricesVisible(false)
-              : setModal('password', true)
-          }
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
-        >
-          {isPricesVisible ? (
-            <Unlock size={20} className="text-green-600" />
-          ) : (
-            <Lock size={20} className="text-gray-600" />
-          )}
-          <span className="text-[10px] font-medium text-gray-700">
-            {isPricesVisible ? 'Preços ON' : 'Ver Preços'}
-          </span>
-        </button>
+    <>
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg pb-[env(safe-area-inset-bottom)]">
+        <div className="relative grid grid-cols-5 gap-0 items-end">
+          {/* Início */}
+          <button
+            onClick={() => router.push('/')}
+            className="flex flex-col items-center gap-0.5 py-2 hover:bg-gray-50 transition-colors"
+          >
+            <Home size={22} className="text-gray-600" />
+            <span className="text-[9px] font-medium text-gray-700">Início</span>
+          </button>
 
-        {/* Pedidos */}
-        <button
-          onClick={() => setModal('load', true)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
-        >
-          <Download size={20} className="text-gray-600" />
-          <span className="text-[10px] font-medium text-gray-700">Pedidos</span>
-        </button>
+          {/* Favoritos */}
+          <button
+            onClick={() => setShowFavorites(!showFavorites)}
+            className="flex flex-col items-center gap-0.5 py-2 hover:bg-gray-50 transition-colors relative"
+          >
+            <div className="relative">
+              <Heart
+                size={22}
+                className={
+                  showFavorites ? 'fill-current text-red-500' : 'text-gray-600'
+                }
+              />
+              {favorites.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold h-3.5 w-3.5 flex items-center justify-center rounded-full">
+                  {favorites.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[9px] font-medium text-gray-700">
+              Favoritos
+            </span>
+          </button>
 
-        {/* Favoritos */}
-        <button
-          onClick={() => setShowFavorites(!showFavorites)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
-        >
-          <div className="relative">
-            <Heart
-              size={20}
-              className={
-                showFavorites ? 'fill-current text-red-500' : 'text-gray-600'
-              }
-            />
-            {favorites.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
-                {favorites.length}
-              </span>
+          {/* Carrinho (Destacado - Centro) */}
+          <button
+            onClick={() => setModal('cart', true)}
+            className="flex flex-col items-center -mt-6 transition-transform hover:scale-105 relative"
+          >
+            <div className="bg-[var(--primary)] rounded-full p-3 shadow-lg border-4 border-white">
+              <div className="relative">
+                <ShoppingCart size={28} className="text-white" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">
+                    {cartCount}
+                  </span>
+                )}
+              </div>
+            </div>
+            <span className="text-[9px] font-medium text-gray-700 mt-1">
+              Carrinho
+            </span>
+          </button>
+
+          {/* Ver Preço */}
+          <button
+            onClick={() =>
+              isPricesVisible
+                ? setIsPricesVisible(false)
+                : setModal('password', true)
+            }
+            className="flex flex-col items-center gap-0.5 py-2 hover:bg-gray-50 transition-colors"
+          >
+            {isPricesVisible ? (
+              <Unlock size={22} className="text-green-600" />
+            ) : (
+              <Lock size={22} className="text-gray-600" />
             )}
-          </div>
-          <span className="text-[10px] font-medium text-gray-700">
-            Favoritos
-          </span>
-        </button>
+            <span className="text-[9px] font-medium text-gray-700">Preços</span>
+          </button>
 
-        {/* Carrinho */}
-        <button
-          onClick={() => setModal('cart', true)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
-        >
-          <div className="relative">
-            <ShoppingCart size={20} className="text-gray-600" />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
-                {cartCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-medium text-gray-700">
-            Carrinho
-          </span>
-        </button>
+          {/* Ver Pedido */}
+          <button
+            onClick={() => setModal('load', true)}
+            className="flex flex-col items-center gap-0.5 py-2 hover:bg-gray-50 transition-colors"
+          >
+            <Search size={22} className="text-gray-600" />
+            <span className="text-[9px] font-medium text-gray-700">
+              Ver Pedido
+            </span>
+          </button>
+        </div>
       </div>
-    </div>
+
+      {/* Modal de Busca Mobile */}
+      {showSearchModal && (
+        <div className="fixed inset-0 z-[60] bg-white">
+          <div className="flex items-center gap-2 p-4 border-b border-gray-200">
+            <button
+              onClick={() => setShowSearchModal(false)}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
+            <input
+              type="text"
+              placeholder="Buscar produtos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+              className="flex-1 h-10 px-4 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[var(--primary)] text-gray-900"
+            />
+          </div>
+          <div className="p-4 text-center text-gray-500 text-sm">
+            Digite para buscar produtos
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

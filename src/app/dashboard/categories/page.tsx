@@ -219,7 +219,7 @@ export default function CategoriesPage() {
 
     const { data } = supabase.storage
       .from('product-images')
-      .getPublicUrl(fileName);
+      .getPublicUrl(filePath);
 
     return data.publicUrl;
   };

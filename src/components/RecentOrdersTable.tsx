@@ -5,7 +5,7 @@ import { Eye } from 'lucide-react';
 
 interface Order {
   id: string;
-  display_id: number;
+  display_id: string | number;
   client_name_guest: string | null;
   total_value: number;
   status: string;
@@ -29,8 +29,6 @@ export default function RecentOrdersTable({ orders }: { orders: Order[] }) {
     Aprovado:
       'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
     Cancelado: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-    Enviado:
-      'bg-primary/10 text-primary dark:bg-primary/30 dark:text-primary/80',
     Enviado: 'bg-primary/5 text-primary dark:bg-primary/30 dark:text-primary',
   };
 

@@ -4,11 +4,8 @@ import Link from 'next/link';
 import { ArrowLeft, Save, Shield, Calendar, CreditCard } from 'lucide-react';
 import { updateUserLicense } from '../actions';
 
-export default async function EditUserPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function EditUserPage(props: any) {
+  const { params } = props as { params: { id: string } };
   const supabase = await createClient();
   const { id } = params;
 

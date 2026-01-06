@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes'; // Hook do tema
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -25,10 +26,14 @@ import {
   FileText,
   Circle,
   Box,
+  LogOut,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@/lib/supabase/client';
 import type { Settings } from '@/lib/types';
+import pkg from '../../package.json';
 
 interface MenuItem {
   icon?: React.ElementType;
@@ -113,7 +118,6 @@ export function Sidebar({
   settings: initialSettings,
   isMobile = false,
 }: { settings?: Settings | null; isMobile?: boolean } = {}) {
-  // Helpers: get luminance and detect if a hex color is light
   const getLuminance = (hex?: string) => {
     if (!hex) return 0;
     const h = hex.replace('#', '').trim();
@@ -135,6 +139,8 @@ export function Sidebar({
   const pathname = usePathname();
   const isDashboardRoute = pathname?.startsWith('/dashboard');
   const supabase = createClient();
+  const router = useRouter();
+  const { theme, setTheme } = useTheme(); // Hook para controlar o tema
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -160,7 +166,6 @@ export function Sidebar({
     if (initialSettings) setBranding(initialSettings);
   }, [initialSettings]);
 
-  // Se não vier via props, busca no client (fallback)
   useEffect(() => {
     if (mounted && !initialSettings) {
       const loadData = async () => {
@@ -192,23 +197,37 @@ export function Sidebar({
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch (err) {
+      console.error('Logout failed', err);
+    }
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
   const isItemActive = (item: MenuItem) => {
     if (item.exact) return pathname === item.href;
-    if (item.children)
-      return item.children.some((child) => pathname?.startsWith(child.href));
+    if (item.children) {
+      return item.children.some((child) => {
+        if (child.exact) return pathname === child.href;
+        return pathname?.startsWith(child.href);
+      });
+    }
     return pathname?.startsWith(item.href);
   };
 
   const primary = branding?.primary_color || '#2563eb';
   const primaryForeground = isLightHex(primary) ? '#0f172a' : '#ffffff';
   const secondaryRaw = branding?.secondary_color || '#f8fafc';
-  // If secondary is almost white, use a slightly darker fallback so it's visible
   const secondary =
     getLuminance(secondaryRaw) > 0.96 ? '#f3f4f6' : secondaryRaw;
 
   if (!mounted) return null;
-
-  // Only render the sidebar inside dashboard routes
   if (!isDashboardRoute) return null;
 
   return (
@@ -249,15 +268,27 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-800">
-        {MENU_ITEMS.map((item) => {
+        {(() => {
+          const items = [...MENU_ITEMS];
+          if (branding?.enable_stock_management) {
+            const inventoryItem = {
+              icon: Package,
+              label: 'Gestão de estoque',
+              href: '/dashboard/inventory',
+            } as MenuItem;
+            const prodIndex = items.findIndex((i) => i.label === 'Produtos');
+            if (prodIndex >= 0) items.splice(prodIndex + 1, 0, inventoryItem);
+            else items.push(inventoryItem);
+          }
+          return items;
+        })().map((item) => {
           const active = isItemActive(item);
           const label = item.label || item.title || '';
           const expanded = expandedMenus.includes(label);
           const hasChildren = item.children && item.children.length > 0;
-          const isLink = item.href && !item.href.startsWith('#');
+          const isValidLink = item.href && !item.href.startsWith('#');
           const Icon = item.icon || Circle;
 
-          // BRANDING DINÂMICO AQUI:
           const baseItemClass = `group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-medium transition-colors duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] border-l-4 border-transparent`;
           const activeClass = `bg-[var(--primary)] bg-opacity-10 shadow-sm border-[var(--primary)] transition-colors duration-200 ease-in-out`;
           const inactiveClass = `text-gray-600 hover:bg-[var(--primary)] hover:bg-opacity-10 dark:text-slate-400 dark:hover:bg-[var(--primary)] dark:hover:bg-opacity-10`;
@@ -287,21 +318,8 @@ export function Sidebar({
 
           return (
             <div key={label} className="mb-1">
-              {isLink ? (
-                <Link
-                  href={item.href}
-                  onClick={(e) => {
-                    if (hasChildren) {
-                      e.preventDefault();
-                      toggleSubmenu(label);
-                    }
-                  }}
-                  className={`${baseItemClass} ${active ? activeClass : inactiveClass}`}
-                  title={isCollapsed ? label : ''}
-                >
-                  {content}
-                </Link>
-              ) : (
+              {/* Se tem children, usa button para toggle. Se não tem, usa Link direto */}
+              {hasChildren ? (
                 <button
                   onClick={() => toggleSubmenu(label)}
                   className={`w-full ${baseItemClass} ${active ? activeClass : inactiveClass}`}
@@ -309,7 +327,15 @@ export function Sidebar({
                 >
                   {content}
                 </button>
-              )}
+              ) : isValidLink ? (
+                <Link
+                  href={item.href}
+                  className={`${baseItemClass} ${active ? activeClass : inactiveClass}`}
+                  title={isCollapsed ? label : ''}
+                >
+                  {content}
+                </Link>
+              ) : null}
 
               {hasChildren && expanded && !isCollapsed && (
                 <div className="mt-1 ml-4 space-y-0.5 border-l-2 border-gray-100 dark:border-slate-800 pl-3 animate-in slide-in-from-left-2 duration-200">
@@ -343,6 +369,38 @@ export function Sidebar({
           );
         })}
       </nav>
+
+      {/* Footer: Logo + Versão do Sistema */}
+      <div className="border-t px-4 py-3 border-gray-100 dark:border-slate-800 flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full">
+          <div className="flex-shrink-0 h-8 w-8">
+            {branding?.logo_url ? (
+              // imagem do usuário (fallback interno)
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.logo_url}
+                alt="Logo"
+                className="h-8 w-8 object-contain rounded"
+              />
+            ) : (
+              <Logo
+                settings={branding}
+                showText={false}
+                useSystemLogo={true}
+                className="h-8 w-auto"
+              />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs text-gray-600 dark:text-slate-400 truncate">
+              Rep Vendas
+            </div>
+            <div className="text-[11px] text-gray-400 dark:text-slate-500">
+              v{pkg.version}
+            </div>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }
