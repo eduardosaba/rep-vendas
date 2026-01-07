@@ -115,6 +115,18 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
   // --- HELPERS ---
   const handleRefresh = () => window.location.reload();
 
+  // tooltips touch support
+  const [visibleTooltips, setVisibleTooltips] = useState<
+    Record<string, boolean>
+  >({});
+  const showTooltip = (key: string) => {
+    setVisibleTooltips((prev) => ({ ...prev, [key]: true }));
+    setTimeout(
+      () => setVisibleTooltips((prev) => ({ ...prev, [key]: false })),
+      2000
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     const key = getUiStatusKey(status);
     const styles: Record<string, string> = {
@@ -447,12 +459,30 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                       {new Date(order.created_at).toLocaleDateString('pt-BR')}
                     </div>
                     <div>{getStatusBadge(order.status)}</div>
-                    <Link
-                      href={`/dashboard/orders/${order.display_id}`}
-                      className="mt-2 inline-flex px-3 py-1 rounded-lg bg-[var(--primary)] text-white text-xs font-medium"
-                    >
-                      Ver
-                    </Link>
+                    <div className="mt-2">
+                      <div
+                        className="relative group"
+                        onTouchStart={() => showTooltip(`${order.id}-open`)}
+                      >
+                        <Link
+                          href={`/dashboard/orders/${order.display_id}`}
+                          className="inline-flex p-2 rounded bg-[var(--primary)] text-white items-center justify-center"
+                          aria-label="Ver Detalhes"
+                        >
+                          <ArrowRight size={16} />
+                          <span className="sr-only">Ver Detalhes</span>
+                        </Link>
+                        <span
+                          className={`pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${order.id}-open`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          Ver Detalhes
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Product, Settings, CartItem } from '@/lib/types';
 import { toast } from 'sonner';
+import { isNextRedirect } from '@/lib/isNextRedirect';
 import { useParams } from 'next/navigation';
 
 export function useCatalog(
@@ -112,7 +113,8 @@ export function useCatalog(
           }
         } catch (err) {
           // Não crítico — continuar sem logos
-          console.debug('Não foi possível carregar logos de marcas', err);
+          if (!isNextRedirect(err))
+            console.debug('Não foi possível carregar logos de marcas', err);
         }
 
         // 4. Carregar hash público da senha (public_catalogs.price_password_hash)
@@ -127,7 +129,8 @@ export function useCatalog(
             setPricePasswordHash((publicCatalog as any).price_password_hash);
           }
         } catch (err) {
-          console.debug('Não foi possível carregar price_password_hash', err);
+          if (!isNextRedirect(err))
+            console.debug('Não foi possível carregar price_password_hash', err);
         }
 
         // 2. Carregar Dados do Cliente (LocalStorage)
@@ -143,7 +146,8 @@ export function useCatalog(
           if (access === 'true') setPriceAccessGranted(true);
         }
       } catch (error) {
-        console.error('Erro ao carregar catálogo:', error);
+        if (!isNextRedirect(error))
+          console.error('Erro ao carregar catálogo:', error);
         toast.error('Erro ao carregar catálogo');
       } finally {
         setLoading(false);

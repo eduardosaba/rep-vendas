@@ -15,6 +15,7 @@ import {
   Mail as MailIcon,
   Package,
   Loader2,
+  Eye,
 } from 'lucide-react';
 
 interface Order {
@@ -52,6 +53,16 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
   const [selectedClient, setSelectedClient] = useState<ClientProfile | null>(
     null
   );
+  const [visibleTooltips, setVisibleTooltips] = useState<
+    Record<string, boolean>
+  >({});
+  const showTooltip = (key: string) => {
+    setVisibleTooltips((prev) => ({ ...prev, [key]: true }));
+    setTimeout(
+      () => setVisibleTooltips((prev) => ({ ...prev, [key]: false })),
+      2000
+    );
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -401,18 +412,51 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                     </div>
 
                     <div className="mt-4 flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedClient(client)}
-                        className="px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium"
+                      <div
+                        className="relative group"
+                        onTouchStart={() => showTooltip(`${client.id}-view`)}
                       >
-                        Ver Detalhes
-                      </button>
-                      <Link
-                        href={`/dashboard/clients/${client.id}`}
-                        className="text-sm text-gray-500 hover:text-[var(--primary)]"
+                        <button
+                          onClick={() => setSelectedClient(client)}
+                          aria-label="Ver Detalhes"
+                          className="p-2 rounded-lg bg-[var(--primary)] text-white flex items-center justify-center"
+                        >
+                          <Eye size={16} />
+                          <span className="sr-only">Ver Detalhes</span>
+                        </button>
+                        <span
+                          className={`pointer-events-none absolute -top-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${client.id}-view`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          Ver Detalhes
+                        </span>
+                      </div>
+
+                      <div
+                        className="relative group"
+                        onTouchStart={() => showTooltip(`${client.id}-open`)}
                       >
-                        Abrir
-                      </Link>
+                        <Link
+                          href={`/dashboard/clients/${client.id}`}
+                          className="p-2 rounded text-gray-500 bg-white border flex items-center justify-center"
+                          aria-label="Abrir"
+                        >
+                          <ArrowRight size={16} />
+                          <span className="sr-only">Abrir</span>
+                        </Link>
+                        <span
+                          className={`pointer-events-none absolute -top-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${client.id}-open`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          Abrir
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

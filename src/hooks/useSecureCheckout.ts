@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isNextRedirect } from '@/lib/isNextRedirect';
 import { toast } from 'sonner';
 
 // Tipos para checkout seguro
@@ -137,7 +138,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
         );
       }
     } catch (error) {
-      console.error('Erro ao inicializar estado seguro:', error);
+      if (!isNextRedirect(error))
+        console.error('Erro ao inicializar estado seguro:', error);
       logSecurityEvent(
         'initialization_error',
         false,
@@ -192,7 +194,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       logSecurityEvent('session_validation', true, 'Sessão válida');
       return true;
     } catch (error) {
-      console.error('Erro ao validar sessão:', error);
+      if (!isNextRedirect(error))
+        console.error('Erro ao validar sessão:', error);
       logSecurityEvent(
         'session_validation',
         false,
@@ -227,7 +230,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       logSecurityEvent('session_refresh', true, 'Sessão renovada com sucesso');
       return true;
     } catch (error) {
-      console.error('Erro ao renovar sessão:', error);
+      if (!isNextRedirect(error))
+        console.error('Erro ao renovar sessão:', error);
       logSecurityEvent(
         'session_refresh',
         false,
@@ -292,7 +296,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
 
         logSecurityEvent('draft_saved', true, 'Rascunho de pedido salvo');
       } catch (error) {
-        console.error('Erro ao salvar rascunho:', error);
+        if (!isNextRedirect(error))
+          console.error('Erro ao salvar rascunho:', error);
         logSecurityEvent(
           'draft_saved',
           false,
@@ -321,7 +326,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       logSecurityEvent('draft_loaded', true, 'Rascunho de pedido carregado');
       return draft;
     } catch (error) {
-      console.error('Erro ao carregar rascunho:', error);
+      if (!isNextRedirect(error))
+        console.error('Erro ao carregar rascunho:', error);
       logSecurityEvent(
         'draft_loaded',
         false,
@@ -521,7 +527,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       }
       return btoa(encrypted); // Base64
     } catch (error) {
-      console.error('Erro ao criptografar dados:', error);
+      if (!isNextRedirect(error))
+        console.error('Erro ao criptografar dados:', error);
       return JSON.stringify(data); // Fallback
     }
   }, []);
@@ -538,7 +545,8 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
       }
       return JSON.parse(decrypted);
     } catch (error) {
-      console.error('Erro ao descriptografar dados:', error);
+      if (!isNextRedirect(error))
+        console.error('Erro ao descriptografar dados:', error);
       return {}; // Fallback
     }
   }, []);

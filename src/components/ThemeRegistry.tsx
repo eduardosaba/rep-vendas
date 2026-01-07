@@ -10,6 +10,7 @@ import {
   DEFAULT_PRIMARY_COLOR,
   DEFAULT_SECONDARY_COLOR,
 } from '@/lib/theme';
+import { isNextRedirect } from '@/lib/isNextRedirect';
 
 export default function ThemeRegistry() {
   const supabase = useMemo(() => createClient(), []);
@@ -17,6 +18,24 @@ export default function ThemeRegistry() {
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   useEffect(() => {
+    // Proteção global: filtrar logs client-side de NEXT_REDIRECT para reduzir ruído
+    const originalConsoleError = console.error;
+    const guardedConsoleError = (...args: any[]) => {
+      try {
+        const maybeErr = args && args.length > 0 ? args[0] : null;
+        if (isNextRedirect(maybeErr)) return;
+      } catch (e) {
+        // ignore
+      }
+      originalConsoleError.apply(console, args as any);
+    };
+
+    console.error = guardedConsoleError;
+
+    return () => {
+      console.error = originalConsoleError;
+    };
+
     // Aguarda o resolvedTheme do next-themes para evitar condições de corrida
     if (typeof resolvedTheme === 'undefined') {
       console.debug('[ThemeRegistry] aguardando resolvedTheme...');

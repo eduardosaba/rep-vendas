@@ -26,7 +26,7 @@ export default async function EditUserPage({
     .single();
 
   const isAllowed = myProfile?.role === 'admin' || myProfile?.role === 'master';
-  if (!isAllowed) redirect('/admin');
+  if (!isAllowed) redirect('/dashboard');
 
   // 2. BUSCAR DADOS
   const [plansRes, userRes] = await Promise.all([
@@ -34,8 +34,7 @@ export default async function EditUserPage({
     getUserWithSubscription(id),
   ]);
 
-  const availablePlans =
-    plansRes.success && plansRes.data ? plansRes.data : [];
+  const availablePlans = plansRes.success && plansRes.data ? plansRes.data : [];
   const profile = userRes.success ? userRes.data : null;
 
   if (!profile) {
@@ -77,7 +76,8 @@ export default async function EditUserPage({
             Editar Usuário
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {profile.email} • ID: <span className="font-mono">{profile.id}</span>
+            {profile.email} • ID:{' '}
+            <span className="font-mono">{profile.id}</span>
           </p>
         </div>
       </div>

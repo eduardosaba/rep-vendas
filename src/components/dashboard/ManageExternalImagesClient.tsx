@@ -36,6 +36,17 @@ export default function ManageExternalImagesClient({
     initialProducts.map((p) => ({ ...p, status: 'idle' }))
   );
 
+  const [visibleTooltips, setVisibleTooltips] = useState<
+    Record<string, boolean>
+  >({});
+  const showTooltip = (key: string) => {
+    setVisibleTooltips((prev) => ({ ...prev, [key]: true }));
+    setTimeout(
+      () => setVisibleTooltips((prev) => ({ ...prev, [key]: false })),
+      2000
+    );
+  };
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [stopRequested, setStopRequested] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -335,14 +346,30 @@ export default function ManageExternalImagesClient({
                 </div>
 
                 <div className="text-right">
-                  <a
-                    href={item.external_image_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-blue-500 hover:underline inline-flex items-center gap-1"
+                  <div
+                    className="relative group"
+                    onTouchStart={() => showTooltip(`${item.id}-open`)}
                   >
-                    Abrir Link <ExternalLink size={12} />
-                  </a>
+                    <a
+                      href={item.external_image_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center p-2 rounded bg-white border text-blue-500"
+                      aria-label="Abrir Link"
+                    >
+                      <ExternalLink size={14} />
+                      <span className="sr-only">Abrir Link</span>
+                    </a>
+                    <span
+                      className={`pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                        visibleTooltips[`${item.id}-open`]
+                          ? 'opacity-100'
+                          : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                      }`}
+                    >
+                      Abrir Link
+                    </span>
+                  </div>
                 </div>
               </div>
 

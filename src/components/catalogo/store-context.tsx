@@ -431,7 +431,19 @@ export function StoreProvider({
         if (showFavorites && !favorites.includes(p.id)) return false;
         if (showOnlyNew && !p.is_launch) return false;
         if (showOnlyBestsellers && !p.is_best_seller) return false;
-        if (selectedBrand !== 'all' && p.brand !== selectedBrand) return false;
+        if (selectedBrand !== 'all') {
+          const normalize = (s: unknown) =>
+            String(s || '')
+              .trim()
+              .toLowerCase();
+          const productBrand = normalize(p.brand);
+          if (Array.isArray(selectedBrand)) {
+            const selectedNormalized = selectedBrand.map(normalize);
+            if (!selectedNormalized.includes(productBrand)) return false;
+          } else {
+            if (productBrand !== normalize(selectedBrand)) return false;
+          }
+        }
         if (selectedCategory !== 'all' && p.category !== selectedCategory)
           return false;
         return true;

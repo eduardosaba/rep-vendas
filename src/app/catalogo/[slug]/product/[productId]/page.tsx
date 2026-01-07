@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   ZoomIn,
 } from 'lucide-react';
+import ImageWithRetry from '@/components/ui/ImageWithRetry';
 import { toast } from 'sonner';
 
 // Função para formatar preços no formato brasileiro
@@ -71,6 +72,9 @@ export default function ProductDetailPage() {
   const productId = params.productId as string;
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
+  const [parsedSpecs, setParsedSpecs] = useState<
+    { key: string; value: string }[] | null
+  >(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<{ [key: string]: number }>({});
@@ -80,6 +84,38 @@ export default function ProductDetailPage() {
   const [modalView, setModalView] = useState<'image' | 'specs'>('image');
   const [loading, setLoading] = useState(true);
   // usar sonner programático
+
+  // Helpers para escolher cor de contraste quando necessário
+  const normalizeHex = (s?: string) => {
+    if (!s) return null;
+    const hex = s.trim();
+    if (hex.startsWith('#')) return hex.toLowerCase();
+    return hex.toLowerCase();
+  };
+
+  const getContrastColor = (hex?: string) => {
+    if (!hex) return '#111827';
+    try {
+      const h = normalizeHex(hex)!.replace('#', '');
+      const r = parseInt(h.substring(0, 2), 16);
+      const g = parseInt(h.substring(2, 4), 16);
+      const b = parseInt(h.substring(4, 6), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance > 0.6 ? '#111827' : '#ffffff';
+    } catch (e) {
+      return '#111827';
+    }
+  };
+
+  const choosePriceColor = (s?: Settings | null) => {
+    if (!s) return undefined;
+    const title = s.title_color;
+    const header = s.header_color;
+    if (title && header && normalizeHex(title) === normalizeHex(header)) {
+      return getContrastColor(header || title);
+    }
+    return title || undefined;
+  };
 
   useEffect(() => {
     if (slug && productId) {
@@ -112,6 +148,93 @@ export default function ProductDetailPage() {
       if (error) throw error;
 
       setProduct(data as Product);
+      // Parse technical_specs into table if possible (support objects, arrays, JSON strings and simple "key: value" text)
+      try {
+        const raw = (data as any)?.technical_specs;
+        const toRowsFromObject = (obj: Record<string, any>) =>
+          Object.entries(obj).map(([k, v]) => ({ key: k, value: String(v) }));
+
+        const toRowsFromArray = (arr: any[]) => {
+          const rows: { key: string; value: string }[] = [];
+          for (const item of arr) {
+            if (!item) continue;
+            if (typeof item === 'object' && !Array.isArray(item)) {
+              if ('key' in item && 'value' in item) {
+                rows.push({
+                  key: String((item as any).key),
+                  value: String((item as any).value),
+                });
+              } else {
+                for (const [k, v] of Object.entries(item)) {
+                  rows.push({ key: k, value: String(v) });
+                }
+              }
+            } else if (Array.isArray(item) && item.length >= 2) {
+              rows.push({ key: String(item[0]), value: String(item[1]) });
+            }
+          }
+          return rows.length ? rows : null;
+        };
+
+        const tryParseLines = (txt: string) => {
+          const lines = txt
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean);
+          const rows: { key: string; value: string }[] = [];
+          for (const line of lines) {
+            let sep: string | null = null;
+            if (line.includes(':')) sep = ':';
+            else if (line.includes('=')) sep = '=';
+            else if (line.includes(' - ')) sep = ' - ';
+            if (!sep) continue;
+            const parts = line.split(sep);
+            const key = parts.shift()?.trim() || '';
+            const value = parts.join(sep).trim();
+            if (key) rows.push({ key, value });
+          }
+          return rows.length ? rows : null;
+        };
+
+        if (raw) {
+          // Raw is already an object/array
+          if (typeof raw === 'object') {
+            if (Array.isArray(raw)) {
+              const rows = toRowsFromArray(raw as any[]);
+              setParsedSpecs(rows);
+            } else {
+              setParsedSpecs(toRowsFromObject(raw as Record<string, any>));
+            }
+          } else if (typeof raw === 'string') {
+            // Try JSON parse
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === 'object') {
+                if (Array.isArray(parsed)) {
+                  const rows = toRowsFromArray(parsed as any[]);
+                  setParsedSpecs(rows);
+                } else {
+                  setParsedSpecs(
+                    toRowsFromObject(parsed as Record<string, any>)
+                  );
+                }
+              } else {
+                // fallback to simple lines like "key: value"
+                setParsedSpecs(tryParseLines(raw));
+              }
+            } catch (e) {
+              // not JSON: try simple lines
+              setParsedSpecs(tryParseLines(raw));
+            }
+          } else {
+            setParsedSpecs(null);
+          }
+        } else {
+          setParsedSpecs(null);
+        }
+      } catch (e) {
+        setParsedSpecs(null);
+      }
     } catch (error) {
       console.error('Erro ao carregar produto/loja:', error);
       toast.error('Produto não encontrado.');
@@ -439,6 +562,13 @@ export default function ProductDetailPage() {
               </p>
             )}
 
+            {/* Barcode */}
+            {(product as any).barcode && (
+              <p className="text-sm text-gray-600">
+                Código de Barras: {(product as any).barcode}
+              </p>
+            )}
+
             {/* Price */}
             <div className="space-y-2">
               {(() => {
@@ -449,7 +579,7 @@ export default function ProductDetailPage() {
                 return (
                   <>
                     <div className="flex items-baseline space-x-3">
-                      <span className="text-4xl font-bold text-gray-900">
+                      <span className="text-4xl font-bold text-gray-900 dark:text-white">
                         R$ {formatPrice(currentPrice)}
                       </span>
                       {settings?.show_old_price && originalPrice && (
@@ -555,7 +685,25 @@ export default function ProductDetailPage() {
             )}
 
             {/* Technical Specifications */}
-            {product.technical_specs && (
+            {parsedSpecs && parsedSpecs.length > 0 ? (
+              <div>
+                <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                  Ficha Técnica
+                </h3>
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700">
+                    {parsedSpecs.map((row) => (
+                      <div key={row.key} className="flex items-start gap-3">
+                        <dt className="font-medium text-gray-800 w-36">
+                          {row.key}
+                        </dt>
+                        <dd className="flex-1 text-gray-700">{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </div>
+            ) : product.technical_specs ? (
               <div>
                 <h3 className="mb-2 text-lg font-semibold text-gray-900">
                   Ficha Técnica
@@ -566,7 +714,7 @@ export default function ProductDetailPage() {
                   </pre>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -583,19 +731,33 @@ export default function ProductDetailPage() {
           >
             <div className="flex items-center justify-center">
               {modalView === 'image' ? (
-                <img
+                <ImageWithRetry
                   src={product.images[currentImageIndex]}
                   alt={product.name}
                   className="max-h-full max-w-full object-contain"
+                  fallback={SYSTEM_LOGO_URL}
                 />
               ) : (
                 <div className="max-h-[80vh] w-[min(900px,90vw)] overflow-auto rounded bg-white p-6">
                   <h3 className="mb-2 text-lg font-semibold text-gray-900">
                     Ficha Técnica
                   </h3>
-                  <pre className="whitespace-pre-wrap text-sm text-gray-700">
-                    {product.technical_specs}
-                  </pre>
+                  {parsedSpecs && parsedSpecs.length > 0 ? (
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700">
+                      {parsedSpecs.map((row) => (
+                        <div key={row.key} className="flex items-start gap-3">
+                          <dt className="font-medium text-gray-800 w-36">
+                            {row.key}
+                          </dt>
+                          <dd className="flex-1 text-gray-700">{row.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                      {product.technical_specs}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>

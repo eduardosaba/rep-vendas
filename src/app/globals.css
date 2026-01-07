@@ -94,3 +94,52 @@ body {
 .dark [data-dashboard] .bg-white {
   background-color: #0f172a; /* slate-900 */
 }
+
+/* Branding override: map common Tailwind "blue" utilities to runtime primary color.
+   This allows the UI to adopt the user's `primary_color` without changing many files.
+   It's intentionally specific and uses !important to take precedence over utility classes.
+   NOTE: This is an aggressive global override for blue utilities used for branding only.
+*/
+:root {
+  /* ensure a fallback rgb var exists for rgba() usage */
+  --primary-rgb: 185, 114, 46; /* matches default --primary #b9722e */
+}
+
+.text-blue-600 {
+  color: var(--primary) !important;
+}
+.text-blue-400 {
+  color: var(--primary) !important;
+}
+.bg-blue-600 {
+  background-color: var(--primary) !important;
+}
+.bg-blue-700,
+.hover\:bg-blue-700:hover {
+  /* slightly darker hover using rgba over rgb var when available */
+  background-color: rgba(var(--primary-rgb), 0.92) !important;
+}
+.bg-blue-50 {
+  background-color: rgba(var(--primary-rgb), 0.06) !important;
+}
+.bg-blue-100 {
+  background-color: rgba(var(--primary-rgb), 0.12) !important;
+}
+.border-blue-100 {
+  border-color: rgba(var(--primary-rgb), 0.12) !important;
+}
+.group-hover\:bg-blue-50:hover {
+  background-color: rgba(var(--primary-rgb), 0.06) !important;
+}
+.hover\:text-blue-600:hover {
+  color: var(--primary) !important;
+}
+.text-blue-600.dark\:text-blue-400 {
+  color: var(--primary) !important;
+}
+.ring-blue-200 {
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12) !important;
+}
+.focus\:ring-blue-500:focus {
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.14) !important;
+}

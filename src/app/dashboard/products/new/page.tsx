@@ -46,14 +46,27 @@ const ImageUploader = ({
   return (
     <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
       <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
-        <ImageIcon size={18} className="text-blue-600" /> Galeria de Imagens
+        <ImageIcon
+          size={18}
+          className="text-[var(--primary)]"
+          style={{ color: 'var(--primary)' }}
+        />{' '}
+        Galeria de Imagens
       </h3>
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
         {images.map((url, index) => (
           <div
             key={index}
-            className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900' : 'border-gray-200 dark:border-slate-700'}`}
+            className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? '' : 'border-gray-200 dark:border-slate-700'}`}
+            style={
+              index === 0
+                ? ({
+                    borderColor: 'var(--primary)',
+                    boxShadow: '0 0 0 3px rgba(var(--primary-rgb), 0.12)',
+                  } as React.CSSProperties)
+                : undefined
+            }
           >
             {}
             <img
@@ -72,14 +85,18 @@ const ImageUploader = ({
             </button>
 
             {index === 0 ? (
-              <div className="absolute bottom-0 inset-x-0 bg-blue-600/90 text-white text-[10px] text-center py-1 font-bold">
+              <div
+                className="absolute bottom-0 inset-x-0 text-white text-[10px] text-center py-1 font-bold"
+                style={{ backgroundColor: 'var(--primary)' }}
+              >
                 CAPA
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => onSetCover(index)}
-                className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-blue-600/80 transition-colors"
+                className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 transition-colors"
+                // hover color intentionally kept subtle; primary applied to cover badge only
               >
                 Definir Capa
               </button>
@@ -87,8 +104,11 @@ const ImageUploader = ({
           </div>
         ))}
 
-        <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-blue-300 transition-all group relative">
-          <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-600 transition-colors">
+        <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-[var(--primary)] transition-all group relative">
+          <div
+            className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:text-[var(--primary)] transition-colors"
+            style={{ color: 'var(--primary)' }}
+          >
             <UploadCloud size={24} />
           </div>
           <span className="text-xs text-gray-500 mt-2 font-medium">
@@ -164,7 +184,7 @@ export default function NewProductPage() {
     brand: '',
     category: '',
     description: '',
-    track_stock: true,
+    track_stock: false,
     stock_quantity: 0,
     is_launch: false,
     is_best_seller: false,
@@ -452,7 +472,8 @@ export default function NewProductPage() {
           <button
             onClick={handleSubmit}
             disabled={loading || uploadingImage}
-            className="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shadow-md transition-transform active:scale-95"
+            className="px-6 py-2 text-sm font-bold text-white rounded-lg disabled:opacity-50 flex items-center gap-2 shadow-md transition-transform active:scale-95 hover:brightness-95"
+            style={{ backgroundColor: 'var(--primary)' }}
           >
             {loading ? (
               <Loader2 size={16} className="animate-spin" />
@@ -482,7 +503,7 @@ export default function NewProductPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white"
                 placeholder="Ex: Tênis Esportivo Runner..."
               />
             </div>
@@ -497,7 +518,7 @@ export default function NewProductPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, reference_code: e.target.value })
                   }
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm"
                   placeholder="Automático se vazio"
                 />
               </div>
@@ -511,7 +532,7 @@ export default function NewProductPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, barcode: e.target.value })
                     }
-                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 pl-9 pr-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 pl-9 pr-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm"
                     placeholder="Ex: 789..."
                   />
                   <Barcode
@@ -547,7 +568,7 @@ export default function NewProductPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
                 }
-                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm leading-relaxed"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm leading-relaxed"
                 placeholder="Detalhes técnicos e comerciais do produto..."
               />
             </div>
@@ -567,7 +588,15 @@ export default function NewProductPage() {
                         technical_specs_mode: 'text',
                       }))
                     }
-                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'text' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'text' ? 'text-white' : 'bg-gray-100 text-gray-700'}`}
+                    style={
+                      formData.technical_specs_mode === 'text'
+                        ? { backgroundColor: 'var(--primary)' }
+                        : undefined
+                    }
+                    aria-pressed={formData.technical_specs_mode === 'text'}
+                    // adiciona leve escurecimento no hover quando ativo
+                    onMouseEnter={() => {}}
                   >
                     Texto
                   </button>
@@ -579,7 +608,13 @@ export default function NewProductPage() {
                         technical_specs_mode: 'table',
                       }))
                     }
-                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'table' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'table' ? 'text-white' : 'bg-gray-100 text-gray-700'}`}
+                    style={
+                      formData.technical_specs_mode === 'table'
+                        ? { backgroundColor: 'var(--primary)' }
+                        : undefined
+                    }
+                    aria-pressed={formData.technical_specs_mode === 'table'}
                   >
                     Tabela
                   </button>
@@ -597,7 +632,7 @@ export default function NewProductPage() {
                     }))
                   }
                   placeholder="Digite a ficha técnica em texto livre..."
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm leading-relaxed"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm leading-relaxed"
                 />
               ) : (
                 <div className="space-y-2">
@@ -609,7 +644,7 @@ export default function NewProductPage() {
                           updateTechRow(idx, 'key', e.target.value)
                         }
                         placeholder="Atributo"
-                        className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                        className="w-32 sm:w-40 min-w-0 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-2 outline-none text-sm"
                       />
                       <input
                         value={row.value}
@@ -617,12 +652,12 @@ export default function NewProductPage() {
                           updateTechRow(idx, 'value', e.target.value)
                         }
                         placeholder="Valor"
-                        className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                        className="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-2 outline-none text-sm"
                       />
                       <button
                         type="button"
                         onClick={() => removeTechRow(idx)}
-                        className="p-2 rounded-md bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors"
+                        className="p-2 rounded-md bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors flex-shrink-0"
                         title="Remover linha"
                       >
                         <Trash2 size={16} />
@@ -633,7 +668,8 @@ export default function NewProductPage() {
                     <button
                       type="button"
                       onClick={addTechRow}
-                      className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm"
+                      className="px-3 py-2 rounded-md text-white text-sm hover:brightness-95"
+                      style={{ backgroundColor: 'var(--primary)' }}
                     >
                       Adicionar linha
                     </button>
@@ -656,7 +692,8 @@ export default function NewProductPage() {
                 <input
                   value={formData.cost}
                   onChange={(e) => handlePriceChange('cost', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-medium text-blue-600"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-lg font-medium"
+                  style={{ color: 'var(--primary)' }}
                   placeholder="0,00"
                 />
                 <span className="text-xs text-gray-400 mt-1">
@@ -671,7 +708,7 @@ export default function NewProductPage() {
                 <input
                   value={formData.price}
                   onChange={(e) => handlePriceChange('price', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg font-bold text-gray-900"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-lg font-bold text-gray-900"
                   placeholder="0,00"
                 />
                 <span className="text-xs text-gray-400 mt-1">
@@ -714,7 +751,7 @@ export default function NewProductPage() {
                         discount_percent: Number(e.target.value),
                       })
                     }
-                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 pl-3 pr-8 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 pl-3 pr-8 py-2 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white"
                   />
                   <Percent
                     size={14}
@@ -752,7 +789,7 @@ export default function NewProductPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, brand: e.target.value })
                 }
-                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white cursor-pointer"
               >
                 <option value="">Selecione...</option>
                 {brandsList.map((b) => (
@@ -777,7 +814,7 @@ export default function NewProductPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value })
                 }
-                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white cursor-pointer"
               >
                 <option value="">Selecione...</option>
                 {categoriesList.map((c) => (
@@ -802,7 +839,7 @@ export default function NewProductPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, color: e.target.value })
                 }
-                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white"
                 placeholder="Ex: Preto Fosco"
               />
             </div>
@@ -826,7 +863,7 @@ export default function NewProductPage() {
                   }
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
               </label>
             </div>
 
@@ -845,7 +882,7 @@ export default function NewProductPage() {
                       stock_quantity: Number(e.target.value),
                     })
                   }
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono font-bold text-lg"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white font-mono font-bold text-lg"
                 />
               </div>
             )}
@@ -886,7 +923,7 @@ export default function NewProductPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, [item.key]: e.target.checked })
                   }
-                  className={`w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${item.color}`}
+                  className={`w-5 h-5 rounded border-gray-300 focus:ring-[var(--primary)] ${item.color}`}
                 />
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   {item.icon && (

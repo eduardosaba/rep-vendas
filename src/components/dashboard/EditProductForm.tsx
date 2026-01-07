@@ -24,6 +24,7 @@ import {
   RefreshCw, // Ícone para regenerar o slug
 } from 'lucide-react';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import ImageWithRetry from '@/components/ui/ImageWithRetry';
 
 // --- SUB-COMPONENTE: UPLOAD ---
 const ImageUploader = ({
@@ -60,6 +61,13 @@ const ImageUploader = ({
               className="w-full h-full object-contain p-1 cursor-zoom-in"
               alt={`Product ${index}`}
               onClick={() => setZoomImage(url)}
+              onError={(e) => {
+                const t = e.currentTarget as HTMLImageElement;
+                t.onerror = null;
+                t.src =
+                  'https://via.placeholder.com/600x600?text=Imagem+indispon%C3%ADvel';
+              }}
+              loading="lazy"
               style={{ height: 'auto' }}
             />
 
@@ -184,7 +192,9 @@ export function EditProductForm({ product }: { product: Product }) {
     if (typeof specs === 'string') {
       try {
         const parsed = JSON.parse(specs);
-        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+
+        // Se parseou para um objeto simples { k: v }
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           return {
             mode: 'table',
             text: specs,
@@ -194,9 +204,60 @@ export function EditProductForm({ product }: { product: Product }) {
             })),
           };
         }
+
+        // Se parseou para um array, tentamos extrair pares {key, value} ou [key, value]
+        if (Array.isArray(parsed)) {
+          const rows: { key: string; value: string }[] = [];
+          for (const item of parsed) {
+            if (!item) continue;
+            if (typeof item === 'object' && !Array.isArray(item)) {
+              // objeto com campos key/value ou {k: v} (pegamos key/value se existir)
+              if ('key' in item && 'value' in item) {
+                rows.push({ key: String(item.key), value: String(item.value) });
+              } else {
+                // objeto genérico: adicionar todas as entradas
+                for (const [k, v] of Object.entries(item)) {
+                  rows.push({ key: k, value: String(v) });
+                }
+              }
+            } else if (Array.isArray(item) && item.length >= 2) {
+              rows.push({ key: String(item[0]), value: String(item[1]) });
+            } else {
+              // item simples: ignorar ou colocar como valor genérico
+            }
+          }
+          if (rows.length > 0) {
+            return { mode: 'table', text: specs, table: rows };
+          }
+        }
       } catch (e) {
         // Não é JSON válido, mantém como texto
       }
+      // Fallback simples: tentar parsear texto livre com linhas "key: value"
+      try {
+        const lines = String(specs)
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+        const rows: { key: string; value: string }[] = [];
+        for (const line of lines) {
+          let sep = null as string | null;
+          if (line.includes(':')) sep = ':';
+          else if (line.includes('=')) sep = '=';
+          else if (line.includes(' - ')) sep = ' - ';
+          if (!sep) continue;
+          const parts = line.split(sep);
+          const key = parts.shift()?.trim() || '';
+          const value = parts.join(sep).trim();
+          if (key) rows.push({ key, value });
+        }
+        if (rows.length > 0) {
+          return { mode: 'table', text: specs, table: rows };
+        }
+      } catch (e) {
+        // ignore
+      }
+
       return {
         mode: 'text',
         text: specs,
@@ -327,7 +388,8 @@ export function EditProductForm({ product }: { product: Product }) {
 
       for (const file of files) {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const fullPath = `${user.id}/products/${baseName}`;
 
         let simulated = 0;
         progressInterval = setInterval(() => {
@@ -337,29 +399,31 @@ export function EditProductForm({ product }: { product: Product }) {
 
         const { error: uploadError } = await supabase.storage
           .from('product-images')
-          .upload(`public/${fileName}`, file);
+          .upload(fullPath, file);
 
         if (uploadError) throw uploadError;
 
-        setUploadProgress(100);
+        setUploadProgress(0);
         if (progressInterval) clearInterval(progressInterval);
 
         const { data } = supabase.storage
           .from('product-images')
-          .getPublicUrl(`public/${fileName}`);
+          .getPublicUrl(fullPath);
         newUrls.push(data.publicUrl);
         await new Promise((r) => setTimeout(r, 300));
         setUploadProgress(0);
       }
-      updateField('images', [...formData.images, ...newUrls]);
-      toast.success('Imagens enviadas!');
-    } catch (error) {
+
+      // Append uploaded URLs to the form images
+      updateField('images', [...(formData.images || []), ...newUrls]);
+      setUploadingImage(false);
+      setUploadProgress(null);
+    } catch (error: any) {
       console.error(error);
-      toast.error('Erro ao enviar imagem');
+      toast.error('Erro ao enviar imagens', { description: error.message });
     } finally {
       setUploadingImage(false);
       setUploadProgress(null);
-      if (progressInterval) clearInterval(progressInterval);
     }
   };
 
@@ -572,7 +636,20 @@ export function EditProductForm({ product }: { product: Product }) {
           <button
             onClick={handleSubmit}
             disabled={loading || uploadingImage || !hasChanges}
-            className={`px-6 py-2 text-sm font-bold text-white rounded-lg flex items-center gap-2 shadow-md transition-transform active:scale-95 ${hasChanges ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
+            className={`px-6 py-2 text-sm font-bold text-white rounded-lg flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
+              hasChanges ? '' : 'bg-gray-400 cursor-not-allowed opacity-70'
+            }`}
+            style={
+              hasChanges
+                ? {
+                    backgroundColor: 'var(--primary, #2563eb)',
+                    boxShadow:
+                      '0 0 0 4px rgba(var(--primary-rgb, 37, 99, 235), 0.12)',
+                    border:
+                      '1px solid rgba(var(--primary-rgb, 37, 99, 235), 0.18)',
+                  }
+                : undefined
+            }
           >
             {loading ? (
               <Loader2 size={16} className="animate-spin" />
@@ -734,14 +811,32 @@ export function EditProductForm({ product }: { product: Product }) {
                   <button
                     type="button"
                     onClick={() => updateField('technical_specs_mode', 'text')}
-                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'text' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'}`}
+                    className={`px-2 py-1 rounded-md text-sm ${
+                      formData.technical_specs_mode === 'text'
+                        ? 'text-white'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}
+                    style={
+                      formData.technical_specs_mode === 'text'
+                        ? { backgroundColor: 'var(--primary)' }
+                        : undefined
+                    }
                   >
                     Texto
                   </button>
                   <button
                     type="button"
                     onClick={() => updateField('technical_specs_mode', 'table')}
-                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'table' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'}`}
+                    className={`px-2 py-1 rounded-md text-sm ${
+                      formData.technical_specs_mode === 'table'
+                        ? 'text-white'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}
+                    style={
+                      formData.technical_specs_mode === 'table'
+                        ? { backgroundColor: 'var(--primary)' }
+                        : undefined
+                    }
                   >
                     Tabela
                   </button>
@@ -769,7 +864,7 @@ export function EditProductForm({ product }: { product: Product }) {
                             updateTechRow(idx, 'key', e.target.value)
                           }
                           placeholder="Atributo"
-                          className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                          className="w-32 sm:w-40 min-w-0 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-2 outline-none text-sm"
                         />
                         <input
                           value={row.value}
@@ -777,12 +872,12 @@ export function EditProductForm({ product }: { product: Product }) {
                             updateTechRow(idx, 'value', e.target.value)
                           }
                           placeholder="Valor"
-                          className="flex-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 outline-none text-sm"
+                          className="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-2 outline-none text-sm"
                         />
                         <button
                           type="button"
                           onClick={() => removeTechRow(idx)}
-                          className="p-2 rounded-md bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors"
+                          className="p-2 rounded-md bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors flex-shrink-0"
                           title="Remover linha"
                         >
                           <Trash2 size={16} />

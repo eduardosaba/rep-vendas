@@ -16,6 +16,9 @@ import {
   Maximize2,
   Search,
   Package,
+  Heart,
+  Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
@@ -45,6 +48,8 @@ export function StoreModals() {
     displayProducts,
     customerSession,
     clearCustomerSession,
+    toggleFavorite,
+    favorites,
   } = useStore();
   const { unlockPrices } = useStore();
 
@@ -452,12 +457,43 @@ export function StoreModals() {
                   ) : null}
 
                   <div className="flex-1">
-                    <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
-                      {modals.product.brand || 'Original'}
-                    </span>
-                    <h2 className="text-4xl font-black mt-1">
-                      {modals.product.name}
-                    </h2>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
+                          {modals.product.brand || 'Original'}
+                        </span>
+                        <h2 className="text-4xl font-black mt-1">
+                          {modals.product.name}
+                        </h2>
+                      </div>
+                      <button
+                        onClick={() => toggleFavorite(modals.product!.id)}
+                        className="flex-shrink-0 p-3 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:scale-110 transition-all"
+                        aria-label="Favoritar"
+                      >
+                        <Heart
+                          size={20}
+                          className={favorites.includes(modals.product!.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}
+                        />
+                      </button>
+                    </div>
+                    
+                    {/* Badges */}
+                    <div className="flex gap-2 mt-2">
+                      {(modals.product as any)?.is_new && (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold">
+                          <Sparkles size={12} />
+                          Lançamento
+                        </span>
+                      )}
+                      {(modals.product as any)?.is_bestseller && (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
+                          <TrendingUp size={12} />
+                          Best Seller
+                        </span>
+                      )}
+                    </div>
+                    
                     <div className="mt-3">
                       <PriceDisplay
                         value={modals.product.price}
@@ -525,7 +561,10 @@ export function StoreModals() {
                   </div>
 
                   <div className="flex items-center justify-between border-t border-white/10 pt-6">
-                    <span className="text-sm font-bold opacity-60">
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: store.primary_color || '#ffffff' }}
+                    >
                       Subtotal
                     </span>
                     <PriceDisplay

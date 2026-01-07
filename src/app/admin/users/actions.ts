@@ -66,7 +66,8 @@ export async function getUserWithSubscription(userId: string) {
 
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select(`
+      .select(
+        `
         *,
         subscriptions (
           plan_name,
@@ -74,7 +75,8 @@ export async function getUserWithSubscription(userId: string) {
           current_period_end,
           price
         )
-      `)
+      `
+      )
       .eq('id', userId)
       .single();
 
@@ -92,7 +94,8 @@ export async function getUsersWithSubscriptions() {
 
     const { data: profiles, error } = await supabaseAdmin
       .from('profiles')
-      .select(`
+      .select(
+        `
         id,
         email,
         role,
@@ -104,7 +107,8 @@ export async function getUsersWithSubscriptions() {
           plan_name,
           price
         )
-      `)
+      `
+      )
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -126,6 +130,28 @@ export async function createManualUser(data: {
   try {
     await requireAdminPermission();
 
+    // Validações rápidas no servidor para evitar erros pouco informativos
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error(
+        'Configuração inválida: falta SUPABASE_SERVICE_ROLE_KEY no servidor.'
+      );
+    }
+
+    if (!data.password || data.password.length < 6) {
+      throw new Error('A senha deve ter pelo menos 6 caracteres.');
+    }
+
+    // Evita tentativa de criação quando o email já existe no banco (prevenção de conflito)
+    const { data: existingProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('email', data.email)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return { success: false, error: 'Email já cadastrado' };
+    }
+
     const mapRoleToDb = (role: string) => {
       const r = (role || '').toString().toLowerCase();
       if (r === 'master' || r === 'admin') return 'master';
@@ -143,19 +169,24 @@ export async function createManualUser(data: {
         user_metadata: { role: dbRole },
       });
 
-    if (authError) throw new Error(`Erro Auth: ${authError.message}`);
+    if (authError) {
+      logger.error('Supabase auth error creating user', authError);
+      throw new Error(`Erro Auth: ${authError.message}`);
+    }
     if (!authData.user) throw new Error('Falha ao gerar ID.');
 
     const userId = authData.user.id;
 
     // 2. Profile
-    const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
-      id: userId,
-      email: data.email,
-      full_name: data.email.split('@')[0],
-      role: dbRole,
-      updated_at: new Date().toISOString(),
-    });
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .upsert({
+        id: userId,
+        email: data.email,
+        full_name: data.email.split('@')[0],
+        role: dbRole,
+        updated_at: new Date().toISOString(),
+      });
 
     if (profileError) throw new Error(`Erro Perfil: ${profileError.message}`);
 
@@ -171,15 +202,17 @@ export async function createManualUser(data: {
       if (planData) price = planData.price;
     }
 
-    const { error: subError } = await supabaseAdmin.from('subscriptions').insert({
-      user_id: userId,
-      status: 'active',
-      plan_name: data.planName,
-      price: price,
-      current_period_end: new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-    });
+    const { error: subError } = await supabaseAdmin
+      .from('subscriptions')
+      .insert({
+        user_id: userId,
+        status: 'active',
+        plan_name: data.planName,
+        price: price,
+        current_period_end: new Date(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      });
 
     if (subError) throw new Error(`Erro Assinatura: ${subError.message}`);
 
@@ -369,7 +402,7 @@ export async function deleteUser(userId: string) {
     // 1. Limpeza Manual (Software Cascade)
     // Tenta apagar assinaturas primeiro
     await supabaseAdmin.from('subscriptions').delete().eq('user_id', userId);
-    
+
     // Tenta apagar perfil depois
     await supabaseAdmin.from('profiles').delete().eq('id', userId);
 
@@ -385,13 +418,14 @@ export async function deleteUser(userId: string) {
     return { success: true, message: 'Usuário excluído permanentemente.' };
   } catch (error: any) {
     logger.error('Erro deleteUser', error);
-    
+
     // Melhora a mensagem de erro para o admin
     let errorMsg = getErrorMessage(error);
     if (errorMsg.includes('violates foreign key constraint')) {
-      errorMsg = 'Erro: Existem dados (lojas/produtos) vinculados a este usuário. Apague-os primeiro ou configure Cascade no Banco.';
+      errorMsg =
+        'Erro: Existem dados (lojas/produtos) vinculados a este usuário. Apague-os primeiro ou configure Cascade no Banco.';
     }
-    
+
     return { success: false, error: errorMsg };
   }
 }

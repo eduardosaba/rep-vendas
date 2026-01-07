@@ -17,6 +17,16 @@ import { login, loginWithGoogle } from './actions';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
+  const isNextRedirect = (err: unknown) => {
+    try {
+      if (!err || typeof err !== 'object') return false;
+      // @ts-ignore
+      const d = (err as any).digest || (err as any).message;
+      return typeof d === 'string' && d.startsWith('NEXT_REDIRECT');
+    } catch {
+      return false;
+    }
+  };
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -69,7 +79,8 @@ export default function LoginPage() {
           window.location.reload();
         }
       } catch (err) {
-        console.error('Erro ao processar mensagem de auth:', err);
+        if (!isNextRedirect(err))
+          console.error('Erro ao processar mensagem de auth:', err);
       }
     };
 
@@ -105,7 +116,8 @@ export default function LoginPage() {
           window.location.reload();
         }
       } catch (err) {
-        console.error('Erro ao processar redirect OAuth:', err);
+        if (!isNextRedirect(err))
+          console.error('Erro ao processar redirect OAuth:', err);
       }
     })();
   }, []);

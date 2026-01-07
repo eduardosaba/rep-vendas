@@ -27,6 +27,16 @@ function humanizeAction(action?: string | null) {
 
 export default function AuditLogsTable({ logs }: { logs: Log[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [visibleTooltips, setVisibleTooltips] = useState<
+    Record<string, boolean>
+  >({});
+  const showTooltip = (key: string) => {
+    setVisibleTooltips((prev) => ({ ...prev, [key]: true }));
+    setTimeout(
+      () => setVisibleTooltips((prev) => ({ ...prev, [key]: false })),
+      2000
+    );
+  };
 
   return (
     <>
@@ -78,12 +88,46 @@ export default function AuditLogsTable({ logs }: { logs: Log[] }) {
                         : '—'}
                     </td>
                     <td className="p-3 text-sm">
-                      <button
-                        className="text-primary font-medium hover:underline"
-                        onClick={() => setOpenId(openId === l.id ? null : l.id)}
+                      <div
+                        className="relative inline-block"
+                        onTouchStart={() => showTooltip(`${l.id}-toggle`)}
                       >
-                        {openId === l.id ? 'Fechar' : 'Ver Detalhes'}
-                      </button>
+                        <button
+                          className="p-2 rounded text-primary hover:bg-primary/10"
+                          onClick={() =>
+                            setOpenId(openId === l.id ? null : l.id)
+                          }
+                          aria-label={
+                            openId === l.id ? 'Fechar Detalhes' : 'Ver Detalhes'
+                          }
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            className="w-4 h-4"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M15 12H9m0 0l3-3m-3 3l3 3"
+                            />
+                          </svg>
+                        </button>
+                        <span
+                          className={`pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${l.id}-toggle`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          {openId === l.id ? 'Fechar' : 'Ver Detalhes'}
+                        </span>
+                      </div>
                     </td>
                   </tr>
 

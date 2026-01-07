@@ -148,24 +148,41 @@ export function Sidebar({
   const [branding, setBranding] = useState<Settings | null>(
     initialSettings || null
   );
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   const isDashboardRoute = pathname?.startsWith('/dashboard');
 
   useEffect(() => {
     setMounted(true);
+    // Detect small screens (mobile) to allow Sidebar to auto-close when items clicked,
+    // even if parent doesn't pass `isMobile` prop.
+    const updateWidth = () =>
+      setIsSmallScreen(
+        typeof window !== 'undefined' ? window.innerWidth < 1024 : false
+      );
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
     const loadBranding = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (data) setBranding(data as Settings);
+      try {
+        const res = await supabase.auth.getUser();
+        const user = res?.data?.user;
+        if (!user) return;
+        const settingsRes = await supabase
+          .from('settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const data = settingsRes?.data ?? null;
+        if (data) setBranding(data as Settings);
+      } catch (err) {
+        // não deixar erro no carregamento do branding quebrar o sidebar
+        // log opcional: console.warn('loadBranding failed', err)
+      }
     };
     if (!initialSettings) loadBranding();
+    return () => {
+      window.removeEventListener('resize', updateWidth);
+    };
   }, [initialSettings, supabase]);
 
   const toggleSubmenu = (label: string) => {
@@ -236,69 +253,159 @@ export function Sidebar({
 
           return (
             <div key={item.label} className="mb-1">
-              <div
-                onClick={() => {
-                  if (hasChildren) toggleSubmenu(item.label);
-                  else {
-                    onNavigate?.();
-                    if (isMobile && setIsCollapsed) setIsCollapsed(true);
-                  }
-                }}
-                className={`group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold cursor-pointer transition-all border-l-4 ${
-                  active
-                    ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]'
-                    : 'text-slate-500 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/50'
-                }`}
-                style={
-                  active
-                    ? {
-                        color: primary,
-                        borderColor: primary,
-                        backgroundColor: `${primary}15`,
-                      }
-                    : {}
-                }
-              >
-                <div className="flex items-center gap-3">
-                  <Icon
-                    size={18}
-                    className={
-                      active ? 'text-[var(--primary)]' : 'text-slate-400'
+              {hasChildren ? (
+                // Em telas pequenas, navegar ao clicar no item pai; manter chevron para abrir submenu
+                isMobile || isSmallScreen ? (
+                  <Link
+                    href={item.href}
+                    onClick={() => {
+                      onNavigate?.();
+                      if ((isMobile || isSmallScreen) && setIsCollapsed)
+                        setIsCollapsed(true);
+                    }}
+                    className={`group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold cursor-pointer transition-all border-l-4 ${
+                      active
+                        ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]'
+                        : 'text-slate-500 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                    }`}
+                    style={
+                      active
+                        ? {
+                            color: primary,
+                            borderColor: primary,
+                            backgroundColor: `${primary}15`,
+                          }
+                        : {}
                     }
-                    style={active ? { color: primary } : {}}
-                  />
-                  {!isCollapsed && <span>{item.label}</span>}
-                </div>
-                {hasChildren && !isCollapsed && (
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
-                  />
-                )}
-              </div>
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon
+                        size={18}
+                        className={
+                          active ? 'text-[var(--primary)]' : 'text-slate-400'
+                        }
+                        style={active ? { color: primary } : {}}
+                      />
+                      {!isCollapsed && <span>{item.label}</span>}
+                    </div>
+                    {!isCollapsed && (
+                      <ChevronDown
+                        size={14}
+                        onClick={(e) => {
+                          // impedir que o clique no chevron dispare o link
+                          e.preventDefault();
+                          toggleSubmenu(item.label);
+                        }}
+                        className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+                      />
+                    )}
+                  </Link>
+                ) : (
+                  <div
+                    onClick={() => toggleSubmenu(item.label)}
+                    className={`group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold cursor-pointer transition-all border-l-4 ${
+                      active
+                        ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]'
+                        : 'text-slate-500 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                    }`}
+                    style={
+                      active
+                        ? {
+                            color: primary,
+                            borderColor: primary,
+                            backgroundColor: `${primary}15`,
+                          }
+                        : {}
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon
+                        size={18}
+                        className={
+                          active ? 'text-[var(--primary)]' : 'text-slate-400'
+                        }
+                        style={active ? { color: primary } : {}}
+                      />
+                      {!isCollapsed && <span>{item.label}</span>}
+                    </div>
+                    {!isCollapsed && (
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+                      />
+                    )}
+                  </div>
+                )
+              ) : (
+                <Link
+                  href={item.href}
+                  onClick={() => {
+                    onNavigate?.();
+                    if ((isMobile || isSmallScreen) && setIsCollapsed)
+                      setIsCollapsed(true);
+                  }}
+                  className={`group flex items-center justify-between rounded-xl px-3.5 py-3 text-sm font-bold cursor-pointer transition-all border-l-4 ${
+                    active
+                      ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]'
+                      : 'text-slate-500 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                  }`}
+                  style={
+                    active
+                      ? {
+                          color: primary,
+                          borderColor: primary,
+                          backgroundColor: `${primary}15`,
+                        }
+                      : {}
+                  }
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon
+                      size={18}
+                      className={
+                        active ? 'text-[var(--primary)]' : 'text-slate-400'
+                      }
+                      style={active ? { color: primary } : {}}
+                    />
+                    {!isCollapsed && <span>{item.label}</span>}
+                  </div>
+                </Link>
+              )}
 
               {/* Submenu */}
               {hasChildren && expanded && !isCollapsed && (
                 <div className="mt-1 ml-4 space-y-1 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
-                  {item.children.map((child) => (
-                    <Link
-                      key={child.href}
-                      href={child.href}
-                      onClick={() => {
-                        onNavigate?.();
-                        if (isMobile && setIsCollapsed) setIsCollapsed(true);
-                      }}
-                      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-wider ${
-                        pathname === child.href
-                          ? 'text-[var(--primary)] bg-[var(--primary)]/5'
-                          : 'text-slate-400 hover:text-slate-600'
-                      }`}
-                      style={pathname === child.href ? { color: primary } : {}}
-                    >
-                      <child.icon size={14} />
-                      <span className="truncate">{child.title}</span>
-                    </Link>
-                  ))}
+                  {item.children.map((child) => {
+                    if (
+                      child.title === 'Gestão de Estoque' &&
+                      !branding?.enable_stock_management
+                    ) {
+                      return null;
+                    }
+
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={() => {
+                          onNavigate?.();
+                          if ((isMobile || isSmallScreen) && setIsCollapsed)
+                            setIsCollapsed(true);
+                        }}
+                        className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-wider ${
+                          pathname === child.href
+                            ? 'text-[var(--primary)] bg-[var(--primary)]/5'
+                            : 'text-slate-400 hover:text-slate-600'
+                        }`}
+                        style={
+                          pathname === child.href ? { color: primary } : {}
+                        }
+                      >
+                        <child.icon size={14} />
+                        <span className="truncate">{child.title}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>

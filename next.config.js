@@ -56,27 +56,66 @@ const nextConfig = {
 
   // Headers de Segurança
   async headers() {
+    const isProd = process.env.NODE_ENV === 'production';
+
+    const baseHeaders = [
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      {
+        key: 'Permissions-Policy',
+        value: 'geolocation=(), microphone=(), camera=()',
+      },
+      {
+        key: 'Strict-Transport-Security',
+        value: 'max-age=63072000; includeSubDomains; preload',
+      },
+    ];
+
+    // Em desenvolvimento o React Refresh usa eval; permitir 'unsafe-eval' apenas
+    // quando o dev estiver explicitamente rodando em localhost.
+    if (!isProd) {
+      const isLocalhostEnv =
+        process.env.LOCALHOST === 'true' ||
+        process.env.NEXT_PUBLIC_ALLOW_UNSAFE_EVAL === 'true' ||
+        process.env.NEXT_PUBLIC_HOST === 'http://localhost' ||
+        process.env.NEXT_PUBLIC_HOST === 'https://localhost';
+
+      if (isLocalhostEnv) {
+        const cspHeaderDev = {
+          key: 'Content-Security-Policy',
+          value:
+            "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-ancestors 'none';",
+        };
+
+        return [
+          {
+            source: '/(.*)',
+            headers: [...baseHeaders, cspHeaderDev],
+          },
+        ];
+      }
+
+      // Caso não seja localhost explícito, retorna headers base sem 'unsafe-eval'
+      return [
+        {
+          source: '/(.*)',
+          headers: baseHeaders,
+        },
+      ];
+    }
+
+    // Em produção adicionamos a CSP estrita
+    const cspHeader = {
+      key: 'Content-Security-Policy',
+      value:
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-ancestors 'none';",
+    };
+
     return [
       {
         source: '/(.*)',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          {
-            key: 'Permissions-Policy',
-            value: 'geolocation=(), microphone=(), camera=()',
-          },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload',
-          },
-          {
-            key: 'Content-Security-Policy',
-            value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-ancestors 'none';",
-          },
-        ],
+        headers: [...baseHeaders, cspHeader],
       },
     ];
   },
