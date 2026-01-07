@@ -5,11 +5,8 @@ import { ArrowLeft, UserCog } from 'lucide-react';
 import { EditUserForm } from './edit-user-form';
 import { getPlans, getUserWithSubscription } from '../actions';
 
-export default async function EditUserPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function EditUserPage(props: any) {
+  const { params } = props as { params: { id: string } };
   const supabase = await createClient();
   const { id } = await params;
 

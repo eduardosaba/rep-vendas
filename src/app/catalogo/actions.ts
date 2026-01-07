@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { mapToDbStatus } from '@/lib/orderStatus';
 
@@ -26,9 +27,23 @@ export async function createOrder(
   ensureSupabaseEnv();
   const supabase = await createClient();
 
+  // Se houver a chave SERVICE ROLE disponível no ambiente, crie um cliente admin
+  // para operações server-side que precisam contornar RLS (inserts/updates críticos).
+  const adminKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
+  const adminSupabase =
+    adminKey && process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? createSupabaseClient(
+          String(process.env.NEXT_PUBLIC_SUPABASE_URL),
+          String(adminKey)
+        )
+      : null;
+
+  let currentStage = 'start';
+
   try {
     // 1. Busca Configurações da Loja (Estoque e Backorder) - com resiliência .maybeSingle()
-    const { data: settings } = await supabase
+    const { data: settings } = await (adminSupabase ?? supabase)
       .from('settings')
       .select('enable_stock_management, global_allow_backorder, name')
       .eq('user_id', ownerId)
@@ -40,15 +55,25 @@ export async function createOrder(
 
     // 2. Validação de Estoque (Pré-venda)
     if (shouldManageStock && !allowBackorder) {
+      currentStage = 'stock_validation';
       for (const item of cartItems) {
-        const { data: product } = await supabase
+        // Se item não tem id (manual), pulamos validação
+        if (!item.id) continue;
+        const { data: product, error: productErr } = await supabase
           .from('products')
           .select('stock_quantity, name')
           .eq('id', item.id)
           .maybeSingle();
 
-        // Se o item for "manual" (não tem ID no banco), pulamos a validação rigorosa ou assumimos estoque infinito
-        // Mas se tiver ID, validamos:
+        if (productErr) {
+          console.error('createOrder - product lookup error', {
+            stage: currentStage,
+            item,
+            error: productErr,
+          });
+          throw new Error(`stock_check: Erro ao consultar produto ${item.id}`);
+        }
+
         if (product && (product.stock_quantity || 0) < item.quantity) {
           return {
             success: false,
@@ -61,7 +86,9 @@ export async function createOrder(
     // 3. Criar o Pedido
     const displayId = Math.floor(Date.now() / 1000) % 1000000;
 
-    const { data: order, error: orderError } = await supabase
+    currentStage = 'order_insert';
+    const insertClient = adminSupabase ?? supabase;
+    const { data: order, error: orderError } = await insertClient
       .from('orders')
       .insert({
         user_id: ownerId,
@@ -81,8 +108,13 @@ export async function createOrder(
       .select()
       .maybeSingle();
 
-    if (orderError)
-      throw new Error(`Erro ao criar pedido: ${orderError.message}`);
+    if (orderError) {
+      console.error('createOrder - order insert error', {
+        stage: currentStage,
+        orderError,
+      });
+      throw new Error(`order_insert: ${orderError.message}`);
+    }
 
     // 4. Inserir Itens do Pedido
     // Filtra itens manuais sem ID válido se necessário, ou insere direto se a tabela permitir nullable
@@ -97,25 +129,39 @@ export async function createOrder(
       total_price: item.price * item.quantity,
     }));
 
-    const { error: itemsError } = await supabase
+    currentStage = 'items_insert';
+    const { error: itemsError } = await insertClient
       .from('order_items')
       .insert(orderItems);
 
-    if (itemsError)
-      throw new Error(`Erro ao inserir itens: ${itemsError.message}`);
+    if (itemsError) {
+      console.error('createOrder - items insert error', {
+        stage: currentStage,
+        itemsError,
+        orderItemsLength: orderItems.length,
+      });
+      throw new Error(`items_insert: ${itemsError.message}`);
+    }
 
     // 5. Baixa de Estoque
     if (shouldManageStock) {
       for (const item of cartItems) {
         if (!item.is_manual) {
           // Só baixa estoque de produtos reais
-          const { error: stockError } = await supabase.rpc('decrement_stock', {
+          const rpcClient = adminSupabase ?? supabase;
+          const { error: stockError } = await rpcClient.rpc('decrement_stock', {
             p_product_id: item.id,
             p_quantity: item.quantity,
             p_allow_backorder: allowBackorder,
           });
 
-          if (stockError) console.error(`Falha estoque ${item.id}`, stockError);
+          if (stockError) {
+            console.error('createOrder - decrement_stock rpc error', {
+              stage: 'stock_rpc',
+              itemId: item.id,
+              stockError,
+            });
+          }
         }
       }
     }
@@ -130,7 +176,11 @@ export async function createOrder(
       clientDocument: customer.cnpj,
     };
   } catch (error: any) {
-    console.error(error);
+    console.error('createOrder - caught error', {
+      currentStage:
+        typeof currentStage !== 'undefined' ? currentStage : 'unknown',
+      message: error?.message,
+    });
     return { success: false, error: error.message || 'Erro interno.' };
   }
 }
