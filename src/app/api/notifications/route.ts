@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
 
     if (!userId) {
-      return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'userId é obrigatório' },
+        { status: 400 }
+      );
     }
 
     try {
@@ -28,25 +31,45 @@ export async function GET(request: NextRequest) {
       if (error) throw error;
 
       const notifications = (data || []) as any[];
-      return NextResponse.json({ notifications, unreadCount: notifications.filter((n) => !n.read).length });
+      return NextResponse.json({
+        notifications,
+        unreadCount: notifications.filter((n) => !n.read).length,
+      });
     } catch (dbErr) {
       // Fallback para in-memory se o banco não estiver acessível
       console.warn('Fallback in-memory notifications (GET):', dbErr);
-      const userNotifications = inMemoryNotifications.filter((n) => n.userId === userId);
-      return NextResponse.json({ notifications: userNotifications, unreadCount: userNotifications.filter((n) => !n.read).length });
+      const userNotifications = inMemoryNotifications.filter(
+        (n) => n.userId === userId
+      );
+      return NextResponse.json({
+        notifications: userNotifications,
+        unreadCount: userNotifications.filter((n) => !n.read).length,
+      });
     }
   } catch (error) {
     console.error('Erro ao buscar notificações:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, title, message, type = 'info', data } = await request.json();
+    const {
+      userId,
+      title,
+      message,
+      type = 'info',
+      data,
+    } = await request.json();
 
     if (!userId || !title || !message) {
-      return NextResponse.json({ error: 'Campos obrigatórios: userId, title, message' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Campos obrigatórios: userId, title, message' },
+        { status: 400 }
+      );
     }
 
     const payload = {
@@ -60,7 +83,11 @@ export async function POST(request: NextRequest) {
 
     try {
       const supabase = await createRouteSupabase();
-      const { data: inserted, error } = await supabase.from('notifications').insert(payload).select().maybeSingle();
+      const { data: inserted, error } = await supabase
+        .from('notifications')
+        .insert(payload)
+        .select()
+        .maybeSingle();
       if (error) throw error;
 
       console.log('🔔 Notificação criada no DB:', inserted);
@@ -83,7 +110,10 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Erro ao criar notificação:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
   }
 }
 
@@ -92,7 +122,10 @@ export async function PATCH(request: NextRequest) {
     const { notificationId, userId } = await request.json();
 
     if (!notificationId || !userId) {
-      return NextResponse.json({ error: 'Campos obrigatórios: notificationId, userId' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Campos obrigatórios: notificationId, userId' },
+        { status: 400 }
+      );
     }
 
     try {
@@ -109,14 +142,26 @@ export async function PATCH(request: NextRequest) {
 
       return NextResponse.json({ success: true, notification: data });
     } catch (dbErr) {
-      const idx = inMemoryNotifications.findIndex((n) => n.id === notificationId && n.userId === userId);
-      if (idx === -1) return NextResponse.json({ error: 'Notificação não encontrada' }, { status: 404 });
+      const idx = inMemoryNotifications.findIndex(
+        (n) => n.id === notificationId && n.userId === userId
+      );
+      if (idx === -1)
+        return NextResponse.json(
+          { error: 'Notificação não encontrada' },
+          { status: 404 }
+        );
       inMemoryNotifications[idx].read = true;
       console.warn('Fallback in-memory notifications (PATCH):', dbErr);
-      return NextResponse.json({ success: true, notification: inMemoryNotifications[idx] });
+      return NextResponse.json({
+        success: true,
+        notification: inMemoryNotifications[idx],
+      });
     }
   } catch (error) {
     console.error('Erro ao marcar notificação como lida:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    );
   }
 }

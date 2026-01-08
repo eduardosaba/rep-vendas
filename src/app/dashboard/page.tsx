@@ -120,7 +120,8 @@ export default async function DashboardPage({
   const needsSyncAlert = daysSinceSync !== null && daysSinceSync > 15;
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 p-4 md:p-8 animate-in fade-in duration-700">
+  <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 animate-in fade-in duration-700">
+        <div className={`col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-6 rounded-[2rem] border shadow-sm bg-white dark:bg-slate-900 dark:border-slate-800`}>
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
@@ -177,7 +178,7 @@ export default async function DashboardPage({
           </div>
           <Link
             href="/dashboard/products/sync"
-            className="w-full sm:w-auto flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white transition-all text-center"
+            className="w-full sm:w-auto flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-all text-center"
           >
             Abrir Sincronizador
           </Link>
@@ -186,6 +187,7 @@ export default async function DashboardPage({
         {/* ALERTA DE ESTOQUE: Agora condicional ao campo 'manage_stock' */}
         {settings.data?.manage_stock ? (
           <div className="bg-white p-4 sm:p-6 rounded-[2rem] border border-gray-200 shadow-sm flex items-center gap-3 sm:gap-4">
+                      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-gray-200 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
             <div className="p-3 bg-red-100 text-red-600 rounded-xl flex-shrink-0">
               <AlertTriangle size={20} />
             </div>
@@ -200,6 +202,7 @@ export default async function DashboardPage({
           </div>
         ) : (
           <div className="bg-emerald-50 p-4 sm:p-6 rounded-[2rem] border border-emerald-100 shadow-sm flex items-center gap-3 sm:gap-4">
+                      <div className="bg-emerald-50 dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-emerald-100 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
             <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl flex-shrink-0">
               <CheckCircle2 size={20} />
             </div>
@@ -249,10 +252,10 @@ export default async function DashboardPage({
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-        <div className="xl:col-span-2 bg-white p-6 rounded-[2.5rem] border border-gray-200 shadow-sm min-h-[400px]">
+        <div className="xl:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-200 dark:border-slate-800 shadow-sm min-h-[400px]">
           <DashboardCharts orders={chartData.data || []} />
         </div>
-        <div className="bg-white p-6 rounded-[2.5rem] border border-gray-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-200 dark:border-slate-800 shadow-sm">
           <h3 className="font-bold text-slate-800 mb-5 uppercase text-xs tracking-widest text-gray-400">
             Ações Rápidas
           </h3>
@@ -285,7 +288,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <RecentOrdersTable
           orders={recentOrders.data || []}
           store={settings.data}

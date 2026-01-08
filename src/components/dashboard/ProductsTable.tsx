@@ -664,6 +664,12 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     }
   };
 
+  const selectAllAcrossPages = () => {
+    // Seleciona todos os produtos que batem com os filtros (processedProducts)
+    setSelectedIds(processedProducts.map((p) => p.id));
+    setSelectAllMatching(true);
+  };
+
   // tooltips visuais acionáveis por toque (mobile): chave = `${product.id}-${action}`
   const [visibleTooltips, setVisibleTooltips] = useState<
     Record<string, boolean>
@@ -1236,6 +1242,56 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Barra informativa para seleção cross-page */}
+      {selectedIds.length > 0 &&
+        processedProducts.length > paginatedProducts.length &&
+        !selectAllMatching && (
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-3 text-sm text-gray-700 dark:text-slate-300 shadow-sm mb-4 flex items-center justify-between">
+            <div>
+              Você selecionou <strong>{selectedIds.length}</strong> nesta
+              página. Deseja selecionar todos os{' '}
+              <strong>{processedProducts.length}</strong> resultados?
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={selectAllAcrossPages}
+                className="px-3 py-1 bg-primary text-white rounded-lg text-sm"
+              >
+                Selecionar todos ({processedProducts.length})
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedIds([]);
+                  setSelectAllMatching(false);
+                }}
+                className="px-3 py-1 border rounded-lg text-sm"
+              >
+                Desmarcar
+              </button>
+            </div>
+          </div>
+        )}
+
+      {selectAllMatching && (
+        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-3 text-sm text-gray-700 dark:text-slate-300 shadow-sm mb-4 flex items-center justify-between">
+          <div>
+            Todos os <strong>{processedProducts.length}</strong> resultados
+            estão selecionados.
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setSelectedIds([]);
+                setSelectAllMatching(false);
+              }}
+              className="px-3 py-1 border rounded-lg text-sm"
+            >
+              Desmarcar todos
+            </button>
+          </div>
         </div>
       )}
 

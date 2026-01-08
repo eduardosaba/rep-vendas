@@ -359,65 +359,109 @@ export function StoreModals() {
             is_launch: (modals.product as any)?.is_launch,
             is_best_seller: (modals.product as any)?.is_best_seller,
             bestseller: (modals.product as any)?.bestseller,
-            technical_specs: (modals.product as any)?.technical_specs,
-            isFavorite: favorites.includes(modals.product.id),
-          });
+                    {(modals.product as any)?.technical_specs &&
+                      (() => {
+                        let specsRaw: any = (modals.product as any).technical_specs;
+                        let specs: any = specsRaw;
 
-          return (
-            <div className="fixed inset-0 z-[110] flex items-end justify-center md:items-center md:px-4">
-              <div
-                className="absolute inset-0 bg-[#0d1b2c]/70 backdrop-blur-md animate-in fade-in duration-500"
-                onClick={() => setModal('product', null)}
-              />
+                        const tryParse = (s: string) => {
+                          try {
+                            return JSON.parse(s);
+                          } catch (e) {
+                            try {
+                              // tentativa com aspas duplas (algumas entradas usam aspas simples)
+                              return JSON.parse(s.replace(/'/g, '"'));
+                            } catch (e2) {
+                              return null;
+                            }
+                          }
+                        };
 
-              <div className="relative flex h-[90dvh] w-full flex-col overflow-hidden bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-bottom duration-500 md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-[3rem]">
-                <button
-                  onClick={() => setModal('product', null)}
-                  className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 text-gray-700 dark:text-gray-200 shadow hover:scale-105 transition-transform"
-                  aria-label="Fechar"
-                >
-                  <X size={18} />
-                </button>
+                        // Se for string, tenta parsear JSON (caso esteja serializado)
+                        if (typeof specs === 'string') {
+                          const parsed = tryParse(specs);
+                          if (parsed !== null) specs = parsed;
+                        }
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar md:flex md:flex-row">
-                  {/* Left: Image + Thumbnails */}
-                  <div className="md:w-1/2 p-6 md:p-10 flex flex-col">
-                    <div className="relative aspect-square w-full rounded-[2rem] bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-                      <Image
-                        src={productImages[currentImageIndex]}
-                        alt={(modals.product as any).name || 'Produto'}
-                        fill
-                        className="object-contain p-12 transition-all duration-500"
-                      />
+                        // Se for array, tentamos normalizar para objeto
+                        if (Array.isArray(specs)) {
+                          const arr = specs;
 
-                      {productImages.length > 1 && (
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCurrentImageIndex((p) =>
-                                p === 0 ? productImages.length - 1 : p - 1
-                              );
-                            }}
-                            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
-                            aria-label="Imagem anterior"
-                          >
-                            <ChevronLeft size={24} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCurrentImageIndex((p) =>
-                                p === productImages.length - 1 ? 0 : p + 1
-                              );
-                            }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
-                            aria-label="Próxima imagem"
-                          >
-                            <ChevronRight size={24} />
-                          </button>
-                          <button
-                            onClick={(e) => {
+                          // Caso: [['key','value'], ...]
+                          if (arr.length > 0 && Array.isArray(arr[0]) && arr[0].length >= 2) {
+                            const obj: Record<string, any> = {};
+                            arr.forEach((pair: any) => {
+                              if (!Array.isArray(pair) || pair.length < 2) return;
+                              obj[String(pair[0])] = pair[1];
+                            });
+                            specs = obj;
+                          }
+
+                          // Caso: [{key,value}, ...] ou [{name,value}, ...]
+                          else if (arr.length > 0 && typeof arr[0] === 'object') {
+                            const obj: Record<string, any> = {};
+                            arr.forEach((el: any) => {
+                              if (el == null) return;
+                              if (typeof el === 'object') {
+                                if ('key' in el && 'value' in el) obj[String(el.key)] = el.value;
+                                else if ('name' in el && 'value' in el) obj[String(el.name)] = el.value;
+                                else if (Object.keys(el).length === 1) {
+                                  const k = Object.keys(el)[0];
+                                  obj[k] = (el as any)[k];
+                                } else {
+                                  // flatten other object shapes
+                                  Object.entries(el).forEach(([k, v]) => (obj[k] = v));
+                                }
+                              }
+                            });
+                            specs = obj;
+                          }
+
+                          // Caso: ['k:v', 'k2:v2']
+                          else if (arr.length > 0 && typeof arr[0] === 'string' && arr[0].includes(':')) {
+                            const obj: Record<string, any> = {};
+                            arr.forEach((s: string) => {
+                              const idx = s.indexOf(':');
+                              if (idx === -1) return;
+                              const k = s.slice(0, idx).trim();
+                              const v = s.slice(idx + 1).trim();
+                              if (k) obj[k] = v;
+                            });
+                            specs = obj;
+                          }
+                        }
+
+                        const isObject = typeof specs === 'object' && specs !== null && !Array.isArray(specs);
+
+                        return (
+                          <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
+                            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-4">Ficha técnica</h3>
+
+                            {isObject ? (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <tbody>
+                                    {Object.entries(specs).map(([key, value], idx) => (
+                                      <tr key={idx} className="border-b border-gray-100 dark:border-slate-700 last:border-0">
+                                        <td className="py-3 pr-4 font-semibold text-gray-700 dark:text-gray-300 align-top w-1/3">{key}</td>
+                                        <td className="py-3 text-gray-600 dark:text-gray-400">{String(value)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : Array.isArray(specs) ? (
+                              <ul className="list-disc pl-5 text-sm text-gray-600 dark:text-gray-400">
+                                {specs.map((s: any, i: number) => (
+                                  <li key={i}>{typeof s === 'object' ? JSON.stringify(s) : String(s)}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">{String(specsRaw)}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                               e.stopPropagation();
                               setIsImageZoomOpen(true);
                             }}
@@ -523,21 +567,40 @@ export function StoreModals() {
 
                     {(modals.product as any)?.technical_specs &&
                       (() => {
-                        let specs = (modals.product as any).technical_specs;
+                        let specs: any = (modals.product as any)
+                          .technical_specs;
 
                         // Se for string JSON, tenta fazer parse
                         if (typeof specs === 'string') {
                           try {
-                            const parsed = JSON.parse(specs);
-                            if (
-                              typeof parsed === 'object' &&
-                              parsed !== null &&
-                              !Array.isArray(parsed)
-                            ) {
-                              specs = parsed;
-                            }
+                            specs = JSON.parse(specs);
                           } catch (e) {
                             // Mantém como string se não for JSON válido
+                          }
+                        }
+
+                        // Normaliza arrays do tipo [{key, value}, ...] para objeto { key: value }
+                        if (Array.isArray(specs)) {
+                          const arr = specs;
+                          // Caso elementos sejam { key, value }
+                          if (arr.length > 0 && typeof arr[0] === 'object') {
+                            const obj: Record<string, any> = {};
+                            arr.forEach((el: any) => {
+                              if (el == null) return;
+                              if (typeof el === 'object') {
+                                if ('key' in el && 'value' in el)
+                                  obj[String(el.key)] = el.value;
+                                else if ('name' in el && 'value' in el)
+                                  obj[String(el.name)] = el.value;
+                                else {
+                                  // fallback: flatten object entries
+                                  Object.entries(el).forEach(
+                                    ([k, v]) => (obj[k] = v)
+                                  );
+                                }
+                              }
+                            });
+                            specs = obj;
                           }
                         }
 

@@ -112,13 +112,13 @@ export default function AdminSidebar({
               href={item.href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-primary !text-white shadow-md'
+                  ? 'bg-primary/10 text-primary ring-1 ring-primary/10'
                   : 'hover:bg-gray-100 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
               }`}
             >
               <Icon
                 size={18}
-                className={`flex-shrink-0 ${isActive ? '!text-white' : ''}`}
+                className={`flex-shrink-0 ${isActive ? 'text-primary' : ''}`}
               />
               {!isCollapsed && <span className="truncate">{item.label}</span>}
             </Link>

@@ -388,9 +388,21 @@ export default function SettingsPage() {
               const img = new Image();
               img.src = preview;
               img.onload = () => {
+                const w = img.naturalWidth;
+                const h = img.naturalHeight;
+                const recW = RECOMMENDED_BANNER.width;
+                const recH = RECOMMENDED_BANNER.height;
+                const recRatio = recW / recH;
+                const imgRatio = w / h;
+
+                // Aceitamos imagens menores se a proporção estiver próxima
+                // e a largura for pelo menos 60% do recomendado.
+                const widthOk = w >= recW * 0.6;
+                const ratioOk =
+                  Math.abs(imgRatio - recRatio) / recRatio <= 0.12; // 12% tolerance
                 const tooSmall =
-                  img.naturalWidth < RECOMMENDED_BANNER.width ||
-                  img.naturalHeight < RECOMMENDED_BANNER.height;
+                  !(widthOk && ratioOk) && (w < recW || h < recH);
+
                 resolve({ file, preview, tooSmall });
               };
               img.onerror = () => resolve({ file, preview, tooSmall: true });
@@ -419,9 +431,19 @@ export default function SettingsPage() {
               const img = new window.Image();
               img.src = preview;
               img.onload = () => {
+                const w = img.naturalWidth;
+                const h = img.naturalHeight;
+                const recW = RECOMMENDED_BANNER_MOBILE.width;
+                const recH = RECOMMENDED_BANNER_MOBILE.height;
+                const recRatio = recW / recH;
+                const imgRatio = w / h;
+
+                const widthOk = w >= recW * 0.6;
+                const ratioOk =
+                  Math.abs(imgRatio - recRatio) / recRatio <= 0.12;
                 const tooSmall =
-                  img.naturalWidth < RECOMMENDED_BANNER_MOBILE.width ||
-                  img.naturalHeight < RECOMMENDED_BANNER_MOBILE.height;
+                  !(widthOk && ratioOk) && (w < recW || h < recH);
+
                 resolve({ file, preview, tooSmall });
               };
               img.onerror = () => resolve({ file, preview, tooSmall: true });
@@ -625,6 +647,8 @@ export default function SettingsPage() {
           slug: formData.catalog_slug,
           store_name: formData.name,
           logo_url: logoUrl,
+          banners: finalBanners,
+          banners_mobile: finalBannersMobile,
           primary_color: formData.primary_color,
           secondary_color: formData.secondary_color,
           footer_background_color: formData.footer_background_color,

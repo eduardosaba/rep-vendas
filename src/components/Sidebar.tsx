@@ -180,8 +180,44 @@ export function Sidebar({
       }
     };
     if (!initialSettings) loadBranding();
+    // Inscreve em updates de settings para refletir mudanças (ex: font_family)
+    let settingsChannel: any = null;
+    const setupRealtime = async () => {
+      try {
+        const res = await supabase.auth.getUser();
+        const user = res?.data?.user;
+        if (!user) return;
+
+        settingsChannel = supabase
+          .channel('realtime-settings')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'settings',
+              filter: `user_id=eq.${user.id}`,
+            },
+            (payload: any) => {
+              // Mescla mudanças no estado de branding
+              setBranding((prev) => ({
+                ...((prev as any) || {}),
+                ...(payload.new || {}),
+              }));
+            }
+          )
+          .subscribe();
+      } catch (e) {
+        // ignore realtime failures
+      }
+    };
+
+    setupRealtime();
     return () => {
       window.removeEventListener('resize', updateWidth);
+      try {
+        if (settingsChannel) supabase.removeChannel(settingsChannel);
+      } catch {}
     };
   }, [initialSettings, supabase]);
 

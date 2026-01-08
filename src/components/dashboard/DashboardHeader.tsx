@@ -116,7 +116,7 @@ export default function DashboardHeader({
     email ? email.substring(0, 2).toUpperCase() : 'US';
 
   return (
-    <header className="sticky top-0 z-20 flex h-20 w-full items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 transition-colors dark:bg-slate-950/80 dark:border-slate-800">
+    <header className="sticky top-0 z-50 flex h-20 w-full items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 transition-colors dark:bg-slate-950/80 dark:border-slate-800">
       <div className="flex items-center gap-4">
         {/* Botão de Menu - Visível apenas em telas menores que LG para controle do Sidebar */}
         <button
