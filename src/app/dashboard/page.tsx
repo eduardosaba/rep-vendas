@@ -120,8 +120,7 @@ export default async function DashboardPage({
   const needsSyncAlert = daysSinceSync !== null && daysSinceSync > 15;
 
   return (
-  <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 animate-in fade-in duration-700">
-        <div className={`col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-6 rounded-[2rem] border shadow-sm bg-white dark:bg-slate-900 dark:border-slate-800`}>
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 animate-in fade-in duration-700">
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
@@ -186,8 +185,7 @@ export default async function DashboardPage({
 
         {/* ALERTA DE ESTOQUE: Agora condicional ao campo 'manage_stock' */}
         {settings.data?.manage_stock ? (
-          <div className="bg-white p-4 sm:p-6 rounded-[2rem] border border-gray-200 shadow-sm flex items-center gap-3 sm:gap-4">
-                      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-gray-200 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-gray-200 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
             <div className="p-3 bg-red-100 text-red-600 rounded-xl flex-shrink-0">
               <AlertTriangle size={20} />
             </div>
@@ -195,14 +193,13 @@ export default async function DashboardPage({
               <p className="text-[10px] font-black text-gray-400 uppercase">
                 Alertas de Inventário
               </p>
-              <p className="text-xs sm:text-sm font-bold text-slate-800">
+              <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
                 Verifique os itens críticos na aba de estoque.
               </p>
             </div>
           </div>
         ) : (
-          <div className="bg-emerald-50 p-4 sm:p-6 rounded-[2rem] border border-emerald-100 shadow-sm flex items-center gap-3 sm:gap-4">
-                      <div className="bg-emerald-50 dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-emerald-100 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
+          <div className="bg-emerald-50 dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-emerald-100 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
             <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl flex-shrink-0">
               <CheckCircle2 size={20} />
             </div>
@@ -210,7 +207,7 @@ export default async function DashboardPage({
               <p className="text-[10px] font-black text-emerald-400 uppercase">
                 Estoque Desativado
               </p>
-              <p className="text-xs sm:text-sm font-bold text-emerald-800">
+              <p className="text-xs sm:text-sm font-bold text-emerald-800 dark:text-emerald-200">
                 Operando apenas por catálogo fixo.
               </p>
             </div>
