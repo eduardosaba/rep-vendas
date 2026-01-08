@@ -1214,7 +1214,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             >
               <DollarSign size={18} className="text-green-500" />{' '}
               <span className="text-[10px] text-gray-600 dark:text-slate-400">
-                Preço
+                Preço de Custo
               </span>
             </button>
             <button

@@ -350,350 +350,364 @@ export function StoreModals() {
       />
 
       {/* --- MODAL DETALHES DO PRODUTO (IMERSIVO) --- */}
-      {modals.product && (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center md:items-center md:px-4">
-          <div
-            className="absolute inset-0 bg-[#0d1b2c]/70 backdrop-blur-md animate-in fade-in duration-500"
-            onClick={() => setModal('product', null)}
-          />
+      {modals.product &&
+        (() => {
+          // Debug: Verificar dados do produto
+          console.log('Produto no modal:', {
+            id: modals.product.id,
+            name: modals.product.name,
+            is_launch: (modals.product as any)?.is_launch,
+            is_best_seller: (modals.product as any)?.is_best_seller,
+            bestseller: (modals.product as any)?.bestseller,
+            technical_specs: (modals.product as any)?.technical_specs,
+            isFavorite: favorites.includes(modals.product.id),
+          });
 
-          <div className="relative flex h-[90dvh] w-full flex-col overflow-hidden bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-bottom duration-500 md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-[3rem]">
-            <button
-              onClick={() => setModal('product', null)}
-              className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 text-gray-700 dark:text-gray-200 shadow hover:scale-105 transition-transform"
-              aria-label="Fechar"
-            >
-              <X size={18} />
-            </button>
+          return (
+            <div className="fixed inset-0 z-[110] flex items-end justify-center md:items-center md:px-4">
+              <div
+                className="absolute inset-0 bg-[#0d1b2c]/70 backdrop-blur-md animate-in fade-in duration-500"
+                onClick={() => setModal('product', null)}
+              />
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar md:flex md:flex-row">
-              {/* Left: Image + Thumbnails */}
-              <div className="md:w-1/2 p-6 md:p-10 flex flex-col">
-                <div className="relative aspect-square w-full rounded-[2rem] bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <Image
-                    src={productImages[currentImageIndex]}
-                    alt={(modals.product as any).name || 'Produto'}
-                    fill
-                    className="object-contain p-12 transition-all duration-500"
-                  />
+              <div className="relative flex h-[90dvh] w-full flex-col overflow-hidden bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-bottom duration-500 md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-[3rem]">
+                <button
+                  onClick={() => setModal('product', null)}
+                  className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 text-gray-700 dark:text-gray-200 shadow hover:scale-105 transition-transform"
+                  aria-label="Fechar"
+                >
+                  <X size={18} />
+                </button>
 
-                  {productImages.length > 1 && (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentImageIndex((p) =>
-                            p === 0 ? productImages.length - 1 : p - 1
-                          );
-                        }}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
-                        aria-label="Imagem anterior"
-                      >
-                        <ChevronLeft size={24} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentImageIndex((p) =>
-                            p === productImages.length - 1 ? 0 : p + 1
-                          );
-                        }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
-                        aria-label="Próxima imagem"
-                      >
-                        <ChevronRight size={24} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsImageZoomOpen(true);
-                        }}
-                        className="absolute right-4 bottom-4 z-20 p-2 rounded-full bg-white/90 dark:bg-slate-800/80 shadow hover:scale-105"
-                        aria-label="Ampliar imagem"
-                      >
-                        <Search size={18} />
-                      </button>
-                    </>
-                  )}
-                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar md:flex md:flex-row">
+                  {/* Left: Image + Thumbnails */}
+                  <div className="md:w-1/2 p-6 md:p-10 flex flex-col">
+                    <div className="relative aspect-square w-full rounded-[2rem] bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
+                      <Image
+                        src={productImages[currentImageIndex]}
+                        alt={(modals.product as any).name || 'Produto'}
+                        fill
+                        className="object-contain p-12 transition-all duration-500"
+                      />
 
-                {productImages.length > 1 && (
-                  <div className="mt-4 w-full">
-                    <div className="flex gap-2 overflow-x-auto pb-2">
-                      {productImages.map((src, idx) => (
-                        <button
-                          key={idx}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCurrentImageIndex(idx);
-                          }}
-                          className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border ${currentImageIndex === idx ? 'ring-2 ring-primary/50' : 'border-gray-100 dark:border-slate-700'} bg-white dark:bg-slate-800`}
-                        >
-                          <img
-                            src={src}
-                            alt={`thumb-${idx}`}
-                            className="w-full h-full object-contain p-2"
-                          />
-                        </button>
-                      ))}
+                      {productImages.length > 1 && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentImageIndex((p) =>
+                                p === 0 ? productImages.length - 1 : p - 1
+                              );
+                            }}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
+                            aria-label="Imagem anterior"
+                          >
+                            <ChevronLeft size={24} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentImageIndex((p) =>
+                                p === productImages.length - 1 ? 0 : p + 1
+                              );
+                            }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
+                            aria-label="Próxima imagem"
+                          >
+                            <ChevronRight size={24} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsImageZoomOpen(true);
+                            }}
+                            className="absolute right-4 bottom-4 z-20 p-2 rounded-full bg-white/90 dark:bg-slate-800/80 shadow hover:scale-105"
+                            aria-label="Ampliar imagem"
+                          >
+                            <Search size={18} />
+                          </button>
+                        </>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
 
-              {/* Right: Details */}
-              <div className="md:w-1/2 p-8 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white flex flex-col">
-                <div className="mb-6 flex items-start gap-4">
-                  {(modals.product as any)?.brand_logo_url ||
-                  (modals.product as any)?.logo_url ? (
-                    <img
-                      src={
-                        (modals.product as any).brand_logo_url ||
-                        (modals.product as any).logo_url
-                      }
-                      alt={(modals.product as any).brand || 'logo'}
-                      className="w-12 h-12 object-contain rounded-lg bg-white p-1"
-                    />
-                  ) : null}
-
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
-                          {modals.product.brand || 'Original'}
-                        </span>
-                        <h2 className="text-4xl font-black mt-1">
-                          {modals.product.name}
-                        </h2>
+                    {productImages.length > 1 && (
+                      <div className="mt-4 w-full">
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                          {productImages.map((src, idx) => (
+                            <button
+                              key={idx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentImageIndex(idx);
+                              }}
+                              className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border ${currentImageIndex === idx ? 'ring-2 ring-primary/50' : 'border-gray-100 dark:border-slate-700'} bg-white dark:bg-slate-800`}
+                            >
+                              <img
+                                src={src}
+                                alt={`thumb-${idx}`}
+                                className="w-full h-full object-contain p-2"
+                              />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <button
-                        onClick={() => toggleFavorite(modals.product!.id)}
-                        className="flex-shrink-0 p-3 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:scale-110 transition-all"
-                        aria-label="Favoritar"
-                      >
-                        <Heart
-                          size={20}
-                          className={
-                            favorites.includes(modals.product!.id)
-                              ? 'fill-red-500 text-red-500'
-                              : 'text-gray-400'
+                    )}
+                  </div>
+
+                  {/* Right: Details */}
+                  <div className="md:w-1/2 p-8 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white flex flex-col">
+                    <div className="mb-6 flex items-start gap-4">
+                      {(modals.product as any)?.brand_logo_url ||
+                      (modals.product as any)?.logo_url ? (
+                        <img
+                          src={
+                            (modals.product as any).brand_logo_url ||
+                            (modals.product as any).logo_url
+                          }
+                          alt={(modals.product as any).brand || 'logo'}
+                          className="w-12 h-12 object-contain rounded-lg bg-white p-1"
+                        />
+                      ) : null}
+
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
+                              {modals.product.brand || 'Original'}
+                            </span>
+                            <h2 className="text-4xl font-black mt-1">
+                              {modals.product.name}
+                            </h2>
+                          </div>
+                          <button
+                            onClick={() => toggleFavorite(modals.product!.id)}
+                            className="flex-shrink-0 p-3 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:scale-110 transition-all"
+                            aria-label="Favoritar"
+                          >
+                            <Heart
+                              size={20}
+                              className={
+                                favorites.includes(modals.product!.id)
+                                  ? 'fill-red-500 text-red-500'
+                                  : 'text-gray-400'
+                              }
+                            />
+                          </button>
+                        </div>
+
+                        {/* Badges */}
+                        <div className="flex gap-2 mt-2">
+                          {(modals.product as any)?.is_launch && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold">
+                              <Zap size={12} />
+                              Lançamento
+                            </span>
+                          )}
+                          {((modals.product as any)?.is_best_seller ||
+                            (modals.product as any)?.bestseller) && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
+                              <Star size={12} />
+                              Best Seller
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-gray-700 dark:text-gray-200">
+                      <p className="text-sm leading-relaxed">
+                        {modals.product.description ||
+                          'Descrição premium para este item.'}
+                      </p>
+                    </div>
+
+                    {(modals.product as any)?.technical_specs &&
+                      (() => {
+                        let specs = (modals.product as any).technical_specs;
+
+                        // Se for string JSON, tenta fazer parse
+                        if (typeof specs === 'string') {
+                          try {
+                            const parsed = JSON.parse(specs);
+                            if (
+                              typeof parsed === 'object' &&
+                              parsed !== null &&
+                              !Array.isArray(parsed)
+                            ) {
+                              specs = parsed;
+                            }
+                          } catch (e) {
+                            // Mantém como string se não for JSON válido
+                          }
+                        }
+
+                        const isObject =
+                          typeof specs === 'object' &&
+                          specs !== null &&
+                          !Array.isArray(specs);
+
+                        return (
+                          <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
+                            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-4">
+                              Ficha técnica
+                            </h3>
+
+                            {isObject ? (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <tbody>
+                                    {Object.entries(specs).map(
+                                      ([key, value], idx) => (
+                                        <tr
+                                          key={idx}
+                                          className="border-b border-gray-100 dark:border-slate-700 last:border-0"
+                                        >
+                                          <td className="py-3 pr-4 font-semibold text-gray-700 dark:text-gray-300 align-top w-1/3">
+                                            {key}
+                                          </td>
+                                          <td className="py-3 text-gray-600 dark:text-gray-400">
+                                            {String(value)}
+                                          </td>
+                                        </tr>
+                                      )
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                                {String(specs)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                    {((modals.product as any)?.barcode ||
+                      (modals.product as any)?.sku) && (
+                      <div className="flex items-center justify-center bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
+                        <Barcode
+                          value={
+                            (modals.product as any).barcode ||
+                            (modals.product as any).sku
                           }
                         />
-                      </button>
-                    </div>
+                      </div>
+                    )}
 
-                    {/* Badges */}
-                    <div className="flex gap-2 mt-2">
-                      {(modals.product as any)?.is_launch && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold">
-                          <Zap size={12} />
-                          Lançamento
+                    <div className="mt-auto space-y-4 rounded-[2.5rem] bg-secondary p-8 text-white shadow-2xl">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold opacity-60">
+                          Quantidade
                         </span>
-                      )}
-                      {((modals.product as any)?.is_best_seller ||
-                        (modals.product as any)?.bestseller) && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
-                          <Star size={12} />
-                          Best Seller
+                        <div className="flex items-center gap-4 bg-white/10 rounded-2xl p-2 border border-white/10">
+                          <button
+                            onClick={() =>
+                              setDetailQuantity((q) => Math.max(1, q - 1))
+                            }
+                            className="p-1 hover:text-primary transition-colors"
+                          >
+                            <Minus size={20} />
+                          </button>
+                          <span className="min-w-[40px] text-center text-xl font-black">
+                            {detailQuantity}
+                          </span>
+                          <button
+                            onClick={() => setDetailQuantity((q) => q + 1)}
+                            className="p-1 hover:text-primary transition-colors"
+                          >
+                            <Plus size={20} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-white/10 pt-6">
+                        <span className="text-sm font-bold text-white">
+                          Subtotal
                         </span>
-                      )}
+                        <PriceDisplay
+                          value={modals.product.price * detailQuantity}
+                          size="large"
+                          isPricesVisible={isPricesVisible}
+                          className="text-white"
+                        />
+                      </div>
+
+                      <Button
+                        onClick={() => {
+                          addToCart(modals.product!, detailQuantity);
+                          setModal('product', null);
+                        }}
+                        className="w-full py-8 text-xl bg-primary text-white hover:bg-primary/90"
+                      >
+                        Adicionar ao Carrinho
+                      </Button>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-gray-700 dark:text-gray-200">
-                  <p className="text-sm leading-relaxed">
-                    {modals.product.description ||
-                      'Descrição premium para este item.'}
-                  </p>
-                </div>
-
-                {(modals.product as any)?.technical_specs &&
-                  (() => {
-                    let specs = (modals.product as any).technical_specs;
-
-                    // Se for string JSON, tenta fazer parse
-                    if (typeof specs === 'string') {
-                      try {
-                        const parsed = JSON.parse(specs);
-                        if (
-                          typeof parsed === 'object' &&
-                          parsed !== null &&
-                          !Array.isArray(parsed)
-                        ) {
-                          specs = parsed;
-                        }
-                      } catch (e) {
-                        // Mantém como string se não for JSON válido
-                      }
-                    }
-
-                    const isObject =
-                      typeof specs === 'object' &&
-                      specs !== null &&
-                      !Array.isArray(specs);
-
-                    return (
-                      <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
-                        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-4">
-                          Ficha técnica
-                        </h3>
-
-                        {isObject ? (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <tbody>
-                                {Object.entries(specs).map(
-                                  ([key, value], idx) => (
-                                    <tr
-                                      key={idx}
-                                      className="border-b border-gray-100 dark:border-slate-700 last:border-0"
-                                    >
-                                      <td className="py-3 pr-4 font-semibold text-gray-700 dark:text-gray-300 align-top w-1/3">
-                                        {key}
-                                      </td>
-                                      <td className="py-3 text-gray-600 dark:text-gray-400">
-                                        {String(value)}
-                                      </td>
-                                    </tr>
-                                  )
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
-                            {String(specs)}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                {((modals.product as any)?.barcode ||
-                  (modals.product as any)?.sku) && (
-                  <div className="flex items-center justify-center bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
-                    <Barcode
-                      value={
-                        (modals.product as any).barcode ||
-                        (modals.product as any).sku
-                      }
+                {/* Zoom overlay */}
+                {isImageZoomOpen && (
+                  <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+                    <div
+                      className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                      onClick={() => setIsImageZoomOpen(false)}
                     />
+                    <div className="relative max-w-5xl w-full mx-auto flex items-center">
+                      <button
+                        onClick={() => setIsImageZoomOpen(false)}
+                        className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 text-white"
+                        aria-label="Fechar zoom"
+                      >
+                        <X size={22} />
+                      </button>
+
+                      {/* Prev */}
+                      {productImages.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentImageIndex((p) =>
+                              p === 0 ? productImages.length - 1 : p - 1
+                            );
+                          }}
+                          className="absolute left-4 z-30 p-3 rounded-full bg-white/10 text-white border border-white/20"
+                          aria-label="Imagem anterior"
+                        >
+                          <ChevronLeft size={28} />
+                        </button>
+                      )}
+
+                      <div className="relative w-full px-8">
+                        <img
+                          src={productImages[currentImageIndex]}
+                          alt={`Zoom ${currentImageIndex + 1}`}
+                          className="w-full max-h-[80vh] mx-auto h-auto object-contain rounded-lg"
+                        />
+                      </div>
+
+                      {/* Next */}
+                      {productImages.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentImageIndex((p) =>
+                              p === productImages.length - 1 ? 0 : p + 1
+                            );
+                          }}
+                          className="absolute right-4 z-30 p-3 rounded-full bg-white/10 text-white border border-white/20"
+                          aria-label="Próxima imagem"
+                        >
+                          <ChevronRight size={28} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
-
-                <div className="mt-auto space-y-4 rounded-[2.5rem] bg-secondary p-8 text-white shadow-2xl">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold opacity-60">
-                      Quantidade
-                    </span>
-                    <div className="flex items-center gap-4 bg-white/10 rounded-2xl p-2 border border-white/10">
-                      <button
-                        onClick={() =>
-                          setDetailQuantity((q) => Math.max(1, q - 1))
-                        }
-                        className="p-1 hover:text-primary transition-colors"
-                      >
-                        <Minus size={20} />
-                      </button>
-                      <span className="min-w-[40px] text-center text-xl font-black">
-                        {detailQuantity}
-                      </span>
-                      <button
-                        onClick={() => setDetailQuantity((q) => q + 1)}
-                        className="p-1 hover:text-primary transition-colors"
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-white/10 pt-6">
-                    <span className="text-sm font-bold text-white">
-                      Subtotal
-                    </span>
-                    <PriceDisplay
-                      value={modals.product.price * detailQuantity}
-                      size="large"
-                      isPricesVisible={isPricesVisible}
-                      className="text-white"
-                    />
-                  </div>
-
-                  <Button
-                    onClick={() => {
-                      addToCart(modals.product!, detailQuantity);
-                      setModal('product', null);
-                    }}
-                    className="w-full py-8 text-xl bg-primary text-white hover:bg-primary/90"
-                  >
-                    Adicionar ao Carrinho
-                  </Button>
-                </div>
               </div>
             </div>
-
-            {/* Zoom overlay */}
-            {isImageZoomOpen && (
-              <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
-                <div
-                  className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-                  onClick={() => setIsImageZoomOpen(false)}
-                />
-                <div className="relative max-w-5xl w-full mx-auto flex items-center">
-                  <button
-                    onClick={() => setIsImageZoomOpen(false)}
-                    className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 text-white"
-                    aria-label="Fechar zoom"
-                  >
-                    <X size={22} />
-                  </button>
-
-                  {/* Prev */}
-                  {productImages.length > 1 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentImageIndex((p) =>
-                          p === 0 ? productImages.length - 1 : p - 1
-                        );
-                      }}
-                      className="absolute left-4 z-30 p-3 rounded-full bg-white/10 text-white border border-white/20"
-                      aria-label="Imagem anterior"
-                    >
-                      <ChevronLeft size={28} />
-                    </button>
-                  )}
-
-                  <div className="relative w-full px-8">
-                    <img
-                      src={productImages[currentImageIndex]}
-                      alt={`Zoom ${currentImageIndex + 1}`}
-                      className="w-full max-h-[80vh] mx-auto h-auto object-contain rounded-lg"
-                    />
-                  </div>
-
-                  {/* Next */}
-                  {productImages.length > 1 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentImageIndex((p) =>
-                          p === productImages.length - 1 ? 0 : p + 1
-                        );
-                      }}
-                      className="absolute right-4 z-30 p-3 rounded-full bg-white/10 text-white border border-white/20"
-                      aria-label="Próxima imagem"
-                    >
-                      <ChevronRight size={28} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+          );
+        })()}
 
       {/* --- MODAL CHECKOUT (RESUMO E AUTO-FILL) --- */}
       {modals.checkout && (

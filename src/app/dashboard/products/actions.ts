@@ -95,6 +95,8 @@ export async function bulkDelete(
       if (extraFilter) {
         query = query.eq(extraFilter.field, extraFilter.value);
       }
+      // IMPORTANTE: Adicionar .select() para retornar os IDs deletados
+      query = query.select('id');
       const { data, error } = await query;
       if (error) throw error;
 
@@ -137,7 +139,8 @@ export async function bulkDelete(
           let upd = client
             .from('products')
             .update({ is_active: false })
-            .in('id', chunkIds);
+            .in('id', chunkIds)
+            .select('id');
           if (extraFilter) upd = upd.eq(extraFilter.field, extraFilter.value);
           const { data: upData, error: upErr } = await upd;
           if (upErr) {
@@ -190,7 +193,8 @@ export async function bulkDelete(
         const { data: upData, error: upErr } = await supabaseAdmin
           .from('products')
           .update({ is_active: false })
-          .in('id', chunk);
+          .in('id', chunk)
+          .select('id');
         if (upErr) throw upErr;
         if (Array.isArray(upData))
           (upData as any[]).forEach(
@@ -212,7 +216,8 @@ export async function bulkDelete(
           .from('products')
           .update({ is_active: false })
           .in('id', chunk)
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .select('id');
         if (upErr) throw upErr;
         if (Array.isArray(upData))
           (upData as any[]).forEach(
