@@ -75,6 +75,9 @@ export function Storefront({
       top_benefit_text: (c['top_benefit_text'] as string) || undefined,
       show_top_benefit_bar: (c['show_top_benefit_bar'] as boolean) || false,
       show_top_info_bar: (c['show_top_info_bar'] as boolean) || false,
+      // Banners
+      banners: (c['banners'] as string[]) || null,
+      banners_mobile: (c['banners_mobile'] as string[]) || null,
     }),
     [catalog, c]
   );

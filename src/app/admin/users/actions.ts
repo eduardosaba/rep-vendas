@@ -130,16 +130,23 @@ export async function createManualUser(data: {
   try {
     await requireAdminPermission();
 
-    // Validações rápidas no servidor para evitar erros pouco informativos
+    // Validações de ambiente
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      throw new Error('NEXT_PUBLIC_SUPABASE_URL não configurado');
+    }
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error(
-        'Configuração inválida: falta SUPABASE_SERVICE_ROLE_KEY no servidor.'
-      );
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurado');
     }
 
+    // Validações de dados
+    if (!data.email || !data.email.includes('@')) {
+      throw new Error('Email inválido');
+    }
     if (!data.password || data.password.length < 6) {
       throw new Error('A senha deve ter pelo menos 6 caracteres.');
     }
+
+    logger.info('Criando usuário', { email: data.email, role: data.role });
 
     // Evita tentativa de criação quando o email já existe no banco (prevenção de conflito)
     const { data: existingProfile } = await supabaseAdmin
@@ -160,22 +167,77 @@ export async function createManualUser(data: {
 
     const dbRole = mapRoleToDb(data.role);
 
-    // 1. Auth
-    const { data: authData, error: authError } =
-      await supabaseAdmin.auth.admin.createUser({
+    logger.info('Tentando criar usuário no Auth', {
+      email: data.email,
+      dbRole,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    });
+
+    // 1. Auth - Tentativa 1: Usar admin.createUser (método preferido)
+    let authData: any;
+    let userId: string;
+
+    try {
+      const result = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
         email_confirm: true,
         user_metadata: { role: dbRole },
       });
 
-    if (authError) {
-      logger.error('Supabase auth error creating user', authError);
-      throw new Error(`Erro Auth: ${authError.message}`);
-    }
-    if (!authData.user) throw new Error('Falha ao gerar ID.');
+      if (result.error) {
+        throw result.error;
+      }
 
-    const userId = authData.user.id;
+      authData = result.data;
+
+      if (!authData?.user) {
+        throw new Error('Falha ao gerar ID do usuário');
+      }
+
+      userId = authData.user.id;
+      logger.info('Usuário criado com sucesso via admin API', {
+        userId,
+        email: data.email,
+      });
+    } catch (authError: any) {
+      logger.error('Supabase auth error creating user', {
+        error: authError,
+        status: authError?.status,
+        code: authError?.code,
+        message: authError?.message,
+        email: data.email,
+      });
+
+      // Mensagens de erro mais específicas
+      if (
+        authError?.message?.includes('already registered') ||
+        authError?.message?.includes('already exists')
+      ) {
+        throw new Error('Este email já está cadastrado no sistema');
+      }
+
+      if (
+        authError?.status === 500 ||
+        authError?.code === 'unexpected_failure'
+      ) {
+        throw new Error(
+          `Erro de autenticação no Supabase (${authError?.code || '500'}). ` +
+            `Verifique: 1) Se SUPABASE_SERVICE_ROLE_KEY está correto, ` +
+            `2) Se Email Provider está habilitado no Supabase Dashboard, ` +
+            `3) Se não há rate limiting ativo. Detalhes: ${authError?.message || 'Erro desconhecido'}`
+        );
+      }
+
+      throw new Error(
+        `Erro ao criar autenticação: ${authError?.message || 'Erro desconhecido'}`
+      );
+    }
+
+    if (!userId) {
+      throw new Error('Falha ao obter ID do usuário criado');
+    }
 
     // 2. Profile
     const { error: profileError } = await supabaseAdmin

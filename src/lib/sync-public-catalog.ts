@@ -31,6 +31,8 @@ export interface SyncCatalogData {
   top_benefit_image_scale?: number;
   top_benefit_height?: number;
   top_benefit_text_size?: number;
+  banners?: string[] | null;
+  banners_mobile?: string[] | null;
   top_benefit_bg_color?: string;
   top_benefit_text_color?: string;
   // Top benefit content + visibility
@@ -189,6 +191,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         show_top_info_bar: data.show_top_info_bar,
         font_family: finalFont,
         font_url: data.font_url ?? null,
+        banners: data.banners ?? null,
+        banners_mobile: data.banners_mobile ?? null,
         is_active: isActive, // AGORA USA O VALOR DINÂMICO
         updated_at: new Date().toISOString(),
       })
@@ -286,6 +290,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       show_top_info_bar: data.show_top_info_bar,
       font_family: finalFontInsert,
       font_url: data.font_url ?? null,
+      banners: data.banners ?? null,
+      banners_mobile: data.banners_mobile ?? null,
       is_active: isActive, // AGORA USA O VALOR DINÂMICO
     });
 

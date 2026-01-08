@@ -22,7 +22,7 @@ export function MobileCatalogNav() {
 
   return (
     <div className="fixed bottom-0 left-0 z-40 w-full bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 md:hidden pb-safe">
-      <div className="grid h-16 grid-cols-4 mx-auto font-medium">
+      <div className="grid h-16 grid-cols-5 mx-auto font-medium">
         {/* 1. Início */}
         <Link
           href="/" // Ajuste se a home do catálogo for outra rota
@@ -52,30 +52,29 @@ export function MobileCatalogNav() {
           </span>
         </button>
 
-        {/* 3. Favoritos OU Ver Pedido (alternam baseado no estado) */}
-        {showCostPrice ? (
-          <button
-            type="button"
-            onClick={() => setModal('load', true)}
-            className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
-          >
-            <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
-            <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
-              Ver Pedido
-            </span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setModal('favorites', true)}
-            className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
-          >
-            <Heart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
-            <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-red-500">
-              Favoritos
-            </span>
-          </button>
-        )}
+        {/* 3. Favoritos */}
+        <button
+          type="button"
+          onClick={() => setModal('favorites', true)}
+          className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
+        >
+          <Heart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
+          <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-red-500">
+            Favoritos
+          </span>
+        </button>
+
+        {/* 4. Ver Pedido (sempre visível) */}
+        <button
+          type="button"
+          onClick={() => setModal('load', true)}
+          className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
+        >
+          <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+          <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
+            Ver Pedido
+          </span>
+        </button>
 
         {/* 4. Carrinho */}
         <button

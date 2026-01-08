@@ -17,8 +17,8 @@ import {
   Search,
   Package,
   Heart,
-  Sparkles,
-  TrendingUp,
+  Zap,
+  Star,
 } from 'lucide-react';
 import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
@@ -473,33 +473,30 @@ export function StoreModals() {
                       >
                         <Heart
                           size={20}
-                          className={favorites.includes(modals.product!.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}
+                          className={
+                            favorites.includes(modals.product!.id)
+                              ? 'fill-red-500 text-red-500'
+                              : 'text-gray-400'
+                          }
                         />
                       </button>
                     </div>
-                    
+
                     {/* Badges */}
                     <div className="flex gap-2 mt-2">
-                      {(modals.product as any)?.is_new && (
+                      {(modals.product as any)?.is_launch && (
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold">
-                          <Sparkles size={12} />
+                          <Zap size={12} />
                           Lançamento
                         </span>
                       )}
-                      {(modals.product as any)?.is_bestseller && (
+                      {((modals.product as any)?.is_best_seller ||
+                        (modals.product as any)?.bestseller) && (
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
-                          <TrendingUp size={12} />
+                          <Star size={12} />
                           Best Seller
                         </span>
                       )}
-                    </div>
-                    
-                    <div className="mt-3">
-                      <PriceDisplay
-                        value={modals.product.price}
-                        isPricesVisible={isPricesVisible}
-                        className="text-2xl font-black"
-                      />
                     </div>
                   </div>
                 </div>
@@ -511,16 +508,67 @@ export function StoreModals() {
                   </p>
                 </div>
 
-                {(modals.product as any)?.specs && (
-                  <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-sm text-gray-700 dark:text-gray-200">
-                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">
-                      Ficha técnica
-                    </h3>
-                    <pre className="whitespace-pre-wrap">
-                      {(modals.product as any).specs}
-                    </pre>
-                  </div>
-                )}
+                {(modals.product as any)?.technical_specs &&
+                  (() => {
+                    let specs = (modals.product as any).technical_specs;
+
+                    // Se for string JSON, tenta fazer parse
+                    if (typeof specs === 'string') {
+                      try {
+                        const parsed = JSON.parse(specs);
+                        if (
+                          typeof parsed === 'object' &&
+                          parsed !== null &&
+                          !Array.isArray(parsed)
+                        ) {
+                          specs = parsed;
+                        }
+                      } catch (e) {
+                        // Mantém como string se não for JSON válido
+                      }
+                    }
+
+                    const isObject =
+                      typeof specs === 'object' &&
+                      specs !== null &&
+                      !Array.isArray(specs);
+
+                    return (
+                      <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
+                        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-4">
+                          Ficha técnica
+                        </h3>
+
+                        {isObject ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <tbody>
+                                {Object.entries(specs).map(
+                                  ([key, value], idx) => (
+                                    <tr
+                                      key={idx}
+                                      className="border-b border-gray-100 dark:border-slate-700 last:border-0"
+                                    >
+                                      <td className="py-3 pr-4 font-semibold text-gray-700 dark:text-gray-300 align-top w-1/3">
+                                        {key}
+                                      </td>
+                                      <td className="py-3 text-gray-600 dark:text-gray-400">
+                                        {String(value)}
+                                      </td>
+                                    </tr>
+                                  )
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                            {String(specs)}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                 {((modals.product as any)?.barcode ||
                   (modals.product as any)?.sku) && (
@@ -561,10 +609,7 @@ export function StoreModals() {
                   </div>
 
                   <div className="flex items-center justify-between border-t border-white/10 pt-6">
-                    <span
-                      className="text-sm font-bold"
-                      style={{ color: store.primary_color || '#ffffff' }}
-                    >
+                    <span className="text-sm font-bold text-white">
                       Subtotal
                     </span>
                     <PriceDisplay

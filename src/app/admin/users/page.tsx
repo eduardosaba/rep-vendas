@@ -10,8 +10,6 @@ import {
   Plus,
   X,
   Save,
-  Shield,
-  CreditCard,
   Edit,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,9 +18,15 @@ import {
   addSubscriptionDays,
   createManualUser,
   getUsersWithSubscriptions,
-  getPlans, // Importe a nova action
+  getPlans,
 } from './actions';
 import { Button } from '@/components/ui/Button';
+
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+}
 
 interface UserData {
   id: string;
@@ -41,7 +45,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [plansList, setPlansList] = useState<any[]>([]); // Estado para os planos
+  const [plansList, setPlansList] = useState<Plan[]>([]);
 
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -56,7 +60,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
-    fetchPlans(); // Busca planos ao carregar
+    fetchPlans();
   }, []);
 
   const fetchPlans = async () => {
@@ -79,31 +83,35 @@ export default function AdminUsersPage() {
         throw new Error(result.error || 'Erro ao carregar dados');
       }
 
-      const normalizedUsers: UserData[] = result.data.map((profile: any) => {
-        // 🛑 LÓGICA CORRIGIDA PARA O BUG "SEM PLANO"
-        let subData = null;
-        if (Array.isArray(profile.subscriptions)) {
-          subData =
-            profile.subscriptions.length > 0 ? profile.subscriptions[0] : null;
-        } else {
-          subData = profile.subscriptions;
-        }
+      const normalizedUsers: UserData[] = result.data.map(
+        (profile: Record<string, unknown>) => {
+          // 🛑 LÓGICA CORRIGIDA PARA O BUG "SEM PLANO"
+          let subData = null;
+          if (Array.isArray(profile.subscriptions)) {
+            subData =
+              profile.subscriptions.length > 0
+                ? profile.subscriptions[0]
+                : null;
+          } else {
+            subData = profile.subscriptions;
+          }
 
-        return {
-          id: profile.id,
-          email: profile.email || '',
-          role: profile.role || 'user',
-          created_at: profile.created_at,
-          full_name: profile.full_name,
-          subscriptions: subData
-            ? {
-                current_period_end: subData.current_period_end,
-                status: subData.status || 'active',
-                plan_name: subData.plan_name,
-              }
-            : null,
-        };
-      });
+          return {
+            id: profile.id as string,
+            email: (profile.email as string) || '',
+            role: (profile.role as string) || 'user',
+            created_at: profile.created_at as string,
+            full_name: profile.full_name as string | undefined,
+            subscriptions: subData
+              ? {
+                  current_period_end: subData.current_period_end,
+                  status: subData.status || 'active',
+                  plan_name: subData.plan_name,
+                }
+              : null,
+          };
+        }
+      );
 
       setUsers(normalizedUsers);
     } catch (error: unknown) {
@@ -127,6 +135,11 @@ export default function AdminUsersPage() {
     if (!formData.email || !formData.password) {
       return toast.error('Preencha email e senha');
     }
+
+    if (formData.password.length < 6) {
+      return toast.error('A senha deve ter pelo menos 6 caracteres');
+    }
+
     setIsCreating(true);
     try {
       const result = await createManualUser(formData);
@@ -144,8 +157,10 @@ export default function AdminUsersPage() {
         throw new Error(result.error);
       }
     } catch (error: unknown) {
+      console.error('Erro detalhado ao criar usuário:', error);
       toast.error('Erro ao criar usuário', {
         description: getErrorMessage(error),
+        duration: 10000,
       });
     } finally {
       setIsCreating(false);

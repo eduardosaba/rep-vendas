@@ -20,6 +20,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
+  FileText,
+  SlidersHorizontal,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
@@ -702,50 +704,89 @@ export function StoreMobileActionBar() {
   };
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-around px-2 py-2">
-        {/* Início */}
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 shadow-lg pb-[env(safe-area-inset-bottom)]">
+      <div className="grid grid-cols-5 h-16">
+        {/* 1. Início */}
         <button
           onClick={goHome}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
+          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
         >
-          <Home size={20} className="text-gray-600" />
-          <span className="text-[10px] font-medium text-gray-700">Início</span>
+          <Home size={20} className="text-gray-600 dark:text-gray-400" />
+          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+            Início
+          </span>
         </button>
 
-        {/* Ver Preços - SÓ MOSTRA SE FOR PREÇO DE CUSTO */}
-        {store.show_cost_price && (
-          <button
-            onClick={() => {
+        {/* 2. Ver Preços OU Buscar (condicional) */}
+        <button
+          onClick={() => {
+            if (store.show_cost_price) {
               if (isPricesVisible) {
                 setIsPricesVisible(false);
               } else {
-                setModal('password', true); // ABRE O MODAL CORRETAMENTE
+                setModal('password', true);
               }
-            }}
-            className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
-          >
-            {isPricesVisible ? (
+            } else {
+              // Abre modal de busca ou foca no input de busca
+              setModal('search', true);
+            }
+          }}
+          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+        >
+          {store.show_cost_price ? (
+            isPricesVisible ? (
               <Unlock size={20} className="text-green-600" />
             ) : (
-              <Lock size={20} className="text-gray-600" />
-            )}
-            <span className="text-[10px] font-medium text-gray-700">
-              {isPricesVisible ? 'Preços ON' : 'Ver Preços'}
-            </span>
-          </button>
-        )}
+              <Lock size={20} className="text-gray-600 dark:text-gray-400" />
+            )
+          ) : (
+            <Search size={20} className="text-gray-600 dark:text-gray-400" />
+          )}
+          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+            {store.show_cost_price
+              ? isPricesVisible
+                ? 'Preços ON'
+                : 'Ver Preços'
+              : 'Buscar'}
+          </span>
+        </button>
 
-        {/* Favoritos */}
+        {/* 3. CARRINHO - DESTAQUE CENTRAL */}
+        <button
+          onClick={() => setModal('cart', true)}
+          className="flex flex-col items-center justify-center gap-1 relative -mt-4 bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 hover:from-[var(--primary)]/90 hover:to-[var(--primary)]/70 rounded-full h-14 w-14 mx-auto shadow-xl border-4 border-white dark:border-slate-900 transition-all"
+        >
+          <ShoppingCart size={24} className="text-white" />
+          {cartCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
+              {cartCount}
+            </span>
+          )}
+        </button>
+
+        {/* 4. Pedidos (sempre visível) */}
+        <button
+          onClick={() => setModal('load', true)}
+          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+        >
+          <Download size={20} className="text-gray-600 dark:text-gray-400" />
+          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+            Pedidos
+          </span>
+        </button>
+
+        {/* 5. Favoritos (sempre visível) */}
         <button
           onClick={() => setShowFavorites(!showFavorites)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
+          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors relative"
         >
           <div className="relative">
             <Heart
               size={20}
               className={
-                showFavorites ? 'fill-current text-red-500' : 'text-gray-600'
+                showFavorites
+                  ? 'fill-current text-red-500'
+                  : 'text-gray-600 dark:text-gray-400'
               }
             />
             {favorites.length > 0 && (
@@ -754,26 +795,8 @@ export function StoreMobileActionBar() {
               </span>
             )}
           </div>
-          <span className="text-[10px] font-medium text-gray-700">
+          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
             Favoritos
-          </span>
-        </button>
-
-        {/* Carrinho */}
-        <button
-          onClick={() => setModal('cart', true)}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors relative"
-        >
-          <div className="relative">
-            <ShoppingCart size={20} className="text-gray-600" />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
-                {cartCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-medium text-gray-700">
-            Carrinho
           </span>
         </button>
       </div>

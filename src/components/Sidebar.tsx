@@ -201,9 +201,11 @@ export function Sidebar({
   if (!mounted || !isDashboardRoute) return null;
 
   const primary = branding?.primary_color || '#b9722e';
+  const brandFont = (branding as any)?.font_family || undefined;
 
   return (
     <aside
+      style={brandFont ? { fontFamily: brandFont } : undefined}
       className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-[#f8fafc] dark:bg-slate-950 dark:border-slate-800 transition-all duration-300 lg:relative ${
         isCollapsed
           ? '-translate-x-full lg:translate-x-0 lg:w-20'
@@ -235,7 +237,7 @@ export function Sidebar({
               Painel Gestão
             </span>
             <span className="text-[9px] uppercase tracking-widest text-slate-400">
-              RepVendas v0.1
+              RepVendas v 1.0.0
             </span>
           </div>
         )}
@@ -413,17 +415,26 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* Footer */}
-      {!isCollapsed && (
-        <div className="p-4 border-t border-gray-200 dark:border-slate-800">
-          <div className="flex items-center gap-2 opacity-60">
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] font-bold uppercase dark:text-slate-400">
-              Sistema Online
-            </span>
-          </div>
+      {/* Footer com vApp */}
+      <div className="border-t p-4 border-gray-100 dark:border-slate-800">
+        <div
+          className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}
+        >
+          <img
+            src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
+            alt="RepVendas"
+            className="h-6 w-auto object-contain"
+          />
+          {!isCollapsed && (
+            <div className="flex flex-col text-[10px] font-bold uppercase text-slate-400">
+              <span className="text-slate-700 dark:text-slate-200">
+                RepVendas
+              </span>
+              <span>v1.0.0</span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </aside>
   );
 }

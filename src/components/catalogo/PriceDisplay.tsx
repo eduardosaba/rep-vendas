@@ -59,7 +59,7 @@ export function PriceDisplay({
           return (
             <span
               key={index}
-              className={`${size === 'large' ? 'text-2xl sm:text-3xl font-black' : 'text-base sm:text-lg font-bold'} tracking-tight text-secondary`}
+              className={`${size === 'large' ? 'text-2xl sm:text-3xl font-black' : 'text-base sm:text-lg font-bold'} tracking-tight`}
             >
               {part.value}
             </span>
