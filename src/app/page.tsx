@@ -55,11 +55,12 @@ export default async function LandingPage() {
             <img
               src={SYSTEM_LOGO_URL}
               alt="Rep-Vendas"
-              className="h-12 w-auto object-contain"
+              className="h-10 sm:h-12 w-auto object-contain"
             />
           </div>
 
-          <div className="hidden md:flex items-center gap-8">
+          {/* Links Desktop */}
+          <div className="hidden lg:flex items-center gap-8">
             <a
               href="#beneficios"
               className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
@@ -67,12 +68,11 @@ export default async function LandingPage() {
               Benefícios
             </a>
 
-            {/* Link para Demo do Catálogo na Navbar */}
             <Link
               href="/demo/catalogo"
               className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide flex items-center gap-1"
             >
-              Exemplo de Loja <ExternalLink size={14} className="mb-0.5" />
+              Catálogo Demo <ExternalLink size={14} className="mb-0.5" />
             </Link>
 
             <Link
@@ -89,9 +89,21 @@ export default async function LandingPage() {
             </Link>
           </div>
 
-          <button className="md:hidden p-2 text-white">
-            <Menu />
-          </button>
+          {/* Botões Mobile */}
+          <div className="flex lg:hidden items-center gap-2">
+            <Link
+              href="/login"
+              className="text-white font-bold hover:text-[#b9722e] transition-colors text-sm px-3 py-2"
+            >
+              Entrar
+            </Link>
+            <Link
+              href="/register"
+              className="bg-[#b9722e] text-white px-4 py-2 rounded-full font-bold hover:bg-[#a06025] transition-all shadow-lg text-sm"
+            >
+              Teste Grátis
+            </Link>
+          </div>
         </div>
       </nav>
 

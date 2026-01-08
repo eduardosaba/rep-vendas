@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@/components/catalogo/store-context';
-import { Home, Eye, EyeOff, Heart, ShoppingCart } from 'lucide-react';
+import { Home, Eye, EyeOff, Heart, ShoppingCart, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 export function MobileCatalogNav() {
@@ -9,11 +9,16 @@ export function MobileCatalogNav() {
     cart,
     showPrices,
     toggleShowPrices,
+    setModal,
+    store,
     // Assumindo que existe setIsFavoritesOpen ou navegação para favoritos
     // Se não tiver, ajuste o link/ação conforme sua lógica
   } = useStore();
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+  // Lógica: Se preços de custo visíveis, mostra Ver Pedido ao invés de Favoritos
+  const showCostPrice = store?.show_cost_price && showPrices;
 
   return (
     <div className="fixed bottom-0 left-0 z-40 w-full bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 md:hidden pb-safe">
@@ -47,17 +52,30 @@ export function MobileCatalogNav() {
           </span>
         </button>
 
-        {/* 3. Favoritos */}
-        <button
-          type="button"
-          // Adicione a lógica de abrir favoritos aqui
-          className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
-        >
-          <Heart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
-          <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-red-500">
-            Favoritos
-          </span>
-        </button>
+        {/* 3. Favoritos OU Ver Pedido (alternam baseado no estado) */}
+        {showCostPrice ? (
+          <button
+            type="button"
+            onClick={() => setModal('load', true)}
+            className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
+          >
+            <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
+              Ver Pedido
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setModal('favorites', true)}
+            className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
+          >
+            <Heart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-red-500">
+              Favoritos
+            </span>
+          </button>
+        )}
 
         {/* 4. Carrinho */}
         <button

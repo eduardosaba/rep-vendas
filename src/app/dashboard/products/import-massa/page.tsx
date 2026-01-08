@@ -586,7 +586,7 @@ export default function ImportMassaPage() {
       </div>
 
       {step === 1 && (
-        <div className="bg-white p-12 rounded-xl border border-dashed border-gray-300 text-center space-y-6">
+        <div className="bg-white dark:bg-slate-900 p-12 rounded-xl border border-dashed border-gray-300 text-center space-y-6">
           <div className="mx-auto w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
             <FileSpreadsheet size={32} />
           </div>
@@ -626,7 +626,7 @@ export default function ImportMassaPage() {
 
       {step === 2 && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-          <div className="bg-white p-6 rounded-xl border shadow-sm">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border shadow-sm">
             <h3 className="font-semibold mb-4 text-gray-800 flex items-center gap-2">
               <Edit3 size={18} /> Mapeamento de Colunas
             </h3>
@@ -675,7 +675,7 @@ export default function ImportMassaPage() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border shadow-sm">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border shadow-sm">
             <h3 className="font-semibold mb-2 text-gray-800 flex items-center gap-2">
               <FileText size={18} /> Ficha Técnica Extra
             </h3>
@@ -696,7 +696,7 @@ export default function ImportMassaPage() {
                   return (
                     <label
                       key={`${col}-${idx}`}
-                      className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${isChecked ? 'bg-primary/5 border-primary/30' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                      className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${isChecked ? 'bg-primary/5 border-primary/30' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
                     >
                       <input
                         type="checkbox"

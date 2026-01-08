@@ -356,6 +356,35 @@ BEGIN
   END IF;
 END $$;
 
+-- Adicionar coluna de email do cliente em orders se não existir
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'orders' AND column_name = 'client_email_guest'
+  ) THEN
+    ALTER TABLE orders ADD COLUMN client_email_guest TEXT;
+  END IF;
+END $$;
+
+-- Adicionar coluna font_family em settings e public_catalogs se não existir
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'settings' AND column_name = 'font_family'
+  ) THEN
+    ALTER TABLE settings ADD COLUMN font_family TEXT DEFAULT NULL;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'public_catalogs' AND column_name = 'font_family'
+  ) THEN
+    ALTER TABLE public_catalogs ADD COLUMN font_family TEXT DEFAULT NULL;
+  END IF;
+END $$;
+
 -- Triggers para updated_at (apenas se não existirem)
 DO $$
 BEGIN
@@ -378,5 +407,121 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_brands_updated_at') THEN
     CREATE TRIGGER update_brands_updated_at BEFORE UPDATE ON brands
       FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;
+
+-- Tabela de configuração global (padrões do SaaS)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'global_configs') THEN
+    CREATE TABLE global_configs (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      font_family TEXT DEFAULT NULL,
+      allow_custom_fonts BOOLEAN DEFAULT true,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    -- Insere um registro padrão se tabela estiver vazia
+    INSERT INTO global_configs (font_family, allow_custom_fonts)
+    SELECT NULL, true
+    WHERE NOT EXISTS (SELECT 1 FROM global_configs);
+  END IF;
+END $$;
+
+-- Tabelas para planos e assinaturas (monetização)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'plans') THEN
+    CREATE TABLE plans (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      price_monthly NUMERIC DEFAULT 0,
+      max_products INTEGER DEFAULT 50,
+      can_customize_branding BOOLEAN DEFAULT false,
+      can_use_sync_procv BOOLEAN DEFAULT false
+    );
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscriptions') THEN
+    CREATE TABLE subscriptions (
+      user_id UUID PRIMARY KEY REFERENCES auth.users(id),
+      plan_id TEXT REFERENCES plans(id) DEFAULT 'free',
+      status TEXT DEFAULT 'active',
+      current_period_end TIMESTAMP WITH TIME ZONE,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  END IF;
+
+  -- Inserir planos padrão
+  -- Garantir que colunas esperadas existam (evita erro ao executar INSERT em instalações antigas)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'plans' AND column_name = 'price_monthly') THEN
+    ALTER TABLE plans ADD COLUMN price_monthly NUMERIC DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'plans' AND column_name = 'max_products') THEN
+    ALTER TABLE plans ADD COLUMN max_products INTEGER DEFAULT 50;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'plans' AND column_name = 'can_customize_branding') THEN
+    ALTER TABLE plans ADD COLUMN can_customize_branding BOOLEAN DEFAULT false;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'plans' AND column_name = 'can_use_sync_procv') THEN
+    ALTER TABLE plans ADD COLUMN can_use_sync_procv BOOLEAN DEFAULT false;
+  END IF;
+
+  -- Inserir planos padrão apenas se a coluna id for do tipo TEXT (evita erros em schemas antigos com id UUID)
+  IF (SELECT data_type FROM information_schema.columns WHERE table_name = 'plans' AND column_name = 'id') = 'text' THEN
+    INSERT INTO plans (id, name, price_monthly, max_products, can_customize_branding, can_use_sync_procv)
+    VALUES 
+      ('free', 'Plano Grátis', 0, 50, false, false),
+      ('pro', 'Plano Pro', 97.00, 500, true, true),
+      ('premium', 'Plano Premium', 197.00, 9999, true, true)
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+END $$;
+
+-- Adicionar colunas de controle de plano em settings e criar VIEW de permissões
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'plan_type') THEN
+    ALTER TABLE settings ADD COLUMN plan_type TEXT DEFAULT 'free';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'plan_status') THEN
+    ALTER TABLE settings ADD COLUMN plan_status TEXT DEFAULT 'active';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'settings' AND column_name = 'trial_ends_at') THEN
+    ALTER TABLE settings ADD COLUMN trial_ends_at TIMESTAMP WITH TIME ZONE;
+  END IF;
+
+  -- VIEW para permissões simplificadas (útil para queries rápidas)
+  EXECUTE 'CREATE OR REPLACE VIEW user_permissions AS
+    SELECT
+      s.user_id,
+      s.plan_type,
+      (s.plan_type = ''pro'' OR s.plan_type = ''premium'') AS can_customize_branding,
+      (s.plan_type = ''premium'') AS can_use_ai_features
+    FROM settings s';
+END $$;
+
+-- Adicionar colunas específicas do Asaas em subscriptions (customer_id + subscription_id + payment_method)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'subscriptions' AND column_name = 'asaas_customer_id'
+  ) THEN
+    ALTER TABLE subscriptions ADD COLUMN asaas_customer_id TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'subscriptions' AND column_name = 'asaas_subscription_id'
+  ) THEN
+    ALTER TABLE subscriptions ADD COLUMN asaas_subscription_id TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'subscriptions' AND column_name = 'payment_method'
+  ) THEN
+    ALTER TABLE subscriptions ADD COLUMN payment_method TEXT;
   END IF;
 END $$;

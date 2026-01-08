@@ -20,6 +20,19 @@ import {
 import Image from 'next/image';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
+// Interface para tipar o pedido corretamente com o JOIN de clientes
+interface NotificationOrder {
+  id: string;
+  client_name_guest?: string;
+  total_value: number;
+  created_at: string;
+  display_id: number;
+  // Adicionado para suportar cliente cadastrado
+  clients?: {
+    name: string;
+  } | null;
+}
+
 export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -30,15 +43,9 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const [storeName, setStoreName] = useState('Painel de Controle');
   const [catalogSlug, setCatalogSlug] = useState('');
   const [storeLogo, setStoreLogo] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<
-    Array<{
-      id: string;
-      client_name_guest?: string;
-      total_value: number;
-      created_at: string;
-      display_id: number;
-    }>
-  >([]);
+
+  // Estado tipado
+  const [notifications, setNotifications] = useState<NotificationOrder[]>([]);
 
   // UI
   const [mounted, setMounted] = useState(false);
@@ -51,22 +58,24 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const supabase = createClient();
 
   // Função para buscar notificações do banco (pedidos pendentes)
-   
   const fetchNotifications = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    // CORREÇÃO: Adicionado 'clients(name)' para buscar nome de cadastrados
     const { data } = await supabase
       .from('orders')
-      .select('id, client_name_guest, total_value, created_at, display_id')
+      .select(
+        'id, client_name_guest, total_value, created_at, display_id, clients(name)'
+      )
       .eq('user_id', user.id)
       .eq('status', 'Pendente')
       .order('created_at', { ascending: false })
       .limit(10);
 
-    if (data) setNotifications(data);
+    if (data) setNotifications(data as any);
   };
 
   // 1. Carregar Dados Iniciais
@@ -167,7 +176,6 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
       if (profileChannel) supabase.removeChannel(profileChannel);
       if (settingsChannel) supabase.removeChannel(settingsChannel);
     };
-    // REMOVIDO [supabase] das dependências para evitar loop de reconexão
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -192,6 +200,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
             filter: `user_id=eq.${user.id}`,
           },
           () => {
+            // Ao receber novo pedido, busca novamente para trazer o JOIN atualizado
             fetchNotifications();
           }
         )
@@ -203,12 +212,12 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-    // REMOVIDO [supabase] das dependências
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 4. Fechar ao clicar fora
   useEffect(() => {
+    console.debug('[DashboardHeader] theme', theme);
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node))
         setIsMenuOpen(false);
@@ -254,6 +263,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
               width={112}
               height={40}
               className="object-contain object-left"
+              style={{ height: 'auto' }}
               sizes="(max-width: 768px) 100px, 120px"
               priority
             />
@@ -283,7 +293,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        {/* Notificações */}
+        {/* Notificações (Sininho) */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
@@ -296,7 +306,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right z-50">
+            <div className="fixed md:absolute left-4 right-4 md:left-auto md:right-0 top-20 md:top-full mt-0 md:mt-3 w-auto md:w-80 max-w-sm mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
                 <p className="text-sm font-bold text-gray-900 dark:text-white">
                   Pedidos Pendentes
@@ -305,7 +315,8 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                   <button
                     onClick={() => {
                       setIsNotifOpen(false);
-                      router.push('/dashboard/orders');
+                      // Redireciona para a lista de pedidos, que é mais útil que a lista de notificações estática
+                      router.push('/dashboard/orders?status=pending');
                     }}
                     className="text-xs text-primary hover:underline"
                   >
@@ -320,37 +331,45 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                     Nenhum pedido pendente.
                   </div>
                 ) : (
-                  notifications.map((order) => (
-                    <div
-                      key={order.id}
-                      onClick={() => {
-                        setIsNotifOpen(false);
-                        router.push(`/dashboard/orders?id=${order.id}`);
-                      }}
-                      className="px-4 py-3 border-b border-gray-50 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <p className="text-sm font-medium text-primary dark:text-primary">
-                          Pedido #{order.display_id}
+                  notifications.map((order) => {
+                    // LÓGICA DE NOME: Prioriza cadastro > Visitante > Padrão
+                    const clientName =
+                      order.clients?.name ||
+                      order.client_name_guest ||
+                      'Cliente';
+
+                    return (
+                      <div
+                        key={order.id}
+                        onClick={() => {
+                          setIsNotifOpen(false);
+                          router.push(`/dashboard/orders/${order.id}`); // Link direto para detalhes
+                        }}
+                        className="px-4 py-3 border-b border-gray-50 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <p className="text-sm font-medium text-primary dark:text-primary">
+                            Pedido #{order.display_id}
+                          </p>
+                          <span className="text-[10px] text-gray-400">
+                            {new Date(order.created_at).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-700 dark:text-slate-300 font-medium">
+                          {clientName}
                         </p>
-                        <span className="text-[10px] text-gray-400">
-                          {new Date(order.created_at).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
+                        <p className="text-xs text-green-600 dark:text-green-400 font-bold mt-1">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(order.total_value || 0)}
+                        </p>
                       </div>
-                      <p className="text-xs text-gray-700 dark:text-slate-300 font-medium">
-                        {order.client_name_guest || 'Cliente'}
-                      </p>
-                      <p className="text-xs text-green-600 dark:text-green-400 font-bold mt-1">
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(order.total_value || 0)}
-                      </p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -381,6 +400,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                   width={40}
                   height={40}
                   className="object-cover"
+                  style={{ height: 'auto' }}
                 />
               ) : (
                 <span className="font-bold text-xs">
@@ -396,7 +416,7 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
 
           {/* Dropdown Menu */}
           {isMenuOpen && (
-            <div className="absolute right-0 top-full mt-3 w-56 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+            <div className="fixed md:absolute left-4 right-4 md:left-auto md:right-0 top-20 md:top-full mt-0 md:mt-3 w-auto md:w-56 max-w-sm mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 z-50">
               <div className="p-1">
                 <Link
                   href="/dashboard/user"

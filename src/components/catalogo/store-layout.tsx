@@ -73,34 +73,98 @@ function formatPhoneDisplay(phone?: string | null) {
 // --- TOP BAR ---
 export function StoreTopBar() {
   const { store } = useStore();
+  // respeita flag de visibilidade configurada no catálogo
+  if (store.show_top_benefit_bar === false) return null;
+  const bgColor = store.top_benefit_bg_color || '#f3f4f6';
+  const textColor = store.top_benefit_text_color || 'var(--primary)';
+  const height = store.top_benefit_height || 36;
+  const fontSize = store.top_benefit_text_size || 11;
+
+  const [hidden, setHidden] = useState(false);
+  const lastY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
+  const lastDir = useRef(0);
+
+  useEffect(() => {
+    const threshold = 15;
+    const onScroll = () => {
+      const y = window.scrollY || window.pageYOffset;
+      const delta = y - lastY.current;
+      let dir = 0;
+      if (delta > threshold && y > 50) dir = 1;
+      else if (delta < -threshold) dir = -1;
+
+      if (dir === 1 && lastDir.current !== 1) {
+        setHidden(true);
+        lastDir.current = 1;
+      } else if (dir === -1 && lastDir.current !== -1) {
+        setHidden(false);
+        lastDir.current = -1;
+      }
+
+      lastY.current = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
-    <div className="bg-gray-100 border-b border-gray-200 py-2 text-[11px] text-[var(--primary)] uppercase tracking-wide font-medium relative z-50">
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex justify-between items-center overflow-x-auto whitespace-nowrap gap-6 scrollbar-hide">
-        {store.top_benefit_text ? (
-          <span className="flex items-center gap-1.5 text-[var(--primary)] font-bold">
+    <div
+      className={`border-b relative z-50 transition-transform duration-300 ${hidden ? '-translate-y-full' : 'translate-y-0'}`}
+      style={{ backgroundColor: bgColor, borderColor: 'transparent' }}
+    >
+      <div
+        className="max-w-[1920px] mx-auto px-4 lg:px-8 flex justify-between items-center overflow-x-auto whitespace-nowrap gap-6 scrollbar-hide"
+        style={{ height, color: textColor, fontSize }}
+      >
+        {store.top_benefit_image_url ? (
+          store.top_benefit_text ? (
+            <div
+              className="w-full flex flex-col md:flex-row items-center"
+              style={{ height }}
+            >
+              <div
+                className="w-full md:w-2/5 flex-shrink-0 overflow-hidden rounded"
+                style={{ maxHeight: height }}
+              >
+                <img
+                  src={store.top_benefit_image_url}
+                  alt="Barra de benefícios"
+                  className="h-full w-full"
+                  style={{
+                    objectFit: (store.top_benefit_image_fit as any) || 'cover',
+                    transform: `scale(${(Number(store.top_benefit_image_scale) || 100) / 100})`,
+                    transition: 'transform 150ms ease-out',
+                  }}
+                />
+              </div>
+              <div className="w-full md:flex-1 md:pl-4 px-3 py-2">
+                <span className="font-bold block">
+                  {store.top_benefit_text}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 w-full">
+              <img
+                src={store.top_benefit_image_url}
+                alt="Barra de benefícios"
+                className="h-full w-full"
+                style={{
+                  maxHeight: height,
+                  objectFit: (store.top_benefit_image_fit as any) || 'cover',
+                  transform: `scale(${(Number(store.top_benefit_image_scale) || 100) / 100})`,
+                  transition: 'transform 150ms ease-out',
+                }}
+              />
+            </div>
+          )
+        ) : store.top_benefit_text ? (
+          <span className="flex items-center gap-1.5 font-bold">
             <Star size={14} /> {store.top_benefit_text}
           </span>
-        ) : (
-          <>
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck size={14} /> Compra 100% Segura
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Truck size={14} /> Enviamos para todo Brasil
-            </span>
-          </>
-        )}
-        <span className="flex items-center gap-1.5 ml-auto">
-          <Phone size={14} />
-          <a
-            href={whatsappHref(store.phone)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-1 text-[var(--primary)] font-medium hover:underline"
-          >
-            Suporte: {formatPhoneDisplay(store.phone)}
-          </a>
-        </span>
+        ) : null}
+
+        {/* contact phone intentionally not shown here; displayed in top info bar */}
       </div>
     </div>
   );
@@ -273,20 +337,21 @@ export function StoreHeader() {
               <span>Favoritos</span>
             </button>
 
-            {/* SÓ MOSTRA O BOTÃO VER PREÇOS SE A OPÇÃO "PREÇO SUGERIDO" ESTIVER DESLIGADA */}
-            {!store.show_sale_price && (
-              <button
-                onClick={() =>
-                  isPricesVisible
-                    ? setIsPricesVisible(false)
-                    : setModal('password', true)
-                }
-                className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
-              >
-                {isPricesVisible ? <Unlock size={24} /> : <Lock size={24} />}
-                <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
-              </button>
-            )}
+            {/* Botão "Ver Preços" aparece apenas quando o catálogo está em modo 'custo' */}
+            {store.show_cost_price === true &&
+              store.show_sale_price !== true && (
+                <button
+                  onClick={() =>
+                    isPricesVisible
+                      ? setIsPricesVisible(false)
+                      : setModal('password', true)
+                  }
+                  className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
+                >
+                  {isPricesVisible ? <Unlock size={24} /> : <Lock size={24} />}
+                  <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
+                </button>
+              )}
 
             <button
               onClick={() => setModal('load', true)}
@@ -648,14 +713,16 @@ export function StoreMobileActionBar() {
           <span className="text-[10px] font-medium text-gray-700">Início</span>
         </button>
 
-        {/* Ver Preços - SÓ MOSTRA SE PREÇO SUGERIDO ESTIVER DESLIGADO */}
-        {!store.show_sale_price && (
+        {/* Ver Preços - SÓ MOSTRA SE FOR PREÇO DE CUSTO */}
+        {store.show_cost_price && (
           <button
-            onClick={() =>
-              isPricesVisible
-                ? setIsPricesVisible(false)
-                : setModal('password', true)
-            }
+            onClick={() => {
+              if (isPricesVisible) {
+                setIsPricesVisible(false);
+              } else {
+                setModal('password', true); // ABRE O MODAL CORRETAMENTE
+              }
+            }}
             className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] hover:bg-gray-50 rounded-lg transition-colors"
           >
             {isPricesVisible ? (
@@ -718,9 +785,32 @@ export function StoreMobileActionBar() {
 export function StoreFooter() {
   const { store } = useStore();
   const router = useRouter();
+  const footerBg = store.footer_background_color || 'var(--secondary)';
+  let footerTextColor = 'white';
+  if (
+    typeof footerBg === 'string' &&
+    /^#([0-9A-F]{3}|[0-9A-F]{6})$/i.test(footerBg)
+  ) {
+    const hex = footerBg.replace('#', '');
+    const fullHex =
+      hex.length === 3
+        ? hex
+            .split('')
+            .map((ch) => ch + ch)
+            .join('')
+        : hex;
+    const r = parseInt(fullHex.substring(0, 2), 16) / 255;
+    const g = parseInt(fullHex.substring(2, 4), 16) / 255;
+    const b = parseInt(fullHex.substring(4, 6), 16) / 255;
+    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    footerTextColor = L > 0.6 ? '#000000' : '#FFFFFF';
+  }
 
   return (
-    <footer className="bg-[var(--secondary)] border-t border-white/10 pt-12 pb-6 mt-auto relative z-10 text-white">
+    <footer
+      className="border-t border-white/10 pt-12 pb-6 mt-auto relative z-10"
+      style={{ backgroundColor: footerBg, color: footerTextColor }}
+    >
       <div className="max-w-[1920px] mx-auto px-4 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="col-span-1">
@@ -786,7 +876,7 @@ export function StoreFooter() {
   );
 }
 
-// --- CARROSSEL DE MARCAS ---
+// --- CARROSSEL DE MARCAS (CORRIGIDO: PAUSA AO TOCAR/CLICAR) ---
 function CarouselBrands({
   brands,
   isBrandSelected,
@@ -798,87 +888,181 @@ function CarouselBrands({
   const innerRef = useRef<HTMLDivElement>(null);
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
 
+  // Detecta se é mobile
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Verifica se precisa animar / se há overflow
   useEffect(() => {
     const check = () => {
       if (!containerRef.current || !innerRef.current) return;
-      const hasOverflow =
-        innerRef.current.scrollWidth > containerRef.current.clientWidth;
-      // Em mobile, sempre anima se tiver mais de 3 marcas
-      setShouldAnimate(isMobile ? brands.length > 3 : hasOverflow);
+      const contentWidth = innerRef.current.scrollWidth;
+      const containerWidth = containerRef.current.clientWidth;
+      const overflow = contentWidth > containerWidth;
+      setHasOverflow(overflow);
+
+      // REGRAS DE ANIMAÇÃO:
+      // No mobile, NÃO animar — mostramos setas se houver overflow
+      // No desktop, anima se houver overflow
+      if (isMobile) {
+        setShouldAnimate(false);
+      } else {
+        setShouldAnimate(overflow);
+      }
     };
-    check();
+
+    const timeout = setTimeout(check, 100);
     window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    return () => {
+      window.removeEventListener('resize', check);
+      clearTimeout(timeout);
+    };
   }, [brands, isMobile]);
 
-  const loopBrands = shouldAnimate ? [...brands, ...brands] : brands;
-  const duration = Math.max(18, Math.ceil(brands.length * 1.5) + 18);
+  // Duplica/Triplica itens para garantir o loop infinito sem buracos
+  const loopBrands = shouldAnimate
+    ? brands.length < 4
+      ? [...brands, ...brands, ...brands, ...brands]
+      : [...brands, ...brands]
+    : brands;
+
+  const duration = Math.max(20, loopBrands.length * 2.5);
 
   return (
-    <div className="w-full overflow-hidden" ref={containerRef}>
-      <style>{`@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+    <div
+      className="w-full overflow-hidden relative select-none"
+      ref={containerRef}
+    >
+      <style>{`
+        @keyframes marquee { 
+          0% { transform: translateX(0); } 
+          100% { transform: translateX(-50%); } 
+        }
+        .animate-marquee {
+          display: flex;
+          width: max-content;
+          animation: marquee ${duration}s linear infinite;
+        }
+      `}</style>
+
+      {/* Gradientes laterais (apenas visuais, sem bloquear cliques) */}
+      {shouldAnimate && (
+        <>
+          <div
+            className={`absolute left-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-r ${isHeaderWhite ? 'from-white to-transparent' : 'from-black/20 to-transparent'} pointer-events-none`}
+          />
+          <div
+            className={`absolute right-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-l ${isHeaderWhite ? 'from-white to-transparent' : 'from-black/20 to-transparent'} pointer-events-none`}
+          />
+        </>
+      )}
+
       <div
-        onMouseEnter={() => !isMobile && setIsPaused(true)}
-        onMouseLeave={() => !isMobile && setIsPaused(false)}
-        className="w-full"
+        // EVENTOS DE PAUSA ROBUSTOS
+        // Desktop: Mouse Enter/Leave
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        // Mobile: Touch Start (toque) e Touch End (soltar)
+        onTouchStart={() => setIsPaused(true)}
+        onTouchEnd={() => setIsPaused(false)}
+        // Segurança: Se arrastar o dedo, mantém pausado
+        onTouchMove={() => setIsPaused(true)}
+        className="w-full py-1"
       >
         <div
           ref={innerRef}
-          className="flex items-center gap-x-6 whitespace-nowrap"
-          style={
-            shouldAnimate
-              ? {
-                  display: 'flex',
-                  width: 'max-content',
-                  animation: `marquee ${duration}s linear infinite`,
-                  animationPlayState: isPaused ? 'paused' : 'running',
-                }
-              : { display: 'flex', width: 'max-content' }
-          }
+          className={`flex items-center gap-x-4 ${shouldAnimate ? 'animate-marquee' : 'justify-start overflow-x-auto scrollbar-hide px-2'}`}
+          // APLICA A PAUSA DIRETAMENTE NO ESTILO (Mais forte que classe CSS)
+          style={{
+            animationPlayState: isPaused ? 'paused' : 'running',
+            WebkitAnimationPlayState: isPaused ? 'paused' : 'running',
+            WebkitOverflowScrolling: 'touch',
+            scrollBehavior: 'smooth',
+          }}
         >
           {loopBrands.map((brand: any, i: number) => {
             const active = isBrandSelected(brand.name);
-            const isDuplicate = shouldAnimate && i >= brands.length;
+            const isClone = shouldAnimate && i >= loopBrands.length / 2;
+
             return (
               <button
                 key={`${brand.name}-${i}`}
-                onClick={() => !isDuplicate && toggleBrand(brand.name)}
-                className={`relative group flex items-center gap-2 px-3 py-1.5 rounded-lg border transform transition-all duration-200 flex-shrink-0 hover:scale-105 ${
-                  active
-                    ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md'
-                    : isHeaderWhite
-                      ? 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                      : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
-                }`}
-                tabIndex={isDuplicate ? -1 : 0}
+                onClick={() => toggleBrand(brand.name)}
+                // Adicionado onTouchEnd aqui também para garantir o clique
+                onTouchEnd={(e) => {
+                  // Permite o clique passar, mas garante que o estado de pausa seja limpo eventualmente
+                }}
+                className={`
+                  relative group flex items-center gap-2 px-4 py-1.5 rounded-full border 
+                  transform transition-all duration-200 flex-shrink-0 touch-manipulation
+                  ${!isMobile && 'hover:scale-105'} 
+                  ${
+                    active
+                      ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md'
+                      : isHeaderWhite
+                        ? 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                        : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
+                  }
+                `}
               >
                 {brand.logo_url && (
                   <img
                     src={brand.logo_url}
                     alt={brand.name}
-                    className="h-6 w-auto object-contain max-w-[60px]"
+                    className={`object-contain ${isMobile ? 'h-8 w-auto max-w-[64px]' : 'h-5 w-auto max-w-[50px]'}`}
                   />
                 )}
-                <span
-                  className={`text-xs font-bold ${!active ? 'group-hover:text-[var(--primary)]' : ''}`}
-                >
-                  {brand.name}
-                </span>
+                {/* No mobile mostramos apenas o logo (sem nome) */}
+                {!isMobile && (
+                  <span
+                    className={`text-xs font-bold whitespace-nowrap ${!active ? 'group-hover:text-[var(--primary)]' : ''}`}
+                  >
+                    {brand.name}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* Setas para mobile quando houver overflow */}
+      {isMobile && hasOverflow && (
+        <>
+          <button
+            aria-label="Scroll left"
+            onClick={() => {
+              if (!innerRef.current) return;
+              innerRef.current.scrollBy({
+                left: -containerRef.current!.clientWidth * 0.7,
+                behavior: 'smooth',
+              });
+            }}
+            className="absolute left-1 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/90 p-1 shadow-md"
+          >
+            <ChevronLeft className="h-5 w-5 text-gray-700" />
+          </button>
+          <button
+            aria-label="Scroll right"
+            onClick={() => {
+              if (!innerRef.current) return;
+              innerRef.current.scrollBy({
+                left: containerRef.current!.clientWidth * 0.7,
+                behavior: 'smooth',
+              });
+            }}
+            className="absolute right-1 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/90 p-1 shadow-md"
+          >
+            <ChevronRight className="h-5 w-5 text-gray-700" />
+          </button>
+        </>
+      )}
     </div>
   );
 }

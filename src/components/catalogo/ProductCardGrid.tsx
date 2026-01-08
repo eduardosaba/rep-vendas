@@ -159,11 +159,13 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
                 </span>
               </div>
             )}
-            {hasPriceAccess && settings?.show_installments && (
-              <div className="mt-1 text-xs text-green-600">
-                12x de R$ {formatPrice(salePrice / 12)} sem juros
-              </div>
-            )}
+            {hasPriceAccess &&
+              settings?.show_installments &&
+              settings?.show_sale_price && (
+                <div className="mt-1 text-xs text-green-600">
+                  12x de R$ {formatPrice(salePrice / 12)} sem juros
+                </div>
+              )}
           </div>
 
           {settings?.show_shipping && (

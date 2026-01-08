@@ -164,6 +164,7 @@ export function ResponsivePicture({
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
         className={className}
+        style={{ height: 'auto' }}
       />
     </picture>
   );

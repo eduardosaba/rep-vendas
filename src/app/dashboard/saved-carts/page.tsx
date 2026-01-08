@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
 import {
   ShoppingBag,
   ArrowLeft,
@@ -25,7 +26,15 @@ export default async function SavedCartsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  let finalUser = user;
+  if (!finalUser) {
+    try {
+      const fb = await getServerUserFallback();
+      if (fb) finalUser = fb;
+    } catch (e) {}
+  }
+
+  if (!finalUser) {
     redirect('/login');
   }
 
@@ -33,7 +42,7 @@ export default async function SavedCartsPage() {
   const { data: orders, error } = await supabase
     .from('orders')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', finalUser.id)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 

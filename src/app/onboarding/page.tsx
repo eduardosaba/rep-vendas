@@ -1,37 +1,47 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { OnboardingForm } from '@/components/onboarding/OnboardingForm';
+import OnboardingGate from '@/components/onboarding/OnboardingGate';
+import { Suspense } from 'react';
 
-// Força a verificação sempre no banco de dados, ignorando o cache do Next.js
 export const dynamic = 'force-dynamic';
 
 export default async function OnboardingPage() {
   const supabase = await createClient();
 
-  // 1. Verifica Usuário Logado
+  // 1. Obter usuário de forma segura
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/login');
+  if (user) {
+    // 2. Busca o Perfil com foco na flag de conclusão
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    // Se já completou, não há motivo para estar aqui
+    if (profile?.onboarding_completed) {
+      redirect('/dashboard');
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Suspense
+          fallback={
+            <div className="animate-pulse bg-white w-full max-w-2xl h-[600px] rounded-3xl" />
+          }
+        >
+          <OnboardingForm userId={user.id} userEmail={user.email || ''} />
+        </Suspense>
+      </div>
+    );
   }
 
-  // 2. Busca o Perfil no Servidor (Fonte da Verdade) - com resiliência .maybeSingle()
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('onboarding_completed')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  // 3. Decisão de Roteamento
-  // Se o perfil existe E já completou o onboarding, manda pro Dashboard.
-  // Isso impede que um usuário já configurado veja esta página novamente.
-  if (profile && profile.onboarding_completed) {
-    redirect('/dashboard');
-  }
-
-  // 4. Se chegou aqui, é porque PRECISA configurar.
-  // Renderiza o formulário interativo (Client Component).
-  return <OnboardingForm userId={user.id} userEmail={user.email || ''} />;
+  // 3. Fallback para Client-side Gate (Evita tela branca se o cookie demorar a propagar)
+  // O OnboardingGate fará uma nova tentativa no cliente antes de mandar para /login
+  return <OnboardingGate />;
 }

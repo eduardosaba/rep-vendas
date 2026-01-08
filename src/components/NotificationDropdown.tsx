@@ -68,9 +68,9 @@ export default function NotificationDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 origin-top-right rounded-xl bg-white shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 mt-2 sm:w-80 max-w-sm mx-auto sm:mx-0 origin-top rounded-xl bg-white dark:bg-slate-900 shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-100">
           {/* Cabeçalho */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
             <h3 className="text-sm font-bold text-gray-900">Notificações</h3>
             {unreadCount > 0 && (
               <button
@@ -83,7 +83,7 @@ export default function NotificationDropdown({
           </div>
 
           {/* Lista */}
-          <div className="max-h-96 overflow-y-auto custom-scrollbar">
+          <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto custom-scrollbar">
             {loading ? (
               <div className="p-4 text-center text-xs text-gray-400">
                 Carregando...

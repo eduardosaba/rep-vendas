@@ -45,7 +45,7 @@ const PRODUCTS = [
     category: 'Calçados',
     image:
       'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=400',
-    tags: ['bestseller'], // Mais Vendido
+    tags: ['bestseller'], // Best Seller
   },
   {
     id: 2,
@@ -378,7 +378,7 @@ export default function CatalogoDemoFull() {
                     />
                   </button>
 
-                  {/* Badges de Status (Lançamento, Mais Vendido, etc) */}
+                  {/* Badges de Status (Lançamento, Best Seller, etc) */}
                   <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
                     {product.oldPrice && (
                       <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">

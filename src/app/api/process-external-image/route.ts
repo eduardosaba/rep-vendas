@@ -2,20 +2,33 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import dns from 'node:dns';
 
-// Força IPv4 para evitar erros de conexão em alguns ambientes Node
+// 1. Força IPv4 para evitar erros de conexão (comum em redes locais e Docker)
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
 
-// Permite baixar de sites com SSL antigo/inválido
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+/**
+ * 2. TRATAMENTO DO SSL/TLS
+ * Permitir download de sites com SSL inválido apenas em DESENVOLVIMENTO.
+ * Para ativar localmente, adicione ALLOW_INSECURE_TLS=1 no seu .env.local
+ */
+if (
+  process.env.NODE_ENV === 'development' &&
+  process.env.ALLOW_INSECURE_TLS === '1'
+) {
+  // Evita re-setar se já estiver como '0' para não poluir o terminal
+  if (process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    console.log('⚠️ [SECURITY] Verificação TLS desativada para processamento de imagens externas.');
+  }
+}
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 60; // Aumentado para lidar com imagens pesadas
 
 // Função para limpar nomes de pasta (Ex: "Ray-Ban" -> "ray-ban")
 function sanitizeFolder(name: string | null | undefined) {
-  if (!name) return 'geral'; // Pasta padrão se não tiver marca
+  if (!name) return 'geral';
   return name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // Remove acentos
@@ -34,7 +47,7 @@ export async function POST(request: Request) {
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(
-        { error: 'Configuração de servidor incompleta.' },
+        { error: 'Configuração de servidor incompleta (Service Key ausente).' },
         { status: 500 }
       );
     }
@@ -43,16 +56,15 @@ export async function POST(request: Request) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 2. Recebe os dados
+    // 2. Recebe e valida os dados do body
     const body = await request.json();
     const { productId, externalUrl } = body;
 
     if (!productId || !externalUrl) {
-      return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
+      return NextResponse.json({ error: 'ID do produto ou URL ausente.' }, { status: 400 });
     }
 
-    // 3. BUSCA SEGURA: Recupera User ID e Marca do banco
-    // Isso garante que o arquivo vá para a pasta do usuário correto
+    // 3. Recupera User ID e Marca para organizar a pasta no Storage
     const { data: product, error: fetchError } = await supabaseAdmin
       .from('products')
       .select('user_id, brand')
@@ -60,63 +72,55 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (fetchError || !product) {
-      throw new Error('Produto não encontrado no banco.');
+      throw new Error('Produto não encontrado no banco de dados.');
     }
 
-    // 4. Download da Imagem
+    // 4. Limpeza e Validação da URL
     const cleanUrl = externalUrl.trim();
     try {
       targetUrl = encodeURI(cleanUrl);
       new URL(targetUrl);
     } catch (e) {
-      throw new Error(`URL inválida: ${cleanUrl}`);
+      throw new Error(`URL fornecida é inválida: ${cleanUrl}`);
     }
 
-    console.log(`[SYNC] Baixando para User ${product.user_id}: ${targetUrl}`);
+    console.log(`[IMAGE SYNC] Processando imagem para User ${product.user_id}: ${targetUrl}`);
 
+    // 5. Download da Imagem Externa
     const downloadResponse = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept:
-          'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        Referer: new URL(targetUrl).origin,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Referer': new URL(targetUrl).origin,
       },
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(25000), // Timeout de 25 segundos
     });
 
     if (!downloadResponse.ok) {
-      const errorText = await downloadResponse.text().catch(() => '');
-      throw new Error(
-        `Falha download (${downloadResponse.status}): ${errorText.slice(0, 50)}`
-      );
+      throw new Error(`Falha no download (${downloadResponse.status}): Servidor externo recusou a conexão.`);
     }
 
     const arrayBuffer = await downloadResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    if (buffer.length === 0) throw new Error('Imagem vazia recebida.');
+    if (buffer.length === 0) throw new Error('A imagem baixada está vazia.');
 
-    // 5. Preparar Upload
-    const contentType =
-      downloadResponse.headers.get('content-type') || 'image/jpeg';
+    // 6. Detecta extensão baseada no Content-Type
+    const contentType = downloadResponse.headers.get('content-type') || 'image/jpeg';
     let extension = 'jpg';
     if (contentType.includes('png')) extension = 'png';
     else if (contentType.includes('webp')) extension = 'webp';
     else if (contentType.includes('gif')) extension = 'gif';
 
-    // --- ESTRUTURA DE PASTAS MULTI-USUÁRIO ---
-    // products / {USER_ID} / {MARCA} / {ARQUIVO}
+    // 7. Define o caminho no Storage (Isolamento por Usuário)
     const userId = product.user_id;
     const brandFolder = sanitizeFolder(product.brand);
-
-    // Nome do arquivo com timestamp para evitar cache/colisão
     const fileName = `public/${userId}/products/${brandFolder}/${productId}-${Date.now()}.${extension}`;
 
-    // 6. Upload para o Supabase
+    // 8. Upload para o bucket 'product-images' (ou o seu bucket padrão)
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from('products')
+      .from('product-images') 
       .upload(fileName, buffer, {
         contentType: contentType,
         upsert: true,
@@ -124,26 +128,33 @@ export async function POST(request: Request) {
 
     if (uploadError) {
       console.error('[STORAGE ERROR]', uploadError);
-      throw new Error(`Erro Supabase Storage: ${uploadError.message}`);
+      throw new Error(`Erro ao subir para o Supabase Storage: ${uploadError.message}`);
     }
 
-    // 7. Atualizar Produto com o novo caminho
+    // 9. Atualiza o produto no Banco de Dados com o novo caminho relativo
     const { error: dbError } = await supabaseAdmin
       .from('products')
-      .update({ image_path: uploadData.path })
+      .update({ 
+        image_path: uploadData.path,
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', productId);
 
-    if (dbError) throw new Error(`Erro Banco: ${dbError.message}`);
+    if (dbError) throw new Error(`Erro ao atualizar banco: ${dbError.message}`);
 
-    return NextResponse.json({ success: true, path: uploadData.path });
+    return NextResponse.json({ 
+      success: true, 
+      path: uploadData.path,
+      message: 'Imagem processada e vinculada com sucesso.'
+    });
+
   } catch (error: any) {
-    console.error(`[SYNC FAILURE] URL: ${targetUrl}`, error);
+    console.error(`[SYNC FAILURE] URL: ${targetUrl}`, error.message);
 
     return NextResponse.json(
       {
-        error: error.message || 'Erro desconhecido',
+        error: error.message || 'Erro inesperado ao processar imagem.',
         url: targetUrl,
-        cause: error.cause ? String(error.cause) : undefined,
       },
       { status: 500 }
     );

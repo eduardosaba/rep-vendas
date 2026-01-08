@@ -43,24 +43,28 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename='saved_carts' AND policyname='Users can view own saved carts (owner)') THEN
     EXECUTE 'DROP POLICY "Users can view own saved carts (owner)" ON saved_carts';
   END IF;
+DROP POLICY IF EXISTS "Users can view own saved carts (owner)" ON saved_carts;
   CREATE POLICY "Users can view own saved carts (owner)" ON saved_carts
     FOR SELECT USING (auth.uid() = user_id_owner);
 
   IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename='saved_carts' AND policyname='Users can insert own saved carts (owner)') THEN
     EXECUTE 'DROP POLICY "Users can insert own saved carts (owner)" ON saved_carts';
   END IF;
+DROP POLICY IF EXISTS "Users can insert own saved carts (owner)" ON saved_carts;
   CREATE POLICY "Users can insert own saved carts (owner)" ON saved_carts
     FOR INSERT WITH CHECK (auth.uid() = user_id_owner);
 
   IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename='saved_carts' AND policyname='Users can update own saved carts (owner)') THEN
     EXECUTE 'DROP POLICY "Users can update own saved carts (owner)" ON saved_carts';
   END IF;
+DROP POLICY IF EXISTS "Users can update own saved carts (owner)" ON saved_carts;
   CREATE POLICY "Users can update own saved carts (owner)" ON saved_carts
     FOR UPDATE USING (auth.uid() = user_id_owner);
 
   IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename='saved_carts' AND policyname='Users can delete own saved carts (owner)') THEN
     EXECUTE 'DROP POLICY "Users can delete own saved carts (owner)" ON saved_carts';
   END IF;
+DROP POLICY IF EXISTS "Users can delete own saved carts (owner)" ON saved_carts;
   CREATE POLICY "Users can delete own saved carts (owner)" ON saved_carts
     FOR DELETE USING (auth.uid() = user_id_owner);
 
@@ -68,6 +72,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename='saved_carts' AND policyname='Anyone can view guest saved carts by short_id (owner)') THEN
     EXECUTE 'DROP POLICY "Anyone can view guest saved carts by short_id (owner)" ON saved_carts';
   END IF;
+DROP POLICY IF EXISTS "Anyone can view guest saved carts by short_id (owner)" ON saved_carts;
   CREATE POLICY "Anyone can view guest saved carts by short_id (owner)" ON saved_carts
     FOR SELECT USING (user_id_owner IS NULL);
 

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabase/server';
 
 export async function getPendingImageStats() {
   const supabase = await createClient();

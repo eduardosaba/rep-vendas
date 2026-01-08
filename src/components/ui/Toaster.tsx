@@ -30,8 +30,7 @@ export function Toaster({ ...props }: ToasterProps) {
             ? sonnerToast
             : sonnerToast[type as keyof typeof sonnerToast];
         if (typeof toastFn === 'function') {
-          // @ts-expect-error
-          toastFn(title, { description, duration });
+          (toastFn as any)(title, { description, duration });
         }
       };
     }

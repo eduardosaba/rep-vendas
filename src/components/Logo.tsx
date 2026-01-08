@@ -23,7 +23,29 @@ export function Logo({
 }: LogoProps) {
   const SYSTEM_NAME = 'Rep-Vendas';
 
+  const [systemLogoError, setSystemLogoError] = React.useState(false);
+  const [userLogoError, setUserLogoError] = React.useState(false);
+
   if (useSystemLogo) {
+    if (systemLogoError) {
+      // Fallback visual quando logo falha (offline/404)
+      return (
+        <div className="flex items-center gap-2">
+          <div
+            className={`p-2 rounded-lg ${variant === 'light' ? 'bg-white/10 text-white' : 'bg-primary/5 rv-text-primary'}`}
+          >
+            <Store size={24} />
+          </div>
+          {showText && (
+            <span
+              className={`font-bold text-xl ${variant === 'light' ? 'text-white' : 'text-[#0d1b2c]'}`}
+            >
+              Rep<span className="text-[#b9722e]">Vendas</span>
+            </span>
+          )}
+        </div>
+      );
+    }
     return (
       <div className="flex items-center gap-2">
         <div className={`${className} relative`}>
@@ -33,6 +55,7 @@ export function Logo({
             fill
             style={{ objectFit: 'contain' }}
             sizes="48px"
+            onError={() => setSystemLogoError(true)}
           />
         </div>
         {showText && (
@@ -46,7 +69,7 @@ export function Logo({
     );
   }
 
-  if (settings?.logo_url) {
+  if (settings?.logo_url && !userLogoError) {
     return (
       <div className={`${className} relative`}>
         <Image
@@ -54,6 +77,7 @@ export function Logo({
           alt={settings.name || 'Logo da Loja'}
           fill
           style={{ objectFit: 'contain' }}
+          onError={() => setUserLogoError(true)}
         />
       </div>
     );

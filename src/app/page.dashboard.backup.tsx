@@ -323,7 +323,11 @@ export default async function DashboardPage() {
             Ver todos
           </a>
         </div>
-        <RecentOrdersTable orders={recentOrders} />
+        <RecentOrdersTable
+          orders={recentOrders}
+          store={null}
+          rangeLabel="Recentes"
+        />
       </div>
     </div>
   );

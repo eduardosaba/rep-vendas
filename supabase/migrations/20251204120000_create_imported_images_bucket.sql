@@ -24,6 +24,7 @@ BEGIN
     SELECT 1 FROM pg_policies
     WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Users can upload imported-images'
   ) THEN
+DROP POLICY IF EXISTS "Users can upload imported-images" ON storage.objects;
     EXECUTE 'CREATE POLICY "Users can upload imported-images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = ''imported-images'' AND auth.role() = ''authenticated'');';
   END IF;
 
@@ -32,6 +33,7 @@ BEGIN
     SELECT 1 FROM pg_policies
     WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Anyone can view imported-images'
   ) THEN
+DROP POLICY IF EXISTS "Anyone can view imported-images" ON storage.objects;
     EXECUTE 'CREATE POLICY "Anyone can view imported-images" ON storage.objects FOR SELECT USING (bucket_id = ''imported-images'');';
   END IF;
 END $$;

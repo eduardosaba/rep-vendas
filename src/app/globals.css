@@ -11,11 +11,43 @@
  * IMPORTANTE: Não altere essas cores aqui. Use o ThemeRegistry ou a página de Settings.
  */
 :root {
+  /* Garantia: força altura automática para imagens que tenham apenas
+   uma dimensão controlada via CSS, evitando warnings do React
+   sobre alteração de apenas width/height. */
   --primary: #b9722e;
   --primary-foreground: #ffffff;
   --secondary: #0d1b2c;
   --secondary-foreground: #ffffff;
   --header-bg: #ffffff;
+  /* Fonte global do sistema (pode ser sobrescrita em runtime pelo ThemeRegistry) */
+  --rv-font:
+    Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial;
+}
+
+/* Garantia: força altura automática para imagens que tenham apenas
+   uma dimensão controlada via CSS, evitando warnings do React
+   sobre alteração de apenas width/height. */
+img {
+  height: auto;
+}
+
+/* Aplica a fonte padrão do Tailwind em todo o sistema */
+html,
+body {
+  @apply font-sans antialiased font-normal;
+  /* Apply global runtime font variable as highest priority */
+  font-family:
+    var(--rv-font),
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer components {
@@ -54,4 +86,60 @@
   --tw-gradient-from: #6b3605 var(--tw-gradient-from-position);
   --tw-gradient-to: #b9722e var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+/* Scope dark-mode correction for dashboard children that still use `bg-white` without dark variant.
+   This helps prevent isolated children remaining white when toggling dark mode.
+   Scoped under [data-dashboard] to avoid touching other app areas. */
+.dark [data-dashboard] .bg-white {
+  background-color: #0f172a; /* slate-900 */
+}
+
+/* Branding override: map common Tailwind "blue" utilities to runtime primary color.
+   This allows the UI to adopt the user's `primary_color` without changing many files.
+   It's intentionally specific and uses !important to take precedence over utility classes.
+   NOTE: This is an aggressive global override for blue utilities used for branding only.
+*/
+:root {
+  /* ensure a fallback rgb var exists for rgba() usage */
+  --primary-rgb: 185, 114, 46; /* matches default --primary #b9722e */
+}
+
+.text-blue-600 {
+  color: var(--primary) !important;
+}
+.text-blue-400 {
+  color: var(--primary) !important;
+}
+.bg-blue-600 {
+  background-color: var(--primary) !important;
+}
+.bg-blue-700,
+.hover\:bg-blue-700:hover {
+  /* slightly darker hover using rgba over rgb var when available */
+  background-color: rgba(var(--primary-rgb), 0.92) !important;
+}
+.bg-blue-50 {
+  background-color: rgba(var(--primary-rgb), 0.06) !important;
+}
+.bg-blue-100 {
+  background-color: rgba(var(--primary-rgb), 0.12) !important;
+}
+.border-blue-100 {
+  border-color: rgba(var(--primary-rgb), 0.12) !important;
+}
+.group-hover\:bg-blue-50:hover {
+  background-color: rgba(var(--primary-rgb), 0.06) !important;
+}
+.hover\:text-blue-600:hover {
+  color: var(--primary) !important;
+}
+.text-blue-600.dark\:text-blue-400 {
+  color: var(--primary) !important;
+}
+.ring-blue-200 {
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12) !important;
+}
+.focus\:ring-blue-500:focus {
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.14) !important;
 }

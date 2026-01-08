@@ -4,8 +4,6 @@ import { Storefront } from '@/components/catalogo/Storefront';
 import { Metadata, ResolvingMetadata } from 'next';
 
 export const revalidate = 0;
-
-// Força carregamento dinâmico para evitar fetchs durante o build
 export const dynamic = 'force-dynamic';
 
 type Props = {
@@ -13,31 +11,31 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-// 1. GERADOR DE METADADOS (SEO)
+// 1. GERADOR DE METADADOS (SEO) - Mantido igual, foco no branding
 export async function generateMetadata(
   { params, searchParams }: Props,
   _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const { slug } = await params;
   const { productId } = await searchParams;
-
   const supabase = await createClient();
 
-  // Resiliência: usar .maybeSingle() para não quebrar se não houver loja
-  const { data: store } = await supabase
-    .from('settings')
-    .select('name, logo_url, footer_message')
-    .eq('catalog_slug', slug)
+  const { data: catalog } = await supabase
+    .from('public_catalogs')
+    .select('store_name, logo_url, footer_message, user_id')
+    .eq('slug', slug)
+    .eq('is_active', true)
     .maybeSingle();
 
-  if (!store) return { title: 'Loja não encontrada' };
+  if (!catalog) return { title: 'Loja não encontrada' };
 
   if (productId && typeof productId === 'string') {
     const { data: product } = await supabase
       .from('products')
       .select('name, price, image_url, external_image_url, description')
       .eq('id', productId)
-      .eq('is_active', true) // GARANTE QUE SÓ MOSTRA SE ATIVO
+      .eq('user_id', catalog.user_id)
+      .eq('is_active', true)
       .maybeSingle();
 
     if (product) {
@@ -48,10 +46,10 @@ export async function generateMetadata(
       const ogImage =
         product.image_url ||
         product.external_image_url ||
-        store.logo_url ||
+        catalog.logo_url ||
         null;
       return {
-        title: `${product.name} | ${store.name}`,
+        title: `${product.name} | ${catalog.store_name}`,
         description: `Por apenas ${priceFormatted}. ${product.description || 'Confira os detalhes!'}`,
         openGraph: {
           title: `${product.name} - ${priceFormatted}`,
@@ -63,13 +61,13 @@ export async function generateMetadata(
   }
 
   return {
-    title: `${store.name} | Catálogo Digital`,
+    title: `${catalog.store_name} | Catálogo Digital`,
     description:
-      store.footer_message ||
+      catalog.footer_message ||
       'Confira nossos produtos e faça seu pedido online.',
     openGraph: {
-      title: store.name,
-      images: store.logo_url ? [store.logo_url] : [],
+      title: catalog.store_name,
+      images: catalog.logo_url ? [catalog.logo_url] : [],
     },
   };
 }
@@ -78,29 +76,33 @@ export async function generateMetadata(
 export default async function CatalogPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { productId } = await searchParams;
-
   const supabase = await createClient();
 
-  // Resiliência: usar .maybeSingle() para não quebrar se não houver loja
-  const { data: store, error: storeError } = await supabase
-    .from('settings')
-    .select('*')
-    .eq('catalog_slug', slug)
+  // Buscar catálogo SEM filtrar por is_active para verificar se existe
+  const { data: catalog, error: catalogError } = await supabase
+    .from('public_catalogs')
+    .select('*, price_password_hash')
+    .eq('slug', slug)
     .maybeSingle();
 
-  if (storeError || !store) return notFound();
+  if (catalogError || !catalog) return notFound();
 
-  // BUSCA APENAS PRODUTOS ATIVOS
+  // Se a loja estiver desativada, redirecionar para página de manutenção
+  if (!catalog.is_active) {
+    const { redirect } = await import('next/navigation');
+    redirect(`/catalogo/${slug}/maintenance`);
+  }
+
   const { data: products } = await supabase
     .from('products')
     .select('*')
-    .eq('user_id', store.user_id)
-    .eq('is_active', true) // <--- FILTRO IMPORTANTE
+    .eq('user_id', catalog.user_id)
+    .eq('is_active', true)
     .order('created_at', { ascending: false });
 
   return (
     <Storefront
-      store={store}
+      catalog={catalog}
       initialProducts={products || []}
       startProductId={typeof productId === 'string' ? productId : undefined}
     />

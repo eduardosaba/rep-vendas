@@ -74,6 +74,7 @@ export function UpdateModal() {
               src={updateData.image_url}
               alt="Novidade"
               className="w-full h-full object-cover"
+              style={{ height: 'auto' }}
             />
           </div>
         )}

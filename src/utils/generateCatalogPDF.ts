@@ -70,9 +70,19 @@ const compressImage = (
           return;
         }
 
+        // Preencher fundo branco para preservar aparência quando houver transparência
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
         ctx.drawImage(img, 0, 0, width, height);
-        // Converte para JPEG com qualidade reduzida para melhor compressão
-        const compressed = canvas.toDataURL('image/jpeg', quality);
+
+        // Detectar formato original para preservar PNG/WebP quando possível
+        const isPng = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/.test(base64);
+        const mime =
+          isPng && base64.toLowerCase().includes('png')
+            ? 'image/png'
+            : 'image/jpeg';
+        const compressed = canvas.toDataURL(mime, quality);
         resolve(compressed);
       } catch (error) {
         // Se falhar, retorna original
@@ -100,7 +110,7 @@ const getUrlData = async (
           typeof window === 'undefined' ||
           typeof FileReader === 'undefined'
         ) {
-          // @ts-expect-error: Buffer existe em Node
+          // In Node, Buffer may exist on global
           if (typeof (global as any).Buffer !== 'undefined') {
             const ab = await b.arrayBuffer();
             const buf = Buffer.from(ab);
@@ -175,6 +185,41 @@ const loadImageElement = (url: string): Promise<HTMLImageElement | null> => {
     img.src = url;
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
+  });
+};
+
+// Compor uma imagem sobre fundo branco (preserva aparência quando imagem tem fundo escuro/transparência)
+const compositeOnWhite = async (
+  img: ProcessedImage
+): Promise<ProcessedImage> => {
+  if (typeof document === 'undefined') return img;
+  return await new Promise<ProcessedImage>((resolve) => {
+    const image = new Image();
+    image.crossOrigin = 'Anonymous';
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(img);
+        // fundo branco
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0);
+        const out = canvas.toDataURL('image/png');
+        resolve({
+          base64: out,
+          width: canvas.width,
+          height: canvas.height,
+          ratio: canvas.width / canvas.height,
+        });
+      } catch (e) {
+        resolve(img);
+      }
+    };
+    image.onerror = () => resolve(img);
+    image.src = img.base64;
   });
 };
 
@@ -280,7 +325,8 @@ export const generateCatalogPDF = async (
       if (url) {
         promises.push(
           (async () => {
-            const data = await getUrlData(url);
+            // Para logos de marca, não forçar compressão para preservar transparência
+            const data = await getUrlData(url, false);
             if (data) brandLogosData[brandName] = data;
             updateProgress(
               1,
@@ -296,8 +342,9 @@ export const generateCatalogPDF = async (
   if (autoCoverUrl) {
     promises.push(
       (async () => {
-        // Imagem da capa: compressão leve
-        brandCoverData = await getUrlData(autoCoverUrl!, true);
+        // Imagem da capa: não forçar compressão para preservar transparência
+        const bc = await getUrlData(autoCoverUrl!, false);
+        if (bc) brandCoverData = await compositeOnWhite(bc);
         updateProgress(1, 'Carregando imagem da capa...');
       })()
     );
@@ -307,7 +354,9 @@ export const generateCatalogPDF = async (
   if ((options as any).storeLogo) {
     promises.push(
       (async () => {
-        storeLogoData = await getUrlData((options as any).storeLogo!);
+        // Logo do representante: não forçar compressão para preservar transparência
+        const sd = await getUrlData((options as any).storeLogo!, false);
+        if (sd) storeLogoData = await compositeOnWhite(sd);
         updateProgress(1, 'Carregando logo do representante...');
       })()
     );
@@ -604,6 +653,9 @@ export const generateCatalogPDF = async (
       const logoX = rightX - storeLogoW;
       const logoY = 8;
       try {
+        // Desenhar fundo branco por trás do logo pequeno para evitar transparência/cores indesejadas
+        doc.setFillColor(255, 255, 255);
+        doc.rect(logoX - 1, logoY - 1, storeLogoW + 2, storeLogoH + 2, 'F');
         const fmt = detectImageFormat(logoData.base64);
         doc.addImage(
           logoData.base64,
@@ -649,6 +701,9 @@ export const generateCatalogPDF = async (
       // Alinha verticalmente com o logo do representante se existir
       const hY = storeLogoH > 0 ? 8 + (storeLogoH - hH) / 2 : 5;
       try {
+        // Desenhar fundo branco por trás do logo da marca
+        doc.setFillColor(255, 255, 255);
+        doc.rect(hX - 1, hY - 1, hW + 2, hH + 2, 'F');
         const fmt = detectImageFormat(brandLogoData.base64);
         doc.addImage(brandLogoData.base64, fmt, hX, hY, hW, hH);
       } catch (e) {

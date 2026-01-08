@@ -13,7 +13,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
+  ZoomIn,
 } from 'lucide-react';
+import ImageWithRetry from '@/components/ui/ImageWithRetry';
 import { toast } from 'sonner';
 
 // Função para formatar preços no formato brasileiro
@@ -66,42 +68,177 @@ interface Settings {
 export default function ProductDetailPage() {
   const supabase = createClient();
   const params = useParams();
-  const userId = params.userId as string;
+  const slug = params.slug as string;
   const productId = params.productId as string;
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
+  const [parsedSpecs, setParsedSpecs] = useState<
+    { key: string; value: string }[] | null
+  >(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [modalView, setModalView] = useState<'image' | 'specs'>('image');
   const [loading, setLoading] = useState(true);
   // usar sonner programático
 
-  useEffect(() => {
-    if (userId && productId) {
-      loadProduct();
-      loadUserData();
-    }
-  }, [userId, productId]);
+  // Helpers para escolher cor de contraste quando necessário
+  const normalizeHex = (s?: string) => {
+    if (!s) return null;
+    const hex = s.trim();
+    if (hex.startsWith('#')) return hex.toLowerCase();
+    return hex.toLowerCase();
+  };
 
-  const loadProduct = async () => {
+  const getContrastColor = (hex?: string) => {
+    if (!hex) return '#111827';
     try {
+      const h = normalizeHex(hex)!.replace('#', '');
+      const r = parseInt(h.substring(0, 2), 16);
+      const g = parseInt(h.substring(2, 4), 16);
+      const b = parseInt(h.substring(4, 6), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance > 0.6 ? '#111827' : '#ffffff';
+    } catch (e) {
+      return '#111827';
+    }
+  };
+
+  const choosePriceColor = (s?: Settings | null) => {
+    if (!s) return undefined;
+    const title = s.title_color;
+    const header = s.header_color;
+    if (title && header && normalizeHex(title) === normalizeHex(header)) {
+      return getContrastColor(header || title);
+    }
+    return title || undefined;
+  };
+
+  useEffect(() => {
+    if (slug && productId) {
+      // Carrega configurações da loja (por catalog_slug) e então o produto
+      loadStoreAndProduct();
+    }
+  }, [slug, productId]);
+
+  const loadStoreAndProduct = async () => {
+    try {
+      // Buscar configurações da loja usando catalog_slug
+      const { data: store, error: storeError } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('catalog_slug', slug)
+        .maybeSingle();
+
+      if (storeError || !store) throw new Error('Loja não encontrada');
+
+      setSettings(store as Settings);
+
+      // Agora buscar produto escopado pelo user_id da loja
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .eq('id', productId)
-        .eq('user_id', userId)
+        .eq('user_id', store.user_id)
         .maybeSingle();
 
       if (error) throw error;
 
-      setProduct(data);
+      setProduct(data as Product);
+      // Parse technical_specs into table if possible (support objects, arrays, JSON strings and simple "key: value" text)
+      try {
+        const raw = (data as any)?.technical_specs;
+        const toRowsFromObject = (obj: Record<string, any>) =>
+          Object.entries(obj).map(([k, v]) => ({ key: k, value: String(v) }));
+
+        const toRowsFromArray = (arr: any[]) => {
+          const rows: { key: string; value: string }[] = [];
+          for (const item of arr) {
+            if (!item) continue;
+            if (typeof item === 'object' && !Array.isArray(item)) {
+              if ('key' in item && 'value' in item) {
+                rows.push({
+                  key: String((item as any).key),
+                  value: String((item as any).value),
+                });
+              } else {
+                for (const [k, v] of Object.entries(item)) {
+                  rows.push({ key: k, value: String(v) });
+                }
+              }
+            } else if (Array.isArray(item) && item.length >= 2) {
+              rows.push({ key: String(item[0]), value: String(item[1]) });
+            }
+          }
+          return rows.length ? rows : null;
+        };
+
+        const tryParseLines = (txt: string) => {
+          const lines = txt
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean);
+          const rows: { key: string; value: string }[] = [];
+          for (const line of lines) {
+            let sep: string | null = null;
+            if (line.includes(':')) sep = ':';
+            else if (line.includes('=')) sep = '=';
+            else if (line.includes(' - ')) sep = ' - ';
+            if (!sep) continue;
+            const parts = line.split(sep);
+            const key = parts.shift()?.trim() || '';
+            const value = parts.join(sep).trim();
+            if (key) rows.push({ key, value });
+          }
+          return rows.length ? rows : null;
+        };
+
+        if (raw) {
+          // Raw is already an object/array
+          if (typeof raw === 'object') {
+            if (Array.isArray(raw)) {
+              const rows = toRowsFromArray(raw as any[]);
+              setParsedSpecs(rows);
+            } else {
+              setParsedSpecs(toRowsFromObject(raw as Record<string, any>));
+            }
+          } else if (typeof raw === 'string') {
+            // Try JSON parse
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === 'object') {
+                if (Array.isArray(parsed)) {
+                  const rows = toRowsFromArray(parsed as any[]);
+                  setParsedSpecs(rows);
+                } else {
+                  setParsedSpecs(
+                    toRowsFromObject(parsed as Record<string, any>)
+                  );
+                }
+              } else {
+                // fallback to simple lines like "key: value"
+                setParsedSpecs(tryParseLines(raw));
+              }
+            } catch (e) {
+              // not JSON: try simple lines
+              setParsedSpecs(tryParseLines(raw));
+            }
+          } else {
+            setParsedSpecs(null);
+          }
+        } else {
+          setParsedSpecs(null);
+        }
+      } catch (e) {
+        setParsedSpecs(null);
+      }
     } catch (error) {
-      console.error('Erro ao carregar produto:', error);
+      console.error('Erro ao carregar produto/loja:', error);
       toast.error('Produto não encontrado.');
-      router.push(`/catalogo/${userId}`);
+      router.push(`/catalogo/${slug}`);
     } finally {
       setLoading(false);
     }
@@ -118,21 +255,6 @@ export default function ProductDetailPage() {
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
       setCart(JSON.parse(savedCart));
-    }
-
-    // Carregar configurações do usuário - com resiliência .maybeSingle()
-    try {
-      const { data: userSettings, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (userSettings && !error) {
-        setSettings(userSettings);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
     }
   };
 
@@ -177,8 +299,26 @@ export default function ProductDetailPage() {
 
   const openImageModal = (index: number) => {
     setCurrentImageIndex(index);
+    setModalView('image');
     setShowImageModal(true);
   };
+
+  useEffect(() => {
+    if (!showImageModal) return;
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        prevImage();
+      } else if (e.key === 'ArrowRight') {
+        nextImage();
+      } else if (e.key === 'Escape') {
+        setShowImageModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [showImageModal, product]);
 
   if (loading) {
     return (
@@ -200,7 +340,7 @@ export default function ProductDetailPage() {
             Produto não encontrado
           </h3>
           <button
-            onClick={() => router.push(`/catalogo/${userId}`)}
+            onClick={() => router.push(`/catalogo/${slug}`)}
             className="mt-4 rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
           >
             Voltar ao catálogo
@@ -250,14 +390,14 @@ export default function ProductDetailPage() {
                   type="text"
                   placeholder="Buscar produtos..."
                   className="w-full rounded-lg border border-gray-300 py-3 pl-4 pr-12 text-lg focus:border-transparent focus:ring-2 focus:ring-blue-500"
-                  onClick={() => router.push(`/catalogo/${userId}`)}
+                  onClick={() => router.push(`/catalogo/${slug}`)}
                 />
                 <button
                   className="absolute right-2 top-2 rounded bg-blue-600 p-2 text-white hover:bg-blue-700"
                   style={{
                     backgroundColor: settings?.primary_color || '#4f46e5', // Fallback: Indigo-600
                   }}
-                  onClick={() => router.push(`/catalogo/${userId}`)}
+                  onClick={() => router.push(`/catalogo/${slug}`)}
                 >
                   🔍
                 </button>
@@ -274,7 +414,7 @@ export default function ProductDetailPage() {
                 <span className="text-xs">Favoritos ({favorites.size})</span>
               </button>
               <button
-                onClick={() => router.push(`/catalogo/${userId}/checkout`)}
+                onClick={() => router.push(`/catalogo/${slug}/checkout`)}
                 className="flex flex-col items-center text-gray-600 hover:text-gray-900"
                 style={{ color: settings?.icon_color || '#4B5563' }}
               >
@@ -302,7 +442,7 @@ export default function ProductDetailPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center space-x-2 py-4">
             <button
-              onClick={() => router.push(`/catalogo/${userId}`)}
+              onClick={() => router.push(`/catalogo/${slug}`)}
               className="flex items-center text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="mr-1 h-4 w-4" />
@@ -323,12 +463,24 @@ export default function ProductDetailPage() {
             <div className="relative overflow-hidden rounded-lg bg-white shadow-sm">
               {product.images && product.images.length > 0 ? (
                 <>
-                  <img
-                    src={product.images[currentImageIndex]}
-                    alt={product.name}
-                    className="h-96 w-full cursor-pointer object-cover"
-                    onClick={() => openImageModal(currentImageIndex)}
-                  />
+                  <div className="relative">
+                    <img
+                      src={product.images[currentImageIndex]}
+                      alt={product.name}
+                      className="h-96 w-full cursor-pointer object-cover"
+                      onClick={() => openImageModal(currentImageIndex)}
+                    />
+                    <button
+                      aria-label="Ampliar imagem"
+                      onClick={() => openImageModal(currentImageIndex)}
+                      className="absolute right-3 bottom-3 rounded-full bg-white bg-opacity-90 p-2 shadow hover:bg-opacity-100"
+                      style={{
+                        color: settings?.icon_color || '#374151',
+                      }}
+                    >
+                      <ZoomIn className="h-5 w-5" />
+                    </button>
+                  </div>
                   {/* Navigation arrows */}
                   {product.images.length > 1 && (
                     <>
@@ -410,28 +562,45 @@ export default function ProductDetailPage() {
               </p>
             )}
 
+            {/* Barcode */}
+            {(product as any).barcode && (
+              <p className="text-sm text-gray-600">
+                Código de Barras: {(product as any).barcode}
+              </p>
+            )}
+
             {/* Price */}
             <div className="space-y-2">
-              <div className="flex items-baseline space-x-3">
-                <span className="text-4xl font-bold text-gray-900">
-                  R$ {formatPrice(product.price)}
-                </span>
-                {settings?.show_old_price && (
-                  <span className="text-xl text-gray-500 line-through">
-                    R$ {formatPrice(product.price * 1.2)}
-                  </span>
-                )}
-                {settings?.show_discount && (
-                  <span className="text-lg font-medium text-green-600">
-                    17% OFF
-                  </span>
-                )}
-              </div>
-              {settings?.show_installments && (
-                <div className="text-green-600">
-                  12x de R$ {formatPrice(product.price / 12)} sem juros
-                </div>
-              )}
+              {(() => {
+                const salePrice = (product as any).sale_price ?? null;
+                const originalPrice = (product as any).original_price ?? null;
+                const currentPrice = salePrice ?? product.price ?? 0;
+
+                return (
+                  <>
+                    <div className="flex items-baseline space-x-3">
+                      <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                        R$ {formatPrice(currentPrice)}
+                      </span>
+                      {settings?.show_old_price && originalPrice && (
+                        <span className="text-xl text-gray-500 line-through">
+                          R$ {formatPrice(originalPrice)}
+                        </span>
+                      )}
+                      {settings?.show_discount && (
+                        <span className="text-lg font-medium text-green-600">
+                          17% OFF
+                        </span>
+                      )}
+                    </div>
+                    {settings?.show_installments && currentPrice > 0 && (
+                      <div className="text-green-600">
+                        12x de R$ {formatPrice(currentPrice / 12)} sem juros
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Shipping */}
@@ -516,7 +685,25 @@ export default function ProductDetailPage() {
             )}
 
             {/* Technical Specifications */}
-            {product.technical_specs && (
+            {parsedSpecs && parsedSpecs.length > 0 ? (
+              <div>
+                <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                  Ficha Técnica
+                </h3>
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700">
+                    {parsedSpecs.map((row) => (
+                      <div key={row.key} className="flex items-start gap-3">
+                        <dt className="font-medium text-gray-800 w-36">
+                          {row.key}
+                        </dt>
+                        <dd className="flex-1 text-gray-700">{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </div>
+            ) : product.technical_specs ? (
               <div>
                 <h3 className="mb-2 text-lg font-semibold text-gray-900">
                   Ficha Técnica
@@ -527,7 +714,7 @@ export default function ProductDetailPage() {
                   </pre>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -542,13 +729,40 @@ export default function ProductDetailPage() {
             className="relative max-h-full max-w-5xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={product.images[currentImageIndex]}
-              alt={product.name}
-              className="max-h-full max-w-full object-contain"
-            />
+            <div className="flex items-center justify-center">
+              {modalView === 'image' ? (
+                <ImageWithRetry
+                  src={product.images[currentImageIndex]}
+                  alt={product.name}
+                  className="max-h-full max-w-full object-contain"
+                  fallback={SYSTEM_LOGO_URL}
+                />
+              ) : (
+                <div className="max-h-[80vh] w-[min(900px,90vw)] overflow-auto rounded bg-white p-6">
+                  <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                    Ficha Técnica
+                  </h3>
+                  {parsedSpecs && parsedSpecs.length > 0 ? (
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm text-gray-700">
+                      {parsedSpecs.map((row) => (
+                        <div key={row.key} className="flex items-start gap-3">
+                          <dt className="font-medium text-gray-800 w-36">
+                            {row.key}
+                          </dt>
+                          <dd className="flex-1 text-gray-700">{row.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                      {product.technical_specs}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
             {/* Navigation in modal */}
-            {product.images.length > 1 && (
+            {modalView === 'image' && product.images.length > 1 && (
               <>
                 <button
                   onClick={prevImage}
@@ -570,6 +784,18 @@ export default function ProductDetailPage() {
             >
               <X className="h-6 w-6 text-gray-700" />
             </button>
+            {product.technical_specs && (
+              <div className="absolute left-4 top-4 flex items-center space-x-2">
+                <button
+                  onClick={() =>
+                    setModalView((v) => (v === 'image' ? 'specs' : 'image'))
+                  }
+                  className="rounded bg-white bg-opacity-90 px-3 py-1 text-sm font-medium text-gray-800 hover:bg-opacity-100"
+                >
+                  {modalView === 'image' ? 'Ficha Técnica' : 'Ver Imagem'}
+                </button>
+              </div>
+            )}
             {/* Image counter */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transform rounded bg-black bg-opacity-50 px-3 py-1 text-white">
               {currentImageIndex + 1} / {product.images.length}

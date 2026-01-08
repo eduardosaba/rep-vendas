@@ -64,6 +64,7 @@ export function PasswordModal({
           <form id="password-form" onSubmit={handleUnlockPrices}>
             <input
               type="password"
+              autoComplete="current-password"
               autoFocus
               placeholder="Senha"
               className="w-full p-3 text-center text-lg border rounded-xl outline-none focus:ring-2 focus:ring-primary"

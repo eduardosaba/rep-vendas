@@ -13,6 +13,11 @@ import {
   HelpCircle,
   Link as LinkIcon,
   Archive,
+  RefreshCcw,
+  Zap,
+  ShieldCheck,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
 
 // --- DADOS DO MANUAL ---
@@ -24,166 +29,120 @@ const helpCategories = [
     color: 'text-blue-600 bg-blue-50',
     articles: [
       {
-        title: 'Como usar a Edição em Massa?',
+        title: 'Como funciona o Sincronizador Inteligente (PROCV)?',
         content: (
-          <div className="space-y-2">
+          <div className="space-y-4">
             <p>
-              Para editar vários produtos ao mesmo tempo (ex: aumentar preços ou
-              marcar como lançamento):
+              O Sincronizador funciona como o comando{' '}
+              <strong>PROCV (VLOOKUP)</strong> do Excel. Ele compara uma "chave"
+              (SKU ou Referência) da sua planilha com os produtos que você já
+              tem no sistema.
             </p>
-            <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>
-                Na lista de produtos, clique nas{' '}
-                <strong>caixas de seleção</strong> à esquerda dos produtos.
-              </li>
-              <li>
-                Para selecionar <strong>todos</strong>, clique na caixa do
-                cabeçalho da tabela.
-              </li>
-              <li>
-                Uma <strong>barra preta flutuante</strong> aparecerá na parte
-                inferior da tela.
-              </li>
-              <li>
-                Escolha a ação desejada:
-                <ul className="list-disc list-inside ml-4 mt-1">
-                  <li>
-                    <strong>Novo/Top:</strong> Adiciona ou remove as etiquetas
-                    de destaque.
-                  </li>
-                  <li>
-                    <strong>Preço:</strong> Permite aumentar/diminuir valor em %
-                    ou definir valor fixo para todos.
-                  </li>
-                  <li>
-                    <strong>Marca/Categoria:</strong> Define a mesma marca ou
-                    categoria para todos os selecionados.
-                  </li>
-                </ul>
-              </li>
-              <li>Clique em Salvar/Confirmar.</li>
-            </ol>
-          </div>
-        ),
-      },
-      {
-        title: 'O que é o Matcher de Fotos e como usar?',
-        content: (
-          <div className="space-y-2">
-            <p>
-              O <strong>Matcher</strong> é uma ferramenta visual para organizar
-              produtos que foram importados sem foto:
-            </p>
-            <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>
-                Acesse a página clicando no botão <strong>Vincular</strong> no
-                topo da lista de produtos.
-              </li>
-              <li>
-                À esquerda, você verá seus produtos sem imagem. À direita, as
-                fotos que você carregou mas não vinculou.
-              </li>
-              <li>
-                Simplesmente <strong>arraste a foto</strong> da direita e solte
-                em cima do produto correspondente na esquerda.
-              </li>
-              <li>O sistema salva automaticamente!</li>
-            </ol>
+
+            <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl space-y-3">
+              <h4 className="text-xs font-black text-amber-800 uppercase flex items-center gap-2">
+                <AlertTriangle size={16} /> Entendendo os Resultados
+              </h4>
+              <ul className="space-y-2 text-xs text-amber-900 leading-relaxed">
+                <li>
+                  <strong>✅ Se houver correspondência (Match):</strong> O
+                  sistema compara o valor. Se for diferente (ex: preço novo),
+                  ele agenda a atualização. Se for igual, ele ignora para poupar
+                  processamento.
+                </li>
+                <li>
+                  <strong>⚠️ Se NÃO houver correspondência:</strong> Se o código
+                  na planilha não existir no seu banco de dados, o sistema{' '}
+                  <strong>ignora a linha</strong>. Esta ferramenta não cria
+                  produtos novos, apenas atualiza os existentes.
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold text-gray-900">
+                Passo a passo para Sincronizar:
+              </h4>
+              <ol className="list-decimal list-inside space-y-2 ml-2 text-gray-600">
+                <li>
+                  Suba a planilha enviada pela fábrica ou sua tabela atualizada.
+                </li>
+                <li>
+                  Selecione a <strong>Coluna Chave</strong> (a que contém o
+                  código SKU/Ref na planilha).
+                </li>
+                <li>
+                  Escolha o <strong>Campo de Destino</strong> (o que você quer
+                  mudar no sistema, ex: Preço).
+                </li>
+                <li>
+                  Clique em <strong>Comparar Dados</strong> para ver o Preview.
+                </li>
+                <li>
+                  <strong>IMPORTANTE:</strong> Use o botão{' '}
+                  <strong>Exportar Backup</strong> antes de confirmar. Assim, se
+                  você mapear a coluna errada, terá como voltar ao valor
+                  anterior subindo o backup.
+                </li>
+                <li>
+                  Clique em <strong>Confirmar Alterações</strong> para gravar no
+                  banco de dados.
+                </li>
+              </ol>
+            </div>
+
             <Link
-              href="/dashboard/products/matcher"
-              className="inline-flex items-center text-sm text-indigo-600 hover:underline mt-2"
+              href="/dashboard/products/sync"
+              className="inline-flex items-center text-sm text-indigo-600 font-black hover:underline mt-2"
             >
-              Ir para o Matcher <LinkIcon size={14} className="ml-1" />
+              Acessar Sincronizador <Zap size={14} className="ml-1" />
             </Link>
           </div>
         ),
       },
       {
-        title: 'Como cadastrar um produto individual?',
+        title: 'O que é o Matcher de Fotos?',
         content: (
           <div className="space-y-2">
-            <p>Para adicionar um único produto novo:</p>
-            <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>
-                Vá até o menu <strong>Produtos</strong>.
-              </li>
-              <li>
-                Clique no botão <strong>+ Novo Produto</strong> no topo direito.
-              </li>
-              <li>
-                Preencha o nome, preço e referência. Agora você também pode
-                adicionar uma <strong>Ficha Técnica</strong> detalhada.
-              </li>
-              <li>
-                Se a gestão de estoque estiver ativa, defina a quantidade
-                inicial.
-              </li>
-              <li>
-                Clique em <strong>Salvar</strong>.
-              </li>
-            </ol>
-          </div>
-        ),
-      },
-      {
-        title: 'Como gerar um Catálogo em PDF?',
-        content: (
-          <div className="space-y-2">
-            <p>Você pode criar um PDF profissional para enviar aos clientes:</p>
+            <p>
+              Diferente do Sincronizador (que cuida de dados), o{' '}
+              <strong>Matcher</strong> cuida da parte visual:
+            </p>
             <ul className="list-disc list-inside space-y-1 ml-2 text-gray-600">
               <li>
-                Na lista de produtos, clique no botão <strong>PDF</strong> no
-                topo.
+                Use para vincular fotos aos produtos importados via Excel.
               </li>
               <li>
-                Se quiser um catálogo parcial, selecione primeiro os produtos
-                desejados usando as caixas de seleção.
+                Basta arrastar a imagem da direita para o produto na esquerda.
               </li>
               <li>
-                No modal que abrir, escolha se deseja exibir os{' '}
-                <strong>Preços</strong> e qual o{' '}
-                <strong>Tamanho das Fotos</strong> (Zoom de 1x a 5x).
-              </li>
-              <li>
-                Clique em Baixar. O PDF incluirá sua logo e contatos
-                automaticamente.
+                Ideal para quando você tem as fotos com nomes diferentes do
+                código de referência.
               </li>
             </ul>
           </div>
         ),
       },
-    ],
-  },
-  {
-    id: 'stock',
-    title: 'Estoque e Logística',
-    icon: Archive,
-    color: 'text-yellow-600 bg-yellow-50',
-    articles: [
       {
-        title: 'Como ativar o Controle de Estoque?',
+        title: 'Como usar a Edição em Massa?',
         content: (
           <div className="space-y-2">
-            <p>Por padrão, o estoque é infinito. Para controlar quantidades:</p>
-            <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
+            <p>
+              Para aplicar mudanças rápidas em blocos de produtos selecionados
+              na lista:
+            </p>
+            <ul className="list-disc list-inside space-y-1 ml-2 text-gray-600">
+              <li>Marque os produtos desejados na tabela principal.</li>
               <li>
-                Vá em <strong>Configurações</strong> {'>'} aba{' '}
-                <strong>Estoque & Logística</strong>.
+                Na barra inferior, use <strong>Novo/Top</strong> para destaques.
               </li>
               <li>
-                Ative a opção <strong>Ativar Gestão de Estoque</strong>.
+                Use <strong>Preço</strong> para reajustes percentuais (ex: +10%
+                em todos).
               </li>
-              <li>
-                Agora, ao editar um produto, você verá o campo "Quantidade".
-              </li>
-            </ol>
+            </ul>
           </div>
         ),
-      },
-      {
-        title: 'O que é "Venda sem Estoque" (Backorder)?',
-        content:
-          'Na aba de Estoque, a opção "Permitir Venda sem Estoque" define o comportamento quando a quantidade chega a zero. Se ativada, o cliente pode continuar comprando (saldo negativo/encomenda). Se desativada, o botão de compra muda para "Esgotado" na loja.',
       },
     ],
   },
@@ -194,93 +153,39 @@ const helpCategories = [
     color: 'text-green-600 bg-green-50',
     articles: [
       {
-        title: 'Como lançar uma Venda Manual?',
+        title: 'Template de WhatsApp Customizado',
         content: (
           <div className="space-y-2">
-            <p>Para vendas de balcão ou telefone:</p>
-            <ol className="list-decimal list-inside space-y-1 ml-2 text-gray-600">
-              <li>
-                Vá em <strong>Pedidos</strong> e clique em{' '}
-                <strong>Nova Venda</strong>.
-              </li>
-              <li>Identifique o cliente (Nome/Telefone).</li>
-              <li>
-                Adicione produtos do catálogo ou use a aba{' '}
-                <strong>Item Avulso</strong> para digitar um produto na hora
-                (ex: taxa de entrega).
-              </li>
-              <li>Ao finalizar, o estoque será baixado automaticamente.</li>
-            </ol>
+            <p>
+              Você pode definir a mensagem que o cliente envia ao finalizar o
+              pedido em <strong>Configurações &gt; Geral</strong>.
+            </p>
+            <div className="p-3 bg-gray-100 rounded-xl font-mono text-[10px] text-gray-600">
+              Tags disponíveis: <br />
+              {'{{cliente}}'} - Nome do Comprador <br />
+              {'{{pedido_id}}'} - ID do Pedido <br />
+              {'{{valor}}'} - Total da Compra <br />
+              {'{{representante}}'} - Seu Nome de Assinatura
+            </div>
+            <p className="text-xs italic mt-2">
+              Exemplo: "Olá {'{{cliente}}'}, recebi seu pedido {'{{pedido_id}}'}
+              . Att, {'{{representante}}'}."
+            </p>
           </div>
-        ),
-      },
-      {
-        title: 'Status do Pedido e Aprovação',
-        content: (
-          <ul className="space-y-2 text-gray-600 ml-2">
-            <li>
-              <span className="font-bold text-yellow-600">Pendente:</span> Novo
-              pedido recebido. O estoque está reservado.
-            </li>
-            <li>
-              <span className="font-bold text-blue-600">Confirmado:</span> Você
-              clicou em "Aprovar Pedido". Significa que o pagamento/negociação
-              está ok.
-            </li>
-            <li>
-              <span className="font-bold text-green-600">Entregue:</span> O
-              produto chegou ao cliente.
-            </li>
-            <li>
-              <span className="font-bold text-red-600">Cancelado:</span> A venda
-              não ocorreu. <strong>Nota:</strong> Cancelar não devolve o estoque
-              automaticamente por segurança.
-            </li>
-          </ul>
         ),
       },
     ],
   },
   {
     id: 'settings',
-    title: 'Personalização da Loja',
+    title: 'Configurações de Loja',
     icon: Settings,
     color: 'text-orange-600 bg-orange-50',
     articles: [
       {
-        title: 'Como mudar as Cores e Identidade?',
+        title: 'Ativar/Desativar Loja (Modo Manutenção)',
         content:
-          'Vá em Configurações > Aparência. Lá você pode definir a "Cor Primária" (botões e destaques), "Cor Secundária" (detalhes e preços) e a "Cor de Fundo do Cabeçalho". O catálogo atualiza imediatamente.',
-      },
-      {
-        title: 'Configurações de Exibição',
-        content: (
-          <div className="space-y-2">
-            <p>
-              Na aba <strong>Exibição</strong> das configurações, você pode
-              ligar/desligar:
-            </p>
-            <ul className="list-disc list-inside space-y-1 ml-2 text-gray-600">
-              <li>
-                <strong>Parcelamento:</strong> Exibe "ou 12x de R$..." nos
-                produtos.
-              </li>
-              <li>
-                <strong>Tags de Desconto:</strong> Mostra selos de "% OFF" e
-                calcula o preço à vista automaticamente.
-              </li>
-              <li>
-                <strong>Barra de Benefícios:</strong> A faixa no topo do site
-                (ex: "Frete Grátis").
-              </li>
-            </ul>
-          </div>
-        ),
-      },
-      {
-        title: 'Alterar o Link da Loja (Slug)',
-        content:
-          'Na aba Geral, você pode alterar o endereço da sua loja (ex: repvendas.com/catalogo/sua-loja). Cuidado: ao mudar, os links antigos enviados deixarão de funcionar.',
+          'Se você precisar pausar as vendas, use a chave "Status da Loja" em Configurações. Quando Offline, seus clientes verão uma página de "Voltamos em breve" com seu link de WhatsApp, impedindo novos pedidos mas mantendo seu contato visível.',
       },
     ],
   },
@@ -288,10 +193,9 @@ const helpCategories = [
 
 export default function HelpPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [openCategory, setOpenCategory] = useState<string | null>('products');
   const [openArticle, setOpenArticle] = useState<string | null>(null);
 
-  // Lógica de busca
   const filteredCategories = helpCategories
     .map((cat) => ({
       ...cat,
@@ -304,153 +208,130 @@ export default function HelpPage() {
     }))
     .filter((cat) => cat.articles.length > 0);
 
-  const toggleCategory = (id: string) => {
-    if (searchTerm) return;
-    setOpenCategory(openCategory === id ? null : id);
-  };
-
-  const toggleArticle = (title: string) => {
-    setOpenArticle(openArticle === title ? null : title);
-  };
-
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+    <div className="max-w-4xl mx-auto space-y-8 pb-20 p-4 md:p-0">
       {/* Header */}
-      <div className="text-center space-y-4 py-8">
-        <div className="inline-flex p-4 bg-indigo-50 rounded-full text-indigo-600 mb-2">
-          <HelpCircle size={32} />
+      <div className="text-center space-y-4 py-12 animate-in fade-in zoom-in-95 duration-700">
+        <div className="inline-flex p-4 bg-indigo-50 rounded-[2rem] text-indigo-600 mb-2 shadow-inner">
+          <HelpCircle size={40} strokeWidth={1.5} />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900">Central de Ajuda</h1>
-        <p className="text-gray-500 max-w-lg mx-auto">
-          Tutoriais e guias rápidos sobre as novas funcionalidades do seu
-          sistema.
+        <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+          Como podemos ajudar?
+        </h1>
+        <p className="text-slate-500 max-w-lg mx-auto font-medium leading-relaxed">
+          Explore os guias para dominar as ferramentas de sincronização, matcher
+          e gestão do RepVendas.
         </p>
 
-        {/* Barra de Busca */}
-        <div className="relative max-w-xl mx-auto mt-6">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+        <div className="relative max-w-xl mx-auto mt-10">
+          <Search
+            className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"
+            size={20}
+          />
           <input
             type="text"
-            placeholder="Buscar por 'estoque', 'pdf', 'cores'..."
+            placeholder="O que você deseja fazer agora?"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-full border border-gray-300 py-3 pl-12 pr-6 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-gray-800 placeholder:text-gray-400"
+            className="w-full rounded-[1.5rem] border-0 py-5 pl-14 pr-6 shadow-2xl shadow-indigo-900/10 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-800"
           />
         </div>
       </div>
 
-      {/* Conteúdo */}
+      {/* Grid de Categorias */}
       <div className="grid gap-6">
-        {filteredCategories.length === 0 && (
-          <div className="text-center py-10 text-gray-400">
-            <p>Nenhum resultado encontrado para "{searchTerm}"</p>
-          </div>
-        )}
-
         {filteredCategories.map((category) => (
           <div
             key={category.id}
-            className={`bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-300 ${
-              openCategory === category.id || searchTerm
-                ? 'shadow-md ring-1 ring-indigo-100'
-                : 'shadow-sm'
-            }`}
+            className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-all"
           >
-            {/* Cabeçalho da Categoria */}
             <button
-              onClick={() => toggleCategory(category.id)}
-              className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-50 transition-colors"
+              onClick={() =>
+                setOpenCategory(
+                  openCategory === category.id ? null : category.id
+                )
+              }
+              className="w-full flex items-center justify-between p-8 text-left hover:bg-slate-50/50 transition-colors"
             >
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-lg ${category.color}`}>
-                  <category.icon size={24} />
+              <div className="flex items-center gap-6">
+                <div className={`p-4 rounded-2xl ${category.color} shadow-sm`}>
+                  <category.icon size={28} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
                     {category.title}
                   </h2>
-                  <p className="text-sm text-gray-500">
-                    {category.articles.length} guias disponíveis
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    {category.articles.length} Artigos
                   </p>
                 </div>
               </div>
-              {!searchTerm && (
-                <div className="text-gray-400">
-                  {openCategory === category.id ? (
-                    <ChevronUp />
-                  ) : (
-                    <ChevronDown />
-                  )}
-                </div>
-              )}
+              <ChevronDown
+                className={`text-slate-300 transition-transform duration-500 ${openCategory === category.id ? 'rotate-180' : ''}`}
+                size={28}
+              />
             </button>
 
-            {/* Lista de Artigos (Acordeão) */}
-            <div
-              className={`border-t border-gray-100 bg-gray-50/50 ${
-                openCategory === category.id || searchTerm ? 'block' : 'hidden'
-              }`}
-            >
-              {category.articles.map((article, idx) => (
-                <div
-                  key={idx}
-                  className="border-b border-gray-100 last:border-0"
-                >
-                  <button
-                    onClick={() => toggleArticle(article.title)}
-                    className="w-full flex items-center justify-between p-4 pl-20 text-left hover:bg-gray-100 transition-colors group"
+            {openCategory === category.id && (
+              <div className="border-t border-slate-50 bg-slate-50/30 animate-in slide-in-from-top-4 duration-500">
+                {category.articles.map((article, idx) => (
+                  <div
+                    key={idx}
+                    className="border-b border-slate-100 last:border-0"
                   >
-                    <span className="font-medium text-gray-700 group-hover:text-indigo-700 flex items-center gap-2">
-                      <HelpCircle
-                        size={16}
-                        className="text-gray-300 group-hover:text-indigo-500"
-                      />
-                      {article.title}
-                    </span>
-                    <span className="text-gray-400">
+                    <button
+                      onClick={() =>
+                        setOpenArticle(
+                          openArticle === article.title ? null : article.title
+                        )
+                      }
+                      className="w-full flex items-center justify-between p-6 pl-12 md:pl-24 text-left hover:bg-white transition-colors group"
+                    >
+                      <span className="font-bold text-slate-600 group-hover:text-primary transition-colors flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-primary" />
+                        {article.title}
+                      </span>
                       {openArticle === article.title ? (
-                        <ChevronUp size={16} />
+                        <ChevronUp size={18} className="text-primary" />
                       ) : (
-                        <ChevronDown size={16} />
+                        <ChevronDown size={18} className="text-slate-300" />
                       )}
-                    </span>
-                  </button>
-
-                  {/* Conteúdo do Artigo */}
-                  {openArticle === article.title && (
-                    <div className="pl-20 pr-6 pb-6 pt-2 text-gray-600 text-sm leading-relaxed animate-in slide-in-from-top-1">
-                      {article.content}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                    </button>
+                    {openArticle === article.title && (
+                      <div className="pl-12 md:pl-32 pr-12 pb-10 pt-2 text-slate-600 text-sm leading-relaxed animate-in fade-in duration-300">
+                        {article.content}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Rodapé de Suporte */}
-      <div className="bg-indigo-900 rounded-2xl p-8 text-white text-center mt-12 relative overflow-hidden">
+      {/* Suporte WhatsApp */}
+      <div className="bg-slate-900 rounded-[3rem] p-12 text-white text-center mt-20 relative overflow-hidden shadow-2xl">
         <div className="relative z-10">
-          <h3 className="text-xl font-bold mb-2">Ainda precisa de ajuda?</h3>
-          <p className="text-indigo-200 mb-6 max-w-md mx-auto">
-            Nossa equipe de suporte está pronta para tirar suas dúvidas e ajudar
-            a configurar sua loja.
+          <h3 className="text-3xl font-black mb-4">
+            Ainda com dúvidas técnicas?
+          </h3>
+          <p className="text-slate-400 mb-10 max-w-md mx-auto font-medium">
+            Nossa equipe de especialistas está online para ajudar você a escalar
+            suas vendas.
           </p>
           <a
             href="https://wa.me/55SEUNUMERO"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 bg-white text-indigo-900 px-6 py-3 rounded-lg font-bold hover:bg-indigo-50 transition-colors shadow-lg"
+            className="inline-flex items-center gap-4 bg-primary text-white px-10 py-5 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-primary/20"
           >
-            <PlayCircle size={20} /> Falar no WhatsApp
+            <PlayCircle size={24} /> SUPORTE VIA WHATSAPP
           </a>
         </div>
-
-        {/* Decoração de Fundo */}
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-          <div className="absolute -top-20 -right-20 w-64 h-64 bg-white rounded-full mix-blend-overlay blur-3xl"></div>
-          <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-400 rounded-full mix-blend-overlay blur-3xl"></div>
+          <div className="absolute -top-20 -right-20 w-96 h-96 bg-primary rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-indigo-500 rounded-full blur-3xl"></div>
         </div>
       </div>
     </div>

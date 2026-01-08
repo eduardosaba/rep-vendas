@@ -1,26 +1,62 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: 'class',
+  darkMode: 'class', // Mantido para o Dashboard, embora o Catálogo seja forçado para Light
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
-      // Se um dia quiser trocar a fonte padrão sem Google Fonts, seria aqui:
-      // fontFamily: { sans: ['SuasFontesLocais', 'sans-serif'] },
+      fontFamily: {
+        sans: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'Noto Sans',
+          'sans-serif',
+        ],
+        mono: [
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Roboto Mono',
+          'monospace',
+        ],
+      },
       colors: {
+        // CONFIGURAÇÃO DE CORES DINÂMICAS COM OPACIDADE
         primary: {
-          DEFAULT: 'var(--primary)',
+          // O marcador <alpha-value> permite que o Tailwind use classes como bg-primary/50
+          DEFAULT: 'rgb(var(--primary-rgb) / <alpha-value>)',
           foreground: 'var(--primary-foreground)',
         },
         secondary: {
-          DEFAULT: 'var(--secondary)',
+          DEFAULT: 'rgb(var(--secondary-rgb) / <alpha-value>)',
           foreground: 'var(--secondary-foreground)',
         },
         header: {
-          bg: 'var(--header-bg)',
+          // Se o header-bg também tiver uma versão RGB no seu theme.ts:
+          bg: 'rgb(var(--header-bg-rgb) / <alpha-value>)',
           text: 'var(--header-text)',
         },
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Plugin para esconder scrollbar
+    function ({ addUtilities }) {
+      addUtilities({
+        '.scrollbar-hide': {
+          '-ms-overflow-style': 'none',
+          'scrollbar-width': 'none',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+        },
+      });
+    },
+  ],
 };

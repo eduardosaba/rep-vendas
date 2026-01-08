@@ -26,12 +26,12 @@ export default function ProductImage({
   const external = (product as any).external_image_url || null;
 
   const src = error
-    ? '/placeholder.png'
+    ? '/placeholder-no-image.svg'
     : internalPath
       ? `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/products/${internalPath}`
       : external
         ? external
-        : '/placeholder.png';
+        : '/placeholder-no-image.svg';
 
   // Detect object-fit preference from className (object-contain/object-cover)
   const prefersContain = className?.includes('object-contain');

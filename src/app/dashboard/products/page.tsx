@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
 import { ProductsTable } from '@/components/dashboard/ProductsTable';
 import { DiagnosticPanel } from '@/components/products/diagnostic-panel';
 import {
@@ -8,7 +9,7 @@ import {
   Image as ImageIcon,
   DollarSign,
   Plus,
-  Box
+  Box,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button'; // Usando nosso componente padronizado
 
@@ -19,9 +20,19 @@ export default async function ProductsPage() {
   const supabase = await createClient();
 
   // 1. Autenticação Segura (Server-Side)
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!user) {
+  let finalUser = user;
+  if (!finalUser) {
+    try {
+      const fb = await getServerUserFallback();
+      if (fb) finalUser = fb;
+    } catch (e) {}
+  }
+
+  if (!finalUser) {
     redirect('/login');
   }
 
@@ -30,7 +41,7 @@ export default async function ProductsPage() {
   const { data: products, error } = await supabase
     .from('products')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', finalUser.id)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -42,7 +53,6 @@ export default async function ProductsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 pb-24 animate-in fade-in duration-500">
-      
       {/* HEADER DE AÇÕES: Responsivo */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         {/* Título */}
@@ -60,28 +70,48 @@ export default async function ProductsPage() {
         <div className="grid grid-cols-2 sm:flex flex-wrap gap-3 w-full lg:w-auto">
           {/* Botão Importar Excel */}
           <Link href="/dashboard/products/import-massa" className="contents">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-center" leftIcon={<FileSpreadsheet size={16} />}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto justify-center"
+              leftIcon={<FileSpreadsheet size={16} />}
+            >
               Importar Excel
             </Button>
           </Link>
 
           {/* Botão Importar Visual */}
           <Link href="/dashboard/products/import-visual" className="contents">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-center" leftIcon={<ImageIcon size={16} />}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto justify-center"
+              leftIcon={<ImageIcon size={16} />}
+            >
               Importar Fotos
             </Button>
           </Link>
 
           {/* Botão Atualizar Preços */}
           <Link href="/dashboard/products/update-prices" className="contents">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto justify-center col-span-2 sm:col-span-1" leftIcon={<DollarSign size={16} />}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto justify-center col-span-2 sm:col-span-1"
+              leftIcon={<DollarSign size={16} />}
+            >
               Atualizar Preços
             </Button>
           </Link>
 
           {/* Botão Novo Produto (Destaque) */}
           <Link href="/dashboard/products/new" className="contents">
-            <Button variant="primary" size="sm" className="w-full sm:w-auto justify-center col-span-2 sm:col-span-1" leftIcon={<Plus size={16} />}>
+            <Button
+              variant="primary"
+              size="sm"
+              className="w-full sm:w-auto justify-center col-span-2 sm:col-span-1"
+              leftIcon={<Plus size={16} />}
+            >
               Novo Produto
             </Button>
           </Link>

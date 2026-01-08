@@ -20,6 +20,7 @@ ALTER TABLE staging_images ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'staging_images' AND policyname = 'Users can manage own staging images') THEN
+DROP POLICY IF EXISTS "Users can manage own staging images" ON staging_images;
     CREATE POLICY "Users can manage own staging images" ON staging_images
       FOR ALL
       USING (user_id IS NULL OR auth.uid() = user_id)

@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -14,13 +15,15 @@ import {
   CreditCard,
   Mail,
   FileText,
+  MapPin,
+  Hash,
+  Tag,
 } from 'lucide-react';
 import OrderStatusControls from '@/components/dashboard/OrderStatusControls';
 import { OrderPdfButton } from '@/components/dashboard/OrderPdfButton';
 import { getUiStatusKey } from '@/lib/orderStatus';
 import { formatDocument } from '@/lib/formatDocument';
 
-// Evita prerendering e fetchs durante o build
 export const dynamic = 'force-dynamic';
 
 function StatusBadge({ status }: { status: string }) {
@@ -76,45 +79,92 @@ export default async function OrderDetailsPage({
   const supabase = await createClient();
   const { id } = await params;
 
-  // `id` no caminho agora representa `display_id` (ID curto mostrado ao usuário)
-  const displayId = Number(id);
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  let finalUser = user;
+  if (!finalUser) {
+    try {
+      const fb = await getServerUserFallback();
+      if (fb) finalUser = fb;
+    } catch (e) {}
+  }
+  if (!finalUser) redirect('/login');
 
-  if (!user) redirect('/login');
+  const isDisplayId = /^\d+$/.test(id);
 
-  // 1. Buscar Pedido com Joins
-  const { data: order, error } = await supabase
+  let query = supabase
     .from('orders')
-    .select(`*, order_items (*)`)
-    .eq('display_id', displayId)
-    .eq('user_id', user.id)
-    .maybeSingle();
+    .select(
+      `
+      *,
+      clients (*),
+      order_items (
+        *,
+        products ( reference_code, image_url, brand, barcode, name ) 
+      )
+    `
+    )
+    .eq('user_id', finalUser.id);
 
-  if (error || !order) {
-    return notFound();
+  if (isDisplayId) {
+    query = query.eq('display_id', parseInt(id));
+  } else {
+    query = query.eq('id', id);
   }
 
-  // 2. Buscar Configurações (Para o PDF) - com resiliência .maybeSingle()
+  const { data: order, error } = await query.maybeSingle();
+
+  if (error) {
+    console.error('Erro ao buscar pedido:', error.message);
+    return (
+      <div className="p-8 text-center text-red-500">
+        <h2 className="font-bold">Erro ao carregar pedido</h2>
+        <p className="text-xs mt-2 text-gray-400">{error.message}</p>
+      </div>
+    );
+  }
+
+  if (!order) return notFound();
+
+  // Settings
   const { data: storeSettings } = await supabase
     .from('settings')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', finalUser.id)
     .maybeSingle();
 
-  // Fallback para settings padrão se não existir
   const safeSettings = storeSettings || {
     name: 'Loja',
     primary_color: '#4f46e5',
-    secondary_color: '#64748b',
   };
-
   const statusKey = getUiStatusKey(order.status);
 
+  // Cliente
+  const clientData = Array.isArray(order.clients)
+    ? order.clients[0]
+    : order.clients;
+  const clientName =
+    clientData?.name || order.client_name_guest || 'Cliente não identificado';
+  const clientPhone = clientData?.phone || order.client_phone_guest;
+  const clientEmail = clientData?.email || order.client_email_guest;
+
+  // LÓGICA DO DOCUMENTO (Prioriza client_cnpj_guest)
+  const clientDoc =
+    order.client_cnpj_guest ||
+    clientData?.document ||
+    order.client_document_guest;
+
+  const clientAddress = clientData?.address || order.client_address_guest;
+
+  // Total
+  const calculatedTotal =
+    order.order_items?.reduce((acc: number, item: any) => {
+      return acc + (item.quantity || 0) * (item.unit_price || 0);
+    }, 0) || 0;
+
   return (
-    <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
+    <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden animate-in fade-in">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
@@ -127,7 +177,7 @@ export default async function OrderDetailsPage({
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Pedido #{order.display_id}
+                Pedido #{order.display_id || order.id.slice(0, 8)}
               </h1>
               <StatusBadge status={order.status} />
             </div>
@@ -138,8 +188,7 @@ export default async function OrderDetailsPage({
               </span>
               {order.payment_method && (
                 <span className="flex items-center gap-1.5 capitalize">
-                  <CreditCard size={14} />
-                  {order.payment_method}
+                  <CreditCard size={14} /> {order.payment_method}
                 </span>
               )}
             </div>
@@ -160,75 +209,134 @@ export default async function OrderDetailsPage({
                 <Package size={18} /> Itens do Pedido
               </h2>
               <span className="text-xs font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300">
-                {order.item_count} {order.item_count === 1 ? 'item' : 'itens'}
+                {order.order_items?.reduce(
+                  (acc: number, item: any) => acc + (item.quantity || 0),
+                  0
+                ) || 0}{' '}
+                un.
               </span>
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-slate-800">
-              {order.order_items.map((item: any) => (
-                <div
-                  key={item.id}
-                  className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 overflow-hidden border border-gray-200 dark:border-slate-700 shrink-0">
-                      {item.image_url ? (
-                         
-                        <img
-                          src={item.image_url}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Package size={20} />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white line-clamp-1">
-                        {item.product_name}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
-                        Ref: {item.product_reference || 'N/A'}
-                      </p>
-                    </div>
-                  </div>
+              {order.order_items?.map((item: any) => {
+                const finalImg = item.image_url || item.products?.image_url;
+                const productName = item.products?.name || item.product_name;
+                const brand = item.products?.brand;
+                const barcode = item.products?.barcode;
+                const refCode =
+                  item.products?.reference_code || item.product_reference;
 
-                  <div className="text-right pl-4">
-                    <p className="font-bold text-gray-900 dark:text-white">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(item.total_price)}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {item.quantity} x{' '}
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(item.unit_price)}
-                    </p>
+                const realTotal = (item.quantity || 0) * (item.unit_price || 0);
+
+                return (
+                  <div
+                    key={item.id}
+                    className="p-4 md:p-6 flex flex-col md:flex-row md:items-start justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors gap-4"
+                  >
+                    {/* ESQUERDA: FOTO E DETALHES */}
+                    <div className="flex items-start gap-4 flex-1">
+                      {/* 1. Imagem */}
+                      <div className="h-20 w-20 md:h-24 md:w-24 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 overflow-hidden border border-gray-200 dark:border-slate-700 shrink-0">
+                        {finalImg ? (
+                          <img
+                            src={finalImg}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Package size={28} />
+                        )}
+                      </div>
+
+                      {/* 2. Dados do Produto */}
+                      <div className="flex-1 min-w-0 flex flex-col h-full pt-0.5 space-y-2">
+                        <div>
+                          <p className="font-bold text-gray-900 dark:text-white text-base leading-tight">
+                            {productName}
+                          </p>
+
+                          {brand && (
+                            <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 uppercase tracking-wide">
+                              <Tag size={10} /> {brand}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-4 mt-auto">
+                          {refCode && (
+                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                              <Hash
+                                size={14}
+                                className="text-[var(--primary)]"
+                              />
+                              <span>{refCode}</span>
+                            </div>
+                          )}
+
+                          {barcode && (
+                            <div
+                              className="bg-white p-1 rounded border border-gray-200 shadow-sm"
+                              title={`EAN: ${barcode}`}
+                            >
+                              <img
+                                src={`https://bwipjs-api.metafloor.com/?bcid=ean13&text=${barcode}&scale=2&height=8&includetext&guardwhitespace`}
+                                alt={barcode}
+                                className="h-8 md:h-10 object-contain max-w-[140px]"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* DIREITA: VALORES */}
+                    <div className="flex flex-row md:flex-col justify-between md:justify-start items-center md:items-end pl-0 md:pl-4 min-w-[120px] border-t md:border-0 border-gray-100 dark:border-slate-800 pt-3 md:pt-1 mt-2 md:mt-0">
+                      <div className="text-left md:text-right">
+                        <span className="text-[10px] text-gray-400 uppercase md:hidden block mb-1">
+                          Valor Total
+                        </span>
+                        <p className="font-bold text-gray-900 dark:text-white text-lg md:text-xl">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(realTotal)}
+                        </p>
+                      </div>
+
+                      <div className="text-right mt-0 md:mt-1">
+                        <span className="text-[10px] text-gray-400 uppercase md:hidden block mb-1">
+                          Qtd x Unit
+                        </span>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                          {item.quantity} un. x{' '}
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(item.unit_price)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="bg-gray-50 dark:bg-slate-900/50 px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex justify-between items-center">
               <span className="font-medium text-gray-600 dark:text-gray-400">
                 Total do Pedido
               </span>
-              <span className="text-xl font-bold text-gray-900 dark:text-white">
+              <span className="text-2xl md:text-3xl font-bold text-indigo-600 dark:text-indigo-400">
                 {new Intl.NumberFormat('pt-BR', {
                   style: 'currency',
                   currency: 'BRL',
-                }).format(order.total_value)}
+                }).format(calculatedTotal)}
               </span>
             </div>
           </div>
         </div>
 
-        {/* COLUNA DIREITA: CLIENTE E AÇÕES */}
+        {/* COLUNA DIREITA: CLIENTE */}
         <div className="space-y-6">
-          {/* Dados do Cliente */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-800">
               <User size={18} className="text-blue-600 dark:text-blue-400" />{' '}
@@ -240,78 +348,97 @@ export default async function OrderDetailsPage({
                 <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                   Nome
                 </label>
-                <p className="text-gray-900 dark:text-white font-medium text-lg">
-                  {order.client_name_guest || 'Cliente não identificado'}
+                <p className="text-gray-900 dark:text-white font-medium text-lg break-words">
+                  {clientName}
                 </p>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full ${order.client_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  {order.client_id ? 'Cadastrado' : 'Visitante'}
+                </span>
               </div>
 
-              {(order.client_phone_guest || order.client_email_guest) && (
+              {(clientPhone || clientEmail) && (
                 <div className="grid grid-cols-1 gap-3">
-                  {order.client_phone_guest && (
+                  {clientPhone && (
                     <div>
                       <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                         Contato
                       </label>
                       <div className="flex items-center gap-2 mt-1">
                         <a
-                          href={`https://wa.me/55${order.client_phone_guest.replace(/\D/g, '')}`}
+                          href={`https://wa.me/55${clientPhone.replace(/\D/g, '')}`}
                           target="_blank"
                           rel="noreferrer"
                           className="flex items-center gap-2 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg transition-colors w-full"
                         >
-                          <Phone size={14} />
-                          {order.client_phone_guest}
+                          <Phone size={14} /> {clientPhone}
                         </a>
                       </div>
                     </div>
                   )}
 
-                  {order.client_email_guest && (
+                  {clientEmail && (
                     <div>
                       <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                         Email
                       </label>
                       <div className="flex items-center gap-2 mt-1 text-sm text-gray-700 dark:text-gray-300">
                         <Mail size={14} />
-                        <span className="truncate">
-                          {order.client_email_guest}
-                        </span>
+                        <span className="truncate">{clientEmail}</span>
                       </div>
                     </div>
                   )}
                 </div>
               )}
 
-              {(order.client_cnpj_guest || order.client_document_guest) && (
+              {/* CORREÇÃO NA EXIBIÇÃO: Mostra sempre se tiver dado, com rótulo explícito */}
+              {clientDoc ? (
                 <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <FileText size={12} />
+                  <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">
+                    CPF/CNPJ
+                  </label>
+                  <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <FileText size={14} />
                     <span className="font-mono">
-                      {formatDocument(
-                        order.client_cnpj_guest || order.client_document_guest
-                      ) ||
-                        order.client_cnpj_guest ||
-                        order.client_document_guest}
+                      {formatDocument(clientDoc) || clientDoc}
                     </span>
+                  </div>
+                </div>
+              ) : (
+                // Opcional: Mostrar que não tem documento cadastrado (útil para debug)
+                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2 opacity-50">
+                  <span className="text-xs text-gray-400 italic">
+                    Documento não informado
+                  </span>
+                </div>
+              )}
+
+              {clientAddress && (
+                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
+                  <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">
+                    Endereço
+                  </label>
+                  <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <MapPin size={14} className="mt-0.5" />
+                    <span>{clientAddress}</span>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Painel de Gerenciamento (Ações) */}
+          {/* AÇÕES */}
           {statusKey !== 'cancelled' && statusKey !== 'delivered' && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <CheckCircle
                   size={18}
                   className="text-green-600 dark:text-green-400"
-                />
+                />{' '}
                 Ações do Pedido
               </h3>
-
               <OrderStatusControls orderId={order.id} statusKey={statusKey} />
-
               <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-3 border-t border-gray-100 dark:border-slate-800 mt-4">
                 Ações de status atualizam o estoque e notificam (se
                 configurado).

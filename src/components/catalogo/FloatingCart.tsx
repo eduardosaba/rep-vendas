@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useStore } from './store-context';
@@ -14,10 +14,39 @@ export function FloatingCart() {
   );
   const count = cart.reduce((acc: number, it: any) => acc + it.quantity, 0);
 
+  const [hidden, setHidden] = useState(false);
+  const lastY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
+  const lastDir = useRef(0);
+
+  useEffect(() => {
+    const threshold = 15;
+    const onScroll = () => {
+      const y = window.scrollY || window.pageYOffset;
+      const delta = y - lastY.current;
+      let dir = 0;
+      if (delta > threshold && y > 50) dir = 1;
+      else if (delta < -threshold) dir = -1;
+
+      if (dir === 1 && lastDir.current !== 1) {
+        setHidden(true);
+        lastDir.current = 1;
+      } else if (dir === -1 && lastDir.current !== -1) {
+        setHidden(false);
+        lastDir.current = -1;
+      }
+
+      lastY.current = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   if (count === 0) return null;
 
   return (
-    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+    <div
+      className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 transition-transform duration-300 ${hidden ? 'translate-y-24 opacity-0' : 'translate-y-0 opacity-100'}`}
+    >
       <div className="bg-white/95 backdrop-blur rounded-full shadow-lg px-3 py-2 flex items-center gap-3 border border-gray-100">
         <Button
           variant="ghost"

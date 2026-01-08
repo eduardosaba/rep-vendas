@@ -23,6 +23,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = 'orders' AND p.policyname = 'Users can insert their own orders'
   ) THEN
+DROP POLICY IF EXISTS "Users can insert their own orders" ON public.orders;
     EXECUTE 'CREATE POLICY "Users can insert their own orders" ON public.orders FOR INSERT WITH CHECK (auth.uid() = user_id);';
   END IF;
 END;
@@ -34,6 +35,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = 'order_items' AND p.policyname = 'Users can insert their own order items'
   ) THEN
+DROP POLICY IF EXISTS "Users can insert their own order items" ON public.order_items;
     EXECUTE 'CREATE POLICY "Users can insert their own order items" ON public.order_items FOR INSERT WITH CHECK ( EXISTS ( SELECT 1 FROM public.orders o WHERE o.id = order_items.order_id AND o.user_id = auth.uid() ) );';
   END IF;
 END;

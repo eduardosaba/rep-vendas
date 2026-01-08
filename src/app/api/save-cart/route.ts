@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createRouteSupabase } from '@/lib/supabaseServer';
+import { createRouteSupabase } from '@/lib/supabase/server';
 import { customAlphabet } from 'nanoid';
 
 // Alfabeto seguro para leitura (sem 0/O, 1/I), 6 caracteres
@@ -9,7 +9,7 @@ const nanoid = customAlphabet('23456789ABCDEFGHJKLMNPQRSTUVWXYZ', 6);
 export async function POST(request: Request) {
   try {
     const nextCookies = await cookies();
-    const supabase = createRouteSupabase(async () => nextCookies);
+    const supabase = await createRouteSupabase(() => nextCookies);
 
     const body = await request.json();
     console.log('API save-cart body:', JSON.stringify(body));

@@ -36,25 +36,54 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
   // --- 1. LOGOTIPO (Esquerda) ---
   const logoToUse = store.logo_url || SYSTEM_LOGO_URL;
 
+  // Helper: busca imagem como dataURL (browser) para garantir compatibilidade com jsPDF
+  const fetchImageAsDataURL = async (
+    url: string
+  ): Promise<{ dataUrl: string; format: 'PNG' | 'JPEG' } | null> => {
+    try {
+      const res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string | null;
+          if (!result) return resolve(null);
+          const isPng = /^data:(image\/(png|webp))/i.test(result);
+          resolve({ dataUrl: result, format: isPng ? 'PNG' : 'JPEG' });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      return null;
+    }
+  };
+
   try {
-    const img = new Image();
-    img.src = logoToUse;
-    img.crossOrigin = 'Anonymous';
-
-    await new Promise((resolve) => {
-      img.onload = resolve;
-      img.onerror = () => resolve(null);
-    });
-
-    if (img.complete && img.naturalHeight !== 0) {
-      const imgRatio = img.naturalWidth / img.naturalHeight;
-      const imgHeight = 20;
-      const imgWidth = imgHeight * imgRatio;
-      // Limita largura máxima para não invadir o texto
-      const finalWidth = Math.min(imgWidth, 60);
-      const finalHeight = finalWidth / imgRatio;
-
-      doc.addImage(img, 'PNG', margin, 15, finalWidth, finalHeight);
+    const logoData = await fetchImageAsDataURL(logoToUse);
+    if (logoData) {
+      const img = new Image();
+      img.src = logoData.dataUrl;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = () => resolve(null);
+      });
+      if (img.naturalHeight && img.naturalWidth) {
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const imgHeight = 20;
+        const imgWidth = imgHeight * imgRatio;
+        const finalWidth = Math.min(imgWidth, 60);
+        const finalHeight = finalWidth / imgRatio;
+        doc.addImage(
+          logoData.dataUrl,
+          logoData.format,
+          margin,
+          15,
+          finalWidth,
+          finalHeight
+        );
+      }
     }
   } catch (e) {
     console.warn('Erro ao carregar logo no PDF', e);
@@ -145,7 +174,7 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
     }).format(item.sale_price ?? item.price),
     new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      // @ts-expect-error
+      currency: 'BRL',
     }).format((item.sale_price ?? item.price) * item.quantity),
   ]);
 
@@ -178,8 +207,10 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
     },
   });
 
-  // @ts-expect-error
-  currentY = doc.lastAutoTable.finalY + 10;
+  // Access lastAutoTable if present (added by autoTable at runtime)
+  currentY =
+    ((doc as any).lastAutoTable?.finalY ?? doc.internal.pageSize.height - 40) +
+    10;
 
   // --- 5. TOTAIS (Correção de Sobreposição) ---
   const totalText = new Intl.NumberFormat('pt-BR', {

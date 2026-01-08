@@ -17,7 +17,13 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(
+          cookiesToSet: Array<{
+            name: string;
+            value: string;
+            options?: Record<string, any>;
+          }>
+        ) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
@@ -33,9 +39,7 @@ export async function createClient() {
 
 // Compatibilidade: criar um client para Route Handlers onde passamos uma
 // factory síncrona que retorna o cookie store (ex: () => nextCookies).
-export function createRouteSupabase(
-  cookieStoreFactory: () => ReturnType<typeof cookies>
-) {
+export function createRouteSupabase(cookieStoreFactory: () => any) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -50,7 +54,13 @@ export function createRouteSupabase(
           }
           return store.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(
+          cookiesToSet: Array<{
+            name: string;
+            value: string;
+            options?: Record<string, any>;
+          }>
+        ) {
           try {
             const store = cookieStoreFactory();
             if (store && typeof store.then === 'function') return;

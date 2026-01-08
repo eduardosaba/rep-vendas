@@ -11,6 +11,7 @@ import {
   FileText,
   Camera,
   FileSpreadsheet,
+  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -29,6 +30,8 @@ export default function ImportHistoryPage() {
   const [history, setHistory] = useState<ImportHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -54,15 +57,8 @@ export default function ImportHistoryPage() {
 
   //
   const handleUndoImport = async (importId: string) => {
-    if (
-      !confirm(
-        'ATENÇÃO: Esta ação é irreversível.\n\nIsso apagará TODOS os produtos criados nesta importação e suas respectivas fotos.\n\nDeseja continuar?'
-      )
-    ) {
-      return;
-    }
-
     setDeletingId(importId);
+    setShowDeleteModal(false);
     const toastId = toast.loading(
       'Revertendo importação e limpando arquivos...'
     );
@@ -258,7 +254,10 @@ export default function ImportHistoryPage() {
                 {/* Botão de Ação */}
                 <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0 pl-[60px] md:pl-0">
                   <button
-                    onClick={() => handleUndoImport(item.id)}
+                    onClick={() => {
+                      setSelectedImportId(item.id);
+                      setShowDeleteModal(true);
+                    }}
                     disabled={deletingId === item.id}
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-900/30 rounded-lg transition-all disabled:opacity-50 active:scale-95 group-hover:bg-red-100 dark:group-hover:bg-red-900/40"
                     title="Reverter Importação"
@@ -274,6 +273,49 @@ export default function ImportHistoryPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in-95 border border-red-100 dark:border-red-900/30">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Reverter Importação?
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm leading-relaxed">
+              <strong className="text-red-600 dark:text-red-400">
+                ATENÇÃO:
+              </strong>{' '}
+              Esta ação é irreversível.
+              <br />
+              <br />
+              Isso apagará <strong>TODOS os produtos</strong> criados nesta
+              importação e suas respectivas fotos do storage.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setSelectedImportId(null);
+                }}
+                className="py-3 rounded-lg border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() =>
+                  selectedImportId && handleUndoImport(selectedImportId)
+                }
+                className="py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 active:scale-95 transition-all"
+              >
+                Sim, Reverter
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

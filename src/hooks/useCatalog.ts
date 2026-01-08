@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Product, Settings, CartItem } from '@/lib/types';
 import { toast } from 'sonner';
+import { isNextRedirect } from '@/lib/isNextRedirect';
 import { useParams } from 'next/navigation';
 
 export function useCatalog(
@@ -44,6 +45,9 @@ export function useCatalog(
 
   // --- ESTADOS DE ACESSO (PREÇO) ---
   const [priceAccessGranted, setPriceAccessGranted] = useState(false);
+  const [pricePasswordHash, setPricePasswordHash] = useState<string | null>(
+    null
+  );
 
   // --- CARREGAMENTO INICIAL ---
   useEffect(() => {
@@ -109,7 +113,24 @@ export function useCatalog(
           }
         } catch (err) {
           // Não crítico — continuar sem logos
-          console.debug('Não foi possível carregar logos de marcas', err);
+          if (!isNextRedirect(err))
+            console.debug('Não foi possível carregar logos de marcas', err);
+        }
+
+        // 4. Carregar hash público da senha (public_catalogs.price_password_hash)
+        try {
+          const { data: publicCatalog } = await supabase
+            .from('public_catalogs')
+            .select('price_password_hash')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (publicCatalog && (publicCatalog as any).price_password_hash) {
+            setPricePasswordHash((publicCatalog as any).price_password_hash);
+          }
+        } catch (err) {
+          if (!isNextRedirect(err))
+            console.debug('Não foi possível carregar price_password_hash', err);
         }
 
         // 2. Carregar Dados do Cliente (LocalStorage)
@@ -125,7 +146,8 @@ export function useCatalog(
           if (access === 'true') setPriceAccessGranted(true);
         }
       } catch (error) {
-        console.error('Erro ao carregar catálogo:', error);
+        if (!isNextRedirect(error))
+          console.error('Erro ao carregar catálogo:', error);
         toast.error('Erro ao carregar catálogo');
       } finally {
         setLoading(false);
@@ -267,29 +289,35 @@ export function useCatalog(
   const checkPriceAccess = () => priceAccessGranted;
 
   const requestPriceAccess = async (password: string) => {
-    try {
-      const res = await fetch('/api/check-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passwordAttempt: password, userId }),
-      });
-      const data = await res.json();
+    if (!pricePasswordHash) {
+      toast.error('Operação indisponível: senha não configurada');
+      return false;
+    }
 
-      if (data.success) {
+    try {
+      // calcular SHA-256 do input e comparar com hash público
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      if (hashHex === pricePasswordHash) {
         setPriceAccessGranted(true);
         localStorage.setItem('priceAccessGranted', 'true');
-        // Define expiração para 24h (opcional, boa prática)
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
-
         toast.success('Acesso liberado!');
         return true;
-      } else {
-        toast.error('Senha incorreta');
-        return false;
       }
-    } catch (error) {
+
+      toast.error('Senha incorreta');
+      return false;
+    } catch (err) {
+      console.error('Erro ao verificar senha (cliente)', err);
       toast.error('Erro ao verificar senha');
       return false;
     }

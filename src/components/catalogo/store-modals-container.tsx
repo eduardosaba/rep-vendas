@@ -1,33 +1,32 @@
 'use client';
 
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from './store-context';
-import { useState } from 'react';
 import {
   X,
   Minus,
   Plus,
   Trash2,
   Send,
-  Save,
-  Copy,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
+  Download,
   CheckCircle,
   ShoppingCart,
-  Search,
+  ChevronLeft,
+  ChevronRight,
   Maximize2,
-  Download,
-  Share2,
+  Search,
+  Package,
+  Heart,
+  Sparkles,
+  TrendingUp,
 } from 'lucide-react';
+import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
-import ProductImage from './ProductImage';
 import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
-import type { Product } from '@/components/catalogo/Storefront';
 import Barcode from '../ui/Barcode';
 import { toast } from 'sonner';
-import { generateOrderPDF } from '@/lib/generateOrderPDF';
+import { PasswordModal } from './modals/PasswordModal';
 
 export function StoreModals() {
   const {
@@ -38,85 +37,107 @@ export function StoreModals() {
     updateQuantity,
     removeFromCart,
     addToCart,
-    loadingStates,
     handleSaveCart,
-    handleFinalizeOrder,
     handleLoadCart,
+    handleFinalizeOrder,
+    loadingStates,
     orderSuccessData,
     setOrderSuccessData,
     handleSendWhatsApp,
-    unlockPrices,
     isPricesVisible,
+    displayProducts,
+    customerSession,
+    clearCustomerSession,
+    toggleFavorite,
+    favorites,
   } = useStore();
-  const { brandsWithLogos } = useStore();
+  const { unlockPrices } = useStore();
 
+  // --- ESTADOS LOCAIS ---
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [detailQuantity, setDetailQuantity] = useState(1);
   const [passwordInput, setPasswordInput] = useState('');
-  const [loadCodeInput, setLoadCodeInput] = useState('');
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
     email: '',
     cnpj: '',
   });
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [savedCode, setSavedCode] = useState<string | null>(null);
+  const [loadCodeInput, setLoadCodeInput] = useState('');
+  const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
 
-  const cartTotal = cart.reduce(
-    (acc, item) => acc + item.price * item.quantity,
-    0
-  );
-
-  // --- FIX: LÓGICA DE IMAGENS UNIFICADA ---
-  const getProductImages = (product: any) => {
-    if (!product) return [];
-
-    const images: string[] = [];
-
-    // 1. Adiciona Imagem Principal (URL Externa)
-    if (product.image_url && typeof product.image_url === 'string') {
-      images.push(product.image_url);
-    }
-
-    // 2. Adiciona Imagem Principal (Storage Local)
-    if (product.image_path && typeof product.image_path === 'string') {
-      const storageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`;
-      // Evita duplicata se a URL externa for igual à do storage
-      if (!images.includes(storageUrl)) {
-        images.push(storageUrl);
-      }
-    }
-
-    // 3. Adiciona Galeria de Imagens (Array)
-    if (
-      product.images &&
-      Array.isArray(product.images) &&
-      product.images.length > 0
-    ) {
-      product.images.forEach((img: any) => {
-        if (typeof img === 'string' && img.trim() !== '') {
-          // Evita adicionar se for igual à capa que já adicionamos
-          if (!images.includes(img)) {
-            images.push(img);
-          }
-        }
+  // --- PERSISTÊNCIA DE DADOS DO CLIENTE (AUTO-FILL) ---
+  useEffect(() => {
+    if (customerSession) {
+      setCustomerInfo({
+        name: customerSession.name || '',
+        phone: customerSession.phone || '',
+        email: customerSession.email || '',
+        cnpj: customerSession.cnpj || '',
       });
     }
+  }, [customerSession]);
 
-    return images;
+  // --- MEMOIZAÇÕES ---
+  const cartTotal = useMemo(
+    () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    [cart]
+  );
+
+  const productImages = useMemo(() => {
+    if (!modals.product) return [];
+    const images: string[] = [];
+    if (modals.product.image_url) images.push(modals.product.image_url);
+    if (modals.product.external_image_url)
+      images.push(modals.product.external_image_url);
+    if (modals.product.images && Array.isArray(modals.product.images)) {
+      modals.product.images.forEach((img) => {
+        if (img && !images.includes(img)) images.push(img);
+      });
+    }
+    return images.length > 0 ? images : ['/placeholder-no-image.svg'];
+  }, [modals.product]);
+
+  const relatedProducts = useMemo(() => {
+    if (!modals.product) return [];
+    return displayProducts
+      .filter(
+        (p) =>
+          p.category === modals.product?.category && p.id !== modals.product?.id
+      )
+      .slice(0, 4);
+  }, [modals.product, displayProducts]);
+
+  // Reset ao trocar de produto
+  useEffect(() => {
+    setCurrentImageIndex(0);
+    setDetailQuantity(1);
+  }, [modals.product]);
+
+  // --- HANDLERS ---
+  const onFinalize = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await handleFinalizeOrder(customerInfo);
+    if (success) {
+      setModal('checkout', false);
+    }
+  };
+
+  const onGeneratePDF = () => {
+    if (orderSuccessData?.pdf_url) {
+      window.open(orderSuccessData.pdf_url, '_blank');
+    } else {
+      toast.error('Comprovante não disponível no momento.');
+    }
   };
 
   const copyToClipboard = (text: string, message: string = 'Copiado!') => {
-    navigator.clipboard.writeText(text);
-    toast.success(message);
-  };
-
-  const onUnlock = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (unlockPrices(passwordInput)) {
-      setModal('password', false);
-      toast.success('Preços liberados com sucesso!');
-    } else {
-      toast.error('Senha incorreta. Tente novamente.');
+    try {
+      navigator.clipboard.writeText(text);
+      toast.success(message);
+    } catch {
+      toast.error('Não foi possível copiar.');
     }
   };
 
@@ -131,220 +152,122 @@ export function StoreModals() {
     }
   };
 
-  // --- PDF GENERATION ---
-  const onGeneratePDF = () => {
-    if (!orderSuccessData) return;
-
-    const toastId = toast.loading('Gerando arquivo PDF...');
-
-    try {
-      const itemsToPrint = (orderSuccessData as any).items || [];
-      const totalToPrint = (orderSuccessData as any).total || 0;
-
-      generateOrderPDF(orderSuccessData, store, itemsToPrint, totalToPrint);
-
-      toast.dismiss(toastId);
-      toast.success('PDF baixado com sucesso!');
-    } catch (error) {
-      console.error(error);
-      toast.dismiss(toastId);
-      toast.error('Falha ao gerar o PDF.');
+  const handleLoadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loadCodeInput) return;
+    const ok = await handleLoadCart(loadCodeInput);
+    if (ok) {
+      toast.success('Carrinho carregado com sucesso!');
+      setModal('load', false);
+    } else {
+      toast.error('Código não encontrado ou erro de conexão.');
     }
   };
 
-  // --- RENDERIZADOR DE FICHA TÉCNICA ---
-  const renderSpecs = (specs: any) => {
-    if (!specs) return null;
-    let dataToRender: any = null;
-
-    if (typeof specs === 'object') {
-      dataToRender = specs;
-    } else if (typeof specs === 'string') {
-      const trimmed = specs.trim();
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        try {
-          dataToRender = JSON.parse(trimmed);
-        } catch (e) {
-          dataToRender = null;
-        }
+  // --- MODAL DE SENHA (para mostrar preços) ---
+  const handleUnlockPrices = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordInput) return toast.error('Digite a senha');
+    try {
+      const ok = await unlockPrices(passwordInput);
+      if (ok) {
+        toast.success('Preços desbloqueados');
+        setModal('password', false);
+      } else {
+        toast.error('Senha inválida');
       }
+    } catch (err) {
+      console.error('Erro ao validar senha', err);
+      toast.error('Erro ao validar senha');
     }
-
-    const shouldHideValue = (val: string) => {
-      const v = String(val).toLowerCase();
-      return (
-        v.startsWith('http') || v.match(/\.(jpeg|jpg|gif|png|webp)$/) != null
-      );
-    };
-
-    if (Array.isArray(dataToRender)) {
-      const filtered = dataToRender.filter(
-        (row: any) => !shouldHideValue(row.value)
-      );
-      if (filtered.length === 0) return null;
-      return (
-        <div className="overflow-auto mt-2">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="p-2 w-1/3 font-semibold text-gray-700 border border-gray-100">
-                  Campo
-                </th>
-                <th className="p-2 font-semibold text-gray-700 border border-gray-100">
-                  Valor
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row: any, i: number) => (
-                <tr key={i} className="odd:bg-white even:bg-gray-50">
-                  <td className="p-2 align-top border border-gray-100 font-medium text-gray-700">
-                    {row.key || row.name}
-                  </td>
-                  <td className="p-2 align-top border border-gray-100 text-gray-600">
-                    {row.value || row.content}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-
-    if (dataToRender && typeof dataToRender === 'object') {
-      const entries = Object.entries(dataToRender).filter(
-        ([_, value]) => !shouldHideValue(String(value))
-      );
-      if (entries.length === 0) return null;
-      return (
-        <div className="overflow-auto mt-2">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="p-2 w-1/3 font-semibold text-gray-700 border border-gray-100">
-                  Campo
-                </th>
-                <th className="p-2 font-semibold text-gray-700 border border-gray-100">
-                  Valor
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map(([key, value], i) => (
-                <tr key={i} className="odd:bg-white even:bg-gray-50">
-                  <td className="p-2 align-top border border-gray-100 font-medium text-gray-700">
-                    {key}
-                  </td>
-                  <td className="p-2 align-top border border-gray-100 text-gray-600">
-                    {String(value)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-
-    return (
-      <p className="whitespace-pre-wrap text-gray-600 text-sm leading-relaxed mt-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
-        {String(specs)}
-      </p>
-    );
   };
 
   return (
     <>
-      {/* MODAL CARRINHO */}
+      {/* --- MODAL CARRINHO (SIDEBAR) --- */}
       {modals.cart && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 z-[100] flex justify-end">
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            className="absolute inset-0 bg-[#0d1b2c]/40 backdrop-blur-sm animate-in fade-in duration-300"
             onClick={() => setModal('cart', false)}
           />
-          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-4 border-b flex items-center justify-between bg-white">
-              <h2 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                <ShoppingCart size={20} /> Meu Carrinho
+          <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between border-b p-6">
+              <h2 className="flex items-center gap-2 text-xl font-black text-secondary">
+                <ShoppingCart size={24} className="text-primary" /> Meu Carrinho
               </h2>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={() => setModal('cart', false)}
+                className="rounded-xl p-2 hover:bg-gray-100 text-gray-400"
               >
                 <X size={24} />
-              </Button>
+              </button>
             </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {cart.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                  <ShoppingCart size={48} className="mb-2 opacity-20" />
-                  <p>Carrinho vazio</p>
+                <div className="flex h-full flex-col items-center justify-center text-gray-400 opacity-30">
+                  <ShoppingCart size={80} strokeWidth={1} />
+                  <p className="font-bold text-lg mt-4 text-center">
+                    O carrinho está pronto <br /> para o seu primeiro item.
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {cart.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex gap-3 bg-white p-3 rounded border shadow-sm relative"
-                    >
-                      <div className="h-16 w-16 bg-gray-50 relative">
-                        {item.image_url && (
-                          <Image
-                            src={item.image_url}
-                            alt={item.name}
-                            fill
-                            style={{ objectFit: 'contain' }}
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold line-clamp-1">
-                          {item.name}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <PriceDisplay
-                            value={item.price * item.quantity}
-                            className="text-primary font-bold text-sm"
-                            isPricesVisible={isPricesVisible}
-                          />
-                          <div className="flex items-center border rounded">
-                            <button
-                              onClick={() => updateQuantity(item.id, -1)}
-                              className="px-2 hover:bg-gray-100"
-                            >
-                              -
-                            </button>
-                            <span className="px-2 text-xs">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => updateQuantity(item.id, 1)}
-                              className="px-2 hover:bg-gray-100"
-                            >
-                              +
-                            </button>
-                          </div>
+                cart.map((item) => (
+                  <div
+                    key={item.id}
+                    className="group relative flex gap-4 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-all"
+                  >
+                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-gray-50 border border-gray-100">
+                      <Image
+                        src={item.image_url || '/placeholder-no-image.svg'}
+                        alt={item.name}
+                        fill
+                        className="object-contain p-2"
+                      />
+                    </div>
+                    <div className="flex flex-1 flex-col justify-center pr-6">
+                      <p className="text-sm font-black text-secondary line-clamp-1">
+                        {item.name}
+                      </p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <PriceDisplay
+                          value={item.price * item.quantity}
+                          className="text-primary font-black text-base"
+                          isPricesVisible={isPricesVisible}
+                        />
+                        <div className="flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 p-1">
+                          <button
+                            onClick={() => updateQuantity(item.id, -1)}
+                            className="p-1 hover:text-primary transition-colors"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="min-w-[20px] text-center text-xs font-black">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateQuantity(item.id, 1)}
+                            className="p-1 hover:text-primary transition-colors"
+                          >
+                            <Plus size={14} />
+                          </button>
                         </div>
                       </div>
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="absolute top-2 right-2 text-gray-300 hover:text-red-500"
-                      >
-                        <Trash2 size={16} />
-                      </button>
                     </div>
-                  ))}
-                </div>
+                    <button
+                      onClick={() => removeFromCart(item.id)}
+                      className="absolute right-2 top-2 text-gray-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))
               )}
             </div>
-
             {cart.length > 0 && (
-              <div className="p-4 border-t bg-white shadow-lg z-10 space-y-3">
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Total</span>
+              <div className="border-t bg-white p-6 space-y-4">
+                <div className="flex items-center justify-between text-xl font-black text-secondary">
+                  <span>Subtotal</span>
                   <PriceDisplay
                     value={cartTotal}
                     isPricesVisible={isPricesVisible}
@@ -352,9 +275,9 @@ export function StoreModals() {
                 </div>
                 <Button
                   onClick={() => setModal('checkout', true)}
-                  className="w-full py-6 text-lg bg-green-600 hover:bg-green-700 border-none"
+                  className="w-full py-7 text-lg shadow-xl shadow-primary/20"
                 >
-                  Finalizar Compra
+                  Finalizar Pedido <Send size={20} className="ml-2" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -370,450 +293,579 @@ export function StoreModals() {
         </div>
       )}
 
-      {/* --- MODAL CARREGAR --- */}
-      {modals.load && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => setModal('load', false)}
-        >
-          <div
-            className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl pointer-events-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="font-bold text-lg text-gray-900">
-                Recuperar Carrinho
-              </h3>
-              <button onClick={() => setModal('load', false)}>
-                <X size={20} className="text-gray-400" />
-              </button>
-            </div>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const success = await handleLoadCart(loadCodeInput);
-                if (success) {
-                  toast.success('Carrinho carregado com sucesso!');
-                  setModal('load', false);
-                } else {
-                  toast.error('Código não encontrado ou erro de conexão.');
-                }
-              }}
-            >
-              <input
-                autoFocus
-                placeholder="Código (ex: K9P-2X4)"
-                className="w-full p-3 border rounded-lg mb-4 text-center uppercase font-bold tracking-widest outline-none focus:border-primary"
-                value={loadCodeInput}
-                onChange={(e) => setLoadCodeInput(e.target.value.toUpperCase())}
-              />
-              <Button
-                type="submit"
-                isLoading={loadingStates.loadingCart}
-                className="w-full"
-              >
-                Carregar
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Save / Load Modals (external components) */}
+      <SaveCodeModal
+        isSaveModalOpen={!!modals.save && !!savedCode}
+        setIsModalOpen={(v: boolean) => setModal('save', v)}
+        savedCode={savedCode}
+        copyToClipboard={() => savedCode && copyToClipboard(savedCode)}
+      />
 
-      {/* --- MODAL DETALHES DO PRODUTO (CORRIGIDO) --- */}
+      <LoadCodeModal
+        isLoadModalOpen={!!modals.load}
+        setIsModalOpen={(v: boolean) => setModal('load', v)}
+        loadCodeInput={loadCodeInput}
+        setLoadCodeInput={setLoadCodeInput}
+        handleLoadCart={async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!loadCodeInput) return;
+          try {
+            const ok = await handleLoadCart(loadCodeInput);
+            if (ok) {
+              toast.success('Carrinho carregado com sucesso!');
+              setModal('load', false);
+            } else {
+              toast.error('Código não encontrado ou erro de conexão.');
+            }
+          } catch (err) {
+            console.error('Erro ao carregar carrinho', err);
+            toast.error('Erro ao carregar carrinho');
+          }
+        }}
+        isLoadingCart={loadingStates.loadingCart}
+      />
+
+      {/* --- MODAL SENHA (Ver Preços) --- */}
+      <PasswordModal
+        isPasswordModalOpen={!!modals.password}
+        setIsPasswordModalOpen={(v: boolean) => setModal('password', v)}
+        passwordInput={passwordInput}
+        setPasswordInput={setPasswordInput}
+        handleUnlockPrices={async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!passwordInput) return toast.error('Digite a senha');
+          try {
+            const ok = await unlockPrices(passwordInput);
+            if (ok) {
+              toast.success('Preços desbloqueados');
+              setModal('password', false);
+            } else {
+              toast.error('Senha inválida');
+            }
+          } catch (err) {
+            console.error('Erro ao validar senha', err);
+            toast.error('Erro ao validar senha');
+          }
+        }}
+      />
+
+      {/* --- MODAL DETALHES DO PRODUTO (IMERSIVO) --- */}
       {modals.product && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[110] flex items-end justify-center md:items-center md:px-4">
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-[#0d1b2c]/70 backdrop-blur-md animate-in fade-in duration-500"
             onClick={() => setModal('product', null)}
           />
-          <div className="relative bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
-            {/* Header */}
-            <div className="absolute top-4 right-4 z-10 flex gap-2">
-              <button
-                onClick={() => {
-                  copyToClipboard(window.location.href, 'Link copiado!');
-                }}
-                className="p-2 bg-white/90 rounded-full shadow-sm hover:bg-gray-100"
-              >
-                <Share2 size={20} />
-              </button>
-              <button
-                onClick={() => setModal('product', null)}
-                className="p-2 bg-white/90 rounded-full shadow-sm hover:bg-gray-100"
-              >
-                <X size={20} />
-              </button>
-            </div>
 
-            {/* Imagem (Esquerda) */}
-            <div className="w-full md:w-1/2 bg-white relative p-6 border-r border-gray-100 flex flex-col items-center justify-center">
-              <div className="relative w-full h-[300px] flex items-center justify-center">
-                {getProductImages(modals.product).length > 0 ? (
-                  <>
-                    { }
-                    <img
-                      src={
-                        getProductImages(modals.product as any)[
-                          currentImageIndex
-                        ]
-                      }
-                      className="max-w-full max-h-full object-contain"
-                      alt="Product"
-                      onClick={() => setModal('zoom', true)}
-                    />
-                  </>
-                ) : (
-                  <div className="text-gray-300 flex flex-col items-center">
-                    <Search size={48} />
-                    <span className="text-sm mt-2">Sem imagem</span>
+          <div className="relative flex h-[90dvh] w-full flex-col overflow-hidden bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-bottom duration-500 md:h-auto md:max-h-[90vh] md:max-w-6xl md:rounded-[3rem]">
+            <button
+              onClick={() => setModal('product', null)}
+              className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 text-gray-700 dark:text-gray-200 shadow hover:scale-105 transition-transform"
+              aria-label="Fechar"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar md:flex md:flex-row">
+              {/* Left: Image + Thumbnails */}
+              <div className="md:w-1/2 p-6 md:p-10 flex flex-col">
+                <div className="relative aspect-square w-full rounded-[2rem] bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <Image
+                    src={productImages[currentImageIndex]}
+                    alt={(modals.product as any).name || 'Produto'}
+                    fill
+                    className="object-contain p-12 transition-all duration-500"
+                  />
+
+                  {productImages.length > 1 && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex((p) =>
+                            p === 0 ? productImages.length - 1 : p - 1
+                          );
+                        }}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
+                        aria-label="Imagem anterior"
+                      >
+                        <ChevronLeft size={24} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex((p) =>
+                            p === productImages.length - 1 ? 0 : p + 1
+                          );
+                        }}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/90 dark:bg-slate-700/80 shadow"
+                        aria-label="Próxima imagem"
+                      >
+                        <ChevronRight size={24} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsImageZoomOpen(true);
+                        }}
+                        className="absolute right-4 bottom-4 z-20 p-2 rounded-full bg-white/90 dark:bg-slate-800/80 shadow hover:scale-105"
+                        aria-label="Ampliar imagem"
+                      >
+                        <Search size={18} />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {productImages.length > 1 && (
+                  <div className="mt-4 w-full">
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {productImages.map((src, idx) => (
+                        <button
+                          key={idx}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentImageIndex(idx);
+                          }}
+                          className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border ${currentImageIndex === idx ? 'ring-2 ring-primary/50' : 'border-gray-100 dark:border-slate-700'} bg-white dark:bg-slate-800`}
+                        >
+                          <img
+                            src={src}
+                            alt={`thumb-${idx}`}
+                            className="w-full h-full object-contain p-2"
+                          />
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Miniaturas (Thumbs) - AGORA VÃO APARECER! */}
-              {getProductImages(modals.product).length > 1 && (
-                <div className="mt-6 flex gap-2 overflow-x-auto justify-center w-full py-2">
-                  {getProductImages(modals.product as any).map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setCurrentImageIndex(idx)}
-                      className={`w-14 h-14 rounded-lg border overflow-hidden transition-all flex-shrink-0 ${
-                        currentImageIndex === idx
-                          ? 'border-primary ring-2 ring-primary/30'
-                          : 'border-gray-200 hover:border-gray-400'
-                      }`}
-                    >
-                      { }
-                      <img
-                        src={img}
-                        className="w-full h-full object-contain"
-                        alt={`thumb-${idx}`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+              {/* Right: Details */}
+              <div className="md:w-1/2 p-8 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white flex flex-col">
+                <div className="mb-6 flex items-start gap-4">
+                  {(modals.product as any)?.brand_logo_url ||
+                  (modals.product as any)?.logo_url ? (
+                    <img
+                      src={
+                        (modals.product as any).brand_logo_url ||
+                        (modals.product as any).logo_url
+                      }
+                      alt={(modals.product as any).brand || 'logo'}
+                      className="w-12 h-12 object-contain rounded-lg bg-white p-1"
+                    />
+                  ) : null}
 
-            {/* Detalhes (Direita) */}
-            <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col overflow-y-auto custom-scrollbar bg-white">
-              <div className="flex items-start gap-3">
-                <h2 className="text-2xl font-bold mb-2">
-                  {modals.product?.name}
-                </h2>
-                <div className="mt-1">
-                  {/* Tags: Lançamento e Best Seller */}
-                  <div className="flex gap-2">
-                    {modals.product?.is_launch && (
-                      <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center">
-                        NOVO
-                      </span>
-                    )}
-                    {modals.product?.is_best_seller && (
-                      <span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center">
-                        Best Seller
-                      </span>
-                    )}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
+                          {modals.product.brand || 'Original'}
+                        </span>
+                        <h2 className="text-4xl font-black mt-1">
+                          {modals.product.name}
+                        </h2>
+                      </div>
+                      <button
+                        onClick={() => toggleFavorite(modals.product!.id)}
+                        className="flex-shrink-0 p-3 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:scale-110 transition-all"
+                        aria-label="Favoritar"
+                      >
+                        <Heart
+                          size={20}
+                          className={favorites.includes(modals.product!.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}
+                        />
+                      </button>
+                    </div>
+                    
+                    {/* Badges */}
+                    <div className="flex gap-2 mt-2">
+                      {(modals.product as any)?.is_new && (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold">
+                          <Sparkles size={12} />
+                          Lançamento
+                        </span>
+                      )}
+                      {(modals.product as any)?.is_bestseller && (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
+                          <TrendingUp size={12} />
+                          Best Seller
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="mt-3">
+                      <PriceDisplay
+                        value={modals.product.price}
+                        isPricesVisible={isPricesVisible}
+                        className="text-2xl font-black"
+                      />
+                    </div>
                   </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-gray-700 dark:text-gray-200">
+                  <p className="text-sm leading-relaxed">
+                    {modals.product.description ||
+                      'Descrição premium para este item.'}
+                  </p>
+                </div>
+
+                {(modals.product as any)?.specs && (
+                  <div className="bg-white dark:bg-slate-800 rounded-[1rem] p-6 border border-gray-100 dark:border-slate-700 shadow-sm mb-6 text-sm text-gray-700 dark:text-gray-200">
+                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">
+                      Ficha técnica
+                    </h3>
+                    <pre className="whitespace-pre-wrap">
+                      {(modals.product as any).specs}
+                    </pre>
+                  </div>
+                )}
+
+                {((modals.product as any)?.barcode ||
+                  (modals.product as any)?.sku) && (
+                  <div className="flex items-center justify-center bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-100 dark:border-slate-700 shadow-sm mb-6">
+                    <Barcode
+                      value={
+                        (modals.product as any).barcode ||
+                        (modals.product as any).sku
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="mt-auto space-y-4 rounded-[2.5rem] bg-secondary p-8 text-white shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold opacity-60">
+                      Quantidade
+                    </span>
+                    <div className="flex items-center gap-4 bg-white/10 rounded-2xl p-2 border border-white/10">
+                      <button
+                        onClick={() =>
+                          setDetailQuantity((q) => Math.max(1, q - 1))
+                        }
+                        className="p-1 hover:text-primary transition-colors"
+                      >
+                        <Minus size={20} />
+                      </button>
+                      <span className="min-w-[40px] text-center text-xl font-black">
+                        {detailQuantity}
+                      </span>
+                      <button
+                        onClick={() => setDetailQuantity((q) => q + 1)}
+                        className="p-1 hover:text-primary transition-colors"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-white/10 pt-6">
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: store.primary_color || '#ffffff' }}
+                    >
+                      Subtotal
+                    </span>
+                    <PriceDisplay
+                      value={modals.product.price * detailQuantity}
+                      size="large"
+                      isPricesVisible={isPricesVisible}
+                      className="text-white"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      addToCart(modals.product!, detailQuantity);
+                      setModal('product', null);
+                    }}
+                    className="w-full py-8 text-xl bg-primary text-white hover:bg-primary/90"
+                  >
+                    Adicionar ao Carrinho
+                  </Button>
                 </div>
               </div>
+            </div>
 
-              {/* Marca: logo ou nome */}
-              {modals.product?.brand && (
-                <div className="my-2 flex items-center gap-2">
-                  {(() => {
-                    const found = brandsWithLogos.find(
-                      (b) => b.name === modals.product?.brand
-                    );
-                    if (found && found.logo_url) {
-                      return (
-                         
-                        <img
-                          src={found.logo_url}
-                          alt={modals.product?.brand || ''}
-                          className="h-6 object-contain"
-                        />
-                      );
-                    }
-                    return (
-                      <span className="text-sm font-semibold text-primary uppercase">
-                        {modals.product?.brand}
-                      </span>
-                    );
-                  })()}
+            {/* Zoom overlay */}
+            {isImageZoomOpen && (
+              <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+                <div
+                  className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                  onClick={() => setIsImageZoomOpen(false)}
+                />
+                <div className="relative max-w-5xl w-full mx-auto flex items-center">
+                  <button
+                    onClick={() => setIsImageZoomOpen(false)}
+                    className="absolute top-4 right-4 z-40 p-2 rounded-full bg-white/10 text-white"
+                    aria-label="Fechar zoom"
+                  >
+                    <X size={22} />
+                  </button>
+
+                  {/* Prev */}
+                  {productImages.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex((p) =>
+                          p === 0 ? productImages.length - 1 : p - 1
+                        );
+                      }}
+                      className="absolute left-4 z-30 p-3 rounded-full bg-white/10 text-white border border-white/20"
+                      aria-label="Imagem anterior"
+                    >
+                      <ChevronLeft size={28} />
+                    </button>
+                  )}
+
+                  <div className="relative w-full px-8">
+                    <img
+                      src={productImages[currentImageIndex]}
+                      alt={`Zoom ${currentImageIndex + 1}`}
+                      className="w-full max-h-[80vh] mx-auto h-auto object-contain rounded-lg"
+                    />
+                  </div>
+
+                  {/* Next */}
+                  {productImages.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex((p) =>
+                          p === productImages.length - 1 ? 0 : p + 1
+                        );
+                      }}
+                      className="absolute right-4 z-30 p-3 rounded-full bg-white/10 text-white border border-white/20"
+                      aria-label="Próxima imagem"
+                    >
+                      <ChevronRight size={28} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL CHECKOUT (RESUMO E AUTO-FILL) --- */}
+      {modals.checkout && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md animate-in fade-in duration-500"
+            onClick={() => setModal('checkout', false)}
+          />
+          <div className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-10">
+              {isImageZoomOpen && (
+                <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+                  <div
+                    className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                    onClick={() => setIsImageZoomOpen(false)}
+                  />
+                  <div className="relative max-w-4xl w-full mx-auto">
+                    <button
+                      onClick={() => setIsImageZoomOpen(false)}
+                      className="absolute top-4 right-4 z-30 p-2 rounded-full bg-white/10 text-white"
+                    >
+                      <X size={20} />
+                    </button>
+                    <img
+                      src={productImages[currentImageIndex]}
+                      alt="Zoom"
+                      className="w-full h-auto object-contain rounded-lg"
+                    />
+                  </div>
                 </div>
               )}
-              <span className="text-xs text-gray-400 font-mono mb-2 block">
-                Ref: {modals.product?.reference_code}
-              </span>
-
-              {/* Barcode */}
-              {modals.product?.barcode && (
-                <div className="mb-4 opacity-90">
-                  <div className="text-xs font-semibold text-gray-600 mb-2">
-                    Código de Barras (EAN)
-                  </div>
-                  <div className="inline-block bg-white p-2 rounded border border-gray-100">
-                    <Barcode value={modals.product.barcode} height={48} />
-                  </div>
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-black text-secondary tracking-tight">
+                  Identificação
+                </h2>
+                <button
+                  onClick={() => setModal('checkout', false)}
+                  className="p-2 bg-gray-50 rounded-xl text-gray-400 hover:text-secondary"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              {/* Quick actions: if we recognize the customer, allow clearing session */}
+              {customerSession && (
+                <div className="mb-6 flex items-center justify-end">
+                  <button
+                    onClick={() => {
+                      clearCustomerSession();
+                      setCustomerInfo({
+                        name: '',
+                        phone: '',
+                        email: '',
+                        cnpj: '',
+                      });
+                      toast.info('Dados de cliente removidos.');
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 underline"
+                  >
+                    Não é você?
+                  </button>
                 </div>
               )}
-
-              <div className="mb-6 p-5 bg-gray-50 rounded-xl border border-gray-100 text-center">
-                <span className="text-xs text-gray-500 uppercase font-bold block mb-1">
-                  Valor Unitário
-                </span>
+              <div className="bg-primary/5 rounded-[2rem] p-6 mb-8 border border-primary/10 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm">
+                    <Package size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">
+                      Resumo
+                    </p>
+                    <p className="text-lg font-black text-secondary">
+                      {cart.length} Itens
+                    </p>
+                  </div>
+                </div>
                 <PriceDisplay
-                  value={modals.product?.price || 0}
+                  value={cartTotal}
                   size="large"
+                  className="text-secondary"
                   isPricesVisible={isPricesVisible}
                 />
               </div>
-
-              {/* Specs */}
-              <div className="space-y-4 mb-8">
-                <h4 className="font-bold flex gap-2 items-center text-sm uppercase">
-                  <FileText size={16} /> Descrição
-                </h4>
-                <p className="text-sm text-gray-600">
-                  {modals.product?.description}
-                </p>
-                {modals.product?.technical_specs && (
-                  <div className="mt-4">
-                    <h4 className="font-bold text-sm uppercase border-t pt-4">
-                      Ficha Técnica
-                    </h4>
-                    {renderSpecs(modals.product.technical_specs)}
+              <form onSubmit={onFinalize} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
+                      Nome Completo
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="Nome"
+                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
+                      value={customerInfo.name}
+                      onChange={(e) =>
+                        setCustomerInfo({
+                          ...customerInfo,
+                          name: e.target.value,
+                        })
+                      }
+                    />
                   </div>
-                )}
-              </div>
-
-              {/* Botão no final */}
-              <div className="mt-auto pt-4 border-t border-gray-100">
-                <Button
-                  onClick={() => {
-                    addToCart(modals.product!);
-                    setModal('product', null);
-                    toast.success('Adicionado ao carrinho');
-                  }}
-                  className="w-full py-6 text-lg shadow-lg"
-                  leftIcon={<ShoppingCart size={22} />}
-                >
-                  Adicionar ao Pedido
-                </Button>
-              </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
+                      WhatsApp (DDD)
+                    </label>
+                    <input
+                      required
+                      type="tel"
+                      placeholder="(00) 00000-0000"
+                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
+                      value={customerInfo.phone}
+                      onChange={(e) =>
+                        setCustomerInfo({
+                          ...customerInfo,
+                          phone: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2 mt-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
+                    Email
+                  </label>
+                  <input
+                    required
+                    type="email"
+                    placeholder="seu@email.com"
+                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
+                    value={customerInfo.email}
+                    onChange={(e) =>
+                      setCustomerInfo({
+                        ...customerInfo,
+                        email: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 ml-4">
+                    CPF / CNPJ (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Documento"
+                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-primary/30 outline-none transition-all"
+                    value={customerInfo.cnpj}
+                    onChange={(e) =>
+                      setCustomerInfo({ ...customerInfo, cnpj: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="pt-6">
+                  <Button
+                    type="submit"
+                    disabled={loadingStates.submitting}
+                    className="w-full py-8 text-xl shadow-xl shadow-primary/20"
+                  >
+                    {loadingStates.submitting
+                      ? 'Processando...'
+                      : 'Confirmar e Enviar Pedido'}
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- MODAL ZOOM --- */}
-      {modals.zoom && modals.product && (
-        <div className="fixed inset-0 z-[70] bg-white flex items-center justify-center">
-          <button
-            onClick={() => setModal('zoom', false)}
-            className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full z-20 hover:bg-gray-200"
-          >
-            <X size={24} />
-          </button>
-          <div className="relative w-full h-full flex items-center justify-center p-4 md:p-10">
-            {/* Navegação Esquerda */}
-            {getProductImages(modals.product).length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImageIndex((prev) =>
-                    prev === 0
-                      ? getProductImages(modals.product).length - 1
-                      : prev - 1
-                  );
-                }}
-                className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 p-3 bg-gray-100/80 hover:bg-gray-200 rounded-full text-gray-800 z-10"
-              >
-                <ChevronLeft size={32} />
-              </button>
-            )}
-
-            {/* Imagem Principal Zoom */}
-            <div className="max-w-[90vw] max-h-[90vh]">
-              { }
-              <img
-                src={getProductImages(modals.product as any)[currentImageIndex]}
-                className="max-w-full max-h-full object-contain select-none"
-                alt="Zoom"
-              />
-            </div>
-
-            {/* Navegação Direita */}
-            {getProductImages(modals.product).length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImageIndex((prev) =>
-                    prev === getProductImages(modals.product).length - 1
-                      ? 0
-                      : prev + 1
-                  );
-                }}
-                className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 p-3 bg-gray-100/80 hover:bg-gray-200 rounded-full text-gray-800 z-10"
-              >
-                <ChevronRight size={32} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* --- MODAL SUCESSO FINAL --- */}
+      {/* --- PÁGINA DE SUCESSO (CONVERSÃO PREMIUM) --- */}
       {orderSuccessData && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl text-center animate-in zoom-in-95">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle size={48} className="text-green-600" />
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md animate-in fade-in duration-500" />
+          <div className="relative w-full max-w-lg bg-white rounded-[3.5rem] p-10 md:p-14 text-center shadow-2xl animate-in zoom-in-95 duration-500">
+            <div className="relative mx-auto mb-10 w-28 h-28 flex items-center justify-center rounded-full bg-green-50 text-green-500 shadow-inner">
+              <CheckCircle size={72} strokeWidth={1.5} />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Pedido #{orderSuccessData.id} Confirmado!
+            <h2 className="text-4xl font-black text-secondary mb-3 tracking-tight">
+              Pedido Enviado! 🎉
             </h2>
-            <p className="text-gray-500 mb-8">
-              Obrigado, {orderSuccessData.customer.name}.
+            <p className="text-gray-500 text-lg mb-10 leading-relaxed">
+              Olá,{' '}
+              <span className="font-bold text-secondary">
+                {orderSuccessData.customer.name}
+              </span>
+              ! <br /> Seu pedido{' '}
+              <span className="text-primary font-black">
+                #{orderSuccessData.display_id || orderSuccessData.id}
+              </span>{' '}
+              está pronto.
             </p>
-            <div className="space-y-3">
-              <Button
-                onClick={onGeneratePDF}
-                className="w-full py-6 text-lg shadow-lg bg-primary hover:bg-primary/90 text-white border-none"
-                leftIcon={<Download size={24} />}
-              >
-                Baixar Pedido em PDF
-              </Button>
-              <Button
-                onClick={handleSendWhatsApp}
-                className="w-full py-4 text-green-700 border-green-200 hover:bg-green-50 bg-white"
-                variant="outline"
-                leftIcon={<Send size={20} />}
-              >
-                Enviar via WhatsApp
-              </Button>
+            <div className="space-y-4">
               <button
-                onClick={() => setOrderSuccessData(null)}
-                className="block w-full mt-4 text-sm text-gray-400 hover:text-gray-600 underline"
+                onClick={handleSendWhatsApp}
+                className="w-full py-6 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-[2rem] font-black text-xl shadow-[0_20px_40px_rgba(37,211,102,0.3)] transition-all flex items-center justify-center gap-3"
               >
-                Fechar
+                <Send size={24} /> Confirmar no WhatsApp
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ... (Outros modais Password, Save, Checkout - mantenha-os similares mas usando Button e Toast) ... */}
-      {modals.password && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => setModal('password', false)}
-        >
-          <div
-            className="bg-white p-6 rounded-xl w-full max-w-xs shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-bold text-lg mb-4 text-center">
-              Área Restrita
-            </h3>
-            <form onSubmit={onUnlock}>
-              <input
-                type="password"
-                autoFocus
-                placeholder="Senha"
-                className="w-full p-3 border rounded-lg mb-4 text-center outline-none focus:border-indigo-500"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-              />
-              <Button type="submit" className="w-full">
-                Desbloquear
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modals.save && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => setModal('save', false)}
-        >
-          <div
-            className="bg-white p-6 rounded-xl w-full max-w-sm text-center shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Save size={32} className="mx-auto text-green-600 mb-4" />
-            <h3 className="font-bold text-lg">Salvo!</h3>
-            <div className="bg-gray-100 p-3 rounded my-4 flex justify-between items-center">
-              <code className="font-bold text-lg">{savedCode}</code>
-              <button onClick={() => copyToClipboard(savedCode || '')}>
-                <Copy size={18} />
-              </button>
-            </div>
-            <Button onClick={() => setModal('save', false)} className="w-full">
-              Fechar
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {modals.checkout && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => setModal('checkout', false)}
-        >
-          <div
-            className="bg-white p-6 rounded-xl w-full max-w-sm shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between mb-4">
-              <h3 className="font-bold text-lg">Finalizar</h3>
-              <button onClick={() => setModal('checkout', false)}>
-                <X />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <input
-                placeholder="Nome"
-                className="w-full p-2 border rounded"
-                value={customerInfo.name}
-                onChange={(e) =>
-                  setCustomerInfo({ ...customerInfo, name: e.target.value })
-                }
-              />
-              <input
-                placeholder="WhatsApp"
-                className="w-full p-2 border rounded"
-                value={customerInfo.phone}
-                onChange={(e) =>
-                  setCustomerInfo({ ...customerInfo, phone: e.target.value })
-                }
-              />
-              <input
-                placeholder="Email"
-                className="w-full p-2 border rounded"
-                value={customerInfo.email}
-                onChange={(e) =>
-                  setCustomerInfo({ ...customerInfo, email: e.target.value })
-                }
-              />
-              <input
-                placeholder="CPF/CNPJ"
-                className="w-full p-2 border rounded"
-                value={customerInfo.cnpj}
-                onChange={(e) =>
-                  setCustomerInfo({ ...customerInfo, cnpj: e.target.value })
-                }
-              />
-              <Button
-                onClick={() => handleFinalizeOrder(customerInfo)}
-                isLoading={loadingStates.submitting}
-                className="w-full bg-green-600 hover:bg-green-700 border-none"
-              >
-                Enviar Pedido
-              </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={onGeneratePDF}
+                  className="flex items-center justify-center gap-2 py-5 bg-white border-2 border-gray-100 text-gray-500 rounded-2xl font-bold text-sm hover:bg-gray-50"
+                >
+                  <Download size={20} /> Recibo PDF
+                </button>
+                <button
+                  onClick={() => {
+                    setOrderSuccessData(null);
+                    setModal('cart', false);
+                  }}
+                  className="flex items-center justify-center gap-2 py-5 bg-secondary text-white rounded-2xl font-bold text-sm hover:bg-black"
+                >
+                  <ShoppingCart size={20} /> Nova Compra
+                </button>
+              </div>
             </div>
           </div>
         </div>

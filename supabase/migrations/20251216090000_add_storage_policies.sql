@@ -24,16 +24,14 @@ DROP POLICY IF EXISTS allow_update_products ON storage.objects;
 DROP POLICY IF EXISTS allow_delete_products ON storage.objects;
 
 -- Helper: checks that the path is public/<user_id>/...
--- We compare split_part(path, '/', 2) to auth.uid().
-
--- PRODUCT-IMAGES: allow users to manage files under public/<their_id>/...
+-- We compare split_part(name, '/', 2) to auth.uid()::text.
+-- PRODUCT-IMAGES: images used by the public catalog should be publicly readable
+-- Allow anonymous SELECT on the product-images bucket so the catalog can serve images
+-- (writes/updates/deletes remain restricted to the owner or service_role)
 CREATE POLICY allow_select_product_images ON storage.objects
   FOR SELECT
   USING (
-    bucket_id = 'product-images' AND (
-      auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
-    )
+    bucket_id = 'product-images'
   );
 
 CREATE POLICY allow_insert_product_images ON storage.objects
@@ -41,7 +39,7 @@ CREATE POLICY allow_insert_product_images ON storage.objects
   WITH CHECK (
     bucket_id = 'product-images' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -50,13 +48,13 @@ CREATE POLICY allow_update_product_images ON storage.objects
   USING (
     bucket_id = 'product-images' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   )
   WITH CHECK (
     bucket_id = 'product-images' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -65,7 +63,7 @@ CREATE POLICY allow_delete_product_images ON storage.objects
   USING (
     bucket_id = 'product-images' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -75,7 +73,7 @@ CREATE POLICY allow_select_avatars ON storage.objects
   USING (
     bucket_id = 'avatars' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -84,7 +82,7 @@ CREATE POLICY allow_insert_avatars ON storage.objects
   WITH CHECK (
     bucket_id = 'avatars' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -93,13 +91,13 @@ CREATE POLICY allow_update_avatars ON storage.objects
   USING (
     bucket_id = 'avatars' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   )
   WITH CHECK (
     bucket_id = 'avatars' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -108,7 +106,7 @@ CREATE POLICY allow_delete_avatars ON storage.objects
   USING (
     bucket_id = 'avatars' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -118,7 +116,7 @@ CREATE POLICY allow_select_products ON storage.objects
   USING (
     bucket_id = 'products' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -127,7 +125,7 @@ CREATE POLICY allow_insert_products ON storage.objects
   WITH CHECK (
     bucket_id = 'products' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -136,13 +134,13 @@ CREATE POLICY allow_update_products ON storage.objects
   USING (
     bucket_id = 'products' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   )
   WITH CHECK (
     bucket_id = 'products' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 
@@ -151,7 +149,7 @@ CREATE POLICY allow_delete_products ON storage.objects
   USING (
     bucket_id = 'products' AND (
       auth.role() = 'service_role'
-      OR split_part(path, '/', 2) = auth.uid()
+      OR split_part(name, '/', 2) = auth.uid()::text
     )
   );
 

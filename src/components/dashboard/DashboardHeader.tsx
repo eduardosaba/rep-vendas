@@ -1,22 +1,13 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import {
-  Bell,
-  Search,
-  User,
-  Menu,
-  ChevronDown,
-  Sun,
-  Moon,
-  LogOut,
-} from 'lucide-react';
-// Importamos o logger para substituir console.log se necessário no futuro
-// import { logger } from '@/lib/logger';
+import { Bell, User, Menu, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
+// Importamos a Server Action de logout para garantir a limpeza dos cookies
+import { logout } from '@/app/login/actions';
 
 interface UserProfileUpdatePayload {
   new: {
@@ -31,26 +22,16 @@ export default function DashboardHeader({
   onMenuClick?: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
 
-  // createClient é estável, mas em alguns casos pode causar re-render se estiver no corpo.
-  // O Supabase recomenda criar apenas uma vez ou usar useMemo, mas para SSR client component padrão:
   const [supabase] = useState(() => createClient());
-
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  // Substituído any[] por unknown[] ou um tipo específico se tiver
   const [notifications, setNotifications] = useState<unknown[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const notifRef = useRef<HTMLDivElement>(null);
-
-  // `mounted` removed: este componente é `use client` e pode ser renderizado diretamente.
 
   const getPageTitle = (path: string) => {
     if (!path) return 'Painel';
@@ -80,7 +61,6 @@ export default function DashboardHeader({
         profile?.avatar_url || user.user_metadata?.avatar_url || null;
       setUserAvatar(avatarUrl);
 
-      // Listener para realtime
       const channel = supabase
         .channel(`profile-changes-${user.id}`)
         .on(
@@ -92,20 +72,14 @@ export default function DashboardHeader({
             filter: `id=eq.${user.id}`,
           },
           (payload) => {
-            // Tipagem segura ao invés de 'as any'
             const typedPayload = payload as unknown as UserProfileUpdatePayload;
             const newAvatarUrl = typedPayload.new?.avatar_url;
-
-            if (newAvatarUrl !== undefined) {
-              setUserAvatar(newAvatarUrl || null);
-            }
+            if (newAvatarUrl !== undefined) setUserAvatar(newAvatarUrl || null);
           }
         )
         .subscribe();
 
-      // Buscar notificações (simulado/vazio por enquanto)
       setNotifications([]);
-
       return () => {
         supabase.removeChannel(channel);
       };
@@ -114,21 +88,16 @@ export default function DashboardHeader({
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
-
     const init = async () => {
       const unsub = await getUser();
       if (unsub) cleanup = unsub;
     };
-
     init();
-
     return () => {
       if (cleanup) cleanup();
     };
   }, [getUser]);
 
-  // Click outside handler logic... (igual ao original)
-  // Adicionei useEffect básico para fechar menu ao clicar fora para evitar variáveis não usadas se a lógica não existir
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -140,39 +109,31 @@ export default function DashboardHeader({
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace('/login');
+    await logout();
   };
 
   const getInitials = (email: string) =>
     email ? email.substring(0, 2).toUpperCase() : 'US';
 
-  // Render normal (remoção do placeholder de mount)
-
   return (
     <header className="sticky top-0 z-20 flex h-20 w-full items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 transition-colors dark:bg-slate-950/80 dark:border-slate-800">
       <div className="flex items-center gap-4">
+        {/* Botão de Menu - Visível apenas em telas menores que LG para controle do Sidebar */}
         <button
           onClick={onMenuClick}
-          className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          className="lg:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="Abrir menu"
         >
-          <Menu size={20} />
+          <Menu size={22} />
         </button>
-        <h1 className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block">
+
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white hidden sm:block">
           {getPageTitle(pathname || '')}
         </h1>
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden md:block relative group mr-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[var(--primary)] transition-colors" />
-          <input
-            type="text"
-            placeholder="Buscar..."
-            className="h-10 w-64 rounded-full border border-gray-200 bg-gray-50 pl-10 pr-4 text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-opacity-20 dark:border-slate-800 dark:bg-slate-900 dark:text-white transition-all"
-          />
-        </div>
-
+        {/* Alternador de Tema */}
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
@@ -180,9 +141,10 @@ export default function DashboardHeader({
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
+        {/* Notificações */}
         <button
-          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors relative"
-          onClick={() => setIsNotifOpen(!isNotifOpen)} // Exemplo de uso
+          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 relative transition-colors"
+          onClick={() => setIsNotifOpen(!isNotifOpen)}
         >
           <Bell size={20} />
           {notifications.length > 0 && (
@@ -192,20 +154,21 @@ export default function DashboardHeader({
 
         <div className="h-8 w-px bg-gray-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
 
+        {/* Menu do Usuário */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="flex items-center gap-3 cursor-pointer group focus:outline-none"
           >
-            <div className="flex flex-col items-end hidden sm:flex">
-              <span className="text-sm font-semibold text-gray-700 dark:text-white">
+            <div className="hidden sm:flex flex-col items-end">
+              <span className="text-sm font-medium text-gray-700 dark:text-white group-hover:text-[var(--primary)] transition-colors">
                 Minha Conta
               </span>
-              <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate max-w-[100px]">
+              <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate max-w-[120px]">
                 {userEmail}
               </span>
             </div>
-            <div className="h-10 w-10 rounded-full bg-[var(--primary)] bg-opacity-10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)] border-opacity-20 dark:bg-opacity-20 overflow-hidden">
+            <div className="h-10 w-10 rounded-full bg-[var(--primary)] bg-opacity-10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)] border-opacity-20 overflow-hidden ring-offset-2 ring-offset-white dark:ring-offset-slate-950 group-hover:ring-2 ring-[var(--primary)]/30 transition-all">
               {userAvatar ? (
                 <img
                   src={userAvatar}
@@ -213,14 +176,14 @@ export default function DashboardHeader({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span className="font-bold text-xs">
+                <span className="font-semibold text-xs">
                   {getInitials(userEmail)}
                 </span>
               )}
             </div>
             <ChevronDown
               size={14}
-              className={`text-gray-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`}
+              className={`text-gray-400 transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
@@ -229,6 +192,7 @@ export default function DashboardHeader({
               <div className="p-1">
                 <Link
                   href="/dashboard/user"
+                  onClick={() => setIsMenuOpen(false)}
                   className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
                   <User size={16} /> Meu Perfil

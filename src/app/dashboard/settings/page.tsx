@@ -11,46 +11,42 @@ import {
   UploadCloud,
   Store,
   Palette,
-  Phone,
-  Lock,
-  MessageSquare,
-  Image as ImageIcon,
+  Layout,
+  Type,
+  Settings as SettingsIcon,
+  Power,
+  ImageIcon,
   X,
   Plus,
   DollarSign,
-  Zap,
   Tag,
+  CreditCard,
   Package,
   AlertTriangle,
+  Zap,
   Brush,
-  CreditCard,
-  Layout,
-  Settings as SettingsIcon,
 } from 'lucide-react';
+import { Lock } from 'lucide-react';
+import { SYSTEM_FONTS } from '@/lib/fonts';
 import { Button } from '@/components/ui/Button';
+import { usePlan } from '@/hooks/use-plan';
 
-// --- Função Auxiliar de Contraste ---
-function getContrastColor(hexColor: string): string {
-  if (!hexColor) return '#ffffff';
-  const hex = hexColor.replace('#', '');
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 128 ? '#0f172a' : '#ffffff';
-}
+// Componentes extraídos
+import { ToggleSetting } from './components/ToggleSetting';
+import { TabGeneral } from './components/TabGeneral';
 
 interface CatalogSettings {
   show_top_benefit_bar: boolean;
+  show_top_info_bar?: boolean;
   top_benefit_text: string;
   show_installments: boolean;
   max_installments: string;
   show_discount_tag: boolean;
   cash_price_discount_percent: string;
-  enable_stock_management: boolean;
+  manage_stock: boolean;
   global_allow_backorder: boolean;
-  show_cost_price?: boolean;
-  show_sale_price?: boolean;
+  show_cost_price: boolean;
+  show_sale_price: boolean;
 }
 
 const THEME_PRESETS = [
@@ -104,88 +100,45 @@ const THEME_PRESETS = [
   },
 ];
 
-// --- COMPONENTE TOGGLE MELHORADO ---
-const ToggleSetting = ({
-  label,
-  name,
-  description,
-  checked,
-  onChange,
-  icon: Icon,
-  children,
-}: any) => (
-  <div
-    className={`p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all ${checked ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/20 shadow-sm' : 'border-gray-200 dark:border-slate-800'}`}
-  >
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex items-start gap-3">
-        <div
-          className={`p-2 rounded-lg ${checked ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-gray-400'}`}
-        >
-          <Icon size={18} />
-        </div>
-        <div>
-          <label
-            htmlFor={name}
-            className="font-medium text-gray-900 dark:text-white cursor-pointer select-none block"
-          >
-            {label}
-          </label>
-          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-            {description}
-          </p>
-        </div>
-      </div>
-
-      <label className="relative inline-flex items-center cursor-pointer shrink-0">
-        <input
-          type="checkbox"
-          id={name}
-          name={name}
-          checked={checked}
-          onChange={onChange}
-          className="sr-only peer"
-        />
-        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
-      </label>
-    </div>
-    {checked && children && (
-      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 animate-in slide-in-from-top-2 fade-in pl-[52px]">
-        {children}
-      </div>
-    )}
-  </div>
-);
-
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
   const [saving, setSaving] = useState(false);
+  const [showPricePassword, setShowPricePassword] = useState(false);
   const [activeTab, setActiveTab] = useState<
     'general' | 'appearance' | 'display' | 'stock'
   >('general');
 
-  // Dados do Formulário
   const [formData, setFormData] = useState({
     name: '',
-    phone: '', // Mapeado para 'phone' ou 'support_phone'
+    phone: '',
     email: '',
     catalog_slug: '',
-    primary_color: '#b9722e', // Cor primária padrão
-    secondary_color: '#0d1b2c', // Cor secundária padrão
+    // Fonte do representante (nullable) - se null usa fonte do sistema
+    font_family: null as string | null,
+    // URL pública da fonte customizada (se o usuário fez upload)
+    font_url: null as string | null,
+    plan_type: 'free',
+    primary_color: '#b9722e',
+    secondary_color: '#0d1b2c',
     header_background_color: '#ffffff',
+    footer_background_color: '#0d1b2c',
     price_password: '',
     footer_message: '',
+    representative_name: '',
+    whatsapp_message_template:
+      'Olá {{cliente}}! Recebi seu pedido #{{pedido_id}} aqui no sistema. 🎉\n\nEm breve entro em contato para combinarmos a entrega.\n\nAtenciosamente,\n{{representante}}',
   });
 
   const [catalogSettings, setCatalogSettings] = useState<CatalogSettings>({
     show_top_benefit_bar: false,
+    show_top_info_bar: true,
     top_benefit_text: '',
     show_installments: false,
     max_installments: '12',
     show_discount_tag: false,
     cash_price_discount_percent: '5',
-    enable_stock_management: false,
+    manage_stock: false,
     global_allow_backorder: false,
     show_cost_price: false,
     show_sale_price: true,
@@ -194,14 +147,58 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [currentBanners, setCurrentBanners] = useState<string[]>([]);
+  const [currentBannersMobile, setCurrentBannersMobile] = useState<string[]>(
+    []
+  );
+
+  // Loja Online / Offline
+  const [isActive, setIsActive] = useState<boolean>(true);
+
+  // Top Benefit
+  const [topBenefitImagePreview, setTopBenefitImagePreview] = useState<
+    string | null
+  >(null);
+  const [topBenefitImageFile, setTopBenefitImageFile] = useState<File | null>(
+    null
+  );
+  const [topBenefitHeight, setTopBenefitHeight] = useState<number>(36);
+  const [topBenefitTextSize, setTopBenefitTextSize] = useState<number>(11);
+  const [topBenefitBgColor, setTopBenefitBgColor] = useState<string>('#f3f4f6');
+  const [topBenefitTextColor, setTopBenefitTextColor] =
+    useState<string>('#b9722e');
+
+  // Estados de imagem e alinhamento
+  const [topBenefitImageFit, setTopBenefitImageFit] = useState<
+    'cover' | 'contain'
+  >('cover');
+  const [topBenefitImageScale, setTopBenefitImageScale] = useState<number>(100);
+  const [topBenefitTextAlign, setTopBenefitTextAlign] = useState<
+    'left' | 'center' | 'right'
+  >('center');
+  const [topBenefitImageAlign, setTopBenefitImageAlign] = useState<
+    'left' | 'center' | 'right'
+  >('left');
+
   const [newBannerFiles, setNewBannerFiles] = useState<
     { file: File; preview: string; tooSmall?: boolean }[]
   >([]);
+  const [newBannerFilesMobile, setNewBannerFilesMobile] = useState<
+    { file: File; preview: string; tooSmall?: boolean }[]
+  >([]);
   const [logoUploading, setLogoUploading] = useState(false);
-  const RECOMMENDED_BANNER = { width: 1400, height: 400 };
 
-  // --- LIVE PREVIEW DA COR ---
-  // Atualiza as cores em tempo real quando o usuário altera nos inputs
+  const [allowCustomFonts, setAllowCustomFonts] = useState<boolean>(true);
+
+  // IMPORTANT: Declare este hook ANTES do early return para respeitar Rules of Hooks
+  const [useSystemFont, setUseSystemFont] = useState<boolean>(
+    formData.font_family ? false : true
+  );
+
+  const RECOMMENDED_BANNER = { width: 1400, height: 400 };
+  const RECOMMENDED_BANNER_MOBILE = { width: 768, height: 400 };
+
+  const { planType: planTypeHook } = usePlan();
+
   useEffect(() => {
     applyThemeColors({
       primary: formData.primary_color,
@@ -214,7 +211,10 @@ export default function SettingsPage() {
     formData.header_background_color,
   ]);
 
-  // --- CARREGAR DADOS ---
+  useEffect(() => {
+    setUseSystemFont(formData.font_family ? false : true);
+  }, [formData.font_family]);
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -226,13 +226,11 @@ export default function SettingsPage() {
           return;
         }
 
-        const { data: settings, error } = await supabase
+        const { data: settings } = await supabase
           .from('settings')
           .select('*')
           .eq('user_id', user.id)
           .maybeSingle();
-
-        if (error) console.error('Erro ao buscar settings:', error);
 
         if (settings) {
           setFormData({
@@ -240,17 +238,28 @@ export default function SettingsPage() {
             phone: settings.phone || settings.support_phone || '',
             email: settings.email || settings.support_email || '',
             catalog_slug: settings.catalog_slug || '',
+            font_family: settings.font_family ?? null,
+            font_url: settings.font_url ?? null,
+            plan_type: settings.plan_type || 'free',
             primary_color: settings.primary_color || '#b9722e',
             secondary_color: settings.secondary_color || '#0d1b2c',
             header_background_color:
               settings.header_background_color || '#ffffff',
+            footer_background_color:
+              settings.footer_background_color || '#0d1b2c',
             price_password: settings.price_password || '',
             footer_message: settings.footer_message || '',
+            representative_name: settings.representative_name || '',
+            whatsapp_message_template:
+              settings.whatsapp_message_template ||
+              'Olá {{cliente}}! Recebi seu pedido #{{pedido_id}} aqui no sistema. 🎉\n\nEm breve entro em contato para combinarmos a entrega.\n\nAtenciosamente,\n{{representante}}',
           });
+          // manter campo `price_password` como está (sem hash)
           setLogoPreview(settings.logo_url);
 
           setCatalogSettings({
             show_top_benefit_bar: settings.show_top_benefit_bar ?? false,
+            show_top_info_bar: settings.show_top_info_bar ?? true,
             top_benefit_text: settings.top_benefit_text || '',
             show_installments: settings.show_installments ?? false,
             max_installments: String(settings.max_installments || 12),
@@ -258,15 +267,54 @@ export default function SettingsPage() {
             cash_price_discount_percent: String(
               settings.cash_price_discount_percent || 5
             ),
-            enable_stock_management: settings.enable_stock_management ?? false,
+            manage_stock: settings.manage_stock ?? false,
             global_allow_backorder: settings.global_allow_backorder ?? false,
             show_cost_price: settings.show_cost_price ?? false,
             show_sale_price: settings.show_sale_price ?? true,
           });
 
-          if (Array.isArray(settings.banners)) {
+          setTopBenefitImagePreview(settings.top_benefit_image_url || null);
+          setTopBenefitHeight(settings.top_benefit_height || 36);
+          setTopBenefitTextSize(settings.top_benefit_text_size || 11);
+          setTopBenefitBgColor(settings.top_benefit_bg_color || '#f3f4f6');
+          setTopBenefitTextColor(
+            settings.top_benefit_text_color ||
+              settings.primary_color ||
+              '#b9722e'
+          );
+
+          if (settings.top_benefit_image_fit)
+            setTopBenefitImageFit(settings.top_benefit_image_fit);
+          if (settings.top_benefit_image_scale)
+            setTopBenefitImageScale(settings.top_benefit_image_scale);
+          if (settings.top_benefit_text_align)
+            setTopBenefitTextAlign(settings.top_benefit_text_align);
+          if (settings.top_benefit_image_align)
+            setTopBenefitImageAlign(settings.top_benefit_image_align);
+
+          setIsActive(settings.is_active ?? true);
+
+          if (Array.isArray(settings.banners))
             setCurrentBanners(settings.banners);
+          if (Array.isArray(settings.banners_mobile))
+            setCurrentBannersMobile(settings.banners_mobile);
+        }
+        // buscar configuração global para gating (allow_custom_fonts)
+        try {
+          const res = await fetch('/api/global_config');
+          const json = await res.json();
+          if (json && typeof json.allow_custom_fonts === 'boolean') {
+            setAllowCustomFonts(json.allow_custom_fonts);
+            if (!json.allow_custom_fonts) {
+              // se o sistema não permite fontes customizadas, reset local
+              if (settings.font_family) {
+                setFormData((p) => ({ ...p, font_family: null }));
+                setUseSystemFont(true);
+              }
+            }
           }
+        } catch (err) {
+          // ignore
         }
       } catch (error) {
         console.error('Erro Crítico ao carregar:', error);
@@ -274,7 +322,6 @@ export default function SettingsPage() {
         setLoading(false);
       }
     };
-
     loadSettings();
   }, [supabase]);
 
@@ -306,11 +353,26 @@ export default function SettingsPage() {
     }
   };
 
+  const handlePriceTypeChange = (type: 'sale' | 'cost') => {
+    if (type === 'sale') {
+      setCatalogSettings((prev) => ({
+        ...prev,
+        show_sale_price: true,
+        show_cost_price: false,
+      }));
+    } else {
+      setCatalogSettings((prev) => ({
+        ...prev,
+        show_sale_price: false,
+        show_cost_price: true,
+      }));
+    }
+  };
+
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      const file = e.target.files[0];
-      setLogoFile(file);
-      setLogoPreview(URL.createObjectURL(file));
+      setLogoFile(e.target.files[0]);
+      setLogoPreview(URL.createObjectURL(e.target.files[0]));
     }
   };
 
@@ -336,17 +398,55 @@ export default function SettingsPage() {
           )
       )
     );
-    processed.forEach((p) => {
-      if (p.tooSmall)
-        toast(`Imagem ${p.file.name} menor que o recomendado`, {
-          description: 'Qualidade pode ser afetada.',
-        });
-    });
     setNewBannerFiles((prev) => [...prev, ...processed]);
   };
 
   const removeNewBanner = (index: number) => {
     setNewBannerFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBannerMobileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!e.target.files) return;
+    const filesArray = Array.from(e.target.files);
+    const processed = await Promise.all(
+      filesArray.map(
+        (file) =>
+          new Promise<{ file: File; preview: string; tooSmall?: boolean }>(
+            (resolve) => {
+              const preview = URL.createObjectURL(file);
+              const img = new window.Image();
+              img.src = preview;
+              img.onload = () => {
+                const tooSmall =
+                  img.naturalWidth < RECOMMENDED_BANNER_MOBILE.width ||
+                  img.naturalHeight < RECOMMENDED_BANNER_MOBILE.height;
+                resolve({ file, preview, tooSmall });
+              };
+              img.onerror = () => resolve({ file, preview, tooSmall: true });
+            }
+          )
+      )
+    );
+    setNewBannerFilesMobile((prev) => [...prev, ...processed]);
+  };
+
+  const removeNewBannerMobile = (index: number) => {
+    setNewBannerFilesMobile((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleTopBenefitImageChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!e.target.files?.[0]) return;
+    setTopBenefitImageFile(e.target.files[0]);
+    setTopBenefitImagePreview(URL.createObjectURL(e.target.files[0]));
+  };
+
+  const removeTopBenefitImage = () => {
+    setTopBenefitImageFile(null);
+    setTopBenefitImagePreview(null);
   };
 
   const applyTheme = (theme: (typeof THEME_PRESETS)[0]) => {
@@ -356,7 +456,6 @@ export default function SettingsPage() {
       secondary_color: theme.secondary,
       header_background_color: theme.header,
     }));
-    // Aplica o tema imediatamente via ThemeRegistry
     applyThemeColors({
       primary: theme.primary,
       secondary: theme.secondary,
@@ -379,33 +478,16 @@ export default function SettingsPage() {
         throw new Error('Sessão expirada. Recarregue a página.');
 
       const currentUserId = user.id;
-      let logoUrl = logoPreview;
 
-      // Upload Logo
-      if (logoFile) {
-        setLogoUploading(true);
-        const fileExt = logoFile.name.split('.').pop();
-        const fileName = `public/${currentUserId}/branding/logo-${Date.now()}.${fileExt}`;
-
-        const { error } = await supabase.storage
-          .from('product-images')
-          .upload(fileName, logoFile, { upsert: true });
-        if (!error) {
-          const { data } = supabase.storage
-            .from('product-images')
-            .getPublicUrl(fileName);
-          logoUrl = data.publicUrl;
-        }
-        setLogoUploading(false);
-      }
-
-      // Upload Banners
-      const uploadedBanners = [];
-      if (newBannerFiles.length > 0) {
-        for (let i = 0; i < newBannerFiles.length; i++) {
-          const item = newBannerFiles[i];
+      // otimização: fazer uploads em paralelo (logo + banners)
+      const uploadSingleBanner = async (
+        item: { file: File; preview: string },
+        folder: string,
+        index: number
+      ) => {
+        try {
           const fileExt = item.file.name.split('.').pop();
-          const fileName = `public/${currentUserId}/banners/banner-${Date.now()}-${i}.${fileExt}`;
+          const fileName = `public/${currentUserId}/${folder}/banner-${Date.now()}-${index}.${fileExt}`;
           const { error } = await supabase.storage
             .from('product-images')
             .upload(fileName, item.file, { upsert: true });
@@ -413,45 +495,108 @@ export default function SettingsPage() {
             const { data } = supabase.storage
               .from('product-images')
               .getPublicUrl(fileName);
-            uploadedBanners.push(data.publicUrl);
+            return data.publicUrl;
           }
+        } catch (err) {
+          console.error('Erro upload banner', err);
+        }
+        return null;
+      };
+
+      const uploadBanners = async (
+        files: { file: File; preview: string }[],
+        folder: string
+      ) => {
+        if (!files || files.length === 0) return [];
+        const promises = files.map((item, idx) =>
+          uploadSingleBanner(item, folder, idx)
+        );
+        const results = await Promise.all(promises);
+        return results.filter(Boolean) as string[];
+      };
+
+      const uploadLogo = async () => {
+        if (!logoFile) return logoPreview;
+        try {
+          setLogoUploading(true);
+          const fileExt = logoFile.name.split('.').pop();
+          const fileName = `public/${currentUserId}/branding/logo-${Date.now()}.${fileExt}`;
+          const { error } = await supabase.storage
+            .from('product-images')
+            .upload(fileName, logoFile, { upsert: true });
+          if (!error) {
+            const { data } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(fileName);
+            return data.publicUrl;
+          }
+        } catch (err) {
+          console.error('Erro upload logo', err);
+        } finally {
+          setLogoUploading(false);
+        }
+        return logoPreview;
+      };
+
+      const [uploadedBanners, uploadedBannersMobile, logoResult] =
+        await Promise.all([
+          uploadBanners(newBannerFiles, 'banners'),
+          uploadBanners(newBannerFilesMobile, 'banners'),
+          uploadLogo(),
+        ]);
+      const uploadedBannersSafe = uploadedBanners || [];
+      const uploadedBannersMobileSafe = uploadedBannersMobile || [];
+      const finalBanners = [...currentBanners, ...uploadedBannersSafe];
+      const finalBannersMobile = [
+        ...currentBannersMobile,
+        ...uploadedBannersMobileSafe,
+      ];
+      let logoUrl = logoResult || logoPreview;
+
+      let topBenefitImageUrl = topBenefitImagePreview;
+      if (topBenefitImageFile) {
+        const fileExt = topBenefitImageFile.name.split('.').pop();
+        const fileName = `public/${currentUserId}/topbar/top-benefit-${Date.now()}.${fileExt}`;
+        const { error } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, topBenefitImageFile, { upsert: true });
+        if (!error) {
+          const { data } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(fileName);
+          topBenefitImageUrl = data.publicUrl;
         }
       }
 
-      const finalBanners = [...currentBanners, ...uploadedBanners];
+      let finalShowSale = catalogSettings.show_sale_price ?? true;
+      let finalShowCost = catalogSettings.show_cost_price ?? false;
+      if (finalShowSale && finalShowCost) finalShowCost = false;
 
-      const { error } = await supabase.from('settings').upsert(
-        {
-          user_id: currentUserId,
-          name: formData.name,
-          phone: formData.phone,
-          support_phone: formData.phone, // Mantém compatibilidade
-          email: formData.email,
-          support_email: formData.email, // Mantém compatibilidade
-          logo_url: logoUrl,
-          catalog_slug: formData.catalog_slug,
-          primary_color: formData.primary_color,
-          secondary_color: formData.secondary_color,
-          header_background_color: formData.header_background_color,
-          price_password: formData.price_password,
-          footer_message: formData.footer_message,
-          banners: finalBanners,
-          updated_at: new Date().toISOString(),
-          show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
-          top_benefit_text: catalogSettings.top_benefit_text,
-          show_installments: catalogSettings.show_installments,
-          max_installments: Number(catalogSettings.max_installments),
-          show_discount_tag: catalogSettings.show_discount_tag,
-          cash_price_discount_percent: Number(
-            catalogSettings.cash_price_discount_percent
-          ),
-          enable_stock_management: catalogSettings.enable_stock_management,
-          global_allow_backorder: catalogSettings.global_allow_backorder,
-          show_cost_price: catalogSettings.show_cost_price,
-          show_sale_price: catalogSettings.show_sale_price,
-        },
-        { onConflict: 'user_id' }
+      const finalShowInstallments = catalogSettings.show_installments ?? false;
+      const finalMaxInstallments = Number(
+        catalogSettings.max_installments || 1
       );
+      const finalShowCashDiscount = catalogSettings.show_discount_tag ?? false;
+      const finalCashDiscountPercent = Number(
+        catalogSettings.cash_price_discount_percent || 0
+      );
+      const finalEnableStock = catalogSettings.manage_stock ?? false;
+
+      const fullSettings = {
+        user_id: currentUserId,
+        ...formData,
+        ...catalogSettings,
+        font_url: formData.font_url ?? null,
+        logo_url: logoUrl,
+        banners: finalBanners,
+        banners_mobile: finalBannersMobile,
+        is_active: isActive,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('settings')
+        .upsert(fullSettings, { onConflict: 'user_id' });
 
       if (error) {
         if (error.code === '23505')
@@ -459,25 +604,68 @@ export default function SettingsPage() {
         throw error;
       }
 
-      setNewBannerFiles([]);
-      setCurrentBanners(finalBanners);
+      // mantemos o fluxo simples: senha (se informada) é gravada em `price_password`
 
-      // Atualiza as cores no sistema após salvar
+      setNewBannerFiles([]);
+      setNewBannerFilesMobile([]);
+      setCurrentBanners(finalBanners);
+      setCurrentBannersMobile(finalBannersMobile);
       updateThemeColors({
         primary: formData.primary_color,
         secondary: formData.secondary_color,
         headerBg: formData.header_background_color,
       });
 
-      toast.success('Configurações salvas!', { id: toastId });
+      // não bloquear o salvamento aguardando o sync do catálogo: fire-and-forget
+      fetch('/api/public_catalogs/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          slug: formData.catalog_slug,
+          store_name: formData.name,
+          logo_url: logoUrl,
+          primary_color: formData.primary_color,
+          secondary_color: formData.secondary_color,
+          footer_background_color: formData.footer_background_color,
+          phone: formData.phone,
+          email: formData.email,
+          footer_message: formData.footer_message,
+          font_family: formData.font_family,
+          font_url: formData.font_url ?? null,
+          representative_name: formData.representative_name,
+          whatsapp_message_template: formData.whatsapp_message_template,
+          show_sale_price: finalShowSale,
+          show_cost_price: finalShowCost,
+          show_installments: finalShowInstallments,
+          max_installments: finalMaxInstallments,
+          show_cash_discount: finalShowCashDiscount,
+          cash_price_discount_percent: finalCashDiscountPercent,
+          manage_stock: finalEnableStock,
+          header_background_color: formData.header_background_color,
+          top_benefit_image_url: topBenefitImageUrl,
+          top_benefit_height: topBenefitHeight,
+          top_benefit_text_size: topBenefitTextSize,
+          top_benefit_bg_color: topBenefitBgColor,
+          top_benefit_text_color: topBenefitTextColor,
+          top_benefit_image_fit: topBenefitImageFit,
+          top_benefit_image_scale: topBenefitImageScale,
+          top_benefit_text_align: topBenefitTextAlign,
+          top_benefit_image_align: topBenefitImageAlign,
+          top_benefit_text: catalogSettings.top_benefit_text,
+          show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
+          is_active: isActive,
+        }),
+      }).catch((err) => console.error('Sync error (non-blocking):', err));
 
-      // Delay para garantir que o logo atualize visualmente
+      toast.success('Configurações salvas!', { id: toastId });
       setTimeout(() => window.location.reload(), 1000);
-    } catch (error: any) {
-      console.error(error);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro desconhecido';
       toast.error('Erro ao salvar', {
         id: toastId,
-        description: error.message,
+        description: errorMessage,
       });
     } finally {
       setSaving(false);
@@ -499,10 +687,34 @@ export default function SettingsPage() {
     { id: 'stock', label: 'Estoque', icon: Package },
   ];
 
-  // Se está na subpágina de otimização, não precisa renderizar o conteúdo principal
-  const isImagesSubPage =
-    typeof window !== 'undefined' &&
-    window.location.pathname.includes('/settings/images');
+  const isPro = formData.plan_type === 'pro';
+  const isMaster = planTypeHook === 'master';
+  const canCustomize = (isMaster || isPro) && allowCustomFonts;
+
+  // Helpers for Preview
+  const isValidHex = (hex?: string) =>
+    !!hex && /^#([0-9A-F]{3}|[0-9A-F]{6})$/i.test(hex);
+  const _validatedTopBg = isValidHex(topBenefitBgColor)
+    ? topBenefitBgColor
+    : '#f3f4f6';
+  const _validatedTopTextColor = isValidHex(topBenefitTextColor)
+    ? topBenefitTextColor
+    : formData.primary_color || '#b9722e';
+  const _validatedTopHeight = Math.min(
+    120,
+    Math.max(20, Number(topBenefitHeight || 36))
+  );
+  const _validatedTopTextSize = Math.min(
+    24,
+    Math.max(10, Number(topBenefitTextSize || 11))
+  );
+
+  // --- REINSERIDO AQUI ---
+  const previewErrors: string[] = [];
+  if (!isValidHex(topBenefitBgColor))
+    previewErrors.push('Cor de fundo inválida');
+  if (!isValidHex(topBenefitTextColor))
+    previewErrors.push('Cor do texto inválida');
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 p-4 sm:p-6 animate-in fade-in duration-500">
@@ -528,6 +740,35 @@ export default function SettingsPage() {
         </Button>
       </div>
 
+      {/* STATUS CARD: Loja Online / Offline */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 flex items-center gap-4">
+          <div
+            className={`h-10 w-10 flex items-center justify-center rounded-full ${isActive ? 'bg-green-50' : 'bg-red-50'}`}
+          >
+            <Power
+              className={`${isActive ? 'text-green-600' : 'text-red-600'} animate-pulse`}
+            />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-900 dark:text-white">
+              {isActive ? 'Loja Online' : 'Loja Offline'}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-slate-400">
+              Produtos públicos serão exibidos apenas quando Online.
+            </div>
+          </div>
+          <div className="ml-auto">
+            <button
+              onClick={() => setIsActive((v) => !v)}
+              className={`px-3 py-1 rounded-lg font-medium border ${isActive ? 'border-green-600 text-green-700 bg-green-50 hover:bg-green-100' : 'border-red-600 text-red-700 bg-red-50 hover:bg-red-100'}`}
+            >
+              {isActive ? 'Desativar' : 'Ativar'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* TABS */}
       <div className="border-b border-gray-200 dark:border-slate-800 overflow-x-auto scrollbar-hide">
         <nav className="-mb-px flex space-x-1">
@@ -537,7 +778,11 @@ export default function SettingsPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() =>
+                  setActiveTab(
+                    tab.id as 'general' | 'appearance' | 'display' | 'stock'
+                  )
+                }
                 className={`group flex items-center gap-2 py-4 px-4 border-b-2 font-medium text-sm transition-all whitespace-nowrap ${
                   isActive
                     ? 'border-[var(--primary)] text-[var(--primary)]'
@@ -559,121 +804,21 @@ export default function SettingsPage() {
         </nav>
       </div>
 
-      {/* --- CONTEÚDO DAS ABAS --- */}
-
-      {/* ABA: GERAL */}
+      {/* CONTEÚDO DAS ABAS */}
       {activeTab === 'general' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm md:col-span-2 space-y-6">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <Store size={18} className="text-[var(--primary)]" /> Dados
-              Básicos
-            </h3>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Nome da Loja
-                </label>
-                <input
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                  placeholder="Ex: Minha Loja Incrível"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block flex items-center gap-2">
-                  <Phone size={14} /> Telefone/WhatsApp
-                </label>
-                <input
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Email de Contato
-                </label>
-                <input
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                  placeholder="contato@loja.com"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <Lock size={18} className="text-[var(--primary)]" /> Acesso e
-              Links
-            </h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Link do Catálogo
-              </label>
-              <div className="flex rounded-lg shadow-sm">
-                <span className="bg-gray-100 dark:bg-slate-800 border border-r-0 border-gray-300 dark:border-slate-700 rounded-l-lg px-3 py-2.5 text-gray-500 text-sm hidden sm:flex items-center select-none">
-                  repvendas.com.br/catalogo/
-                </span>
-                <input
-                  type="text"
-                  name="catalog_slug"
-                  value={formData.catalog_slug}
-                  onChange={handleSlugChange}
-                  className="flex-1 p-2.5 border border-gray-300 dark:border-slate-700 rounded-r-lg sm:rounded-l-none rounded-l-lg focus:ring-2 focus:ring-[var(--primary)] outline-none font-mono text-[var(--primary)] font-bold bg-white dark:bg-slate-950"
-                  placeholder="minha-loja"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                Senha de Preços (Opcional)
-              </label>
-              <input
-                name="price_password"
-                value={formData.price_password}
-                onChange={handleChange}
-                className="w-full p-2.5 border rounded-lg font-mono bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                placeholder="Ex: 123456"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Se definido, o cliente precisará da senha para ver os preços.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <MessageSquare size={18} className="text-[var(--primary)]" />{' '}
-              Rodapé
-            </h3>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                Mensagem do Footer
-              </label>
-              <textarea
-                name="footer_message"
-                value={formData.footer_message}
-                onChange={handleChange}
-                className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none resize-none"
-                rows={4}
-                placeholder="Ex: Enviamos para todo o Brasil. Aceitamos Pix e Cartão."
-              />
-            </div>
-          </div>
-        </div>
+        <TabGeneral
+          formData={formData}
+          handleChange={handleChange}
+          handleSlugChange={handleSlugChange}
+          showPassword={showPricePassword}
+          onToggleShowPassword={() => setShowPricePassword((v) => !v)}
+        />
       )}
 
-      {/* ABA: APARÊNCIA */}
       {activeTab === 'appearance' && (
         <div className="grid gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
+          {/* ... conteúdo de aparência ... */}
+          {/* Use aqui o mesmo conteúdo visual de aparência ou o novo componente TabAppearance se tiver criado */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 mb-4">
               <Brush size={18} className="text-[var(--primary)]" /> Temas
@@ -752,6 +897,156 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* FONT SETTINGS */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2">
+                  <Type size={18} className="text-[var(--primary)]" /> Fonte do
+                  Catálogo
+                </h3>
+                {!isPro && (
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase">
+                    <Lock size={12} /> Recurso Premium
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      if (!canCustomize) return;
+                      const next = !useSystemFont;
+                      setUseSystemFont(next);
+                      if (next)
+                        setFormData((p) => ({
+                          ...p,
+                          font_family: null,
+                          font_url: null,
+                        }));
+                    }}
+                    className={`px-3 py-1 rounded-full text-sm font-bold transition-all ${useSystemFont ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-600'} ${!canCustomize ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={
+                      !canCustomize
+                        ? 'Fonte customizada desativada (política ou plano)'
+                        : ''
+                    }
+                  >
+                    {useSystemFont
+                      ? 'Usando fonte do sistema'
+                      : 'Fonte Customizada'}
+                  </button>
+
+                  {/* Upload de fonte - apenas se pode customizar */}
+                  <label
+                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium cursor-pointer border ${!canCustomize ? 'opacity-50 pointer-events-none' : ''}`}
+                  >
+                    <input
+                      type="file"
+                      accept=".woff2,.woff,.ttf,.otf"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        if (!canCustomize) return;
+                        const fd = new FormData();
+                        fd.append('file', f);
+                        fd.append(
+                          'name',
+                          f.name.replace(/\.(woff2|woff|ttf|otf)$/i, '')
+                        );
+                        try {
+                          const res = await fetch('/api/fonts/upload', {
+                            method: 'POST',
+                            body: fd,
+                          });
+                          const json = await res.json();
+                          if (json?.url) {
+                            const name =
+                              json.name ||
+                              f.name.replace(/\.(woff2|woff|ttf|otf)$/i, '');
+                            setFormData((p) => ({
+                              ...p,
+                              font_family: name,
+                              font_url: json.url,
+                            }));
+                            toast.success('Fonte carregada com sucesso!');
+                          } else {
+                            toast.error('Falha ao enviar a fonte');
+                          }
+                        } catch (err) {
+                          console.error('upload font error', err);
+                          toast.error('Erro no upload');
+                        }
+                      }}
+                    />
+                    <span className="text-xs">Enviar Fonte</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            {!useSystemFont && (
+              <div>
+                {formData.font_url && (
+                  <div className="mb-3 p-3 rounded-md bg-gray-50 dark:bg-slate-950 border border-gray-100 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium">Fonte Carregada</div>
+                      <div className="text-xs text-gray-500">
+                        {formData.font_family}
+                      </div>
+                    </div>
+                    <div>
+                      <button
+                        className="text-sm underline"
+                        onClick={() =>
+                          setFormData((p) => ({
+                            ...p,
+                            font_family: null,
+                            font_url: null,
+                          }))
+                        }
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!canCustomize && (
+                  <div className="mb-3 text-sm text-yellow-700 bg-yellow-50 p-3 rounded">
+                    Customização de fontes indisponível.{' '}
+                    <button
+                      className="underline font-bold"
+                      onClick={() =>
+                        window.open('/dashboard/billing', '_blank')
+                      }
+                    >
+                      Solicite upgrade
+                    </button>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {SYSTEM_FONTS.map((f) => (
+                    <button
+                      key={f.name}
+                      onClick={() =>
+                        canCustomize &&
+                        setFormData((p) => ({ ...p, font_family: f.name }))
+                      }
+                      style={{ fontFamily: f.family }}
+                      disabled={!canCustomize}
+                      className={`p-3 rounded-lg border transition-all text-left ${formData.font_family === f.name ? 'border-primary bg-primary/5' : 'border-gray-100 hover:border-gray-200'} ${!canCustomize ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="text-lg">Aa Bb Cc</div>
+                      <div className="text-[10px] font-bold text-gray-600 mt-1">
+                        {f.name}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
             <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
               <UploadCloud size={18} className="text-[var(--primary)]" /> Logo
@@ -814,7 +1109,6 @@ export default function SettingsPage() {
                   key={`cur-${i}`}
                   className="relative h-32 bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden group shadow-sm border border-gray-200 dark:border-slate-700"
                 >
-                  {}
                   <img
                     src={b}
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
@@ -832,20 +1126,18 @@ export default function SettingsPage() {
                   </button>
                 </div>
               ))}
-              {/* Previews das novas imagens selecionadas (antes de salvar) */}
               {newBannerFiles.map((nb, idx) => (
                 <div
                   key={`new-${idx}`}
                   className="relative h-32 bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden group shadow-sm border border-dashed border-gray-300 dark:border-slate-700 flex items-center justify-center"
                 >
-                  {}
                   <img
                     src={nb.preview}
                     className="w-full h-full object-cover"
                     alt={`Preview ${idx}`}
                   />
                   <div className="absolute left-2 top-2 bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    Novo
+                    Lançamento
                   </div>
                   <button
                     onClick={() => removeNewBanner(idx)}
@@ -881,173 +1173,559 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* OTIMIZAÇÃO DE IMAGENS */}
-          <div className="bg-gradient-to-br from-[var(--primary)]/10 to-purple-50 dark:from-[var(--primary)]/20 dark:to-purple-950/30 p-6 rounded-xl border border-[var(--primary)]/30 dark:border-[var(--primary)]/40 shadow-sm">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 rounded-xl">
-                <Zap
-                  size={24}
-                  className="text-[var(--primary)] dark:text-[var(--primary)]"
-                />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                  Otimização de Imagens
-                  <span className="text-xs bg-[var(--primary)] text-white px-2 py-0.5 rounded-full">
-                    Novo
-                  </span>
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Converta automaticamente suas imagens para WebP, gere versões
-                  responsivas e reduza até 80% do tamanho. Melhore a performance
-                  do seu catálogo!
-                </p>
-                <a
-                  href="/dashboard/settings/images"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm font-medium transition-all shadow-sm"
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
+                <ImageIcon size={18} className="text-[var(--primary)]" />{' '}
+                Banners Mobile (Opcional)
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                Se não adicionar banners mobile, os banners desktop serão
+                exibidos com ajuste responsivo.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {currentBannersMobile.map((b, i) => (
+                <div
+                  key={`cur-mobile-${i}`}
+                  className="relative h-32 bg-gray-100 dark:bg-slate-800 rounded-xl overflow-hidden group shadow-sm border border-gray-200 dark:border-slate-700"
                 >
-                  <Zap size={16} /> Abrir Painel de Otimização
-                </a>
-              </div>
+                  <img
+                    src={b}
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    alt="Banner Mobile"
+                  />
+                  <button
+                    onClick={() =>
+                      setCurrentBannersMobile((prev) =>
+                        prev.filter((_, idx) => idx !== i)
+                      )
+                    }
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 shadow-md hover:bg-red-600 transition-all scale-90 group-hover:scale-100"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              {newBannerFilesMobile.map((nb, idx) => (
+                <div
+                  key={`new-mobile-${idx}`}
+                  className="relative h-32 bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden group shadow-sm border border-dashed border-gray-300 dark:border-slate-700 flex items-center justify-center"
+                >
+                  <img
+                    src={nb.preview}
+                    className="w-full h-full object-cover"
+                    alt={`Preview mobile ${idx}`}
+                  />
+                  <div className="absolute left-2 top-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    Mobile Lançamento
+                  </div>
+                  <button
+                    onClick={() => removeNewBannerMobile(idx)}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg shadow-md hover:bg-red-600 transition-all"
+                  >
+                    <X size={14} />
+                  </button>
+                  {nb.tooSmall && (
+                    <div className="absolute bottom-2 left-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5 rounded">
+                      Abaixo do recomendado
+                    </div>
+                  )}
+                </div>
+              ))}
+              <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 hover:border-[var(--primary)]/50 transition-all group">
+                <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-[var(--primary)]/10 group-hover:text-[var(--primary)] transition-colors mb-2">
+                  <Plus
+                    size={24}
+                    className="text-gray-400 group-hover:text-[var(--primary)]"
+                  />
+                </div>
+                <span className="text-xs font-medium text-gray-500 dark:text-slate-400 group-hover:text-[var(--primary)]">
+                  Banner Mobile
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBannerMobileUpload}
+                />
+              </label>
             </div>
           </div>
         </div>
       )}
 
-      {/* ABA: EXIBIÇÃO */}
       {activeTab === 'display' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="grid gap-4">
-            <ToggleSetting
-              label="Mostrar Parcelamento"
-              name="show_installments"
-              description="Exibe 'ou 12x de R$' nos produtos."
-              checked={catalogSettings.show_installments}
-              onChange={handleCatalogSettingsChange}
-              icon={CreditCard}
-            >
-              <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Máximo de Parcelas
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="24"
-                  name="max_installments"
-                  value={catalogSettings.max_installments}
-                  onChange={handleCatalogSettingsChange}
-                  className="w-24 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                />
-              </div>
-            </ToggleSetting>
+          <ToggleSetting
+            label="Barra de Benefícios"
+            name="show_top_benefit_bar"
+            description="Faixa colorida no topo da loja."
+            checked={catalogSettings.show_top_benefit_bar}
+            onChange={handleCatalogSettingsChange}
+            icon={DollarSign}
+          >
+            <div>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                Texto da Barra
+              </label>
+              <input
+                type="text"
+                name="top_benefit_text"
+                value={catalogSettings.top_benefit_text}
+                onChange={handleCatalogSettingsChange}
+                placeholder="Ex: Frete Grátis para todo Brasil!"
+                className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
+              />
 
-            <ToggleSetting
-              label="Barra de Benefícios"
-              name="show_top_benefit_bar"
-              description="Faixa colorida no topo da loja."
-              checked={catalogSettings.show_top_benefit_bar}
-              onChange={handleCatalogSettingsChange}
-              icon={DollarSign}
-            >
-              <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Texto da Barra
-                </label>
-                <input
-                  type="text"
-                  name="top_benefit_text"
-                  value={catalogSettings.top_benefit_text}
-                  onChange={handleCatalogSettingsChange}
-                  placeholder="Ex: Frete Grátis para todo Brasil!"
-                  className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                />
-              </div>
-            </ToggleSetting>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Imagem (opcional)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-40 bg-gray-50 dark:bg-slate-900 rounded-lg border flex items-center justify-center overflow-hidden">
+                      {topBenefitImagePreview ? (
+                        <img
+                          src={topBenefitImagePreview}
+                          className="h-full w-full object-contain"
+                          alt="Top Benefit"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-400">
+                          Sem imagem
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label
+                        htmlFor="top-benefit-upload"
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg text-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                      >
+                        <UploadCloud size={14} /> Escolher
+                      </label>
+                      {topBenefitImagePreview && (
+                        <button
+                          onClick={removeTopBenefitImage}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Remover
+                        </button>
+                      )}
+                      <input
+                        id="top-benefit-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleTopBenefitImageChange}
+                        className="hidden"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Estilos
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 items-center">
+                    <div>
+                      <label className="text-xs text-gray-500">
+                        Altura (px)
+                      </label>
+                      <input
+                        type="number"
+                        min={20}
+                        max={120}
+                        value={topBenefitHeight}
+                        onChange={(e) =>
+                          setTopBenefitHeight(Number(e.target.value))
+                        }
+                        className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">
+                        Tamanho do texto (px)
+                      </label>
+                      <input
+                        type="number"
+                        min={10}
+                        max={24}
+                        value={topBenefitTextSize}
+                        onChange={(e) =>
+                          setTopBenefitTextSize(Number(e.target.value))
+                        }
+                        className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">
+                        Cor de Fundo
+                      </label>
+                      <input
+                        type="color"
+                        value={topBenefitBgColor}
+                        onChange={(e) => setTopBenefitBgColor(e.target.value)}
+                        className="w-full h-10 rounded cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">
+                        Cor do Texto
+                      </label>
+                      <input
+                        type="color"
+                        value={topBenefitTextColor}
+                        onChange={(e) => setTopBenefitTextColor(e.target.value)}
+                        className="w-full h-10 rounded cursor-pointer"
+                      />
+                    </div>
 
-            <ToggleSetting
-              label="Tag de Desconto à Vista"
-              name="show_discount_tag"
-              description="Mostra selo de % OFF."
-              checked={catalogSettings.show_discount_tag}
-              onChange={handleCatalogSettingsChange}
-              icon={Tag}
-            >
-              <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                  Percentual (%)
-                </label>
-                <div className="relative w-32">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    name="cash_price_discount_percent"
-                    value={catalogSettings.cash_price_discount_percent}
-                    onChange={handleCatalogSettingsChange}
-                    className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white pr-8 focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                  />
-                  <span className="absolute right-3 top-2.5 text-gray-400 font-bold">
-                    %
-                  </span>
+                    {/* Novos controles de imagem */}
+                    {topBenefitImagePreview && (
+                      <>
+                        <div>
+                          <label className="text-xs text-gray-500">
+                            Ajuste da Imagem
+                          </label>
+                          <select
+                            value={topBenefitImageFit}
+                            onChange={(e) =>
+                              setTopBenefitImageFit(
+                                e.target.value as 'cover' | 'contain'
+                              )
+                            }
+                            className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white text-sm"
+                          >
+                            <option value="cover">Preencher (Cover)</option>
+                            <option value="contain">Ajustar (Contain)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">
+                            Escala ({topBenefitImageScale}%)
+                          </label>
+                          <input
+                            type="range"
+                            min={50}
+                            max={200}
+                            step={5}
+                            value={topBenefitImageScale}
+                            onChange={(e) =>
+                              setTopBenefitImageScale(Number(e.target.value))
+                            }
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">
+                            Alinhamento da Imagem
+                          </label>
+                          <select
+                            value={topBenefitImageAlign}
+                            onChange={(e) =>
+                              setTopBenefitImageAlign(
+                                e.target.value as 'left' | 'center' | 'right'
+                              )
+                            }
+                            className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white text-sm"
+                          >
+                            <option value="left">Esquerda</option>
+                            <option value="center">Centro</option>
+                            <option value="right">Direita</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    <div>
+                      <label className="text-xs text-gray-500">
+                        Alinhamento do Texto
+                      </label>
+                      <select
+                        value={topBenefitTextAlign}
+                        onChange={(e) =>
+                          setTopBenefitTextAlign(
+                            e.target.value as 'left' | 'center' | 'right'
+                          )
+                        }
+                        className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white text-sm"
+                      >
+                        <option value="left">Esquerda</option>
+                        <option value="center">Centro</option>
+                        <option value="right">Direita</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </ToggleSetting>
+            </div>
+          </ToggleSetting>
 
-            <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm mb-4">
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+              Preview: Barra de Benefícios
+            </h4>
+            <div className="mb-3">
+              <div
+                className="w-full flex items-center"
+                style={{
+                  backgroundColor: _validatedTopBg,
+                  height: _validatedTopHeight,
+                  color: _validatedTopTextColor,
+                  fontSize: _validatedTopTextSize,
+                  padding: '0 12px',
+                  display: catalogSettings.show_top_benefit_bar
+                    ? 'flex'
+                    : 'none',
+                  justifyContent:
+                    topBenefitImageAlign === 'center'
+                      ? 'center'
+                      : topBenefitImageAlign === 'right'
+                        ? 'flex-end'
+                        : 'flex-start',
+                  gap: '12px',
+                }}
+              >
+                {topBenefitImagePreview ? (
+                  catalogSettings.top_benefit_text ? (
+                    <>
+                      <div
+                        className="flex-shrink-0 overflow-hidden rounded"
+                        style={{
+                          maxHeight: _validatedTopHeight,
+                          width: 'auto',
+                          height: `${topBenefitImageScale}%`,
+                        }}
+                      >
+                        <img
+                          src={topBenefitImagePreview}
+                          alt="preview"
+                          className="h-full w-auto"
+                          style={{
+                            objectFit: topBenefitImageFit,
+                            maxHeight: '100%',
+                          }}
+                        />
+                      </div>
+                      <div
+                        className="flex-1 px-3 py-2"
+                        style={{
+                          textAlign: topBenefitTextAlign,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent:
+                            topBenefitTextAlign === 'center'
+                              ? 'center'
+                              : topBenefitTextAlign === 'right'
+                                ? 'flex-end'
+                                : 'flex-start',
+                        }}
+                      >
+                        <span className="font-bold block">
+                          {catalogSettings.top_benefit_text ||
+                            'Ex: Frete Grátis para todo Brasil!'}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <img
+                      src={topBenefitImagePreview}
+                      alt="preview"
+                      className="h-full w-auto"
+                      style={{
+                        objectFit: topBenefitImageFit,
+                        maxHeight: `${topBenefitImageScale}%`,
+                      }}
+                    />
+                  )
+                ) : (
+                  <div
+                    className="flex items-center gap-2 w-full"
+                    style={{
+                      justifyContent:
+                        topBenefitTextAlign === 'center'
+                          ? 'center'
+                          : topBenefitTextAlign === 'right'
+                            ? 'flex-end'
+                            : 'flex-start',
+                    }}
+                  >
+                    <span className="font-bold">
+                      {catalogSettings.top_benefit_text ||
+                        'Ex: Frete Grátis para todo Brasil!'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {!catalogSettings.show_top_benefit_bar && (
+                <div className="text-sm text-gray-500 mt-2">
+                  A barra está desativada (marque "Barra de Benefícios" para
+                  visualizar).
+                </div>
+              )}
+            </div>
+            <div className="mt-4">
+              <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Preview Mobile
+              </h5>
+              <div className="w-[360px] rounded-lg overflow-hidden border border-gray-200 dark:border-slate-800">
+                <div
+                  style={{
+                    backgroundColor: _validatedTopBg,
+                    height: _validatedTopHeight,
+                    color: _validatedTopTextColor,
+                    fontSize: _validatedTopTextSize,
+                    display: catalogSettings.show_top_benefit_bar
+                      ? 'flex'
+                      : 'none',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                  }}
+                >
+                  {topBenefitImagePreview ? (
+                    <>
+                      <img
+                        src={topBenefitImagePreview}
+                        alt="mobile preview"
+                        className="absolute inset-0 w-full h-full object-cover"
+                        style={{ objectFit: 'cover' }}
+                      />
+                      <div className="relative z-10 px-3 text-center font-bold">
+                        {catalogSettings.top_benefit_text ||
+                          'Ex: Frete Grátis para todo Brasil!'}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="font-bold">
+                      {catalogSettings.top_benefit_text ||
+                        'Ex: Frete Grátis para todo Brasil!'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            {previewErrors.length > 0 && (
+              <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                <strong>Atenção:</strong>
+                <ul className="list-disc ml-5 mt-2">
+                  {previewErrors.map((err) => (
+                    <li key={err}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <DollarSign size={20} className="text-[var(--primary)]" /> Tipo de
+              Preço
+            </h3>
+            <div className="space-y-3">
               <ToggleSetting
-                label="Mostrar Preço de Venda"
+                label="Modo Preço de Venda"
                 name="show_sale_price"
-                description="Exibe o preço sugerido."
-                checked={catalogSettings.show_sale_price ?? true}
-                onChange={handleCatalogSettingsChange}
+                description="Usa o preço de venda ao invés do preço de custo."
+                checked={catalogSettings.show_sale_price}
+                onChange={() => handlePriceTypeChange('sale')}
                 icon={DollarSign}
               />
+
               <ToggleSetting
-                label="Mostrar Preço de Custo"
+                label="Mostrar Preço de Custo (Tabela)"
                 name="show_cost_price"
-                description="Apenas para uso interno."
-                checked={catalogSettings.show_cost_price ?? false}
-                onChange={handleCatalogSettingsChange}
-                icon={Lock}
+                description="Exibe o preço de custo nos produtos."
+                checked={catalogSettings.show_cost_price}
+                onChange={() => handlePriceTypeChange('cost')}
+                icon={Tag}
               />
+
+              {catalogSettings.show_sale_price && (
+                <div className="mt-3 space-y-3">
+                  <ToggleSetting
+                    label="Mostrar Parcelamento"
+                    name="show_installments"
+                    description="Exibe 'ou 12x de R$' nos produtos."
+                    checked={catalogSettings.show_installments}
+                    onChange={handleCatalogSettingsChange}
+                    icon={CreditCard}
+                  >
+                    <div>
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                        Máximo de Parcelas
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={24}
+                        name="max_installments"
+                        value={catalogSettings.max_installments}
+                        onChange={handleCatalogSettingsChange}
+                        className="w-24 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                      />
+                    </div>
+                  </ToggleSetting>
+
+                  <ToggleSetting
+                    label="Tag de Desconto à Vista"
+                    name="show_discount_tag"
+                    description="Mostra selo de % OFF."
+                    checked={catalogSettings.show_discount_tag}
+                    onChange={handleCatalogSettingsChange}
+                    icon={Tag}
+                  >
+                    <div>
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                        Percentual (%)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        name="cash_price_discount_percent"
+                        value={catalogSettings.cash_price_discount_percent}
+                        onChange={handleCatalogSettingsChange}
+                        className="w-24 p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                      />
+                    </div>
+                  </ToggleSetting>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ABA: ESTOQUE */}
       {activeTab === 'stock' && (
-        <div className="grid grid-cols-1 gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-              <Package size={18} className="text-[var(--primary)]" /> Controle
-              de Estoque
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
+              Configurações de Estoque
             </h3>
-            <div className="space-y-6">
-              <ToggleSetting
-                label="Ativar Gestão de Estoque"
-                name="enable_stock_management"
-                description="Habilita o controle de quantidades."
-                checked={catalogSettings.enable_stock_management}
-                onChange={handleCatalogSettingsChange}
-                icon={Package}
-              >
-                <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-xl mt-2">
-                  <h4 className="text-sm font-bold text-yellow-800 dark:text-yellow-500 flex items-center gap-2 mb-3">
-                    <AlertTriangle size={16} /> Venda sem Estoque
-                  </h4>
-                  <ToggleSetting
-                    label="Permitir Backorder"
-                    name="global_allow_backorder"
-                    description="Permite vender mesmo com estoque zerado."
-                    checked={catalogSettings.global_allow_backorder}
-                    onChange={handleCatalogSettingsChange}
-                    icon={Zap}
-                  />
-                </div>
-              </ToggleSetting>
-            </div>
+            <ToggleSetting
+              label="Controle de Estoque"
+              name="manage_stock"
+              description="Habilita o controle de quantidades."
+              checked={catalogSettings.manage_stock}
+              onChange={handleCatalogSettingsChange}
+              icon={Package}
+            >
+              <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-xl mt-2">
+                <h4 className="text-sm font-bold text-yellow-800 dark:text-yellow-500 flex items-center gap-2 mb-3">
+                  <AlertTriangle size={16} /> Venda sem Estoque
+                </h4>
+                <ToggleSetting
+                  label="Permitir Backorder"
+                  name="global_allow_backorder"
+                  description="Permite vender mesmo com estoque zerado."
+                  checked={catalogSettings.global_allow_backorder}
+                  onChange={handleCatalogSettingsChange}
+                  icon={Zap}
+                />
+              </div>
+            </ToggleSetting>
           </div>
         </div>
       )}

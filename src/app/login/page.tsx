@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   Eye,
@@ -13,316 +13,239 @@ import {
 } from 'lucide-react';
 import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
-import { loginWithGoogle, login } from '@/app/login/actions';
-
-// Botão Local estilizado para a página de Login (para manter a identidade da marca)
-const LoginButton = ({
-  children,
-  className = '',
-  disabled = false,
-  loading = false,
-  onClick,
-  type = 'button',
-  variant = 'primary',
-}: {
-  children: React.ReactNode;
-  className?: string;
-  disabled?: boolean;
-  loading?: boolean;
-  onClick?: () => void;
-  type?: 'button' | 'submit';
-  variant?: 'primary' | 'google';
-}) => {
-  const baseStyle =
-    'flex w-full items-center justify-center rounded-xl px-4 py-3.5 font-bold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 active:scale-[0.98]';
-
-  const variants = {
-    primary:
-      'bg-[#b9722e] text-white hover:bg-[#a06328] focus:ring-[#b9722e] shadow-orange-900/10',
-    google:
-      'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 focus:ring-gray-200 hover:border-gray-300',
-  };
-
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled || loading}
-      className={`${baseStyle} ${variants[variant]} ${className}`}
-    >
-      {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : children}
-    </button>
-  );
-};
+import { login, loginWithGoogle } from './actions';
+import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [isPending, startTransition] = useTransition();
-
-  // Processar mensagens de erro/sucesso vindas da URL (Server Actions redirects)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const sp = new URLSearchParams(window.location.search);
-
-    const msgType = sp.get('message_type');
-    const msgText = sp.get('message_text');
-    const message = sp.get('message');
-
-    if (msgType && msgText) {
-      if (msgType === 'success') toast.success(msgText);
-      else toast.error(msgText);
-      // Limpa a URL
-      window.history.replaceState({}, '', window.location.pathname);
-      return;
+  const isNextRedirect = (err: unknown) => {
+    try {
+      if (!err || typeof err !== 'object') return false;
+      // @ts-ignore
+      const d = (err as any).digest || (err as any).message;
+      return typeof d === 'string' && d.startsWith('NEXT_REDIRECT');
+    } catch {
+      return false;
     }
-
-    if (message) {
-      if (message.includes('realizado') || message.includes('Verifique')) {
-        toast.success(message);
-      } else {
-        toast.error(message);
-      }
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    // Validação Cliente
-    if (isPending || googleLoading) {
-      e.preventDefault();
-      return;
-    }
-
-    const emailTrim = String(email || '').trim();
-    if (!emailTrim) {
-      e.preventDefault();
-      setError('Por favor, informe seu e-mail.');
-      return;
-    }
-
-    if (!password || !String(password).trim()) {
-      e.preventDefault();
-      setError('Por favor, informe sua senha.');
-      return;
-    }
-
-    setError('');
-
-    // Inicia transição para o Server Action
-    // O formulário prossegue com o submit nativo (action={login})
-    // O startTransition aqui serve apenas para setar o estado de loading da UI
-    startTransition(() => {
-      // O estado isPending ficará true enquanto a Server Action processa
-    });
   };
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleGoogleLogin = async () => {
-    if (isPending || googleLoading) return;
     setGoogleLoading(true);
-    setError('');
-    try {
-      await loginWithGoogle();
-    } catch (e) {
-      const message =
-        e instanceof Error ? e.message : 'Erro ao autenticar com Google';
-      toast.error(message);
+    const result = await loginWithGoogle();
+    if (result?.url) {
+      // Try popup first to keep user on the page. If popup is blocked, fall back to full redirect.
+      const popup = window.open(
+        result.url,
+        'supabase_oauth',
+        'width=600,height=700,menubar=no,toolbar=no'
+      );
+      if (!popup) {
+        // popup blocked -> redirect
+        window.location.href = result.url;
+      }
+    } else {
+      toast.error(result?.error || 'Erro no Google');
       setGoogleLoading(false);
     }
   };
 
-  const isLoading = isPending || googleLoading;
+  // Listener para receber mensagem do popup de autorização
+  useEffect(() => {
+    const handleMessage = async (e: MessageEvent) => {
+      try {
+        if (!e?.data || e.data.type !== 'supabase.auth.callback') return;
+        const hash = String(e.data.hash || '');
+        if (!hash) return;
+
+        const params = new URLSearchParams(hash.replace(/^#/, ''));
+        const access_token = params.get('access_token');
+        const refresh_token = params.get('refresh_token');
+
+        const supabase = createClient();
+        if (access_token) {
+          // Prefer setSession when available
+          if (
+            supabase.auth &&
+            typeof (supabase.auth as any).setSession === 'function'
+          ) {
+            await (supabase.auth as any).setSession({
+              access_token,
+              refresh_token,
+            });
+          }
+          window.location.reload();
+        }
+      } catch (err) {
+        if (!isNextRedirect(err))
+          console.error('Erro ao processar mensagem de auth:', err);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  // Caso o fluxo use redirect (hash presente no carregamento), tente consumir a sessão
+  useEffect(() => {
+    (async () => {
+      try {
+        const hash = window.location.hash || '';
+        if (!hash) return;
+        const params = new URLSearchParams(hash.replace(/^#/, ''));
+        const access_token = params.get('access_token');
+        const refresh_token = params.get('refresh_token');
+        if (!access_token) return;
+        const supabase = createClient();
+        if (
+          supabase.auth &&
+          typeof (supabase.auth as any).setSession === 'function'
+        ) {
+          await (supabase.auth as any).setSession({
+            access_token,
+            refresh_token,
+          });
+          // limpar hash para evitar reprocessing
+          history.replaceState(
+            null,
+            '',
+            window.location.pathname + window.location.search
+          );
+          window.location.reload();
+        }
+      } catch (err) {
+        if (!isNextRedirect(err))
+          console.error('Erro ao processar redirect OAuth:', err);
+      }
+    })();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFormError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await login(null, formData);
+
+    if (result?.success) {
+      toast.success('Entrando no sistema...');
+      window.location.href = result.redirectTo;
+    } else {
+      setFormError(result?.error || 'Falha na autenticação');
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen w-full overflow-hidden font-sans bg-[#0d1b2c]">
-      {/* COLUNA ESQUERDA: Onboarding / Marketing */}
-      <div className="hidden flex-1 lg:block relative animate-in fade-in duration-700">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0d1b2c]/90 to-[#0d1b2c]/40 z-10 pointer-events-none"></div>
+      <div className="hidden flex-1 lg:block relative">
         <LoginOnboarding />
       </div>
-
-      {/* COLUNA DIREITA: Formulário */}
       <div className="flex flex-1 items-center justify-center p-4 lg:p-12 bg-gray-50 dark:bg-[#0b1623] relative">
-        {/* Fundo decorativo sutil */}
-        <div
-          className="absolute inset-0 opacity-5 pointer-events-none"
-          style={{
-            backgroundImage: 'radial-gradient(#b9722e 1px, transparent 1px)',
-            backgroundSize: '30px 30px',
-          }}
-        ></div>
-
-        <div className="w-full max-w-[440px] z-10 animate-in slide-in-from-bottom-8 duration-500 fade-in">
-          <div className="bg-white rounded-3xl p-8 shadow-2xl ring-1 ring-gray-100 sm:p-12 relative overflow-hidden">
-            {/* Loading Overlay */}
-            {isLoading && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm animate-in fade-in duration-200">
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#b9722e]" />
-                  <span className="text-sm font-medium text-gray-600">
-                    Autenticando...
-                  </span>
-                </div>
+        <div className="w-full max-w-[440px] z-10">
+          <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-gray-100 sm:p-12 relative overflow-hidden">
+            {(isSubmitting || googleLoading) && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+                <Loader2 className="h-10 w-10 animate-spin text-[#b9722e] mb-4" />
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                  Validando Acesso...
+                </p>
               </div>
             )}
 
-            {/* Cabeçalho do Card */}
             <div className="mb-10 text-center">
-              <div className="flex justify-center mb-6">
-                <Logo useSystemLogo={true} className="h-14" />
-              </div>
-              <h2 className="text-2xl font-bold tracking-tight text-[#0d1b2c]">
+              <Logo useSystemLogo className="h-12 mx-auto mb-4" />
+              <h2 className="text-2xl font-black text-[#0d1b2c]">
                 Bem-vindo de volta
               </h2>
-              <p className="mt-2 text-sm text-gray-500">
-                Acesse seu painel para gerenciar suas vendas.
-              </p>
             </div>
 
-            {/* Botão Google */}
-            <div className="mb-8">
-              <LoginButton
-                type="button"
-                variant="google"
-                onClick={handleGoogleLogin}
-                loading={googleLoading}
-                disabled={isLoading}
-              >
-                {!googleLoading && (
-                  <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                )}
-                Continuar com Google
-              </LoginButton>
-            </div>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-gray-100 bg-white py-3.5 font-bold text-gray-700 hover:bg-gray-50 transition-all"
+            >
+              {/* Imagem do Google (local) - evita falhas offline */}
+              <img
+                src="/images/google.svg"
+                className="h-5 w-5"
+                alt="Google"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    '/images/default-logo.png';
+                }}
+              />
+              Continuar com Google
+            </button>
 
-            <div className="relative mb-8">
+            <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
+                <div className="w-full border-t border-gray-100" />
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-400 font-medium tracking-wider">
-                  Ou entre com email
+              <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
+                <span className="bg-white px-4 text-gray-300">
+                  Ou use sua conta
                 </span>
               </div>
             </div>
 
-            {/* Formulário de Email */}
-            <form action={login} onSubmit={handleSubmit} className="space-y-5">
-              {error && (
-                <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 animate-in slide-in-from-top-2">
-                  <AlertCircle size={18} className="shrink-0" />
-                  <p>{error}</p>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {formError && (
+                <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-bold text-red-600">
+                  <AlertCircle size={18} />
+                  <p>{formError}</p>
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-gray-700 ml-1">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                   Email
                 </label>
-                <div className="relative group">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-[#b9722e] transition-colors" />
-                  </div>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-300" />
                   <input
                     name="email"
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
-                    className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-3 text-gray-900 placeholder:text-gray-400 focus:border-[#b9722e] focus:bg-white focus:ring-2 focus:ring-[#b9722e]/20 transition-all outline-none"
-                    placeholder="exemplo@empresa.com"
-                    autoComplete="email"
+                    required
+                    className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 py-4 pl-12 pr-4 outline-none focus:border-[#b9722e]/30 transition-all"
+                    placeholder="seu@email.com"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between ml-1">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Senha
-                  </label>
-                  <button
-                    type="button"
-                    disabled={isLoading}
-                    className="text-xs font-medium text-[#b9722e] hover:text-[#a06328] hover:underline disabled:opacity-50"
-                  >
-                    Esqueceu a senha?
-                  </button>
-                </div>
-                <div className="relative group">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-[#b9722e] transition-colors" />
-                  </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-300" />
                   <input
                     name="password"
                     type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-11 text-gray-900 placeholder:text-gray-400 focus:border-[#b9722e] focus:bg-white focus:ring-2 focus:ring-[#b9722e]/20 transition-all outline-none"
+                    required
+                    className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 py-4 pl-12 pr-12 outline-none focus:border-[#b9722e]/30 transition-all"
                     placeholder="••••••••"
-                    autoComplete="current-password"
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                     onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300"
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
               </div>
 
-              <div className="pt-2">
-                <LoginButton
-                  type="submit"
-                  loading={isPending}
-                  disabled={isLoading}
-                  variant="primary"
-                >
-                  Acessar Sistema <ArrowRight className="ml-2 h-4 w-4" />
-                </LoginButton>
-              </div>
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center rounded-2xl bg-[#b9722e] py-4 font-black text-white hover:bg-[#a06328] transition-all shadow-xl shadow-[#b9722e]/20"
+              >
+                ACESSAR SISTEMA <ArrowRight className="ml-2 h-5 w-5" />
+              </button>
             </form>
-
-            <div className="mt-8 text-center border-t border-gray-100 pt-6">
-              <p className="text-xs text-gray-400">
-                Não tem uma conta?{' '}
-                <a
-                  href="#"
-                  className="font-semibold text-[#b9722e] hover:underline"
-                >
-                  Cadastre-se
-                </a>
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 text-center">
-            <p className="text-xs text-gray-400">
-              © 2025 Rep Vendas. Todos os direitos reservados.
-            </p>
           </div>
         </div>
       </div>

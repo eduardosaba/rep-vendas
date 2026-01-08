@@ -31,6 +31,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = 'profiles' AND p.policyname = 'Users can select own profile'
   ) THEN
+DROP POLICY IF EXISTS "Users can select own profile" ON public.profiles;
     EXECUTE 'CREATE POLICY "Users can select own profile" ON public.profiles FOR SELECT USING ((auth.uid() = id) OR is_master())';
   END IF;
 
@@ -38,6 +39,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = 'profiles' AND p.policyname = 'Users can update own profile'
   ) THEN
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
     EXECUTE 'CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING ((auth.uid() = id) OR is_master()) WITH CHECK ((auth.uid() = id) OR is_master())';
   ELSE
     -- Se policy existir, garantir que exista WITH CHECK (em caso de política criada sem)
@@ -48,6 +50,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = 'profiles' AND p.policyname = 'Users can insert own profile'
   ) THEN
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
     EXECUTE 'CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id)';
   END IF;
 END;

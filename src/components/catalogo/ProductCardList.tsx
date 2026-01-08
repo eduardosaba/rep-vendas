@@ -140,11 +140,12 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
                         </span>
                       )}
                     </div>
-                    {settings?.show_installments && (
-                      <div className="mt-1 text-xs text-green-600">
-                        12x de R$ {formatPrice(salePrice / 12)} sem juros
-                      </div>
-                    )}
+                    {settings?.show_installments &&
+                      settings?.show_sale_price && (
+                        <div className="mt-1 text-xs text-green-600">
+                          12x de R$ {formatPrice(salePrice / 12)} sem juros
+                        </div>
+                      )}
                   </>
                 ) : (
                   <div className="mb-1">

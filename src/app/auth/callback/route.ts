@@ -1,40 +1,34 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server'; // O seu cliente server-side
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  // Se houver um parâmetro "next", usamos para redirecionar depois (ex: /dashboard)
+  // Se houver um 'next' nos params, usamos para o redirecionamento, senão vamos para o dashboard
   const next = searchParams.get('next') ?? '/dashboard';
 
   if (code) {
-    const ensureSupabaseEnv = () => {
-      if (
-        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      ) {
-         
-        console.error(
-          'Faltam variáveis de ambiente Supabase: NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
-        );
-        throw new Error(
-          'Configuração inválida: verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
-        );
-      }
-    };
-
-    ensureSupabaseEnv();
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    // 1. Troca o código temporário por uma sessão real de usuário
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error) {
-      // Login com sucesso, redireciona para o dashboard
-      return NextResponse.redirect(`${origin}${next}`);
+    if (!error && data?.user) {
+      // 2. Opcional: Verificar o perfil para redirecionar Master vs Representante
+      // Como é um login social, garantimos que o perfil exista
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      // Se for master, forçamos o redirecionamento para o admin
+      const finalRedirect = profile?.role === 'master' ? '/admin' : next;
+
+      return NextResponse.redirect(`${origin}${finalRedirect}`);
     }
   }
 
-  // Se der erro, volta para o login com mensagem
-  return NextResponse.redirect(
-    `${origin}/login?message=Erro ao autenticar com Google`
-  );
+  // Em caso de erro, mandamos o usuário de volta para o login com uma mensagem
+  return NextResponse.redirect(`${origin}/login?error=auth-code-error`);
 }

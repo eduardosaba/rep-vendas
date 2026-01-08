@@ -11,14 +11,24 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
     const result = await createOrder(
       storeOwnerId,
       customer,
       cartItems as any[]
     );
+    if (!result || result.success === false) {
+      console.error('create-order failed', {
+        body: {
+          storeOwnerId,
+          cartItemsLength: Array.isArray(cartItems) ? cartItems.length : 0,
+        },
+        result,
+      });
+      return NextResponse.json(result, { status: 500 });
+    }
     return NextResponse.json(result);
   } catch (error: any) {
+    console.error('create-order route error', { error });
     return NextResponse.json(
       { success: false, message: error?.message || 'Error' },
       { status: 500 }

@@ -5,34 +5,20 @@ import {
   useContext,
   useState,
   useEffect,
+  useMemo,
   ReactNode,
 } from 'react';
-import { useToast } from '@/hooks/useToast';
+import { toast } from 'sonner';
 import type {
-  Product as LibProduct,
-  Toast,
+  Product,
   Settings as StoreSettings,
+  PublicCatalog,
+  CartItem,
+  CustomerInfo,
+  BrandWithLogo,
 } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
-
-export type Product = LibProduct;
-
-export interface CartItem extends LibProduct {
-  quantity: number;
-}
-
-export interface BrandWithLogo {
-  name: string;
-  logo_url: string | null;
-}
-
-export interface CustomerInfo {
-  name: string;
-  phone: string;
-  email: string;
-  cnpj: string;
-}
 
 interface StoreProviderProps {
   children: ReactNode;
@@ -47,38 +33,37 @@ interface StoreContextType {
   cart: CartItem[];
   favorites: string[];
   isPricesVisible: boolean;
-  setIsPricesVisible: (visible: boolean) => void;
+  setIsPricesVisible: (v: boolean) => void;
+  showPrices: boolean;
+  toggleShowPrices: () => void;
   displayProducts: Product[];
   totalProducts: number;
   currentPage: number;
   totalPages: number;
-  setCurrentPage: (page: number) => void;
+  setCurrentPage: (p: number) => void;
   viewMode: 'grid' | 'list';
-  setViewMode: (mode: 'grid' | 'list') => void;
+  setViewMode: (m: 'grid' | 'list') => void;
   brands: string[];
   brandsWithLogos: BrandWithLogo[];
   categories: string[];
   searchTerm: string;
   setSearchTerm: (s: string) => void;
+  isLoadingSearch: boolean;
   selectedBrand: string | string[];
   setSelectedBrand: (s: string | string[]) => void;
   selectedCategory: string;
   setSelectedCategory: (s: string) => void;
   sortOrder: string;
   setSortOrder: (s: any) => void;
-
-  // NOVOS FILTROS
   showOnlyNew: boolean;
   setShowOnlyNew: (b: boolean) => void;
   showOnlyBestsellers: boolean;
   setShowOnlyBestsellers: (b: boolean) => void;
-
   showFavorites: boolean;
   setShowFavorites: (b: boolean) => void;
   isFilterOpen: boolean;
   setIsFilterOpen: (b: boolean) => void;
   currentBanner: number;
-
   modals: {
     cart: boolean;
     checkout: boolean;
@@ -89,23 +74,29 @@ interface StoreContextType {
     product: Product | null;
   };
   setModal: (name: string, value: any) => void;
-
-  addToCart: (p: Product, qty?: number) => void;
+  addToCart: (p: Product | string, qty?: number) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
-  unlockPrices: (password: string) => boolean;
-
-  // Ações Integradas
+  unlockPrices: (password: string) => Promise<boolean>;
   handleFinalizeOrder: (customer: CustomerInfo) => Promise<boolean>;
   handleSaveCart: () => Promise<string | null>;
   handleLoadCart: (code: string) => Promise<boolean>;
-
   loadingStates: { submitting: boolean; saving: boolean; loadingCart: boolean };
   orderSuccessData: any;
   setOrderSuccessData: (data: any) => void;
   handleDownloadPDF: () => void;
   handleSendWhatsApp: () => void;
+  customerSession: CustomerInfo | null;
+  clearCustomerSession: () => void;
+}
+
+async function sha256(message: string) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -116,36 +107,41 @@ export function StoreProvider({
   initialProducts,
   startProductId,
 }: StoreProviderProps) {
-  const { addToast } = useToast();
+  const supabase = createClient();
   const ITEMS_PER_PAGE = 24;
 
-  const supabase = createClient();
-
+  // Estados
+  // Determina o modo de preços: se o catálogo estiver em "preço de custo"
+  // (show_cost_price=true e show_sale_price!=true) então os preços começam ocultos.
+  const isCostMode =
+    (store as any).show_cost_price === true &&
+    (store as any).show_sale_price !== true;
+  const [showPrices, setShowPrices] = useState(!isCostMode);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [isPricesVisible, setIsPricesVisible] = useState(false);
-
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[] | null>(null);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<string | string[]>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortOrder, setSortOrder] = useState<
     'name' | 'price_asc' | 'price_desc'
   >('name');
-
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
-
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
   const [brandsWithLogos, setBrandsWithLogos] = useState<BrandWithLogo[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
-
-  const initialProduct = startProductId
-    ? initialProducts.find((p) => p.id === startProductId) || null
-    : null;
+  const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
+  const [loadingStates, setLoadingStates] = useState({
+    submitting: false,
+    saving: false,
+    loadingCart: false,
+  });
 
   const [modals, setModals] = useState({
     cart: false,
@@ -154,347 +150,320 @@ export function StoreProvider({
     load: false,
     save: false,
     zoom: false,
-    product: initialProduct,
+    product: startProductId
+      ? initialProducts.find((p) => p.id === startProductId) || null
+      : null,
   });
 
-  const [loadingStates, setLoadingStates] = useState({
-    submitting: false,
-    saving: false,
-    loadingCart: false,
-  });
+  // LOGIN INVISÍVEL: estado para armazenar dados do cliente reconhecido
+  const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(
+    null
+  );
 
-  const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
+  // Memoização para performance
+  const brands = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts
+            .map((p) => p.brand?.trim())
+            .filter(Boolean) as string[]
+        )
+      ),
+    [initialProducts]
+  );
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts
+            .map((p) => p.category?.trim())
+            .filter(Boolean) as string[]
+        )
+      ),
+    [initialProducts]
+  );
 
-  // --- DERIVAR DADOS ÚNICOS (Marcas e Categorias) ---
-  const brands = Array.from(
-    new Set(
-      initialProducts
-        .map((p) => (p.brand || '').toString().trim())
-        .filter(Boolean)
-    )
-  ) as string[];
-
-  const categories = Array.from(
-    new Set(
-      initialProducts
-        .map((p) => (p.category || '').toString().trim())
-        .filter(Boolean)
-    )
-  ) as string[];
-
-  // --- CARREGAR LOGOS DAS MARCAS ---
+  // Persistência e busca de marcas
   useEffect(() => {
-    const fetchBrands = async () => {
-      const productBrands = brands; // Já derivado acima
-
-      if (productBrands.length === 0) {
-        setBrandsWithLogos([]);
-        return;
-      }
-
+    const fetchLogos = async () => {
       const { data } = await supabase
         .from('brands')
         .select('name, logo_url')
         .eq('user_id', store.user_id)
-        .in('name', productBrands);
-
-      if (data) {
-        const byName: Record<string, any> = {};
-        data.forEach((d: any) => (byName[(d.name || '').toString()] = d));
-        const ordered = productBrands.map(
-          (b) => byName[b] || { name: b, logo_url: null }
-        );
-        setBrandsWithLogos(ordered);
-      } else {
+        .in('name', brands);
+      if (data)
         setBrandsWithLogos(
-          productBrands.map((b) => ({ name: b, logo_url: null }))
+          brands.map(
+            (b) => data.find((d) => d.name === b) || { name: b, logo_url: null }
+          )
         );
-      }
     };
-    fetchBrands();
-  }, [store.user_id, initialProducts, brands]); // Adicionado brands à dependência
-
-  // --- PAGINAÇÃO E LOCALSTORAGE ---
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchTerm,
-    selectedBrand,
-    selectedCategory,
-    sortOrder,
-    showFavorites,
-    showOnlyNew,
-    showOnlyBestsellers,
-  ]);
+    if (brands.length > 0) fetchLogos();
+  }, [brands, store.user_id]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCart = localStorage.getItem(`cart-${store.name}`);
-      const savedFavs = localStorage.getItem(`favs-${store.name}`);
-      const priceUnlocked = sessionStorage.getItem(`prices-${store.name}`);
-      if (savedCart) {
-        try {
-          const parsed = JSON.parse(savedCart);
-          if (Array.isArray(parsed)) setCart(parsed);
-        } catch {}
+    const savedCart = localStorage.getItem(`cart-${store.name}`);
+    if (savedCart)
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch {}
+
+    // LOGIN INVISÍVEL: carregar dados do cliente salvo para este user/store
+    try {
+      const savedCustomer = localStorage.getItem(`customer-${store.user_id}`);
+      if (savedCustomer) {
+        const parsed = JSON.parse(savedCustomer) as CustomerInfo;
+        setCustomerSession(parsed);
+        console.log('Cliente reconhecido:', parsed?.name);
       }
-      if (savedFavs) {
-        try {
-          setFavorites(JSON.parse(savedFavs));
-        } catch {}
-      }
-      if (priceUnlocked === 'true') setIsPricesVisible(true);
-    }
-  }, [store.name]);
+    } catch {}
+  }, [store.name, store.user_id]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
-      localStorage.setItem(`favs-${store.name}`, JSON.stringify(favorites));
-    }
-  }, [cart, favorites, store.name]);
+    localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
+  }, [cart, store.name]);
+
+  // Lógica de Busca Debounced
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   useEffect(() => {
-    if (store.banners && store.banners.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentBanner((b) => (b + 1) % (store.banners?.length || 1));
-      }, 5000);
-      return () => clearInterval(interval);
+    if (!debouncedSearchTerm) {
+      setSearchResults(null);
+      return;
     }
-  }, [store.banners]);
+    const runSearch = async () => {
+      setIsLoadingSearch(true);
+      const { data } = await supabase.rpc('search_products', {
+        search_term: debouncedSearchTerm,
+        catalog_user_id: store.user_id,
+      });
+      if (data) setSearchResults(data as Product[]);
+      setIsLoadingSearch(false);
+    };
+    runSearch();
+  }, [debouncedSearchTerm, store.user_id]);
 
-  // --- ACTIONS ---
-  const addToCart = (p: Product, qty = 1) => {
-    setCart((c) => {
-      const exists = c.find((it) => it.id === p.id);
-      if (exists) {
-        return c.map((it) =>
-          it.id === p.id ? { ...it, quantity: it.quantity + qty } : it
+  // Ações do Carrinho
+  const addToCart = (p: Product | string, qty = 1) => {
+    // Suporta receber o objeto Product ou apenas o product id (string).
+    let productObj: Product | undefined;
+    if (typeof p === 'string') {
+      productObj = initialProducts.find((ip) => ip.id === p);
+    } else {
+      productObj = p;
+    }
+    if (!productObj) {
+      toast.error('Produto não encontrado.');
+      return;
+    }
+
+    setCart((prev) => {
+      const exists = prev.find((i) => i.id === productObj!.id);
+      if (exists)
+        return prev.map((i) =>
+          i.id === productObj!.id ? { ...i, quantity: i.quantity + qty } : i
         );
-      }
-      return [...c, { ...p, quantity: qty } as CartItem];
+      return [...prev, { ...productObj!, quantity: qty }];
     });
-    if (typeof addToast === 'function') {
-      addToast({
-        type: 'success',
-        message: 'Produto adicionado ao carrinho.',
-      } as Toast);
-    }
+    toast.success('Adicionado ao carrinho!');
   };
 
-  const removeFromCart = (id: string) =>
-    setCart((c) => c.filter((it) => it.id !== id));
-
-  const updateQuantity = (id: string, delta: number) =>
-    setCart((c) =>
-      c.map((it) =>
-        it.id === id
-          ? { ...it, quantity: Math.max(1, it.quantity + delta) }
-          : it
+  const updateQuantity = (id: string, delta: number) => {
+    setCart((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i
       )
     );
-
-  const toggleFavorite = (id: string) =>
-    setFavorites((f) =>
-      f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
-    );
-
-  const unlockPrices = (password: string) => {
-    const ok = password === (store.price_password || '');
-    if (ok) {
-      setIsPricesVisible(true);
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.setItem(`prices-${store.name}`, 'true');
-        } catch {}
-      }
-    }
-    return ok;
   };
 
+  /**
+   * FINALIZAÇÃO DE PEDIDO COM UPLOAD DE PDF
+   */
   const handleFinalizeOrder = async (customer: CustomerInfo) => {
+    setLoadingStates((s) => ({ ...s, submitting: true }));
     try {
-      setLoadingStates((s) => ({ ...s, submitting: true }));
+      const totalValue = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
 
-      const { data, error } = await supabase
+      // 1. Salva Pedido no Banco
+      const { data: order, error } = await supabase
         .from('orders')
         .insert({
           user_id: store.user_id,
-          customer_info: customer,
-          items: cart,
-          total: cart.reduce(
-            (acc, item) => acc + item.price * item.quantity,
-            0
-          ),
-          status: 'pending',
+          client_name_guest: customer.name,
+          client_phone_guest: customer.phone.replace(/\D/g, ''),
+          client_email_guest: customer.email,
+          client_cnpj_guest: customer.cnpj,
+          total_value: totalValue,
+          status: 'Pendente',
         })
         .select()
         .maybeSingle();
 
-      if (error) throw error;
+      if (error || !order) throw error;
 
-      setOrderSuccessData({ id: data.id, customer });
+      // 2. Salva Itens
+      await supabase.from('order_items').insert(
+        cart.map((it) => ({
+          order_id: order.id,
+          product_id: it.id,
+          quantity: it.quantity,
+          unit_price: it.price,
+        }))
+      );
+
+      // 3. Upload do PDF para o Storage
+      let publicUrl = null;
+      try {
+        const doc = await generateOrderPDF(
+          { ...order, customer },
+          store,
+          cart,
+          totalValue,
+          true
+        ); // true = retorna blob
+        if (doc instanceof Blob) {
+          const fileName = `pedidos/${order.id}_${Date.now()}.pdf`;
+          const { error: uploadError } = await supabase.storage
+            .from('order-receipts')
+            .upload(fileName, doc);
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage
+              .from('order-receipts')
+              .getPublicUrl(fileName);
+            publicUrl = urlData.publicUrl;
+          }
+        }
+      } catch (pdfErr) {
+        console.error('Erro ao processar PDF para nuvem', pdfErr);
+      }
+
+      setOrderSuccessData({
+        ...order,
+        customer,
+        items: cart,
+        total: totalValue,
+        pdf_url: publicUrl,
+      });
+      // LOGIN INVISÍVEL: grava dados do cliente para próximas visitas
+      try {
+        localStorage.setItem(
+          `customer-${store.user_id}`,
+          JSON.stringify(customer)
+        );
+        setCustomerSession(customer);
+      } catch {}
+
       setCart([]);
       return true;
-    } catch (e: unknown) {
-      console.error('Erro finalizar pedido:', e);
-      let message = 'Erro ao processar pedido. Tente novamente.';
-      try {
-        if (typeof e === 'string') message = e;
-        else if (e && typeof (e as any).message === 'string')
-          message = (e as any).message;
-        else message = JSON.stringify(e) || message;
-      } catch {
-        /* ignore */
-      }
-      if (typeof addToast === 'function')
-        addToast({ type: 'error', message } as Toast);
+    } catch (e) {
+      toast.error('Erro ao processar pedido.');
       return false;
     } finally {
       setLoadingStates((s) => ({ ...s, submitting: false }));
     }
   };
 
-  const handleSaveCart = async () => {
-    if (cart.length === 0) return null;
-    try {
-      setLoadingStates((s) => ({ ...s, saving: true }));
-
-      const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-      const { error } = await supabase.from('saved_carts').insert({
-        short_id: shortId,
-        items: cart,
-      });
-
-      if (error) throw error;
-
-      return shortId;
-    } catch (e) {
-      console.error(e);
-      let message = 'Erro ao salvar carrinho';
-      try {
-        if (typeof e === 'string') message = e;
-        else if (e && typeof (e as any).message === 'string')
-          message = (e as any).message;
-        else message = JSON.stringify(e) || message;
-      } catch {}
-      if (typeof addToast === 'function')
-        addToast({ type: 'error', message } as any);
-      return null;
-    } finally {
-      setLoadingStates((s) => ({ ...s, saving: false }));
-    }
-  };
-
-  const handleLoadCart = async (code: string) => {
-    if (!code) return false;
-    try {
-      setLoadingStates((s) => ({ ...s, loadingCart: true }));
-
-      // Resiliência: usar .maybeSingle() pois o carrinho pode não existir
-      const { data, error } = await supabase
-        .from('saved_carts')
-        .select('items')
-        .eq('short_id', code.toUpperCase().trim())
-        .maybeSingle();
-
-      if (error || !data) {
-        if (typeof addToast === 'function')
-          addToast({
-            type: 'error',
-            message: 'Carrinho não encontrado.',
-          } as Toast);
-        return false;
-      }
-
-      if (data.items && Array.isArray(data.items)) {
-        setCart(data.items as CartItem[]);
-        return true;
-      }
-
-      return false;
-    } catch (e) {
-      return false;
-    } finally {
-      setLoadingStates((s) => ({ ...s, loadingCart: false }));
-    }
-  };
-
-  const handleDownloadPDF = () => {
-    const itemsToPrint = cart.length > 0 ? cart : [];
-
-    const orderObj = {
-      id: orderSuccessData?.id || 0,
-      customer: orderSuccessData?.customer || { name: '', phone: '' },
-    };
-
-    generateOrderPDF(
-      orderObj as any,
-      store,
-      itemsToPrint,
-      itemsToPrint.reduce((acc, i) => acc + i.price * i.quantity, 0)
-    );
-  };
-
+  /**
+   * WHATSAPP COM RESUMO EXECUTIVO E LINK DO PDF
+   */
   const handleSendWhatsApp = () => {
     if (!orderSuccessData) return;
-    const { customer } = orderSuccessData;
-    const message = `Olá, meu nome é ${customer.name}. Fiz o pedido #${orderSuccessData.id} no catálogo.`;
-    const num = (store.phone || '').replace(/\D/g, '');
+    const { customer, items, total, display_id, id, pdf_url } =
+      orderSuccessData;
+    const phone = (store.phone || '').replace(/\D/g, '');
+
+    let msg = `*📦 NOVO PEDIDO: #${display_id || id}*\n`;
+    msg += `--------------------------------\n\n`;
+    msg += `*CLIENTE:* ${customer.name}\n`;
+    msg += `*WHATSAPP:* ${customer.phone}\n\n`;
+    msg += `*ITENS:*\n`;
+    items
+      .slice(0, 10)
+      .forEach((i: any) => (msg += `▪️ ${i.quantity}x ${i.name}\n`));
+    if (items.length > 10) msg += `_...e outros ${items.length - 10} itens._\n`;
+
+    msg += `\n*TOTAL: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}*\n`;
+
+    if (pdf_url) {
+      msg += `\n*📄 COMPROVANTE PDF:*\n${pdf_url}\n`;
+    }
+
+    msg += `\n_Gerado por RepVendas SaaS_`;
     window.open(
-      `https://wa.me/${num}?text=${encodeURIComponent(message)}`,
+      `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,
       '_blank'
     );
   };
 
-  const setModal = (name: string, value: any) =>
-    setModals((m) => ({ ...m, [name]: value }));
+  const handleSaveCart = async () => {
+    setLoadingStates((s) => ({ ...s, saving: true }));
+    const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const { error } = await supabase
+      .from('saved_carts')
+      .insert({ short_id: shortId, items: cart });
+    setLoadingStates((s) => ({ ...s, saving: false }));
+    return error ? null : shortId;
+  };
 
-  const displayProducts = initialProducts
-    .filter((p) => {
-      if (showFavorites && !favorites.includes(p.id)) return false;
-      if (showOnlyNew && !p.is_launch) return false;
-      if (showOnlyBestsellers && !p.is_best_seller) return false;
-
-      if (selectedBrand && selectedBrand !== 'all') {
-        if (Array.isArray(selectedBrand)) {
-          if (
-            selectedBrand.length > 0 &&
-            !selectedBrand.includes(p.brand || '')
-          )
-            return false;
-        } else {
-          if (p.brand !== selectedBrand) return false;
-        }
-      }
-
-      if (
-        selectedCategory &&
-        selectedCategory !== 'all' &&
-        p.category !== selectedCategory
-      )
-        return false;
-
-      if (
-        searchTerm &&
-        !p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !(p.reference_code || '')
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
-      )
-        return false;
-
+  const handleLoadCart = async (code: string) => {
+    setLoadingStates((s) => ({ ...s, loadingCart: true }));
+    const { data } = await supabase
+      .from('saved_carts')
+      .select('items')
+      .eq('short_id', code.toUpperCase())
+      .maybeSingle();
+    setLoadingStates((s) => ({ ...s, loadingCart: false }));
+    if (data?.items) {
+      setCart(data.items as CartItem[]);
       return true;
-    })
-    .sort((a, b) => {
-      if (sortOrder === 'price_asc') return a.price - b.price;
-      if (sortOrder === 'price_desc') return b.price - a.price;
-      return a.name.localeCompare(b.name);
-    });
+    }
+    return false;
+  };
 
-  const totalProducts = displayProducts.length;
-  const totalPages = Math.max(1, Math.ceil(totalProducts / ITEMS_PER_PAGE));
+  const displayProducts = useMemo(() => {
+    const base = searchResults || initialProducts;
+    return base
+      .filter((p) => {
+        if (showFavorites && !favorites.includes(p.id)) return false;
+        if (showOnlyNew && !p.is_launch) return false;
+        if (showOnlyBestsellers && !p.is_best_seller) return false;
+        if (selectedBrand !== 'all') {
+          const normalize = (s: unknown) =>
+            String(s || '')
+              .trim()
+              .toLowerCase();
+          const productBrand = normalize(p.brand);
+          if (Array.isArray(selectedBrand)) {
+            const selectedNormalized = selectedBrand.map(normalize);
+            if (!selectedNormalized.includes(productBrand)) return false;
+          } else {
+            if (productBrand !== normalize(selectedBrand)) return false;
+          }
+        }
+        if (selectedCategory !== 'all' && p.category !== selectedCategory)
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortOrder === 'price_asc') return a.price - b.price;
+        if (sortOrder === 'price_desc') return b.price - a.price;
+        return a.name.localeCompare(b.name);
+      });
+  }, [
+    searchResults,
+    initialProducts,
+    favorites,
+    showFavorites,
+    showOnlyNew,
+    showOnlyBestsellers,
+    selectedBrand,
+    selectedCategory,
+    sortOrder,
+  ]);
 
   return (
     <StoreContext.Provider
@@ -503,12 +472,14 @@ export function StoreProvider({
         initialProducts,
         cart,
         favorites,
-        isPricesVisible,
-        setIsPricesVisible,
+        showPrices,
+        isPricesVisible: showPrices,
+        setIsPricesVisible: setShowPrices,
+        toggleShowPrices: () => setShowPrices(!showPrices),
         displayProducts,
-        totalProducts,
+        totalProducts: displayProducts.length,
         currentPage,
-        totalPages,
+        totalPages: Math.ceil(displayProducts.length / ITEMS_PER_PAGE),
         setCurrentPage,
         viewMode,
         setViewMode,
@@ -517,6 +488,7 @@ export function StoreProvider({
         categories,
         searchTerm,
         setSearchTerm,
+        isLoadingSearch,
         selectedBrand,
         setSelectedBrand,
         selectedCategory,
@@ -533,20 +505,49 @@ export function StoreProvider({
         setIsFilterOpen,
         currentBanner,
         modals,
-        setModal,
+        setModal: (n, v) => setModals((m) => ({ ...m, [n]: v })),
         addToCart,
-        removeFromCart,
+        removeFromCart: (id) => setCart((c) => c.filter((i) => i.id !== id)),
         updateQuantity,
-        toggleFavorite,
-        unlockPrices,
+        toggleFavorite: (id) =>
+          setFavorites((f) =>
+            f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
+          ),
+        unlockPrices: async (p) => {
+          const plain = p.trim();
+          // Primeiro, se existe hash no sistema (compatibilidade), verifique-o
+          if ((store as any).price_password_hash) {
+            const hash = await sha256(plain);
+            if (hash === (store as any).price_password_hash) {
+              setShowPrices(true);
+              return true;
+            }
+          }
+          // Em seguida, suporte a senha em texto simples (legado/solicitado)
+          if (
+            (store as any).price_password &&
+            plain === (store as any).price_password
+          ) {
+            setShowPrices(true);
+            return true;
+          }
+          return false;
+        },
         handleFinalizeOrder,
         handleSaveCart,
         handleLoadCart,
         loadingStates,
         orderSuccessData,
         setOrderSuccessData,
-        handleDownloadPDF,
+        handleDownloadPDF: () => {},
         handleSendWhatsApp,
+        customerSession,
+        clearCustomerSession: () => {
+          try {
+            localStorage.removeItem(`customer-${store.user_id}`);
+          } catch {}
+          setCustomerSession(null);
+        },
       }}
     >
       {children}

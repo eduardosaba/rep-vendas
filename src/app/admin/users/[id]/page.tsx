@@ -1,148 +1,89 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { ArrowLeft, Save, Shield, Calendar, CreditCard } from 'lucide-react';
-import { updateUserLicense } from '../actions';
+import { ArrowLeft, UserCog } from 'lucide-react';
+import { EditUserForm } from './edit-user-form';
+import { getPlans, getUserWithSubscription } from '../actions';
 
-export default async function EditUserPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function EditUserPage(props: any) {
+  const { params } = props as { params: { id: string } };
   const supabase = await createClient();
-  const { id } = params;
+  const { id } = await params;
 
-  // 1. Proteção Admin
+  // 1. Verificar permissão
   const {
     data: { user: currentUser },
   } = await supabase.auth.getUser();
   if (!currentUser) redirect('/login');
 
-  // 2. Buscar Perfil Alvo
-  const { data: profile, error } = await supabase
+  const { data: myProfile } = await supabase
     .from('profiles')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
+    .select('role')
+    .eq('id', currentUser.id)
+    .single();
 
-  if (error || !profile) {
+  const isAllowed = myProfile?.role === 'admin' || myProfile?.role === 'master';
+  if (!isAllowed) redirect('/dashboard');
+
+  // 2. BUSCAR DADOS
+  const [plansRes, userRes] = await Promise.all([
+    getPlans(),
+    getUserWithSubscription(id),
+  ]);
+
+  const availablePlans = plansRes.success && plansRes.data ? plansRes.data : [];
+  const profile = userRes.success ? userRes.data : null;
+
+  if (!profile) {
     return notFound();
   }
 
-  // Helper para formatar data para input (YYYY-MM-DD)
-  const formattedDate = profile.subscription_ends_at
-    ? new Date(profile.subscription_ends_at).toISOString().split('T')[0]
+  // 3. Normalizar dados da assinatura
+  const subData = Array.isArray(profile.subscriptions)
+    ? profile.subscriptions.length > 0
+      ? profile.subscriptions[0]
+      : null
+    : profile.subscriptions;
+
+  const formattedDate = subData?.current_period_end
+    ? new Date(subData.current_period_end).toISOString().split('T')[0]
     : '';
 
-  // Prepara a server action com o ID já "preso" (bind)
-  const updateUserWithId = updateUserLicense.bind(null, profile.id);
+  const initialFormData = {
+    email: profile.email || '', // <--- ADICIONADO: Necessário para a confirmação de exclusão
+    fullName: profile.full_name || '',
+    role: profile.role || 'rep',
+    plan: subData?.plan_name || availablePlans[0]?.name || 'Free',
+    status: subData?.status || 'trialing',
+    endsAt: formattedDate,
+  };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in pb-10">
       <div className="flex items-center gap-4">
         <Link
-          href="/admin"
+          href="/admin/users"
           className="p-2 rounded-full hover:bg-gray-200 text-gray-600 transition-colors"
         >
           <ArrowLeft size={24} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gerir Licença</h1>
-          <p className="text-sm text-gray-500">
-            Usuário: {profile.full_name || 'Sem Nome'} ({profile.email})
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <UserCog className="text-indigo-600" />
+            Editar Usuário
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {profile.email} • ID:{' '}
+            <span className="font-mono">{profile.id}</span>
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-          <Shield className="rv-text-primary" size={20} />
-          <h2 className="font-semibold text-gray-900">
-            Detalhes da Assinatura
-          </h2>
-        </div>
-
-        <form action={updateUserWithId} className="p-6 space-y-6">
-          {/* Seleção de Plano */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <CreditCard size={16} /> Plano
-            </label>
-            <select
-              name="plan"
-              defaultValue={profile.plan || 'free'}
-              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-[var(--primary)] outline-none bg-white"
-            >
-              <option value="free">Gratuito (Free)</option>
-              <option value="pro">Profissional (Pro)</option>
-              <option value="enterprise">Empresarial (Enterprise)</option>
-            </select>
-          </div>
-
-          {/* Status da Assinatura */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <Shield size={16} /> Status
-            </label>
-            <select
-              name="status"
-              defaultValue={profile.subscription_status || 'trial'}
-              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-[var(--primary)] outline-none bg-white"
-            >
-              <option value="trial">Período de Teste (Trial)</option>
-              <option value="active">Ativo (Pago)</option>
-              <option value="past_due">Atrasado (Past Due)</option>
-              <option value="cancelled">Cancelado</option>
-            </select>
-          </div>
-
-          {/* Validade */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-              <Calendar size={16} /> Expira em
-            </label>
-            <input
-              type="date"
-              name="ends_at"
-              defaultValue={formattedDate}
-              className="w-full rounded-lg border-gray-300 border px-3 py-2.5 focus:ring-2 focus:ring-[var(--primary)] outline-none"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Deixe em branco para acesso indeterminado.
-            </p>
-          </div>
-
-          {/* Info Read-only */}
-          <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="block text-gray-500 text-xs uppercase">
-                ID do Usuário
-              </span>
-              <span className="font-mono text-gray-700 text-xs break-all">
-                {profile.id}
-              </span>
-            </div>
-            <div>
-              <span className="block text-gray-500 text-xs uppercase">
-                Criado em
-              </span>
-              <span className="font-mono text-gray-700">
-                {new Date(profile.created_at).toLocaleDateString('pt-BR')}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4">
-            <button
-              type="submit"
-              className="rv-btn-primary flex items-center gap-2 px-4 sm:px-6 py-2.5 font-medium shadow-sm transition-all"
-            >
-              <Save size={18} />
-              Salvar Alterações
-            </button>
-          </div>
-        </form>
-      </div>
+      <EditUserForm
+        userId={profile.id}
+        initialData={initialFormData}
+        availablePlans={availablePlans}
+      />
     </div>
   );
 }
