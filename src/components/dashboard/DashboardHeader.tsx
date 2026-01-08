@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import { Bell, User, Menu, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
+import { User, Menu, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
+import NotificationDropdown from '@/components/NotificationDropdown';
 // Importamos a Server Action de logout para garantir a limpeza dos cookies
 import { logout } from '@/app/login/actions';
 
@@ -27,9 +28,8 @@ export default function DashboardHeader({
   const [supabase] = useState(() => createClient());
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<unknown[]>([]);
+  const [userId, setUserId] = useState<string | undefined>(undefined);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +49,7 @@ export default function DashboardHeader({
     } = await supabase.auth.getUser();
 
     if (user) {
+      setUserId(user.id);
       setUserEmail(user.email || '');
 
       const { data: profile } = await supabase
@@ -79,7 +80,6 @@ export default function DashboardHeader({
         )
         .subscribe();
 
-      setNotifications([]);
       return () => {
         supabase.removeChannel(channel);
       };
@@ -141,16 +141,8 @@ export default function DashboardHeader({
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        {/* Notificações */}
-        <button
-          className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 relative transition-colors"
-          onClick={() => setIsNotifOpen(!isNotifOpen)}
-        >
-          <Bell size={20} />
-          {notifications.length > 0 && (
-            <span className="absolute top-2 right-2.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-950"></span>
-          )}
-        </button>
+        {/* Notificações (componente reutilizável) */}
+        <NotificationDropdown userId={userId} />
 
         <div className="h-8 w-px bg-gray-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
 
