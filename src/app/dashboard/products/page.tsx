@@ -39,7 +39,7 @@ export default async function ProductsPage() {
   // 2. Busca de Produtos Otimizada
   // Selecionamos apenas o necessário para a lista inicial para não pesar
   // Busca limite do plano para retornar até esse número de produtos
-  let maxLimit = 1000; // fallback
+  let maxLimit = 5000; // fallback aumentado para 5000
   try {
     const { data: sub } = await supabase
       .from('subscriptions')
@@ -47,21 +47,46 @@ export default async function ProductsPage() {
       .eq('user_id', finalUser.id)
       .maybeSingle();
 
-    const planIdentifier = sub?.plan_name || sub?.plan_id || null;
-    if (planIdentifier) {
+    if (sub?.plan_id) {
       const { data: plan } = await supabase
         .from('plans')
         .select('product_limit, max_products')
-        .or(`id.eq.${planIdentifier},name.eq.${planIdentifier}`)
+        .eq('id', sub.plan_id)
         .maybeSingle();
-      maxLimit = plan?.product_limit || plan?.max_products || maxLimit;
+
+      if (plan) {
+        maxLimit = plan.product_limit || plan.max_products || maxLimit;
+        console.log(
+          '[ProductsPage] Limite do plano:',
+          maxLimit,
+          'Plano:',
+          sub.plan_id
+        );
+      }
+    } else if (sub?.plan_name) {
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('product_limit, max_products')
+        .eq('name', sub.plan_name)
+        .maybeSingle();
+
+      if (plan) {
+        maxLimit = plan.product_limit || plan.max_products || maxLimit;
+        console.log(
+          '[ProductsPage] Limite do plano:',
+          maxLimit,
+          'Plano:',
+          sub.plan_name
+        );
+      }
     }
   } catch (e) {
     console.error('Erro ao recuperar limite do plano:', e);
   }
 
   // Garante um teto razoável (ex: 5000) para evitar retornos massivos inesperados
-  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 1000, 1000), 5000);
+  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 5000, 1000), 5000);
+  console.log('[ProductsPage] fetchLimit final:', fetchLimit);
 
   const { data: products, error } = await supabase
     .from('products')

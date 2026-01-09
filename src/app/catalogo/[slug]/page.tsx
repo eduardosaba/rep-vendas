@@ -94,7 +94,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
   }
 
   // Determinar limite do plano do dono do catálogo (compatível com product_limit ou max_products)
-  let maxLimit = 1000;
+  let maxLimit = 5000; // fallback aumentado para 5000
   try {
     const { data: sub } = await supabase
       .from('subscriptions')
@@ -102,20 +102,32 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       .eq('user_id', catalog.user_id)
       .maybeSingle();
 
-    const planIdentifier = sub?.plan_name || sub?.plan_id || null;
-    if (planIdentifier) {
+    if (sub?.plan_id) {
       const { data: plan } = await supabase
         .from('plans')
         .select('product_limit, max_products')
-        .or(`id.eq.${planIdentifier},name.eq.${planIdentifier}`)
+        .eq('id', sub.plan_id)
         .maybeSingle();
-      maxLimit = plan?.product_limit || plan?.max_products || maxLimit;
+
+      if (plan) {
+        maxLimit = plan.product_limit || plan.max_products || maxLimit;
+      }
+    } else if (sub?.plan_name) {
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('product_limit, max_products')
+        .eq('name', sub.plan_name)
+        .maybeSingle();
+
+      if (plan) {
+        maxLimit = plan.product_limit || plan.max_products || maxLimit;
+      }
     }
   } catch (e) {
     console.error('Erro ao recuperar limite do plano do catálogo:', e);
   }
 
-  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 1000, 1000), 5000);
+  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 5000, 1000), 5000);
 
   const { data: products } = await supabase
     .from('products')

@@ -330,53 +330,106 @@ export function StoreModals() {
                 onClick={() => setModal('product', null)}
               />
 
-              <div className="relative w-full max-w-6xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-visible flex flex-col md:flex-row animate-in zoom-in-95 duration-300">
+              <div className="relative w-full max-w-5xl max-h-[95vh] bg-white dark:bg-slate-900 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-300">
                 {/* Botão Fechar */}
                 <button
                   onClick={() => setModal('product', null)}
-                  className="absolute right-6 top-6 z-50 p-3 rounded-2xl bg-white/10 text-white hover:bg-white/20 backdrop-blur-md transition-all"
+                  className="absolute right-3 top-3 md:right-6 md:top-6 z-50 p-2 md:p-3 rounded-xl md:rounded-2xl bg-white/10 text-white hover:bg-white/20 backdrop-blur-md transition-all"
                 >
-                  <X size={24} />
+                  <X size={20} className="md:hidden" />
+                  <X size={24} className="hidden md:block" />
                 </button>
 
                 {/* Left: Imagens */}
-                <div className="md:w-1/2 relative bg-white dark:bg-slate-800 p-8 flex flex-col items-center justify-center">
+                <div className="md:w-1/2 relative bg-white dark:bg-slate-800 p-4 md:p-5 flex flex-col items-center justify-start overflow-hidden">
                   <div
-                    className="relative w-full aspect-square group cursor-zoom-in"
+                    className="relative w-full max-w-md aspect-square md:aspect-auto md:h-[220px] lg:h-[280px] group cursor-zoom-in flex-shrink-0"
                     onClick={() => setIsImageZoomOpen(true)}
                   >
                     <Image
                       src={productImages[currentImageIndex]}
                       alt={modals.product.name}
                       fill
-                      className="object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+                      className="object-contain p-2 md:p-3 transition-transform duration-500 group-hover:scale-105"
                     />
-                    <button className="absolute right-4 bottom-4 p-3 rounded-full bg-white/90 shadow-lg">
-                      <Search size={20} />
+                    <button className="absolute right-2 bottom-2 md:right-3 md:bottom-3 p-2 rounded-full bg-white/90 shadow-lg">
+                      <Search size={16} className="md:hidden" />
+                      <Search size={18} className="hidden md:block" />
                     </button>
                   </div>
 
                   {productImages.length > 1 && (
-                    <div className="flex gap-3 mt-6 overflow-x-auto pb-4 px-2 -mx-2">
-                      {productImages.map((src, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setCurrentImageIndex(idx)}
-                          className={`flex-shrink-0 w-24 h-24 rounded-xl border-2 transition-all bg-white shadow-sm hover:shadow-md ${currentImageIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300'}`}
-                        >
-                          <img
-                            src={src}
-                            className="w-full h-full object-contain p-2 rounded-lg"
-                            alt="thumb"
-                          />
-                        </button>
-                      ))}
+                    <div className="relative w-full mt-3 md:mt-4">
+                      {productImages.length > 3 && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const container =
+                                document.getElementById('thumbnail-gallery');
+                              if (container)
+                                container.scrollBy({
+                                  left: -120,
+                                  behavior: 'smooth',
+                                });
+                            }}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 md:p-2 rounded-full bg-white shadow-lg hover:bg-gray-50 border border-gray-200"
+                            aria-label="Anterior"
+                          >
+                            <ChevronLeft size={16} className="md:hidden" />
+                            <ChevronLeft
+                              size={20}
+                              className="hidden md:block"
+                            />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const container =
+                                document.getElementById('thumbnail-gallery');
+                              if (container)
+                                container.scrollBy({
+                                  left: 120,
+                                  behavior: 'smooth',
+                                });
+                            }}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1.5 md:p-2 rounded-full bg-white shadow-lg hover:bg-gray-50 border border-gray-200"
+                            aria-label="Próximo"
+                          >
+                            <ChevronRight size={16} className="md:hidden" />
+                            <ChevronRight
+                              size={20}
+                              className="hidden md:block"
+                            />
+                          </button>
+                        </>
+                      )}
+                      <div
+                        id="thumbnail-gallery"
+                        className="flex gap-2 md:gap-2.5 overflow-x-auto pb-2 px-8 md:px-10 scrollbar-hide scroll-smooth"
+                        style={{
+                          scrollbarWidth: 'none',
+                          msOverflowStyle: 'none',
+                        }}
+                      >
+                        {productImages.map((src, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentImageIndex(idx)}
+                            className={`flex-shrink-0 w-14 h-14 md:w-16 md:h-16 lg:w-18 lg:h-18 rounded-lg border-2 transition-all bg-white shadow-sm hover:shadow-md ${currentImageIndex === idx ? 'border-primary ring-2 ring-primary/20 scale-105' : 'border-gray-200 hover:border-gray-300'}`}
+                          >
+                            <img
+                              src={src}
+                              className="w-full h-full object-contain p-1 rounded-md"
+                              alt={`Foto ${idx + 1}`}
+                            />
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Right: Detalhes */}
-                <div className="md:w-1/2 p-10 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-slate-900">
+                <div className="md:w-1/2 p-6 md:p-8 lg:p-10 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-slate-900">
                   <span className="text-xs font-black uppercase tracking-widest text-primary mb-2 block">
                     {modals.product.brand || 'Original'}
                   </span>
@@ -535,10 +588,11 @@ export function StoreModals() {
                       e.stopPropagation();
                       setIsImageZoomOpen(false);
                     }}
-                    className="absolute top-10 right-10 text-white p-2"
+                    className="absolute top-4 right-4 md:top-6 md:right-6 p-2 md:p-3 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm transition-all shadow-lg border border-white/30"
                     aria-label="Fechar zoom"
                   >
-                    <X size={40} />
+                    <X size={24} className="md:hidden" />
+                    <X size={32} className="hidden md:block" />
                   </button>
                 </div>
               )}
