@@ -105,6 +105,26 @@ export function StoreModals() {
     setDetailQuantity(1);
   }, [modals.product]);
 
+  // Navegação por teclado no Zoom (esquerda/direita/esc)
+  useEffect(() => {
+    if (!isImageZoomOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        setCurrentImageIndex((i) =>
+          i === 0 ? productImages.length - 1 : i - 1
+        );
+      } else if (e.key === 'ArrowRight') {
+        setCurrentImageIndex((i) =>
+          i === productImages.length - 1 ? 0 : i + 1
+        );
+      } else if (e.key === 'Escape') {
+        setIsImageZoomOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isImageZoomOpen, productImages.length]);
+
   // --- HANDLERS ---
   const onFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,7 +330,7 @@ export function StoreModals() {
                 onClick={() => setModal('product', null)}
               />
 
-              <div className="relative w-full max-w-6xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-300">
+              <div className="relative w-full max-w-6xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-visible flex flex-col md:flex-row animate-in zoom-in-95 duration-300">
                 {/* Botão Fechar */}
                 <button
                   onClick={() => setModal('product', null)}
@@ -337,16 +357,16 @@ export function StoreModals() {
                   </div>
 
                   {productImages.length > 1 && (
-                    <div className="flex gap-2 mt-6 overflow-x-auto pb-2">
+                    <div className="flex gap-3 mt-6 overflow-x-auto pb-4 px-2 -mx-2">
                       {productImages.map((src, idx) => (
                         <button
                           key={idx}
                           onClick={() => setCurrentImageIndex(idx)}
-                          className={`w-20 h-20 rounded-xl border-2 transition-all ${currentImageIndex === idx ? 'border-primary' : 'border-transparent'}`}
+                          className={`flex-shrink-0 w-24 h-24 rounded-xl border-2 transition-all bg-white shadow-sm hover:shadow-md ${currentImageIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300'}`}
                         >
                           <img
                             src={src}
-                            className="w-full h-full object-contain p-1"
+                            className="w-full h-full object-contain p-2 rounded-lg"
                             alt="thumb"
                           />
                         </button>
@@ -477,12 +497,47 @@ export function StoreModals() {
                   className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4"
                   onClick={() => setIsImageZoomOpen(false)}
                 >
+                  <button
+                    aria-label="Anterior"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex((i) =>
+                        i === 0 ? productImages.length - 1 : i - 1
+                      );
+                    }}
+                    className="absolute left-6 top-1/2 -translate-y-1/2 z-50 p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
+                  >
+                    <ChevronLeft size={36} />
+                  </button>
+
                   <img
                     src={productImages[currentImageIndex]}
                     className="max-w-full max-h-full object-contain"
                     alt="Zoom"
+                    onClick={(e) => e.stopPropagation()}
                   />
-                  <button className="absolute top-10 right-10 text-white">
+
+                  <button
+                    aria-label="Próximo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex((i) =>
+                        i === productImages.length - 1 ? 0 : i + 1
+                      );
+                    }}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 z-50 p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
+                  >
+                    <ChevronRight size={36} />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsImageZoomOpen(false);
+                    }}
+                    className="absolute top-10 right-10 text-white p-2"
+                    aria-label="Fechar zoom"
+                  >
                     <X size={40} />
                   </button>
                 </div>

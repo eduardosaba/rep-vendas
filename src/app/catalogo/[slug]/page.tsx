@@ -93,12 +93,37 @@ export default async function CatalogPage({ params, searchParams }: Props) {
     redirect(`/catalogo/${slug}/maintenance`);
   }
 
+  // Determinar limite do plano do dono do catálogo (compatível com product_limit ou max_products)
+  let maxLimit = 1000;
+  try {
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('plan_id, plan_name')
+      .eq('user_id', catalog.user_id)
+      .maybeSingle();
+
+    const planIdentifier = sub?.plan_name || sub?.plan_id || null;
+    if (planIdentifier) {
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('product_limit, max_products')
+        .or(`id.eq.${planIdentifier},name.eq.${planIdentifier}`)
+        .maybeSingle();
+      maxLimit = plan?.product_limit || plan?.max_products || maxLimit;
+    }
+  } catch (e) {
+    console.error('Erro ao recuperar limite do plano do catálogo:', e);
+  }
+
+  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 1000, 1000), 5000);
+
   const { data: products } = await supabase
     .from('products')
     .select('*')
     .eq('user_id', catalog.user_id)
     .eq('is_active', true)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(0, fetchLimit - 1);
 
   return (
     <Storefront

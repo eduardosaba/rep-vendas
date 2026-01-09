@@ -54,11 +54,13 @@ export default function ProductsClient({
         return;
       }
 
+      // Fetch up to 5000 items to avoid default 1000-row cap from PostgREST
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, 4999);
 
       if (error) throw error;
       setProducts(data || []);

@@ -38,11 +38,37 @@ export default async function ProductsPage() {
 
   // 2. Busca de Produtos Otimizada
   // Selecionamos apenas o necessário para a lista inicial para não pesar
+  // Busca limite do plano para retornar até esse número de produtos
+  let maxLimit = 1000; // fallback
+  try {
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('plan_id, plan_name')
+      .eq('user_id', finalUser.id)
+      .maybeSingle();
+
+    const planIdentifier = sub?.plan_name || sub?.plan_id || null;
+    if (planIdentifier) {
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('product_limit, max_products')
+        .or(`id.eq.${planIdentifier},name.eq.${planIdentifier}`)
+        .maybeSingle();
+      maxLimit = plan?.product_limit || plan?.max_products || maxLimit;
+    }
+  } catch (e) {
+    console.error('Erro ao recuperar limite do plano:', e);
+  }
+
+  // Garante um teto razoável (ex: 5000) para evitar retornos massivos inesperados
+  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 1000, 1000), 5000);
+
   const { data: products, error } = await supabase
     .from('products')
     .select('*')
     .eq('user_id', finalUser.id)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(0, fetchLimit - 1);
 
   if (error) {
     console.error('Erro ao carregar produtos:', error);
