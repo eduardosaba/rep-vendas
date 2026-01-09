@@ -53,18 +53,6 @@ export default function ManageExternalImagesClient({
 
   const supabase = createClient();
 
-  // Função para baixar a imagem (Fetch do navegador)
-  const downloadImage = async (url: string): Promise<Blob> => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok)
-        throw new Error(`Status ${response.status}: Falha ao acessar URL`);
-      return await response.blob();
-    } catch (error) {
-      throw new Error('Bloqueio de CORS ou URL inválida.');
-    }
-  };
-
   const processQueue = async () => {
     setIsProcessing(true);
     setStopRequested(false);
@@ -76,9 +64,23 @@ export default function ManageExternalImagesClient({
       .filter((i) => i !== -1);
 
     let processedCount = 0;
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 3; // Para após 3 erros seguidos
 
     for (const index of queueIndices) {
-      if (stopRequested) break;
+      if (stopRequested) {
+        toast.info('Processamento interrompido pelo usuário');
+        break;
+      }
+
+      // Para automaticamente após muitos erros consecutivos
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        toast.error('Processamento interrompido', {
+          description: `${MAX_CONSECUTIVE_ERRORS} erros consecutivos detectados. Verifique as URLs e tente novamente.`,
+          duration: 8000,
+        });
+        break;
+      }
 
       setItems((prev) => {
         const newItems = [...prev];
@@ -90,63 +92,66 @@ export default function ManageExternalImagesClient({
       const item = items[index];
 
       try {
-        // 1. Baixar
-        const imageBlob = await downloadImage(item.external_image_url);
-        const contentType = imageBlob.type;
-        const fileExt = contentType.split('/')[1] || 'jpg';
+        // Usa a API route do servidor para evitar bloqueios de CORS
+        const response = await fetch('/api/process-external-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: item.id,
+            externalUrl: item.external_image_url,
+          }),
+        });
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) throw new Error('Sessão inválida');
+        const result = await response.json();
 
-        const fileName = `${user.id}/${item.id}-${Date.now()}.${fileExt}`;
+        if (!response.ok || !result.success) {
+          // Mensagens de erro mais amigáveis
+          let errorMsg = result.error || 'Falha ao processar imagem';
 
-        // 2. Upload Storage
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(`public/${fileName}`, imageBlob, {
-            contentType: contentType,
-            upsert: true,
-          });
+          if (errorMsg.includes('CORS')) {
+            errorMsg = 'Site bloqueou download (CORS)';
+          } else if (
+            errorMsg.includes('fetch_error') ||
+            errorMsg.includes('Falha ao baixar')
+          ) {
+            errorMsg = 'URL inacessível ou bloqueada';
+          } else if (errorMsg.includes('timeout')) {
+            errorMsg = 'Timeout - imagem muito pesada';
+          } else if (
+            errorMsg.includes('404') ||
+            errorMsg.includes('não encontrado')
+          ) {
+            errorMsg = 'Imagem não encontrada (404)';
+          } else if (errorMsg.includes('SSL') || errorMsg.includes('TLS')) {
+            errorMsg = 'Erro de certificado SSL';
+          }
 
-        if (uploadError) throw uploadError;
+          throw new Error(errorMsg);
+        }
 
-        // 3. Get Public URL
-        const { data: publicUrlData } = supabase.storage
-          .from('product-images')
-          .getPublicUrl(`public/${fileName}`);
-
-        // 4. Update DB
-        const { error: dbError } = await supabase
-          .from('products')
-          .update({
-            image_url: publicUrlData.publicUrl,
-            external_image_url: null, // Limpa para não processar de novo
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', item.id);
-
-        if (dbError) throw dbError;
-
+        // Sucesso - reseta contador de erros
+        consecutiveErrors = 0;
         setItems((prev) => {
           const newItems = [...prev];
           newItems[index].status = 'success';
+          newItems[index].message = 'Internalizada ✓';
           return newItems;
         });
       } catch (error: any) {
+        // Incrementa contador de erros consecutivos
+        consecutiveErrors++;
         console.error('Erro no item ' + item.id, error);
         setItems((prev) => {
           const newItems = [...prev];
           newItems[index].status = 'error';
-          newItems[index].message = error.message;
+          newItems[index].message = error.message || 'Erro desconhecido';
           return newItems;
         });
       }
 
       processedCount++;
       setProgress(Math.round((processedCount / queueIndices.length) * 100));
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Delay entre requisições
     }
 
     setIsProcessing(false);

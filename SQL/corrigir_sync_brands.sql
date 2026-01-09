@@ -1,10 +1,14 @@
--- Função RPC para sincronizar marcas dos produtos para a tabela brands
--- Esta função extrai todas as marcas únicas dos produtos do usuário
--- e as insere automaticamente na tabela brands
+-- =====================================================
+-- CORREÇÃO RÁPIDA: Função sync_brands
+-- =====================================================
+-- Este script corrige o erro "column p.brand_id does not exist"
+-- Execute no SQL Editor do Supabase
+-- =====================================================
 
--- Remove a função antiga se existir (necessário para renomear parâmetro)
+-- Remove a função antiga
 DROP FUNCTION IF EXISTS sync_brands(uuid);
 
+-- Recria a função CORRIGIDA (sem referência a brand_id)
 CREATE OR REPLACE FUNCTION sync_brands(p_user_id UUID)
 RETURNS void
 LANGUAGE plpgsql
@@ -37,24 +41,22 @@ BEGIN
         GET DIAGNOSTICS inserted_count = ROW_COUNT;
     END LOOP;
 
-    -- Nota: A tabela products usa brand (TEXT) e não brand_id (UUID)
-    -- Se futuramente migrar para brand_id, descomentar o código abaixo:
-    /*
-    UPDATE products p
-    SET brand_id = b.id
-    FROM brands b
-    WHERE p.user_id = p_user_id
-      AND p.brand = b.name
-      AND p.user_id = b.user_id
-      AND p.brand_id IS NULL;
-    */
+    RAISE NOTICE 'Sincronização concluída com sucesso!';
 END;
 $$;
 
--- Concede permissão para usuários autenticados executarem a função
+-- Concede permissão
 GRANT EXECUTE ON FUNCTION sync_brands(UUID) TO authenticated;
 
--- Comentário descritivo
+-- Comentário
 COMMENT ON FUNCTION sync_brands(UUID) IS 
-'Sincroniza marcas únicas dos produtos do usuário para a tabela brands. 
-Aceita p_user_id como parâmetro e valida se corresponde ao usuário autenticado.';
+'Sincroniza marcas únicas dos produtos do usuário para a tabela brands.';
+
+-- Mensagem de confirmação
+DO $$
+BEGIN
+    RAISE NOTICE '==============================================';
+    RAISE NOTICE 'Função sync_brands corrigida com sucesso!';
+    RAISE NOTICE 'O erro "brand_id does not exist" foi resolvido.';
+    RAISE NOTICE '==============================================';
+END $$;

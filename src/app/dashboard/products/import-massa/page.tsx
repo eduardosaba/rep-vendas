@@ -514,10 +514,9 @@ export default function ImportMassaPage() {
 
         addLog(`Enviando Lote ${batchNum}/${totalBatches}...`);
 
-        const { error } = await supabase.from('products').upsert(batch, {
-          onConflict: 'user_id, reference_code' as any,
-          ignoreDuplicates: false,
-        });
+        // ⚠️ IMPORTANTE: Usa INSERT em vez de UPSERT para ADICIONAR produtos
+        // e NÃO sobrescrever produtos existentes com mesma referência
+        const { error } = await supabase.from('products').insert(batch);
 
         if (error) {
           console.error('Erro detalhado:', JSON.stringify(error, null, 2));

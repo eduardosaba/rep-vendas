@@ -28,11 +28,11 @@ export function usePlanLimits() {
       // 2. Busca o limite na tabela de Planos (que você configurou no Admin)
       const { data: plan } = await supabase
         .from('plans')
-        .select('max_products')
+        .select('product_limit, max_products')
         .eq('name', planName)
         .maybeSingle();
 
-      const maxLimit = plan?.max_products || 500; // Fallback se não achar plano
+      const maxLimit = plan?.product_limit || plan?.max_products || 500; // Fallback se não achar plano
 
       // 3. Conta produtos atuais
       const { count } = await supabase

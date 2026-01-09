@@ -91,8 +91,7 @@ export default async function DashboardPage({
       .from('orders')
       .select('total_value, created_at')
       .eq('user_id', user.id)
-      .gte('created_at', startDate)
-      .limit(1000),
+      .gte('created_at', startDate),
     supabase
       .from('sync_logs')
       .select('*')
