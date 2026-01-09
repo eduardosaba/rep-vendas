@@ -208,9 +208,9 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-center">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-center">
         <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 h-5 w-5" />
           <input
             type="text"
             placeholder="Buscar por nome, telefone ou email..."
@@ -219,7 +219,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full pl-10 p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] outline-none"
+            className="w-full pl-10 p-2.5 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-[var(--primary)] outline-none"
           />
         </div>
 
@@ -233,7 +233,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
           <select
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as any)}
-            className="p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none cursor-pointer"
+            className="p-2.5 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-lg text-sm outline-none cursor-pointer"
           >
             <option value="lastOrderDate">Recentes</option>
             <option value="totalSpent">Maior Valor (LTV)</option>
@@ -242,8 +242,8 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="hidden md:block w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 rounded-lg">
+      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
+        <div className="hidden md:block w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
           <table
             className="w-full text-left text-sm"
             style={{ minWidth: '800px' }}
@@ -439,14 +439,14 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                         className="relative group"
                         onTouchStart={() => showTooltip(`${client.id}-open`)}
                       >
-                        <Link
-                          href={`/dashboard/clients/${client.id}`}
-                          className="p-2 rounded text-gray-500 bg-white border flex items-center justify-center"
-                          aria-label="Abrir"
+                        <button
+                          onClick={() => setSelectedClient(client)}
+                          className="p-2 rounded text-gray-500 dark:text-gray-400 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center justify-center transition-colors"
+                          aria-label="Abrir detalhes do cliente"
                         >
                           <ArrowRight size={16} />
-                          <span className="sr-only">Abrir</span>
-                        </Link>
+                          <span className="sr-only">Abrir detalhes</span>
+                        </button>
                         <span
                           className={`pointer-events-none absolute -top-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
                             visibleTooltips[`${client.id}-open`]
@@ -454,7 +454,7 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
                               : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
                           }`}
                         >
-                          Abrir
+                          Ver Perfil Completo
                         </span>
                       </div>
                     </div>

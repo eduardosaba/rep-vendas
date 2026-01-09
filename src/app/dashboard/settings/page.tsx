@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { updateThemeColors } from '@/components/ThemeRegistry';
-import { applyThemeColors } from '@/lib/theme';
+import { applyThemeColors, applyDashboardFont } from '@/lib/theme';
 import {
   Save,
   Loader2,
@@ -215,6 +215,49 @@ export default function SettingsPage() {
     setUseSystemFont(formData.font_family ? false : true);
   }, [formData.font_family]);
 
+  // Aplica a fonte ao dashboard em tempo real (preview)
+  useEffect(() => {
+    if (!useSystemFont && formData.font_family) {
+      applyDashboardFont(formData.font_family);
+    } else {
+      applyDashboardFont(null); // Remove fonte customizada
+    }
+  }, [useSystemFont, formData.font_family]);
+
+  // Cleanup de blob URLs para evitar memory leaks
+  useEffect(() => {
+    return () => {
+      // Limpa preview da logo se for blob URL
+      if (logoPreview && logoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(logoPreview);
+      }
+      // Limpa previews dos novos banners
+      newBannerFiles.forEach((banner) => {
+        if (banner.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(banner.preview);
+        }
+      });
+      // Limpa previews dos novos banners mobile
+      newBannerFilesMobile.forEach((banner) => {
+        if (banner.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(banner.preview);
+        }
+      });
+      // Limpa preview da top benefit image se for blob URL
+      if (
+        topBenefitImagePreview &&
+        topBenefitImagePreview.startsWith('blob:')
+      ) {
+        URL.revokeObjectURL(topBenefitImagePreview);
+      }
+    };
+  }, [
+    logoPreview,
+    newBannerFiles,
+    newBannerFilesMobile,
+    topBenefitImagePreview,
+  ]);
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -371,8 +414,14 @@ export default function SettingsPage() {
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      setLogoFile(e.target.files[0]);
-      setLogoPreview(URL.createObjectURL(e.target.files[0]));
+      // Revoga o blob URL anterior se existir
+      if (logoPreview && logoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(logoPreview);
+      }
+      const file = e.target.files[0];
+      setLogoFile(file);
+      const objectURL = URL.createObjectURL(file);
+      setLogoPreview(objectURL);
     }
   };
 
@@ -414,7 +463,14 @@ export default function SettingsPage() {
   };
 
   const removeNewBanner = (index: number) => {
-    setNewBannerFiles((prev) => prev.filter((_, i) => i !== index));
+    setNewBannerFiles((prev) => {
+      // Revoga o blob URL do banner removido
+      const bannerToRemove = prev[index];
+      if (bannerToRemove?.preview.startsWith('blob:')) {
+        URL.revokeObjectURL(bannerToRemove.preview);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleBannerMobileUpload = async (
@@ -455,18 +511,35 @@ export default function SettingsPage() {
   };
 
   const removeNewBannerMobile = (index: number) => {
-    setNewBannerFilesMobile((prev) => prev.filter((_, i) => i !== index));
+    setNewBannerFilesMobile((prev) => {
+      // Revoga o blob URL do banner removido
+      const bannerToRemove = prev[index];
+      if (bannerToRemove?.preview.startsWith('blob:')) {
+        URL.revokeObjectURL(bannerToRemove.preview);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleTopBenefitImageChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (!e.target.files?.[0]) return;
-    setTopBenefitImageFile(e.target.files[0]);
-    setTopBenefitImagePreview(URL.createObjectURL(e.target.files[0]));
+    // Revoga o blob URL anterior se existir
+    if (topBenefitImagePreview && topBenefitImagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(topBenefitImagePreview);
+    }
+    const file = e.target.files[0];
+    setTopBenefitImageFile(file);
+    const objectURL = URL.createObjectURL(file);
+    setTopBenefitImagePreview(objectURL);
   };
 
   const removeTopBenefitImage = () => {
+    // Revoga o blob URL se existir
+    if (topBenefitImagePreview && topBenefitImagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(topBenefitImagePreview);
+    }
     setTopBenefitImageFile(null);
     setTopBenefitImagePreview(null);
   };

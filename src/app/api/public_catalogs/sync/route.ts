@@ -14,6 +14,8 @@ export async function POST(request: Request) {
       is_active, // NOVO: Campo de ativação/desativação
       store_name,
       logo_url,
+      banners,
+      banners_mobile,
       primary_color,
       secondary_color,
       footer_message,
@@ -51,6 +53,8 @@ export async function POST(request: Request) {
       is_active: is_active ?? true, // Garante que se vier vazio, a loja continue online por padrão
       store_name,
       logo_url,
+      banners,
+      banners_mobile,
       primary_color,
       secondary_color,
       footer_message,

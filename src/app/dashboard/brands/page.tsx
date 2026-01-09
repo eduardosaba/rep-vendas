@@ -172,7 +172,7 @@ export default function BrandsPage() {
       if (!user) return;
 
       const { error } = await supabase.rpc('sync_brands', {
-        current_user_id: user.id,
+        p_user_id: user.id,
       });
 
       if (error) throw error;

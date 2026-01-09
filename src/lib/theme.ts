@@ -1,4 +1,5 @@
 ﻿import { getContrastColor, hexToRgb } from './colors';
+import { SYSTEM_FONTS } from './fonts';
 
 export const DEFAULT_PRIMARY_COLOR = '#b9722e';
 export const DEFAULT_SECONDARY_COLOR = '#0d1b2c';
@@ -49,6 +50,42 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
       root.style.setProperty(name, value);
     }
   });
+}
+
+/**
+ * Aplica a fonte ao dashboard via body font-family.
+ * IMPORTANTE: Esta função aplica a fonte APENAS ao dashboard (preview).
+ * A fonte do CATÁLOGO é aplicada pelo componente Storefront.
+ */
+export function applyDashboardFont(fontName: string | null) {
+  if (typeof window === 'undefined') return;
+
+  const body = document.body;
+
+  if (!fontName) {
+    // Remove font-family customizada, volta ao padrão do sistema
+    body.style.fontFamily = '';
+    return;
+  }
+
+  const selectedFont = SYSTEM_FONTS.find((f) => f.name === fontName);
+  if (!selectedFont) {
+    console.warn(`Fonte "${fontName}" não encontrada em SYSTEM_FONTS`);
+    return;
+  }
+
+  // Carrega a fonte via Google Fonts se ainda não foi carregada
+  const linkId = `font-${fontName.replace(/\s+/g, '-')}`;
+  if (!document.getElementById(linkId)) {
+    const link = document.createElement('link');
+    link.id = linkId;
+    link.rel = 'stylesheet';
+    link.href = selectedFont.import;
+    document.head.appendChild(link);
+  }
+
+  // Aplica a font-family ao body
+  body.style.fontFamily = selectedFont.family;
 }
 
 /**

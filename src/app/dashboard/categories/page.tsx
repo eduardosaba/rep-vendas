@@ -157,7 +157,7 @@ export default function CategoriesPage() {
       if (!user) return;
 
       const { error } = await supabase.rpc('sync_categories', {
-        current_user_id: user.id,
+        p_user_id: user.id,
       });
 
       if (error) throw error;

@@ -19,7 +19,9 @@ if (
   // Evita re-setar se já estiver como '0' para não poluir o terminal
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    console.log('⚠️ [SECURITY] Verificação TLS desativada para processamento de imagens externas.');
+    console.log(
+      '⚠️ [SECURITY] Verificação TLS desativada para processamento de imagens externas.'
+    );
   }
 }
 
@@ -57,11 +59,30 @@ export async function POST(request: Request) {
     });
 
     // 2. Recebe e valida os dados do body
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError: any) {
+      console.error('[PARSE ERROR]', parseError);
+      return NextResponse.json(
+        {
+          error: 'JSON inválido no corpo da requisição.',
+          details: parseError.message,
+        },
+        { status: 400 }
+      );
+    }
+
     const { productId, externalUrl } = body;
 
     if (!productId || !externalUrl) {
-      return NextResponse.json({ error: 'ID do produto ou URL ausente.' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'ID do produto ou URL ausente.',
+          received: { productId, externalUrl },
+        },
+        { status: 400 }
+      );
     }
 
     // 3. Recupera User ID e Marca para organizar a pasta no Storage
@@ -84,21 +105,38 @@ export async function POST(request: Request) {
       throw new Error(`URL fornecida é inválida: ${cleanUrl}`);
     }
 
-    console.log(`[IMAGE SYNC] Processando imagem para User ${product.user_id}: ${targetUrl}`);
+    console.log(
+      `[IMAGE SYNC] Processando imagem para User ${product.user_id}: ${targetUrl}`
+    );
 
     // 5. Download da Imagem Externa
-    const downloadResponse = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        'Referer': new URL(targetUrl).origin,
-      },
-      signal: AbortSignal.timeout(25000), // Timeout de 25 segundos
-    });
+    let downloadResponse;
+    try {
+      downloadResponse = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+          Accept:
+            'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          Referer: new URL(targetUrl).origin,
+        },
+        signal: AbortSignal.timeout(25000), // Timeout de 25 segundos
+      });
+    } catch (fetchError: any) {
+      console.error('[FETCH ERROR]', {
+        url: targetUrl,
+        error: fetchError.message,
+      });
+      throw new Error(
+        `Falha ao baixar imagem: ${fetchError.message}. Verifique se a URL está acessível.`
+      );
+    }
 
     if (!downloadResponse.ok) {
-      throw new Error(`Falha no download (${downloadResponse.status}): Servidor externo recusou a conexão.`);
+      throw new Error(
+        `Falha no download (${downloadResponse.status}): Servidor externo recusou a conexão.`
+      );
     }
 
     const arrayBuffer = await downloadResponse.arrayBuffer();
@@ -107,7 +145,8 @@ export async function POST(request: Request) {
     if (buffer.length === 0) throw new Error('A imagem baixada está vazia.');
 
     // 6. Detecta extensão baseada no Content-Type
-    const contentType = downloadResponse.headers.get('content-type') || 'image/jpeg';
+    const contentType =
+      downloadResponse.headers.get('content-type') || 'image/jpeg';
     let extension = 'jpg';
     if (contentType.includes('png')) extension = 'png';
     else if (contentType.includes('webp')) extension = 'webp';
@@ -120,7 +159,7 @@ export async function POST(request: Request) {
 
     // 8. Upload para o bucket 'product-images' (ou o seu bucket padrão)
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from('product-images') 
+      .from('product-images')
       .upload(fileName, buffer, {
         contentType: contentType,
         upsert: true,
@@ -128,33 +167,55 @@ export async function POST(request: Request) {
 
     if (uploadError) {
       console.error('[STORAGE ERROR]', uploadError);
-      throw new Error(`Erro ao subir para o Supabase Storage: ${uploadError.message}`);
+      throw new Error(
+        `Erro ao subir para o Supabase Storage: ${uploadError.message}`
+      );
     }
 
-    // 9. Atualiza o produto no Banco de Dados com o novo caminho relativo
+    // 9. Gera URL pública da imagem
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from('product-images')
+      .getPublicUrl(uploadData.path);
+
+    const publicUrl = publicUrlData?.publicUrl || null;
+
+    // 10. Atualiza o produto no Banco de Dados com o caminho e URL pública
     const { error: dbError } = await supabaseAdmin
       .from('products')
-      .update({ 
+      .update({
         image_path: uploadData.path,
-        updated_at: new Date().toISOString() 
+        image_url: publicUrl,
+        external_image_url: null, // Limpa a URL externa após internalizar
+        updated_at: new Date().toISOString(),
       })
       .eq('id', productId);
 
     if (dbError) throw new Error(`Erro ao atualizar banco: ${dbError.message}`);
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       path: uploadData.path,
-      message: 'Imagem processada e vinculada com sucesso.'
+      url: publicUrl,
+      message: 'Imagem processada e vinculada com sucesso.',
+    });
+  } catch (error: any) {
+    console.error(`[SYNC FAILURE]`, {
+      url: targetUrl,
+      error: error.message,
+      stack: error.stack,
+      cause: error.cause,
     });
 
-  } catch (error: any) {
-    console.error(`[SYNC FAILURE] URL: ${targetUrl}`, error.message);
-
+    // Retorna erro mais detalhado
     return NextResponse.json(
       {
+        success: false,
         error: error.message || 'Erro inesperado ao processar imagem.',
         url: targetUrl,
+        details:
+          error.cause?.message ||
+          error.stack?.split('\n')[0] ||
+          'Nenhum detalhe adicional',
       },
       { status: 500 }
     );

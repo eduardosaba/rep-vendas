@@ -114,6 +114,7 @@ export interface PublicCatalog extends BaseStoreSettings {
   is_active: boolean;
   price_password_hash?: string;
   banners?: string[] | null;
+  banners_mobile?: string[] | null;
   created_at?: string;
 }
 

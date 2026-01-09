@@ -27,13 +27,11 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: any;
+  searchParams: Promise<{ range?: string } | undefined>;
 }) {
   const supabase = await createClient();
-  const resolvedSearchParams = (await searchParams) as
-    | { range?: string }
-    | undefined;
-  const range = resolvedSearchParams?.range || '30d';
+  const resolvedSearchParams = (await searchParams) || {};
+  const range = resolvedSearchParams.range || '30d';
 
   const {
     data: { user },
@@ -123,10 +121,10 @@ export default async function DashboardPage({
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 animate-in fade-in duration-700">
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
             Olá, {profile.data?.full_name?.split(' ')[0]} 👋
           </h1>
-          <p className="text-slate-500 mt-1">
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
             Torre de Controle <strong>RepVendas</strong>.
           </p>
         </div>
@@ -136,7 +134,7 @@ export default async function DashboardPage({
             <Link
               href={`/catalogo/${settings.data.catalog_slug}`}
               target="_blank"
-              className="flex items-center gap-3 bg-white p-3 px-4 rounded-xl border border-gray-200 shadow-sm text-xs font-bold text-primary"
+              className="flex items-center gap-3 bg-white dark:bg-slate-800 p-3 px-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm text-xs font-bold text-primary hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
             >
               /{settings.data.catalog_slug} <ExternalLink size={14} />
             </Link>
@@ -147,7 +145,7 @@ export default async function DashboardPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* WIDGET DE SINCRONIZAÇÃO REFORMULADO */}
         <div
-          className={`col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-6 rounded-[2rem] border shadow-sm bg-white`}
+          className={`col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-6 rounded-[2rem] border border-gray-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900`}
         >
           <div className="flex items-center gap-3 sm:gap-5">
             <div
@@ -160,15 +158,15 @@ export default async function DashboardPage({
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                 Status de Sincronização
               </p>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 truncate">
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
                 {needsSyncAlert
                   ? 'Sincronização Recomendada'
                   : 'Sistema em Dia'}
               </h3>
-              <p className="text-xs text-slate-500 line-clamp-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
                 {syncDate
                   ? `Última atualização de dados há ${formatDistanceToNow(syncDate, { locale: ptBR })}.`
                   : 'Nenhuma sincronização via planilha realizada recentemente.'}
@@ -186,11 +184,11 @@ export default async function DashboardPage({
         {/* ALERTA DE ESTOQUE: Agora condicional ao campo 'manage_stock' */}
         {settings.data?.manage_stock ? (
           <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-gray-200 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
-            <div className="p-3 bg-red-100 text-red-600 rounded-xl flex-shrink-0">
+            <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl flex-shrink-0">
               <AlertTriangle size={20} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-black text-gray-400 uppercase">
+              <p className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase">
                 Alertas de Inventário
               </p>
               <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
@@ -200,11 +198,11 @@ export default async function DashboardPage({
           </div>
         ) : (
           <div className="bg-emerald-50 dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-emerald-100 dark:border-slate-800 shadow-sm flex items-center gap-3 sm:gap-4">
-            <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl flex-shrink-0">
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex-shrink-0">
               <CheckCircle2 size={20} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-black text-emerald-400 uppercase">
+              <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase">
                 Estoque Desativado
               </p>
               <p className="text-xs sm:text-sm font-bold text-emerald-800 dark:text-emerald-200">
@@ -253,7 +251,7 @@ export default async function DashboardPage({
           <DashboardCharts orders={chartData.data || []} />
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-200 dark:border-slate-800 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-5 uppercase text-xs tracking-widest text-gray-400">
+          <h3 className="font-bold text-gray-400 dark:text-slate-500 mb-5 uppercase text-xs tracking-widest">
             Ações Rápidas
           </h3>
           <div className="grid grid-cols-2 gap-4">
