@@ -17,10 +17,15 @@ export function SyncSingleButton({
     setIsSyncing(true);
     setStatus('idle');
     try {
+      const proxyBase = (
+        process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+      ).replace(/\/$/, '');
+      const proxiedUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(externalUrl)}`;
+
       const res = await fetch('/api/process-external-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, externalUrl }),
+        body: JSON.stringify({ productId, externalUrl: proxiedUrl }),
       });
       const json = await res.json();
       if (json?.success) {

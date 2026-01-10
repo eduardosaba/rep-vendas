@@ -45,10 +45,15 @@ export function DiagnosticPanel() {
   };
 
   const syncOne = async (id: string, externalUrl: string) => {
+    const proxyBase = (
+      process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+    ).replace(/\/$/, '');
+    const proxiedUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(externalUrl)}`;
+
     const res = await fetch('/api/process-external-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId: id, externalUrl }),
+      body: JSON.stringify({ productId: id, externalUrl: proxiedUrl }),
     });
     if (!res.ok) throw new Error('sync failed');
     return res.json();

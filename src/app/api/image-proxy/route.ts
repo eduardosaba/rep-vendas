@@ -11,16 +11,25 @@ if (dns.setDefaultResultOrder) {
 function isPrivateHost(host: string) {
   if (!host) return true;
   // IPs privados básicos
-  if (/^(127|10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(host)) return true;
+  if (/^(127|10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(host))
+    return true;
   if (host === 'localhost') return true;
   return false;
 }
 
-async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 30000) {
+async function fetchWithTimeout(
+  url: string,
+  opts: RequestInit = {},
+  timeoutMs = 30000
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...opts, redirect: 'follow', signal: controller.signal } as RequestInit);
+    const res = await fetch(url, {
+      ...opts,
+      redirect: 'follow',
+      signal: controller.signal,
+    } as RequestInit);
     return res;
   } finally {
     clearTimeout(timer);
@@ -31,7 +40,8 @@ export async function GET(req: Request) {
   try {
     const u = new URL(req.url);
     const target = u.searchParams.get('url');
-    if (!target) return NextResponse.json({ error: 'Missing url param' }, { status: 400 });
+    if (!target)
+      return NextResponse.json({ error: 'Missing url param' }, { status: 400 });
 
     let targetUrl: URL;
     try {
@@ -41,7 +51,10 @@ export async function GET(req: Request) {
     }
 
     if (!/^https?:$/.test(targetUrl.protocol)) {
-      return NextResponse.json({ error: 'Only http(s) allowed' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Only http(s) allowed' },
+        { status: 400 }
+      );
     }
 
     const host = targetUrl.hostname;
@@ -51,34 +64,54 @@ export async function GET(req: Request) {
     }
 
     if (allowedEnv) {
-      const allowed = allowedEnv.split(',').map((s) => s.trim()).filter(Boolean);
+      const allowed = allowedEnv
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       if (!allowed.includes(host)) {
-        return NextResponse.json({ error: 'Host not in allowlist' }, { status: 403 });
+        return NextResponse.json(
+          { error: 'Host not in allowlist' },
+          { status: 403 }
+        );
       }
     }
 
     // permitir bypass TLS apenas quando explícito (dev/debug)
-    if (process.env.NODE_ENV === 'development' || process.env.ALLOW_INSECURE_TLS === '1') {
+    if (
+      process.env.NODE_ENV === 'development' ||
+      process.env.ALLOW_INSECURE_TLS === '1'
+    ) {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     }
 
-    const res = await fetchWithTimeout(targetUrl.toString(), {
-      method: 'GET',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'image/*,*/*;q=0.8',
-        Referer: targetUrl.origin,
+    const res = await fetchWithTimeout(
+      targetUrl.toString(),
+      {
+        method: 'GET',
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: 'image/*,*/*;q=0.8',
+          Referer: targetUrl.origin,
+        },
       },
-    }, 45000);
+      45000
+    );
 
     if (!res.ok) {
-      return NextResponse.json({ error: 'Upstream error', status: res.status }, { status: 502 });
+      return NextResponse.json(
+        { error: 'Upstream error', status: res.status },
+        { status: 502 }
+      );
     }
 
-    const contentType = res.headers.get('content-type') || 'application/octet-stream';
+    const contentType =
+      res.headers.get('content-type') || 'application/octet-stream';
     if (!contentType.startsWith('image/')) {
-      return NextResponse.json({ error: 'Not an image', contentType }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Not an image', contentType },
+        { status: 400 }
+      );
     }
 
     const arrayBuffer = await res.arrayBuffer();
@@ -93,6 +126,9 @@ export async function GET(req: Request) {
     });
   } catch (err: any) {
     console.error('[image-proxy] error', err?.message || err);
-    return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
+    return NextResponse.json(
+      { error: String(err?.message || err) },
+      { status: 500 }
+    );
   }
 }

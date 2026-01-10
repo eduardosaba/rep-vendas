@@ -157,14 +157,21 @@ export async function POST(request: Request) {
       }
     }
 
+    // Use internal proxy to reliably fetch from hosts with TLS issues
+    const origin = new URL(request.url).origin;
+    const proxyBase = process.env.NEXT_PUBLIC_APP_URL
+      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
+      : origin;
+    const proxyUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(targetUrl)}`;
+
     let downloadResponse;
     try {
       downloadResponse = await fetchWithTimeout(
-        targetUrl,
+        proxyUrl,
         {
           method: 'GET',
           headers: {
-            Referer: 'https://commportal.safilo.com/',
+            'X-Forwarded-From': targetUrl,
             'Cache-Control': 'no-cache',
           },
         },
@@ -172,11 +179,15 @@ export async function POST(request: Request) {
         1
       );
     } catch (err: any) {
-      console.error('[process-external-image] falha ao baixar imagem', {
-        url: targetUrl,
-        message: err?.message,
-        code: err?.code,
-      });
+      console.error(
+        '[process-external-image] falha ao baixar imagem via proxy',
+        {
+          target: targetUrl,
+          proxy: proxyUrl,
+          message: err?.message,
+          code: err?.code,
+        }
+      );
       throw err;
     }
 

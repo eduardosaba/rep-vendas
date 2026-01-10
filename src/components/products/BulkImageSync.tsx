@@ -38,12 +38,18 @@ export function BulkImageSync() {
       for (let i = 0; i < list.length; i++) {
         const product = list[i];
         try {
+          // Use internal proxy to fetch problematic hosts
+          const proxyBase = (
+            process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+          ).replace(/\/$/, '');
+          const proxiedUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(product.external_image_url)}`;
+
           const r = await fetch('/api/process-external-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               productId: product.id,
-              externalUrl: product.external_image_url,
+              externalUrl: proxiedUrl,
             }),
           });
           const jr = await r.json();

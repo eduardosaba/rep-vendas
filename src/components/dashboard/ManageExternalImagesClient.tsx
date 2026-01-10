@@ -97,10 +97,13 @@ export default function ManageExternalImagesClient({
     setIsProcessing(true);
     setStopRequested(false);
 
+    // Apenas processa os itens que estão no filtro atual (filteredItems)
     const queueIndices = items
-      .map((item, index) =>
-        item.status === 'idle' || item.status === 'error' ? index : -1
-      )
+      .map((item, index) => {
+        const isVisible = filteredItems.some((f) => f.id === item.id);
+        const isPending = item.status === 'idle' || item.status === 'error';
+        return isVisible && isPending ? index : -1;
+      })
       .filter((i) => i !== -1);
 
     let processedCount = 0;
@@ -146,12 +149,18 @@ export default function ManageExternalImagesClient({
 
       try {
         // Usa a API route do servidor para evitar bloqueios de CORS
+        // Encaminha via proxy interno para resolver problemas de TLS/hosts problemáticos
+        const proxyBase = (
+          process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+        ).replace(/\/$/, '');
+        const proxiedUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(item.external_image_url)}`;
+
         const response = await fetch('/api/process-external-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             productId: item.id,
-            externalUrl: item.external_image_url,
+            externalUrl: proxiedUrl,
           }),
         });
 
@@ -404,6 +413,18 @@ export default function ManageExternalImagesClient({
                 <Play size={18} /> Iniciar Sincronização
               </button>
             )}
+          </div>
+          {/* Nota: informa que apenas os itens filtrados serão sincronizados */}
+          <div className="w-full md:w-auto mt-2 md:mt-0 text-xs text-gray-500">
+            Sincroniza apenas os{' '}
+            <strong className="text-gray-700 dark:text-gray-200">
+              {stats.total}
+            </strong>{' '}
+            itens visíveis de{' '}
+            <strong className="text-gray-700 dark:text-gray-200">
+              {stats.totalGlobal}
+            </strong>
+            .
           </div>
         </div>
       </div>
