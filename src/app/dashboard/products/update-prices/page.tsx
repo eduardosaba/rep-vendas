@@ -50,6 +50,7 @@ export default function UpdatePricesPage() {
   // Estados
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [stopOnError, setStopOnError] = useState(true);
 
   // Dados do Arquivo
   const [rows, setRows] = useState<any[]>([]);
@@ -216,7 +217,21 @@ export default function UpdatePricesPage() {
               (newPrice !== undefined && isNaN(newPrice)) ||
               (newSalePrice !== undefined && isNaN(newSalePrice))
             ) {
-              addLog(`Erro: Preço inválido para Ref ${refValue}`, 'error');
+              const errorMsg = `Preço inválido para Ref ${refValue}`;
+              if (stopOnError) {
+                console.error('╔════════════════════════════════╗');
+                console.error('║   ❌ ERRO NO PROCESSAMENTO    ║');
+                console.error('╚════════════════════════════════╝');
+                console.error(`Produto: ${refValue}`);
+                console.error(`Motivo: ${errorMsg}`);
+                addLog(`ERRO CRÍTICO: ${errorMsg}`, 'error');
+                toast.error(`Processo interrompido: ${errorMsg}`, {
+                  duration: 10000,
+                });
+                setLoading(false);
+                return;
+              }
+              addLog(`Erro: ${errorMsg}`, 'error');
               errorCount++;
               return;
             }
@@ -236,10 +251,21 @@ export default function UpdatePricesPage() {
               .select('id');
 
             if (error) {
-              addLog(
-                `Erro ao atualizar ${refValue}: ${error.message}`,
-                'error'
-              );
+              const errorMsg = `Erro ao atualizar ${refValue}: ${error.message}`;
+              if (stopOnError) {
+                console.error('╔════════════════════════════════╗');
+                console.error('║   ❌ ERRO NO PROCESSAMENTO    ║');
+                console.error('╚════════════════════════════════╝');
+                console.error(`Produto: ${refValue}`);
+                console.error(`Motivo: ${error.message}`);
+                addLog(`ERRO CRÍTICO: ${errorMsg}`, 'error');
+                toast.error(`Processo interrompido: ${errorMsg}`, {
+                  duration: 10000,
+                });
+                setLoading(false);
+                return;
+              }
+              addLog(errorMsg, 'error');
               errorCount++;
             } else if (!data || data.length === 0) {
               addLog(`Produto não encontrado: ${refValue}`, 'warn');
@@ -433,25 +459,38 @@ export default function UpdatePricesPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-slate-800">
-              <button
-                onClick={() => setStep(1)}
-                className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 dark:text-gray-300 font-medium transition-colors"
-              >
-                Voltar
-              </button>
-              <button
-                onClick={handleUpdate}
-                disabled={loading}
-                className="px-8 py-2.5 bg-[var(--primary)] text-white hover:opacity-90 rounded-lg font-bold shadow-md active:scale-95 flex items-center gap-2 disabled:opacity-70"
-              >
-                {loading ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <Play size={18} />
-                )}
-                {loading ? 'Processando...' : 'Iniciar Atualização'}
-              </button>
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100 dark:border-slate-800">
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={stopOnError}
+                  onChange={(e) => setStopOnError(e.target.checked)}
+                  className="w-4 h-4 text-red-600 rounded border-gray-300 dark:border-slate-700 focus:ring-red-500"
+                />
+                <AlertTriangle size={16} className="text-red-500" />
+                <span className="font-medium">Parar ao primeiro erro</span>
+              </label>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(1)}
+                  className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 dark:text-gray-300 font-medium transition-colors"
+                >
+                  Voltar
+                </button>
+                <button
+                  onClick={handleUpdate}
+                  disabled={loading}
+                  className="px-8 py-2.5 bg-[var(--primary)] text-white hover:opacity-90 rounded-lg font-bold shadow-md active:scale-95 flex items-center gap-2 disabled:opacity-70"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <Play size={18} />
+                  )}
+                  {loading ? 'Processando...' : 'Iniciar Atualização'}
+                </button>
+              </div>
             </div>
           </div>
 

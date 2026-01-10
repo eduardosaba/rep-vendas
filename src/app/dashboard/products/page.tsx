@@ -84,16 +84,11 @@ export default async function ProductsPage() {
     console.error('Erro ao recuperar limite do plano:', e);
   }
 
-  // Garante um teto razoável (ex: 5000) para evitar retornos massivos inesperados
-  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 5000, 1000), 5000);
-  console.log('[ProductsPage] fetchLimit final:', fetchLimit);
-
   const { data: products, error } = await supabase
     .from('products')
     .select('*')
     .eq('user_id', finalUser.id)
-    .order('created_at', { ascending: false })
-    .range(0, fetchLimit - 1);
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Erro ao carregar produtos:', error);
@@ -101,6 +96,19 @@ export default async function ProductsPage() {
 
   // Fallback seguro se der erro
   const safeProducts = products || [];
+
+  // Estatísticas de otimização de imagens
+  const totalProducts = safeProducts.length;
+  const productsWithInternalImages = safeProducts.filter(
+    (p) => p.image_path
+  ).length;
+  const productsWithExternalImages = safeProducts.filter(
+    (p) => !p.image_path && (p.image_url || p.external_image_url || p.images)
+  ).length;
+  const optimizationRate =
+    totalProducts > 0
+      ? Math.round((productsWithInternalImages / totalProducts) * 100)
+      : 0;
 
   return (
     <div className="p-4 md:p-6 space-y-6 pb-24 animate-in fade-in duration-500">
@@ -168,6 +176,81 @@ export default async function ProductsPage() {
           </Link>
         </div>
       </div>
+
+      {/* Estatísticas de Otimização de Imagens */}
+      {totalProducts > 0 && (
+        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-950/20 dark:to-yellow-950/20 rounded-xl border border-orange-200 dark:border-orange-800 p-5">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-orange-500 rounded-xl">
+              <ImageIcon size={24} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                Status de Otimização de Imagens
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">
+                    Imagens Otimizadas
+                  </p>
+                  <p className="text-2xl font-black text-green-600 dark:text-green-400">
+                    {productsWithInternalImages}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    ✅ Armazenadas no Supabase
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">
+                    Imagens Externas
+                  </p>
+                  <p className="text-2xl font-black text-orange-600 dark:text-orange-400">
+                    {productsWithExternalImages}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    ⚠️ Não otimizadas (mais lentas)
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">
+                    Taxa de Otimização
+                  </p>
+                  <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                    {optimizationRate}%
+                  </p>
+                  <div className="mt-2 w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-green-500 to-blue-500 transition-all duration-500"
+                      style={{ width: `${optimizationRate}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+              {productsWithExternalImages > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-700 dark:text-gray-300">
+                    💡 <strong>{productsWithExternalImages} produtos</strong>{' '}
+                    podem ser otimizados para melhorar a performance do
+                    catálogo.
+                  </span>
+                  <Link
+                    href="/dashboard/products/manage-external-images"
+                    className="contents"
+                  >
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="whitespace-nowrap"
+                    >
+                      Otimizar Agora
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Painel de Diagnóstico (Só exibe se houver problemas) */}
       <DiagnosticPanel />

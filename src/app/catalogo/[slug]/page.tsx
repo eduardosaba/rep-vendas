@@ -127,9 +127,9 @@ export default async function CatalogPage({ params, searchParams }: Props) {
     console.error('Erro ao recuperar limite do plano do catálogo:', e);
   }
 
-  const fetchLimit = Math.min(Math.max(Number(maxLimit) || 5000, 1000), 5000);
+  const fetchLimit = Number(maxLimit) || 5000;
 
-  const { data: products } = await supabase
+  const { data: products, error: productsError } = await supabase
     .from('products')
     .select('*')
     .eq('user_id', catalog.user_id)

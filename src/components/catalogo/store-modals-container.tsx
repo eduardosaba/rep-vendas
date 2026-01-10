@@ -8,23 +8,22 @@ import {
   Plus,
   Trash2,
   Send,
-  Download,
   CheckCircle,
   ShoppingCart,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
   Search,
-  Package,
   Heart,
-  Zap,
-  Star,
+  Tag,
+  Info,
+  Package,
+  Barcode as BarcodeIcon,
 } from 'lucide-react';
 import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
 import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
-import Barcode from '../ui/Barcode';
+import Barcode from '../ui/Barcode'; // Mantido conforme seu projeto
 import { toast } from 'sonner';
 import { PasswordModal } from './modals/PasswordModal';
 
@@ -45,18 +44,17 @@ export function StoreModals() {
     setOrderSuccessData,
     handleSendWhatsApp,
     isPricesVisible,
-    displayProducts,
-    customerSession,
-    clearCustomerSession,
-    toggleFavorite,
     favorites,
+    toggleFavorite,
     unlockPrices,
+    customerSession,
   } = useStore();
 
-  // --- ESTADOS LOCAIS ---
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [detailQuantity, setDetailQuantity] = useState(1);
   const [passwordInput, setPasswordInput] = useState('');
+  const [loadCodeInput, setLoadCodeInput] = useState('');
+  const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
@@ -64,10 +62,7 @@ export function StoreModals() {
     cnpj: '',
   });
   const [savedCode, setSavedCode] = useState<string | null>(null);
-  const [loadCodeInput, setLoadCodeInput] = useState('');
-  const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
 
-  // --- PERSISTÊNCIA DE DADOS DO CLIENTE ---
   useEffect(() => {
     if (customerSession) {
       setCustomerInfo({
@@ -79,7 +74,6 @@ export function StoreModals() {
     }
   }, [customerSession]);
 
-  // --- MEMOIZAÇÕES ---
   const cartTotal = useMemo(
     () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
     [cart]
@@ -88,31 +82,20 @@ export function StoreModals() {
   const productImages = useMemo(() => {
     if (!modals.product) return [];
     const images: string[] = [];
-
-    // Prioridade: image_path (Storage otimizado) > URLs externas
     if (modals.product.image_path) {
-      // Storage: usa imagem otimizada (800x800) para modal
-      const pathUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${modals.product.image_path}`;
-      const optimizedUrl = `${pathUrl}?width=800&height=800&resize=contain`;
-      images.push(optimizedUrl);
+      images.push(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${modals.product.image_path}?width=800&height=800&resize=contain`
+      );
     } else if (modals.product.image_url) {
       images.push(modals.product.image_url);
     }
-
-    // URLs externas adicionais (galeria)
-    if (
-      modals.product.external_image_url &&
-      !images.includes(modals.product.external_image_url)
-    ) {
+    if (modals.product.external_image_url)
       images.push(modals.product.external_image_url);
-    }
-
     if (modals.product.images && Array.isArray(modals.product.images)) {
-      modals.product.images.forEach((img) => {
-        if (img && !images.includes(img)) images.push(img);
-      });
+      modals.product.images.forEach(
+        (img) => img && !images.includes(img) && images.push(img)
+      );
     }
-
     return images.length > 0 ? images : ['/placeholder-no-image.svg'];
   }, [modals.product]);
 
@@ -121,72 +104,25 @@ export function StoreModals() {
     productImages[currentImageIndex]?.includes('supabase.co/storage') ||
     Boolean(modals.product?.image_path);
 
-  // Reset ao trocar de produto
   useEffect(() => {
     setCurrentImageIndex(0);
     setDetailQuantity(1);
   }, [modals.product]);
 
-  // Navegação por teclado no Zoom (esquerda/direita/esc)
-  useEffect(() => {
-    if (!isImageZoomOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        setCurrentImageIndex((i) =>
-          i === 0 ? productImages.length - 1 : i - 1
-        );
-      } else if (e.key === 'ArrowRight') {
-        setCurrentImageIndex((i) =>
-          i === productImages.length - 1 ? 0 : i + 1
-        );
-      } else if (e.key === 'Escape') {
-        setIsImageZoomOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [isImageZoomOpen, productImages.length]);
-
-  // --- HANDLERS ---
+  // Handlers
   const onFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
     const success = await handleFinalizeOrder(customerInfo);
     if (success) setModal('checkout', false);
   };
 
-  const onGeneratePDF = () => {
-    if (orderSuccessData?.pdf_url) {
-      window.open(orderSuccessData.pdf_url, '_blank');
-    } else {
-      toast.error('Comprovante não disponível.');
-    }
-  };
-
-  const copyToClipboard = (text: string, message: string = 'Copiado!') => {
-    try {
-      navigator.clipboard.writeText(text);
-      toast.success(message);
-    } catch {
-      toast.error('Não foi possível copiar.');
-    }
-  };
-
-  const onSaveCart = async () => {
-    const code = await handleSaveCart();
-    if (code) {
-      setSavedCode(code);
-      setModal('save', true);
-      toast.success('Carrinho salvo!');
-    }
-  };
-
   return (
     <>
-      {/* --- MODAL CARRINHO (SIDEBAR) --- */}
+      {/* --- MODAL CARRINHO --- */}
       {modals.cart && (
         <div className="fixed inset-0 z-[100] flex justify-end">
           <div
-            className="absolute inset-0 bg-[#0d1b2c]/40 backdrop-blur-sm animate-in fade-in duration-300"
+            className="absolute inset-0 bg-[#0d1b2c]/40 backdrop-blur-sm"
             onClick={() => setModal('cart', false)}
           />
           <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
@@ -196,27 +132,24 @@ export function StoreModals() {
               </h2>
               <button
                 onClick={() => setModal('cart', false)}
-                className="rounded-xl p-2 hover:bg-gray-100 text-gray-400"
+                className="rounded-xl p-2 hover:bg-gray-100"
               >
                 <X size={24} />
               </button>
             </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {cart.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-gray-400 opacity-30">
-                  <ShoppingCart size={80} strokeWidth={1} />
-                  <p className="font-bold text-lg mt-4 text-center">
-                    O carrinho está vazio.
-                  </p>
+                <div className="flex h-full flex-col items-center justify-center text-gray-300">
+                  <ShoppingCart size={64} strokeWidth={1} />
+                  <p className="font-bold mt-4">Carrinho vazio</p>
                 </div>
               ) : (
                 cart.map((item) => (
                   <div
                     key={item.id}
-                    className="group relative flex gap-4 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-all"
+                    className="flex gap-4 rounded-2xl border border-gray-100 p-3 bg-white"
                   >
-                    <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-gray-50 border border-gray-100">
+                    <div className="relative h-20 w-20 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
                       <Image
                         src={item.image_url || '/placeholder-no-image.svg'}
                         alt={item.name}
@@ -224,29 +157,28 @@ export function StoreModals() {
                         className="object-contain p-2"
                       />
                     </div>
-                    <div className="flex flex-1 flex-col justify-center pr-6">
+                    <div className="flex-1">
                       <p className="text-sm font-black text-secondary line-clamp-1">
                         {item.name}
                       </p>
                       <div className="mt-2 flex items-center justify-between">
                         <PriceDisplay
                           value={item.price * item.quantity}
-                          className="text-primary font-black text-base"
                           isPricesVisible={isPricesVisible}
                         />
-                        <div className="flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/5 p-1">
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
                           <button
                             onClick={() => updateQuantity(item.id, -1)}
-                            className="p-1 hover:text-primary"
+                            className="p-1"
                           >
                             <Minus size={14} />
                           </button>
-                          <span className="min-w-[20px] text-center text-xs font-black">
+                          <span className="text-xs font-bold w-4 text-center">
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="p-1 hover:text-primary"
+                            className="p-1"
                           >
                             <Plus size={14} />
                           </button>
@@ -255,7 +187,7 @@ export function StoreModals() {
                     </div>
                     <button
                       onClick={() => removeFromCart(item.id)}
-                      className="absolute right-2 top-2 text-gray-300 hover:text-red-500"
+                      className="text-gray-300 hover:text-red-500"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -263,11 +195,10 @@ export function StoreModals() {
                 ))
               )}
             </div>
-
             {cart.length > 0 && (
-              <div className="border-t bg-white p-6 space-y-4">
-                <div className="flex items-center justify-between text-xl font-black text-secondary">
-                  <span>Subtotal</span>
+              <div className="border-t p-6 space-y-4">
+                <div className="flex justify-between text-xl font-black text-secondary">
+                  <span>Total</span>
                   <PriceDisplay
                     value={cartTotal}
                     isPricesVisible={isPricesVisible}
@@ -275,17 +206,9 @@ export function StoreModals() {
                 </div>
                 <Button
                   onClick={() => setModal('checkout', true)}
-                  className="w-full py-7 text-lg shadow-xl shadow-primary/20"
+                  className="w-full py-7 text-lg uppercase tracking-tighter"
                 >
-                  Finalizar Pedido <Send size={20} className="ml-2" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={onSaveCart}
-                  isLoading={loadingStates.saving}
-                  className="w-full text-primary"
-                >
-                  Salvar para depois
+                  Finalizar Pedido
                 </Button>
               </div>
             )}
@@ -293,386 +216,302 @@ export function StoreModals() {
         </div>
       )}
 
-      {/* Modais Externos */}
+      {/* --- MODAL DETALHES DO PRODUTO (MODERNO/IMERSIVO) --- */}
+      {modals.product && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 md:p-4">
+          <div
+            className="absolute inset-0 bg-[#0d1b2c]/95 backdrop-blur-xl animate-in fade-in"
+            onClick={() => setModal('product', null)}
+          />
+
+          <div className="relative w-full max-w-6xl h-full max-h-[95vh] md:max-h-[85vh] bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95">
+            {/* Botão Fechar */}
+            <button
+              onClick={() => setModal('product', null)}
+              className="absolute right-6 top-6 z-[130] p-3 rounded-full bg-black/5 hover:bg-black/10 transition-all"
+            >
+              <X size={24} className="text-secondary" />
+            </button>
+
+            {/* ESQUERDA: Showcase de Imagem */}
+            <div className="w-full md:w-1/2 h-[45%] md:h-full bg-white flex flex-col relative border-b md:border-b-0 md:border-r border-gray-100">
+              <div
+                className="flex-1 relative cursor-zoom-in group"
+                onClick={() => setIsImageZoomOpen(true)}
+              >
+                <Image
+                  src={productImages[currentImageIndex]}
+                  alt={modals.product.name}
+                  fill
+                  className="object-contain p-8 transition-transform duration-700 group-hover:scale-105"
+                  priority
+                  unoptimized={!currentImageIsSupabase}
+                />
+                <div className="absolute bottom-6 right-6 p-3 bg-white/80 backdrop-blur rounded-2xl shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Search size={20} className="text-primary" />
+                </div>
+              </div>
+
+              {/* Thumbnails */}
+              {productImages.length > 1 && (
+                <div className="h-24 px-6 pb-6 overflow-x-auto no-scrollbar">
+                  <div className="flex gap-3 justify-center">
+                    {productImages.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        className={`relative w-16 h-16 rounded-xl border-2 transition-all overflow-hidden flex-shrink-0 ${currentImageIndex === idx ? 'border-primary ring-4 ring-primary/10' : 'border-gray-100 opacity-50'}`}
+                      >
+                        <Image
+                          src={img}
+                          alt=""
+                          fill
+                          className="object-cover p-1"
+                          unoptimized={!img.includes('supabase.co/storage')}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* DIREITA: Conteúdo e Checkout */}
+            <div className="w-full md:w-1/2 h-[55%] md:h-full flex flex-col bg-slate-50/50">
+              <div className="flex-1 overflow-y-auto p-6 md:p-12 custom-scrollbar">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-full">
+                    {modals.product.brand || 'Original'}
+                  </span>
+                  <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
+                    REF:{' '}
+                    {modals.product.reference_code ||
+                      modals.product.id.slice(0, 8)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-start gap-4 mb-6">
+                  <h2 className="text-3xl md:text-5xl font-black text-secondary leading-none tracking-tighter">
+                    {modals.product.name}
+                  </h2>
+                  <button
+                    onClick={() => toggleFavorite(modals.product!.id)}
+                    className="p-4 rounded-full bg-white shadow-sm hover:shadow-md transition-all"
+                  >
+                    <Heart
+                      size={24}
+                      className={
+                        favorites.includes(modals.product.id)
+                          ? 'fill-red-500 text-red-500'
+                          : 'text-gray-200'
+                      }
+                    />
+                  </button>
+                </div>
+
+                <p className="text-gray-500 text-base md:text-lg mb-8 leading-relaxed">
+                  {modals.product.description ||
+                    'Produto de alta qualidade com acabamento impecável, ideal para quem busca estilo e durabilidade.'}
+                </p>
+
+                {/* Ficha Técnica */}
+                {modals.product.technical_specs && (
+                  <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-4 text-secondary">
+                      <Info size={18} />
+                      <h3 className="font-black uppercase text-xs tracking-widest">
+                        Ficha Técnica
+                      </h3>
+                    </div>
+                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                      <table className="w-full text-sm">
+                        <tbody className="divide-y divide-gray-50">
+                          {Object.entries(
+                            typeof modals.product.technical_specs === 'string'
+                              ? JSON.parse(modals.product.technical_specs)
+                              : modals.product.technical_specs
+                          ).map(([key, val], i) => (
+                            <tr key={i} className="group">
+                              <td className="py-3 font-bold text-gray-400 group-hover:text-primary transition-colors">
+                                {key}
+                              </td>
+                              <td className="py-3 text-right text-secondary font-medium">
+                                {String(val)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Código de Barras / SKU */}
+                <div className="p-6 bg-secondary/5 rounded-3xl border border-dashed border-secondary/10 flex flex-col items-center justify-center gap-4 mb-8">
+                  <div className="flex items-center gap-2 text-secondary/40">
+                    <BarcodeIcon size={16} />
+                    <span className="text-[10px] font-bold uppercase">
+                      Código de Barras
+                    </span>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl">
+                    <Barcode
+                      value={
+                        modals.product.sku || modals.product.id.slice(0, 12)
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* FOOTER DE AÇÃO FIXO */}
+              <div className="p-6 md:p-10 bg-white border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 bg-gray-100 p-2 rounded-2xl">
+                      <button
+                        onClick={() =>
+                          setDetailQuantity((q) => Math.max(1, q - 1))
+                        }
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm"
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <span className="text-xl font-black w-8 text-center">
+                        {detailQuantity}
+                      </span>
+                      <button
+                        onClick={() => setDetailQuantity((q) => q + 1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm"
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                        Subtotal
+                      </span>
+                      <PriceDisplay
+                        value={modals.product.price * detailQuantity}
+                        isPricesVisible={isPricesVisible}
+                        size="large"
+                        className="text-3xl font-black"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      addToCart(modals.product!, detailQuantity);
+                      setModal('product', null);
+                    }}
+                    className="w-full py-8 text-xl font-black uppercase tracking-tighter shadow-2xl shadow-primary/30"
+                  >
+                    Adicionar ao Pedido
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ZOOM OVERLAY INTEGRADO */}
+          {isImageZoomOpen && (
+            <div
+              className="fixed inset-0 z-[200] bg-black/98 flex items-center justify-center p-4"
+              onClick={() => setIsImageZoomOpen(false)}
+            >
+              <button className="absolute right-8 top-8 text-white/50 hover:text-white">
+                <X size={40} />
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex((i) =>
+                    i === 0 ? productImages.length - 1 : i - 1
+                  );
+                }}
+                className="absolute left-6 p-4 text-white/20 hover:text-white transition-colors"
+              >
+                <ChevronLeft size={64} strokeWidth={1} />
+              </button>
+
+              <div
+                className="relative w-full h-full max-w-5xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Image
+                  src={productImages[currentImageIndex]}
+                  alt="Zoom"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex((i) =>
+                    i === productImages.length - 1 ? 0 : i + 1
+                  );
+                }}
+                className="absolute right-6 p-4 text-white/20 hover:text-white transition-colors"
+              >
+                <ChevronRight size={64} strokeWidth={1} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAIS DE APOIO (SAVE/LOAD/PASSWORD/SUCCESS) - Mantidos com sua lógica original */}
       <SaveCodeModal
         isSaveModalOpen={!!modals.save && !!savedCode}
-        setIsModalOpen={(v: boolean) => setModal('save', v)}
+        setIsModalOpen={(v) => setModal('save', v)}
         savedCode={savedCode}
-        copyToClipboard={() => savedCode && copyToClipboard(savedCode)}
+        copyToClipboard={() =>
+          savedCode && navigator.clipboard.writeText(savedCode)
+        }
       />
-
       <LoadCodeModal
         isLoadModalOpen={!!modals.load}
-        setIsModalOpen={(v: boolean) => setModal('load', v)}
+        setIsModalOpen={(v) => setModal('load', v)}
         loadCodeInput={loadCodeInput}
         setLoadCodeInput={setLoadCodeInput}
         handleLoadCart={async (e) => {
           e.preventDefault();
           const ok = await handleLoadCart(loadCodeInput);
-          if (ok) {
-            toast.success('Carrinho carregado!');
-            setModal('load', false);
-          } else {
-            toast.error('Código inválido.');
-          }
+          if (ok) setModal('load', false);
         }}
         isLoadingCart={loadingStates.loadingCart}
       />
-
       <PasswordModal
         isPasswordModalOpen={!!modals.password}
-        setIsPasswordModalOpen={(v: boolean) => setModal('password', v)}
+        setIsPasswordModalOpen={(v) => setModal('password', v)}
         passwordInput={passwordInput}
         setPasswordInput={setPasswordInput}
         handleUnlockPrices={async (e) => {
           e.preventDefault();
           const ok = await unlockPrices(passwordInput);
-          if (ok) {
-            toast.success('Preços desbloqueados');
-            setModal('password', false);
-          } else {
-            toast.error('Senha incorreta');
-          }
+          if (ok) setModal('password', false);
         }}
       />
 
-      {/* --- MODAL DETALHES DO PRODUTO (IMERSIVO) --- */}
-      {modals.product &&
-        (() => {
-          // Debug (CORRIGIDO)
-          console.log('Produto no modal:', {
-            id: modals.product.id,
-            name: modals.product.name,
-          });
-
-          return (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-              <div
-                className="absolute inset-0 bg-[#0d1b2c]/90 backdrop-blur-xl animate-in fade-in duration-500"
-                onClick={() => setModal('product', null)}
-              />
-
-              <div className="relative w-full max-w-5xl max-h-[95vh] bg-white dark:bg-slate-900 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-300">
-                {/* Botão Fechar */}
-                <button
-                  onClick={() => setModal('product', null)}
-                  className="absolute right-3 top-3 md:right-6 md:top-6 z-50 p-2 md:p-3 rounded-xl md:rounded-2xl bg-white/10 text-white hover:bg-white/20 backdrop-blur-md transition-all"
-                >
-                  <X size={20} className="md:hidden" />
-                  <X size={24} className="hidden md:block" />
-                </button>
-
-                {/* Left: Imagens */}
-                <div className="md:w-1/2 relative bg-white dark:bg-slate-800 p-3 md:p-4 lg:p-6 flex flex-col items-center justify-start overflow-y-auto max-h-[50vh] md:max-h-full">
-                  {/* Imagem Principal - Compacta */}
-                  <div
-                    className="relative w-full max-w-sm aspect-square md:max-w-md md:h-[280px] lg:h-[340px] group cursor-zoom-in flex-shrink-0"
-                    onClick={() => setIsImageZoomOpen(true)}
-                  >
-                    <Image
-                      src={productImages[currentImageIndex]}
-                      alt={modals.product.name}
-                      fill
-                      className="object-contain p-1 md:p-2 transition-transform duration-500 group-hover:scale-105"
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                      priority
-                      unoptimized={!currentImageIsSupabase}
-                    />
-                    <button className="absolute right-2 bottom-2 md:right-3 md:bottom-3 p-1.5 md:p-2 rounded-full bg-white/90 dark:bg-slate-800/90 shadow-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
-                      <Search
-                        size={14}
-                        className="md:hidden text-gray-700 dark:text-gray-200"
-                      />
-                      <Search
-                        size={16}
-                        className="hidden md:block text-gray-700 dark:text-gray-200"
-                      />
-                    </button>
-                  </div>
-
-                  {/* Galeria de Thumbnails - Mais visível */}
-                  {productImages.length > 1 && (
-                    <div className="relative w-full mt-3 md:mt-5 flex-shrink-0">
-                      {/* Setas de navegação (apenas >3 fotos) */}
-                      {productImages.length > 3 && (
-                        <>
-                          <button
-                            onClick={() => {
-                              const container =
-                                document.getElementById('thumbnail-gallery');
-                              if (container)
-                                container.scrollBy({
-                                  left: -140,
-                                  behavior: 'smooth',
-                                });
-                            }}
-                            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 p-1 md:p-1.5 rounded-full bg-white dark:bg-slate-800 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-600 transition-all"
-                            aria-label="Anterior"
-                          >
-                            <ChevronLeft
-                              size={14}
-                              className="md:hidden text-gray-700 dark:text-gray-200"
-                            />
-                            <ChevronLeft
-                              size={18}
-                              className="hidden md:block text-gray-700 dark:text-gray-200"
-                            />
-                          </button>
-                          <button
-                            onClick={() => {
-                              const container =
-                                document.getElementById('thumbnail-gallery');
-                              if (container)
-                                container.scrollBy({
-                                  left: 140,
-                                  behavior: 'smooth',
-                                });
-                            }}
-                            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 p-1 md:p-1.5 rounded-full bg-white dark:bg-slate-800 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-600 transition-all"
-                            aria-label="Próximo"
-                          >
-                            <ChevronRight
-                              size={14}
-                              className="md:hidden text-gray-700 dark:text-gray-200"
-                            />
-                            <ChevronRight
-                              size={18}
-                              className="hidden md:block text-gray-700 dark:text-gray-200"
-                            />
-                          </button>
-                        </>
-                      )}
-
-                      {/* Container dos Thumbnails */}
-                      <div
-                        id="thumbnail-gallery"
-                        className="flex gap-2 md:gap-2.5 overflow-x-auto pb-2 px-7 md:px-9 scrollbar-hide scroll-smooth"
-                        style={{
-                          scrollbarWidth: 'none',
-                          msOverflowStyle: 'none',
-                        }}
-                      >
-                        {productImages.map((src, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setCurrentImageIndex(idx)}
-                            className={`
-                              flex-shrink-0 
-                              w-16 h-16 
-                              md:w-20 md:h-20 
-                              lg:w-24 lg:h-24 
-                              rounded-lg 
-                              border-2 
-                              transition-all 
-                              bg-white 
-                              dark:bg-slate-700 
-                              shadow-sm 
-                              hover:shadow-md 
-                              ${
-                                currentImageIndex === idx
-                                  ? 'border-primary ring-2 ring-primary/30 scale-105 shadow-lg'
-                                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                              }
-                            `}
-                          >
-                            <img
-                              src={src}
-                              className="w-full h-full object-contain p-1 rounded-md"
-                              alt={`Foto ${idx + 1}`}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: Detalhes */}
-                <div className="md:w-1/2 p-6 md:p-8 lg:p-10 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-slate-900">
-                  <span className="text-xs font-black uppercase tracking-widest text-primary mb-2 block">
-                    {modals.product.brand || 'Original'}
-                  </span>
-                  <div className="flex justify-between items-start gap-4 mb-6">
-                    <h2 className="text-4xl font-black text-secondary dark:text-white leading-tight">
-                      {modals.product.name}
-                    </h2>
-                    <button
-                      onClick={() => toggleFavorite(modals.product!.id)}
-                      className="p-4 rounded-full bg-white shadow-sm"
-                    >
-                      <Heart
-                        size={24}
-                        className={
-                          favorites.includes(modals.product.id)
-                            ? 'fill-red-500 text-red-500'
-                            : 'text-gray-300'
-                        }
-                      />
-                    </button>
-                  </div>
-
-                  <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-                    {modals.product.description ||
-                      'Nenhuma descrição disponível.'}
-                  </p>
-
-                  {/* Ficha Técnica (Lógica Corrigida) */}
-                  {(modals.product as any).technical_specs &&
-                    (() => {
-                      let specs = (modals.product as any).technical_specs;
-                      if (typeof specs === 'string') {
-                        try {
-                          specs = JSON.parse(specs);
-                        } catch {
-                          /* manter string */
-                        }
-                      }
-
-                      const isObj =
-                        typeof specs === 'object' &&
-                        specs !== null &&
-                        !Array.isArray(specs);
-
-                      return (
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-gray-100 mb-8">
-                          <h3 className="text-sm font-bold mb-4">
-                            Ficha Técnica
-                          </h3>
-                          {isObj ? (
-                            <table className="w-full text-sm">
-                              <tbody>
-                                {Object.entries(specs).map(([k, v], i) => (
-                                  <tr
-                                    key={i}
-                                    className="border-b last:border-0"
-                                  >
-                                    <td className="py-3 font-bold text-gray-500 w-1/3">
-                                      {k}
-                                    </td>
-                                    <td className="py-3">{String(v)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          ) : (
-                            <p className="text-sm">{String(specs)}</p>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                  {/* Footer de Compra */}
-                  <div className="mt-auto bg-secondary p-8 rounded-[2.5rem] text-white space-y-6">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold opacity-60">Quantidade</span>
-                      <div className="flex items-center gap-4 bg-white/10 rounded-2xl p-2">
-                        <button
-                          onClick={() =>
-                            setDetailQuantity((q) => Math.max(1, q - 1))
-                          }
-                        >
-                          <Minus />
-                        </button>
-                        <span className="text-xl font-black">
-                          {detailQuantity}
-                        </span>
-                        <button onClick={() => setDetailQuantity((q) => q + 1)}>
-                          <Plus />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center border-t border-white/10 pt-4">
-                      <span className="font-bold">Subtotal</span>
-                      <PriceDisplay
-                        value={modals.product.price * detailQuantity}
-                        isPricesVisible={isPricesVisible}
-                        size="large"
-                        className="text-white"
-                      />
-                    </div>
-                    <Button
-                      onClick={() => {
-                        addToCart(modals.product!, detailQuantity);
-                        setModal('product', null);
-                      }}
-                      className="w-full py-8 text-xl"
-                    >
-                      Adicionar ao Carrinho
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Zoom Overlay */}
-              {isImageZoomOpen && (
-                <div
-                  className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4"
-                  onClick={() => setIsImageZoomOpen(false)}
-                >
-                  <button
-                    aria-label="Anterior"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentImageIndex((i) =>
-                        i === 0 ? productImages.length - 1 : i - 1
-                      );
-                    }}
-                    className="absolute left-6 top-1/2 -translate-y-1/2 z-50 p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
-                  >
-                    <ChevronLeft size={36} />
-                  </button>
-
-                  <img
-                    src={productImages[currentImageIndex]}
-                    className="max-w-full max-h-full object-contain"
-                    alt="Zoom"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-
-                  <button
-                    aria-label="Próximo"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentImageIndex((i) =>
-                        i === productImages.length - 1 ? 0 : i + 1
-                      );
-                    }}
-                    className="absolute right-6 top-1/2 -translate-y-1/2 z-50 p-3 rounded-full bg-white/10 text-white hover:bg-white/20"
-                  >
-                    <ChevronRight size={36} />
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsImageZoomOpen(false);
-                    }}
-                    className="absolute top-4 right-4 md:top-6 md:right-6 p-2 md:p-3 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm transition-all shadow-lg border border-white/30"
-                    aria-label="Fechar zoom"
-                  >
-                    <X size={24} className="md:hidden" />
-                    <X size={32} className="hidden md:block" />
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-      {/* --- MODAL CHECKOUT --- */}
+      {/* MODAL CHECKOUT IDENTIFICAÇÃO */}
       {modals.checkout && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md"
             onClick={() => setModal('checkout', false)}
           />
-          <div className="relative w-full max-w-xl bg-white rounded-[3rem] p-10 animate-in zoom-in-95">
-            <h2 className="text-2xl font-black mb-8">Identificação</h2>
+          <div className="relative w-full max-w-xl bg-white rounded-[3rem] p-8 md:p-12 animate-in zoom-in-95">
+            <h2 className="text-3xl font-black mb-8 tracking-tighter">
+              Identificação
+            </h2>
             <form onSubmit={onFinalize} className="space-y-4">
               <input
                 required
-                className="w-full p-4 bg-gray-50 rounded-2xl"
-                placeholder="Nome"
+                className="w-full p-5 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-primary/20"
+                placeholder="Nome Completo"
                 value={customerInfo.name}
                 onChange={(e) =>
                   setCustomerInfo({ ...customerInfo, name: e.target.value })
@@ -680,8 +519,8 @@ export function StoreModals() {
               />
               <input
                 required
-                className="w-full p-4 bg-gray-50 rounded-2xl"
-                placeholder="WhatsApp"
+                className="w-full p-5 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-primary/20"
+                placeholder="WhatsApp (DDD + Número)"
                 value={customerInfo.phone}
                 onChange={(e) =>
                   setCustomerInfo({ ...customerInfo, phone: e.target.value })
@@ -689,8 +528,9 @@ export function StoreModals() {
               />
               <input
                 required
-                className="w-full p-4 bg-gray-50 rounded-2xl"
-                placeholder="Email"
+                className="w-full p-5 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-primary/20"
+                placeholder="E-mail"
+                type="email"
                 value={customerInfo.email}
                 onChange={(e) =>
                   setCustomerInfo({ ...customerInfo, email: e.target.value })
@@ -699,42 +539,44 @@ export function StoreModals() {
               <Button
                 type="submit"
                 isLoading={loadingStates.submitting}
-                className="w-full py-6"
+                className="w-full py-7 text-lg uppercase font-black"
               >
-                Confirmar Pedido
+                Confirmar e Enviar
               </Button>
             </form>
           </div>
         </div>
       )}
 
-      {/* --- SUCESSO --- */}
+      {/* SUCESSO FINAL */}
       {orderSuccessData && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md" />
-          <div className="relative w-full max-w-lg bg-white rounded-[3.5rem] p-12 text-center shadow-2xl">
-            <div className="mx-auto mb-6 w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center">
-              <CheckCircle size={48} />
+          <div className="absolute inset-0 bg-[#0d1b2c]/90 backdrop-blur-xl" />
+          <div className="relative w-full max-w-lg bg-white rounded-[4rem] p-12 text-center shadow-2xl scale-in-center">
+            <div className="mx-auto mb-8 w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center animate-bounce">
+              <CheckCircle size={56} />
             </div>
-            <h2 className="text-3xl font-black mb-2">Pedido Enviado!</h2>
-            <p className="text-gray-500 mb-8">
-              Obrigado, {orderSuccessData.customer.name}!
+            <h2 className="text-4xl font-black mb-4 tracking-tighter">
+              Tudo pronto!
+            </h2>
+            <p className="text-gray-500 mb-10 text-lg">
+              Seu pedido foi processado com sucesso.
             </p>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <button
                 onClick={handleSendWhatsApp}
-                className="w-full py-4 bg-[#25D366] text-white rounded-2xl font-black"
+                className="w-full py-5 bg-[#25D366] text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3"
               >
-                Confirmar no WhatsApp
+                <Send size={20} /> Chamar no WhatsApp
               </button>
               <button
                 onClick={() => {
                   setOrderSuccessData(null);
                   setModal('cart', false);
                 }}
-                className="w-full py-4 bg-secondary text-white rounded-2xl font-bold"
+                className="w-full py-5 text-gray-400 font-bold"
               >
-                Voltar à Loja
+                Voltar à Vitrine
               </button>
             </div>
           </div>

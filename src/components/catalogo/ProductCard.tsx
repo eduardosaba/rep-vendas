@@ -61,8 +61,8 @@ export function ProductCard({
     const externalUrl =
       product.image_url || product.external_image_url || product.images?.[0];
 
-    if (externalUrl && !imageFailed) {
-      // Aviso apenas uma vez por sessão
+    if (externalUrl && !imageFailed && typeof window !== 'undefined') {
+      // Aviso apenas uma vez por sessão (somente no cliente)
       const storageKey = `warned-external-images`;
       if (!sessionStorage.getItem(storageKey)) {
         console.warn(

@@ -1249,16 +1249,18 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       {selectedIds.length > 0 &&
         processedProducts.length > paginatedProducts.length &&
         !selectAllMatching && (
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-3 text-sm text-gray-700 dark:text-slate-300 shadow-sm mb-4 flex items-center justify-between">
-            <div>
-              Você selecionou <strong>{selectedIds.length}</strong> nesta
+          <div className="bg-blue-50 dark:bg-blue-950/30 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm text-blue-900 dark:text-blue-100 shadow-md mb-4 flex items-center justify-between">
+            <div className="font-medium">
+              Você selecionou{' '}
+              <strong className="font-black">{selectedIds.length}</strong> nesta
               página. Deseja selecionar todos os{' '}
-              <strong>{processedProducts.length}</strong> resultados?
+              <strong className="font-black">{processedProducts.length}</strong>{' '}
+              resultados?
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={selectAllAcrossPages}
-                className="px-3 py-1 bg-primary text-white rounded-lg text-sm"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors"
               >
                 Selecionar todos ({processedProducts.length})
               </button>
@@ -1267,7 +1269,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   setSelectedIds([]);
                   setSelectAllMatching(false);
                 }}
-                className="px-3 py-1 border rounded-lg text-sm"
+                className="px-4 py-2 border-2 border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg text-sm font-bold transition-colors"
               >
                 Desmarcar
               </button>
@@ -1276,10 +1278,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         )}
 
       {selectAllMatching && (
-        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-3 text-sm text-gray-700 dark:text-slate-300 shadow-sm mb-4 flex items-center justify-between">
-          <div>
-            Todos os <strong>{processedProducts.length}</strong> resultados
-            estão selecionados.
+        <div className="bg-green-50 dark:bg-green-950/30 border-2 border-green-200 dark:border-green-800 rounded-lg p-4 text-sm text-green-900 dark:text-green-100 shadow-md mb-4 flex items-center justify-between">
+          <div className="font-medium">
+            ✓ Todos os{' '}
+            <strong className="font-black">{processedProducts.length}</strong>{' '}
+            resultados estão selecionados.
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1287,7 +1290,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 setSelectedIds([]);
                 setSelectAllMatching(false);
               }}
-              className="px-3 py-1 border rounded-lg text-sm"
+              className="px-4 py-2 border-2 border-green-600 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/50 rounded-lg text-sm font-bold transition-colors"
             >
               Desmarcar todos
             </button>

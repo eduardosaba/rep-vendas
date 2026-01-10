@@ -152,39 +152,56 @@ export async function POST(request: Request) {
 
     // 6. OTIMIZAÇÃO COM SHARP - Reduz tamanho e melhora performance
     let optimizedBuffer: Buffer;
-    try {
-      optimizedBuffer = await sharp(originalBuffer)
-        .resize(1200, 1200, {
-          fit: 'inside', // Mantém proporção original
-          withoutEnlargement: true, // Não aumenta imagens pequenas
-        })
-        .jpeg({
-          quality: 85, // Qualidade boa com tamanho reduzido
-          progressive: true, // Carregamento progressivo
-          mozjpeg: true, // Compressão otimizada
-        })
-        .toBuffer();
+    let extension = 'jpg';
 
+    try {
+      // Detecta formato da imagem original
+      const metadata = await sharp(originalBuffer).metadata();
       console.log(
-        `[OPTIMIZATION] Tamanho otimizado: ${(optimizedBuffer.length / 1024 / 1024).toFixed(2)} MB (${Math.round((1 - optimizedBuffer.length / originalBuffer.length) * 100)}% menor)`
+        `[OPTIMIZATION] Formato detectado: ${metadata.format}, ${metadata.width}x${metadata.height}`
       );
+
+      // Otimiza apenas se for imagem válida
+      if (
+        metadata.format &&
+        ['jpeg', 'jpg', 'png', 'webp', 'gif', 'tiff'].includes(metadata.format)
+      ) {
+        optimizedBuffer = await sharp(originalBuffer)
+          .resize(1200, 1200, {
+            fit: 'inside', // Mantém proporção original
+            withoutEnlargement: true, // Não aumenta imagens pequenas
+          })
+          .jpeg({
+            quality: 85, // Qualidade boa com tamanho reduzido
+            progressive: true, // Carregamento progressivo
+            mozjpeg: true, // Compressão otimizada
+          })
+          .toBuffer();
+
+        console.log(
+          `[OPTIMIZATION] Tamanho otimizado: ${(optimizedBuffer.length / 1024 / 1024).toFixed(2)} MB (${Math.round((1 - optimizedBuffer.length / originalBuffer.length) * 100)}% menor)`
+        );
+      } else {
+        throw new Error(`Formato não suportado: ${metadata.format}`);
+      }
     } catch (sharpError: any) {
-      console.error('[SHARP ERROR]', sharpError);
+      console.error('[SHARP ERROR]', sharpError.message);
       // Fallback: usa imagem original se otimização falhar
       optimizedBuffer = originalBuffer;
+      extension = 'jpg'; // Assume JPG como padrão
       console.warn('[OPTIMIZATION] Usando imagem original (otimização falhou)');
     }
 
     // 7. Define o caminho no Storage (Isolamento por Usuário)
     const userId = product.user_id;
     const brandFolder = sanitizeFolder(product.brand);
-    const fileName = `public/${userId}/products/${brandFolder}/${productId}-${Date.now()}.jpg`; // Sempre JPEG otimizado
+    const fileName = `public/${userId}/products/${brandFolder}/${productId}-${Date.now()}.${extension}`;
 
     // 8. Upload para o bucket 'product-images' (ou o seu bucket padrão)
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('product-images')
       .upload(fileName, optimizedBuffer, {
-        contentType: 'image/jpeg',
+        contentType: `image/${extension === 'jpg' ? 'jpeg' : extension}`,
         upsert: true,
         cacheControl: '31536000', // 1 ano de cache
       });

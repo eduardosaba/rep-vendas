@@ -18,6 +18,7 @@ interface SubscriptionData {
   status: string;
   price: number;
   created_at: string;
+  product_count: number;
 }
 
 interface LicensesTableProps {
@@ -93,6 +94,9 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
                 <th className="px-4 sm:px-6 py-4 font-medium min-w-[100px]">
                   Status
                 </th>
+                <th className="px-4 sm:px-6 py-4 font-medium text-center min-w-[100px]">
+                  Produtos
+                </th>
                 <th className="px-4 sm:px-6 py-4 font-medium text-right min-w-[100px]">
                   Preço
                 </th>
@@ -105,7 +109,7 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-6 py-8 text-center text-gray-500 dark:text-slate-400"
                   >
                     Nenhuma assinatura encontrada.
@@ -127,6 +131,12 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
                       </span>
                     </td>
                     <td className="px-6 py-4">{getStatusBadge(sub.status)}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg font-bold text-sm">
+                        <Package size={14} />
+                        {sub.product_count}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-gray-900 dark:text-white font-medium text-right">
                       {new Intl.NumberFormat('pt-BR', {
                         style: 'currency',
@@ -176,7 +186,7 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
                 </div>
               </div>
               <div className="flex justify-between items-end">
-                <div>
+                <div className="flex-1">
                   <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
                     <Clock size={12} />
                     {sub.created_at
@@ -189,6 +199,12 @@ export function LicensesTable({ subscriptions }: LicensesTableProps) {
                       currency: 'BRL',
                     }).format(sub.price || 0)}
                   </p>
+                </div>
+                <div className="ml-3 flex-shrink-0">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md font-bold text-xs">
+                    <Package size={12} />
+                    {sub.product_count}
+                  </span>
                 </div>
               </div>
             </div>

@@ -33,12 +33,38 @@ export default async function AdminLicensesPage() {
       plan_name,
       price,
       created_at,
+      user_id,
       user:profiles!subscriptions_user_id_fkey_profiles (
         email
       )
     `
     )
     .order('created_at', { ascending: false });
+
+  // 2.1 Buscar contagem de produtos por usuário (otimizado com RPC)
+  let productCounts: Record<string, number> = {};
+
+  try {
+    // Tenta usar função RPC otimizada
+    const { data: rpcData } = await supabase.rpc('count_products_by_user');
+
+    if (rpcData) {
+      rpcData.forEach((row: any) => {
+        productCounts[row.user_id] = row.count;
+      });
+    }
+  } catch (rpcError) {
+    // Fallback: conta manualmente se RPC não existir
+    const { data: productsData } = await supabase
+      .from('products')
+      .select('user_id');
+
+    if (productsData) {
+      productsData.forEach((p) => {
+        productCounts[p.user_id] = (productCounts[p.user_id] || 0) + 1;
+      });
+    }
+  }
 
   if (error) {
     logger.error('Erro ao buscar assinaturas', error);
@@ -56,6 +82,7 @@ export default async function AdminLicensesPage() {
     plan_name?: string | null;
     price?: number | string | null;
     created_at?: string;
+    user_id?: string;
     user?: { email?: string | null } | null;
   }
 
@@ -84,6 +111,7 @@ export default async function AdminLicensesPage() {
       status: sub.status || 'unknown',
       price,
       created_at: sub.created_at || new Date().toISOString(),
+      product_count: productCounts[sub.user_id || ''] || 0,
     };
   });
 

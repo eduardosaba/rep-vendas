@@ -25,22 +25,26 @@ export default async function ManageExternalImagesPage() {
 
   // Busca produtos que:
   // 1. Pertencem ao usuário
-  // 2. Têm URL externa (não nula e não vazia)
-  // 3. NÃO têm imagem interna salva (image_url é null)
+  // 2. NÃO têm imagem no Storage (image_path é null) - precisa internalizar
+  // 3. Têm pelo menos uma URL externa disponível
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, reference_code, external_image_url')
+    .select('id, name, reference_code, external_image_url, image_url, images')
     .eq('user_id', user.id)
-    .is('image_url', null)
-    .not('external_image_url', 'is', null)
-    .neq('external_image_url', '')
+    .is('image_path', null) // Produtos SEM imagem internalizada
     .order('id', { ascending: true });
 
   if (error) {
     console.error('Erro ao buscar produtos:', error);
   }
 
-  const products = data || [];
+  // Filtra apenas produtos que têm pelo menos uma URL externa
+  const productsWithExternalUrls = (data || []).filter(
+    (p) =>
+      p.external_image_url ||
+      p.image_url ||
+      (p.images && Array.isArray(p.images) && p.images.length > 0)
+  );
 
   return (
     <div className="flex flex-col h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
@@ -56,7 +60,7 @@ export default async function ManageExternalImagesPage() {
                 Sincronizar Imagens
               </h1>
               <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 text-xs font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                {products.length} pendentes
+                {productsWithExternalUrls.length} pendentes
               </span>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -76,8 +80,10 @@ export default async function ManageExternalImagesPage() {
 
       {/* ÁREA PRINCIPAL */}
       <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative">
-        {products.length > 0 ? (
-          <ManageExternalImagesClient initialProducts={products} />
+        {productsWithExternalUrls.length > 0 ? (
+          <ManageExternalImagesClient
+            initialProducts={productsWithExternalUrls}
+          />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">

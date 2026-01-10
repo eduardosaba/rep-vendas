@@ -82,12 +82,12 @@ export default function ManageExternalImagesClient({
         break;
       }
 
-      // Para automaticamente no primeiro erro
+      // Para automaticamente no primeiro erro (ANTES de processar o próximo)
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
         console.error('❌ [SYNC] Processo interrompido devido a erro.');
-        toast.error('Processo interrompido no primeiro erro', {
+        toast.error('❌ Processo interrompido no primeiro erro', {
           description: 'Corrija o problema e tente novamente.',
-          duration: 8000,
+          duration: 10000,
         });
         break;
       }
@@ -186,10 +186,10 @@ export default function ManageExternalImagesClient({
           '════════════════════════════════════════════════════════'
         );
 
-        // Toast imediato
-        toast.error(`Erro: ${item.name || item.id}`, {
+        // Toast imediato com detalhes
+        toast.error(`❌ Erro ao processar: ${item.name || item.id}`, {
           description: error.message || 'Erro desconhecido',
-          duration: 5000,
+          duration: 10000,
         });
 
         setItems((prev) => {
@@ -198,6 +198,17 @@ export default function ManageExternalImagesClient({
           newItems[index].message = error.message || 'Erro desconhecido';
           return newItems;
         });
+
+        // Se configurado para parar no primeiro erro, interrompe AGORA
+        if (stopOnError) {
+          console.error('🛑 [SYNC] Parando processo devido a erro.');
+          toast.error('🛑 Processo interrompido', {
+            description: `Erro ao processar: ${item.name || item.id}`,
+            duration: 10000,
+          });
+          setIsProcessing(false);
+          return; // SAI IMEDIATAMENTE da função
+        }
       }
 
       processedCount++;
