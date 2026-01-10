@@ -113,31 +113,84 @@ export async function POST(request: Request) {
     // 5. Download da Imagem Externa
     let downloadResponse;
     try {
+      const urlObj = new URL(targetUrl);
+
       downloadResponse = await fetch(targetUrl, {
         method: 'GET',
         headers: {
           'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           Accept:
             'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-          Referer: new URL(targetUrl).origin,
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+          Referer: urlObj.origin + '/',
+          Origin: urlObj.origin,
+          Connection: 'keep-alive',
         },
-        signal: AbortSignal.timeout(25000), // Timeout de 25 segundos
+        redirect: 'follow', // Segue redirecionamentos automaticamente
+        signal: AbortSignal.timeout(30000), // Timeout de 30 segundos
       });
     } catch (fetchError: any) {
       console.error('[FETCH ERROR]', {
         url: targetUrl,
         error: fetchError.message,
+        name: fetchError.name,
+        cause: fetchError.cause,
       });
-      throw new Error(
-        `Falha ao baixar imagem: ${fetchError.message}. Verifique se a URL está acessível.`
-      );
+
+      // Mensagens mais específicas
+      let friendlyError = fetchError.message;
+
+      if (
+        fetchError.name === 'AbortError' ||
+        fetchError.message.includes('timeout')
+      ) {
+        friendlyError =
+          'Timeout: A URL demorou muito para responder (>30s). Tente uma imagem menor ou hospedada em servidor mais rápido.';
+      } else if (
+        fetchError.message.includes('ENOTFOUND') ||
+        fetchError.message.includes('getaddrinfo')
+      ) {
+        friendlyError =
+          'URL não encontrada: Verifique se o endereço está correto e se o servidor está online.';
+      } else if (fetchError.message.includes('ECONNREFUSED')) {
+        friendlyError =
+          'Conexão recusada: O servidor bloqueou a conexão. Tente fazer upload manual da imagem.';
+      } else if (
+        fetchError.message.includes('certificate') ||
+        fetchError.message.includes('SSL') ||
+        fetchError.message.includes('TLS')
+      ) {
+        friendlyError =
+          'Erro de certificado SSL: O site tem problemas de segurança. Configure ALLOW_INSECURE_TLS=1 no .env.local (apenas desenvolvimento).';
+      } else if (fetchError.message.includes('CORS')) {
+        friendlyError =
+          'Bloqueio CORS: O site não permite download de imagens por terceiros. Faça upload manual.';
+      }
+
+      throw new Error(friendlyError);
     }
 
     if (!downloadResponse.ok) {
-      throw new Error(
-        `Falha no download (${downloadResponse.status}): Servidor externo recusou a conexão.`
-      );
+      const statusMessages: Record<number, string> = {
+        400: 'Requisição inválida (400): A URL pode estar malformada.',
+        401: 'Não autorizado (401): A imagem requer autenticação.',
+        403: 'Acesso negado (403): O servidor bloqueou o acesso. Tente fazer upload manual.',
+        404: 'Imagem não encontrada (404): Verifique se a URL está correta.',
+        429: 'Muitas requisições (429): O servidor bloqueou por excesso de tentativas. Aguarde alguns minutos.',
+        500: 'Erro no servidor externo (500): O site está com problemas.',
+        502: 'Gateway indisponível (502): O servidor intermediário falhou.',
+        503: 'Serviço indisponível (503): O site está temporariamente offline.',
+      };
+
+      const errorMsg =
+        statusMessages[downloadResponse.status] ||
+        `Falha no download (${downloadResponse.status}): Servidor externo recusou a conexão.`;
+
+      throw new Error(errorMsg);
     }
 
     const arrayBuffer = await downloadResponse.arrayBuffer();

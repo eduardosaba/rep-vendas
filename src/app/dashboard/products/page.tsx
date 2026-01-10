@@ -234,7 +234,7 @@ export default async function ProductsPage() {
                     catálogo.
                   </span>
                   <Link
-                    href="/dashboard/products/manage-external-images"
+                    href="/dashboard/manage-external-images"
                     className="contents"
                   >
                     <Button
@@ -253,7 +253,7 @@ export default async function ProductsPage() {
       )}
 
       {/* Painel de Diagnóstico (Só exibe se houver problemas) */}
-      <DiagnosticPanel />
+      {/* <DiagnosticPanel /> */}
 
       {/* Tabela de Dados */}
       {/* Envolvemos em um container com borda e fundo para o tema */}
