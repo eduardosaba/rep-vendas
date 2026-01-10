@@ -18,6 +18,7 @@ import {
   Rocket,
   ShieldCheck,
   History,
+  Trash2,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -58,6 +59,7 @@ export default function AdminSidebar({
       icon: ToggleLeft,
     },
     { label: 'Métricas Globais', href: '/admin/metrics', icon: BarChart2 },
+    { label: 'Clear Storage', href: '/admin/clear', icon: Trash2 },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
     { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket },
     { label: 'Sobre / Ajuda', href: '/admin/help', icon: HelpCircle },

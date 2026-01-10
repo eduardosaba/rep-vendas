@@ -63,10 +63,16 @@ export default function ManageExternalImagesClient({
 
   // Extrai listas únicas de marcas e categorias
   const brands = Array.from(
-    new Set(initialProducts.map((p) => p.brand).filter(Boolean))
+    new Set(
+      initialProducts.map((p) => p.brand).filter((b): b is string => Boolean(b))
+    )
   ).sort();
   const categories = Array.from(
-    new Set(initialProducts.map((p) => p.category).filter(Boolean))
+    new Set(
+      initialProducts
+        .map((p) => p.category)
+        .filter((c): c is string => Boolean(c))
+    )
   ).sort();
 
   // Filtra items baseado nos filtros ativos
