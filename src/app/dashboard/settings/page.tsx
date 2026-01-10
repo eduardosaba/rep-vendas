@@ -25,6 +25,8 @@ import {
   AlertTriangle,
   Zap,
   Brush,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { Lock } from 'lucide-react';
 import { SYSTEM_FONTS } from '@/lib/fonts';
@@ -413,16 +415,19 @@ export default function SettingsPage() {
   };
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      // Revoga o blob URL anterior se existir
-      if (logoPreview && logoPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(logoPreview);
-      }
-      const file = e.target.files[0];
-      setLogoFile(file);
-      const objectURL = URL.createObjectURL(file);
-      setLogoPreview(objectURL);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Revoga o blob URL anterior se existir
+    if (logoPreview && logoPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(logoPreview);
     }
+
+    // Cria preview imediatamente
+    const objectURL = URL.createObjectURL(file);
+    setLogoFile(file);
+    setLogoPreview(objectURL);
+    toast.success('Logo carregada! Preview disponível.');
   };
 
   const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -460,6 +465,9 @@ export default function SettingsPage() {
       )
     );
     setNewBannerFiles((prev) => [...prev, ...processed]);
+    toast.success(
+      `${processed.length} banner(s) adicionado(s)! Confira o preview acima.`
+    );
   };
 
   const removeNewBanner = (index: number) => {
@@ -508,6 +516,9 @@ export default function SettingsPage() {
       )
     );
     setNewBannerFilesMobile((prev) => [...prev, ...processed]);
+    toast.success(
+      `${processed.length} banner(s) mobile adicionado(s)! Confira o preview acima.`
+    );
   };
 
   const removeNewBannerMobile = (index: number) => {
@@ -521,6 +532,63 @@ export default function SettingsPage() {
     });
   };
 
+  // Funções para reordenar banners
+  const moveBanner = (index: number, direction: 'up' | 'down') => {
+    setCurrentBanners((prev) => {
+      if (direction === 'up' && index === 0) return prev;
+      if (direction === 'down' && index === prev.length - 1) return prev;
+      const newArray = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      [newArray[index], newArray[targetIndex]] = [
+        newArray[targetIndex],
+        newArray[index],
+      ];
+      return newArray;
+    });
+  };
+
+  const moveNewBanner = (index: number, direction: 'up' | 'down') => {
+    setNewBannerFiles((prev) => {
+      if (direction === 'up' && index === 0) return prev;
+      if (direction === 'down' && index === prev.length - 1) return prev;
+      const newArray = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      [newArray[index], newArray[targetIndex]] = [
+        newArray[targetIndex],
+        newArray[index],
+      ];
+      return newArray;
+    });
+  };
+
+  const moveBannerMobile = (index: number, direction: 'up' | 'down') => {
+    setCurrentBannersMobile((prev) => {
+      if (direction === 'up' && index === 0) return prev;
+      if (direction === 'down' && index === prev.length - 1) return prev;
+      const newArray = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      [newArray[index], newArray[targetIndex]] = [
+        newArray[targetIndex],
+        newArray[index],
+      ];
+      return newArray;
+    });
+  };
+
+  const moveNewBannerMobile = (index: number, direction: 'up' | 'down') => {
+    setNewBannerFilesMobile((prev) => {
+      if (direction === 'up' && index === 0) return prev;
+      if (direction === 'down' && index === prev.length - 1) return prev;
+      const newArray = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      [newArray[index], newArray[targetIndex]] = [
+        newArray[targetIndex],
+        newArray[index],
+      ];
+      return newArray;
+    });
+  };
+
   const handleTopBenefitImageChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -530,9 +598,12 @@ export default function SettingsPage() {
       URL.revokeObjectURL(topBenefitImagePreview);
     }
     const file = e.target.files[0];
-    setTopBenefitImageFile(file);
     const objectURL = URL.createObjectURL(file);
+    setTopBenefitImageFile(file);
     setTopBenefitImagePreview(objectURL);
+    toast.success(
+      'Imagem da barra de benefícios carregada! Preview disponível.'
+    );
   };
 
   const removeTopBenefitImage = () => {
@@ -1211,6 +1282,24 @@ export default function SettingsPage() {
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     alt="Banner"
                   />
+                  {/* Ordem */}
+                  <div className="absolute top-2 left-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => moveBanner(i, 'up')}
+                      disabled={i === 0}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => moveBanner(i, 'down')}
+                      disabled={i === currentBanners.length - 1}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+                  {/* Remover */}
                   <button
                     onClick={() =>
                       setCurrentBanners((prev) =>
@@ -1236,6 +1325,24 @@ export default function SettingsPage() {
                   <div className="absolute left-2 top-2 bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
                     Lançamento
                   </div>
+                  {/* Ordem */}
+                  <div className="absolute bottom-2 left-2 flex gap-1">
+                    <button
+                      onClick={() => moveNewBanner(idx, 'up')}
+                      disabled={idx === 0}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => moveNewBanner(idx, 'down')}
+                      disabled={idx === newBannerFiles.length - 1}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+                  {/* Remover */}
                   <button
                     onClick={() => removeNewBanner(idx)}
                     className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg shadow-md hover:bg-red-600 transition-all"
@@ -1243,8 +1350,9 @@ export default function SettingsPage() {
                     <X size={14} />
                   </button>
                   {nb.tooSmall && (
-                    <div className="absolute bottom-2 left-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5 rounded">
-                      Dimensões abaixo do recomendado
+                    <div className="absolute bottom-2 right-2 bg-yellow-50 dark:bg-yellow-900/80 text-yellow-800 dark:text-yellow-200 text-[10px] px-2 py-1 rounded shadow-sm">
+                      ⚠️ Recomendado: {RECOMMENDED_BANNER.width}x
+                      {RECOMMENDED_BANNER.height}px
                     </div>
                   )}
                 </div>
@@ -1258,6 +1366,9 @@ export default function SettingsPage() {
                 </div>
                 <span className="text-xs font-medium text-gray-500 dark:text-slate-400 group-hover:text-[var(--primary)]">
                   Adicionar Banner
+                </span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-500 mt-1">
+                  {RECOMMENDED_BANNER.width}x{RECOMMENDED_BANNER.height}px
                 </span>
                 <input
                   type="file"
@@ -1292,6 +1403,24 @@ export default function SettingsPage() {
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     alt="Banner Mobile"
                   />
+                  {/* Ordem */}
+                  <div className="absolute top-2 left-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => moveBannerMobile(i, 'up')}
+                      disabled={i === 0}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => moveBannerMobile(i, 'down')}
+                      disabled={i === currentBannersMobile.length - 1}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+                  {/* Remover */}
                   <button
                     onClick={() =>
                       setCurrentBannersMobile((prev) =>
@@ -1317,6 +1446,24 @@ export default function SettingsPage() {
                   <div className="absolute left-2 top-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
                     Mobile Lançamento
                   </div>
+                  {/* Ordem */}
+                  <div className="absolute bottom-2 left-2 flex gap-1">
+                    <button
+                      onClick={() => moveNewBannerMobile(idx, 'up')}
+                      disabled={idx === 0}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => moveNewBannerMobile(idx, 'down')}
+                      disabled={idx === newBannerFilesMobile.length - 1}
+                      className="bg-white/90 dark:bg-slate-800/90 text-gray-700 dark:text-gray-300 p-1 rounded shadow-md hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+                  {/* Remover */}
                   <button
                     onClick={() => removeNewBannerMobile(idx)}
                     className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-lg shadow-md hover:bg-red-600 transition-all"
@@ -1324,8 +1471,9 @@ export default function SettingsPage() {
                     <X size={14} />
                   </button>
                   {nb.tooSmall && (
-                    <div className="absolute bottom-2 left-2 bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5 rounded">
-                      Abaixo do recomendado
+                    <div className="absolute bottom-2 right-2 bg-yellow-50 dark:bg-yellow-900/80 text-yellow-800 dark:text-yellow-200 text-[10px] px-2 py-1 rounded shadow-sm">
+                      ⚠️ Recomendado: {RECOMMENDED_BANNER_MOBILE.width}x
+                      {RECOMMENDED_BANNER_MOBILE.height}px
                     </div>
                   )}
                 </div>
@@ -1339,6 +1487,10 @@ export default function SettingsPage() {
                 </div>
                 <span className="text-xs font-medium text-gray-500 dark:text-slate-400 group-hover:text-[var(--primary)]">
                   Banner Mobile
+                </span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-500 mt-1">
+                  {RECOMMENDED_BANNER_MOBILE.width}x
+                  {RECOMMENDED_BANNER_MOBILE.height}px
                 </span>
                 <input
                   type="file"

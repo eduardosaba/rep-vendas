@@ -416,48 +416,82 @@ export function StoreModals() {
           {/* ZOOM OVERLAY INTEGRADO */}
           {isImageZoomOpen && (
             <div
-              className="fixed inset-0 z-[200] bg-black/98 flex items-center justify-center p-4"
+              className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
               onClick={() => setIsImageZoomOpen(false)}
             >
-              <button className="absolute right-8 top-8 text-white/50 hover:text-white">
-                <X size={40} />
-              </button>
-
+              {/* Botão Fechar - Mobile Otimizado */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImageIndex((i) =>
-                    i === 0 ? productImages.length - 1 : i - 1
-                  );
-                }}
-                className="absolute left-6 p-4 text-white/20 hover:text-white transition-colors"
+                className="absolute right-4 top-4 md:right-8 md:top-8 z-10 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-sm transition-all active:scale-95"
+                onClick={() => setIsImageZoomOpen(false)}
               >
-                <ChevronLeft size={64} strokeWidth={1} />
+                <X size={24} className="md:hidden" />
+                <X size={32} className="hidden md:block" />
               </button>
 
+              {/* Setas de Navegação - Apenas Desktop */}
+              {productImages.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex((i) =>
+                        i === 0 ? productImages.length - 1 : i - 1
+                      );
+                    }}
+                    className="hidden md:block absolute left-6 p-4 text-white/20 hover:text-white transition-colors z-10"
+                  >
+                    <ChevronLeft size={64} strokeWidth={1} />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex((i) =>
+                        i === productImages.length - 1 ? 0 : i + 1
+                      );
+                    }}
+                    className="hidden md:block absolute right-6 p-4 text-white/20 hover:text-white transition-colors z-10"
+                  >
+                    <ChevronRight size={64} strokeWidth={1} />
+                  </button>
+                </>
+              )}
+
+              {/* Container da Imagem - Responsivo */}
               <div
-                className="relative w-full h-full max-w-5xl"
+                className="relative w-full h-full max-w-5xl flex items-center justify-center p-4 md:p-8"
                 onClick={(e) => e.stopPropagation()}
               >
-                <Image
-                  src={productImages[currentImageIndex]}
-                  alt="Zoom"
-                  fill
-                  className="object-contain"
-                />
+                <div className="relative w-full h-full">
+                  <Image
+                    src={productImages[currentImageIndex]}
+                    alt="Zoom"
+                    fill
+                    className="object-contain"
+                    priority
+                  />
+                </div>
               </div>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImageIndex((i) =>
-                    i === productImages.length - 1 ? 0 : i + 1
-                  );
-                }}
-                className="absolute right-6 p-4 text-white/20 hover:text-white transition-colors"
-              >
-                <ChevronRight size={64} strokeWidth={1} />
-              </button>
+              {/* Indicador de Múltiplas Imagens - Mobile */}
+              {productImages.length > 1 && (
+                <div className="md:hidden absolute bottom-6 left-0 right-0 flex justify-center gap-2 z-10">
+                  {productImages.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(idx);
+                      }}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        idx === currentImageIndex
+                          ? 'bg-white w-6'
+                          : 'bg-white/30'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
