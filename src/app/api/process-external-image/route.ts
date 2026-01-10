@@ -23,6 +23,60 @@ if (process.env.NODE_ENV === 'development') {
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+// Wrapper de fetch com timeout, retries e logs detalhados
+async function fetchWithTimeout(
+  url: string,
+  opts: RequestInit = {},
+  timeoutMs = 30000,
+  retries = 1
+) {
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    Accept:
+      'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    Connection: 'keep-alive',
+    ...(opts.headers as Record<string, string> | undefined),
+  };
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const signal = controller.signal;
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      const res = await fetch(url, {
+        ...opts,
+        headers,
+        redirect: 'follow',
+        signal,
+      } as RequestInit);
+
+      clearTimeout(timer);
+      return res;
+    } catch (err: any) {
+      const name = err?.name || '';
+      const message = err?.message || '';
+      const code = err?.code || '';
+
+      const isTimeout = name === 'AbortError' || /timeout/i.test(message);
+      const isSSL = /certificate|TLS|SSL/i.test(message);
+      const isDNS = /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(message || code || '');
+
+      console.error('[process-external-image] fetch error', { url, attempt, message, code, isTimeout, isSSL, isDNS });
+
+      // Não retry para erros críticos de SSL ou DNS
+      if (isSSL || isDNS) throw err;
+      if (attempt === retries) throw err;
+
+      // Pequena espera exponencial antes do retry
+      await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
+
+  throw new Error('Failed to fetch');
+}
+
 function sanitizeFolder(name: string | null | undefined) {
   if (!name) return 'geral';
   return name
@@ -69,29 +123,31 @@ export async function POST(request: Request) {
 
     /**
      * 3. FETCH COM CABEÇALHOS DE NAVEGADOR REAL
-     * Adicionamos referer e disfarce completo para evitar bloqueios de firewall.
+     * Usamos fetchWithTimeout para melhorar robustez (timeout, retries, logs).
      */
     console.log(`[SYNC] Tentando download: ${targetUrl}`);
 
-    const downloadResponse = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept:
-          'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        Referer: 'https://commportal.safilo.com/',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-      // Aumentamos o timeout para 45 segundos para conexões lentas
-      signal: AbortSignal.timeout(45000),
-    });
+    let downloadResponse;
+    try {
+      downloadResponse = await fetchWithTimeout(
+        targetUrl,
+        {
+          method: 'GET',
+          headers: {
+            Referer: 'https://commportal.safilo.com/',
+            'Cache-Control': 'no-cache',
+          },
+        },
+        45000,
+        1
+      );
+    } catch (err: any) {
+      console.error('[process-external-image] falha ao baixar imagem', { url: targetUrl, message: err?.message, code: err?.code });
+      throw err;
+    }
 
     if (!downloadResponse.ok) {
-      throw new Error(
-        `Servidor externo retornou erro ${downloadResponse.status}`
-      );
+      throw new Error(`Servidor externo retornou erro ${downloadResponse.status}`);
     }
 
     const arrayBuffer = await downloadResponse.arrayBuffer();
