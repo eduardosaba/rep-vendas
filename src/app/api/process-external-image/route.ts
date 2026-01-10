@@ -2,13 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import dns from 'node:dns';
 import sharp from 'sharp';
-
-/**
- * 1. BLINDAGEM DE PROTOCOLO (ESSENCIAL PARA NODE 22)
- * Força o sistema a usar IPv4 primeiro. Isso resolve 90% dos erros 'fetch failed'.
+/*
+ * 2. BYPASS DE SSL (OPCIONAL - DEV ONLY)
+ * Alguns portais (Safilo, Luxottica) têm certificados que o Node 22 rejeita por padrão.
+ * Habilite explicitamente definindo `ALLOW_INSECURE_TLS=1` ou em NODE_ENV=development.
  */
-if (dns.setDefaultResultOrder) {
-  dns.setDefaultResultOrder('ipv4first');
+if (process.env.NODE_ENV === 'development' || process.env.ALLOW_INSECURE_TLS === '1') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  console.warn('[process-external-image] WARNING: TLS verification disabled (ALLOW_INSECURE_TLS=1). Do NOT enable in production.');
 }
 
 /**
@@ -33,8 +34,7 @@ async function fetchWithTimeout(
   const headers = {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    Accept:
-      'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     Connection: 'keep-alive',
     ...(opts.headers as Record<string, string> | undefined),
   };
@@ -61,9 +61,19 @@ async function fetchWithTimeout(
 
       const isTimeout = name === 'AbortError' || /timeout/i.test(message);
       const isSSL = /certificate|TLS|SSL/i.test(message);
-      const isDNS = /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(message || code || '');
+      const isDNS = /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(
+        message || code || ''
+      );
 
-      console.error('[process-external-image] fetch error', { url, attempt, message, code, isTimeout, isSSL, isDNS });
+      console.error('[process-external-image] fetch error', {
+        url,
+        attempt,
+        message,
+        code,
+        isTimeout,
+        isSSL,
+        isDNS,
+      });
 
       // Não retry para erros críticos de SSL ou DNS
       if (isSSL || isDNS) throw err;
@@ -142,12 +152,18 @@ export async function POST(request: Request) {
         1
       );
     } catch (err: any) {
-      console.error('[process-external-image] falha ao baixar imagem', { url: targetUrl, message: err?.message, code: err?.code });
+      console.error('[process-external-image] falha ao baixar imagem', {
+        url: targetUrl,
+        message: err?.message,
+        code: err?.code,
+      });
       throw err;
     }
 
     if (!downloadResponse.ok) {
-      throw new Error(`Servidor externo retornou erro ${downloadResponse.status}`);
+      throw new Error(
+        `Servidor externo retornou erro ${downloadResponse.status}`
+      );
     }
 
     const arrayBuffer = await downloadResponse.arrayBuffer();
