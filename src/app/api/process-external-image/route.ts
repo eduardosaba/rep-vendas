@@ -7,9 +7,14 @@ import sharp from 'sharp';
  * Alguns portais (Safilo, Luxottica) têm certificados que o Node 22 rejeita por padrão.
  * Habilite explicitamente definindo `ALLOW_INSECURE_TLS=1` ou em NODE_ENV=development.
  */
-if (process.env.NODE_ENV === 'development' || process.env.ALLOW_INSECURE_TLS === '1') {
+if (
+  process.env.NODE_ENV === 'development' ||
+  process.env.ALLOW_INSECURE_TLS === '1'
+) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  console.warn('[process-external-image] WARNING: TLS verification disabled (ALLOW_INSECURE_TLS=1). Do NOT enable in production.');
+  console.warn(
+    '[process-external-image] WARNING: TLS verification disabled (ALLOW_INSECURE_TLS=1). Do NOT enable in production.'
+  );
 }
 
 /**
@@ -137,6 +142,21 @@ export async function POST(request: Request) {
      */
     console.log(`[SYNC] Tentando download: ${targetUrl}`);
 
+    // Garantir que o bypass TLS (dev) seja aplicado no momento da requisição.
+    // Isso permite habilitar `ALLOW_INSECURE_TLS=1` sem precisar reiniciar o servidor
+    // em ambientes de desenvolvimento ou preview.
+    if (
+      process.env.NODE_ENV === 'development' ||
+      process.env.ALLOW_INSECURE_TLS === '1'
+    ) {
+      if (process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        console.warn(
+          '[process-external-image] TLS verification disabled for this request (ALLOW_INSECURE_TLS=1).'
+        );
+      }
+    }
+
     let downloadResponse;
     try {
       downloadResponse = await fetchWithTimeout(
@@ -207,14 +227,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, url: publicUrl });
   } catch (error: any) {
-    console.error(`[SYNC ERROR] ${targetUrl}:`, error.message);
+    console.error(`[SYNC ERROR] ${targetUrl}:`, error.message || error);
 
-    // Retorna erro amigável para o Dashboard
+    // Retorna erro amigável para o Dashboard com mais detalhes úteis
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
-        cause: error.cause?.code || 'FETCH_FAILED',
+        error: error?.message || String(error),
+        cause: error?.cause?.code || error?.code || 'FETCH_FAILED',
+        details: error?.stack
+          ? error.stack.split('\n').slice(0, 3).join('\n')
+          : undefined,
       },
       { status: 500 }
     );
