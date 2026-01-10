@@ -88,16 +88,38 @@ export function StoreModals() {
   const productImages = useMemo(() => {
     if (!modals.product) return [];
     const images: string[] = [];
-    if (modals.product.image_url) images.push(modals.product.image_url);
-    if (modals.product.external_image_url)
+
+    // Prioridade: image_path (Storage otimizado) > URLs externas
+    if (modals.product.image_path) {
+      // Storage: usa imagem otimizada (800x800) para modal
+      const pathUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${modals.product.image_path}`;
+      const optimizedUrl = `${pathUrl}?width=800&height=800&resize=contain`;
+      images.push(optimizedUrl);
+    } else if (modals.product.image_url) {
+      images.push(modals.product.image_url);
+    }
+
+    // URLs externas adicionais (galeria)
+    if (
+      modals.product.external_image_url &&
+      !images.includes(modals.product.external_image_url)
+    ) {
       images.push(modals.product.external_image_url);
+    }
+
     if (modals.product.images && Array.isArray(modals.product.images)) {
       modals.product.images.forEach((img) => {
         if (img && !images.includes(img)) images.push(img);
       });
     }
+
     return images.length > 0 ? images : ['/placeholder-no-image.svg'];
   }, [modals.product]);
+
+  // Detectar se a imagem atual é do Supabase Storage (otimizar) ou externa (não otimizar)
+  const currentImageIsSupabase =
+    productImages[currentImageIndex]?.includes('supabase.co/storage') ||
+    Boolean(modals.product?.image_path);
 
   // Reset ao trocar de produto
   useEffect(() => {
@@ -341,25 +363,37 @@ export function StoreModals() {
                 </button>
 
                 {/* Left: Imagens */}
-                <div className="md:w-1/2 relative bg-white dark:bg-slate-800 p-4 md:p-5 flex flex-col items-center justify-start overflow-hidden">
+                <div className="md:w-1/2 relative bg-white dark:bg-slate-800 p-3 md:p-4 lg:p-6 flex flex-col items-center justify-start overflow-y-auto max-h-[50vh] md:max-h-full">
+                  {/* Imagem Principal - Compacta */}
                   <div
-                    className="relative w-full max-w-md aspect-square md:aspect-auto md:h-[220px] lg:h-[280px] group cursor-zoom-in flex-shrink-0"
+                    className="relative w-full max-w-sm aspect-square md:max-w-md md:h-[280px] lg:h-[340px] group cursor-zoom-in flex-shrink-0"
                     onClick={() => setIsImageZoomOpen(true)}
                   >
                     <Image
                       src={productImages[currentImageIndex]}
                       alt={modals.product.name}
                       fill
-                      className="object-contain p-2 md:p-3 transition-transform duration-500 group-hover:scale-105"
+                      className="object-contain p-1 md:p-2 transition-transform duration-500 group-hover:scale-105"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      priority
+                      unoptimized={!currentImageIsSupabase}
                     />
-                    <button className="absolute right-2 bottom-2 md:right-3 md:bottom-3 p-2 rounded-full bg-white/90 shadow-lg">
-                      <Search size={16} className="md:hidden" />
-                      <Search size={18} className="hidden md:block" />
+                    <button className="absolute right-2 bottom-2 md:right-3 md:bottom-3 p-1.5 md:p-2 rounded-full bg-white/90 dark:bg-slate-800/90 shadow-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                      <Search
+                        size={14}
+                        className="md:hidden text-gray-700 dark:text-gray-200"
+                      />
+                      <Search
+                        size={16}
+                        className="hidden md:block text-gray-700 dark:text-gray-200"
+                      />
                     </button>
                   </div>
 
+                  {/* Galeria de Thumbnails - Mais visível */}
                   {productImages.length > 1 && (
-                    <div className="relative w-full mt-3 md:mt-4">
+                    <div className="relative w-full mt-3 md:mt-5 flex-shrink-0">
+                      {/* Setas de navegação (apenas >3 fotos) */}
                       {productImages.length > 3 && (
                         <>
                           <button
@@ -368,17 +402,20 @@ export function StoreModals() {
                                 document.getElementById('thumbnail-gallery');
                               if (container)
                                 container.scrollBy({
-                                  left: -120,
+                                  left: -140,
                                   behavior: 'smooth',
                                 });
                             }}
-                            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 md:p-2 rounded-full bg-white shadow-lg hover:bg-gray-50 border border-gray-200"
+                            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 p-1 md:p-1.5 rounded-full bg-white dark:bg-slate-800 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-600 transition-all"
                             aria-label="Anterior"
                           >
-                            <ChevronLeft size={16} className="md:hidden" />
                             <ChevronLeft
-                              size={20}
-                              className="hidden md:block"
+                              size={14}
+                              className="md:hidden text-gray-700 dark:text-gray-200"
+                            />
+                            <ChevronLeft
+                              size={18}
+                              className="hidden md:block text-gray-700 dark:text-gray-200"
                             />
                           </button>
                           <button
@@ -387,24 +424,29 @@ export function StoreModals() {
                                 document.getElementById('thumbnail-gallery');
                               if (container)
                                 container.scrollBy({
-                                  left: 120,
+                                  left: 140,
                                   behavior: 'smooth',
                                 });
                             }}
-                            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1.5 md:p-2 rounded-full bg-white shadow-lg hover:bg-gray-50 border border-gray-200"
+                            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 p-1 md:p-1.5 rounded-full bg-white dark:bg-slate-800 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-600 transition-all"
                             aria-label="Próximo"
                           >
-                            <ChevronRight size={16} className="md:hidden" />
                             <ChevronRight
-                              size={20}
-                              className="hidden md:block"
+                              size={14}
+                              className="md:hidden text-gray-700 dark:text-gray-200"
+                            />
+                            <ChevronRight
+                              size={18}
+                              className="hidden md:block text-gray-700 dark:text-gray-200"
                             />
                           </button>
                         </>
                       )}
+
+                      {/* Container dos Thumbnails */}
                       <div
                         id="thumbnail-gallery"
-                        className="flex gap-2 md:gap-2.5 overflow-x-auto pb-2 px-8 md:px-10 scrollbar-hide scroll-smooth"
+                        className="flex gap-2 md:gap-2.5 overflow-x-auto pb-2 px-7 md:px-9 scrollbar-hide scroll-smooth"
                         style={{
                           scrollbarWidth: 'none',
                           msOverflowStyle: 'none',
@@ -414,7 +456,24 @@ export function StoreModals() {
                           <button
                             key={idx}
                             onClick={() => setCurrentImageIndex(idx)}
-                            className={`flex-shrink-0 w-14 h-14 md:w-16 md:h-16 lg:w-18 lg:h-18 rounded-lg border-2 transition-all bg-white shadow-sm hover:shadow-md ${currentImageIndex === idx ? 'border-primary ring-2 ring-primary/20 scale-105' : 'border-gray-200 hover:border-gray-300'}`}
+                            className={`
+                              flex-shrink-0 
+                              w-16 h-16 
+                              md:w-20 md:h-20 
+                              lg:w-24 lg:h-24 
+                              rounded-lg 
+                              border-2 
+                              transition-all 
+                              bg-white 
+                              dark:bg-slate-700 
+                              shadow-sm 
+                              hover:shadow-md 
+                              ${
+                                currentImageIndex === idx
+                                  ? 'border-primary ring-2 ring-primary/30 scale-105 shadow-lg'
+                                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                              }
+                            `}
                           >
                             <img
                               src={src}

@@ -16,10 +16,14 @@ const nextConfig = {
         hostname: 'commportal-images.safilo.com',
       },
     ],
-    // Workaround: desabilita o proxy/otimização de imagens do Next.js
-    // para evitar erros de verificação TLS em Node durante o desenvolvimento.
-    // Remover ou ajustar em produção após corrigir a cadeia de certificados remota.
-    unoptimized: true,
+    // Configuração para lidar com imagens grandes
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 60,
+    // Timeout maior para imagens do Supabase Storage
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
 };
 

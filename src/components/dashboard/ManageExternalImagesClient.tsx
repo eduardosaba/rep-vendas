@@ -50,6 +50,7 @@ export default function ManageExternalImagesClient({
   const [isProcessing, setIsProcessing] = useState(false);
   const [stopRequested, setStopRequested] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [stopOnError, setStopOnError] = useState(true); // Novo: parar no primeiro erro (padrão)
 
   const supabase = createClient();
 
@@ -65,18 +66,27 @@ export default function ManageExternalImagesClient({
 
     let processedCount = 0;
     let consecutiveErrors = 0;
-    const MAX_CONSECUTIVE_ERRORS = 3; // Para após 3 erros seguidos
+    const MAX_CONSECUTIVE_ERRORS = stopOnError ? 1 : 999; // Para no primeiro erro OU nunca para
+
+    console.log(
+      `🚀 [SYNC] Iniciando processamento de ${queueIndices.length} imagens...`
+    );
+    console.log(
+      `   Modo: ${stopOnError ? 'Parar no primeiro erro' : 'Continuar mesmo com erros'}`
+    );
 
     for (const index of queueIndices) {
       if (stopRequested) {
+        console.warn('⏸️ [SYNC] Processamento interrompido pelo usuário');
         toast.info('Processamento interrompido pelo usuário');
         break;
       }
 
-      // Para automaticamente após muitos erros consecutivos
+      // Para automaticamente no primeiro erro
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        toast.error('Processamento interrompido', {
-          description: `${MAX_CONSECUTIVE_ERRORS} erros consecutivos detectados. Verifique as URLs e tente novamente.`,
+        console.error('❌ [SYNC] Processo interrompido devido a erro.');
+        toast.error('Processo interrompido no primeiro erro', {
+          description: 'Corrija o problema e tente novamente.',
           duration: 8000,
         });
         break;
@@ -90,6 +100,10 @@ export default function ManageExternalImagesClient({
       });
 
       const item = items[index];
+      console.log(
+        `⏳ [SYNC] Processando: ${item.name || item.reference_code || item.id}`
+      );
+      console.log(`   URL: ${item.external_image_url}`);
 
       try {
         // Usa a API route do servidor para evitar bloqueios de CORS
@@ -126,11 +140,22 @@ export default function ManageExternalImagesClient({
             errorMsg = 'Erro de certificado SSL';
           }
 
+          // Log detalhado do erro
+          console.error(
+            `❌ [SYNC] ERRO ao processar produto "${item.name || item.id}"`
+          );
+          console.error(`   Mensagem: ${errorMsg}`);
+          console.error(`   URL: ${item.external_image_url}`);
+          console.error(`   Detalhes completos:`, result);
+
           throw new Error(errorMsg);
         }
 
         // Sucesso - reseta contador de erros
         consecutiveErrors = 0;
+        console.log(
+          `✅ [SYNC] Sucesso: ${item.name || item.reference_code || item.id}`
+        );
         setItems((prev) => {
           const newItems = [...prev];
           newItems[index].status = 'success';
@@ -140,7 +165,33 @@ export default function ManageExternalImagesClient({
       } catch (error: any) {
         // Incrementa contador de erros consecutivos
         consecutiveErrors++;
-        console.error('Erro no item ' + item.id, error);
+
+        // Log imediato do erro
+        console.error(
+          '╔════════════════════════════════════════════════════════╗'
+        );
+        console.error(
+          '║  ❌ ERRO NA INTERNALIZAÇÃO DE IMAGEM                 ║'
+        );
+        console.error(
+          '╚════════════════════════════════════════════════════════╝'
+        );
+        console.error(
+          `Produto: ${item.name || item.reference_code || item.id}`
+        );
+        console.error(`URL: ${item.external_image_url}`);
+        console.error(`Erro: ${error.message || 'Erro desconhecido'}`);
+        console.error('Stack:', error.stack);
+        console.error(
+          '════════════════════════════════════════════════════════'
+        );
+
+        // Toast imediato
+        toast.error(`Erro: ${item.name || item.id}`, {
+          description: error.message || 'Erro desconhecido',
+          duration: 5000,
+        });
+
         setItems((prev) => {
           const newItems = [...prev];
           newItems[index].status = 'error';
@@ -177,8 +228,9 @@ export default function ManageExternalImagesClient({
   return (
     <div className="flex flex-col h-full">
       {/* HEADER DE CONTROLE */}
-      <div className="bg-white dark:bg-slate-900 p-4 border-b border-gray-200 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex gap-6 text-sm w-full md:w-auto justify-center md:justify-start">
+      <div className="bg-white dark:bg-slate-900 p-4 border-b border-gray-200 dark:border-slate-800 flex flex-col gap-4">
+        {/* Linha 1: Estatísticas */}
+        <div className="flex flex-wrap gap-6 text-sm justify-center md:justify-start">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
             <span className="text-gray-600 dark:text-gray-400">
@@ -199,27 +251,43 @@ export default function ManageExternalImagesClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          {isProcessing ? (
-            <button
-              onClick={handleStop}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 rounded-lg font-bold transition-colors"
-            >
-              <Pause size={18} /> Parar
-            </button>
-          ) : (
-            <button
-              onClick={processQueue}
-              disabled={stats.pending === 0 && stats.error === 0}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95 ${
-                stats.pending === 0 && stats.error === 0
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-[var(--primary)] text-white hover:opacity-90'
-              }`}
-            >
-              <Play size={18} /> Iniciar Sincronização
-            </button>
-          )}
+        {/* Linha 2: Controles */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+          {/* Checkbox: Parar no Primeiro Erro */}
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={stopOnError}
+              onChange={(e) => setStopOnError(e.target.checked)}
+              disabled={isProcessing}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50"
+            />
+            <span className="select-none">Parar no primeiro erro</span>
+          </label>
+
+          {/* Botão de Ação */}
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            {isProcessing ? (
+              <button
+                onClick={handleStop}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 rounded-lg font-bold transition-colors"
+              >
+                <Pause size={18} /> Parar
+              </button>
+            ) : (
+              <button
+                onClick={processQueue}
+                disabled={stats.pending === 0 && stats.error === 0}
+                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95 ${
+                  stats.pending === 0 && stats.error === 0
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-[var(--primary)] text-white hover:opacity-90'
+                }`}
+              >
+                <Play size={18} /> Iniciar Sincronização
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

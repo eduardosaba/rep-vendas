@@ -49,13 +49,42 @@ export function ProductCard({
   const stockQty = (product.stock_quantity ?? 0) as number;
   const isOutOfStock = isStockManaged && stockQty <= 0;
 
-  // --- LÓGICA DE IMAGEM ---
-  const displayImage = product.image_path
-    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`
-    : product.image_url ||
-      product.external_image_url ||
-      product.images?.[0] ||
-      null;
+  // --- LÓGICA DE IMAGEM COM THUMBNAIL (APENAS PARA STORAGE) ---
+  const getImageUrl = () => {
+    // Se tem image_path (Storage do Supabase), usa thumbnail otimizado
+    if (product.image_path) {
+      const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${product.image_path}`;
+      return `${baseUrl}?width=400&height=400&resize=contain`;
+    }
+
+    // URLs externas: funciona mas sem otimização (mais lento)
+    const externalUrl =
+      product.image_url || product.external_image_url || product.images?.[0];
+
+    if (externalUrl && !imageFailed) {
+      // Aviso apenas uma vez por sessão
+      const storageKey = `warned-external-images`;
+      if (!sessionStorage.getItem(storageKey)) {
+        console.warn(
+          '⚠️ PERFORMANCE: Produtos usando imagens externas (mais lento)'
+        );
+        console.warn(
+          '💡 Recomendação: Use "Dashboard → Sincronizar Imagens" para melhorar a velocidade'
+        );
+        sessionStorage.setItem(storageKey, 'true');
+      }
+    }
+
+    return externalUrl || null;
+  };
+
+  const displayImage = getImageUrl();
+
+  // Detectar se é imagem do Supabase Storage (pode otimizar) ou externa (não otimizar)
+  const isSupabaseStorage =
+    displayImage?.includes('supabase.co/storage') ||
+    Boolean(product.image_path);
+  const shouldOptimize = isSupabaseStorage;
 
   // --- LÓGICA DE PREÇOS ---
   const costPrice = product.price || 0;
@@ -93,15 +122,24 @@ export function ProductCard({
             sizes="(max-width: 768px) 50vw, 33vw"
             className="p-4 transition-transform duration-700 group-hover:scale-105"
             style={{ objectFit: 'contain' }}
-            onError={() => setImageFailed(true)}
+            unoptimized={!shouldOptimize}
+            onError={() => {
+              console.warn(`⚠️ Imagem externa com erro: ${displayImage}`);
+              console.warn(
+                '💡 Recomendação: Use o painel "Sincronizar Imagens" para internalizar e otimizar.'
+              );
+              setImageFailed(true);
+            }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gray-50 opacity-40">
+          <div className="relative flex h-full w-full items-center justify-center bg-gray-50 opacity-40">
             <Image
               src="/placeholder-no-image.svg"
               alt="Sem imagem"
               fill
               className="p-10"
+              style={{ objectFit: 'contain' }}
+              unoptimized
             />
           </div>
         )}

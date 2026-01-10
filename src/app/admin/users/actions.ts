@@ -239,7 +239,23 @@ export async function createManualUser(data: {
       throw new Error('Falha ao obter ID do usuário criado');
     }
 
-    // 2. Profile
+    // 2. Buscar dados do plano primeiro
+    let price = 0;
+    let planId = null;
+    if (data.planName) {
+      const { data: planData } = await supabaseAdmin
+        .from('plans')
+        .select('id, price')
+        .eq('name', data.planName)
+        .maybeSingle();
+
+      if (planData) {
+        price = planData.price;
+        planId = planData.id;
+      }
+    }
+
+    // 3. Profile (inclui plan_id para sincronização)
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .upsert({
@@ -247,27 +263,18 @@ export async function createManualUser(data: {
         email: data.email,
         full_name: data.email.split('@')[0],
         role: dbRole,
+        plan_id: planId, // Sincronizar plan_id
         updated_at: new Date().toISOString(),
       });
 
     if (profileError) throw new Error(`Erro Perfil: ${profileError.message}`);
 
-    // 3. Subscription (Busca preço real)
-    let price = 0;
-    if (data.planName) {
-      const { data: planData } = await supabaseAdmin
-        .from('plans')
-        .select('price')
-        .eq('name', data.planName)
-        .maybeSingle();
-
-      if (planData) price = planData.price;
-    }
-
+    // 4. Subscription
     const { error: subError } = await supabaseAdmin
       .from('subscriptions')
       .insert({
         user_id: userId,
+        plan_id: planId,
         status: 'active',
         plan_name: data.planName,
         price: price,
@@ -276,7 +283,23 @@ export async function createManualUser(data: {
         ).toISOString(),
       });
 
-    if (subError) throw new Error(`Erro Assinatura: ${subError.message}`);
+    if (subError) {
+      throw new Error(
+        `Erro Assinatura: ${subError.message || 'Erro desconhecido'}`
+      );
+    }
+
+    // 5. Settings (criar com plan_type sincronizado)
+    const { error: settingsError } = await supabaseAdmin
+      .from('settings')
+      .upsert({
+        user_id: userId,
+        plan_type: data.planName,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (settingsError)
+      console.warn('Aviso ao criar settings:', settingsError.message);
 
     revalidatePath('/admin/users');
     return { success: true };
@@ -308,11 +331,14 @@ export async function updateUserLicense(
     if (planName) {
       const { data: planData } = await supabaseAdmin
         .from('plans')
-        .select('price')
+        .select('id, price')
         .eq('name', planName)
         .maybeSingle();
 
-      if (planData) updateData.price = planData.price;
+      if (planData) {
+        updateData.price = planData.price;
+        updateData.plan_id = planData.id;
+      }
     }
 
     if (endsAt) {
@@ -340,6 +366,26 @@ export async function updateUserLicense(
           ...updateData,
         });
       if (insertError) throw insertError;
+    }
+
+    // Sincronizar plan_id em profiles
+    if (updateData.plan_id) {
+      await supabaseAdmin
+        .from('profiles')
+        .update({
+          plan_id: updateData.plan_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+    }
+
+    // Sincronizar plan_type em settings
+    if (planName) {
+      await supabaseAdmin.from('settings').upsert({
+        user_id: userId,
+        plan_type: planName,
+        updated_at: new Date().toISOString(),
+      });
     }
 
     revalidatePath(`/admin/users/${userId}`);

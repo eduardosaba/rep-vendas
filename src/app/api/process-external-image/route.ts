@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import dns from 'node:dns';
+import sharp from 'sharp';
 
 // 1. Força IPv4 para evitar erros de conexão (comum em redes locais e Docker)
 if (dns.setDefaultResultOrder) {
@@ -140,29 +141,52 @@ export async function POST(request: Request) {
     }
 
     const arrayBuffer = await downloadResponse.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const originalBuffer = Buffer.from(arrayBuffer);
 
-    if (buffer.length === 0) throw new Error('A imagem baixada está vazia.');
+    if (originalBuffer.length === 0)
+      throw new Error('A imagem baixada está vazia.');
 
-    // 6. Detecta extensão baseada no Content-Type
-    const contentType =
-      downloadResponse.headers.get('content-type') || 'image/jpeg';
-    let extension = 'jpg';
-    if (contentType.includes('png')) extension = 'png';
-    else if (contentType.includes('webp')) extension = 'webp';
-    else if (contentType.includes('gif')) extension = 'gif';
+    console.log(
+      `[OPTIMIZATION] Tamanho original: ${(originalBuffer.length / 1024 / 1024).toFixed(2)} MB`
+    );
+
+    // 6. OTIMIZAÇÃO COM SHARP - Reduz tamanho e melhora performance
+    let optimizedBuffer: Buffer;
+    try {
+      optimizedBuffer = await sharp(originalBuffer)
+        .resize(1200, 1200, {
+          fit: 'inside', // Mantém proporção original
+          withoutEnlargement: true, // Não aumenta imagens pequenas
+        })
+        .jpeg({
+          quality: 85, // Qualidade boa com tamanho reduzido
+          progressive: true, // Carregamento progressivo
+          mozjpeg: true, // Compressão otimizada
+        })
+        .toBuffer();
+
+      console.log(
+        `[OPTIMIZATION] Tamanho otimizado: ${(optimizedBuffer.length / 1024 / 1024).toFixed(2)} MB (${Math.round((1 - optimizedBuffer.length / originalBuffer.length) * 100)}% menor)`
+      );
+    } catch (sharpError: any) {
+      console.error('[SHARP ERROR]', sharpError);
+      // Fallback: usa imagem original se otimização falhar
+      optimizedBuffer = originalBuffer;
+      console.warn('[OPTIMIZATION] Usando imagem original (otimização falhou)');
+    }
 
     // 7. Define o caminho no Storage (Isolamento por Usuário)
     const userId = product.user_id;
     const brandFolder = sanitizeFolder(product.brand);
-    const fileName = `public/${userId}/products/${brandFolder}/${productId}-${Date.now()}.${extension}`;
+    const fileName = `public/${userId}/products/${brandFolder}/${productId}-${Date.now()}.jpg`; // Sempre JPEG otimizado
 
     // 8. Upload para o bucket 'product-images' (ou o seu bucket padrão)
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('product-images')
-      .upload(fileName, buffer, {
-        contentType: contentType,
+      .upload(fileName, optimizedBuffer, {
+        contentType: 'image/jpeg',
         upsert: true,
+        cacheControl: '31536000', // 1 ano de cache
       });
 
     if (uploadError) {
