@@ -189,12 +189,55 @@ export async function POST(request: Request) {
     const arrayBuffer = await downloadResponse.arrayBuffer();
     const originalBuffer = Buffer.from(arrayBuffer);
 
-    // 4. OTIMIZAÇÃO SHARP
-    const optimizedBuffer = await sharp(originalBuffer, { failOn: 'none' })
-      .rotate()
-      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 85, progressive: true, mozjpeg: true })
-      .toBuffer();
+    // Log básico para diagnóstico: content-type e prefixo do buffer
+    const contentType = downloadResponse.headers.get('content-type');
+    console.log('[process-external-image] content-type', contentType);
+    try {
+      const prefix = originalBuffer.slice(0, 32).toString('hex');
+      console.log(
+        '[process-external-image] originalBuffer prefix (hex)',
+        prefix
+      );
+    } catch (e) {
+      console.warn(
+        '[process-external-image] não conseguiu logar prefix do buffer'
+      );
+    }
+
+    // 4. OTIMIZAÇÃO SHARP (pipeline simplificada)
+    let optimizedBuffer: Buffer;
+    try {
+      optimizedBuffer = await sharp(originalBuffer)
+        .rotate()
+        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+        .toFormat('jpeg', { quality: 85 })
+        .toBuffer();
+    } catch (err: any) {
+      console.error('[process-external-image] sharp primary pipeline failed', {
+        message: err?.message,
+        stack: err?.stack,
+      });
+      console.error(
+        '[process-external-image] originalBuffer length',
+        originalBuffer?.length
+      );
+
+      // Tentar pipeline fallback ainda mais simples
+      try {
+        optimizedBuffer = await sharp(originalBuffer)
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        console.warn(
+          '[process-external-image] sharp fallback pipeline succeeded'
+        );
+      } catch (err2: any) {
+        console.error('[process-external-image] sharp fallback failed', {
+          message: err2?.message,
+          stack: err2?.stack,
+        });
+        throw err2;
+      }
+    }
 
     // 5. UPLOAD PARA STORAGE
     const brandFolder = sanitizeFolder(product.brand);
