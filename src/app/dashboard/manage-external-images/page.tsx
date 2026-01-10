@@ -29,7 +29,9 @@ export default async function ManageExternalImagesPage() {
   // 3. Têm pelo menos uma URL externa disponível
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, reference_code, external_image_url, image_url, images')
+    .select(
+      'id, name, reference_code, brand, category, external_image_url, image_url, images'
+    )
     .eq('user_id', user.id)
     .is('image_path', null) // Produtos SEM imagem internalizada
     .order('id', { ascending: true });

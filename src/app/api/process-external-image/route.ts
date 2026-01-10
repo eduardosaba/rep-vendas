@@ -298,18 +298,21 @@ export async function POST(request: Request) {
       error: error.message,
       stack: error.stack,
       cause: error.cause,
+      name: error.name,
     });
 
-    // Retorna erro mais detalhado
+    // Retorna erro mais detalhado incluindo informações do erro original
     return NextResponse.json(
       {
         success: false,
         error: error.message || 'Erro inesperado ao processar imagem.',
         url: targetUrl,
+        errorType: error.name || 'Error',
         details:
           error.cause?.message ||
-          error.stack?.split('\n')[0] ||
+          error.stack?.split('\n')[1]?.trim() ||
           'Nenhum detalhe adicional',
+        originalError: error.cause?.code || error.code || null,
       },
       { status: 500 }
     );
