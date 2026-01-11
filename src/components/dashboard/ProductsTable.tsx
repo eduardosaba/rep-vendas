@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import ProductBarcode from '@/components/ui/Barcode';
 import Image from 'next/image';
+import { getProductImageUrl } from '@/lib/imageUtils';
 import { toast } from 'sonner';
 import { SyncSingleButton } from '@/components/products/SyncSingleButton';
 import {
@@ -59,6 +60,8 @@ interface Product {
   image_path?: string | null;
   external_image_url?: string | null;
   images: string[] | null;
+  // Indica se a imagem principal está internalizada no Storage
+  image_optimized?: boolean | null;
   is_launch: boolean;
   is_best_seller: boolean;
   is_active: boolean;
@@ -188,6 +191,12 @@ const ALL_DATA_COLUMNS: Record<DataKey, ColumnDefinition> = {
     isSortable: false,
     align: 'left',
   },
+  image_optimized: {
+    key: 'image_optimized',
+    title: 'Imagem (Opt.)',
+    isSortable: false,
+    align: 'center',
+  },
   image_path: {
     key: 'image_path',
     title: 'Path',
@@ -224,6 +233,7 @@ const DEFAULT_PREFS: UserPreferences = {
     'brand',
     'category',
     'stock_quantity',
+    'image_optimized',
     'is_active',
     'is_launch',
   ],
@@ -233,6 +243,7 @@ const DEFAULT_PREFS: UserPreferences = {
     'price',
     'brand',
     'is_active',
+    'image_optimized',
   ]),
 };
 
@@ -273,6 +284,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     category: '',
     brand: [] as string[],
     color: '',
+    // 'all' | 'optimized' | 'unoptimized'
+    imageOptimization: 'all',
   });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -612,6 +625,20 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       if (filters.minPrice && price < Number(filters.minPrice)) return false;
       if (filters.maxPrice && price > Number(filters.maxPrice)) return false;
 
+      // Imagem otimizadas vs externas
+      const hasStorageImage = Boolean(
+        p.image_path ||
+        p.image_url?.includes('supabase.co/storage') ||
+        p.external_image_url?.includes('supabase.co/storage') ||
+        (p.images &&
+          Array.isArray(p.images) &&
+          p.images.some((i) => i?.includes('supabase.co/storage')))
+      );
+      if (filters.imageOptimization === 'optimized' && !hasStorageImage)
+        return false;
+      if (filters.imageOptimization === 'unoptimized' && hasStorageImage)
+        return false;
+
       return true;
     });
 
@@ -849,19 +876,39 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
   const renderCell = (product: Product, key: DataKey) => {
     const val = (product as any)[key];
+    // Helper para determinar se o produto possui imagem no Storage (otimizada)
+    const hasStorageImage = Boolean(
+      product.image_path ||
+      product.image_url?.includes('supabase.co/storage') ||
+      product.external_image_url?.includes('supabase.co/storage') ||
+      (product.images &&
+        Array.isArray(product.images) &&
+        product.images.some((i) => i?.includes('supabase.co/storage')))
+    );
     if (key === 'name')
       return (
         <div className="flex items-center gap-3 min-w-[200px]">
           <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-800 relative overflow-hidden flex-shrink-0 border border-gray-200 dark:border-slate-700">
             {(() => {
-              const src = product.image_path
-                ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`
-                : product.image_url ||
-                  product.external_image_url ||
-                  product.images?.[0];
-              return src ? (
-                <Image src={src} alt="" fill className="object-cover" />
-              ) : (
+              // Prefer storage only when image_path exists, otherwise use external URL directly
+              const { getProductImageUrl } = require('@/lib/imageUtils');
+              const { src, isExternal } = getProductImageUrl(product as any);
+              if (src) {
+                if (isExternal) {
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={src}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  );
+                }
+
+                return <Image src={src} alt="" fill className="object-cover" />;
+              }
+
+              return (
                 <div className="w-full h-full flex items-center justify-center">
                   <ImageIcon size={16} className="text-gray-400" />
                 </div>
@@ -927,6 +974,27 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       return val ? <Zap size={16} className="text-purple-500 mx-auto" /> : '-';
     if (key === 'is_best_seller')
       return val ? <Star size={16} className="text-orange-500 mx-auto" /> : '-';
+
+    if (key === 'image_optimized') {
+      return (
+        <div className="flex items-center gap-2">
+          <span
+            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+              hasStorageImage
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'
+            }`}
+            title={
+              hasStorageImage
+                ? 'Imagem internalizada (Storage)'
+                : 'Imagem externa (não otimizada)'
+            }
+          >
+            {hasStorageImage ? 'Otimiz.' : 'Externa'}
+          </span>
+        </div>
+      );
+    }
     return (
       <span className="text-gray-600 dark:text-slate-400 text-sm truncate block max-w-[150px]">
         {String(val ?? '-')}
@@ -1125,6 +1193,25 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   Best Sellers
                 </label>
               </div>
+              <div className="flex items-center gap-4">
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                  Imagem
+                </label>
+                <select
+                  className="p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                  value={filters.imageOptimization}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      imageOptimization: e.target.value,
+                    })
+                  }
+                >
+                  <option value="all">Todas</option>
+                  <option value="optimized">Otimizadas (Storage)</option>
+                  <option value="unoptimized">Não otimizadas (Externas)</option>
+                </select>
+              </div>
               <button
                 onClick={() =>
                   setFilters({
@@ -1137,6 +1224,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     stockStatus: 'all',
                     visibility: 'all',
                     color: '',
+                    imageOptimization: 'all',
                   })
                 }
                 className="text-xs text-red-500 hover:underline"

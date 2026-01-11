@@ -76,13 +76,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // permitir bypass TLS apenas quando explícito (dev/debug)
-    if (
-      process.env.NODE_ENV === 'development' ||
-      process.env.ALLOW_INSECURE_TLS === '1'
-    ) {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    }
+    // TLS: não alteramos NODE_TLS_REJECT_UNAUTHORIZED aqui — sempre validamos certificados.
 
     const res = await fetchWithTimeout(
       targetUrl.toString(),
@@ -125,7 +119,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (err: any) {
-    console.error('[image-proxy] error', err?.message || err);
+    console.error('[image-proxy] error', err);
     return NextResponse.json(
       { error: String(err?.message || err) },
       { status: 500 }

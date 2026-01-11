@@ -98,3 +98,12 @@ export function applyDefaultTheme() {
     headerBg: DEFAULT_HEADER_BG_COLOR,
   });
 }
+
+/**
+ * Helper exported so other modules can update theme colors without importing
+ * a client component. Keeping this in `lib/theme` avoids Fast Refresh issues
+ * caused by exporting values from React component files.
+ */
+export function updateThemeColors(colors: Partial<ThemeColors>) {
+  applyThemeColors(colors);
+}

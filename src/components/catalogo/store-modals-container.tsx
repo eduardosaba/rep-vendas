@@ -155,6 +155,9 @@ export function StoreModals() {
                         alt={item.name}
                         fill
                         className="object-contain p-2"
+                        unoptimized={(item.image_url || '').includes(
+                          'supabase.co/storage'
+                        )}
                       />
                     </div>
                     <div className="flex-1">
@@ -245,7 +248,7 @@ export function StoreModals() {
                   fill
                   className="object-contain p-8 transition-transform duration-700 group-hover:scale-105"
                   priority
-                  unoptimized={!currentImageIsSupabase}
+                  unoptimized={currentImageIsSupabase}
                 />
                 <div className="absolute bottom-6 right-6 p-3 bg-white/80 backdrop-blur rounded-2xl shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
                   <Search size={20} className="text-primary" />
@@ -267,7 +270,7 @@ export function StoreModals() {
                           alt=""
                           fill
                           className="object-cover p-1"
-                          unoptimized={!img.includes('supabase.co/storage')}
+                          unoptimized={img.includes('supabase.co/storage')}
                         />
                       </button>
                     ))}

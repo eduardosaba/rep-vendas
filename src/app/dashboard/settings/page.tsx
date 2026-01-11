@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { updateThemeColors } from '@/components/ThemeRegistry';
-import { applyThemeColors, applyDashboardFont } from '@/lib/theme';
+import {
+  updateThemeColors,
+  applyThemeColors,
+  applyDashboardFont,
+} from '@/lib/theme';
 import {
   Save,
   Loader2,

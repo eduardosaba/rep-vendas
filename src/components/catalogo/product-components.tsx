@@ -72,8 +72,10 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
               // O primeiro slide deve ter prioridade máxima para SEO e LCP
               priority={index === 0}
               quality={90}
-              // Otimiza apenas imagens do Supabase Storage, externas ficam sem otimização
-              unoptimized={!slide.imageUrl.includes('supabase.co/storage')}
+              // Para evitar erros do otimizador com alguns hosts, não
+              // encaminhamos pela pipeline do Next.js para imagens do
+              // Supabase Storage (servimos direto). Isso evita 400s upstream.
+              unoptimized={slide.imageUrl.includes('supabase.co/storage')}
             />
             <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
           </div>

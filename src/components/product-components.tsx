@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { getProductImageUrl } from '@/lib/imageUtils';
 import { useStore } from '@/components/catalogo/store-context';
 import {
   Search,
@@ -283,19 +284,42 @@ export function ProductGrid() {
                           </span>
                         </div>
                       )}
-                      {product.image_url ? (
-                        <Image
-                          src={product.image_url}
-                          alt={product.name}
-                          fill
-                          sizes="192px"
-                          className="object-contain p-4 group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300">
-                          <ImageIcon size={32} />
-                        </div>
-                      )}
+                      {(() => {
+                        const { src, isExternal } = getProductImageUrl(
+                          product as any
+                        );
+                        if (src) {
+                          if (isExternal) {
+                            return (
+                              // let browser fetch external images directly (avoid Next image server-side fetch)
+                              <img
+                                src={src}
+                                alt={product.name}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+                              />
+                            );
+                          }
+
+                          return (
+                            <Image
+                              src={src}
+                              alt={product.name}
+                              fill
+                              sizes="192px"
+                              className="object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+                            />
+                          );
+                        }
+
+                        return (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300">
+                            <ImageIcon size={32} />
+                          </div>
+                        );
+                      })()}
+
                       {product.is_launch && (
                         <span className="absolute top-2 left-2 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
                           Novo

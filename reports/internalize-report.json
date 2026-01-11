@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-01-10T23:41:15.055Z",
+  "scannedDirectory": "A:\\RepVendas",
+  "scannedFilesCount": 2251,
+  "failuresCount": 14,
+  "failures": [
+    {
+      "file": "A:\\RepVendas\\node_modules\\@opentelemetry\\exporter-trace-otlp-http\\node_modules\\@opentelemetry\\otlp-exporter-base\\build\\esm\\export-response.d.ts",
+      "type": "text",
+      "message": "error: ",
+      "snippet": "nt8Array; } export interface ExportResponseFailure { status: 'failure'; error: Error; } export interface ExportResponseRetryable { status: 'retryable'; retryInMillis?: number; error?: Error; } export type ExportResponse = ExportResponseSuccess | ExportResponseFailure | ExportResponseRetryable; //# sourceMappingURL=export-response.d.ts.map"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\@opentelemetry\\exporter-trace-otlp-http\\node_modules\\@opentelemetry\\otlp-exporter-base\\build\\esnext\\export-response.d.ts",
+      "type": "text",
+      "message": "error: ",
+      "snippet": "nt8Array; } export interface ExportResponseFailure { status: 'failure'; error: Error; } export interface ExportResponseRetryable { status: 'retryable'; retryInMillis?: number; error?: Error; } export type ExportResponse = ExportResponseSuccess | ExportResponseFailure | ExportResponseRetryable; //# sourceMappingURL=export-response.d.ts.map"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\@opentelemetry\\exporter-trace-otlp-http\\node_modules\\@opentelemetry\\otlp-exporter-base\\build\\src\\export-response.d.ts",
+      "type": "text",
+      "message": "error: ",
+      "snippet": "nt8Array; } export interface ExportResponseFailure { status: 'failure'; error: Error; } export interface ExportResponseRetryable { status: 'retryable'; retryInMillis?: number; error?: Error; } export type ExportResponse = ExportResponseSuccess | ExportResponseFailure | ExportResponseRetryable; //# sourceMappingURL=export-response.d.ts.map"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\@opentelemetry\\otlp-exporter-base\\build\\esm\\export-response.d.ts",
+      "type": "text",
+      "message": "error: ",
+      "snippet": "nt8Array; } export interface ExportResponseFailure { status: 'failure'; error: Error; } export interface ExportResponseRetryable { status: 'retryable'; retryInMillis?: number; } export type ExportResponse = ExportResponseSuccess | ExportResponseFailure | ExportResponseRetryable; //# sourceMappingURL=export-response.d.ts.map"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\@opentelemetry\\otlp-exporter-base\\build\\esnext\\export-response.d.ts",
+      "type": "text",
+      "message": "error: ",
+      "snippet": "nt8Array; } export interface ExportResponseFailure { status: 'failure'; error: Error; } export interface ExportResponseRetryable { status: 'retryable'; retryInMillis?: number; } export type ExportResponse = ExportResponseSuccess | ExportResponseFailure | ExportResponseRetryable; //# sourceMappingURL=export-response.d.ts.map"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\@opentelemetry\\otlp-exporter-base\\build\\src\\export-response.d.ts",
+      "type": "text",
+      "message": "error: ",
+      "snippet": "nt8Array; } export interface ExportResponseFailure { status: 'failure'; error: Error; } export interface ExportResponseRetryable { status: 'retryable'; retryInMillis?: number; } export type ExportResponse = ExportResponseSuccess | ExportResponseFailure | ExportResponseRetryable; //# sourceMappingURL=export-response.d.ts.map"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\baseline-browser-mapping\\LICENSE.txt",
+      "type": "text",
+      "message": "ssl",
+      "snippet": "r otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\browserslist\\node_modules\\baseline-browser-mapping\\LICENSE.txt",
+      "type": "text",
+      "message": "ssl",
+      "snippet": "r otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\typescript\\LICENSE.txt",
+      "type": "text",
+      "message": "ssl",
+      "snippet": "act, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for lo"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\typescript\\ThirdPartyNoticeText.txt",
+      "type": "text",
+      "message": "ssl",
+      "snippet": "arty material are set forth below. Microsoft reserves all other rights not expressly granted, whether by implication, estoppel or otherwise. --------------------------------------------- Third Party Code Components -------------------------------------------- ------------------- DefinitelyTyped -------------------- This file is based on or incorporates material from the projects listed be"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\web-features\\LICENSE.txt",
+      "type": "text",
+      "message": "ssl",
+      "snippet": "r otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but"
+    },
+    {
+      "file": "A:\\RepVendas\\node_modules\\xml-name-validator\\LICENSE.txt",
+      "type": "text",
+      "message": "ssl",
+      "snippet": "r otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but"
+    },
+    {
+      "file": "A:\\RepVendas\\proxy_resp.bin",
+      "type": "json",
+      "parsed": {
+        "error": "fetch failed"
+      },
+      "message": "fetch failed",
+      "snippet": "{\"error\":\"fetch failed\"}"
+    },
+    {
+      "file": "A:\\RepVendas\\resp.json",
+      "type": "json",
+      "parsed": {
+        "success": false,
+        "error": "Expected property name or '}' in JSON at position 1 (line 1 column 2)",
+        "cause": "FETCH_FAILED",
+        "details": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n    at JSON.parse (<anonymous>)\n    at parseJSONFromBytes (node:internal/deps/undici/undici:6433:19)"
+      },
+      "message": "Expected property name or '}' in JSON at position 1 (line 1 column 2)",
+      "snippet": "{\"success\":false,\"error\":\"Expected property name or '}' in JSON at position 1 (line 1 column 2)\",\"cause\":\"FETCH_FAILED\",\"details\":\"SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\\n    at JSON.parse (<anonymous>)\\n    at parseJSONFromBytes (node:internal/deps/undici/undici:6433:19)\"}"
+    }
+  ]
+}

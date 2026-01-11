@@ -85,7 +85,7 @@ const nextConfig = {
         const cspHeaderDev = {
           key: 'Content-Security-Policy',
           value:
-            "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-ancestors 'none';",
+            "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-src https://vercel.live; frame-ancestors 'none';",
         };
 
         return [
@@ -95,14 +95,6 @@ const nextConfig = {
           },
         ];
       }
-
-      // Caso não seja localhost explícito, retorna headers base sem 'unsafe-eval'
-      return [
-        {
-          source: '/(.*)',
-          headers: baseHeaders,
-        },
-      ];
     }
 
     // Em produção adicionamos a CSP estrita

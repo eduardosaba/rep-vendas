@@ -264,11 +264,5 @@ export default function ThemeRegistry() {
   return null;
 }
 
-// Export helper to update theme colors programmatically from other components
-export function updateThemeColors(colors: {
-  primary?: string;
-  secondary?: string;
-  headerBg?: string;
-}) {
-  applyThemeColors(colors);
-}
+// Note: moved `updateThemeColors` to `src/lib/theme.ts` to avoid exporting
+// values from a component file (which can trigger Fast Refresh full reloads).

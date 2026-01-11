@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Minus, Loader2 } from 'lucide-react';
+import { getProductImageUrl } from '@/lib/imageUtils';
 import { updateStockAction } from './actions';
 import { toast } from 'sonner';
 
@@ -34,17 +35,25 @@ export function InventoryRow({ product }: InventoryRowProps) {
       <td className="p-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden border border-gray-100">
-            {product.image_url ? (
-              <img
-                src={product.image_url}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-300">
-                N/A
-              </div>
-            )}
+            {(() => {
+              const { src, isExternal } = getProductImageUrl(product);
+              if (src) {
+                // eslint-disable-next-line @next/next/no-img-element
+                return (
+                  <img
+                    src={src}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                  />
+                );
+              }
+
+              return (
+                <div className="w-full h-full flex items-center justify-center text-gray-300">
+                  N/A
+                </div>
+              );
+            })()}
           </div>
           <div>
             <p className="font-bold text-slate-800 leading-tight">

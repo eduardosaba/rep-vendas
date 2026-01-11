@@ -122,7 +122,10 @@ export function ProductCard({
             sizes="(max-width: 768px) 50vw, 33vw"
             className="p-4 transition-transform duration-700 group-hover:scale-105"
             style={{ objectFit: 'contain' }}
-            unoptimized={!shouldOptimize}
+            // Evita passar pelo otimizador do Next.js para imagens do
+            // Supabase, que estavam retornando 400s no ambiente local.
+            // Servimos o arquivo diretamente (unoptimized=true).
+            unoptimized={isSupabaseStorage}
             onError={() => {
               console.warn(`⚠️ Imagem externa com erro: ${displayImage}`);
               console.warn(

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import QuickActionCard from '@/components/QuickActionCard';
+import SyncStatusCard from '@/components/dashboard/SyncStatusCard';
 import { subDays, startOfDay, subMonths, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -55,6 +56,7 @@ export default async function DashboardPage({
     profile,
     chartData,
     lastSync,
+    syncJob,
   ] = await Promise.all([
     supabase
       .rpc('get_dashboard_totals', {
@@ -99,6 +101,13 @@ export default async function DashboardPage({
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('sync_jobs')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // Contagem de clientes (Lógica preservada)
@@ -140,6 +149,11 @@ export default async function DashboardPage({
           )}
         </div>
       </header>
+
+      {/* Sync Status Card (mostra progresso quando há job em processamento) */}
+      <div className="mb-6">
+        <SyncStatusCard syncData={syncJob?.data ?? null} />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* WIDGET DE SINCRONIZAÇÃO REFORMULADO */}

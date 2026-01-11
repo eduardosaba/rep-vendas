@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Minus, Loader2 } from 'lucide-react';
+import { getProductImageUrl } from '@/lib/imageUtils';
 import { updateStockAction } from './actions';
 import { toast } from 'sonner';
 
@@ -28,16 +29,31 @@ export function InventoryCard({ product }: { product: any }) {
     <div className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm">
       <div className="flex items-start gap-4">
         <div className="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden border border-gray-100 flex items-center justify-center">
-          {product.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={product.image_url}
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="text-gray-300">N/A</div>
-          )}
+          {(() => {
+            const { src, isExternal } = getProductImageUrl(product);
+            if (src) {
+              if (isExternal) {
+                // eslint-disable-next-line @next/next/no-img-element
+                return (
+                  <img
+                    src={src}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                  />
+                );
+              }
+              // internal storage URL (optimized)
+              return (
+                <img
+                  src={src}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                />
+              );
+            }
+
+            return <div className="text-gray-300">N/A</div>;
+          })()}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm text-gray-900 dark:text-white truncate">

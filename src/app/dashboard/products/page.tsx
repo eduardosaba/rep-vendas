@@ -12,6 +12,7 @@ import {
   Box,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button'; // Usando nosso componente padronizado
+import SyncProgressBanner from '@/components/dashboard/SyncProgressBanner';
 
 // 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA
 export const dynamic = 'force-dynamic';
@@ -112,6 +113,7 @@ export default async function ProductsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 pb-24 animate-in fade-in duration-500">
+      <SyncProgressBanner />
       {/* HEADER DE AÇÕES: Responsivo */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         {/* Título */}
