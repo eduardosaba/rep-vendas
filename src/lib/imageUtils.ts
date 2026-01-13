@@ -7,7 +7,7 @@ export function getProductImageUrl(product: Partial<Product>) {
   if (product.image_path) {
     const path = product.image_path.replace(/^\//, '');
     return {
-      src: `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/products/${path}`,
+      src: `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/product-images/${path}`,
       isExternal: false,
       isStorage: true,
     };

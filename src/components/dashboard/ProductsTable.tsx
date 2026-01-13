@@ -1518,7 +1518,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                         src={
                           product.image_url ||
                           product.external_image_url ||
-                          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`
+                          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${product.image_path}`
                         }
                         alt=""
                         className="object-contain h-full w-full"
@@ -1675,7 +1675,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             <div className="relative h-64 bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
               {(() => {
                 const src = viewProduct.image_path
-                  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${viewProduct.image_path}`
+                  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${viewProduct.image_path}`
                   : viewProduct.image_url ||
                     viewProduct.external_image_url ||
                     viewProduct.images?.[0];

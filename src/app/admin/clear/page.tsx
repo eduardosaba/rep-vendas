@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import ControlTower from '@/components/admin/ControlTower';
+import CleanupControl from '@/components/admin/CleanupControl';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
@@ -58,6 +59,13 @@ export default async function ClearStoragePage() {
       <div className="max-w-5xl mx-auto">
         {/* Componente que você colocou em src/components/admin */}
         <ControlTower />
+        <div className="mt-6">
+          <h2 className="text-lg font-bold mb-2">Limpeza de Storage</h2>
+          <p className="text-sm text-gray-600 dark:text-slate-300 mb-3">
+            Use a verificação (dry-run) antes de executar a remoção em produção.
+          </p>
+          <CleanupControl />
+        </div>
       </div>
     </div>
   );

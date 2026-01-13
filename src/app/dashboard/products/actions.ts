@@ -204,6 +204,55 @@ export async function bulkDelete(
     } else {
       for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
+
+        // Antes de deletar os registros, removemos arquivos do Storage
+        try {
+          const { data: imgs } = await supabaseAdmin
+            .from('products')
+            .select('id, image_path, images')
+            .in('id', chunk);
+
+          const pathsToDelete: string[] = [];
+          (imgs || []).forEach((p: any) => {
+            if (p?.image_path)
+              pathsToDelete.push(String(p.image_path).replace(/^\//, ''));
+            if (p?.images && Array.isArray(p.images)) {
+              p.images.forEach((img: any) => {
+                if (!img) return;
+                if (
+                  typeof img === 'string' &&
+                  img.includes('/product-images/')
+                ) {
+                  pathsToDelete.push(img.split('/product-images/')[1]);
+                } else if (typeof img === 'string' && !img.startsWith('http')) {
+                  pathsToDelete.push(String(img).replace(/^\//, ''));
+                }
+              });
+            }
+          });
+
+          const uniquePaths = Array.from(new Set(pathsToDelete)).filter(
+            Boolean
+          );
+          if (uniquePaths.length > 0) {
+            const { error: rmErr } = await supabaseAdmin.storage
+              .from('product-images')
+              .remove(uniquePaths);
+            if (rmErr) {
+              console.error('[bulkDelete] storage remove error', rmErr);
+              // Abort deletion to avoid DB inconsistency when files couldn't be removed
+              throw new Error(
+                rmErr?.message || 'storage_remove_failed_for_product_images'
+              );
+            }
+          }
+        } catch (e) {
+          console.error(
+            '[bulkDelete] failed to fetch image paths before delete',
+            e
+          );
+        }
+
         await runDeleteChunk(supabaseAdmin, chunk);
       }
     }

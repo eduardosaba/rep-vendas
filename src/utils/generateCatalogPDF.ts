@@ -299,7 +299,7 @@ export const generateCatalogPDF = async (
       (async () => {
         let urlToLoad: string | null = null;
         if (product.image_path)
-          urlToLoad = `${supabaseUrl}/storage/v1/object/public/products/${product.image_path}`;
+          urlToLoad = `${supabaseUrl}/storage/v1/object/public/product-images/${product.image_path}`;
         else if (product.external_image_url)
           urlToLoad = product.external_image_url;
         else if (product.image_url && product.image_url.startsWith('http'))

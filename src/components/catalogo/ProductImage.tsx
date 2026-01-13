@@ -28,7 +28,7 @@ export default function ProductImage({
   const src = error
     ? '/placeholder-no-image.svg'
     : internalPath
-      ? `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/products/${internalPath}`
+      ? `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${internalPath}`
       : external
         ? external
         : '/placeholder-no-image.svg';
