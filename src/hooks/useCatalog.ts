@@ -137,10 +137,32 @@ export function useCatalog(
         // Isso só roda no navegador
         if (typeof window !== 'undefined') {
           const savedCart = localStorage.getItem('cart');
-          if (savedCart) setCart(JSON.parse(savedCart));
+          if (savedCart) {
+            try {
+              setCart(JSON.parse(savedCart));
+            } catch (e) {
+              console.warn(
+                'useCatalog: invalid cart in localStorage, clearing',
+                savedCart
+              );
+              localStorage.removeItem('cart');
+              setCart({});
+            }
+          }
 
           const savedFavs = localStorage.getItem('favorites');
-          if (savedFavs) setFavorites(new Set(JSON.parse(savedFavs)));
+          if (savedFavs) {
+            try {
+              setFavorites(new Set(JSON.parse(savedFavs)));
+            } catch (e) {
+              console.warn(
+                'useCatalog: invalid favorites in localStorage, clearing',
+                savedFavs
+              );
+              localStorage.removeItem('favorites');
+              setFavorites(new Set());
+            }
+          }
 
           const access = localStorage.getItem('priceAccessGranted');
           if (access === 'true') setPriceAccessGranted(true);

@@ -289,45 +289,55 @@ export function StoreProvider({
     try {
       const totalValue = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
 
-      // 1. Salva Pedido no Banco
-      const { data: order, error } = await supabase
-        .from('orders')
-        .insert({
-          user_id: store.user_id,
-          client_name_guest: customer.name,
-          client_phone_guest: customer.phone.replace(/\D/g, ''),
-          client_email_guest: customer.email,
-          client_cnpj_guest: customer.cnpj,
-          total_value: totalValue,
-          status: 'Pendente',
-        })
-        .select()
-        .maybeSingle();
-
-      if (error || !order) throw error;
-
-      // 2. Salva Itens
-      await supabase.from('order_items').insert(
-        cart.map((it) => ({
-          order_id: order.id,
-          product_id: it.id,
+      // Use server-side API to create orders (avoids RLS 403 for public catalogs)
+      const payload = {
+        storeOwnerId: store.user_id,
+        customer: {
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          cnpj: customer.cnpj,
+        },
+        cartItems: cart.map((it) => ({
+          id: it.id,
+          name: it.name,
+          price: it.price,
           quantity: it.quantity,
-          unit_price: it.price,
-        }))
-      );
+          reference_code: it.reference_code || null,
+        })),
+      };
 
-      // 3. Upload do PDF para o Storage
-      let publicUrl = null;
+      const res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result || result.success === false) {
+        console.error('create-order API error', { status: res.status, result });
+        throw new Error(
+          result?.message || result?.error || 'Erro ao criar pedido'
+        );
+      }
+
+      // 3. Upload do PDF para o Storage (feito no client para gerar o recibo e link)
+      let publicUrl: string | null = null;
       try {
+        const serverOrder = {
+          id: result.id || null,
+          display_id: result.display_id || result.orderId || null,
+        } as any;
+
         const doc = await generateOrderPDF(
-          { ...order, customer },
+          { ...serverOrder, customer },
           store,
           cart,
           totalValue,
           true
-        ); // true = retorna blob
+        );
         if (doc instanceof Blob) {
-          const fileName = `pedidos/${order.id}_${Date.now()}.pdf`;
+          const fileName = `pedidos/${serverOrder.id || serverOrder.display_id || 'unknown'}_${Date.now()}.pdf`;
           const { error: uploadError } = await supabase.storage
             .from('order-receipts')
             .upload(fileName, doc);
@@ -343,7 +353,8 @@ export function StoreProvider({
       }
 
       setOrderSuccessData({
-        ...order,
+        id: result.id || result.orderId || null,
+        display_id: result.display_id || result.orderId || null,
         customer,
         items: cart,
         total: totalValue,

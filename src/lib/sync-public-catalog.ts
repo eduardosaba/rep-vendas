@@ -157,13 +157,16 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       /* ignore */
     }
 
+    const { normalizePhone } = await import('./phone');
+    const finalPhone = normalizePhone(data.phone ?? null);
+
     const { error } = await supabase
       .from('public_catalogs')
       .update({
         slug: data.slug,
         store_name: data.store_name,
         logo_url: data.logo_url,
-        phone: data.phone,
+        phone: finalPhone,
         email: data.email,
         primary_color: data.primary_color || '#2563eb',
         header_background_color: data.header_background_color || '#ffffff',
@@ -257,11 +260,14 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     } catch (e) {
       /* ignore */
     }
+    const { normalizePhone: normalizePhoneInsert } = await import('./phone');
+    const finalPhoneInsert = normalizePhoneInsert(data.phone ?? null);
+
     const { error } = await supabase.from('public_catalogs').insert({
       user_id: userId,
       slug,
       store_name: data.store_name,
-      phone: data.phone,
+      phone: finalPhoneInsert,
       email: data.email,
       logo_url: data.logo_url,
       primary_color: data.primary_color || '#2563eb',

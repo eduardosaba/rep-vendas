@@ -182,7 +182,9 @@ export default function NewProductPage() {
     sale_price: '',
     discount_percent: 0,
     brand: '',
+    new_brand: '',
     category: '',
+    new_category: '',
     description: '',
     track_stock: false,
     stock_quantity: 0,
@@ -400,6 +402,40 @@ export default function NewProductPage() {
           : null;
       }
 
+      // Antes de inserir o produto, criar brand/category se necessário
+      let finalBrand = formData.brand || null;
+      let finalCategory = formData.category || null;
+
+      try {
+        // Criar nova marca se o usuário solicitou
+        if (formData.brand === '__add__' && formData.new_brand?.trim()) {
+          const { data: brandCreated, error: brandErr } = await supabase
+            .from('brands')
+            .insert({ user_id: user.id, name: formData.new_brand.trim() })
+            .select('id, name')
+            .single();
+          if (!brandErr && brandCreated) {
+            finalBrand = brandCreated.name;
+            setBrandsList((prev) => [...prev, brandCreated]);
+          }
+        }
+
+        // Criar nova categoria se o usuário solicitou
+        if (formData.category === '__add_cat__' && formData.new_category?.trim()) {
+          const { data: catCreated, error: catErr } = await supabase
+            .from('categories')
+            .insert({ user_id: user.id, name: formData.new_category.trim() })
+            .select('id, name')
+            .single();
+          if (!catErr && catCreated) {
+            finalCategory = catCreated.name;
+            setCategoriesList((prev) => [...prev, catCreated]);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao criar brand/category automático', err);
+      }
+
       const payload = {
         user_id: user.id,
         name: formData.name,
@@ -412,8 +448,8 @@ export default function NewProductPage() {
         price: finalPrice,
         sale_price: finalSalePrice,
         discount_percent: Number(formData.discount_percent) || 0,
-        brand: formData.brand || null,
-        category: formData.category || null,
+        brand: finalBrand || null,
+        category: finalCategory || null,
         description: formData.description || null,
         track_stock: formData.track_stock,
         stock_quantity: formData.track_stock
@@ -792,16 +828,27 @@ export default function NewProductPage() {
                 className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white cursor-pointer"
               >
                 <option value="">Selecione...</option>
+                <option value="__add__">+ Adicionar nova marca...</option>
                 {brandsList.map((b) => (
                   <option key={b.id} value={b.name}>
                     {b.name}
                   </option>
                 ))}
               </select>
-              {brandsList.length === 0 && (
-                <p className="text-xs text-orange-500 mt-1">
-                  Nenhuma marca encontrada.
-                </p>
+              {(brandsList.length === 0 || formData.brand === '__add__') && (
+                <div className="mt-2">
+                  <input
+                    value={formData.new_brand}
+                    onChange={(e) =>
+                      setFormData({ ...formData, new_brand: e.target.value })
+                    }
+                    placeholder="Digite o nome da nova marca"
+                    className="w-full rounded-lg border border-dashed border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    A marca será criada automaticamente ao salvar.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -817,16 +864,27 @@ export default function NewProductPage() {
                 className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white cursor-pointer"
               >
                 <option value="">Selecione...</option>
+                <option value="__add_cat__">+ Adicionar nova categoria...</option>
                 {categoriesList.map((c) => (
                   <option key={c.id} value={c.name}>
                     {c.name}
                   </option>
                 ))}
               </select>
-              {categoriesList.length === 0 && (
-                <p className="text-xs text-orange-500 mt-1">
-                  Nenhuma categoria encontrada.
-                </p>
+              {(categoriesList.length === 0 || formData.category === '__add_cat__') && (
+                <div className="mt-2">
+                  <input
+                    value={formData.new_category}
+                    onChange={(e) =>
+                      setFormData({ ...formData, new_category: e.target.value })
+                    }
+                    placeholder="Digite o nome da nova categoria"
+                    className="w-full rounded-lg border border-dashed border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    A categoria será criada automaticamente ao salvar.
+                  </p>
+                </div>
               )}
             </div>
 

@@ -763,6 +763,9 @@ export default function SettingsPage() {
         updated_at: new Date().toISOString(),
       };
 
+      const { normalizePhone } = await import('@/lib/phone');
+      fullSettings.phone = normalizePhone(fullSettings.phone);
+
       const { error } = await supabase
         .from('settings')
         .upsert(fullSettings, { onConflict: 'user_id' });

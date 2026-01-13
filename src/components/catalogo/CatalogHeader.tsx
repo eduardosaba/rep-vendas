@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useStore } from './store-context';
 import { Search, Heart, ShoppingCart, LogIn } from 'lucide-react';
+import { useRef } from 'react';
 import Image from 'next/image';
 import { Settings } from '../../lib/types';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
@@ -26,6 +27,8 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
   userId,
   loadedOrderCode,
 }) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   const router = useRouter();
   const { customerSession, clearCustomerSession } = useStore();
 
@@ -42,13 +45,17 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
           style={{ color: settings?.icon_color || '#4B5563' }}
         >
           <div className="flex items-center space-x-4">
-            {settings?.phone && (
-              <>
-                <span>📞 {settings.phone}</span>
-                {settings?.email && <span>|</span>}
-              </>
+            {(settings?.phone || settings?.email) && (
+              <div className="flex items-center gap-2">
+                {settings?.phone && <span>📞 {settings.phone}</span>}
+                {settings?.email && (
+                  <>
+                    <span className="hidden sm:inline">|</span>
+                    <span>✉️ {settings.email}</span>
+                  </>
+                )}
+              </div>
             )}
-            {settings?.email && <span>✉️ {settings.email}</span>}
           </div>
         </div>
 

@@ -43,6 +43,7 @@ interface Settings {
   show_installments?: boolean;
   show_installments_checkout?: boolean;
   show_discount?: boolean;
+  show_cash_discount?: boolean;
   show_old_price?: boolean;
   show_filter_price?: boolean;
   show_filter_category?: boolean;
@@ -50,6 +51,7 @@ interface Settings {
   show_filter_new?: boolean;
   show_delivery_address_checkout?: boolean;
   show_payment_method_checkout?: boolean;
+  cash_price_discount_percent?: number | string;
 }
 
 interface CartItem {
@@ -83,6 +85,7 @@ export default function Checkout() {
     client_phone: '',
     delivery_address: '',
     payment_method: 'boleto',
+    apply_cash_discount: false,
     notes: '',
   });
 
@@ -148,10 +151,18 @@ export default function Checkout() {
   };
 
   const getTotalValue = () => {
-    return cartItems.reduce(
+    const base = cartItems.reduce(
       (total, item) => total + item.product.price * item.quantity,
       0
     );
+
+    if (formData.apply_cash_discount && settings?.cash_price_discount_percent) {
+      const pct = Number(settings.cash_price_discount_percent) || 0;
+      const factor = 1 - pct / 100;
+      return Number((base * factor).toFixed(2));
+    }
+
+    return base;
   };
 
   const getTotalItems = () => {
@@ -193,23 +204,37 @@ export default function Checkout() {
       }
 
       // Criar o pedido
+      // Aplica desconto à vista nos preços unitários se ativado
+      const discountPct =
+        formData.apply_cash_discount && settings?.cash_price_discount_percent
+          ? Number(settings.cash_price_discount_percent) || 0
+          : 0;
+
+      const orderItems = cartItems.map((item) => {
+        const unit = Number(item.product.price) || 0;
+        const unitFinal = discountPct
+          ? Number((unit * (1 - discountPct / 100)).toFixed(2))
+          : unit;
+        return {
+          product_id: item.product.id,
+          quantity: item.quantity,
+          unit_price: unitFinal,
+          total_price: Number((unitFinal * item.quantity).toFixed(2)),
+        };
+      });
+
       const orderData = {
         user_id: user.id,
         client_id: clientId,
         status: 'Pendente',
-        total_value: getTotalValue(),
+        total_value: orderItems.reduce((s, it) => s + it.total_price, 0),
         order_type: 'catalog',
         company_name: formData.company_name,
         delivery_address: formData.delivery_address,
         payment_method: formData.payment_method,
         notes: formData.notes,
         // Criar os itens do pedido
-        order_items: cartItems.map((item) => ({
-          product_id: item.product.id,
-          quantity: item.quantity,
-          unit_price: item.product.price,
-          total_price: item.product.price * item.quantity,
-        })),
+        order_items: orderItems,
       };
 
       const { data: order, error: orderError } = await supabase
@@ -428,6 +453,31 @@ export default function Checkout() {
               Voltar ao Catálogo
             </button>
           </div>
+          {/* Cash discount option */}
+          {settings?.show_cash_discount && (
+            <div className="mt-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.apply_cash_discount}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      apply_cash_discount: e.target.checked,
+                    }))
+                  }
+                  className="mr-2"
+                />
+                <span className="text-sm">
+                  Aplicar desconto à vista (
+                  {settings.cash_price_discount_percent || 0}%){' '}
+                  <span className="text-xs text-gray-400">
+                    (será aplicado aos preços se marcado)
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
         </div>
       </div>
     );

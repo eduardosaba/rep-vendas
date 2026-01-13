@@ -3,6 +3,7 @@
 import { useStore } from '@/components/catalogo/store-context';
 import { Home, Eye, EyeOff, Heart, ShoppingCart, FileText } from 'lucide-react';
 import Link from 'next/link';
+import AnimatedTouch from '@/components/ui/AnimatedTouch';
 
 export function MobileCatalogNav() {
   const {
@@ -28,7 +29,9 @@ export function MobileCatalogNav() {
           href="/" // Ajuste se a home do catálogo for outra rota
           className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
         >
-          <Home className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+          <AnimatedTouch>
+            <Home className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+          </AnimatedTouch>
           <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
             Início
           </span>
@@ -40,11 +43,13 @@ export function MobileCatalogNav() {
           type="button"
           className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
         >
-          {showPrices ? (
-            <Eye className="w-6 h-6 text-[var(--primary)]" />
-          ) : (
-            <EyeOff className="w-6 h-6 text-gray-500 dark:text-gray-400" />
-          )}
+          <AnimatedTouch onClick={toggleShowPrices}>
+            {showPrices ? (
+              <Eye className="w-6 h-6 text-[var(--primary)]" />
+            ) : (
+              <EyeOff className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+            )}
+          </AnimatedTouch>
           <span
             className={`text-[10px] ${showPrices ? 'text-[var(--primary)]' : 'text-gray-500 dark:text-gray-400'}`}
           >
@@ -58,7 +63,9 @@ export function MobileCatalogNav() {
           onClick={() => setModal('favorites', true)}
           className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
         >
-          <Heart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
+          <AnimatedTouch onClick={() => setModal('favorites', true)}>
+            <Heart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
+          </AnimatedTouch>
           <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-red-500">
             Favoritos
           </span>
@@ -70,7 +77,9 @@ export function MobileCatalogNav() {
           onClick={() => setModal('load', true)}
           className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
         >
-          <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+          <AnimatedTouch onClick={() => setModal('load', true)}>
+            <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+          </AnimatedTouch>
           <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
             Ver Pedido
           </span>
@@ -82,7 +91,9 @@ export function MobileCatalogNav() {
           // Adicione a lógica de abrir carrinho aqui (ex: setIsCartOpen(true))
           className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group relative"
         >
-          <ShoppingCart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+          <AnimatedTouch>
+            <ShoppingCart className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
+          </AnimatedTouch>
           <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
             Carrinho
           </span>

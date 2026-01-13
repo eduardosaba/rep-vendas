@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
 export async function login(_arg: unknown, formData: FormData) {
   const email = formData.get('email') as string;
@@ -90,6 +91,60 @@ export async function signup(formData: FormData) {
 
     if (error)
       return { error: (error as { message?: string }).message || 'Erro' };
+
+    // Se o signUp foi criado com sucesso, tentamos criar uma assinatura trial
+    try {
+      const userId = (_data as any)?.user?.id;
+      if (userId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const supabaseAdmin = createSupabaseAdmin(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          {
+            auth: { autoRefreshToken: false, persistSession: false },
+          }
+        );
+
+        // Escolhe um plano padrão (o mais barato cadastrado) para o trial
+        const { data: plans } = await supabaseAdmin
+          .from('plans')
+          .select('id, name, price')
+          .order('price', { ascending: true })
+          .limit(1);
+
+        const plan = Array.isArray(plans) && plans.length > 0 ? plans[0] : null;
+        const planId = plan?.id || null;
+        const planName = plan?.name || 'Trial';
+
+        // Inserir assinatura trial (14 dias)
+        const endsAt = new Date(
+          Date.now() + 14 * 24 * 60 * 60 * 1000
+        ).toISOString();
+        await supabaseAdmin.from('subscriptions').upsert(
+          {
+            user_id: userId,
+            plan_id: planId,
+            status: 'trial',
+            plan_name: planName,
+            current_period_end: endsAt,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        );
+
+        // Atualiza settings.plan_type para refletir o trial (resiliência)
+        await supabaseAdmin.from('settings').upsert({
+          user_id: userId,
+          plan_type: planName,
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      // Não bloqueamos o fluxo se a criação do trial falhar; apenas logamos.
+      console.warn(
+        'Não foi possível criar assinatura trial automaticamente',
+        err
+      );
+    }
 
     return { success: true, redirectTo: '/dashboard' };
   } catch (err: unknown) {

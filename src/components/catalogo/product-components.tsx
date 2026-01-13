@@ -9,7 +9,6 @@ import {
   ChevronRight,
   LayoutGrid,
   List,
-  SlidersHorizontal,
   Archive,
   Heart,
   Package,
@@ -211,15 +210,7 @@ export function ProductGrid() {
             de <span className="font-bold text-secondary">{totalProducts}</span>{' '}
             itens
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsFilterOpen(true)}
-            className="lg:hidden ml-4 rounded-xl border-gray-200"
-            leftIcon={<SlidersHorizontal size={16} />}
-          >
-            Filtrar
-          </Button>
+          {/* Filtro removido conforme solicitado */}
         </div>
 
         <div className="flex items-center gap-3 self-end sm:self-auto">

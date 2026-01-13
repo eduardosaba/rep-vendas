@@ -38,11 +38,14 @@ export async function finishOnboarding(data: OnboardingData) {
     }
 
     // 3. Salvar Configurações (Upsert)
+    const { normalizePhone } = await import('@/lib/phone');
+    const finalPhone = normalizePhone(data.phone);
+
     const { error: settingsError } = await supabase.from('settings').upsert({
       user_id: user.id,
       name: data.name,
       email: data.email,
-      phone: data.phone,
+      phone: finalPhone,
       catalog_slug: data.slug.toLowerCase().trim(),
       primary_color: data.primary_color,
       logo_url: data.logo_url,
