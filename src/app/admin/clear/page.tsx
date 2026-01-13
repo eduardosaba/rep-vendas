@@ -2,6 +2,8 @@ import { Metadata } from 'next';
 import ControlTower from '@/components/admin/ControlTower';
 import CleanupControl from '@/components/admin/CleanupControl';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { Button } from '@/components/ui/Button';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
@@ -20,11 +22,11 @@ export default async function ClearStoragePage() {
   } = await supabase.auth.getUser();
 
   const MASTER_EMAIL =
-    process.env.MASTER_ADMIN_EMAIL || 'seu-email@exemplo.com';
+    process.env.MASTER_ADMIN_EMAIL || 'eduardopedro.fsa@gmail.com';
   const isMaster = !!user && user.email === MASTER_EMAIL;
 
   // Se a variável de ambiente não foi configurada, exibimos instruções.
-  if (MASTER_EMAIL === 'seu-email@exemplo.com') {
+  if (MASTER_EMAIL === 'eduardopedro.fsa@gmail.com') {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-10">
         <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 rounded-lg p-6 border">
@@ -39,7 +41,7 @@ export default async function ClearStoragePage() {
           </p>
           <p className="text-sm text-gray-500">Exemplo (no .env):</p>
           <pre className="mt-2 p-3 bg-gray-100 rounded text-sm">
-            MASTER_ADMIN_EMAIL=seu-email@exemplo.com
+            MASTER_ADMIN_EMAIL=eduardopedro.fsa@gmail.com
           </pre>
         </div>
       </div>
@@ -72,12 +74,11 @@ export default async function ClearStoragePage() {
               operações de limpeza de storage.
             </p>
             <div className="flex gap-3">
-              <a
-                href="/dashboard"
-                className="inline-block px-4 py-2 rounded-lg bg-primary text-white"
-              >
-                Voltar ao Dashboard
-              </a>
+              <Link href="/dashboard" className="inline-block">
+                <Button className="px-4 py-2" variant="primary">
+                  Voltar ao Dashboard
+                </Button>
+              </Link>
             </div>
           </div>
         )}

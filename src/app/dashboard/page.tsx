@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import QuickActionCard from '@/components/QuickActionCard';
-import SyncStatusCard from '@/components/dashboard/SyncStatusCard';
+// SyncStatusCard removido — card não é mais exibido no Dashboard
 import { subDays, startOfDay, subMonths, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -150,10 +150,7 @@ export default async function DashboardPage({
         </div>
       </header>
 
-      {/* Sync Status Card (mostra progresso quando há job em processamento) */}
-      <div className="mb-6">
-        <SyncStatusCard syncData={syncJob?.data ?? null} />
-      </div>
+      {/* SyncStatusCard removido conforme solicitado */}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* WIDGET DE SINCRONIZAÇÃO REFORMULADO */}

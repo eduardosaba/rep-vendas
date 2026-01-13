@@ -69,7 +69,7 @@ export default function SyncStatusCard({ syncData }: { syncData: any }) {
            e um toggle para inspecionar o objeto `syncData` recebido. */}
       {!syncData ? (
         <div className="text-sm text-gray-500">
-          Nenhum job em andamento.
+          Nenhum trabalho em andamento.
           <div className="mt-3">
             <button
               onClick={() => setShowRaw((s) => !s)}

@@ -2,10 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useStore } from './store-context';
-import { Search, Heart, ShoppingCart, LogIn } from 'lucide-react';
+import { Search, Heart, ShoppingCart, LogIn, Phone, Mail } from 'lucide-react';
 import { useRef } from 'react';
 import Image from 'next/image';
 import { Settings } from '../../lib/types';
+import { normalizePhone } from '@/lib/phone';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 interface CatalogHeaderProps {
@@ -46,13 +47,34 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
         >
           <div className="flex items-center space-x-4">
             {(settings?.phone || settings?.email) && (
-              <div className="flex items-center gap-2">
-                {settings?.phone && <span>📞 {settings.phone}</span>}
+              <div className="flex items-center gap-3">
+                {settings?.phone &&
+                  (() => {
+                    const raw = String(settings.phone || '').replace(/\D/g, '');
+                    const digits = raw.startsWith('55') ? raw : `55${raw}`;
+                    const display = normalizePhone(settings.phone);
+                    return (
+                      <a
+                        href={`https://wa.me/${digits}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Chamar no WhatsApp ${display}`}
+                        className="flex items-center gap-2 hover:underline"
+                      >
+                        <Phone size={16} />
+                        <span className="hidden sm:inline">{display}</span>
+                      </a>
+                    );
+                  })()}
                 {settings?.email && (
-                  <>
-                    <span className="hidden sm:inline">|</span>
-                    <span>✉️ {settings.email}</span>
-                  </>
+                  <a
+                    href={`mailto:${settings.email}`}
+                    aria-label={`Enviar email para ${settings.email}`}
+                    className="flex items-center gap-2 hover:underline"
+                  >
+                    <Mail size={16} />
+                    <span className="hidden sm:inline">{settings.email}</span>
+                  </a>
                 )}
               </div>
             )}

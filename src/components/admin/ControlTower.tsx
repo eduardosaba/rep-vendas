@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 export default function ControlTower() {
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,7 @@ export default function ControlTower() {
     orphans: string[];
     count?: number;
   } | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const consoleRef = useRef<HTMLDivElement>(null);
 
@@ -47,10 +49,20 @@ export default function ControlTower() {
       addLog('📡 Conectando à API de limpeza do storage...');
 
       // Endpoint da API que criamos anteriormente
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const response = await fetch(
         `/api/admin/cleanup-storage?dryRun=${isDryRun}`,
         {
           method: 'POST',
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json',
+          },
         }
       );
 
@@ -141,20 +153,13 @@ export default function ControlTower() {
                 <Loader2 className="animate-spin" />
               ) : (
                 <>
-                  <Eye size={18} className="mr-2" /> Simular Órfãos
+                  <Eye size={18} className="mr-2" /> Buscar imagens sem
+                  sincronização
                 </>
               )}
             </Button>
             <Button
-              onClick={() => {
-                if (
-                  confirm(
-                    'CONFIRMAR DELEÇÃO? Esta ação é irreversível e apagará os arquivos do Supabase.'
-                  )
-                ) {
-                  handleCleanup(false);
-                }
-              }}
+              onClick={() => setShowConfirm(true)}
               disabled={loading}
               className="flex-1 py-6 rounded-2xl font-bold bg-red-600 hover:bg-red-700 text-white"
             >
@@ -168,6 +173,37 @@ export default function ControlTower() {
             </Button>
           </div>
         </div>
+
+        {/* Modal de Confirmação: substituir confirm() nativo */}
+        {showConfirm && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowConfirm(false)}
+            />
+            <div className="relative bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <h3 className="text-lg font-bold mb-2">Confirmar Limpeza</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                CONFIRMAR DELEÇÃO? Esta ação é irreversível e apagará os
+                arquivos do Supabase.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <Button variant="ghost" onClick={() => setShowConfirm(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-red-600 text-white"
+                  onClick={async () => {
+                    setShowConfirm(false);
+                    await handleCleanup(false);
+                  }}
+                >
+                  Executar Limpeza
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Card de Status Rápido */}
         <div className="bg-secondary rounded-[2.5rem] p-8 text-white flex flex-col justify-between">

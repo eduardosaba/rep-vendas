@@ -924,9 +924,8 @@ function CarouselBrands({
   }, []);
 
   // Verifica se precisa animar / se há overflow
-  // Ajuste: no mobile, consideramos que se houver mais de 3 marcas
-  // devemos exibir controles (setas) mesmo que o cálculo de overflow
-  // não detecte overflow por conta do tamanho das logos.
+  // Ajuste: no mobile, quando houver mais de 3 marcas, usamos animação tipo "marquee"
+  // ao invés de setas, conforme solicitado (animação contínua girando as marcas).
   useEffect(() => {
     const check = () => {
       if (!containerRef.current || !innerRef.current) return;
@@ -939,10 +938,10 @@ function CarouselBrands({
       setHasOverflow(overflow || mobileForced);
 
       // REGRAS DE ANIMAÇÃO:
-      // No mobile, NÃO animar — mostramos setas (ou navegação por scroll)
-      // No desktop, anima se houver overflow
+      // No mobile: animar se houver mobileForced (>=4 marcas)
+      // No desktop: anima se houver overflow
       if (isMobile) {
-        setShouldAnimate(false);
+        setShouldAnimate(mobileForced);
       } else {
         setShouldAnimate(overflow);
       }
@@ -1016,7 +1015,9 @@ function CarouselBrands({
       : [...brands, ...brands]
     : brands;
 
-  const duration = Math.max(20, loopBrands.length * 2.5);
+  const duration = isMobile
+    ? Math.max(28, loopBrands.length * 3.2)
+    : Math.max(20, loopBrands.length * 2.5);
 
   return (
     <div

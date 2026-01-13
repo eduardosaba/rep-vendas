@@ -413,12 +413,34 @@ export function StoreProvider({
 
   const handleSaveCart = async () => {
     setLoadingStates((s) => ({ ...s, saving: true }));
-    const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const { error } = await supabase
-      .from('saved_carts')
-      .insert({ short_id: shortId, items: cart });
-    setLoadingStates((s) => ({ ...s, saving: false }));
-    return error ? null : shortId;
+    try {
+      const itemsPayload = cart.map((it) => ({
+        product_id: it.id,
+        name: it.name,
+        price: it.price,
+        quantity: it.quantity,
+        reference_code: it.reference_code || null,
+        image_url: it.image_url || null,
+      }));
+
+      const res = await fetch('/api/save-cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsPayload, userId: store.user_id }),
+      });
+
+      const json = await res.json();
+      setLoadingStates((s) => ({ ...s, saving: false }));
+      if (!res.ok || !json || json.error) {
+        console.error('save-cart API error', { status: res.status, json });
+        return null;
+      }
+      return json.code || json.short_id || null;
+    } catch (err) {
+      console.error('Erro ao salvar carrinho via API:', err);
+      setLoadingStates((s) => ({ ...s, saving: false }));
+      return null;
+    }
   };
 
   const handleLoadCart = async (code: string) => {

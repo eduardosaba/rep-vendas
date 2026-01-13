@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server'; // Caminho padronizado
 import ManageExternalImagesClient from '@/components/dashboard/ManageExternalImagesClient';
+import SyncStatusCard from '@/components/dashboard/SyncStatusCard';
 import { CloudDownload, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export const metadata = {
@@ -47,6 +48,21 @@ export default async function ManageExternalImagesPage() {
       p.image_url ||
       (p.images && Array.isArray(p.images) && p.images.length > 0)
   );
+
+  // Busca o último job de sincronização para exibir no card de status
+  let syncJob = null;
+  try {
+    const { data: lastJob } = await supabase
+      .from('sync_jobs')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    syncJob = lastJob;
+  } catch (e) {
+    console.error('Erro ao buscar sync job:', e);
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
@@ -108,6 +124,11 @@ export default async function ManageExternalImagesPage() {
             </Link>
           </div>
         )}
+      </div>
+
+      {/* Card de status de sincronização */}
+      <div className="mt-6 p-4">
+        <SyncStatusCard syncData={syncJob} />
       </div>
     </div>
   );

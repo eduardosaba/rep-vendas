@@ -4,17 +4,7 @@
 
 import React, { useEffect } from 'react';
 import Image from 'next/image';
-import {
-  ShoppingCart,
-  X,
-  Plus,
-  Minus,
-  Trash2,
-  Send,
-  Loader2,
-  Save,
-  Star,
-} from 'lucide-react';
+import { ShoppingCart, X, Plus, Minus, Trash2, Send, Star } from 'lucide-react';
 import { PriceDisplay } from '../PriceDisplay'; // Importação do utilitário PriceDisplay
 
 // --- Tipos (Adaptados do Storefront.tsx) ---
@@ -270,19 +260,7 @@ export function CartModal({
                 className="font-bold text-gray-900"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={handleSaveCart}
-                disabled={isSaving}
-                className="py-3 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 flex items-center justify-center gap-2"
-              >
-                {isSaving ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <Save size={18} />
-                )}{' '}
-                Salvar
-              </button>
+            <div className="grid grid-cols-1 gap-3">
               <button
                 onClick={() => setIsCheckoutOpen(true)}
                 className="py-3 rounded-xl text-white font-bold flex items-center justify-center gap-2 bg-[#25D366] hover:brightness-105"

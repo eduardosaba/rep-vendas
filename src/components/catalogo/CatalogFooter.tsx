@@ -1,6 +1,7 @@
 'use client';
 
 import type { Settings } from '@/lib/types';
+import { normalizePhone } from '@/lib/phone';
 
 interface CatalogFooterProps {
   settings: Settings | null;
@@ -97,14 +98,32 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
           <div>
             <h4 className="mb-4 text-lg font-bold">Contato</h4>
             <div className="space-y-2 text-sm text-gray-400">
-              <p>
-                <span className="block font-medium">📞 Telefone</span>
-                <span>(11) 9999-9999</span>
-              </p>
-              <p>
-                <span className="block font-medium">📧 Email</span>
-                <span>contato@repvendas.com.br</span>
-              </p>
+              {settings?.phone && (
+                <p>
+                  <span className="block font-medium">📞 Telefone</span>
+                  <a
+                    href={`https://wa.me/${String(settings.phone).replace(/\D/g, '').startsWith('55') ? String(settings.phone).replace(/\D/g, '') : '55' + String(settings.phone).replace(/\D/g, '')}`}
+                    className="block"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Chamar no WhatsApp ${normalizePhone(settings.phone)}`}
+                  >
+                    {normalizePhone(settings.phone)}
+                  </a>
+                </p>
+              )}
+              {settings?.email && (
+                <p>
+                  <span className="block font-medium">📧 Email</span>
+                  <a
+                    href={`mailto:${settings.email}`}
+                    className="block"
+                    aria-label={`Enviar email para ${settings.email}`}
+                  >
+                    {settings.email}
+                  </a>
+                </p>
+              )}
               <p>
                 <span className="block font-medium">🕒 Horário</span>
                 <span>Seg-Sex: 8h às 18h</span>

@@ -220,6 +220,23 @@ export function StoreModals() {
                     isPricesVisible={isPricesVisible}
                   />
                 </div>
+
+                <button
+                  onClick={async () => {
+                    const code = await handleSaveCart();
+                    if (code) {
+                      setSavedCode(code);
+                      setModal('save', true);
+                    } else {
+                      toast.error('Erro ao salvar pedido');
+                    }
+                  }}
+                  disabled={loadingStates.saving}
+                  className="w-full py-3 bg-gray-100 rounded-2xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loadingStates.saving ? 'Salvando...' : 'Salvar Pedido'}
+                </button>
+
                 <Button
                   onClick={() => setModal('checkout', true)}
                   className="w-full py-7 text-lg uppercase tracking-tighter"
@@ -340,24 +357,48 @@ export function StoreModals() {
                       </h3>
                     </div>
                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                      <table className="w-full text-sm">
-                        <tbody className="divide-y divide-gray-50">
-                          {Object.entries(
-                            typeof modals.product.technical_specs === 'string'
-                              ? JSON.parse(modals.product.technical_specs)
-                              : modals.product.technical_specs
-                          ).map(([key, val], i) => (
-                            <tr key={i} className="group">
-                              <td className="py-3 font-bold text-gray-400 group-hover:text-primary transition-colors">
-                                {key}
-                              </td>
-                              <td className="py-3 text-right text-secondary font-medium">
-                                {String(val)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {/* Segurança: technical_specs pode ser um objeto ou uma string livre.
+                              Tentamos parsear JSON; se falhar, mostramos o texto em uma linha única. */}
+                      {(() => {
+                        const raw = modals.product.technical_specs as any;
+                        let specs: Record<string, any> = {};
+                        if (!raw)
+                          return (
+                            <p className="text-sm text-gray-500">
+                              Sem especificações técnicas.
+                            </p>
+                          );
+                        if (typeof raw === 'object') {
+                          specs = raw as Record<string, any>;
+                        } else if (typeof raw === 'string') {
+                          try {
+                            const parsed = JSON.parse(raw);
+                            if (parsed && typeof parsed === 'object')
+                              specs = parsed;
+                            else specs = { Descrição: String(raw) };
+                          } catch (e) {
+                            // Se não for JSON válido, exibir como uma única linha de texto
+                            specs = { Descrição: String(raw) };
+                          }
+                        }
+
+                        return (
+                          <table className="w-full text-sm">
+                            <tbody className="divide-y divide-gray-50">
+                              {Object.entries(specs).map(([key, val], i) => (
+                                <tr key={i} className="group">
+                                  <td className="py-3 font-bold text-gray-400 group-hover:text-primary transition-colors">
+                                    {key}
+                                  </td>
+                                  <td className="py-3 text-right text-secondary font-medium">
+                                    {String(val)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
@@ -620,7 +661,7 @@ export function StoreModals() {
                 <Send size={20} /> Chamar no WhatsApp
               </button>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <button
                   onClick={async () => {
                     // Gera/abre PDF do pedido
@@ -629,22 +670,6 @@ export function StoreModals() {
                   className="w-full py-3 bg-white border border-gray-200 rounded-2xl font-bold flex items-center justify-center gap-2"
                 >
                   Gerar PDF
-                </button>
-
-                <button
-                  onClick={async () => {
-                    // Salva o pedido como código reutilizável
-                    const code = await handleSaveOrder();
-                    if (code) {
-                      setSavedCode(code);
-                      setModal('save', true);
-                    } else {
-                      toast.error('Erro ao salvar pedido');
-                    }
-                  }}
-                  className="w-full py-3 bg-gray-100 rounded-2xl font-bold"
-                >
-                  Salvar Pedido
                 </button>
               </div>
 
