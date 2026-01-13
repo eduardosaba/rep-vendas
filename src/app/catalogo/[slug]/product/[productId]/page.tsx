@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import ImageWithRetry from '@/components/ui/ImageWithRetry';
 import { toast } from 'sonner';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 
 // Função para formatar preços no formato brasileiro
 const formatPrice = (price: number): string => {
@@ -258,6 +259,42 @@ export default function ProductDetailPage() {
     }
   };
 
+  // Normalizar imagens do produto: converte paths relativos do storage
+  // em URLs públicas do Supabase e preserva URLs absolutas.
+  const productImages = (() => {
+    if (!product) return [] as string[];
+    const imgs: string[] = [];
+
+    // cover image from image_path if present
+    if ((product as any).image_path) {
+      const cover = buildSupabaseImageUrl((product as any).image_path, {
+        width: 800,
+        height: 800,
+        resize: 'contain',
+      });
+      if (cover) imgs.push(cover);
+    } else if ((product as any).image_url) {
+      imgs.push((product as any).image_url as string);
+    }
+
+    if (
+      product.images &&
+      Array.isArray(product.images) &&
+      product.images.length > 0
+    ) {
+      product.images.forEach((i) => {
+        const u = buildSupabaseImageUrl(i || null);
+        if (u && !imgs.includes(u)) imgs.push(u);
+      });
+    }
+
+    // fallback to single image_url if no images resolved
+    if (imgs.length === 0 && (product as any).image_url)
+      imgs.push((product as any).image_url as string);
+
+    return imgs.length > 0 ? imgs : ['/placeholder-no-image.svg'];
+  })();
+
   const toggleFavorite = (productId: string) => {
     const newFavorites = new Set(favorites);
     if (newFavorites.has(productId)) {
@@ -461,11 +498,11 @@ export default function ProductDetailPage() {
           <div className="space-y-4">
             {/* Main Image */}
             <div className="relative overflow-hidden rounded-lg bg-white shadow-sm">
-              {product.images && product.images.length > 0 ? (
+              {productImages && productImages.length > 0 ? (
                 <>
                   <div className="relative">
                     <img
-                      src={product.images[currentImageIndex]}
+                      src={productImages[currentImageIndex]}
                       alt={product.name}
                       className="h-96 w-full cursor-pointer object-cover"
                       onClick={() => openImageModal(currentImageIndex)}
@@ -482,7 +519,7 @@ export default function ProductDetailPage() {
                     </button>
                   </div>
                   {/* Navigation arrows */}
-                  {product.images.length > 1 && (
+                  {productImages.length > 1 && (
                     <>
                       <button
                         onClick={prevImage}
@@ -520,9 +557,9 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Thumbnail Images */}
-            {product.images && product.images.length > 1 && (
+            {productImages && productImages.length > 1 && (
               <div className="flex space-x-2 overflow-x-auto">
-                {product.images.map((image, index) => (
+                {productImages.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setCurrentImageIndex(index)}

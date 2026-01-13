@@ -298,9 +298,16 @@ export const generateCatalogPDF = async (
     promises.push(
       (async () => {
         let urlToLoad: string | null = null;
-        if (product.image_path)
-          urlToLoad = `${supabaseUrl}/storage/v1/object/public/product-images/${product.image_path}`;
-        else if (product.external_image_url)
+        if (product.image_path) {
+          // Usa encodeURIComponent para evitar problemas com espaços e caracteres especiais
+          try {
+            urlToLoad = `${supabaseUrl}/storage/v1/object/public/product-images/${encodeURIComponent(
+              product.image_path
+            )}`;
+          } catch {
+            urlToLoad = `${supabaseUrl}/storage/v1/object/public/product-images/${product.image_path}`;
+          }
+        } else if (product.external_image_url)
           urlToLoad = product.external_image_url;
         else if (product.image_url && product.image_url.startsWith('http'))
           urlToLoad = product.image_url;

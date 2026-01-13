@@ -193,7 +193,7 @@ export function ProductGrid() {
           <Button
             variant="outline"
             size="sm"
-            onClick={toggleSidebar}
+            onClick={() => setIsFilterOpen(true)}
             className="lg:hidden ml-4"
             leftIcon={<SlidersHorizontal size={16} />}
           >

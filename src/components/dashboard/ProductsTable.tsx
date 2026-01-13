@@ -325,6 +325,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     value: string;
   }>({ mode: 'fixed', value: '' });
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
+  const [viewIndex, setViewIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+  const touchMoved = useRef<boolean>(false);
 
   const logError = (...args: unknown[]) => {
     if (typeof console !== 'undefined' && console.error) console.error(...args);
@@ -1672,25 +1675,97 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       {viewProduct && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="relative h-64 bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
+            <div
+              className="relative h-64 bg-gray-100 dark:bg-slate-800 flex items-center justify-center"
+              onTouchStart={(e) => {
+                touchStartX.current = e.touches?.[0]?.clientX ?? null;
+                touchMoved.current = false;
+              }}
+              onTouchMove={(e) => {
+                const start = touchStartX.current;
+                const current = e.touches?.[0]?.clientX ?? null;
+                if (start !== null && current !== null) {
+                  const deltaX = current - start;
+                  if (Math.abs(deltaX) > 10) touchMoved.current = true;
+                }
+              }}
+              onTouchEnd={(e) => {
+                const start = touchStartX.current;
+                const end = e.changedTouches?.[0]?.clientX ?? null;
+                if (start !== null && end !== null) {
+                  const delta = end - start;
+                  const threshold = 50;
+                  if (delta > threshold) {
+                    setViewIndex((i) => Math.max(0, i - 1));
+                  } else if (delta < -threshold) {
+                    setViewIndex((i) =>
+                      Math.min((viewProduct.images?.length || 1) - 1, i + 1)
+                    );
+                  }
+                }
+                touchStartX.current = null;
+              }}
+            >
               {(() => {
-                const src = viewProduct.image_path
+                const selectedImage = viewProduct.image_path
                   ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${viewProduct.image_path}`
-                  : viewProduct.image_url ||
-                    viewProduct.external_image_url ||
-                    viewProduct.images?.[0];
-                return src ? (
-                  <Image src={src} alt="" fill className="object-contain p-4" />
+                  : viewProduct.images && viewProduct.images.length > 0
+                    ? viewProduct.images[viewIndex]
+                    : viewProduct.image_url ||
+                      viewProduct.external_image_url ||
+                      null;
+                return selectedImage ? (
+                  <Image
+                    src={selectedImage}
+                    alt=""
+                    fill
+                    className="object-contain p-4"
+                  />
                 ) : (
                   <ImageIcon size={48} className="text-gray-300" />
                 );
               })()}
+
               <button
                 onClick={() => setViewProduct(null)}
                 className="absolute top-4 right-4 bg-black/20 hover:bg-black/40 text-white rounded-full p-2"
               >
                 <X size={20} />
               </button>
+
+              {viewProduct.images && viewProduct.images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
+                    aria-label="Anterior"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    onClick={() =>
+                      setViewIndex((i) =>
+                        Math.min((viewProduct.images?.length || 1) - 1, i + 1)
+                      )
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
+                    aria-label="Próxima"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+
+              {viewProduct.images && viewProduct.images.length > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                  {viewProduct.images.map((_, idx) => (
+                    <span
+                      key={idx}
+                      className={`h-1 w-6 rounded ${idx === viewIndex ? 'bg-white' : 'bg-white/40'}`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
             <div className="p-6 overflow-y-auto">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
@@ -1863,7 +1938,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               <button
                 onClick={handleGeneratePdf}
                 disabled={isGeneratingPdf}
-                className="flex-1 py-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all disabled:opacity-70 shadow-lg shadow-primary/30"
+                className="flex-1 py-3 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-90 transition-all disabled:opacity-70 shadow-lg"
+                style={{ backgroundColor: 'var(--primary, #2563eb)' }}
               >
                 {isGeneratingPdf ? (
                   <Loader2 className="animate-spin" size={20} />

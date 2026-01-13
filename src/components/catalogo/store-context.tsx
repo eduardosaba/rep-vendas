@@ -82,10 +82,11 @@ interface StoreContextType {
   handleFinalizeOrder: (customer: CustomerInfo) => Promise<boolean>;
   handleSaveCart: () => Promise<string | null>;
   handleLoadCart: (code: string) => Promise<boolean>;
+  handleSaveOrder: () => Promise<string | null>;
   loadingStates: { submitting: boolean; saving: boolean; loadingCart: boolean };
   orderSuccessData: any;
   setOrderSuccessData: (data: any) => void;
-  handleDownloadPDF: () => void;
+  handleDownloadPDF: () => Promise<void>;
   handleSendWhatsApp: () => void;
   customerSession: CustomerInfo | null;
   clearCustomerSession: () => void;
@@ -424,6 +425,26 @@ export function StoreProvider({
     return false;
   };
 
+  const handleSaveOrder = async () => {
+    if (!orderSuccessData) return null;
+    setLoadingStates((s) => ({ ...s, saving: true }));
+    try {
+      const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const items = orderSuccessData.items || [];
+      const { error } = await supabase.from('saved_carts').insert({
+        short_id: shortId,
+        items,
+        meta: { order_id: orderSuccessData.id },
+      });
+      setLoadingStates((s) => ({ ...s, saving: false }));
+      return error ? null : shortId;
+    } catch (err) {
+      console.error('Erro ao salvar pedido como código:', err);
+      setLoadingStates((s) => ({ ...s, saving: false }));
+      return null;
+    }
+  };
+
   const displayProducts = useMemo(() => {
     const base = searchResults || initialProducts;
     return base
@@ -536,10 +557,39 @@ export function StoreProvider({
         handleFinalizeOrder,
         handleSaveCart,
         handleLoadCart,
+        handleSaveOrder,
         loadingStates,
         orderSuccessData,
         setOrderSuccessData,
-        handleDownloadPDF: () => {},
+        handleDownloadPDF: async () => {
+          if (!orderSuccessData) return;
+          try {
+            if (orderSuccessData.pdf_url) {
+              window.open(orderSuccessData.pdf_url, '_blank');
+              return;
+            }
+            const doc = await generateOrderPDF(
+              { ...orderSuccessData, customer: orderSuccessData.customer },
+              store,
+              orderSuccessData.items,
+              orderSuccessData.total,
+              true
+            );
+            if (doc instanceof Blob) {
+              const url = URL.createObjectURL(doc);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `pedido_${orderSuccessData.id || 'receipt'}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+            }
+          } catch (err) {
+            console.error('Erro ao baixar PDF:', err);
+            toast.error('Erro ao gerar/baixar PDF.');
+          }
+        },
         handleSendWhatsApp,
         customerSession,
         clearCustomerSession: () => {

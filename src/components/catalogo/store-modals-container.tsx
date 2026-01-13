@@ -25,6 +25,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
 import Barcode from '../ui/Barcode'; // Mantido conforme seu projeto
 import { toast } from 'sonner';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 import { PasswordModal } from './modals/PasswordModal';
 
 export function StoreModals() {
@@ -39,6 +40,8 @@ export function StoreModals() {
     handleSaveCart,
     handleLoadCart,
     handleFinalizeOrder,
+    handleSaveOrder,
+    handleDownloadPDF,
     loadingStates,
     orderSuccessData,
     setOrderSuccessData,
@@ -82,20 +85,30 @@ export function StoreModals() {
   const productImages = useMemo(() => {
     if (!modals.product) return [];
     const images: string[] = [];
+
+    // Primary image (cover) prefers image_path -> image_url
     if (modals.product.image_path) {
-      images.push(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${modals.product.image_path}?width=800&height=800&resize=contain`
-      );
+      const cover = buildSupabaseImageUrl(modals.product.image_path, {
+        width: 800,
+        height: 800,
+        resize: 'contain',
+      });
+      if (cover) images.push(cover);
     } else if (modals.product.image_url) {
       images.push(modals.product.image_url);
     }
-    if (modals.product.external_image_url)
+
+    if (modals.product.external_image_url) {
       images.push(modals.product.external_image_url);
-    if (modals.product.images && Array.isArray(modals.product.images)) {
-      modals.product.images.forEach(
-        (img) => img && !images.includes(img) && images.push(img)
-      );
     }
+
+    if (modals.product.images && Array.isArray(modals.product.images)) {
+      modals.product.images.forEach((img) => {
+        const url = buildSupabaseImageUrl(img || null);
+        if (url && !images.includes(url)) images.push(url);
+      });
+    }
+
     return images.length > 0 ? images : ['/placeholder-no-image.svg'];
   }, [modals.product]);
 
@@ -606,6 +619,35 @@ export function StoreModals() {
               >
                 <Send size={20} /> Chamar no WhatsApp
               </button>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={async () => {
+                    // Gera/abre PDF do pedido
+                    await handleDownloadPDF();
+                  }}
+                  className="w-full py-3 bg-white border border-gray-200 rounded-2xl font-bold flex items-center justify-center gap-2"
+                >
+                  Gerar PDF
+                </button>
+
+                <button
+                  onClick={async () => {
+                    // Salva o pedido como código reutilizável
+                    const code = await handleSaveOrder();
+                    if (code) {
+                      setSavedCode(code);
+                      setModal('save', true);
+                    } else {
+                      toast.error('Erro ao salvar pedido');
+                    }
+                  }}
+                  className="w-full py-3 bg-gray-100 rounded-2xl font-bold"
+                >
+                  Salvar Pedido
+                </button>
+              </div>
+
               <button
                 onClick={() => {
                   setOrderSuccessData(null);
@@ -613,7 +655,7 @@ export function StoreModals() {
                 }}
                 className="w-full py-5 text-gray-400 font-bold"
               >
-                Voltar à Vitrine
+                Voltar ao Catálogo de Produtos
               </button>
             </div>
           </div>

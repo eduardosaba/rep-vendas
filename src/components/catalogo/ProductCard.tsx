@@ -10,6 +10,7 @@ import {
   Minus,
 } from 'lucide-react';
 import Image from 'next/image';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 import React, { useState } from 'react';
 import { useStore } from '@/components/catalogo/store-context';
 import {
@@ -53,13 +54,23 @@ export function ProductCard({
   const getImageUrl = () => {
     // Se tem image_path (Storage do Supabase), usa thumbnail otimizado
     if (product.image_path) {
-      const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${product.image_path}`;
-      return `${baseUrl}?width=400&height=400&resize=contain`;
+      const url = buildSupabaseImageUrl(product.image_path, {
+        width: 400,
+        height: 400,
+        resize: 'contain',
+      });
+      return url;
     }
 
     // URLs externas: funciona mas sem otimização (mais lento)
-    const externalUrl =
+    let externalUrl =
       product.image_url || product.external_image_url || product.images?.[0];
+
+    // Se for um caminho relativo do storage (não começa com http), converte para URL pública
+    if (externalUrl && !externalUrl.startsWith('http')) {
+      const maybe = buildSupabaseImageUrl(externalUrl);
+      if (maybe) externalUrl = maybe;
+    }
 
     if (externalUrl && !imageFailed && typeof window !== 'undefined') {
       // Aviso apenas uma vez por sessão (somente no cliente)

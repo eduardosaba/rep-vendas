@@ -912,6 +912,8 @@ function CarouselBrands({
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const rafRef = useRef<number | null>(null);
 
   // Detecta se é mobile
   useEffect(() => {
@@ -922,16 +924,22 @@ function CarouselBrands({
   }, []);
 
   // Verifica se precisa animar / se há overflow
+  // Ajuste: no mobile, consideramos que se houver mais de 3 marcas
+  // devemos exibir controles (setas) mesmo que o cálculo de overflow
+  // não detecte overflow por conta do tamanho das logos.
   useEffect(() => {
     const check = () => {
       if (!containerRef.current || !innerRef.current) return;
       const contentWidth = innerRef.current.scrollWidth;
       const containerWidth = containerRef.current.clientWidth;
       const overflow = contentWidth > containerWidth;
-      setHasOverflow(overflow);
+
+      // Força hasOverflow no mobile quando houver > 3 marcas
+      const mobileForced = isMobile && brands.length > 3;
+      setHasOverflow(overflow || mobileForced);
 
       // REGRAS DE ANIMAÇÃO:
-      // No mobile, NÃO animar — mostramos setas se houver overflow
+      // No mobile, NÃO animar — mostramos setas (ou navegação por scroll)
       // No desktop, anima se houver overflow
       if (isMobile) {
         setShouldAnimate(false);
@@ -947,6 +955,59 @@ function CarouselBrands({
       clearTimeout(timeout);
     };
   }, [brands, isMobile]);
+
+  // Scroll-snapping and active index tracking for mobile
+  useEffect(() => {
+    if (shouldAnimate) return; // não rastrear quando animando
+    const onScroll = () => {
+      if (!innerRef.current || !containerRef.current) return;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const children = Array.from(
+          innerRef.current!.children
+        ) as HTMLElement[];
+        if (!children.length) return;
+        const containerRect = containerRef.current!.getBoundingClientRect();
+        const containerCenter = containerRect.left + containerRect.width / 2;
+        let closest = 0;
+        let closestDist = Infinity;
+        children.forEach((ch, idx) => {
+          const rect = ch.getBoundingClientRect();
+          const chCenter = rect.left + rect.width / 2;
+          const dist = Math.abs(chCenter - containerCenter);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closest = idx;
+          }
+        });
+        // Normaliza para o tamanho real da lista de marcas
+        setActiveIndex(Math.min(closest, Math.max(0, brands.length - 1)));
+      });
+    };
+
+    const node = innerRef.current;
+    node?.addEventListener('scroll', onScroll, { passive: true });
+    // trigger initial
+    onScroll();
+    return () => {
+      node?.removeEventListener('scroll', onScroll);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [shouldAnimate, brands]);
+
+  const scrollToIndex = (idx: number) => {
+    if (!innerRef.current) return;
+    const children = Array.from(innerRef.current.children) as HTMLElement[];
+    const target = children[idx];
+    if (target) {
+      target.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      });
+      setActiveIndex(idx);
+    }
+  };
 
   // Duplica/Triplica itens para garantir o loop infinito sem buracos
   const loopBrands = shouldAnimate
@@ -1000,7 +1061,7 @@ function CarouselBrands({
       >
         <div
           ref={innerRef}
-          className={`flex items-center gap-x-4 ${shouldAnimate ? 'animate-marquee' : 'justify-start overflow-x-auto scrollbar-hide px-2'}`}
+          className={`flex items-center gap-x-4 ${shouldAnimate ? 'animate-marquee' : 'justify-start overflow-x-auto scrollbar-hide px-2 snap-x snap-mandatory'}`}
           // APLICA A PAUSA DIRETAMENTE NO ESTILO (Mais forte que classe CSS)
           style={{
             animationPlayState: isPaused ? 'paused' : 'running',
@@ -1033,6 +1094,7 @@ function CarouselBrands({
                         : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
                   }
                 `}
+                style={{ scrollSnapAlign: 'center' }}
               >
                 {brand.logo_url && (
                   <img
@@ -1062,10 +1124,9 @@ function CarouselBrands({
             aria-label="Scroll left"
             onClick={() => {
               if (!innerRef.current) return;
-              innerRef.current.scrollBy({
-                left: -containerRef.current!.clientWidth * 0.7,
-                behavior: 'smooth',
-              });
+              // Scroll to previous item
+              const prev = Math.max(0, activeIndex - 1);
+              scrollToIndex(prev);
             }}
             className="absolute left-1 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/90 p-1 shadow-md"
           >
@@ -1075,16 +1136,28 @@ function CarouselBrands({
             aria-label="Scroll right"
             onClick={() => {
               if (!innerRef.current) return;
-              innerRef.current.scrollBy({
-                left: containerRef.current!.clientWidth * 0.7,
-                behavior: 'smooth',
-              });
+              // Scroll to next item
+              const next = Math.min(brands.length - 1, activeIndex + 1);
+              scrollToIndex(next);
             }}
             className="absolute right-1 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/90 p-1 shadow-md"
           >
             <ChevronRight className="h-5 w-5 text-gray-700" />
           </button>
         </>
+      )}
+
+      {/* Dots indicator mobile quando houver overflow */}
+      {isMobile && hasOverflow && (
+        <div className="mt-2 flex justify-center gap-2">
+          {brands.map((_: unknown, idx: number) => (
+            <button
+              key={`dot-${idx}`}
+              onClick={() => scrollToIndex(idx)}
+              className={`w-2 h-2 rounded-full ${idx === activeIndex ? 'bg-[var(--primary)]' : 'bg-white/40'}`}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

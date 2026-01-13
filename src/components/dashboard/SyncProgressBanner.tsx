@@ -12,14 +12,15 @@ export default function SyncProgressBanner() {
   useEffect(() => {
     // Busca status inicial e assina atualizações em tempo real
     const fetchStatus = async () => {
+      // Buscar o job mais recente (independente do status). Isso evita que
+      // o banner falhe em transições rápidas entre queued -> processing.
       const { data } = await supabase
         .from('sync_jobs')
         .select('*')
-        .eq('status', 'processing')
         .order('updated_at', { ascending: false })
         .limit(1)
-        .single();
-      setJob(data);
+        .maybeSingle();
+      setJob(data || null);
     };
 
     const fetchRecentErrors = async (jobId: string | null) => {
@@ -59,7 +60,8 @@ export default function SyncProgressBanner() {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sync_jobs' },
         async (payload) => {
-          setJob(payload.new);
+          // Atualiza o job exibido com a nova linha
+          setJob(payload.new || null);
           // refresh recent errors when job updates
           await fetchRecentErrors(payload.new?.id || null);
         }
@@ -71,9 +73,29 @@ export default function SyncProgressBanner() {
     };
   }, []);
 
-  if (!job || job.status !== 'processing') return null;
+  // Determinar se o job é relevante para exibir o banner:
+  // - status === 'processing' ou 'queued'
+  // - ou foi atualizado nos últimos 10 minutos (evita desaparecer em transições)
+  const isRecent = (dateStr?: string | null) => {
+    if (!dateStr) return false;
+    try {
+      const then = new Date(dateStr).getTime();
+      return Date.now() - then < 1000 * 60 * 10; // 10 minutes
+    } catch (e) {
+      return false;
+    }
+  };
 
-  const percent = Math.round((job.completed_count / job.total_count) * 100);
+  const isActiveJob =
+    !!job &&
+    (job.status === 'processing' ||
+      job.status === 'queued' ||
+      isRecent(job.updated_at));
+  if (!isActiveJob) return null;
+
+  const percent = job.total_count
+    ? Math.round((job.completed_count / job.total_count) * 100)
+    : 0;
 
   return (
     <div className="bg-indigo-600 text-white px-6 py-3 rounded-2xl mb-6 shadow-lg shadow-indigo-200 dark:shadow-none animate-in slide-in-from-top duration-500">

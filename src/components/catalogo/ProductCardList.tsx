@@ -25,6 +25,9 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
 }) => {
   const router = useRouter();
   const [showImageModal, setShowImageModal] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const touchStartX = React.useRef<number | null>(null);
+  const touchMoved = React.useRef<boolean>(false);
   const [quantity, setQuantity] = useState(1);
 
   const handleProductClick = () => {
@@ -55,7 +58,10 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
             {product.images && product.images.length > 0 && (
               <div
                 className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black bg-opacity-0 opacity-0 transition-all duration-200 hover:bg-opacity-20 hover:opacity-100"
-                onClick={() => setShowImageModal(true)}
+                onClick={() => {
+                  setCurrentIndex(0);
+                  setShowImageModal(true);
+                }}
               >
                 <div className="rounded-full bg-white bg-opacity-90 p-2">
                   <svg
@@ -205,23 +211,94 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
       {showImageModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4"
-          onClick={() => setShowImageModal(false)}
+          onClick={() => {
+            if (!touchMoved.current) setShowImageModal(false);
+            touchMoved.current = false;
+          }}
         >
           <div
             className="relative max-h-full max-w-4xl"
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              touchStartX.current = e.touches?.[0]?.clientX ?? null;
+              touchMoved.current = false;
+            }}
+            onTouchMove={(e) => {
+              const start = touchStartX.current;
+              const current = e.touches?.[0]?.clientX ?? null;
+              if (start !== null && current !== null) {
+                const deltaX = current - start;
+                if (Math.abs(deltaX) > 10) touchMoved.current = true;
+              }
+            }}
+            onTouchEnd={(e) => {
+              const start = touchStartX.current;
+              const end = e.changedTouches?.[0]?.clientX ?? null;
+              if (start !== null && end !== null) {
+                const delta = end - start;
+                const threshold = 50; // pixels
+                if (delta > threshold) {
+                  // swipe right -> prev
+                  setCurrentIndex((i) => Math.max(0, i - 1));
+                } else if (delta < -threshold) {
+                  // swipe left -> next
+                  setCurrentIndex((i) =>
+                    Math.min((product.images?.length || 1) - 1, i + 1)
+                  );
+                }
+              }
+              touchStartX.current = null;
+            }}
           >
-            <ProductImage
-              product={{ ...product, image_url: product.images?.[0] || '' }}
-              alt={product.name}
-              className="max-h-[90vh] max-w-full object-contain"
-            />
-            <button
-              onClick={() => setShowImageModal(false)}
-              className="absolute right-4 top-4 rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
-            >
-              <X className="h-6 w-6 text-gray-700" />
-            </button>
+            <div className="relative flex items-center justify-center">
+              <button
+                onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                className="absolute left-2 z-20 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80 hover:bg-white"
+                aria-label="Anterior"
+              >
+                ‹
+              </button>
+
+              <ProductImage
+                product={{
+                  ...product,
+                  image_url: product.images?.[currentIndex] || '',
+                }}
+                alt={product.name}
+                className="max-h-[90vh] max-w-full object-contain"
+              />
+
+              <button
+                onClick={() =>
+                  setCurrentIndex((i) =>
+                    Math.min((product.images?.length || 1) - 1, i + 1)
+                  )
+                }
+                className="absolute right-2 z-20 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80 hover:bg-white"
+                aria-label="Próxima"
+              >
+                ›
+              </button>
+
+              {/* Mobile indicators */}
+              {product.images && product.images.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                  {product.images.map((_, idx) => (
+                    <span
+                      key={idx}
+                      className={`h-1 w-6 rounded ${idx === currentIndex ? 'bg-white' : 'bg-white/40'}`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowImageModal(false)}
+                className="absolute right-4 top-4 rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
+              >
+                <X className="h-6 w-6 text-gray-700" />
+              </button>
+            </div>
           </div>
         </div>
       )}

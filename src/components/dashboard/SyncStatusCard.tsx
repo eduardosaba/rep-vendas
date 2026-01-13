@@ -6,13 +6,20 @@ import { createClient } from '@/lib/supabase/client';
 
 export default function SyncStatusCard({ syncData }: { syncData: any }) {
   const isRunning = syncData?.status === 'processing';
-  const percent = isRunning
-    ? Math.round((syncData.completed_count / syncData.total_count) * 100)
-    : 100;
+  let percent = 100;
+  if (isRunning) {
+    const total = Number(syncData?.total_count || 0);
+    const completed = Number(syncData?.completed_count || 0);
+    percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    if (!isFinite(percent) || Number.isNaN(percent)) percent = 0;
+    percent = Math.max(0, Math.min(100, percent));
+  }
 
   const [errors, setErrors] = useState<any[]>([]);
+  const [showRaw, setShowRaw] = useState(false);
 
   useEffect(() => {
+    console.debug('SyncStatusCard mounted', { syncData, isRunning, percent });
     let mounted = true;
     const supabase = createClient();
 
@@ -58,7 +65,26 @@ export default function SyncStatusCard({ syncData }: { syncData: any }) {
         Status da internalização via URL
       </p>
 
-      {isRunning ? (
+      {/** Fallback: quando não há dados de job, mostramos uma mensagem útil
+           e um toggle para inspecionar o objeto `syncData` recebido. */}
+      {!syncData ? (
+        <div className="text-sm text-gray-500">
+          Nenhum job em andamento.
+          <div className="mt-3">
+            <button
+              onClick={() => setShowRaw((s) => !s)}
+              className="text-xs font-bold text-primary underline"
+            >
+              {showRaw ? 'Ocultar dados' : 'Mostrar dados de debug'}
+            </button>
+            {showRaw && (
+              <pre className="mt-2 max-h-40 overflow-auto text-[11px] bg-gray-50 p-2 rounded">
+                {JSON.stringify(syncData, null, 2)}
+              </pre>
+            )}
+          </div>
+        </div>
+      ) : isRunning ? (
         <div className="space-y-2">
           <div className="flex justify-between text-xs font-bold">
             <span>{percent}% concluído</span>
