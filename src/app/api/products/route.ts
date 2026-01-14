@@ -14,7 +14,11 @@ export async function GET(req: Request) {
     const sort = url.searchParams.get('sort');
     const userId = url.searchParams.get('userId');
 
-    if (!userId) return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    if (!userId)
+      return NextResponse.json(
+        { error: 'userId is required' },
+        { status: 400 }
+      );
 
     const from = (Math.max(1, page) - 1) * limit;
     const to = from + limit - 1;
@@ -39,11 +43,13 @@ export async function GET(req: Request) {
 
     if (sort) {
       const [key, dir] = sort.split('.');
-      if (key && (dir === 'asc' || dir === 'desc')) query = query.order(key, { ascending: dir === 'asc' });
+      if (key && (dir === 'asc' || dir === 'desc'))
+        query = query.order(key, { ascending: dir === 'asc' });
     }
 
     const { data, error, count } = await query;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error)
+      return NextResponse.json({ error: error.message }, { status: 500 });
 
     const meta = {
       totalCount: count || 0,
@@ -54,6 +60,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ data: data || [], meta });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || String(err) },
+      { status: 500 }
+    );
   }
 }
