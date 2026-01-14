@@ -17,6 +17,7 @@ import {
   Terminal,
   MousePointerClick,
 } from 'lucide-react';
+import ImageLightbox from '@/components/ImageLightbox';
 
 // --- TIPAGEM ---
 interface Product {
@@ -57,6 +58,7 @@ export default function MatcherPage() {
     null
   );
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [dragOverProductId, setDragOverProductId] = useState<string | null>(
     null
   );
@@ -583,6 +585,7 @@ export default function MatcherPage() {
                       src={img.publicUrl}
                       alt="Staging"
                       className="w-full h-full object-contain p-2 transition-transform group-hover:scale-105"
+                      onDoubleClick={() => setLightboxSrc(img.publicUrl)}
                     />
 
                     {/* Labels */}
@@ -629,6 +632,13 @@ export default function MatcherPage() {
           </div>
         </div>
       </div>
+      {lightboxSrc && (
+        <ImageLightbox
+          src={lightboxSrc}
+          alt="Preview"
+          onClose={() => setLightboxSrc(null)}
+        />
+      )}
     </div>
   );
 }
