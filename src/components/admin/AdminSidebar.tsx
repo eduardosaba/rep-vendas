@@ -10,6 +10,8 @@ import {
   Settings,
   LayoutDashboard,
   Package,
+  Percent,
+  Copy,
   ToggleLeft,
   ChevronLeft,
   ChevronRight,
@@ -46,8 +48,14 @@ export default function AdminSidebar({
     },
     { label: 'Usuários', href: '/admin/users', icon: Users },
     { label: 'Assinaturas', href: '/admin/licenses', icon: CreditCard },
+    { label: 'Clonar Catálogo', href: '/admin/clone-user', icon: Copy },
     { label: 'Auditoria de Sinc.', href: '/admin/sync-logs', icon: History },
     { label: 'Planos & Preços', href: '/admin/plans', icon: Package },
+    {
+      label: 'Edição de Preços',
+      href: '/admin/bulk-price-adjuster',
+      icon: Percent,
+    },
     {
       label: 'Matriz de Recursos',
       href: '/admin/plans/features',

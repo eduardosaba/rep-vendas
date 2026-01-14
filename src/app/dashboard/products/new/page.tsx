@@ -36,11 +36,13 @@ const ImageUploader = ({
   onUpload,
   onRemove,
   onSetCover,
+  isShared,
 }: {
   images: string[];
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
   onSetCover: (index: number) => void;
+  isShared?: boolean;
 }) => {
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   return (
@@ -53,6 +55,12 @@ const ImageUploader = ({
         />{' '}
         Galeria de Imagens
       </h3>
+
+      {isShared && (
+        <div className="flex items-center gap-1.5 text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full uppercase mb-3 inline-flex">
+          Imagens Compartilhadas (Master)
+        </div>
+      )}
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
         {images.map((url, index) => (
@@ -421,7 +429,10 @@ export default function NewProductPage() {
         }
 
         // Criar nova categoria se o usuário solicitou
-        if (formData.category === '__add_cat__' && formData.new_category?.trim()) {
+        if (
+          formData.category === '__add_cat__' &&
+          formData.new_category?.trim()
+        ) {
           const { data: catCreated, error: catErr } = await supabase
             .from('categories')
             .insert({ user_id: user.id, name: formData.new_category.trim() })
@@ -806,6 +817,7 @@ export default function NewProductPage() {
             onUpload={handleImageUpload}
             onRemove={removeImage}
             onSetCover={setAsCover}
+            isShared={false}
           />
         </div>
 
@@ -864,14 +876,17 @@ export default function NewProductPage() {
                 className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white cursor-pointer"
               >
                 <option value="">Selecione...</option>
-                <option value="__add_cat__">+ Adicionar nova categoria...</option>
+                <option value="__add_cat__">
+                  + Adicionar nova categoria...
+                </option>
                 {categoriesList.map((c) => (
                   <option key={c.id} value={c.name}>
                     {c.name}
                   </option>
                 ))}
               </select>
-              {(categoriesList.length === 0 || formData.category === '__add_cat__') && (
+              {(categoriesList.length === 0 ||
+                formData.category === '__add_cat__') && (
                 <div className="mt-2">
                   <input
                     value={formData.new_category}

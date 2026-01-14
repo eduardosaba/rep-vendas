@@ -78,6 +78,10 @@ export default function Barcode({
 }: BarcodeProps) {
   const digits = (value || '').replace(/\D/g, '');
 
+  // If no value provided, render nothing (don't show 'invalid' for absent barcode)
+  if (!digits || digits.length === 0) return null;
+
+  // If a value is provided but doesn't match expected EAN lengths, show invalid
   if (!/^[0-9]{7,13}$/.test(digits)) {
     return (
       <div className="text-xs text-red-500 font-mono bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded inline-block">

@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import ControlTower from '@/components/admin/ControlTower';
 import CleanupControl from '@/components/admin/CleanupControl';
+import NewUserSetup from '@/components/admin/NewUserSetup';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
@@ -55,7 +56,11 @@ export default async function ClearStoragePage() {
             uma mensagem informativa em vez de redirecionar. */}
         {isMaster ? (
           <>
-            <ControlTower />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+              <ControlTower />
+              <NewUserSetup />
+            </div>
+
             <div className="mt-6">
               <h2 className="text-lg font-bold mb-2">Limpeza de Storage</h2>
               <p className="text-sm text-gray-600 dark:text-slate-300 mb-3">
