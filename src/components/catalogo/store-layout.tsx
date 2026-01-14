@@ -193,6 +193,8 @@ export function StoreHeader() {
     setSelectedBrand,
   } = useStore();
 
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   const { toggleSidebar } = useLayoutStore();
   const getCartCount = (c: any) => {
     if (!c) return 0;
@@ -298,6 +300,10 @@ export function StoreHeader() {
 
           <div className="flex-1 w-full relative">
             <input
+              ref={(el) => {
+                /* keep a stable ref for focusing from the icon */
+                (inputRef as any).current = el;
+              }}
               type="text"
               placeholder="Buscar produtos..."
               value={searchTerm}
@@ -312,6 +318,11 @@ export function StoreHeader() {
             <Button
               variant="primary"
               size="sm"
+              onClick={() => {
+                try {
+                  (inputRef as any).current?.focus();
+                } catch (e) {}
+              }}
               className="absolute right-1 top-1/2 -translate-y-1/2 !h-8 !w-10 !p-0 rounded-md"
             >
               <Search size={18} />
@@ -1118,35 +1129,7 @@ function CarouselBrands({
         </div>
       </div>
 
-      {/* Setas para mobile quando houver overflow */}
-      {isMobile && hasOverflow && (
-        <>
-          <button
-            aria-label="Scroll left"
-            onClick={() => {
-              if (!innerRef.current) return;
-              // Scroll to previous item
-              const prev = Math.max(0, activeIndex - 1);
-              scrollToIndex(prev);
-            }}
-            className="absolute left-1 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/90 p-1 shadow-md"
-          >
-            <ChevronLeft className="h-5 w-5 text-gray-700" />
-          </button>
-          <button
-            aria-label="Scroll right"
-            onClick={() => {
-              if (!innerRef.current) return;
-              // Scroll to next item
-              const next = Math.min(brands.length - 1, activeIndex + 1);
-              scrollToIndex(next);
-            }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/90 p-1 shadow-md"
-          >
-            <ChevronRight className="h-5 w-5 text-gray-700" />
-          </button>
-        </>
-      )}
+      {/* Setas removidas no mobile por solicitação (apenas indicador e animação mantidos) */}
 
       {/* Dots indicator mobile quando houver overflow */}
       {isMobile && hasOverflow && (

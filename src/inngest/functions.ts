@@ -2,6 +2,7 @@ import { inngest } from './client';
 import { createClient } from '@supabase/supabase-js';
 import dns from 'node:dns';
 import sharp from 'sharp';
+import { copyImageToUser } from '@/lib/copyImageToUser';
 
 if (dns.setDefaultResultOrder) dns.setDefaultResultOrder('ipv4first');
 
@@ -142,5 +143,54 @@ export const internalizeSingleImage = inngest.createFunction(
 
       throw err;
     }
+  }
+);
+
+// 3. Função Inngest para clonagem de catálogo solicitada
+export const cloneCatalog = inngest.createFunction(
+  { id: 'clone-catalog' },
+  { event: 'catalog/clone.requested' },
+  async ({ event, step }) => {
+    const { source_user_id, target_user_id, brands } = event.data || {};
+
+    if (!source_user_id || !target_user_id) {
+      throw new Error('Missing source_user_id or target_user_id');
+    }
+
+    return await step.run('call-rpc-clone', async () => {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const { data, error } = await supabase.rpc('clone_catalog_by_brand', {
+        source_user_id,
+        target_user_id,
+        brands_to_copy: brands || null,
+      });
+      if (error) throw error;
+      return data;
+    });
+  }
+);
+
+// 4. Função Inngest para copy-on-write de imagens quando o usuário edita a imagem
+export const copyImageOnWrite = inngest.createFunction(
+  { id: 'copy-image-on-write' },
+  { event: 'image/copy_on_write.requested' },
+  async ({ event, step }) => {
+    const { sourcePath, targetUserId, productId } = event.data || {};
+    if (!sourcePath || !targetUserId || !productId) {
+      throw new Error('Missing parameters for copy-on-write');
+    }
+
+    return await step.run('do-copy', async () => {
+      // copyImageToUser will update the product row to point to user's copy
+      const result = await copyImageToUser({
+        sourcePath,
+        targetUserId,
+        productId,
+      });
+      return result;
+    });
   }
 );

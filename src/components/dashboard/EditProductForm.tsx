@@ -16,6 +16,7 @@ import {
   Palette,
   Sparkles,
   X,
+  Copy,
   UploadCloud,
   Trash2,
   AlertTriangle,
@@ -32,11 +33,13 @@ const ImageUploader = ({
   onUpload,
   onRemove,
   onSetCover,
+  isShared,
 }: {
   images: string[];
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
   onSetCover: (index: number) => void;
+  isShared: boolean;
 }) => {
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   return (
@@ -44,6 +47,12 @@ const ImageUploader = ({
       <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
         <ImageIcon size={18} className="text-primary" /> Galeria de Imagens
       </h3>
+
+      {isShared && (
+        <div className="flex items-center gap-1.5 text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full uppercase mb-3 inline-flex">
+          <Copy size={12} /> Imagens Compartilhadas (Master)
+        </div>
+      )}
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
         {images.map((url, index) => (
@@ -153,6 +162,7 @@ export function EditProductForm({ product }: { product: Product }) {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [needsDetach, setNeedsDetach] = useState(false);
 
   // Listas Auxiliares
   const [brandsList, setBrandsList] = useState<{ id: string; name: string }[]>(
@@ -376,6 +386,7 @@ export function EditProductForm({ product }: { product: Product }) {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setUploadingImage(true);
+    setNeedsDetach(true);
     setUploadProgress(0);
     const files = Array.from(e.target.files);
     const newUrls: string[] = [];
@@ -438,6 +449,25 @@ export function EditProductForm({ product }: { product: Product }) {
           } catch {}
         }, 2000);
       }
+      // If the product was using a shared image (master/shared copy),
+      // request a copy-on-write so the product gets its own copy before
+      // we persist the user's new upload. This runs async in background.
+      try {
+        const isShared = (product as any)?.image_is_shared;
+        const sourcePath = (product as any)?.image_path;
+        if (isShared && sourcePath) {
+          fetch('/api/image/copy-on-write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sourcePath, productId: product.id }),
+          }).catch((e) => {
+            console.error('Failed to request copy-on-write', e);
+          });
+        }
+      } catch (err) {
+        console.error('copy-on-write trigger error', err);
+      }
+
       setUploadingImage(false);
       setUploadProgress(null);
     } catch (error: any) {
@@ -454,6 +484,7 @@ export function EditProductForm({ product }: { product: Product }) {
       'images',
       formData.images.filter((_, i) => i !== index)
     );
+    setNeedsDetach(true);
   };
 
   const setAsCover = (index: number) => {
@@ -462,6 +493,7 @@ export function EditProductForm({ product }: { product: Product }) {
     newImages.unshift(selected);
     updateField('images', newImages);
     toast.success('Capa atualizada (Salve para confirmar)');
+    setNeedsDetach(true);
   };
 
   const generateDescription = () => {
@@ -568,6 +600,8 @@ export function EditProductForm({ product }: { product: Product }) {
           : null;
       }
 
+      const isShared = (product as any).image_is_shared;
+
       const payload = {
         name: formData.name,
         slug: formData.slug || null,
@@ -593,6 +627,11 @@ export function EditProductForm({ product }: { product: Product }) {
             ? formData.images[0]
             : null,
         technical_specs,
+        // CoW: marca se ainda compartilha a imagem com master
+        image_is_shared: isShared && !needsDetach,
+        original_image_path: needsDetach
+          ? null
+          : (product as any).original_image_path,
         updated_at: new Date().toISOString(),
       };
 
@@ -601,6 +640,28 @@ export function EditProductForm({ product }: { product: Product }) {
         .update(payload)
         .eq('id', product.id);
       if (error) throw error;
+
+      // Após persistir, se era compartilhado e o usuário personalizou,
+      // solicitamos ao worker que realize a cópia (copy-on-write).
+      if (isShared && needsDetach) {
+        try {
+          await fetch('/api/inngest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: 'image/copy_on_write.requested',
+              data: {
+                productId: product.id,
+                sourcePath: (product as any).original_image_path,
+                targetUserId: product.user_id,
+              },
+            }),
+          });
+        } catch (e) {
+          // Não falhar a atualização do produto por causa do enqueue
+          console.error('Failed to enqueue copy-on-write', e);
+        }
+      }
 
       setHasChanges(false);
       toast.success('Produto atualizado!');
@@ -977,6 +1038,7 @@ export function EditProductForm({ product }: { product: Product }) {
             onUpload={handleImageUpload}
             onRemove={removeImage}
             onSetCover={setAsCover}
+            isShared={!!(product as any).image_is_shared}
           />
         </div>
 
