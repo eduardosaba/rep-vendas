@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Play,
@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   CloudLightning,
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface Product {
   id: string;
@@ -42,6 +43,9 @@ export default function ManageExternalImagesClient({
   const [progress, setProgress] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingCountToConfirm, setPendingCountToConfirm] = useState(0);
+  const [activeJobId, setActiveJobId] = useState<string | null>(
+    typeof window !== 'undefined' ? localStorage.getItem('rv_sync_job') : null
+  );
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,10 +104,27 @@ export default function ManageExternalImagesClient({
 
       if (response.ok && result.success) {
         setProgress(100);
+        // Guarda jobId para que o console possa monitorar
+        if (result.jobId) {
+          setActiveJobId(result.jobId);
+          try {
+            localStorage.setItem('rv_sync_job', result.jobId);
+          } catch {}
+        }
+
         toast.success('🚀 Sincronização iniciada com sucesso!', {
           description:
-            'O motor RepVendas está processando as imagens em segundo plano. Você já pode navegar por outras páginas ou fechar o sistema.',
+            'O motor RepVendas está processando as imagens em segundo plano. Você pode acompanhar o progresso abaixo nesta página.',
           duration: 8000,
+          action: {
+            label: 'Ver Progresso',
+            onClick: () => {
+              // Navega para o console nesta página
+              try {
+                window.location.hash = 'sync-console';
+              } catch {}
+            },
+          },
         });
       } else {
         throw new Error(
@@ -309,6 +330,87 @@ export default function ManageExternalImagesClient({
           </div>
         </div>
       )}
+      {/* SYNC CONSOLE: mostra progresso detalhado e logs */}
+      <div id="sync-console" className="mt-4">
+        {activeJobId && <SyncConsole jobId={activeJobId} />}
+      </div>
+    </div>
+  );
+}
+
+function SyncConsole({ jobId }: { jobId: string }) {
+  const [job, setJob] = useState<any | null>(null);
+  const [items, setItems] = useState<any[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchAll() {
+      try {
+        const { data: j } = await supabase
+          .from('sync_jobs')
+          .select('*')
+          .eq('id', jobId)
+          .maybeSingle();
+        if (mounted) setJob(j || null);
+
+        const { data: its } = await supabase
+          .from('sync_job_items')
+          .select('product_id,status,error_text,created_at')
+          .eq('job_id', jobId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (mounted) setItems(its || []);
+      } catch (e) {
+        console.error('Failed to load sync console', e);
+      }
+    }
+
+    fetchAll();
+    const t = setInterval(fetchAll, 3000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
+  }, [jobId, supabase]);
+
+  return (
+    <div className="mt-6 bg-gray-50 dark:bg-slate-900 p-4 rounded-lg border border-gray-100 dark:border-slate-800">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm font-medium">Console de Sincronização</div>
+        <div className="text-xs text-gray-500">Job: {jobId}</div>
+      </div>
+
+      <div className="mb-3 text-xs text-gray-600">
+        Status: <b className="ml-1">{job?.status || '—'}</b> · Processados:{' '}
+        {job?.completed_count ?? 0}/{job?.total_count ?? 0}
+      </div>
+
+      <div className="max-h-56 overflow-auto text-[12px] font-mono bg-white dark:bg-slate-950 p-2 rounded">
+        {items.length === 0 ? (
+          <div className="text-gray-500">Nenhum registro ainda.</div>
+        ) : (
+          items.map((it) => (
+            <div key={it.created_at + it.product_id} className="mb-1">
+              <span className="text-xs text-gray-400">
+                [{new Date(it.created_at).toLocaleTimeString()}]
+              </span>{' '}
+              <span
+                className={
+                  it.status === 'failed' ? 'text-red-500' : 'text-green-600'
+                }
+              >
+                {it.status.toUpperCase()}
+              </span>{' '}
+              <span className="ml-2">{it.product_id}</span>
+              {it.error_text && (
+                <div className="text-xxs text-red-400">{it.error_text}</div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

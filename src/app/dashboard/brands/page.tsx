@@ -114,6 +114,7 @@ const BrandCard = ({
 export default function BrandsPage() {
   const supabase = createClient();
   const formRef = useRef<HTMLDivElement>(null);
+  const tempLogoUrlRef = useRef<string | null>(null);
 
   // Estados de Dados
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -217,11 +218,48 @@ export default function BrandsPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       const file = e.target.files[0];
+      const objectURL = URL.createObjectURL(file);
+      // show immediate preview
       setFormData((prev) => ({
         ...prev,
         logoFile: file,
-        logoPreview: URL.createObjectURL(file),
+        logoPreview: objectURL,
       }));
+      // keep ref to revoke later
+      tempLogoUrlRef.current = objectURL;
+
+      // start background upload and replace preview when done
+      (async () => {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const publicUrl = await uploadLogo(user.id, file);
+
+          // only replace preview if it's still the temporary object URL
+          setFormData((prev) => {
+            if (prev.logoPreview === objectURL) {
+              return { ...prev, logoPreview: publicUrl, logoFile: null };
+            }
+            return prev;
+          });
+        } catch (err: any) {
+          console.error('Erro ao enviar logo em background', err);
+          toast.error('Falha ao enviar logo. Tente novamente.');
+        } finally {
+          // revoke temp url to avoid leaks
+          try {
+            if (tempLogoUrlRef.current) {
+              URL.revokeObjectURL(tempLogoUrlRef.current);
+              tempLogoUrlRef.current = null;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      })();
     }
   };
 

@@ -385,8 +385,21 @@ export function EditProductForm({ product }: { product: Product }) {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Login necessário');
+      // 1) Create temporary previews immediately so user sees selected images
+      const tempEntries = files.map((file) => ({
+        file,
+        tempUrl: URL.createObjectURL(file),
+      }));
 
-      for (const file of files) {
+      // Append temp previews to the form so the UI shows them at once
+      updateField('images', [
+        ...(formData.images || []),
+        ...tempEntries.map((t) => t.tempUrl),
+      ]);
+
+      // 2) Upload each file and replace its temp preview with the final publicUrl
+      for (const entry of tempEntries) {
+        const file = entry.file;
         const fileExt = file.name.split('.').pop();
         const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
         const fullPath = `${user.id}/products/${baseName}`;
@@ -403,19 +416,28 @@ export function EditProductForm({ product }: { product: Product }) {
 
         if (uploadError) throw uploadError;
 
-        setUploadProgress(0);
         if (progressInterval) clearInterval(progressInterval);
 
         const { data } = supabase.storage
           .from('product-images')
           .getPublicUrl(fullPath);
-        newUrls.push(data.publicUrl);
-        await new Promise((r) => setTimeout(r, 300));
-        setUploadProgress(0);
-      }
 
-      // Append uploaded URLs to the form images
-      updateField('images', [...(formData.images || []), ...newUrls]);
+        // Replace the tempUrl in formData.images with the real publicUrl
+        setFormData((prev) => {
+          const imgs = [...(prev.images || [])];
+          const idx = imgs.indexOf(entry.tempUrl);
+          if (idx !== -1) imgs[idx] = data.publicUrl;
+          else imgs.push(data.publicUrl);
+          return { ...prev, images: imgs } as any;
+        });
+
+        // Revoke the object URL after a short delay to avoid breaking image rendering
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(entry.tempUrl);
+          } catch {}
+        }, 2000);
+      }
       setUploadingImage(false);
       setUploadProgress(null);
     } catch (error: any) {

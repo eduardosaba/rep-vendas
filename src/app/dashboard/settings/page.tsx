@@ -185,10 +185,10 @@ export default function SettingsPage() {
   >('left');
 
   const [newBannerFiles, setNewBannerFiles] = useState<
-    { file: File; preview: string; tooSmall?: boolean }[]
+    { file: File | null; preview: string; tooSmall?: boolean }[]
   >([]);
   const [newBannerFilesMobile, setNewBannerFilesMobile] = useState<
-    { file: File; preview: string; tooSmall?: boolean }[]
+    { file: File | null; preview: string; tooSmall?: boolean }[]
   >([]);
   const [logoUploading, setLogoUploading] = useState(false);
 
@@ -430,43 +430,106 @@ export default function SettingsPage() {
     const objectURL = URL.createObjectURL(file);
     setLogoFile(file);
     setLogoPreview(objectURL);
-    toast.success('Logo carregada! Preview disponível.');
+    toast.success('Logo carregada! Fazendo upload em segundo plano...');
+
+    // Upload imediato (fire-and-forget, o handleSave não re-enviará se logoFile for null)
+    (async () => {
+      try {
+        setLogoUploading(true);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error('Login necessário');
+        const fileExt = file.name.split('.').pop();
+        const fileName = `public/${user.id}/branding/logo-${Date.now()}.${fileExt}`;
+        const { error } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, file, { upsert: true });
+        if (!error) {
+          const { data } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(fileName);
+          // Substitui preview temporário pelo URL público
+          setLogoPreview(data.publicUrl);
+          // limpa o file porque já foi enviado
+          setLogoFile(null);
+          toast.success('Logo enviada com sucesso!');
+        } else {
+          throw error;
+        }
+      } catch (err: any) {
+        console.error('Logo upload failed', err);
+        toast.error('Falha ao enviar logo. Preview mantido localmente.');
+      } finally {
+        setLogoUploading(false);
+      }
+    })();
   };
 
   const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     const files = Array.from(e.target.files);
     const processed = await Promise.all(
-      files.map(
-        (file) =>
-          new Promise<{ file: File; preview: string; tooSmall?: boolean }>(
-            (resolve) => {
-              const preview = URL.createObjectURL(file);
-              const img = new Image();
-              img.src = preview;
-              img.onload = () => {
-                const w = img.naturalWidth;
-                const h = img.naturalHeight;
-                const recW = RECOMMENDED_BANNER.width;
-                const recH = RECOMMENDED_BANNER.height;
-                const recRatio = recW / recH;
-                const imgRatio = w / h;
+      files.map(async (file) => {
+        const preview = URL.createObjectURL(file);
+        // Check dimensions
+        const tooSmall = await new Promise<boolean>((resolve) => {
+          const img = new Image();
+          img.src = preview;
+          img.onload = () => {
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            const recW = RECOMMENDED_BANNER.width;
+            const recH = RECOMMENDED_BANNER.height;
+            const recRatio = recW / recH;
+            const imgRatio = w / h;
+            const widthOk = w >= recW * 0.6;
+            const ratioOk = Math.abs(imgRatio - recRatio) / recRatio <= 0.12;
+            resolve(!(widthOk && ratioOk) && (w < recW || h < recH));
+          };
+          img.onerror = () => resolve(true);
+        });
 
-                // Aceitamos imagens menores se a proporção estiver próxima
-                // e a largura for pelo menos 60% do recomendado.
-                const widthOk = w >= recW * 0.6;
-                const ratioOk =
-                  Math.abs(imgRatio - recRatio) / recRatio <= 0.12; // 12% tolerance
-                const tooSmall =
-                  !(widthOk && ratioOk) && (w < recW || h < recH);
-
-                resolve({ file, preview, tooSmall });
-              };
-              img.onerror = () => resolve({ file, preview, tooSmall: true });
+        // Start immediate upload and replace preview with publicUrl when done
+        (async () => {
+          try {
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+            if (!user) return;
+            const fileExt = file.name.split('.').pop();
+            const fileName = `public/${user.id}/banners/banner-${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+            const { error } = await supabase.storage
+              .from('product-images')
+              .upload(fileName, file, { upsert: true });
+            if (!error) {
+              const { data } = supabase.storage
+                .from('product-images')
+                .getPublicUrl(fileName);
+              // Replace preview in state when uploaded
+              setNewBannerFiles((prev) =>
+                prev.map((p) =>
+                  p.preview === preview
+                    ? { ...p, preview: data.publicUrl, file: null }
+                    : p
+                )
+              );
+              // revoke temp URL after a delay
+              setTimeout(() => {
+                try {
+                  URL.revokeObjectURL(preview);
+                } catch {}
+              }, 2000);
             }
-          )
-      )
+          } catch (err) {
+            console.error('banner upload failed', err);
+          }
+        })();
+
+        return { file, preview, tooSmall };
+      })
     );
+
     setNewBannerFiles((prev) => [...prev, ...processed]);
     toast.success(
       `${processed.length} banner(s) adicionado(s)! Confira o preview acima.`
@@ -490,33 +553,60 @@ export default function SettingsPage() {
     if (!e.target.files) return;
     const filesArray = Array.from(e.target.files);
     const processed = await Promise.all(
-      filesArray.map(
-        (file) =>
-          new Promise<{ file: File; preview: string; tooSmall?: boolean }>(
-            (resolve) => {
-              const preview = URL.createObjectURL(file);
-              const img = new window.Image();
-              img.src = preview;
-              img.onload = () => {
-                const w = img.naturalWidth;
-                const h = img.naturalHeight;
-                const recW = RECOMMENDED_BANNER_MOBILE.width;
-                const recH = RECOMMENDED_BANNER_MOBILE.height;
-                const recRatio = recW / recH;
-                const imgRatio = w / h;
+      filesArray.map(async (file) => {
+        const preview = URL.createObjectURL(file);
+        const tooSmall = await new Promise<boolean>((resolve) => {
+          const img = new window.Image();
+          img.src = preview;
+          img.onload = () => {
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            const recW = RECOMMENDED_BANNER_MOBILE.width;
+            const recH = RECOMMENDED_BANNER_MOBILE.height;
+            const recRatio = recW / recH;
+            const imgRatio = w / h;
+            const widthOk = w >= recW * 0.6;
+            const ratioOk = Math.abs(imgRatio - recRatio) / recRatio <= 0.12;
+            resolve(!(widthOk && ratioOk) && (w < recW || h < recH));
+          };
+          img.onerror = () => resolve(true);
+        });
 
-                const widthOk = w >= recW * 0.6;
-                const ratioOk =
-                  Math.abs(imgRatio - recRatio) / recRatio <= 0.12;
-                const tooSmall =
-                  !(widthOk && ratioOk) && (w < recW || h < recH);
-
-                resolve({ file, preview, tooSmall });
-              };
-              img.onerror = () => resolve({ file, preview, tooSmall: true });
+        (async () => {
+          try {
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+            if (!user) return;
+            const fileExt = file.name.split('.').pop();
+            const fileName = `public/${user.id}/banners/mobile-${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+            const { error } = await supabase.storage
+              .from('product-images')
+              .upload(fileName, file, { upsert: true });
+            if (!error) {
+              const { data } = supabase.storage
+                .from('product-images')
+                .getPublicUrl(fileName);
+              setNewBannerFilesMobile((prev) =>
+                prev.map((p) =>
+                  p.preview === preview
+                    ? { ...p, preview: data.publicUrl, file: null }
+                    : p
+                )
+              );
+              setTimeout(() => {
+                try {
+                  URL.revokeObjectURL(preview);
+                } catch {}
+              }, 2000);
             }
-          )
-      )
+          } catch (err) {
+            console.error('mobile banner upload failed', err);
+          }
+        })();
+
+        return { file, preview, tooSmall };
+      })
     );
     setNewBannerFilesMobile((prev) => [...prev, ...processed]);
     toast.success(
@@ -604,9 +694,31 @@ export default function SettingsPage() {
     const objectURL = URL.createObjectURL(file);
     setTopBenefitImageFile(file);
     setTopBenefitImagePreview(objectURL);
-    toast.success(
-      'Imagem da barra de benefícios carregada! Preview disponível.'
-    );
+    toast.success('Imagem da barra de benefícios carregada! Fazendo upload...');
+
+    (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `public/${user.id}/topbar/top-benefit-${Date.now()}.${fileExt}`;
+        const { error } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, file, { upsert: true });
+        if (!error) {
+          const { data } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(fileName);
+          setTopBenefitImagePreview(data.publicUrl);
+          setTopBenefitImageFile(null);
+          toast.success('Imagem da barra carregada com sucesso!');
+        }
+      } catch (err) {
+        console.error('top benefit upload failed', err);
+      }
+    })();
   };
 
   const removeTopBenefitImage = () => {
@@ -673,11 +785,17 @@ export default function SettingsPage() {
       };
 
       const uploadBanners = async (
-        files: { file: File; preview: string }[],
+        files: { file: File | null; preview: string }[],
         folder: string
       ) => {
         if (!files || files.length === 0) return [];
-        const promises = files.map((item, idx) =>
+        // filter out items where file was already uploaded/replaced (file === null)
+        const itemsToUpload = files.filter((f) => f.file) as {
+          file: File;
+          preview: string;
+        }[];
+        if (itemsToUpload.length === 0) return [];
+        const promises = itemsToUpload.map((item, idx) =>
           uploadSingleBanner(item, folder, idx)
         );
         const results = await Promise.all(promises);

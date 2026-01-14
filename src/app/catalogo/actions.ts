@@ -8,7 +8,8 @@ import { mapToDbStatus } from '@/lib/orderStatus';
 export async function createOrder(
   ownerId: string,
   customer: { name: string; phone: string; email?: string; cnpj?: string },
-  cartItems: any[]
+  cartItems: any[],
+  adminSupabaseOverride: ReturnType<typeof createSupabaseClient> | null = null
 ) {
   const ensureSupabaseEnv = () => {
     if (
@@ -32,12 +33,13 @@ export async function createOrder(
   const adminKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
   const adminSupabase =
-    adminKey && process.env.NEXT_PUBLIC_SUPABASE_URL
+    adminSupabaseOverride ||
+    (adminKey && process.env.NEXT_PUBLIC_SUPABASE_URL
       ? createSupabaseClient(
           String(process.env.NEXT_PUBLIC_SUPABASE_URL),
           String(adminKey)
         )
-      : null;
+      : null);
 
   let currentStage = 'start';
 

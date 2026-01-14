@@ -1,49 +1,123 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Cloud, Image as ImageIcon } from 'lucide-react';
+import { Cloud, ImageIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-export default function SyncStatusCard({ syncData }: { syncData: any }) {
-  const isRunning = syncData?.status === 'processing';
-  let percent = 100;
-  if (isRunning) {
-    const total = Number(syncData?.total_count || 0);
-    const completed = Number(syncData?.completed_count || 0);
-    percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-    if (!isFinite(percent) || Number.isNaN(percent)) percent = 0;
-    percent = Math.max(0, Math.min(100, percent));
-  }
+interface SyncJob {
+  id: string;
+  user_id?: string;
+  status?: string;
+  total_count?: number;
+  completed_count?: number;
+  updated_at?: string;
+}
 
+export default function SyncStatusCard({
+  syncData,
+}: {
+  syncData?: SyncJob | null;
+}) {
+  const [job, setJob] = useState<SyncJob | null>(syncData || null);
   const [errors, setErrors] = useState<any[]>([]);
   const [showRaw, setShowRaw] = useState(false);
 
   useEffect(() => {
-    console.debug('SyncStatusCard mounted', { syncData, isRunning, percent });
     let mounted = true;
     const supabase = createClient();
 
-    async function load() {
-      if (!syncData?.id || syncData?.status !== 'processing') return;
+    async function fetchLatestJobForUser() {
       try {
-        const { data } = await supabase
-          .from('sync_job_items')
-          .select('product_id,status,error_text,created_at')
-          .eq('job_id', syncData.id)
-          .eq('status', 'failed')
-          .order('created_at', { ascending: false })
-          .limit(5);
-        if (mounted) setErrors(data || []);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!mounted || !user) return;
+
+        const { data: lastJob } = await supabase
+          .from('sync_jobs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (mounted && lastJob) setJob(lastJob as SyncJob);
       } catch (e) {
-        console.error('Failed to load sync errors', e);
+        // ignore
       }
     }
 
-    load();
+    async function fetchStatus() {
+      try {
+        if (!job?.id) return;
+
+        const { data: freshJob } = await supabase
+          .from('sync_jobs')
+          .select('*')
+          .eq('id', job.id)
+          .maybeSingle();
+
+        if (mounted && freshJob) setJob(freshJob as SyncJob);
+
+        const { data: failed } = await supabase
+          .from('sync_job_items')
+          .select('product_id,status,error_text,created_at')
+          .eq('job_id', job.id)
+          .eq('status', 'failed')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (mounted) setErrors(failed || []);
+      } catch (e) {
+        console.error('Failed to load sync status', e);
+      }
+    }
+
+    // If no job provided, try to load the latest one for this user and
+    // poll periodically until a job appears (so UI sees newly created jobs).
+    if (!job?.id) {
+      fetchLatestJobForUser();
+      let pollInterval = setInterval(() => {
+        fetchLatestJobForUser();
+      }, 3000);
+
+      return () => {
+        mounted = false;
+        clearInterval(pollInterval);
+      };
+    }
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+    // start polling while processing
+    if (job?.status === 'processing') {
+      fetchStatus();
+      interval = setInterval(fetchStatus, 3000);
+    } else if (job?.id) {
+      // fetch once to ensure we have latest
+      fetchStatus();
+    }
+
     return () => {
       mounted = false;
+      if (interval) clearInterval(interval);
     };
-  }, [syncData?.id]);
+    // we intentionally include only job.id and job.status to control polling
+  }, [job?.id, job?.status]);
+
+  // keep job state in sync when prop changes
+  useEffect(() => {
+    if (syncData) setJob(syncData as SyncJob);
+  }, [syncData]);
+
+  const isRunning = job?.status === 'processing';
+  let percent = 100;
+  if (isRunning) {
+    const total = Number(job?.total_count || 0);
+    const completed = Number(job?.completed_count || 0);
+    percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    if (!isFinite(percent) || Number.isNaN(percent)) percent = 0;
+    percent = Math.max(0, Math.min(100, percent));
+  }
 
   return (
     <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
@@ -65,9 +139,7 @@ export default function SyncStatusCard({ syncData }: { syncData: any }) {
         Status da internalização via URL
       </p>
 
-      {/** Fallback: quando não há dados de job, mostramos uma mensagem útil
-           e um toggle para inspecionar o objeto `syncData` recebido. */}
-      {!syncData ? (
+      {!job ? (
         <div className="text-sm text-gray-500">
           Nenhum trabalho em andamento.
           <div className="mt-3">
@@ -79,7 +151,7 @@ export default function SyncStatusCard({ syncData }: { syncData: any }) {
             </button>
             {showRaw && (
               <pre className="mt-2 max-h-40 overflow-auto text-[11px] bg-gray-50 p-2 rounded">
-                {JSON.stringify(syncData, null, 2)}
+                {JSON.stringify(job, null, 2)}
               </pre>
             )}
           </div>
@@ -89,7 +161,7 @@ export default function SyncStatusCard({ syncData }: { syncData: any }) {
           <div className="flex justify-between text-xs font-bold">
             <span>{percent}% concluído</span>
             <span>
-              {syncData.completed_count}/{syncData.total_count}
+              {job.completed_count}/{job.total_count}
             </span>
           </div>
           <div className="w-full bg-gray-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">

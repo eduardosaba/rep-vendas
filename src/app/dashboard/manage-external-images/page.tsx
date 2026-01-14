@@ -96,39 +96,42 @@ export default async function ManageExternalImagesPage() {
         </Link>
       </div>
 
-      {/* ÁREA PRINCIPAL */}
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative">
-        {productsWithExternalUrls.length > 0 ? (
-          <ManageExternalImagesClient
-            initialProducts={productsWithExternalUrls}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle2
-                className="text-green-600 dark:text-green-400"
-                size={32}
-              />
+      {/* ÁREA PRINCIPAL (agora rolável; o card de status fica dentro dela para
+              não reduzir o espaço reservado ao conteúdo principal) */}
+      <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-auto flex flex-col relative">
+        <div className="p-4 flex-1 min-h-0">
+          {productsWithExternalUrls.length > 0 ? (
+            <ManageExternalImagesClient
+              initialProducts={productsWithExternalUrls}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle2
+                  className="text-green-600 dark:text-green-400"
+                  size={32}
+                />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                Tudo Atualizado!
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 max-w-md">
+                Não há produtos com links externos pendentes de download.
+              </p>
+              <Link
+                href="/dashboard/products"
+                className="mt-6 px-6 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 transition-all font-medium"
+              >
+                Voltar ao Catálogo
+              </Link>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              Tudo Atualizado!
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 max-w-md">
-              Não há produtos com links externos pendentes de download.
-            </p>
-            <Link
-              href="/dashboard/products"
-              className="mt-6 px-6 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 transition-all font-medium"
-            >
-              Voltar ao Catálogo
-            </Link>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Card de status de sincronização */}
-      <div className="mt-6 p-4">
-        <SyncStatusCard syncData={syncJob} />
+        {/* Card de status de sincronização (fixo ao final da área principal) */}
+        <div className="border-t border-gray-100 dark:border-slate-800 p-4">
+          <SyncStatusCard syncData={syncJob} />
+        </div>
       </div>
     </div>
   );

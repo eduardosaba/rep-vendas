@@ -382,11 +382,30 @@ export function StoreProvider({
   /**
    * WHATSAPP COM RESUMO EXECUTIVO E LINK DO PDF
    */
-  const handleSendWhatsApp = () => {
+  const handleSendWhatsApp = async () => {
     if (!orderSuccessData) return;
     const { customer, items, total, display_id, id, pdf_url } =
       orderSuccessData;
-    const phone = (store.phone || '').replace(/\D/g, '');
+
+    // Attempt to resolve representative phone server-side (settings -> public_catalogs)
+    let destPhone: string | null = null;
+    try {
+      const res = await fetch('/api/catalog/representative-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: (store as any).user_id }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        if (j.ok && j.phone) destPhone = String(j.phone);
+      }
+    } catch (e) {
+      console.error('Failed to fetch representative contact', e);
+    }
+
+    // Fallback to store.phone if route didn't return a phone
+    if (!destPhone) destPhone = (store.phone || null) as string | null;
+    const phone = (destPhone || '').replace(/\D/g, '');
 
     let msg = `*📦 NOVO PEDIDO: #${display_id || id}*\n`;
     msg += `--------------------------------\n\n`;
@@ -585,6 +604,30 @@ export function StoreProvider({
             setShowPrices(true);
             return true;
           }
+          // Fallback server-side: se o cliente não tem o hash/plano disponível
+          // (caso de catálogos novos/testes), chamamos uma rota segura que usa
+          // a Service Role para validar a senha contra `settings` ou
+          // `public_catalogs` no servidor.
+          try {
+            const res = await fetch('/api/catalog/verify-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: (store as any).user_id,
+                password: plain,
+              }),
+            });
+            if (res.ok) {
+              const j = await res.json();
+              if (j.ok) {
+                setShowPrices(true);
+                return true;
+              }
+            }
+          } catch (e) {
+            console.error('verify-password request failed', e);
+          }
+
           return false;
         },
         handleFinalizeOrder,
