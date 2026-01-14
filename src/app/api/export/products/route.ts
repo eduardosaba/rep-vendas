@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-function escapeCsv(val: any) {
+function escapeCsv(val: any, sep = ',') {
   if (val === null || val === undefined) return '';
   const s = String(val);
-  if (s.includes('"') || s.includes(',') || s.includes('\n'))
-    return `"${s.replace(/"/g, '""')}"`;
+  if (s.includes('"') || s.includes(sep) || s.includes('\n'))
+    return `"${s.replace(/"/g, '""')}`;
   return s;
 }
 
@@ -44,13 +44,15 @@ export async function GET(req: Request) {
       'stock_quantity',
       'updated_at',
     ];
-    const csv = [headers.join(',')]
-      .concat(
-        rows.map((r: any) =>
-          headers.map((h) => escapeCsv((r as any)[h])).join(',')
-        )
-      )
-      .join('\n');
+    const sep = ';';
+    const bom = '\uFEFF';
+    const lines: string[] = [];
+    lines.push('sep=' + sep);
+    lines.push(headers.join(sep));
+    rows.forEach((r: any) => {
+      lines.push(headers.map((h) => escapeCsv((r as any)[h], sep)).join(sep));
+    });
+    const csv = bom + lines.join('\r\n');
 
     const filename = `products-${userId}.csv`;
     return new NextResponse(csv, {
