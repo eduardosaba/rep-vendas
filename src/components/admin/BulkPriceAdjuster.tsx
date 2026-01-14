@@ -127,17 +127,26 @@ export default function BulkPriceAdjuster({ brands }: { brands: string[] }) {
           </span>
         </label>
 
-        <button
-          onClick={handleApply}
-          disabled={loading}
-          className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 dark:shadow-none"
-        >
-          {loading ? (
-            <Loader2 className="animate-spin mx-auto" />
-          ) : (
-            'Aplicar Reajuste Global'
-          )}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleApply}
+            disabled={loading}
+            className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 dark:shadow-none"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin mx-auto" />
+            ) : (
+              'Aplicar Reajuste Global'
+            )}
+          </button>
+
+          <a
+            href={selectedBrand ? `/dashboard/products?brand=${encodeURIComponent(selectedBrand)}` : '/dashboard/products'}
+            className="flex-1 py-4 bg-white border border-gray-200 text-gray-700 rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-50 text-center"
+          >
+            Editar manualmente
+          </a>
+        </div>
       </div>
     </div>
   );

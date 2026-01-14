@@ -38,7 +38,7 @@ BEGIN
       updated_at = now()
     FROM public.products m
     JOIN public.catalog_clones c ON c.source_product_id = m.id
-    WHERE p.id = c.target_product_id
+    WHERE p.id = c.cloned_product_id
       AND m.user_id = p_user_id
       AND m.brand = p_brand;
   END IF;
