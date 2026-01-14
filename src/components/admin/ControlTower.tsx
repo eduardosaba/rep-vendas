@@ -24,6 +24,13 @@ export default function ControlTower() {
   } | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [globalConfig, setGlobalConfig] = useState<any | null>(null);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [planFeatures, setPlanFeatures] = useState<Record<
+    string,
+    Record<string, boolean>
+  > | null>(null);
+  const [notAuthorized, setNotAuthorized] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll do console
@@ -32,6 +39,36 @@ export default function ControlTower() {
       consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
     }
   }, [logs]);
+
+  useEffect(() => {
+    // load global config (control flags)
+    let mounted = true;
+    fetch('/api/global_config')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!mounted) return;
+        setGlobalConfig(j || null);
+        setPlanFeatures(j?.plan_feature_matrix || null);
+      })
+      .catch(() => {});
+    // load plans for matrix via Supabase client
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: plansData } = await supabase
+          .from('plans')
+          .select('*')
+          .order('price', { ascending: true });
+        if (!mounted) return;
+        if (Array.isArray(plansData)) setPlans(plansData);
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('pt-BR');
@@ -98,6 +135,34 @@ export default function ControlTower() {
     }
   };
 
+  const handleSaveGlobalConfig = async (patch: any) => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/global_config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const j = await res.json();
+      if (res.status === 401 || res.status === 403) {
+        setNotAuthorized(true);
+        toast.error('Acesso negado: você não tem permissão para editar.');
+        return;
+      }
+      if (res.ok && j.ok) {
+        setGlobalConfig((prev: any) => ({ ...(prev || {}), ...patch }));
+        toast.success('Configurações salvas');
+      } else {
+        toast.error('Falha ao salvar configurações');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao salvar configurações');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header da Torre */}
@@ -114,6 +179,145 @@ export default function ControlTower() {
               Painel Master de Manutenção do RepVendas
             </p>
           </div>
+        </div>
+      </div>
+      {/* Control Tower: Global Flags */}
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-slate-800">
+        <div className="flex items-center gap-3 text-secondary dark:text-white mb-4">
+          <Terminal size={24} />
+          <h3 className="font-black text-xl">Permissões Globais (Torre)</h3>
+        </div>
+
+        <p className="text-sm text-gray-500 mb-6">
+          Configure comportamentos globais que afetam contas em trial/teste.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg border">
+            <p className="text-sm font-bold">Permitir desbloqueio (trial)</p>
+            <p className="text-xs text-gray-400 mb-3">
+              Se ativo, contas em trial podem liberar a visualização dos preços
+              sem senha.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant={
+                  globalConfig?.allow_trial_unlock ? 'primary' : 'outline'
+                }
+                onClick={() =>
+                  handleSaveGlobalConfig({
+                    allow_trial_unlock: !globalConfig?.allow_trial_unlock,
+                  })
+                }
+                disabled={loading || notAuthorized}
+              >
+                {globalConfig?.allow_trial_unlock ? 'Ativado' : 'Desativado'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg border">
+            <p className="text-sm font-bold">Permitir finalização (trial)</p>
+            <p className="text-xs text-gray-400 mb-3">
+              Se ativo, contas em trial podem finalizar pedidos normalmente.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant={
+                  globalConfig?.allow_trial_checkout ? 'primary' : 'outline'
+                }
+                onClick={() =>
+                  handleSaveGlobalConfig({
+                    allow_trial_checkout: !globalConfig?.allow_trial_checkout,
+                  })
+                }
+                disabled={loading || notAuthorized}
+              >
+                {globalConfig?.allow_trial_checkout ? 'Ativado' : 'Desativado'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg border">
+            <p className="text-sm font-bold">Bypass para usuários de teste</p>
+            <p className="text-xs text-gray-400 mb-3">
+              Ativa um modo de bypass global para facilitar testes QA.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant={
+                  globalConfig?.allow_test_bypass ? 'primary' : 'outline'
+                }
+                onClick={() =>
+                  handleSaveGlobalConfig({
+                    allow_test_bypass: !globalConfig?.allow_test_bypass,
+                  })
+                }
+                disabled={loading || notAuthorized}
+              >
+                {globalConfig?.allow_test_bypass ? 'Ativado' : 'Desativado'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Plan feature matrix */}
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-slate-800 mt-6">
+        <div className="flex items-center gap-3 text-secondary dark:text-white mb-4">
+          <Terminal size={24} />
+          <h3 className="font-black text-xl">Matriz de Recursos (Planos)</h3>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          Controle quais recursos cada plano pode usar. As mudanças afetarão o
+          comportamento de contas em trial conforme a matriz.
+        </p>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left text-xs text-gray-500">
+                <th className="py-2">Plano</th>
+                <th className="py-2">Ver Preços</th>
+                <th className="py-2">Finalizar Pedido</th>
+                <th className="py-2">Salvar Pedido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(plans || []).map((p) => (
+                <tr key={p.id} className="border-t border-gray-100">
+                  <td className="py-2 font-medium">{p.name}</td>
+                  {['view_prices', 'finalize_order', 'save_cart'].map((f) => (
+                    <td key={f} className="py-2">
+                      <input
+                        type="checkbox"
+                        checked={!!planFeatures?.[p.name]?.[f]}
+                        onChange={() => {
+                          setPlanFeatures((prev) => {
+                            const copy = { ...(prev || {}) };
+                            if (!copy[p.name]) copy[p.name] = {};
+                            copy[p.name][f] = !copy[p.name][f];
+                            return copy;
+                          });
+                        }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Button
+            onClick={() =>
+              handleSaveGlobalConfig({ plan_feature_matrix: planFeatures })
+            }
+            disabled={loading}
+          >
+            Salvar Matriz de Recursos
+          </Button>
         </div>
       </div>
 

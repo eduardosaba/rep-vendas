@@ -156,6 +156,20 @@ export function StoreProvider({
       : null,
   });
 
+  const [globalControls, setGlobalControls] = useState<{
+    allow_trial_unlock?: boolean;
+    allow_trial_checkout?: boolean;
+    allow_test_bypass?: boolean;
+  } | null>(null);
+  const [planFeatureMatrix, setPlanFeatureMatrix] = useState<Record<
+    string,
+    Record<string, boolean>
+  > | null>(null);
+  const [storePlanName, setStorePlanName] = useState<string | null>(null);
+  const [storeSubscriptionStatus, setStoreSubscriptionStatus] = useState<
+    string | null
+  >(null);
+
   // LOGIN INVISÍVEL: estado para armazenar dados do cliente reconhecido
   const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(
     null
@@ -220,6 +234,76 @@ export function StoreProvider({
       }
     } catch {}
   }, [store.name, store.user_id]);
+
+  // Load global control flags (from global_config)
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/global_config')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!mounted) return;
+        setGlobalControls({
+          allow_trial_unlock: !!j?.allow_trial_unlock,
+          allow_trial_checkout: !!j?.allow_trial_checkout,
+          allow_test_bypass: !!j?.allow_test_bypass,
+        });
+        if (j?.plan_feature_matrix) setPlanFeatureMatrix(j.plan_feature_matrix);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Load store's subscription/plan info to evaluate matrix rules
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data: sub } = await supabase
+          .from('subscriptions')
+          .select('status, plan_name')
+          .eq('user_id', store.user_id)
+          .maybeSingle();
+        if (!mounted) return;
+        setStorePlanName(sub?.plan_name || null);
+        setStoreSubscriptionStatus(sub?.status || null);
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [store.user_id]);
+
+  const isFeatureAllowed = (
+    featureKey: 'view_prices' | 'finalize_order' | 'save_cart'
+  ) => {
+    // 1) plan matrix override: if present, honor explicit true/false
+    const plan = storePlanName || (store as any).plan_type || null;
+    if (plan && planFeatureMatrix && planFeatureMatrix[plan]) {
+      const val = planFeatureMatrix[plan][featureKey];
+      if (typeof val === 'boolean') return val;
+    }
+
+    // 2) trial-specific global controls: allow if trial and global flags permit
+    if (storeSubscriptionStatus === 'trial') {
+      if (featureKey === 'view_prices' && globalControls?.allow_trial_unlock)
+        return true;
+      if (
+        (featureKey === 'finalize_order' || featureKey === 'save_cart') &&
+        globalControls?.allow_trial_checkout
+      )
+        return true;
+    }
+
+    // 3) default behavior: non-trial users keep existing permissions (allow)
+    if (storeSubscriptionStatus !== 'trial') return true;
+
+    // 4) fallback: block
+    return false;
+  };
 
   useEffect(() => {
     localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
@@ -287,6 +371,12 @@ export function StoreProvider({
   const handleFinalizeOrder = async (customer: CustomerInfo) => {
     setLoadingStates((s) => ({ ...s, submitting: true }));
     try {
+      // Check plan matrix / global controls to allow finalize for trial accounts
+      if (!isFeatureAllowed('finalize_order')) {
+        // If not explicitly allowed by matrix or global flags, block
+        toast.error('Finalização de pedidos não permitida para esta conta.');
+        return false;
+      }
       const totalValue = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
 
       // Use server-side API to create orders (avoids RLS 403 for public catalogs)
@@ -433,6 +523,11 @@ export function StoreProvider({
   const handleSaveCart = async () => {
     setLoadingStates((s) => ({ ...s, saving: true }));
     try {
+      if (!isFeatureAllowed('save_cart')) {
+        toast.error('Salvar carrinho não permitido para esta conta.');
+        setLoadingStates((s) => ({ ...s, saving: false }));
+        return null;
+      }
       const itemsPayload = cart.map((it) => ({
         product_id: it.id,
         name: it.name,
@@ -626,6 +721,18 @@ export function StoreProvider({
             }
           } catch (e) {
             console.error('verify-password request failed', e);
+          }
+
+          // If global control allows trial unlock bypass, allow it
+          if (globalControls?.allow_trial_unlock) {
+            setShowPrices(true);
+            return true;
+          }
+
+          // Plan matrix override
+          if (isFeatureAllowed('view_prices')) {
+            setShowPrices(true);
+            return true;
           }
 
           return false;

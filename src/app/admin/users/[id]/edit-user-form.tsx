@@ -239,7 +239,21 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
             </div>
           </div>
           <div className="flex justify-end pt-2">
-            <SubmitButton label="Salvar Assinatura" />
+            <div className="flex items-center gap-2">
+              <SubmitButton label="Salvar Assinatura" />
+              <form action={licenseAction} className="inline">
+                <input type="hidden" name="plan" value={initialData.plan} />
+                <input type="hidden" name="status" value="active" />
+                <input type="hidden" name="ends_at" value="" />
+                <button
+                  type="submit"
+                  disabled={initialData.status === 'active'}
+                  className="px-4 py-2.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Ativar Conta
+                </button>
+              </form>
+            </div>
           </div>
         </form>
       </div>

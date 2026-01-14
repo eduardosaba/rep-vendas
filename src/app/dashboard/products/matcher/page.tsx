@@ -47,6 +47,9 @@ export default function MatcherPage() {
   // Filtros e UI
   const [showImportedOnly, setShowImportedOnly] = useState(false);
   const [searchProduct, setSearchProduct] = useState('');
+  const [sortOption, setSortOption] = useState<
+    'no_image_first' | 'has_image_first' | 'name_asc' | 'name_desc' | 'ref_asc'
+  >('no_image_first');
   const [linking, setLinking] = useState(false);
 
   // Seleção e Drag & Drop
@@ -256,12 +259,40 @@ export default function MatcherPage() {
   // Filtro Otimizado
   const filteredProducts = useMemo(() => {
     const term = searchProduct.toLowerCase();
-    return products.filter(
+    const base = products.filter(
       (p) =>
         p.name.toLowerCase().includes(term) ||
         p.reference_code.toLowerCase().includes(term)
     );
-  }, [products, searchProduct]);
+
+    const sorted = [...base];
+    sorted.sort((a, b) => {
+      switch (sortOption) {
+        case 'no_image_first': {
+          const aNo = !a.image_url ? -1 : 1;
+          const bNo = !b.image_url ? -1 : 1;
+          if (aNo !== bNo) return aNo - bNo;
+          return a.name.localeCompare(b.name);
+        }
+        case 'has_image_first': {
+          const aHas = a.image_url ? -1 : 1;
+          const bHas = b.image_url ? -1 : 1;
+          if (aHas !== bHas) return aHas - bHas;
+          return a.name.localeCompare(b.name);
+        }
+        case 'name_asc':
+          return a.name.localeCompare(b.name);
+        case 'name_desc':
+          return b.name.localeCompare(a.name);
+        case 'ref_asc':
+          return (a.reference_code || '').localeCompare(b.reference_code || '');
+        default:
+          return a.name.localeCompare(b.name);
+      }
+    });
+
+    return sorted;
+  }, [products, searchProduct, sortOption]);
 
   const filteredImages = useMemo(() => {
     return images.filter((img) => !showImportedOnly || img.imported_from_csv);
@@ -359,18 +390,33 @@ export default function MatcherPage() {
             <h3 className="font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2 text-sm uppercase tracking-wider">
               <Layers size={16} /> Produtos ({filteredProducts.length})
             </h3>
-            <div className="relative w-full sm:w-64">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={16}
-              />
-              <input
-                type="text"
-                placeholder="Buscar por nome ou ref..."
-                value={searchProduct}
-                onChange={(e) => setSearchProduct(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              />
+            <div className="relative w-full sm:w-96">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={16}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nome ou ref..."
+                    value={searchProduct}
+                    onChange={(e) => setSearchProduct(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as any)}
+                  className="w-44 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="no_image_first">Sem imagem primeiro</option>
+                  <option value="has_image_first">Com imagem primeiro</option>
+                  <option value="name_asc">Nome A → Z</option>
+                  <option value="name_desc">Nome Z → A</option>
+                  <option value="ref_asc">Ref. A → Z</option>
+                </select>
+              </div>
             </div>
           </div>
 

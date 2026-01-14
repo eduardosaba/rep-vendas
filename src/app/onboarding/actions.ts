@@ -61,6 +61,8 @@ export async function finishOnboarding(data: OnboardingData) {
       store_name: data.name,
       logo_url: data.logo_url || undefined,
       primary_color: data.primary_color,
+      phone: finalPhone,
+      email: data.email,
     });
 
     // 5. Finalizar processo no perfil
