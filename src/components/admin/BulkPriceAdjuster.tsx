@@ -143,16 +143,6 @@ export default function BulkPriceAdjuster({ brands }: { brands: string[] }) {
           <a
             href={
               selectedBrand
-                ? `/dashboard/products?brand=${encodeURIComponent(selectedBrand)}`
-                : '/dashboard/products'
-            }
-            className="flex-1 py-4 bg-white border border-gray-200 text-gray-700 rounded-2xl font-bold uppercase tracking-widest hover:bg-gray-50 text-center"
-          >
-            Editar manualmente
-          </a>
-          <a
-            href={
-              selectedBrand
                 ? `/admin/products/bulk-edit?brand=${encodeURIComponent(selectedBrand)}`
                 : '/admin/products/bulk-edit'
             }

@@ -288,6 +288,17 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     imageOptimization: 'all',
   });
 
+  // Server-side filtering mode
+  const [serverMode, setServerMode] = useState(true);
+  const [serverProducts, setServerProducts] = useState<Product[]>([]);
+  const [serverMeta, setServerMeta] = useState<{
+    totalCount?: number;
+    totalPages?: number;
+    page?: number;
+  }>({});
+  const [serverLoading, setServerLoading] = useState(false);
+  const fetchTimerRef = useRef<number | null>(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
   const [sortConfig, setSortConfig] = useState<{
@@ -447,6 +458,55 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     fetchOptions();
   }, [supabase]);
 
+  // --- SERVER-SIDE FETCH (quando serverMode=true) ---
+  useEffect(() => {
+    if (!serverMode) return;
+    if (!userId || userId === 'guest') return;
+
+    const doFetch = async (page = currentPage) => {
+      setServerLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set('userId', userId);
+        params.set('page', String(page));
+        params.set('limit', String(itemsPerPage));
+        if (searchTerm) params.set('search', searchTerm);
+        if (filters.minPrice) params.set('minPrice', String(filters.minPrice));
+        if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
+        if (filters.brand && filters.brand.length > 0)
+          params.set('brand', String(filters.brand[0]));
+
+        const res = await fetch(`/api/products?${params.toString()}`);
+        if (!res.ok) throw new Error('Erro ao buscar produtos');
+        const json = await res.json();
+        setServerProducts(json.data || []);
+        setServerMeta(json.meta || {});
+      } catch (e) {
+        console.error('server fetch error', e);
+      } finally {
+        setServerLoading(false);
+      }
+    };
+
+    // debounce
+    if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
+    // @ts-ignore
+    fetchTimerRef.current = window.setTimeout(() => doFetch(currentPage), 350);
+
+    return () => {
+      if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    serverMode,
+    userId,
+    currentPage,
+    searchTerm,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.brand,
+  ]);
+
   // --- MANIPULAÇÃO DE COLUNAS ---
   const toggleColumn = (key: DataKey) => {
     const newVisible = new Set(visibleColumnKeys);
@@ -594,6 +654,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   );
 
   const processedProducts = useMemo(() => {
+    if (serverMode) return serverProducts;
     const data = products.filter((p) => {
       const search = searchTerm.toLowerCase();
       const matchesSearch =
@@ -655,16 +716,18 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       });
     }
     return data;
-  }, [products, searchTerm, filters, sortConfig]);
+  }, [products, searchTerm, filters, sortConfig, serverMode, serverProducts]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(processedProducts.length / itemsPerPage)
-  );
-  const paginatedProducts = processedProducts.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = serverMode
+    ? Math.max(1, serverMeta.totalPages || 1)
+    : Math.max(1, Math.ceil(processedProducts.length / itemsPerPage));
+
+  const paginatedProducts = serverMode
+    ? serverProducts
+    : processedProducts.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      );
 
   const kpis = useMemo(() => {
     const active = products.filter((p) => p.is_active !== false);
@@ -1099,6 +1162,16 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         {/* Painel de Filtros Expandido */}
         {showFilters && (
           <div className="pt-4 border-t border-gray-100 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
+            <div className="col-span-2 md:col-span-4 flex items-center justify-end gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={serverMode}
+                  onChange={(e) => setServerMode(e.target.checked)}
+                />
+                Buscar no servidor
+              </label>
+            </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
                 Marca
@@ -1119,6 +1192,34 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   <option key={b.name} value={b.name} />
                 ))}
               </datalist>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                Faixa de Preço
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Mín"
+                  value={filters.minPrice}
+                  onChange={(e) =>
+                    setFilters({ ...filters, minPrice: e.target.value })
+                  }
+                  className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Máx"
+                  value={filters.maxPrice}
+                  onChange={(e) =>
+                    setFilters({ ...filters, maxPrice: e.target.value })
+                  }
+                  className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                />
+              </div>
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">

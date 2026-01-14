@@ -9,6 +9,17 @@ export default function CloneUserPage() {
   const supabase = createClient();
   const [users, setUsers] = useState<any[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
+  const [brandsData, setBrandsData] = useState<
+    Record<
+      string,
+      {
+        count: number;
+        latestUpdatedAt: string | null;
+        clonedCount?: number;
+        latestCloneAt?: string | null;
+      }
+    >
+  >({});
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,14 +34,32 @@ export default function CloneUserPage() {
         .select('id, full_name, email');
       setUsers(usersData || []);
 
-      const { data: brandsData } = await supabase
+      const { data: productsData } = await supabase
         .from('products')
-        .select('brand')
+        .select('brand, updated_at')
         .neq('brand', null);
-      const brandsList = (brandsData || [])
-        .map((b: any) => b.brand)
-        .filter(Boolean);
-      setBrands(Array.from(new Set(brandsList)));
+
+      const map: Record<
+        string,
+        { count: number; latestUpdatedAt: string | null }
+      > = {};
+      (productsData || []).forEach((p: any) => {
+        const b = p.brand;
+        if (!b) return;
+        if (!map[b]) map[b] = { count: 0, latestUpdatedAt: null };
+        map[b].count += 1;
+        const u = p.updated_at;
+        if (
+          u &&
+          (!map[b].latestUpdatedAt ||
+            new Date(u) > new Date(map[b].latestUpdatedAt))
+        ) {
+          map[b].latestUpdatedAt = u;
+        }
+      });
+
+      setBrands(Object.keys(map).sort());
+      setBrandsData(map);
     }
     load();
   }, []);
@@ -104,6 +133,53 @@ export default function CloneUserPage() {
         } catch (e) {
           // ignore
         }
+        // compute per-brand clone stats by fetching source products referenced in clones
+        try {
+          const sourceIds = (data || [])
+            .map((c: any) => c.source_product_id)
+            .filter(Boolean);
+          if (sourceIds.length > 0) {
+            const { data: srcProducts } = await supabase
+              .from('products')
+              .select('id,brand,updated_at')
+              .in('id', sourceIds as any[]);
+
+            const perBrand: Record<
+              string,
+              { clonedCount: number; latestCloneAt: string | null }
+            > = {};
+            (data || []).forEach((c: any) => {
+              const src = (srcProducts || []).find(
+                (p: any) => p.id === c.source_product_id
+              );
+              const brand = src?.brand || 'Sem marca';
+              if (!perBrand[brand])
+                perBrand[brand] = { clonedCount: 0, latestCloneAt: null };
+              perBrand[brand].clonedCount += 1;
+              const created = c.created_at;
+              if (
+                created &&
+                (!perBrand[brand].latestCloneAt ||
+                  new Date(created) > new Date(perBrand[brand].latestCloneAt))
+              ) {
+                perBrand[brand].latestCloneAt = created;
+              }
+            });
+
+            // merge into brandsData
+            setBrandsData((prev) => {
+              const next = { ...prev };
+              Object.entries(perBrand).forEach(([b, stats]) => {
+                if (!next[b]) next[b] = { count: 0, latestUpdatedAt: null };
+                next[b].clonedCount = stats.clonedCount;
+                next[b].latestCloneAt = stats.latestCloneAt;
+              });
+              return next;
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
       } catch (err) {
         // ignore
       }
@@ -148,16 +224,45 @@ export default function CloneUserPage() {
         <div>
           <label className="block text-sm font-medium mb-2">Marcas</label>
           <div className="grid grid-cols-2 gap-2 max-h-48 overflow-auto border rounded p-2">
-            {brands.map((b) => (
-              <label key={b} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={selectedBrands.includes(b)}
-                  onChange={() => toggleBrand(b)}
-                />
-                <span className="text-sm">{b}</span>
-              </label>
-            ))}
+            {brands.map((b) => {
+              const meta = brandsData[b] || { count: 0, latestUpdatedAt: null };
+              const cloned = meta.clonedCount || 0;
+              const needsUpdate =
+                meta.latestUpdatedAt && meta.latestCloneAt
+                  ? new Date(meta.latestUpdatedAt) >
+                    new Date(meta.latestCloneAt)
+                  : false;
+              return (
+                <label
+                  key={b}
+                  className="flex items-center gap-2 justify-between w-full"
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedBrands.includes(b)}
+                      onChange={() => toggleBrand(b)}
+                    />
+                    <span className="text-sm">{b}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      {meta.count} itens
+                    </span>
+                    {cloned > 0 && (
+                      <span className="text-xs text-green-600">
+                        {cloned} clonados
+                      </span>
+                    )}
+                    {needsUpdate && (
+                      <span className="text-xs text-amber-600 font-bold">
+                        Atualizações pendentes
+                      </span>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -134,31 +134,35 @@ export default function BulkEditClient({
 
   const handleSave = async () => {
     setLoading(true);
-    const supabase = createClient();
-
     try {
-      // CORREÇÃO: Incluindo todos os campos necessários para o UPSERT não falhar
+      // Build payload to send to server API which uses service role key
       const payload = products.map((p) => ({
         id: p.id,
-        user_id: p.user_id, // CRUCIAL para RLS
+        user_id: p.user_id,
         name: p.name,
-        brand: p.brand, // CRUCIAL para não apagar a marca
+        brand: p.brand,
         price: p.price,
         sale_price: p.sale_price,
-        // Converte string vazia para null para evitar erro de constraint se houver
         reference_code: p.reference_code === '' ? null : p.reference_code,
         stock_quantity: p.stock_quantity,
         updated_at: new Date().toISOString(),
       }));
 
-      const { error } = await supabase.from('products').upsert(payload);
+      const res = await fetch('/api/admin/bulk-upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: payload }),
+      });
 
-      if (error) throw error;
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || 'Erro ao salvar');
+      }
 
       toast.success('Tabela atualizada com sucesso!');
       setHasChanges(false);
     } catch (error: any) {
-      console.error('Erro no upsert:', error);
+      console.error('Erro no upsert via API:', error);
       toast.error('Erro ao salvar', {
         description: error.message || 'Verifique sua conexão.',
       });

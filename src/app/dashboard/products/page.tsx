@@ -141,7 +141,7 @@ export default async function ProductsPage() {
           </Link>
 
           <Link
-            href={`/api/export/products?userId=${finalUser.id}`}
+            href={`/api/export/products/xlsx?userId=${finalUser.id}`}
             className="contents"
           >
             <Button

@@ -38,7 +38,7 @@ export default async function AdminBulkEditPage({ searchParams }: any) {
         <h2 className="text-lg font-bold">Erro ao carregar dados</h2>
         <p className="text-sm text-gray-500">{error.message}</p>
         <Link
-          href="/admin"
+          href="/admin/bulk-price-adjuster"
           className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
         >
           Voltar
@@ -72,7 +72,7 @@ export default async function AdminBulkEditPage({ searchParams }: any) {
         </div>
 
         <Link
-          href="/admin"
+          href="/admin/bulk-price-adjuster"
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
         >
           <ArrowLeft size={16} />
