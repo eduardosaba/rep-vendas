@@ -140,6 +140,20 @@ export default async function ProductsPage() {
             </Button>
           </Link>
 
+          <Link
+            href={`/api/export/products?userId=${finalUser.id}`}
+            className="contents"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto justify-center"
+              leftIcon={<FileSpreadsheet size={16} />}
+            >
+              Exportar Excel
+            </Button>
+          </Link>
+
           {/* Botão Importar Visual */}
           <Link href="/dashboard/products/import-visual" className="contents">
             <Button
