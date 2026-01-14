@@ -26,28 +26,8 @@ export default async function ClearStoragePage() {
     process.env.MASTER_ADMIN_EMAIL || 'eduardopedro.fsa@gmail.com';
   const isMaster = !!user && user.email === MASTER_EMAIL;
 
-  // Se a variável de ambiente não foi configurada, exibimos instruções.
-  if (MASTER_EMAIL === 'eduardopedro.fsa@gmail.com') {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-10">
-        <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 rounded-lg p-6 border">
-          <h1 className="text-xl font-bold mb-2">
-            Acesso à Limpeza de Storage
-          </h1>
-          <p className="mb-4 text-sm text-gray-600 dark:text-slate-300">
-            A rota de limpeza de storage está protegida por e-mail master.
-            Configure a variável de ambiente <strong>MASTER_ADMIN_EMAIL</strong>{' '}
-            com seu e-mail de administrador para habilitar o acesso às operações
-            sensíveis.
-          </p>
-          <p className="text-sm text-gray-500">Exemplo (no .env):</p>
-          <pre className="mt-2 p-3 bg-gray-100 rounded text-sm">
-            MASTER_ADMIN_EMAIL=eduardopedro.fsa@gmail.com
-          </pre>
-        </div>
-      </div>
-    );
-  }
+  // Se a variável estiver configurada, a página continua e o conteúdo
+  // sensível segue protegido pela checagem `isMaster` abaixo.
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-10">

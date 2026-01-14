@@ -148,7 +148,7 @@ export function ProductCard({
         ) : (
           <div className="relative flex h-full w-full items-center justify-center bg-gray-50 opacity-40">
             <Image
-              src="/placeholder-no-image.svg"
+              src="/images/product-placeholder.svg"
               alt="Sem imagem"
               fill
               className="p-10"

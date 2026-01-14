@@ -292,7 +292,9 @@ export function ProductGrid() {
                         </div>
                       )}
                       <NextImage
-                        src={product.image_url || '/placeholder-no-image.svg'}
+                        src={
+                          product.image_url || '/images/product-placeholder.svg'
+                        }
                         alt={product.name}
                         fill
                         className="object-contain p-2 transition-transform duration-500 group-hover:scale-105"

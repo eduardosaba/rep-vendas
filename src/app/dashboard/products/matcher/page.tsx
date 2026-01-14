@@ -16,6 +16,7 @@ import {
   Layers,
   Terminal,
   MousePointerClick,
+  ZoomIn,
 } from 'lucide-react';
 import ImageLightbox from '@/components/ImageLightbox';
 
@@ -26,6 +27,7 @@ interface Product {
   reference_code: string;
   image_url: string | null;
   images: string[] | null;
+  brand?: string | null;
 }
 
 interface StagingImage {
@@ -48,10 +50,15 @@ export default function MatcherPage() {
   // Filtros e UI
   const [showImportedOnly, setShowImportedOnly] = useState(false);
   const [searchProduct, setSearchProduct] = useState('');
+  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<
     'no_image_first' | 'has_image_first' | 'name_asc' | 'name_desc' | 'ref_asc'
   >('no_image_first');
   const [linking, setLinking] = useState(false);
+  const [productImageFilter, setProductImageFilter] = useState<
+    'all' | 'with' | 'without'
+  >('all');
 
   // Seleção e Drag & Drop
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
@@ -91,7 +98,7 @@ export default function MatcherPage() {
       // A. Buscar Produtos
       const { data: productsData } = await supabase
         .from('products')
-        .select('id, name, reference_code, image_url, images')
+        .select('id, name, reference_code, image_url, images, brand')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -151,6 +158,11 @@ export default function MatcherPage() {
           'info'
         );
       }
+      // derive brands list for filter
+      const uniqueBrands = Array.from(
+        new Set((pData || []).map((p: any) => p.brand).filter(Boolean))
+      );
+      setAvailableBrands(uniqueBrands as string[]);
     } catch (error) {
       console.error(error);
       toast.error('Erro ao carregar dados');
@@ -258,16 +270,29 @@ export default function MatcherPage() {
     }
   };
 
-  // Filtro Otimizado
+  // Filtro Otimizado (search + brand + sorting)
   const filteredProducts = useMemo(() => {
-    const term = searchProduct.toLowerCase();
-    const base = products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(term) ||
-        p.reference_code.toLowerCase().includes(term)
-    );
+    const term = (searchProduct || '').toLowerCase();
+    const base = products.filter((p) => {
+      const nameMatches = (p.name || '').toLowerCase().includes(term);
+      const refMatches = (p.reference_code || '').toLowerCase().includes(term);
+      return nameMatches || refMatches;
+    });
 
-    const sorted = [...base];
+    const byBrand = base.filter((product) => {
+      return brandFilter === 'all' || product.brand === brandFilter;
+    });
+
+    const byImage = byBrand.filter((product) => {
+      if (productImageFilter === 'all') return true;
+      const hasImage =
+        Boolean(product.image_url) ||
+        (product.images && product.images.length > 0);
+      if (productImageFilter === 'with') return hasImage;
+      return !hasImage;
+    });
+
+    const sorted = [...byImage];
     sorted.sort((a, b) => {
       switch (sortOption) {
         case 'no_image_first': {
@@ -294,7 +319,7 @@ export default function MatcherPage() {
     });
 
     return sorted;
-  }, [products, searchProduct, sortOption]);
+  }, [products, searchProduct, sortOption, brandFilter]);
 
   const filteredImages = useMemo(() => {
     return images.filter((img) => !showImportedOnly || img.imported_from_csv);
@@ -407,6 +432,36 @@ export default function MatcherPage() {
                     className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   />
                 </div>
+
+                <div className="hidden sm:block">
+                  <select
+                    value={brandFilter}
+                    onChange={(e) => setBrandFilter(e.target.value)}
+                    className="w-36 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option value="all">Todas as marcas</option>
+                    {availableBrands.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="hidden sm:block">
+                  <select
+                    value={productImageFilter}
+                    onChange={(e) =>
+                      setProductImageFilter(e.target.value as any)
+                    }
+                    className="w-36 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="with">Com imagem</option>
+                    <option value="without">Sem imagem</option>
+                  </select>
+                </div>
+
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as any)}
@@ -587,6 +642,18 @@ export default function MatcherPage() {
                       className="w-full h-full object-contain p-2 transition-transform group-hover:scale-105"
                       onDoubleClick={() => setLightboxSrc(img.publicUrl)}
                     />
+
+                    {/* Botão para ampliar sem interferir no drag/seleção */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLightboxSrc(img.publicUrl);
+                      }}
+                      aria-label="Ampliar foto"
+                      className="absolute top-2 left-10 p-1 bg-white/90 rounded-full z-10 shadow-sm"
+                    >
+                      <ZoomIn size={14} />
+                    </button>
 
                     {/* Labels */}
                     {img.imported_from_csv && (

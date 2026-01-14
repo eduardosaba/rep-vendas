@@ -203,7 +203,7 @@ export function StoreHeader() {
     if (typeof c === 'object') {
       return Object.values(c).reduce((acc: number, v: any) => {
         if (typeof v === 'number') return acc + v;
-        if (v && typeof v === 'object') return acc + (v.quantity || 0);
+        if (v && typeof v === 'object') return acc + (v.quantity || v.qty || 0);
         return acc;
       }, 0);
     }
@@ -697,7 +697,7 @@ export function StoreMobileActionBar() {
     if (typeof c === 'object') {
       return Object.values(c).reduce((acc: number, v: any) => {
         if (typeof v === 'number') return acc + v;
-        if (v && typeof v === 'object') return acc + (v.quantity || 0);
+        if (v && typeof v === 'object') return acc + (v.quantity || v.qty || 0);
         return acc;
       }, 0);
     }
@@ -765,7 +765,7 @@ export function StoreMobileActionBar() {
         {/* 3. CARRINHO - DESTAQUE CENTRAL */}
         <button
           onClick={() => setModal('cart', true)}
-          className="flex flex-col items-center justify-center gap-1 relative -mt-4 bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 hover:from-[var(--primary)]/90 hover:to-[var(--primary)]/70 rounded-full h-14 w-14 mx-auto shadow-xl border-4 border-white dark:border-slate-900 transition-all"
+          className="flex flex-col items-center justify-center gap-1 relative -mt-4 bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 hover:from-[var(--primary)]/90 hover:to-[var(--primary)]/70 rounded-full h-14 w-14 mx-auto shadow-lg transition-all"
         >
           <ShoppingCart size={24} className="text-white" />
           {cartCount > 0 && (

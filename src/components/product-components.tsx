@@ -315,7 +315,15 @@ export function ProductGrid() {
 
                         return (
                           <div className="w-full h-full flex items-center justify-center text-gray-300">
-                            <ImageIcon size={32} />
+                            <img
+                              src="/images/product-placeholder.svg"
+                              alt="Sem imagem"
+                              className="w-16 h-16 object-contain opacity-80"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src =
+                                  '/images/default-logo.png';
+                              }}
+                            />
                           </div>
                         );
                       })()}

@@ -175,7 +175,7 @@ export default function LoginPage() {
                 alt="Google"
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src =
-                    '/images/default-logo.png';
+                    '/images/product-placeholder.svg';
                 }}
               />
               Continuar com Google

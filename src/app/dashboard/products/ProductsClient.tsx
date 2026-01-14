@@ -231,9 +231,21 @@ export default function ProductsClient({
                                 src={img}
                                 alt={product.name}
                                 className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src =
+                                    '/images/product-placeholder.svg';
+                                }}
                               />
                             ) : (
-                              <ImageIcon size={16} className="text-gray-400" />
+                              <img
+                                src="/images/product-placeholder.svg"
+                                alt="Sem imagem"
+                                className="h-6 w-6 object-contain opacity-80"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src =
+                                    '/images/default-logo.png';
+                                }}
+                              />
                             );
                           })()}
                         </div>
@@ -289,7 +301,15 @@ export default function ProductsClient({
         ) : filteredProducts.length === 0 ? (
           <div className="p-12 text-center text-gray-500 bg-white dark:bg-slate-900 rounded-xl border border-gray-200">
             <div className="flex flex-col items-center justify-center max-w-md mx-auto">
-              <ImageIcon className="h-12 w-12 text-gray-300 mb-3" />
+              <img
+                src="/images/product-placeholder.svg"
+                alt="Sem produtos"
+                className="h-12 w-12 mb-3 opacity-30"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    '/images/product-placeholder.svg';
+                }}
+              />
               <p className="text-lg font-medium text-gray-900">
                 Nenhum produto encontrado
               </p>
@@ -319,12 +339,21 @@ export default function ProductsClient({
                         src={img}
                         alt={product.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src =
+                            '/images/product-placeholder.svg';
+                        }}
                       />
                     ) : (
-                      <ImageIcon size={18} className="text-gray-400" />
+                      <img
+                        src="/images/product-placeholder.svg"
+                        alt="Sem imagem"
+                        className="w-full h-full object-contain opacity-80"
+                      />
                     );
                   })()}
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm text-gray-900 dark:text-white truncate">
                     {product.name}
@@ -333,6 +362,7 @@ export default function ProductsClient({
                     {product.reference_code || '-'}
                   </p>
                 </div>
+
                 <div className="ml-3 text-right">
                   <div className="text-sm text-gray-500">
                     {new Intl.NumberFormat('pt-BR', {

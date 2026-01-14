@@ -156,6 +156,12 @@ export default function AdminSidebar({
             src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
             alt="RepVendas"
             className="h-6 w-auto object-contain"
+            onError={(e) => {
+              try {
+                (e.currentTarget as HTMLImageElement).src =
+                  '/images/default-logo.png';
+              } catch (err) {}
+            }}
           />
           {!isCollapsed && (
             <div className="flex flex-col text-[10px] font-bold uppercase text-slate-400">

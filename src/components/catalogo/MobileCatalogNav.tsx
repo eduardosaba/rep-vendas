@@ -1,7 +1,15 @@
 'use client';
 
 import { useStore } from '@/components/catalogo/store-context';
-import { Home, Eye, EyeOff, Heart, ShoppingCart, FileText } from 'lucide-react';
+import {
+  Home,
+  Eye,
+  EyeOff,
+  Heart,
+  ShoppingCart,
+  FileText,
+  Phone,
+} from 'lucide-react';
 import Link from 'next/link';
 import AnimatedTouch from '@/components/ui/AnimatedTouch';
 
@@ -17,6 +25,12 @@ export function MobileCatalogNav() {
   } = useStore();
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+  const formatWhatsappUrl = (phone?: string) => {
+    if (!phone) return '#';
+    const digits = String(phone).replace(/\D/g, '');
+    return `https://wa.me/${digits.startsWith('55') ? digits : `55${digits}`}`;
+  };
 
   // Lógica: Se preços de custo visíveis, mostra Ver Pedido ao invés de Favoritos
   const showCostPrice = store?.show_cost_price && showPrices;
@@ -71,19 +85,36 @@ export function MobileCatalogNav() {
           </span>
         </button>
 
-        {/* 4. Ver Pedido (sempre visível) */}
-        <button
-          type="button"
-          onClick={() => setModal('load', true)}
-          className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
-        >
-          <AnimatedTouch onClick={() => setModal('load', true)}>
-            <FileText className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]" />
-          </AnimatedTouch>
-          <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
-            Ver Pedido
-          </span>
-        </button>
+        {/* 4. WhatsApp / Contato (substitui Ver Pedido) */}
+        {store?.phone ? (
+          <a
+            href={formatWhatsappUrl(store.phone)}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
+            aria-label={`WhatsApp ${store.phone}`}
+          >
+            <AnimatedTouch>
+              <Phone className="w-6 h-6 text-green-500" />
+            </AnimatedTouch>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
+              WhatsApp
+            </span>
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setModal('contact', true)}
+            className="inline-flex flex-col items-center justify-center px-5 hover:bg-gray-50 dark:hover:bg-slate-800 group"
+          >
+            <AnimatedTouch>
+              <Phone className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+            </AnimatedTouch>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--primary)]">
+              Contato
+            </span>
+          </button>
+        )}
 
         {/* 4. Carrinho */}
         <button

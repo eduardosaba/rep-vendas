@@ -109,7 +109,7 @@ export function StoreModals() {
       });
     }
 
-    return images.length > 0 ? images : ['/placeholder-no-image.svg'];
+    return images.length > 0 ? images : ['/images/product-placeholder.svg'];
   }, [modals.product]);
 
   // Detectar se a imagem atual é do Supabase Storage (otimizar) ou externa (não otimizar)
@@ -164,7 +164,9 @@ export function StoreModals() {
                   >
                     <div className="relative h-20 w-20 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
                       <Image
-                        src={item.image_url || '/placeholder-no-image.svg'}
+                        src={
+                          item.image_url || '/images/product-placeholder.svg'
+                        }
                         alt={item.name}
                         fill
                         className="object-contain p-2"

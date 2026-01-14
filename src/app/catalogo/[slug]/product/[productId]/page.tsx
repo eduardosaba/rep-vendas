@@ -292,7 +292,7 @@ export default function ProductDetailPage() {
     if (imgs.length === 0 && (product as any).image_url)
       imgs.push((product as any).image_url as string);
 
-    return imgs.length > 0 ? imgs : ['/placeholder-no-image.svg'];
+    return imgs.length > 0 ? imgs : ['/images/product-placeholder.svg'];
   })();
 
   const toggleFavorite = (productId: string) => {

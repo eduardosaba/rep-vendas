@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import SyncStatusCard from '@/components/dashboard/SyncStatusCard';
 
 export default function CloneUserPage() {
   const supabase = createClient();
@@ -11,6 +12,9 @@ export default function CloneUserPage() {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cloneEntries, setCloneEntries] = useState<any[]>([]);
+  const [polling, setPolling] = useState(false);
+  const [latestSyncJob, setLatestSyncJob] = useState<any | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -59,6 +63,8 @@ export default function CloneUserPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Erro');
       toast.success('Clone iniciado');
+      // start polling for clone status
+      setPolling(true);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Erro ao iniciar clone');
@@ -66,6 +72,56 @@ export default function CloneUserPage() {
       setLoading(false);
     }
   };
+
+  // Poll catalog_clones for the selected target user
+  useEffect(() => {
+    let mounted = true;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const fetchClones = async () => {
+      if (!selectedUser) return;
+      try {
+        const { data } = await supabase
+          .from('catalog_clones')
+          .select(
+            'id,source_product_id,cloned_product_id,source_user_id,target_user_id,created_at'
+          )
+          .eq('target_user_id', selectedUser)
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (!mounted) return;
+        setCloneEntries(data || []);
+        // also fetch latest sync job for this target user and update
+        try {
+          const { data: job } = await supabase
+            .from('sync_jobs')
+            .select('*')
+            .eq('user_id', selectedUser)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (mounted) setLatestSyncJob(job || null);
+        } catch (e) {
+          // ignore
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    if (selectedUser && polling) {
+      fetchClones();
+      interval = setInterval(fetchClones, 3000);
+    } else if (selectedUser) {
+      // fetch once when user changes
+      fetchClones();
+    }
+
+    return () => {
+      mounted = false;
+      if (interval) clearInterval(interval);
+    };
+  }, [selectedUser, polling]);
 
   return (
     <div className="p-6">
@@ -114,7 +170,36 @@ export default function CloneUserPage() {
         >
           {loading ? 'Iniciando...' : 'Clonar catálogo'}
         </button>
+        <button
+          onClick={() => {
+            // toggle polling manually
+            setPolling((p) => !p);
+          }}
+          className="ml-3 px-4 py-2 bg-white border text-gray-700 rounded"
+        >
+          {polling ? 'Parar Console' : 'Abrir Console de Clonagem'}
+        </button>
       </div>
+
+      {/* Clone console */}
+      {selectedUser && (
+        <div className="mt-6">
+          <SyncStatusCard syncData={latestSyncJob} />
+          <div className="mt-4 bg-white dark:bg-slate-900 p-3 rounded border border-gray-100 dark:border-slate-800 text-sm text-gray-600">
+            {cloneEntries.length === 0
+              ? 'Nenhum item clonado ainda.'
+              : `${cloneEntries.length} itens clonados (mostrando até 200).`}
+            <div className="mt-2">
+              <button
+                onClick={() => setCloneEntries((e) => [...e])}
+                className="underline"
+              >
+                Atualizar lista
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
