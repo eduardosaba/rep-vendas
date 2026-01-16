@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveUserId } from '@/lib/auth-utils';
 import { Bell, Check, X, Info, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -7,19 +8,14 @@ export const dynamic = 'force-dynamic';
 export default async function NotificationsPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
+  const activeUserId = await getActiveUserId();
+  if (!activeUserId) redirect('/login');
 
   // Buscar notificações do usuário
   const { data: notifications, error } = await supabase
     .from('notifications')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', activeUserId)
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -75,14 +71,12 @@ export default async function NotificationsPage() {
             action={async () => {
               'use server';
               const supabase = await createClient();
-              const {
-                data: { user },
-              } = await supabase.auth.getUser();
-              if (user) {
+              const active = await getActiveUserId();
+              if (active) {
                 await supabase
                   .from('notifications')
                   .update({ read: true })
-                  .eq('user_id', user.id)
+                  .eq('user_id', active)
                   .eq('read', false);
               }
             }}

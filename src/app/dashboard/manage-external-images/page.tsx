@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server'; // Caminho padronizado
+import { getActiveUserId } from '@/lib/auth-utils';
 import ManageExternalImagesClient from '@/components/dashboard/ManageExternalImagesClient';
 import SyncStatusCard from '@/components/dashboard/SyncStatusCard';
 import { CloudDownload, ArrowLeft, CheckCircle2 } from 'lucide-react';
@@ -16,13 +17,8 @@ export const dynamic = 'force-dynamic';
 export default async function ManageExternalImagesPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
+  const activeUserId = await getActiveUserId();
+  if (!activeUserId) redirect('/login');
 
   // Busca produtos que:
   // 1. Pertencem ao usuário
@@ -33,7 +29,7 @@ export default async function ManageExternalImagesPage() {
     .select(
       'id, name, reference_code, brand, category, external_image_url, image_url, images'
     )
-    .eq('user_id', user.id)
+    .eq('user_id', activeUserId)
     .is('image_path', null) // Produtos SEM imagem internalizada
     .order('id', { ascending: true });
 
@@ -55,7 +51,7 @@ export default async function ManageExternalImagesPage() {
     const { data: lastJob } = await supabase
       .from('sync_jobs')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', activeUserId)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();

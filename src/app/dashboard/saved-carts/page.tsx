@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
+import { getActiveUserId } from '@/lib/auth-utils';
 import {
   ShoppingBag,
   ArrowLeft,
@@ -22,27 +23,23 @@ export const metadata = {
 export default async function SavedCartsPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let finalUser = user;
-  if (!finalUser) {
+  const activeUserId = await getActiveUserId();
+  let finalUserId = activeUserId;
+  if (!finalUserId) {
     try {
       const fb = await getServerUserFallback();
-      if (fb) finalUser = fb;
-    } catch (e) {}
-  }
-
-  if (!finalUser) {
-    redirect('/login');
+      if (!fb) return redirect('/login');
+      finalUserId = fb.id;
+    } catch (e) {
+      return redirect('/login');
+    }
   }
 
   // Busca apenas pedidos com status 'pending' (Rascunhos)
   const { data: orders, error } = await supabase
     .from('orders')
     .select('*')
-    .eq('user_id', finalUser.id)
+    .eq('user_id', finalUserId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 

@@ -47,3 +47,26 @@ As tabelas são criadas via SQL em `SQL/supabase_schema.sql`:
 Para recriar tabelas, use `SQL/drop_tables.sql` primeiro.
 
 Insira dados de teste via Supabase Dashboard > Table Editor.
+
+## 🚀 Guia de Desenvolvimento
+
+### Pré-requisitos
+
+Este projeto utiliza um script de validação de ambiente para garantir que as funcionalidades de **Impersonation** e **Inngest** rodem corretamente.
+
+### Configuração do Ambiente
+
+1. Copie o arquivo de exemplo: `cp .env.example .env.local`
+2. Preencha as variáveis obrigatórias listadas em `docs/ENV_VARS.md`.
+3. Valide o seu ambiente:
+   ```bash
+   pnpm run check-env
+   ```
+
+Nota: O sistema não permitirá o `dev` ou `build` se as variáveis críticas estiverem ausentes.
+
+---
+
+### Próximo passo (prioridade alta)
+
+Enquanto preenche o `.env.local`, a recomendação técnica seguinte é proteger operações críticas de escrita (carrinhos/pedidos) usando Server Actions que respeitam `getActiveUserId()` e registram auditoria via `createAuditLog()`.

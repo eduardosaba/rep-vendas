@@ -305,6 +305,50 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     key: DataKey;
     direction: 'asc' | 'desc';
   } | null>(null);
+  // Column widths for resizable columns
+  const [columnWidths, setColumnWidths] = useState<Record<DataKey, number>>(
+    () => {
+      const defaults: Partial<Record<DataKey, number>> = {};
+      Object.keys(ALL_DATA_COLUMNS).forEach((k) => {
+        const key = k as DataKey;
+        if (key === 'name') defaults[key] = 300;
+        else if (key === 'image_url' || key === 'image_optimized')
+          defaults[key] = 80;
+        else if (key === 'price' || key === 'sale_price' || key === 'cost')
+          defaults[key] = 120;
+        else defaults[key] = 140;
+      });
+      return defaults as Record<DataKey, number>;
+    }
+  );
+  const resizingRef = useRef<null | {
+    key: DataKey;
+    startX: number;
+    startWidth: number;
+  }>(null);
+
+  // global mouse handlers for resizing
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const { key, startX, startWidth } = resizingRef.current;
+      const delta = (e as any).clientX - startX;
+      const newWidth = Math.max(60, Math.round(startWidth + delta));
+      setColumnWidths((prev) => ({ ...prev, [key]: newWidth }));
+    };
+    const onUp = () => {
+      if (resizingRef.current) {
+        resizingRef.current = null;
+        document.body.style.userSelect = '';
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   // Seleção e Modais
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -467,7 +511,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       setServerLoading(true);
       try {
         const params = new URLSearchParams();
-        params.set('userId', userId);
+        if (userId) params.set('userId', userId);
         params.set('page', String(page));
         params.set('limit', String(itemsPerPage));
         if (searchTerm) params.set('search', searchTerm);
@@ -475,11 +519,33 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
         if (filters.brand && filters.brand.length > 0)
           params.set('brand', String(filters.brand[0]));
+        if (filters.imageOptimization && filters.imageOptimization !== 'all')
+          params.set('imageOptimization', String(filters.imageOptimization));
 
         const res = await fetch(`/api/products?${params.toString()}`);
         if (!res.ok) throw new Error('Erro ao buscar produtos');
         const json = await res.json();
-        setServerProducts(json.data || []);
+        let serverData = json.data || [];
+        // se o filtro de otimização de imagem estiver ativo, aplique uma filtragem adicional
+        if (filters.imageOptimization && filters.imageOptimization !== 'all') {
+          const filtered = (serverData as any[]).filter((p) => {
+            const hasStorageImage = Boolean(
+              p.image_path ||
+              p.image_url?.includes('supabase.co/storage') ||
+              p.external_image_url?.includes('supabase.co/storage') ||
+              (p.images &&
+                Array.isArray(p.images) &&
+                p.images.some((i: any) => i?.includes('supabase.co/storage')))
+            );
+            if (filters.imageOptimization === 'optimized')
+              return hasStorageImage;
+            if (filters.imageOptimization === 'unoptimized')
+              return !hasStorageImage;
+            return true;
+          });
+          serverData = filtered;
+        }
+        setServerProducts(serverData);
         setServerMeta(json.meta || {});
       } catch (e) {
         console.error('server fetch error', e);
@@ -505,6 +571,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     filters.minPrice,
     filters.maxPrice,
     filters.brand,
+    filters.imageOptimization,
   ]);
 
   // --- MANIPULAÇÃO DE COLUNAS ---
@@ -550,6 +617,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     return (
       <div className="relative inline-block text-left" ref={dropdownRef}>
         <button
+          type="button"
+          aria-expanded={isColumnDropdownOpen}
           onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
           className={`px-4 py-2 rounded-lg border flex items-center gap-2 font-medium transition-colors text-sm ${isColumnDropdownOpen ? 'bg-primary/5 dark:bg-primary/20 border-primary/30 dark:border-primary/20 text-primary dark:text-primary/70' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
         >
@@ -653,17 +722,42 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     [columnOrder, visibleColumnKeys]
   );
 
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
   const processedProducts = useMemo(() => {
     if (serverMode) return serverProducts;
     const data = products.filter((p) => {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch =
-        p.name.toLowerCase().includes(search) ||
-        p.reference_code?.toLowerCase().includes(search) ||
-        p.sku?.toLowerCase().includes(search) ||
-        p.barcode?.includes(search);
+      const search = (searchTerm || '').trim();
 
-      if (!matchesSearch) return false;
+      // Se não houver termo, passa direto
+      if (search) {
+        const norm = normalize(search);
+        const tokens = norm.split(' ').filter(Boolean);
+
+        // Campos onde procuramos por correspondência
+        const haystack = [
+          p.name || '',
+          p.reference_code || '',
+          p.sku || '',
+          p.barcode || '',
+          p.brand || '',
+          p.category || '',
+          p.description || '',
+        ]
+          .map((f) => (f ? normalize(String(f)) : ''))
+          .join(' ');
+
+        // Verifica se todos os tokens aparecem em algum lugar (AND search)
+        const matchesSearch = tokens.every((t) => haystack.includes(t));
+        if (!matchesSearch) return false;
+      }
       if (filters.onlyLaunch && !p.is_launch) return false;
       if (filters.onlyBestSeller && !p.is_best_seller) return false;
       if (
@@ -758,9 +852,38 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   };
 
   const selectAllAcrossPages = () => {
-    // Seleciona todos os produtos que batem com os filtros (processedProducts)
-    setSelectedIds(processedProducts.map((p) => p.id));
-    setSelectAllMatching(true);
+    // Seleciona todos os produtos que batem com os filtros
+    if (serverMode) {
+      // buscar apenas IDs de todos os resultados no servidor
+      const doFetchIds = async () => {
+        try {
+          const params = new URLSearchParams();
+          if (userId) params.set('userId', userId);
+          params.set('idsOnly', 'true');
+          if (filters.imageOptimization && filters.imageOptimization !== 'all')
+            params.set('imageOptimization', String(filters.imageOptimization));
+          if (filters.minPrice)
+            params.set('minPrice', String(filters.minPrice));
+          if (filters.maxPrice)
+            params.set('maxPrice', String(filters.maxPrice));
+          if (filters.brand && filters.brand.length > 0)
+            params.set('brand', String(filters.brand[0]));
+
+          const res = await fetch(`/api/products?${params.toString()}`);
+          if (!res.ok) throw new Error('Erro ao buscar produtos');
+          const json = await res.json();
+          const ids = (json.data || []).map((d: any) => d.id);
+          setSelectedIds(ids);
+          setSelectAllMatching(true);
+        } catch (err) {
+          console.error('Erro ao selecionar todos os IDs', err);
+        }
+      };
+      doFetchIds();
+    } else {
+      setSelectedIds(processedProducts.map((p) => p.id));
+      setSelectAllMatching(true);
+    }
   };
 
   // tooltips visuais acionáveis por toque (mobile): chave = `${product.id}-${action}`
@@ -919,7 +1042,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   // --- RENDERERS ---
   const SortableHeader = ({ label, sortKey, align }: any) => (
     <th
-      className={`px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap text-gray-500 dark:text-slate-400 text-xs uppercase tracking-wider ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
+      className={`relative px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap text-gray-500 dark:text-slate-400 text-xs uppercase tracking-wider ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
       onClick={() =>
         setSortConfig({
           key: sortKey,
@@ -931,12 +1054,33 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               : 'asc',
         })
       }
+      style={
+        // apply width if configured
+        (columnWidths as any)[sortKey]
+          ? { width: (columnWidths as any)[sortKey] }
+          : undefined
+      }
     >
       <div
         className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}
       >
         {label} <ArrowUpDown size={12} className="opacity-50" />
       </div>
+      {/* Resizer */}
+      <div
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const startX = (e as any).clientX;
+          resizingRef.current = {
+            key: sortKey,
+            startX,
+            startWidth: (columnWidths as any)[sortKey] || 150,
+          };
+          document.body.style.userSelect = 'none';
+        }}
+        className="absolute right-0 top-0 h-full w-2 -mr-2 cursor-col-resize"
+      />
     </th>
   );
 
@@ -1365,9 +1509,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             </button>
             <div className="w-px h-8 bg-gray-200 dark:bg-slate-700 mx-1 shrink-0"></div>
             <button
+              type="button"
               onClick={() => {
-                // TODO: Implementar modal de texto para marca
-                console.log('Abrir modal de marca');
+                setTextConfig({ field: 'brand', value: '', label: 'Marca' });
+                setShowTextModal(true);
               }}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
@@ -1377,15 +1522,60 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               </span>
             </button>
             <button
+              type="button"
               onClick={() => {
-                // TODO: Implementar modal de texto para categoria
-                console.log('Abrir modal de categoria');
+                setTextConfig({
+                  field: 'category',
+                  value: '',
+                  label: 'Categoria',
+                });
+                setShowTextModal(true);
               }}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
               <Layers size={18} className="text-purple-500" />{' '}
               <span className="text-[10px] text-gray-600 dark:text-slate-400">
                 Cat.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkUpdate('is_launch', true)}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Rocket size={18} className="text-purple-600" />
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Lanç.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkUpdate('is_launch', false)}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Rocket size={18} className="text-gray-400" />
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Rem. Lanç.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkUpdate('is_best_seller', true)}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Star size={18} className="text-orange-500" />
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Top
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkUpdate('is_best_seller', false)}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Star size={18} className="text-gray-400" />
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Rem. Top
               </span>
             </button>
             <button
@@ -1439,14 +1629,22 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
       {/* Barra informativa para seleção cross-page */}
       {selectedIds.length > 0 &&
-        processedProducts.length > paginatedProducts.length &&
-        !selectAllMatching && (
+        (() => {
+          const totalMatching = serverMode
+            ? serverMeta?.totalCount || serverProducts.length
+            : processedProducts.length;
+          return totalMatching > paginatedProducts.length && !selectAllMatching;
+        })() && (
           <div className="bg-blue-50 dark:bg-blue-950/30 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm text-blue-900 dark:text-blue-100 shadow-md mb-4 flex items-center justify-between">
             <div className="font-medium">
               Você selecionou{' '}
               <strong className="font-black">{selectedIds.length}</strong> nesta
               página. Deseja selecionar todos os{' '}
-              <strong className="font-black">{processedProducts.length}</strong>{' '}
+              <strong className="font-black">
+                {serverMode
+                  ? serverMeta?.totalCount || serverProducts.length
+                  : processedProducts.length}
+              </strong>{' '}
               resultados?
             </div>
             <div className="flex items-center gap-2">
@@ -1454,7 +1652,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 onClick={selectAllAcrossPages}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors"
               >
-                Selecionar todos ({processedProducts.length})
+                Selecionar todos (
+                {serverMode
+                  ? serverMeta?.totalCount || serverProducts.length
+                  : processedProducts.length}
+                )
               </button>
               <button
                 onClick={() => {
@@ -1473,7 +1675,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         <div className="bg-green-50 dark:bg-green-950/30 border-2 border-green-200 dark:border-green-800 rounded-lg p-4 text-sm text-green-900 dark:text-green-100 shadow-md mb-4 flex items-center justify-between">
           <div className="font-medium">
             ✓ Todos os{' '}
-            <strong className="font-black">{processedProducts.length}</strong>{' '}
+            <strong className="font-black">
+              {serverMode
+                ? serverMeta?.totalCount || serverProducts.length
+                : processedProducts.length}
+            </strong>{' '}
             resultados estão selecionados.
           </div>
           <div className="flex items-center gap-2">
@@ -1563,6 +1769,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                       <td
                         key={col.key}
                         className={`px-4 py-3 text-gray-600 dark:text-slate-400 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                        style={
+                          columnWidths[col.key]
+                            ? { width: columnWidths[col.key] }
+                            : undefined
+                        }
                       >
                         {renderCell(product, col.key)}
                       </td>
@@ -1750,23 +1961,59 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
         {/* PAGINAÇÃO */}
         <div className="p-4 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 flex items-center justify-between text-sm text-gray-500 dark:text-slate-400">
-          <span>
-            Página {currentPage} de {totalPages}
-          </span>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-4">
+            <span>
+              Página {currentPage} de {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+                className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+              >
+                Ant.
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+              >
+                Prox.
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+              >
+                Últ.
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500">Ir para página</label>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              defaultValue={currentPage}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = Number((e.target as HTMLInputElement).value || 1);
+                  if (v >= 1 && v <= totalPages) setCurrentPage(v);
+                }
+              }}
+              className="w-20 p-1 text-sm border rounded bg-white dark:bg-slate-800"
+            />
             <button
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => p - 1)}
-              className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+              onClick={(e) => {
+                const parent = (e.target as HTMLElement)
+                  .previousElementSibling as HTMLInputElement | null;
+                const v = parent ? Number(parent.value || 1) : 1;
+                if (v >= 1 && v <= totalPages) setCurrentPage(v);
+              }}
+              className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
             >
-              Ant.
-            </button>
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => p + 1)}
-              className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
-            >
-              Prox.
+              Ir
             </button>
           </div>
         </div>

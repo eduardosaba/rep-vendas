@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveUserId } from '@/lib/auth-utils';
 import { StatCard } from '@/components/StatCard';
 import RecentOrdersTable from '@/components/RecentOrdersTable';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
@@ -34,10 +35,8 @@ export default async function DashboardPage({
   const resolvedSearchParams = (await searchParams) || {};
   const range = resolvedSearchParams.range || '30d';
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const activeUserId = await getActiveUserId();
+  if (!activeUserId) redirect('/login');
 
   // 1. Definição do Período
   let startDate = subDays(new Date(), 30).toISOString();
@@ -60,7 +59,7 @@ export default async function DashboardPage({
   ] = await Promise.all([
     supabase
       .rpc('get_dashboard_totals', {
-        owner_id: user.id,
+        owner_id: activeUserId,
         start_date: startDate,
         end_date: now,
       })
@@ -68,43 +67,47 @@ export default async function DashboardPage({
     supabase
       .from('products')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', activeUserId)
       .eq('is_active', true),
     supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', activeUserId)
       .gte('created_at', startDate),
     supabase
       .from('orders')
       .select(
         `id, display_id, client_name_guest, total_value, status, created_at, order_items (id, quantity)`
       )
-      .eq('user_id', user.id)
+      .eq('user_id', activeUserId)
       .order('created_at', { ascending: false })
       .limit(5),
-    supabase.from('settings').select('*').eq('user_id', user.id).maybeSingle(),
+    supabase
+      .from('settings')
+      .select('*')
+      .eq('user_id', activeUserId)
+      .maybeSingle(),
     supabase
       .from('profiles')
       .select('full_name')
-      .eq('id', user.id)
+      .eq('id', activeUserId)
       .maybeSingle(),
     supabase
       .from('orders')
       .select('total_value, created_at')
-      .eq('user_id', user.id)
+      .eq('user_id', activeUserId)
       .gte('created_at', startDate),
     supabase
       .from('sync_logs')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', activeUserId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
       .from('sync_jobs')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', activeUserId)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),

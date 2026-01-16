@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 export default function NewUserSetup() {
   const supabase = createClient();
   const [users, setUsers] = useState<any[]>([]);
+  const [sourceUser, setSourceUser] = useState('');
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,7 @@ export default function NewUserSetup() {
 
   const handleClone = async () => {
     if (!selectedUser || selectedBrands.length === 0) {
-      toast.error('Selecione um usuário e ao menos uma marca.');
+      toast.error('Selecione o destino e ao menos uma marca.');
       return;
     }
 
@@ -51,6 +52,7 @@ export default function NewUserSetup() {
           Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify({
+          sourceUserId: sourceUser || undefined,
           targetUserId: selectedUser,
           brands: selectedBrands,
         }),
@@ -61,6 +63,7 @@ export default function NewUserSetup() {
       toast.success(json?.message || 'Clonagem iniciada');
       setSelectedBrands([]);
       setSelectedUser('');
+      setSourceUser('');
     } catch (e: any) {
       console.error(e);
       toast.error('Falha na clonagem: ' + (e.message || 'erro'));
@@ -79,22 +82,42 @@ export default function NewUserSetup() {
       </div>
 
       <div className="space-y-4">
-        <div>
-          <label className="text-xs font-bold text-gray-400 uppercase ml-1">
-            Selecionar Representante
-          </label>
-          <select
-            value={selectedUser}
-            onChange={(e) => setSelectedUser(e.target.value)}
-            className="w-full mt-1 px-4 py-3 rounded-2xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">Selecione o novo usuário...</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.full_name || u.email}
-              </option>
-            ))}
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase ml-1">
+              Origem (De quem copiar)
+            </label>
+            <select
+              value={sourceUser}
+              onChange={(e) => setSourceUser(e.target.value)}
+              className="w-full mt-1 px-4 py-3 rounded-2xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">(Use sua conta Master por padrão)</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name || u.email}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase ml-1">
+              Destino (Novo usuário)
+            </label>
+            <select
+              value={selectedUser}
+              onChange={(e) => setSelectedUser(e.target.value)}
+              className="w-full mt-1 px-4 py-3 rounded-2xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Selecione o novo usuário...</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name || u.email}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>

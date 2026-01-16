@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveUserId } from '@/lib/auth-utils';
 import { EditProductForm } from '@/components/dashboard/EditProductForm';
 
 // Não cachear: produto pode mudar
@@ -30,17 +31,14 @@ export default async function EditProductBySlugPage({
   const supabase = await createClient();
   const { slug } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect('/login');
+  const activeUserId = await getActiveUserId();
+  if (!activeUserId) redirect('/login');
 
   const { data: product, error } = await supabase
     .from('products')
     .select('*')
     .eq('slug', slug)
-    .eq('user_id', user.id)
+    .eq('user_id', activeUserId)
     .maybeSingle();
 
   if (error || !product) return notFound();

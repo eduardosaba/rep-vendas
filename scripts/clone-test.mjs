@@ -43,12 +43,12 @@ async function main() {
     );
 
     // call RPC
-    console.log('Calling RPC clone_catalog_by_brand...', {
+    console.log('Calling RPC clone_catalog_smart...', {
       sourceUserId,
       targetUserId,
       brands,
     });
-    const { data, error } = await supabase.rpc('clone_catalog_by_brand', {
+    const { data, error } = await supabase.rpc('clone_catalog_smart', {
       source_user_id: sourceUserId,
       target_user_id: targetUserId,
       brands_to_copy: brands,

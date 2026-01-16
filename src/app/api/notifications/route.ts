@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       message,
       type = 'info',
       data,
+      link,
     } = await request.json();
 
     if (!userId || !title || !message) {
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = {
+    const payload: any = {
       user_id: userId,
       title,
       message,
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
       data: data || null,
       read: false,
     };
+    if (link) payload.link = link;
 
     try {
       const supabase = await createRouteSupabase();

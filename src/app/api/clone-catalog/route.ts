@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
 type Body = {
   target_user_id: string;
@@ -68,6 +69,25 @@ export async function POST(req: Request) {
       .from('sync_jobs')
       .insert(jobPayload);
     if (insertErr) throw insertErr;
+
+    try {
+      const cookieStore = await cookies();
+      const impersonatedId =
+        cookieStore.get('impersonate_user_id')?.value || null;
+      await supabase.from('activity_logs').insert({
+        user_id: impersonatedId || user.id,
+        impersonator_id: impersonatedId ? user.id : null,
+        action_type: 'CLONE',
+        description: `Clone job enqueued for brands: ${body.brands.join(', ')}`,
+        metadata: {
+          source_user_id: user.id,
+          target_user_id: body.target_user_id,
+          brands: body.brands,
+        },
+      });
+    } catch (logErr) {
+      console.warn('Failed to write activity log for clone job', logErr);
+    }
 
     return NextResponse.json({ ok: true, message: 'Clone job queued' });
   } catch (err: any) {

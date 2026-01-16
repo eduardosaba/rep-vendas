@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getActiveUserId } from '@/lib/auth-utils';
 import { redirect } from 'next/navigation';
 import {
   History,
@@ -46,15 +47,13 @@ const TOOL_CONFIG: Record<string, { label: string; icon: any; color: string }> =
 
 export default async function SyncHistoryPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const activeUserId = await getActiveUserId();
+  if (!activeUserId) redirect('/login');
 
   const { data: logs } = await supabase
     .from('sync_logs')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', activeUserId)
     .order('created_at', { ascending: false })
     .limit(50);
 

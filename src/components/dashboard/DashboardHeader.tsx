@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import ImpersonateBanner from '@/components/dashboard/ImpersonateBanner';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { User, Menu, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
@@ -22,10 +23,11 @@ export default function DashboardHeader({
 }: {
   onMenuClick?: () => void;
 }) {
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
 
-  const [supabase] = useState(() => createClient());
+  const supabase = createClient();
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | undefined>(undefined);
@@ -43,7 +45,7 @@ export default function DashboardHeader({
     return 'Painel';
   };
 
-  const getUser = useCallback(async () => {
+  async function getUser() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -84,11 +86,22 @@ export default function DashboardHeader({
         supabase.removeChannel(channel);
       };
     }
-  }, [supabase]);
+    return undefined;
+  }
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     const init = async () => {
+      // check impersonation cookie via admin API
+      (async () => {
+        try {
+          const res = await fetch('/api/admin/impersonate/status');
+          const j = await res.json();
+          if (j?.impersonate_user_id) setIsImpersonating(true);
+        } catch (e) {
+          // ignore
+        }
+      })();
       const unsub = await getUser();
       if (unsub) cleanup = unsub;
     };
@@ -96,7 +109,7 @@ export default function DashboardHeader({
     return () => {
       if (cleanup) cleanup();
     };
-  }, [getUser]);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -140,6 +153,8 @@ export default function DashboardHeader({
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
+
+        {isImpersonating && <ImpersonateBanner />}
 
         {/* Notificações (componente reutilizável) */}
         <NotificationDropdown userId={userId} />

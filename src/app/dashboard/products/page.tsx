@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveUserId } from '@/lib/auth-utils';
 import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
 import { ProductsTable } from '@/components/dashboard/ProductsTable';
 import { DiagnosticPanel } from '@/components/products/diagnostic-panel';
@@ -20,21 +21,15 @@ export const dynamic = 'force-dynamic';
 export default async function ProductsPage() {
   const supabase = await createClient();
 
-  // 1. Autenticação Segura (Server-Side)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let finalUser = user;
-  if (!finalUser) {
+  // 1. Respeita impersonation (se houver) e retorna o user_id ativo
+  const activeUserId = await getActiveUserId();
+  if (!activeUserId) {
     try {
       const fb = await getServerUserFallback();
-      if (fb) finalUser = fb;
-    } catch (e) {}
-  }
-
-  if (!finalUser) {
-    redirect('/login');
+      if (!fb) return redirect('/login');
+    } catch (e) {
+      return redirect('/login');
+    }
   }
 
   // 2. Busca de Produtos Otimizada
@@ -45,7 +40,7 @@ export default async function ProductsPage() {
     const { data: sub } = await supabase
       .from('subscriptions')
       .select('plan_id, plan_name')
-      .eq('user_id', finalUser.id)
+      .eq('user_id', activeUserId)
       .maybeSingle();
 
     if (sub?.plan_id) {
@@ -88,7 +83,7 @@ export default async function ProductsPage() {
   const { data: products, error } = await supabase
     .from('products')
     .select('*')
-    .eq('user_id', finalUser.id)
+    .eq('user_id', activeUserId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -141,7 +136,7 @@ export default async function ProductsPage() {
           </Link>
 
           <Link
-            href={`/api/export/products/xlsx?userId=${finalUser.id}`}
+            href={`/api/export/products/xlsx?userId=${activeUserId}`}
             className="contents"
           >
             <Button

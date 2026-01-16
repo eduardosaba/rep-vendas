@@ -293,6 +293,7 @@ export default function Checkout() {
               totalValue: getTotalValue(),
               clientName: formData.client_name,
             },
+            link: `/dashboard/orders/${order.id}`,
           }),
         });
       } catch (notificationError) {

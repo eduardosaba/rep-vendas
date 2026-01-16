@@ -162,12 +162,25 @@ export const cloneCatalog = inngest.createFunction(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      const { data, error } = await supabase.rpc('clone_catalog_by_brand', {
+      const { data, error } = await supabase.rpc('clone_catalog_smart', {
         source_user_id,
         target_user_id,
         brands_to_copy: brands || null,
       });
       if (error) throw error;
+      try {
+        await supabase.from('activity_logs').insert({
+          user_id: source_user_id,
+          action_type: 'CLONE',
+          description: `Clonagem processada (worker): ${Array.isArray(brands) ? brands.join(', ') : 'todas'} -> ${target_user_id}`,
+          metadata: { source_user_id, target_user_id, brands },
+        });
+      } catch (logErr) {
+        console.warn(
+          'Failed to write activity log in worker cloneCatalog',
+          logErr
+        );
+      }
       return data;
     });
   }

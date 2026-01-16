@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { updateProductAction } from '@/app/actions/product-actions';
 import { toast } from 'sonner';
 import { Product } from '@/lib/types';
 import {
@@ -586,7 +587,6 @@ export function EditProductForm({ product }: { product: Product }) {
           )
         : null;
 
-      // Prepara technical_specs conforme o modo selecionado
       let technical_specs: any = null;
       if (formData.technical_specs_mode === 'table') {
         const obj: Record<string, string> = {};
@@ -627,19 +627,13 @@ export function EditProductForm({ product }: { product: Product }) {
             ? formData.images[0]
             : null,
         technical_specs,
-        // CoW: marca se ainda compartilha a imagem com master
         image_is_shared: isShared && !needsDetach,
         original_image_path: needsDetach
           ? null
           : (product as any).original_image_path,
-        updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
-        .from('products')
-        .update(payload)
-        .eq('id', product.id);
-      if (error) throw error;
+      await updateProductAction(product.id, payload);
 
       // Após persistir, se era compartilhado e o usuário personalizou,
       // solicitamos ao worker que realize a cópia (copy-on-write).
@@ -658,7 +652,6 @@ export function EditProductForm({ product }: { product: Product }) {
             }),
           });
         } catch (e) {
-          // Não falhar a atualização do produto por causa do enqueue
           console.error('Failed to enqueue copy-on-write', e);
         }
       }

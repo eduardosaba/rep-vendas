@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
 // POST { url, brandSlug?, filename? }
 export async function POST(req: Request) {
@@ -138,6 +139,35 @@ export async function POST(req: Request) {
       .data?.publicUrl;
 
     log('info', 'upload_success', { bucket, path, publicUrl });
+
+    try {
+      const authHeader = req.headers.get('authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '');
+      let actorId: string | null = null;
+      if (token) {
+        const { data: userResp } = await supabaseAdmin.auth.getUser(
+          token as any
+        );
+        actorId = (userResp as any)?.user?.id || null;
+      }
+
+      const cookieStore = await cookies();
+      const impersonatedId =
+        cookieStore.get('impersonate_user_id')?.value || null;
+
+      await supabaseAdmin.from('activity_logs').insert({
+        user_id: impersonatedId || actorId,
+        impersonator_id: impersonatedId ? actorId : null,
+        action_type: 'IMPORT_IMAGE',
+        description: `Imagem importada: ${path}`,
+        metadata: { bucket, path, publicUrl, brand: brandSlug },
+      });
+    } catch (logErr) {
+      console.warn(
+        '[import/upload-image] failed to write activity log',
+        logErr
+      );
+    }
 
     return NextResponse.json({
       success: true,

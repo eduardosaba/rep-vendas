@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveUserId } from '@/lib/auth-utils';
 
 function escapeCsv(val: any, sep = ',') {
   if (val === null || val === undefined) return '';
@@ -12,12 +13,19 @@ function escapeCsv(val: any, sep = ',') {
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const userId = url.searchParams.get('userId');
+    const queryUserId = url.searchParams.get('userId');
+
+    // Prefer explicit query param (used by admin exports), otherwise respect impersonation
+    let userId = queryUserId || null;
     if (!userId) {
-      return NextResponse.json(
-        { error: 'userId is required' },
-        { status: 400 }
-      );
+      const active = await getActiveUserId();
+      if (!active) {
+        return NextResponse.json(
+          { error: 'userId is required' },
+          { status: 400 }
+        );
+      }
+      userId = active;
     }
 
     const supabase = await createClient();

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import ImpersonateBanner from '@/components/dashboard/ImpersonateBanner';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
@@ -84,7 +85,6 @@ export default function DashboardLayout({
   }
 
   if (!authorized) return null;
-
   return (
     <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
       <UpdateNotificationModal />
@@ -101,7 +101,11 @@ export default function DashboardLayout({
           />
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin">
-            <div className="max-w-7xl mx-auto pb-20">{children}</div>
+            <div className="max-w-7xl mx-auto pb-20">
+              {/* Impersonation banner (client-side check) */}
+              <div id="impersonate-banner-root" />
+              {children}
+            </div>
           </main>
 
           {/* Overlay para fechar no mobile ao clicar fora */}

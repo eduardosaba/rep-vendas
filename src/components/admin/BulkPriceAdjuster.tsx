@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { Percent, DollarSign, Zap, Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { bulkPriceAdjustAction } from '@/app/actions/admin-actions';
 
 export default function BulkPriceAdjuster({ brands }: { brands: string[] }) {
   const [selectedBrand, setSelectedBrand] = useState('');
@@ -16,28 +16,20 @@ export default function BulkPriceAdjuster({ brands }: { brands: string[] }) {
     if (!selectedBrand || !value)
       return toast.error('Preencha todos os campos');
     setLoading(true);
-    const supabase = createClient();
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const user = (userData as any)?.user;
-      if (!user) throw new Error('Usuário não autenticado');
+      const result = await bulkPriceAdjustAction({
+        brand: selectedBrand,
+        type,
+        value: parseFloat(value.replace(',', '.')),
+        propagate,
+      });
 
-      const { data, error } = await supabase.rpc(
-        'bulk_update_prices_by_brand',
-        {
-          p_user_id: user.id,
-          p_brand: selectedBrand,
-          p_adjustment_type: type,
-          p_value: parseFloat(value.replace(',', '.')),
-          p_propagate_to_clones: propagate,
-        }
-      );
-
-      if (error) throw error;
-      toast.success(
-        `Sucesso! ${data} produtos da marca ${selectedBrand} foram atualizados.`
-      );
-      setValue('');
+      if (result?.success) {
+        toast.success(
+          `Sucesso! ${result.affectedRows} produtos da marca ${selectedBrand} foram atualizados.`
+        );
+        setValue('');
+      }
     } catch (err: any) {
       toast.error('Erro no ajuste: ' + (err?.message || String(err)));
     } finally {

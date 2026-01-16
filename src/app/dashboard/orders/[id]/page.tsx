@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
+import { getActiveUserId } from '@/lib/auth-utils';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -79,17 +80,17 @@ export default async function OrderDetailsPage({
   const supabase = await createClient();
   const { id } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  let finalUser = user;
-  if (!finalUser) {
+  const activeUserId = await getActiveUserId();
+  let finalUserId = activeUserId;
+  if (!finalUserId) {
     try {
       const fb = await getServerUserFallback();
-      if (fb) finalUser = fb;
-    } catch (e) {}
+      if (!fb) return redirect('/login');
+      finalUserId = fb.id;
+    } catch (e) {
+      return redirect('/login');
+    }
   }
-  if (!finalUser) redirect('/login');
 
   const isDisplayId = /^\d+$/.test(id);
 
@@ -105,7 +106,7 @@ export default async function OrderDetailsPage({
       )
     `
     )
-    .eq('user_id', finalUser.id);
+    .eq('user_id', finalUserId);
 
   if (isDisplayId) {
     query = query.eq('display_id', parseInt(id));
@@ -131,7 +132,7 @@ export default async function OrderDetailsPage({
   const { data: storeSettings } = await supabase
     .from('settings')
     .select('*')
-    .eq('user_id', finalUser.id)
+    .eq('user_id', finalUserId)
     .maybeSingle();
 
   const safeSettings = storeSettings || {

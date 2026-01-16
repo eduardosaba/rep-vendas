@@ -14,6 +14,8 @@ import {
 import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import EcosystemHealthCards from '@/components/admin/EcosystemHealthCards';
+import RecentActivityFeed from '@/components/admin/RecentActivityFeed';
 
 export default function ControlTower() {
   const [loading, setLoading] = useState(false);
@@ -180,6 +182,10 @@ export default function ControlTower() {
             </p>
           </div>
         </div>
+      </div>
+      {/* Ecosystem Health Cards */}
+      <div>
+        <EcosystemHealthCards />
       </div>
       {/* Control Tower: Global Flags */}
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-gray-100 dark:border-slate-800">
@@ -455,37 +461,45 @@ export default function ControlTower() {
         </div>
       )}
 
-      {/* Console de Logs */}
-      <div className="bg-slate-950 rounded-[2.5rem] p-8 shadow-2xl border border-slate-800">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-            <Terminal size={14} className="text-emerald-500" />
-            Console de Operações
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setLogs([])}
-            className="text-[10px] h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-700"
-          >
-            Limpar Console
-          </Button>
-        </div>
-        <div
-          ref={consoleRef}
-          className="bg-slate-900 rounded-2xl p-6 h-64 overflow-y-auto font-mono text-[11px] text-emerald-400 space-y-1 custom-scrollbar"
-        >
-          {logs.length > 0 ? (
-            logs.map((log, i) => (
-              <div key={i} className="leading-relaxed">
-                {log}
+      {/* Console de Logs + Feed */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2">
+          <div className="bg-slate-950 rounded-[2.5rem] p-8 shadow-2xl border border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                <Terminal size={14} className="text-emerald-500" />
+                Console de Operações
               </div>
-            ))
-          ) : (
-            <div className="text-slate-600 text-center py-20">
-              Aguardando operações...
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLogs([])}
+                className="text-[10px] h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-700"
+              >
+                Limpar Console
+              </Button>
             </div>
-          )}
+            <div
+              ref={consoleRef}
+              className="bg-slate-900 rounded-2xl p-6 h-64 overflow-y-auto font-mono text-[11px] text-emerald-400 space-y-1 custom-scrollbar"
+            >
+              {logs.length > 0 ? (
+                logs.map((log, i) => (
+                  <div key={i} className="leading-relaxed">
+                    {log}
+                  </div>
+                ))
+              ) : (
+                <div className="text-slate-600 text-center py-20">
+                  Aguardando operações...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="md:col-span-1">
+          <RecentActivityFeed />
         </div>
       </div>
     </div>

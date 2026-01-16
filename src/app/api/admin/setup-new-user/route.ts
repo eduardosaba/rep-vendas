@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
 type Body = {
+  sourceUserId?: string;
   targetUserId: string;
   brands: string[];
 };
@@ -52,13 +54,48 @@ export async function POST(req: Request) {
     }
 
     // Call RPC to clone catalog by brand (Postgres function must exist)
-    const { data, error } = await supabase.rpc('clone_catalog_by_brand', {
-      source_user_id: user.id,
+    const sourceId = body.sourceUserId || user.id;
+
+    // Optional: ensure source exists
+    const { data: srcUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', sourceId)
+      .maybeSingle();
+    if (!srcUser) {
+      return NextResponse.json(
+        { error: 'Source user not found' },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase.rpc('clone_catalog_smart', {
+      source_user_id: sourceId,
       target_user_id: body.targetUserId,
       brands_to_copy: body.brands,
     });
 
     if (error) throw error;
+
+    try {
+      const cookieStore = await cookies();
+      const impersonatedId =
+        cookieStore.get('impersonate_user_id')?.value || null;
+      await supabase.from('activity_logs').insert({
+        user_id: impersonatedId || user.id,
+        impersonator_id: impersonatedId ? user.id : null,
+        action_type: 'CLONE',
+        description: `Clonagem executada: ${body.brands.join(', ')} de ${sourceId} para ${body.targetUserId}`,
+        metadata: {
+          source_user_id: sourceId,
+          target_user_id: body.targetUserId,
+          brands: body.brands,
+          result: data,
+        },
+      });
+    } catch (logErr) {
+      console.warn('Failed to write activity log for setup-new-user', logErr);
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (err: any) {
