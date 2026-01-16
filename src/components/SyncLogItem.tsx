@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ChevronRight, Search, History as HistoryIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SyncLog {
   id: string;
@@ -12,10 +13,14 @@ interface SyncLog {
   mismatch_count?: number;
   mismatch_list?: any[];
   target_column?: string;
+  rollback_data?: any[];
+  rolled_back?: boolean;
 }
 
 export default function SyncLogItem({ log }: { log: SyncLog }) {
   const [open, setOpen] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [rolledBack, setRolledBack] = useState<boolean>(!!log.rolled_back);
 
   return (
     <div className="bg-white rounded-[2rem] border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-all">
@@ -74,6 +79,46 @@ export default function SyncLogItem({ log }: { log: SyncLog }) {
         </div>
 
         <div className="flex items-center">
+          {log.rollback_data && log.rollback_data.length > 0 && (
+            <div className="mr-4">
+              {rolledBack ? (
+                <span className="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-600">
+                  Desfeito
+                </span>
+              ) : (
+                <button
+                  disabled={processing}
+                  onClick={async () => {
+                    if (!confirm('Deseja desfazer esta operação?')) return;
+                    try {
+                      setProcessing(true);
+                      const p = fetch('/api/admin/rollback-sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ logId: log.id }),
+                      }).then((r) => r.json());
+                      toast.promise(p, {
+                        loading: 'Desfazendo operação...',
+                        success: 'Operação desfeita com sucesso',
+                        error: 'Falha ao desfazer',
+                      });
+                      const res = await p;
+                      if (res?.success) {
+                        setRolledBack(true);
+                      }
+                    } catch (e: any) {
+                      console.error(e);
+                    } finally {
+                      setProcessing(false);
+                    }
+                  }}
+                  className="px-3 py-2 bg-red-50 text-red-600 rounded-lg font-bold text-xs"
+                >
+                  Desfazer
+                </button>
+              )}
+            </div>
+          )}
           <button
             onClick={() => setOpen((s) => !s)}
             className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary transition-colors flex items-center gap-2"

@@ -44,8 +44,10 @@ export async function POST(req: Request) {
       }
 
       const cookieStore = await cookies();
+      const impersonateCookieName =
+        process.env.IMPERSONATE_COOKIE_NAME || 'impersonate_user_id';
       const impersonatedId =
-        cookieStore.get('impersonate_user_id')?.value || null;
+        cookieStore.get(impersonateCookieName)?.value || null;
 
       const count = products.length;
       const brands = Array.from(

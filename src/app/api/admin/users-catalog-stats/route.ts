@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     const { data, error } = await supabase.rpc('get_users_catalog_stats');
     if (error) throw error;
 
-    return NextResponse.json({ data: data || [] });
+    return NextResponse.json({ data: data || [], callerRole: role });
   } catch (err: any) {
     console.error('users-catalog-stats error', err);
     return NextResponse.json(

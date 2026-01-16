@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { action_type, description, metadata } = body || {};
-    if (!action_type || !description) {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
-    }
-
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)
@@ -23,7 +16,6 @@ export async function POST(req: Request) {
       SUPABASE_SERVICE_ROLE_KEY
     );
 
-    // validate caller token and role
     const authHeader = req.headers.get('authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
     if (!token)
@@ -34,6 +26,7 @@ export async function POST(req: Request) {
     if (!user)
       return NextResponse.json({ error: 'Invalid auth' }, { status: 401 });
 
+    // verify caller role
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -44,22 +37,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const cookieStore = await cookies();
-    const impersonateCookieName =
-      process.env.IMPERSONATE_COOKIE_NAME || 'impersonate_user_id';
-    const impersonatedId =
-      cookieStore.get(impersonateCookieName)?.value || null;
-    await supabase.from('activity_logs').insert({
-      user_id: impersonatedId || user.id,
-      impersonator_id: impersonatedId ? user.id : null,
-      action_type,
-      description,
-      metadata: metadata || null,
-    });
+    const body = await req.json();
+    const { userId, newRole } = body || {};
+    if (!userId || !newRole)
+      return NextResponse.json({ error: 'Missing params' }, { status: 400 });
+
+    // enforce allowed roles server-side (accept short 'rep' and legacy 'representative')
+    const allowed = ['master', 'template', 'rep', 'representative'];
+    if (!allowed.includes(newRole))
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', userId);
+
+    if (error) throw error;
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('log-activity error', err);
+    console.error('set-role error', err);
     return NextResponse.json(
       { error: err?.message || String(err) },
       { status: 500 }

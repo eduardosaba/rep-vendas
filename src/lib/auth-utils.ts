@@ -11,9 +11,11 @@ export async function getActiveUserId() {
 
   if (!user) return null;
 
-  const impersonateId = cookieStore.get('impersonate_user_id')?.value;
+  const impersonateCookieName =
+    process.env.IMPERSONATE_COOKIE_NAME || 'impersonate_user_id';
+  const impersonateId = cookieStore.get(impersonateCookieName)?.value;
 
-  // Só permite impersonation para perfis com role 'master' ou 'admin'
+  // Só permite impersonation para perfis autorizados
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -21,8 +23,9 @@ export async function getActiveUserId() {
     .maybeSingle();
 
   const role = profile?.role || null;
+  const allowedRoles = ['master', 'admin', 'template', 'rep', 'representative'];
 
-  if (impersonateId && (role === 'master' || role === 'admin')) {
+  if (impersonateId && role && allowedRoles.includes(role)) {
     return impersonateId;
   }
 

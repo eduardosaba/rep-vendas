@@ -140,8 +140,10 @@ export async function POST(req: Request) {
       }
 
       const cookieStore = await cookies();
+      const impersonateCookieName =
+        process.env.IMPERSONATE_COOKIE_NAME || 'impersonate_user_id';
       const impersonatedId =
-        cookieStore.get('impersonate_user_id')?.value || null;
+        cookieStore.get(impersonateCookieName)?.value || null;
 
       await supabaseAdmin.from('activity_logs').insert({
         user_id: impersonatedId || actorId,

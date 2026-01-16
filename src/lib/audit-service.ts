@@ -14,7 +14,9 @@ export async function createAuditLog(
   } = await supabase.auth.getUser();
   if (!realUser) return;
 
-  const impersonatedUserId = cookieStore.get('impersonate_user_id')?.value;
+  const impersonateCookieName =
+    process.env.IMPERSONATE_COOKIE_NAME || 'impersonate_user_id';
+  const impersonatedUserId = cookieStore.get(impersonateCookieName)?.value;
 
   const logData = {
     user_id: impersonatedUserId || realUser.id,

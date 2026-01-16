@@ -79,8 +79,10 @@ export async function POST(req: Request) {
 
     try {
       const cookieStore = await cookies();
+      const impersonateCookieName =
+        process.env.IMPERSONATE_COOKIE_NAME || 'impersonate_user_id';
       const impersonatedId =
-        cookieStore.get('impersonate_user_id')?.value || null;
+        cookieStore.get(impersonateCookieName)?.value || null;
       await supabase.from('activity_logs').insert({
         user_id: impersonatedId || user.id,
         impersonator_id: impersonatedId ? user.id : null,

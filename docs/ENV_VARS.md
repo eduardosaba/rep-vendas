@@ -85,7 +85,7 @@ Se o `scripts/check-env.js` identificou variáveis faltando, aqui estão valores
 
 - `IMPERSONATE_COOKIE_NAME`:
   - O que é: nome do cookie httpOnly usado para impersonation.
-  - Sugestão: `repvendas_impersonate_token` (ou `impersonate_user_id` para compatibilidade imediata).
+  - Sugestão: `impersonate_user_id` (valor padrão usado pelo código, garante compatibilidade imediata).
 
 - `INNGEST_API_KEY` e `INNGEST_SIGNING_SECRET`:
   - O que são: chaves usadas para autenticação com o Inngest (workers / webhooks).
@@ -98,7 +98,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://xyz.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=public-anon-key-here
 SUPABASE_SERVICE_ROLE_KEY=service-role-key-keep-secret
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-IMPERSONATE_COOKIE_NAME=repvendas_impersonate_token
+IMPERSONATE_COOKIE_NAME=impersonate_user_id
 IMPERSONATE_COOKIE_TTL=7200
 COOKIE_SECURE=false # true em produção
 INNGEST_API_KEY=dev_inngest_key

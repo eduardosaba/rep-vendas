@@ -22,6 +22,7 @@ import {
   History,
   Trash2,
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -34,9 +35,38 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    // Fetch profile role client-side to show master-only menu
+    let mounted = true;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (mounted) setUserRole(profile?.role || null);
+      } catch (err) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const menuItems = [
@@ -67,6 +97,11 @@ export default function AdminSidebar({
       icon: ToggleLeft,
     },
     { label: 'Métricas Globais', href: '/admin/metrics', icon: BarChart2 },
+    {
+      label: 'Curadoria de Dados',
+      href: '/admin/curadoria',
+      icon: ShieldCheck,
+    },
     { label: 'Clear Storage', href: '/admin/clear', icon: Trash2 },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
     { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket },
@@ -136,14 +171,27 @@ export default function AdminSidebar({
         })}
 
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-          <a
-            href="/dashboard"
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 ${isCollapsed ? 'justify-center' : ''}`}
-            title="Área do Usuário"
-          >
-            <LayoutDashboard size={18} />
-            {!isCollapsed && <span>Abrir Dashboard</span>}
-          </a>
+          {userRole === 'master' ? (
+            <Link
+              href="/admin/dashboard"
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 ${isCollapsed ? 'justify-center' : ''}`}
+              title="Torre: Dashboard de Saúde"
+            >
+              <LayoutDashboard size={18} />
+              {!isCollapsed && <span>Dashboard de Saúde</span>}
+            </Link>
+          ) : (
+            <a
+              href="/dashboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 ${isCollapsed ? 'justify-center' : ''}`}
+              title="Área do Usuário"
+            >
+              <LayoutDashboard size={18} />
+              {!isCollapsed && <span>Abrir Dashboard</span>}
+            </a>
+          )}
         </div>
       </nav>
 

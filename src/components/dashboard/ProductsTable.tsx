@@ -108,6 +108,7 @@ interface SupabasePrefRow {
   table_key: string;
   column_order: DataKey[];
   visible_keys: DataKey[];
+  column_widths?: Record<DataKey, number> | null;
 }
 
 const PREFS_TABLE_KEY = 'product_table';
@@ -340,6 +341,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       if (resizingRef.current) {
         resizingRef.current = null;
         document.body.style.userSelect = '';
+        try {
+          window.dispatchEvent(new CustomEvent('repvendas:colresizeend'));
+        } catch (e) {
+          // ignore
+        }
       }
     };
     window.addEventListener('mousemove', onMove);
@@ -420,7 +426,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   );
 
   const savePreferences = useCallback(
-    async (order: DataKey[], visible: Set<DataKey>) => {
+    async (
+      order: DataKey[],
+      visible: Set<DataKey>,
+      widths?: Record<DataKey, number> | null
+    ) => {
       if (!userId || userId === 'guest') return;
       const row: SupabasePrefRow = {
         user_id: userId,
@@ -428,11 +438,28 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         table_key: PREFS_TABLE_KEY,
         column_order: order,
         visible_keys: Array.from(visible),
+        column_widths: widths || null,
       };
       await persistRemoteRow(row);
     },
     [persistRemoteRow, userId]
   );
+
+  // Persist column widths when resizing ends
+  useEffect(() => {
+    const handler = () => {
+      // debounce small delay to ensure state updated
+      setTimeout(() => {
+        savePreferences(columnOrder, visibleColumnKeys, columnWidths);
+      }, 50);
+    };
+    window.addEventListener('repvendas:colresizeend', handler as EventListener);
+    return () =>
+      window.removeEventListener(
+        'repvendas:colresizeend',
+        handler as EventListener
+      );
+  }, [savePreferences, columnOrder, visibleColumnKeys, columnWidths]);
 
   useEffect(() => {
     if (!supabase || !isAuthReady || !userId || userId === 'guest') {
@@ -441,7 +468,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     }
     supabase
       .from(PREFS_TABLE_NAME)
-      .select('column_order, visible_keys')
+      .select('column_order, visible_keys, column_widths')
       .eq('user_id', userId)
       .eq('table_key', PREFS_TABLE_KEY)
       .maybeSingle()
@@ -455,6 +482,21 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               (key) => ALL_DATA_COLUMNS[key]
             )
           );
+          // load widths if present
+          if (data.column_widths) {
+            try {
+              const widths = data.column_widths as Record<string, number>;
+              const normalized: Record<DataKey, number> = {} as any;
+              Object.keys(widths).forEach((k) => {
+                if ((ALL_DATA_COLUMNS as any)[k]) {
+                  normalized[k as DataKey] = Number(widths[k]) || 0;
+                }
+              });
+              setColumnWidths((prev) => ({ ...prev, ...normalized }));
+            } catch (e) {
+              // ignore parse errors
+            }
+          }
           const missing = DEFAULT_PREFS.columnOrder.filter(
             (key) => !loadedOrder.includes(key)
           );
@@ -580,7 +622,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     if (newVisible.has(key)) newVisible.delete(key);
     else newVisible.add(key);
     setVisibleColumnKeys(newVisible);
-    savePreferences(columnOrder, newVisible);
+    savePreferences(columnOrder, newVisible, columnWidths);
   };
 
   const moveColumn = (key: DataKey, dir: 'up' | 'down') => {
@@ -593,7 +635,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     const newOrder = [...columnOrder];
     [newOrder[idx], newOrder[newIdx]] = [newOrder[newIdx], newOrder[idx]];
     setColumnOrder(newOrder);
-    savePreferences(newOrder, visibleColumnKeys);
+    savePreferences(newOrder, visibleColumnKeys, columnWidths);
   };
 
   // --- COMPONENTE DROPDOWN DE COLUNAS ---
@@ -644,11 +686,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                       if (e.target.checked) {
                         const newSet = new Set<DataKey>(allKeys);
                         setVisibleColumnKeys(newSet);
-                        savePreferences(columnOrder, newSet);
+                        savePreferences(columnOrder, newSet, columnWidths);
                       } else {
                         const newSet = new Set<DataKey>();
                         setVisibleColumnKeys(newSet);
-                        savePreferences(columnOrder, newSet);
+                        savePreferences(columnOrder, newSet, columnWidths);
                       }
                     }}
                     className="h-4 w-4 text-primary rounded border-gray-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-primary"
@@ -1042,31 +1084,47 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   // --- RENDERERS ---
   const SortableHeader = ({ label, sortKey, align }: any) => (
     <th
-      className={`relative px-4 py-3 font-medium cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap text-gray-500 dark:text-slate-400 text-xs uppercase tracking-wider ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
-      onClick={() =>
-        setSortConfig({
-          key: sortKey,
-          direction:
-            sortConfig &&
-            sortConfig.key === sortKey &&
-            sortConfig.direction === 'asc'
-              ? 'desc'
-              : 'asc',
-        })
-      }
+      className={`relative px-4 py-3 font-medium hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap text-gray-500 dark:text-slate-400 text-xs uppercase tracking-wider ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
       style={
-        // apply width if configured
         (columnWidths as any)[sortKey]
           ? { width: (columnWidths as any)[sortKey] }
           : undefined
       }
     >
       <div
-        className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          if (!resizingRef.current) {
+            setSortConfig({
+              key: sortKey,
+              direction:
+                sortConfig &&
+                sortConfig.key === sortKey &&
+                sortConfig.direction === 'asc'
+                  ? 'desc'
+                  : 'asc',
+            });
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            setSortConfig({
+              key: sortKey,
+              direction:
+                sortConfig &&
+                sortConfig.key === sortKey &&
+                sortConfig.direction === 'asc'
+                  ? 'desc'
+                  : 'asc',
+            });
+          }
+        }}
+        className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'} cursor-pointer`}
       >
         {label} <ArrowUpDown size={12} className="opacity-50" />
       </div>
-      {/* Resizer */}
+      {/* Resizer handle (larger hit area) */}
       <div
         onMouseDown={(e) => {
           e.stopPropagation();
@@ -1079,7 +1137,15 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           };
           document.body.style.userSelect = 'none';
         }}
-        className="absolute right-0 top-0 h-full w-2 -mr-2 cursor-col-resize"
+        onDoubleClick={() => {
+          // reset width to default (undefined -> uses initial state/default)
+          setColumnWidths((prev) => {
+            const next = { ...prev } as any;
+            delete next[sortKey];
+            return next;
+          });
+        }}
+        className="absolute right-0 top-0 h-full w-6 -mr-3 cursor-col-resize"
       />
     </th>
   );
@@ -1702,8 +1768,23 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         <div className="hidden md:block w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
           <table
             className="w-full text-left text-sm border-collapse"
-            style={{ minWidth: '1000px' }}
+            style={{ minWidth: '1000px', tableLayout: 'fixed' as const }}
           >
+            {/* colgroup mantém larguras controladas para redimensionamento */}
+            <colgroup>
+              <col style={{ width: '48px' }} />
+              {visibleAndOrderedColumns.map((col) => (
+                <col
+                  key={`col-${col.key}`}
+                  style={{
+                    width: columnWidths[col.key]
+                      ? `${columnWidths[col.key]}px`
+                      : undefined,
+                  }}
+                />
+              ))}
+              <col style={{ width: '100px' }} />
+            </colgroup>
             <thead className="bg-gray-50 dark:bg-slate-950/50 border-b border-gray-200 dark:border-slate-800">
               <tr>
                 <th className="px-4 py-3 w-10">

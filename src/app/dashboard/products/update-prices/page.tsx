@@ -174,6 +174,7 @@ export default function UpdatePricesPage() {
       let notFoundCount = 0;
       let errorCount = 0;
       const mismatches: any[] = []; // Lista para auditoria
+      const rollbackData: any[] = []; // snapshot para possível desfazer
 
       const BATCH_SIZE = 20;
 
@@ -243,6 +244,23 @@ export default function UpdatePricesPage() {
             if (newSalePrice !== undefined)
               updatePayload.sale_price = newSalePrice;
 
+            // Captura do valor atual para rollback
+            const { data: existing } = await supabase
+              .from('products')
+              .select('id, price, sale_price')
+              .eq('user_id', user.id)
+              .eq('reference_code', String(refValue))
+              .maybeSingle();
+            if (existing) {
+              rollbackData.push({
+                id: existing.id,
+                old_values: {
+                  price: existing.price,
+                  sale_price: existing.sale_price,
+                },
+              });
+            }
+
             const { error, data } = await supabase
               .from('products')
               .update(updatePayload)
@@ -289,6 +307,7 @@ export default function UpdatePricesPage() {
         updated_count: updatedCount,
         mismatch_count: notFoundCount,
         mismatch_list: mismatches,
+        rollback_data: rollbackData,
       });
 
       setStats({
