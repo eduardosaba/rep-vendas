@@ -145,8 +145,24 @@ export default function ProductSyncPage() {
       for (let i = 0; i < updates.length; i += chunkSize) {
         const chunk = updates.slice(i, i + chunkSize);
 
+        // Filtra itens sem `id` — evita que o upsert tente inserir linhas incompletas
+        const validChunk = chunk.filter((item) => !!item.id);
+        if (validChunk.length !== chunk.length) {
+          const skipped = chunk.length - validChunk.length;
+          addLog(
+            `⚠️ Pulando ${skipped} item(s) sem ID no lote ${i / chunkSize + 1} (evita inserts inválidos)`
+          );
+        }
+        if (validChunk.length === 0) {
+          setProgress((prev) => ({
+            ...prev,
+            current: Math.min(i + chunkSize, updates.length),
+          }));
+          continue;
+        }
+
         // Preparamos os dados para o UPSERT (Update em massa via ID)
-        const batchData = chunk.map((item) => {
+        const batchData = validChunk.map((item) => {
           let val = item.newValue;
           if (dbTargetCol === 'price' || dbTargetCol === 'stock_quantity') {
             val =
@@ -170,7 +186,7 @@ export default function ProductSyncPage() {
           errorCount += chunk.length;
           if (stopOnError) break;
         } else {
-          updatedCount += chunk.length;
+          updatedCount += validChunk.length;
           addLog(`✅ Bloco processado: ${updatedCount} produtos...`);
         }
 
