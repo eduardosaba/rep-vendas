@@ -176,19 +176,51 @@ export default function ProductSyncPage() {
           };
         });
 
-        // Usa onConflict para forçar upsert por id
-        const { error } = await supabase
-          .from('products')
-          .upsert(batchData, { onConflict: 'id' });
+        // Atualiza um-a-um para evitar inserts (upsert pode inserir linhas incompletas)
+        const results = await Promise.allSettled(
+          validChunk.map((item) => {
+            let val = item.newValue;
+            if (dbTargetCol === 'price' || dbTargetCol === 'stock_quantity') {
+              val =
+                parseFloat(String(item.newValue).replace(/[^\d.-]/g, '')) || 0;
+            }
+            const updateObj: any = {
+              [dbTargetCol]: val,
+              updated_at: new Date().toISOString(),
+              user_id: user.id,
+            };
+            return supabase
+              .from('products')
+              .update(updateObj)
+              .eq('id', item.id);
+          })
+        );
 
-        if (error) {
-          addLog(`❌ Erro no lote ${i / chunkSize + 1}: ${error.message}`);
-          errorCount += chunk.length;
-          if (stopOnError) break;
-        } else {
-          updatedCount += validChunk.length;
-          addLog(`✅ Bloco processado: ${updatedCount} produtos...`);
+        // Avalia resultados individuais
+        let successful = 0;
+        for (const r of results) {
+          if (r.status === 'fulfilled') {
+            const resp: any = r.value;
+            if (resp.error) {
+              addLog(
+                `❌ Erro em update: ${resp.error.message || JSON.stringify(resp.error)}`
+              );
+              errorCount += 1;
+              if (stopOnError) break;
+            } else {
+              successful += 1;
+            }
+          } else {
+            addLog(`❌ Erro em update (rejected): ${String(r.reason)}`);
+            errorCount += 1;
+            if (stopOnError) break;
+          }
         }
+
+        updatedCount += successful;
+        addLog(
+          `✅ Bloco processado: ${updatedCount} produtos (${successful} atualizados).`
+        );
 
         setProgress((prev) => ({
           ...prev,
