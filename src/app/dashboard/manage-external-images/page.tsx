@@ -45,6 +45,27 @@ export default async function ManageExternalImagesPage() {
       (p.images && Array.isArray(p.images) && p.images.length > 0)
   );
 
+  // Normalize e sanitize para passar apenas campos simples ao componente cliente
+  const cleanedProducts = productsWithExternalUrls.map((p: any) => {
+    // tenta external_image_url, depois image_url, depois first images entry
+    const fallbackUrl =
+      p.external_image_url ||
+      p.image_url ||
+      (p.images && Array.isArray(p.images) && p.images[0]
+        ? p.images[0].url || p.images[0]
+        : null) ||
+      null;
+
+    return {
+      id: p.id,
+      name: p.name || 'Sem nome',
+      reference_code: p.reference_code || null,
+      brand: p.brand || null,
+      category: p.category || null,
+      external_image_url: fallbackUrl,
+    };
+  });
+
   // Busca o último job de sincronização para exibir no card de status
   let syncJob = null;
   try {
@@ -94,12 +115,10 @@ export default async function ManageExternalImagesPage() {
 
       {/* ÁREA PRINCIPAL (agora rolável; o card de status fica dentro dela para
               não reduzir o espaço reservado ao conteúdo principal) */}
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-auto flex flex-col relative">
-        <div className="p-4 flex-1 min-h-0">
+      <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col relative">
+        <div className="p-4 flex-1 min-h-0 overflow-auto">
           {productsWithExternalUrls.length > 0 ? (
-            <ManageExternalImagesClient
-              initialProducts={productsWithExternalUrls}
-            />
+            <ManageExternalImagesClient initialProducts={cleanedProducts} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
@@ -123,12 +142,18 @@ export default async function ManageExternalImagesPage() {
             </div>
           )}
         </div>
+      </div>
 
-        {/* Card de status de sincronização (fixo ao final da área principal) */}
-        <div className="border-t border-gray-100 dark:border-slate-800 p-4">
+      {/*
+        Card de status de sincronização comentado temporariamente —
+        desativado enquanto avaliamos melhorias na funcionalidade.
+
+      <div className="mt-4">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 shadow-sm">
           <SyncStatusCard syncData={syncJob} />
         </div>
       </div>
+      */}
     </div>
   );
 }

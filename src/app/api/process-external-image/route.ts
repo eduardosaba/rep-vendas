@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import dns from 'node:dns';
 import sharp from 'sharp';
 import https from 'https';
+import stream from 'node:stream';
+import { promisify } from 'node:util';
 /*
  * TLS: removido bypass inseguro.
  * A aplicação não desabilita verificação de certificados em runtime.
@@ -78,8 +80,13 @@ async function fetchWithTimeout(
         });
       }
 
-      // Não retry para erros críticos de SSL ou DNS
-      if (isSSL || isDNS) throw err;
+      // Não retry para erros críticos de DNS
+      if (isDNS) throw err;
+      // SSL: se o chamador explicitou que aceita bypass (__allowInsecure=true)
+      // então não abortamos imediatamente aqui — o caller já deverá ter
+      // passado um agent com rejectUnauthorized=false quando apropriado.
+      const allowInsecure = (opts as any)?.__allowInsecure === true;
+      if (isSSL && !allowInsecure) throw err;
       // If timeout/AbortError happened, allow retry (up to retries)
       if (attempt === retries) throw err;
 
@@ -161,7 +168,41 @@ export async function POST(request: Request) {
       // Fetch upstream directly (similar behavior to proxy-image)
       try {
         const targetHost = new URL(targetUrl).hostname;
-        const agent = new https.Agent({ rejectUnauthorized: true } as any);
+
+        // Permitir bypass TLS apenas para hosts explicitamente configurados.
+        const insecureEnv = process.env.PROXY_INSECURE_HOSTS || '';
+        const insecureHosts = insecureEnv
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        // TEMPORÁRIO: permitir bypass para hosts Safilo quando necessário (confiado)
+        if (targetHost.includes('safilo')) {
+          console.warn(
+            '[process-external-image] adding safilo host to insecureHosts (temporary)'
+          );
+          if (!insecureHosts.includes(targetHost))
+            insecureHosts.push(targetHost);
+        }
+        const allowInProd = process.env.PROXY_ALLOW_INSECURE_IN_PROD === '1';
+
+        if (insecureHosts.includes(targetHost)) {
+          if (process.env.NODE_ENV === 'production' && !allowInProd) {
+            console.warn(
+              '[process-external-image] insecure host requested but not allowed in production',
+              { targetHost }
+            );
+            throw new Error('Insecure host not allowed in production');
+          }
+          console.warn(
+            '[process-external-image] WARNING: using insecure TLS bypass for host',
+            { targetHost }
+          );
+        }
+
+        const agent = new https.Agent({
+          // se host estiver na lista de inseguros, desabilita verificação
+          rejectUnauthorized: !insecureHosts.includes(targetHost),
+        } as any);
 
         // Headers refinados para evitar problemas de descompressão e bloqueios
         const refinedHeaders: Record<string, string> = {
@@ -178,23 +219,70 @@ export async function POST(request: Request) {
           Connection: 'keep-alive',
         };
 
-        // Use fetchWithTimeout (centralizado) to allow retries and consistent timeouts
-        const start = Date.now();
-        downloadResponse = await fetchWithTimeout(
-          targetUrl,
-          {
+        // Se host estiver na lista de inseguros, usar request nativo HTTPS com
+        // agent.rejectUnauthorized=false para evitar problemas de cadeia de
+        // certificados que o fetch/undici pode não respeitar em algumas
+        // plataformas.
+        if (insecureHosts.includes(targetHost)) {
+          console.warn(
+            '[process-external-image] using native https request for insecure host',
+            { targetHost }
+          );
+          downloadResponse = null as any;
+          // Faz a requisição nativa e expõe um Node stream (IncomingMessage)
+          const reqUrl = new URL(targetUrl);
+          const reqOptions: any = {
+            protocol: reqUrl.protocol,
+            hostname: reqUrl.hostname,
+            port: reqUrl.port,
+            path: reqUrl.pathname + (reqUrl.search || ''),
             method: 'GET',
-            // @ts-ignore - pass agent to node runtime
-            agent,
             headers: refinedHeaders,
-          },
-          DEFAULT_DOWNLOAD_TIMEOUT,
-          DEFAULT_DOWNLOAD_RETRIES
-        );
-        console.log(
-          '[process-external-image] internal fetch latency ms',
-          Date.now() - start
-        );
+            agent: new https.Agent({ rejectUnauthorized: false } as any),
+          };
+
+          const nativeRes: any = await new Promise((resolve, reject) => {
+            const r = https.request(reqOptions as any, (res) => resolve(res));
+            r.on('error', (e) => reject(e));
+            r.end();
+          });
+
+          // Criamos um objeto parcial compatível com o fluxo esperado mais abaixo
+          downloadResponse = {
+            ok: nativeRes.statusCode >= 200 && nativeRes.statusCode < 300,
+            status: nativeRes.statusCode,
+            headers: {
+              get: (k: string) =>
+                (nativeRes.headers || {})[k.toLowerCase()] as any,
+            },
+            // Node IncomingMessage é um Readable stream
+            body: nativeRes,
+          } as any;
+          console.log(
+            '[process-external-image] native https response status',
+            nativeRes.statusCode
+          );
+        } else {
+          // Use fetchWithTimeout (centralizado) to allow retries and consistent timeouts
+          const start = Date.now();
+          downloadResponse = await fetchWithTimeout(
+            targetUrl,
+            {
+              method: 'GET',
+              // @ts-ignore - pass agent to node runtime
+              agent,
+              headers: refinedHeaders,
+              __allowInsecure:
+                (agent as any)?.options?.rejectUnauthorized === false,
+            },
+            DEFAULT_DOWNLOAD_TIMEOUT,
+            DEFAULT_DOWNLOAD_RETRIES
+          );
+          console.log(
+            '[process-external-image] internal fetch latency ms',
+            Date.now() - start
+          );
+        }
       } catch (err: any) {
         console.error('[process-external-image] internal fetch failed', {
           target: targetUrl,
@@ -267,6 +355,14 @@ export async function POST(request: Request) {
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean);
+          // TEMPORÁRIO: permitir bypass para hosts Safilo quando necessário (confiado)
+          if (targetHost.includes('safilo')) {
+            console.warn(
+              '[process-external-image] adding safilo host to insecureHosts (temporary)'
+            );
+            if (!insecureHosts.includes(targetHost))
+              insecureHosts.push(targetHost);
+          }
           const allowInProd = process.env.PROXY_ALLOW_INSECURE_IN_PROD === '1';
 
           let agent: https.Agent;
@@ -302,27 +398,69 @@ export async function POST(request: Request) {
           };
 
           const startDirect = Date.now();
-          const directResponse = await fetchWithTimeout(
-            targetUrl,
-            {
+          let directResponse: any = null;
+          if (insecureHosts.includes(targetHost)) {
+            console.warn(
+              '[process-external-image] using native https request for insecure host (direct fallback)',
+              { targetHost }
+            );
+            const reqUrl = new URL(targetUrl);
+            const reqOptions: any = {
+              protocol: reqUrl.protocol,
+              hostname: reqUrl.hostname,
+              port: reqUrl.port,
+              path: reqUrl.pathname + (reqUrl.search || ''),
               method: 'GET',
               headers: refinedDirectHeaders,
-              // @ts-ignore
-              agent,
-            },
-            DEFAULT_DOWNLOAD_TIMEOUT,
-            DEFAULT_DOWNLOAD_RETRIES
-          );
+              agent: new https.Agent({ rejectUnauthorized: false } as any),
+            };
+
+            const nativeRes: any = await new Promise((resolve, reject) => {
+              const r = https.request(reqOptions as any, (res) => resolve(res));
+              r.on('error', (e) => reject(e));
+              r.end();
+            });
+
+            directResponse = {
+              ok: nativeRes.statusCode >= 200 && nativeRes.statusCode < 300,
+              status: nativeRes.statusCode,
+              headers: {
+                get: (k: string) => (nativeRes.headers || {})[k.toLowerCase()],
+              },
+              body: nativeRes,
+            } as any;
+            console.log(
+              '[process-external-image] native direct response status',
+              nativeRes.statusCode
+            );
+          } else {
+            directResponse = await fetchWithTimeout(
+              targetUrl,
+              {
+                method: 'GET',
+                headers: refinedDirectHeaders,
+                // @ts-ignore
+                agent,
+                __allowInsecure:
+                  (agent as any)?.options?.rejectUnauthorized === false,
+              },
+              DEFAULT_DOWNLOAD_TIMEOUT,
+              DEFAULT_DOWNLOAD_RETRIES
+            );
+          }
+
           console.log(
             '[process-external-image] direct fetch latency ms',
             Date.now() - startDirect
           );
 
           if (!directResponse.ok) {
-            const txt = await directResponse.text().catch(() => '');
+            const txt = await (directResponse.text
+              ? directResponse.text().catch(() => '')
+              : Promise.resolve(''));
             console.error('[process-external-image] direct fetch failed', {
               status: directResponse.status,
-              bodyPreview: txt.slice(0, 300),
+              bodyPreview: String(txt).slice(0, 300),
             });
             throw new Error(
               `Servidor externo retornou erro ${directResponse.status}`
@@ -347,46 +485,94 @@ export async function POST(request: Request) {
       }
     }
 
-    const arrayBuffer = await downloadResponse.arrayBuffer();
-    const originalBuffer = Buffer.from(arrayBuffer);
-
-    // Log básico para diagnóstico: content-type e prefixo do buffer
-    const contentType = downloadResponse.headers.get('content-type');
-    console.log('[process-external-image] content-type', contentType);
-    try {
-      const prefix = originalBuffer.slice(0, 32).toString('hex');
-      console.log(
-        '[process-external-image] originalBuffer prefix (hex)',
-        prefix
-      );
-    } catch (e) {
-      console.warn(
-        '[process-external-image] não conseguiu logar prefix do buffer'
-      );
+    // 3.5 Checagem de tamanho antes de processar (se disponível)
+    const MAX_SIZE_BYTES =
+      Number(process.env.MAX_EXTERNAL_IMAGE_BYTES) || 20 * 1024 * 1024; // 20MB
+    const LARGE_IMAGE_THRESHOLD =
+      Number(process.env.LARGE_IMAGE_THRESHOLD_BYTES) || 10 * 1024 * 1024; // 10MB
+    const contentLengthHeader = downloadResponse.headers.get('content-length');
+    let contentLength: number | null = null;
+    if (contentLengthHeader) {
+      contentLength = parseInt(contentLengthHeader, 10);
+      if (!isNaN(contentLength) && contentLength > MAX_SIZE_BYTES) {
+        throw new Error(`Arquivo muito grande: ${contentLength} bytes`);
+      }
     }
 
-    // 4. OTIMIZAÇÃO SHARP (pipeline simplificada)
+    // Tenta usar streaming para reduzir uso de memória
+    const pipeline = promisify(stream.pipeline);
     let optimizedBuffer: Buffer;
+    let finalFormat: string = 'jpeg';
     try {
-      optimizedBuffer = await sharp(originalBuffer)
-        .rotate()
-        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-        .toFormat('jpeg', { quality: 85 })
-        .toBuffer();
+      // Converte WHATWG ReadableStream para Node Readable se necessário
+      let bodyStream: NodeJS.ReadableStream | null = null as any;
+      if (
+        (downloadResponse as any).body &&
+        typeof (downloadResponse as any).body.pipe === 'function'
+      ) {
+        bodyStream = (downloadResponse as any).body as NodeJS.ReadableStream;
+      } else if (
+        typeof (stream as any).Readable?.fromWeb === 'function' &&
+        (downloadResponse as any).body
+      ) {
+        bodyStream = stream.Readable.fromWeb(
+          (downloadResponse as any).body as any
+        ) as unknown as NodeJS.ReadableStream;
+      }
+
+      if (!bodyStream) {
+        // fallback seguro para ambientes antigos: carregar em memória
+        const arrayBuffer = await downloadResponse.arrayBuffer();
+        const originalBuffer = Buffer.from(arrayBuffer as any);
+        optimizedBuffer = await sharp(originalBuffer)
+          .rotate()
+          .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+          .toFormat('jpeg', { quality: 85 })
+          .toBuffer();
+      } else {
+        // Criar transformer Sharp que gera buffer ao final
+        // Ajuste dinâmico para imagens muito grandes: reduzir dimensão e usar webp
+        const resizeDim =
+          contentLength && contentLength > LARGE_IMAGE_THRESHOLD ? 800 : 1200;
+        const outputFormat =
+          contentLength && contentLength > LARGE_IMAGE_THRESHOLD
+            ? 'webp'
+            : 'jpeg';
+        finalFormat = outputFormat;
+        const transformer = sharp()
+          .rotate()
+          .resize(resizeDim, resizeDim, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .toFormat(outputFormat as any, { quality: 80 });
+
+        const chunks: Buffer[] = [];
+        transformer.on('data', (c: Buffer) => chunks.push(c));
+        transformer.on('error', (err: any) => {
+          console.error('[process-external-image] transformer error', err);
+        });
+
+        await pipeline(bodyStream, transformer as any);
+        optimizedBuffer = Buffer.concat(chunks);
+      }
     } catch (err: any) {
       console.error('[process-external-image] sharp primary pipeline failed', {
         message: err?.message,
         stack: err?.stack,
       });
-      console.error(
-        '[process-external-image] originalBuffer length',
-        originalBuffer?.length
-      );
-
-      // Tentar pipeline fallback ainda mais simples
+      // fallback: tentar ler tudo e aplicar pipeline simples
       try {
+        const arrayBuffer = await downloadResponse.arrayBuffer();
+        const originalBuffer = Buffer.from(arrayBuffer as any);
+        // fallback: also respect LARGE_IMAGE_THRESHOLD
+        const fallbackFormat =
+          contentLength && contentLength > LARGE_IMAGE_THRESHOLD
+            ? 'webp'
+            : 'jpeg';
+        finalFormat = fallbackFormat;
         optimizedBuffer = await sharp(originalBuffer)
-          .jpeg({ quality: 80 })
+          .toFormat(fallbackFormat as any, { quality: 80 })
           .toBuffer();
         console.warn(
           '[process-external-image] sharp fallback pipeline succeeded'
@@ -402,12 +588,14 @@ export async function POST(request: Request) {
 
     // 5. UPLOAD PARA STORAGE
     const brandFolder = sanitizeFolder(product.brand);
-    const fileName = `public/${product.user_id}/products/${brandFolder}/${productId}-${Date.now()}.jpg`;
+    const ext = finalFormat === 'webp' ? 'webp' : 'jpg';
+    const contentType = finalFormat === 'webp' ? 'image/webp' : 'image/jpeg';
+    const fileName = `public/${product.user_id}/products/${brandFolder}/${productId}-${Date.now()}.${ext}`;
 
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('product-images')
       .upload(fileName, optimizedBuffer, {
-        contentType: 'image/jpeg',
+        contentType,
         upsert: true,
       });
 

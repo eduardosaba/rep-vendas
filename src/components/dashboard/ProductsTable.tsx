@@ -405,18 +405,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     if (typeof console !== 'undefined' && console.error) console.error(...args);
   };
 
-  // Retorna href seguro para editar o produto: prefere slug quando válido, senão usa id
+  // Retorna href seguro para editar o produto.
+  // Para evitar 404s ocasionais por slugs inválidos, usamos o `id` como fonte
+  // de verdade — a rota de edição aceita tanto `slug` quanto `id`.
   const getProductHref = (p: Product) => {
-    try {
-      const slug =
-        p?.slug && typeof p.slug === 'string' && p.slug.trim() !== ''
-          ? p.slug.trim()
-          : null;
-      if (slug && slug !== p.id)
-        return `/dashboard/products/${encodeURIComponent(slug)}`;
-    } catch (e) {
-      // ignore
-    }
     return `/dashboard/products/${encodeURIComponent(p.id)}`;
   };
 

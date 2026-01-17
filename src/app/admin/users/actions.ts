@@ -450,14 +450,27 @@ export async function updateUserProfile(
 
     const fullName = formData.get('full_name') as string;
     const role = formData.get('role') as string;
+    // Optional fields
+    const estados = formData.getAll('estados') as string[];
+    const brandsRaw = (formData.get('brands') as string) || '';
+    const brands = brandsRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    const updatePayload: any = {
+      full_name: fullName,
+      role: role,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (Array.isArray(estados) && estados.length > 0)
+      updatePayload.estados = estados;
+    if (brands.length > 0) updatePayload.brands = brands;
 
     const { error } = await supabaseAdmin
       .from('profiles')
-      .update({
-        full_name: fullName,
-        role: role,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', userId);
 
     if (error) throw error;

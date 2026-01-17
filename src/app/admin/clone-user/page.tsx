@@ -289,7 +289,8 @@ export default function CloneUserPage() {
       {/* Clone console */}
       {selectedUser && (
         <div className="mt-6">
-          <SyncStatusCard syncData={latestSyncJob} />
+          {/* SyncStatusCard desativado temporariamente enquanto avaliamos melhorias */}
+          {/* <SyncStatusCard syncData={latestSyncJob} /> */}
           <div className="mt-4 bg-white dark:bg-slate-900 p-3 rounded border border-gray-100 dark:border-slate-800 text-sm text-gray-600">
             {cloneEntries.length === 0
               ? 'Nenhum item clonado ainda.'

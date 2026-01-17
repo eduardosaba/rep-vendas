@@ -35,9 +35,35 @@ export default function ManageExternalImagesClient({
 }: {
   initialProducts: Product[];
 }) {
+  // DEBUG: loga quantos itens o componente recebeu (ajuste temporário)
+  useEffect(() => {
+    try {
+      const ids = (initialProducts || []).slice(0, 3).map((p) => p.id);
+      console.debug(
+        '[ManageExternalImagesClient] received',
+        initialProducts.length,
+        'items, sample ids=',
+        ids
+      );
+    } catch (e) {
+      console.debug('[ManageExternalImagesClient] debug log failed', e);
+    }
+  }, [initialProducts]);
   const [items, setItems] = useState<ProcessItem[]>(
     initialProducts.map((p) => ({ ...p, status: 'idle' }))
   );
+
+  // Ensure client state matches server props after hydration/navigation
+  useEffect(() => {
+    try {
+      setItems(initialProducts.map((p) => ({ ...p, status: 'idle' })));
+    } catch (e) {
+      console.debug(
+        '[ManageExternalImagesClient] failed to set items from props',
+        e
+      );
+    }
+  }, [initialProducts]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -278,13 +304,29 @@ export default function ManageExternalImagesClient({
                 </td>
                 <td className="px-6 py-4 text-gray-500">{item.brand}</td>
                 <td className="px-6 py-4">
-                  <a
-                    href={item.external_image_url}
-                    target="_blank"
-                    className="text-indigo-500 hover:underline flex items-center gap-1"
-                  >
-                    Ver <ExternalLink size={12} />
-                  </a>
+                  <div className="flex items-center gap-3">
+                    <a
+                      href={item.external_image_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-indigo-500 hover:underline flex items-center gap-1"
+                    >
+                      Ver <ExternalLink size={12} />
+                    </a>
+                    {item.external_image_url && (
+                      <a
+                        href={`/api/proxy-image?url=${encodeURIComponent(
+                          item.external_image_url
+                        )}&w=800&format=webp&q=80`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-gray-500 hover:underline"
+                        title="Abrir versão reduzida (800px, webp)"
+                      >
+                        Ver reduzida
+                      </a>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

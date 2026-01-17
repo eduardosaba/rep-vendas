@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import QuickActionCard from '@/components/QuickActionCard';
-import OpenDashboardButton from '@/components/admin/OpenDashboardButton';
+import UpdateModalClient from '@/components/UpdateModalClient';
 // SyncStatusCard removido — card não é mais exibido no Dashboard
 import { subDays, startOfDay, subMonths, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -56,6 +56,7 @@ export default async function DashboardPage({
     profile,
     chartData,
     lastSync,
+    latestUpdate,
     syncJob,
   ] = await Promise.all([
     supabase
@@ -103,6 +104,12 @@ export default async function DashboardPage({
       .select('*')
       .eq('user_id', activeUserId)
       .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('system_updates')
+      .select('*')
+      .order('date', { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
@@ -173,7 +180,7 @@ export default async function DashboardPage({
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <DateFilter currentRange={range} />
-          <OpenDashboardButton />
+          <UpdateModalClient update={latestUpdate?.data} />
           {settings.data?.catalog_slug && (
             <Link
               href={`/catalogo/${settings.data.catalog_slug}`}

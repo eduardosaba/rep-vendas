@@ -156,10 +156,14 @@ export default function ProductSyncPage() {
             id: item.id, // O ID é a chave para o Supabase saber qual linha atualizar
             [dbTargetCol]: val,
             updated_at: new Date().toISOString(),
+            user_id: user.id, // garante que RLS permita a operação (pertence ao usuário)
           };
         });
 
-        const { error } = await supabase.from('products').upsert(batchData); // Upsert é muito mais rápido que múltiplos updates
+        // Usa onConflict para forçar upsert por id
+        const { error } = await supabase
+          .from('products')
+          .upsert(batchData, { onConflict: 'id' });
 
         if (error) {
           addLog(`❌ Erro no lote ${i / chunkSize + 1}: ${error.message}`);

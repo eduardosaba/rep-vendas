@@ -109,7 +109,11 @@ export function StoreModals() {
       });
     }
 
-    return images.length > 0 ? images : ['/images/product-placeholder.svg'];
+    return images.length > 0
+      ? images
+      : [
+          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70',
+        ];
   }, [modals.product]);
 
   // Detectar se a imagem atual é do Supabase Storage (otimizar) ou externa (não otimizar)
@@ -165,7 +169,8 @@ export function StoreModals() {
                     <div className="relative h-20 w-20 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
                       <Image
                         src={
-                          item.image_url || '/images/product-placeholder.svg'
+                          item.image_url ||
+                          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
                         }
                         alt={item.name}
                         fill

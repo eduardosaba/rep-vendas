@@ -316,7 +316,7 @@ export function ProductGrid() {
                         return (
                           <div className="w-full h-full flex items-center justify-center text-gray-300">
                             <img
-                              src="/images/product-placeholder.svg"
+                              src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
                               alt="Sem imagem"
                               className="w-16 h-16 object-contain opacity-80"
                               onError={(e) => {

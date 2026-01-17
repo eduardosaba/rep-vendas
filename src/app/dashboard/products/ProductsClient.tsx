@@ -233,12 +233,12 @@ export default function ProductsClient({
                                 className="h-full w-full object-cover"
                                 onError={(e) => {
                                   (e.currentTarget as HTMLImageElement).src =
-                                    '/images/product-placeholder.svg';
+                                    '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
                                 }}
                               />
                             ) : (
                               <img
-                                src="/images/product-placeholder.svg"
+                                src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
                                 alt="Sem imagem"
                                 className="h-6 w-6 object-contain opacity-80"
                                 onError={(e) => {
@@ -302,12 +302,12 @@ export default function ProductsClient({
           <div className="p-12 text-center text-gray-500 bg-white dark:bg-slate-900 rounded-xl border border-gray-200">
             <div className="flex flex-col items-center justify-center max-w-md mx-auto">
               <img
-                src="/images/product-placeholder.svg"
+                src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
                 alt="Sem produtos"
                 className="h-12 w-12 mb-3 opacity-30"
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src =
-                    '/images/product-placeholder.svg';
+                    '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
                 }}
               />
               <p className="text-lg font-medium text-gray-900">
@@ -341,12 +341,12 @@ export default function ProductsClient({
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src =
-                            '/images/product-placeholder.svg';
+                            '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
                         }}
                       />
                     ) : (
                       <img
-                        src="/images/product-placeholder.svg"
+                        src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
                         alt="Sem imagem"
                         className="w-full h-full object-contain opacity-80"
                       />

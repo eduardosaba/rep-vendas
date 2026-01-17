@@ -293,7 +293,8 @@ export function ProductGrid() {
                       )}
                       <NextImage
                         src={
-                          product.image_url || '/images/product-placeholder.svg'
+                          product.image_url ||
+                          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
                         }
                         alt={product.name}
                         fill

@@ -43,8 +43,11 @@ export function getProductImageUrl(product: Partial<Product>) {
   // Prefer internalized storage path when available
   if (product.image_path) {
     const path = product.image_path.replace(/^\//, '');
+    // Serve stored images via server proxy to avoid 403 when bucket is private
+    // The proxy endpoint will use the service role to fetch the object and stream it.
+    const proxied = `/api/storage-image?path=${encodeURIComponent(path)}`;
     return {
-      src: buildSupabaseImageUrl(path),
+      src: proxied,
       isExternal: false,
       isStorage: true,
     };

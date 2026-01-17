@@ -101,9 +101,39 @@ export async function GET(req: Request) {
       }
     }
 
-    const { data, error, count } = await query;
-    if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    let data: any = null;
+    let error: any = null;
+    let count: number | null = null;
+    try {
+      const res: any = await query;
+      data = res.data ?? res;
+      // supabase-js returns .count when select was used with { count: 'exact' }
+      count = res.count ?? null;
+    } catch (e: any) {
+      console.error('[api/products] query failed', {
+        message: e?.message,
+        stack: e?.stack,
+        params: {
+          page,
+          limit,
+          search,
+          minPrice,
+          maxPrice,
+          brand,
+          sortKey,
+          sortDir,
+          idsParam,
+          idsOnly,
+          userId,
+        },
+      });
+      // Map permission/rls errors to 403 for clarity
+      const msg = e?.message || String(e);
+      if (/permission|policy|rls|not authenticated|forbidden/i.test(msg)) {
+        return NextResponse.json({ error: msg }, { status: 403 });
+      }
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
 
     let returned = data || [];
     // se solicitado, aplicar filtro de otimização de imagem no servidor (filtragem em JS)

@@ -65,6 +65,7 @@ export function ProductCard({
     // URLs externas: funciona mas sem otimização (mais lento)
     let externalUrl =
       product.image_url || product.external_image_url || product.images?.[0];
+    const originalExternalUrl = externalUrl;
 
     // Se for um caminho relativo do storage (não começa com http), converte para URL pública
     if (externalUrl && !externalUrl.startsWith('http')) {
@@ -83,6 +84,22 @@ export function ProductCard({
           '💡 Recomendação: Use "Dashboard → Sincronizar Imagens" para melhorar a velocidade'
         );
         sessionStorage.setItem(storageKey, 'true');
+      }
+    }
+
+    // If URL is external (not supabase storage) we proxy it and request a webp
+    if (externalUrl && !externalUrl.includes('supabase.co/storage')) {
+      try {
+        const proxy = `/api/proxy-image?url=${encodeURIComponent(
+          externalUrl
+        )}&w=800&fmt=webp&q=65`;
+        // keep reference to original in sessionStorage for debug if needed
+        if (typeof window !== 'undefined' && originalExternalUrl) {
+          sessionStorage.setItem('last-external-image', originalExternalUrl);
+        }
+        return proxy;
+      } catch (err) {
+        return externalUrl;
       }
     }
 
@@ -148,13 +165,26 @@ export function ProductCard({
         ) : (
           <div className="relative flex h-full w-full items-center justify-center bg-gray-50 opacity-40">
             <Image
-              src="/images/product-placeholder.svg"
+              src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
               alt="Sem imagem"
               fill
               className="p-10"
               style={{ objectFit: 'contain' }}
               unoptimized
             />
+            {/* If original external image exists, show a small link to it */}
+            {product.external_image_url && (
+              <a
+                href={product.external_image_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-2 left-2 rounded bg-white/90 px-2 py-1 text-xs text-primary shadow-sm"
+                title="Abrir imagem externa"
+              >
+                Ver imagem
+              </a>
+            )}
           </div>
         )}
 

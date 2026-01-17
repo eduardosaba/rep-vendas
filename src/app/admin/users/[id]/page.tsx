@@ -56,6 +56,8 @@ export default async function EditUserPage(props: any) {
     plan: subData?.plan_name || availablePlans[0]?.name || 'Free',
     status: subData?.status || 'trialing',
     endsAt: formattedDate,
+    estados: profile.estados || [],
+    brands: profile.brands || [],
   };
 
   return (

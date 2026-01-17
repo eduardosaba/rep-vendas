@@ -26,12 +26,12 @@ export default function ProductImage({
   const external = (product as any).external_image_url || null;
 
   const src = error
-    ? '/images/product-placeholder.svg'
+    ? '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
     : internalPath
       ? `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${internalPath}`
       : external
         ? external
-        : '/images/product-placeholder.svg';
+        : '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
 
   // Detect object-fit preference from className (object-contain/object-cover)
   const prefersContain = className?.includes('object-contain');

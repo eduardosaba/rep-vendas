@@ -104,6 +104,23 @@ export async function signup(formData: FormData) {
           }
         );
 
+        // Persist optional 'estados' field in profiles if provided in the form
+        try {
+          const estados = formData.getAll('estados') as string[] | [];
+          if (estados && estados.length > 0) {
+            await supabaseAdmin.from('profiles').upsert(
+              {
+                id: userId,
+                estados,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'id' }
+            );
+          }
+        } catch (err) {
+          console.warn('Não foi possível gravar campo opcional estados no profile:', err);
+        }
+
         // Escolhe um plano padrão (o mais barato cadastrado) para o trial
         const { data: plans } = await supabaseAdmin
           .from('plans')

@@ -292,7 +292,11 @@ export default function ProductDetailPage() {
     if (imgs.length === 0 && (product as any).image_url)
       imgs.push((product as any).image_url as string);
 
-    return imgs.length > 0 ? imgs : ['/images/product-placeholder.svg'];
+    return imgs.length > 0
+      ? imgs
+      : [
+          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70',
+        ];
   })();
 
   const toggleFavorite = (productId: string) => {

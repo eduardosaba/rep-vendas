@@ -175,7 +175,7 @@ export default function LoginPage() {
                 alt="Google"
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src =
-                    '/images/product-placeholder.svg';
+                    '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
                 }}
               />
               Continuar com Google

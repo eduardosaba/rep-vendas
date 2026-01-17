@@ -54,6 +54,14 @@ export async function GET(request: Request) {
       .filter(Boolean);
     const allowInProd = process.env.PROXY_ALLOW_INSECURE_IN_PROD === '1';
 
+    // TEMPORÁRIO: permitir bypass para hosts Safilo quando necessário (confiado)
+    if (targetHost.includes('safilo')) {
+      console.warn(
+        '[proxy-image] adding safilo host to insecureHosts (temporary)'
+      );
+      if (!insecureHosts.includes(targetHost)) insecureHosts.push(targetHost);
+    }
+
     let agent: https.Agent | undefined = undefined;
     if (insecureHosts.includes(targetHost)) {
       if (process.env.NODE_ENV === 'production' && !allowInProd) {
