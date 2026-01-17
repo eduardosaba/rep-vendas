@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import ControlTower from '@/components/admin/ControlTower';
 import CleanupControl from '@/components/admin/CleanupControl';
 import NewUserSetup from '@/components/admin/NewUserSetup';
-import { redirect } from 'next/navigation';
+// import redirect removed because it's not used in this page
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { createClient } from '@/lib/supabase/server';
@@ -38,16 +38,19 @@ export default async function ClearStoragePage() {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
               <ControlTower />
-              <NewUserSetup />
-            </div>
 
-            <div className="mt-6">
-              <h2 className="text-lg font-bold mb-2">Limpeza de Storage</h2>
-              <p className="text-sm text-gray-600 dark:text-slate-300 mb-3">
-                Use a verificação (dry-run) antes de executar a remoção em
-                produção.
-              </p>
-              <CleanupControl />
+              <div className="lg:col-span-2">
+                <NewUserSetup />
+              </div>
+
+              <div className="lg:col-span-2 mt-6">
+                <h2 className="text-lg font-bold mb-2">Limpeza de Storage</h2>
+                <p className="text-sm text-gray-600 dark:text-slate-300 mb-3">
+                  Use a verificação (dry-run) antes de executar a remoção em
+                  produção.
+                </p>
+                <CleanupControl />
+              </div>
             </div>
           </>
         ) : (

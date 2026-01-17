@@ -301,7 +301,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   });
 
   // Server-side filtering mode
-  const [serverMode, setServerMode] = useState(true);
+  const [serverMode, setServerMode] = useState(false);
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [serverMeta, setServerMeta] = useState<{
     totalCount?: number;
@@ -977,8 +977,14 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     ? Math.max(1, serverMeta.totalPages || 1)
     : Math.max(1, Math.ceil(processedProducts.length / itemsPerPage));
 
+  // If serverMode is active but the client-side serverProducts fetch returns
+  // empty while we still have initial `products` (SSR payload), prefer the
+  // initial `products` as a fallback so the UI doesn't show counts but an
+  // empty table (common when impersonation is used server-side).
   const paginatedProducts = serverMode
-    ? serverProducts
+    ? serverProducts && serverProducts.length > 0
+      ? serverProducts
+      : products
     : processedProducts.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
@@ -1570,7 +1576,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         {showFilters && (
           <div className="pt-4 border-t border-gray-100 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
             <div className="col-span-2 md:col-span-4 flex items-center justify-end gap-3">
-              <label className="flex items-center gap-2 text-sm text-gray-600">
+              <label
+                className="flex items-center gap-2 text-sm text-gray-600"
+                title="Executa filtros, ordenação e paginação no servidor (recomendado para catálogos grandes). Pode devolver 0 resultados se RLS/impersonation ou filtros restritivos estiverem ativos."
+              >
                 <input
                   type="checkbox"
                   checked={serverMode}

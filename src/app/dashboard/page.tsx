@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import QuickActionCard from '@/components/QuickActionCard';
+import OpenDashboardButton from '@/components/admin/OpenDashboardButton';
 // SyncStatusCard removido — card não é mais exibido no Dashboard
 import { subDays, startOfDay, subMonths, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -172,6 +173,7 @@ export default async function DashboardPage({
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <DateFilter currentRange={range} />
+          <OpenDashboardButton />
           {settings.data?.catalog_slug && (
             <Link
               href={`/catalogo/${settings.data.catalog_slug}`}

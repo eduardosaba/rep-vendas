@@ -132,13 +132,46 @@ export default function AdminSidebar({
         {isCollapsed ? (
           <span className="font-black text-xl text-primary">T</span>
         ) : (
-          <div className="flex flex-col items-center">
-            <span className="font-black text-lg tracking-tight text-slate-900 dark:text-white">
-              TORRE<span className="text-primary">.</span>
-            </span>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none">
-              Admin Master
-            </span>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex flex-col items-start">
+              <span className="font-black text-lg tracking-tight text-slate-900 dark:text-white">
+                TORRE<span className="text-primary">.</span>
+              </span>
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none">
+                Admin Master
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="/dashboard"
+                target="_blank"
+                rel="noopener"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  try {
+                    const supResp = await fetch('/api/auth/session');
+                    const supJson = await supResp.json().catch(() => ({}));
+                    const token = supJson?.access_token || null;
+                    await fetch('/api/admin/impersonate', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
+                      body: JSON.stringify({}),
+                    });
+                    window.open('/dashboard', '_blank', 'noopener');
+                  } catch (err) {
+                    console.error('Erro ao abrir dashboard público', err);
+                    window.open('/dashboard', '_blank', 'noopener');
+                  }
+                }}
+                title="Abrir Dashboard Público"
+                className="text-primary p-1 rounded hover:bg-primary/5"
+              >
+                <LayoutDashboard size={18} />
+              </a>
+            </div>
           </div>
         )}
       </div>
@@ -170,27 +203,51 @@ export default function AdminSidebar({
           );
         })}
 
-        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-          {userRole === 'master' ? (
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 space-y-2">
+          {/* Sempre disponibiliza o link público do dashboard em nova aba */}
+          {/* Abre o dashboard público limpando primeiro qualquer impersonation */}
+          <a
+            href="/dashboard"
+            target="_blank"
+            rel="noopener"
+            onClick={async (e) => {
+              e.preventDefault();
+              try {
+                const supResp = await fetch('/api/auth/session');
+                const supJson = await supResp.json().catch(() => ({}));
+                const token = supJson?.access_token || null;
+
+                await fetch('/api/admin/impersonate', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  },
+                  body: JSON.stringify({}),
+                });
+
+                window.open('/dashboard', '_blank', 'noopener');
+              } catch (err) {
+                console.error('Erro ao abrir dashboard público', err);
+                window.open('/dashboard', '_blank', 'noopener');
+              }
+            }}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 ${isCollapsed ? 'justify-center' : ''}`}
+            title="Abrir Dashboard Público"
+          >
+            <LayoutDashboard size={18} />
+            {!isCollapsed && <span>Abrir Dashboard</span>}
+          </a>
+
+          {userRole === 'master' && (
             <Link
               href="/admin/dashboard"
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 ${isCollapsed ? 'justify-center' : ''}`}
               title="Torre: Dashboard de Saúde"
             >
-              <LayoutDashboard size={18} />
+              <BarChart2 size={18} />
               {!isCollapsed && <span>Dashboard de Saúde</span>}
             </Link>
-          ) : (
-            <a
-              href="/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 ${isCollapsed ? 'justify-center' : ''}`}
-              title="Área do Usuário"
-            >
-              <LayoutDashboard size={18} />
-              {!isCollapsed && <span>Abrir Dashboard</span>}
-            </a>
           )}
         </div>
       </nav>
