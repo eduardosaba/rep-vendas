@@ -12,6 +12,8 @@ export async function GET(req: Request) {
     const maxPrice = url.searchParams.get('maxPrice');
     const brand = url.searchParams.get('brand');
     const sort = url.searchParams.get('sort');
+    const sortKey = url.searchParams.get('sortKey');
+    const sortDir = url.searchParams.get('sortDir');
     const userId = url.searchParams.get('userId');
 
     if (!userId)
@@ -24,15 +26,59 @@ export async function GET(req: Request) {
     const to = from + limit - 1;
     const idsOnly = url.searchParams.get('idsOnly') === 'true';
     const imageOptimization = url.searchParams.get('imageOptimization');
+    const idsParam = url.searchParams.get('ids');
 
     const supabase = await createRouteSupabase(() => nextCookies());
 
-    let query: any = supabase
-      .from('products')
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .range(from, to);
+    let query: any = (supabase.from('products') as any).eq('user_id', userId);
+    // Aplicar ordenação apenas se for uma chave permitida
+    const allowedSortKeys = [
+      'name',
+      'reference_code',
+      'sku',
+      'barcode',
+      'brand',
+      'category',
+      'price',
+      'sale_price',
+      'cost',
+      'stock_quantity',
+      'is_active',
+      'is_launch',
+      'is_best_seller',
+      'id',
+      'created_at',
+    ];
+
+    if (sortKey && sortDir && allowedSortKeys.includes(sortKey)) {
+      query = query.order(sortKey, { ascending: sortDir === 'asc' });
+    } else {
+      // default order
+      query = query.order('created_at', { ascending: false });
+    }
+
+    // Special-case: fetch by explicit ids list (comma-separated)
+    if (idsParam) {
+      const ids = idsParam
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (ids.length === 0)
+        return NextResponse.json({ data: [], meta: { totalCount: 0 } });
+      query = supabase
+        .from('products')
+        .select('*', { count: 'exact' })
+        .in('id', ids)
+        .eq('user_id', userId);
+    } else {
+      // If caller requested only IDs (for select-all across pages), don't apply range
+      // and select only the `id` column to reduce payload.
+      if (!idsOnly) {
+        query = query.select('*', { count: 'exact' }).range(from, to);
+      } else {
+        query = query.select('id', { count: 'exact' });
+      }
+    }
 
     if (search) {
       const esc = search.replace(/%/g, '\\%');
@@ -43,13 +89,17 @@ export async function GET(req: Request) {
     if (maxPrice) query = query.lte('price', parseFloat(maxPrice));
     if (brand) query = query.eq('brand', brand);
 
-    if (sort) {
+    // legacy 'sort' param support (format: key.dir)
+    if (!sortKey && sort) {
       const [key, dir] = sort.split('.');
-      if (key && (dir === 'asc' || dir === 'desc'))
+      if (
+        key &&
+        (dir === 'asc' || dir === 'desc') &&
+        allowedSortKeys.includes(key)
+      ) {
         query = query.order(key, { ascending: dir === 'asc' });
+      }
     }
-
-    if (!idsOnly) query = query.range(from, to);
 
     const { data, error, count } = await query;
     if (error)

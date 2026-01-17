@@ -114,7 +114,38 @@ export default async function DashboardPage({
   ]);
 
   // Contagem de clientes (Lógica preservada)
+  // Contagem de clientes únicos baseada em pedidos: prioriza `client_id`,
+  // depois telefone, depois email — mesma abordagem do `ClientsTable`.
   let clientsCount = 0;
+  try {
+    const { data: clientRows } = await supabase
+      .from('orders')
+      .select('client_id, client_email_guest, client_phone_guest')
+      .eq('user_id', activeUserId)
+      .gte('created_at', startDate)
+      .order('created_at', { ascending: false })
+      .limit(10000);
+
+    if (Array.isArray(clientRows)) {
+      const set = new Set<string>();
+      clientRows.forEach((o: any) => {
+        const rawPhone = o.client_phone_guest || '';
+        const rawEmail = o.client_email_guest || '';
+        let key = '';
+        if (o.client_id) key = `reg_${o.client_id}`;
+        else if (rawPhone)
+          key = `guest_ph_${String(rawPhone).replace(/\D/g, '')}`;
+        else if (rawEmail)
+          key = `guest_em_${String(rawEmail).toLowerCase().trim()}`;
+        else key = `guest_unknown_${Math.random().toString(36).slice(2, 8)}`;
+        if (key) set.add(key);
+      });
+      clientsCount = set.size;
+    }
+  } catch (err) {
+    console.error('Erro ao calcular clientes únicos:', err);
+    clientsCount = 0;
+  }
   // ... (Lógica de contagem de clientes omitida para brevidade, permanece a mesma do seu arquivo)
 
   // 3. Lógica de Sincronização Ajustada

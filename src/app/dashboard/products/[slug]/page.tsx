@@ -14,10 +14,11 @@ export async function generateMetadata({
   const { slug } = await params;
   const supabase = await createClient();
 
+  // Aceita slug ou id (fallback) — busca pelo slug ou pelo id
   const { data: product } = await supabase
     .from('products')
     .select('name')
-    .eq('slug', slug)
+    .or(`slug.eq.${slug},id.eq.${slug}`)
     .maybeSingle();
 
   return { title: product ? `Editar: ${product.name}` : 'Editar Produto' };
@@ -34,10 +35,11 @@ export default async function EditProductBySlugPage({
   const activeUserId = await getActiveUserId();
   if (!activeUserId) redirect('/login');
 
+  // Busca por slug ou id (compatibilidade com links antigos)
   const { data: product, error } = await supabase
     .from('products')
     .select('*')
-    .eq('slug', slug)
+    .or(`slug.eq.${slug},id.eq.${slug}`)
     .eq('user_id', activeUserId)
     .maybeSingle();
 

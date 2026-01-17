@@ -475,6 +475,49 @@ export default function MatcherPage() {
                 </select>
               </div>
             </div>
+            {/* Linha de filtros para telas pequenas */}
+            <div className="mt-3 sm:hidden w-full">
+              <div className="flex flex-col gap-2">
+                <select
+                  value={brandFilter}
+                  onChange={(e) => setBrandFilter(e.target.value)}
+                  className="w-full text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="all">Todas as marcas</option>
+                  {availableBrands.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex gap-2">
+                  <select
+                    value={productImageFilter}
+                    onChange={(e) =>
+                      setProductImageFilter(e.target.value as any)
+                    }
+                    className="flex-1 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="with">Com imagem</option>
+                    <option value="without">Sem imagem</option>
+                  </select>
+
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value as any)}
+                    className="w-44 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option value="no_image_first">Sem imagem primeiro</option>
+                    <option value="has_image_first">Com imagem primeiro</option>
+                    <option value="name_asc">Nome A → Z</option>
+                    <option value="name_desc">Nome Z → A</option>
+                    <option value="ref_asc">Ref. A → Z</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="overflow-y-auto p-3 space-y-2 flex-1 bg-gray-50/50 dark:bg-slate-950/50">

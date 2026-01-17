@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Save, Loader2, Trash2, Package, CheckCircle, XCircle } from 'lucide-react';
+import {
+  Plus,
+  Save,
+  Loader2,
+  Trash2,
+  Package,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { getPlans, upsertPlan, deletePlan } from './actions';
 
@@ -10,6 +18,7 @@ interface Plan {
   name: string;
   price: number;
   max_products: number;
+  product_limit?: number;
   active: boolean;
 }
 
@@ -36,13 +45,13 @@ export default function AdminPlansPage() {
   const handleUpdate = async (plan: Plan) => {
     if (!plan.id) return; // Segurança
     setSavingId(plan.id);
-    
+
     const res = await upsertPlan(plan);
-    
+
     if (res.success) {
       toast.success('Plano salvo com sucesso!');
       // Atualiza a lista local com os dados retornados do banco (garante sincronia)
-      setPlans(prev => prev.map(p => p.id === plan.id ? res.data : p));
+      setPlans((prev) => prev.map((p) => (p.id === plan.id ? res.data : p)));
     } else {
       toast.error('Erro ao salvar: ' + res.error);
     }
@@ -52,12 +61,13 @@ export default function AdminPlansPage() {
   const handleCreate = async () => {
     const tempId = 'temp-' + Date.now(); // ID temporário para UI
     setSavingId(tempId);
-    
+
     // Criação imediata no banco com dados padrão
     const newPlanData = {
       name: 'Novo Plano',
       price: 0,
       max_products: 100,
+      product_limit: 100,
       active: true,
     };
 
@@ -65,7 +75,7 @@ export default function AdminPlansPage() {
 
     if (res.success) {
       toast.success('Plano criado!');
-      setPlans(prev => [res.data, ...prev]);
+      setPlans((prev) => [res.data, ...prev]);
     } else {
       toast.error('Erro ao criar: ' + res.error);
     }
@@ -73,12 +83,17 @@ export default function AdminPlansPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('ATENÇÃO: Excluir um plano pode afetar usuários que já o possuem. Deseja continuar?')) return;
+    if (
+      !confirm(
+        'ATENÇÃO: Excluir um plano pode afetar usuários que já o possuem. Deseja continuar?'
+      )
+    )
+      return;
 
     const res = await deletePlan(id);
     if (res.success) {
       toast.success('Plano excluído');
-      setPlans(prev => prev.filter(p => p.id !== id));
+      setPlans((prev) => prev.filter((p) => p.id !== id));
     } else {
       toast.error('Erro ao excluir: ' + res.error);
     }
@@ -107,7 +122,11 @@ export default function AdminPlansPage() {
           disabled={!!savingId}
           className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-sm shadow-indigo-200"
         >
-          {savingId && savingId.startsWith('temp') ? <Loader2 className="animate-spin" size={18}/> : <Plus size={18} />}
+          {savingId && savingId.startsWith('temp') ? (
+            <Loader2 className="animate-spin" size={18} />
+          ) : (
+            <Plus size={18} />
+          )}
           Novo Plano
         </button>
       </div>
@@ -119,9 +138,9 @@ export default function AdminPlansPage() {
             <p>Carregando planos...</p>
           </div>
         ) : plans.length === 0 ? (
-           <div className="col-span-full text-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-             <p className="text-gray-500">Nenhum plano cadastrado.</p>
-           </div>
+          <div className="col-span-full text-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+            <p className="text-gray-500">Nenhum plano cadastrado.</p>
+          </div>
         ) : (
           plans.map((plan, index) => (
             <div
@@ -134,7 +153,9 @@ export default function AdminPlansPage() {
               <div className="p-6 pb-0 flex justify-between items-start gap-2">
                 <input
                   value={plan.name}
-                  onChange={(e) => updateLocalState(index, 'name', e.target.value)}
+                  onChange={(e) =>
+                    updateLocalState(index, 'name', e.target.value)
+                  }
                   placeholder="Nome do Plano"
                   className="text-xl font-bold text-gray-900 dark:text-white bg-transparent border-b-2 border-transparent focus:border-indigo-500 outline-none w-full placeholder:text-gray-300 transition-colors"
                 />
@@ -155,10 +176,14 @@ export default function AdminPlansPage() {
                   step="0.01"
                   min="0"
                   value={plan.price}
-                  onChange={(e) => updateLocalState(index, 'price', parseFloat(e.target.value))}
+                  onChange={(e) =>
+                    updateLocalState(index, 'price', parseFloat(e.target.value))
+                  }
                   className="text-3xl font-bold text-gray-900 dark:text-white bg-transparent outline-none w-32 focus:text-indigo-600 transition-colors"
                 />
-                <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">/mês</span>
+                <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">
+                  /mês
+                </span>
               </div>
 
               {/* Configurações */}
@@ -173,7 +198,38 @@ export default function AdminPlansPage() {
                       type="number"
                       min="1"
                       value={plan.max_products}
-                      onChange={(e) => updateLocalState(index, 'max_products', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        updateLocalState(
+                          index,
+                          'max_products',
+                          parseInt(e.target.value)
+                        )
+                      }
+                      className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-gray-400 pointer-events-none">
+                      SKUs
+                    </span>
+                  </div>
+                </div>
+
+                {/* Product Limit (visível no catálogo) */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
+                    Limite (visível no catálogo)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      value={plan.product_limit ?? plan.max_products}
+                      onChange={(e) =>
+                        updateLocalState(
+                          index,
+                          'product_limit',
+                          parseInt(e.target.value)
+                        )
+                      }
                       className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
                     <span className="absolute right-3 top-2.5 text-xs text-gray-400 pointer-events-none">
@@ -188,7 +244,9 @@ export default function AdminPlansPage() {
                     Status do Plano
                   </span>
                   <button
-                    onClick={() => updateLocalState(index, 'active', !plan.active)}
+                    onClick={() =>
+                      updateLocalState(index, 'active', !plan.active)
+                    }
                     className={`
                       relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
                       ${plan.active ? 'bg-green-500' : 'bg-gray-200 dark:bg-slate-700'}

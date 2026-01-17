@@ -248,6 +248,16 @@ const DEFAULT_PREFS: UserPreferences = {
   ]),
 };
 
+const DEFAULT_SORT_DIRECTION: Partial<Record<DataKey, 'asc' | 'desc'>> = {
+  name: 'asc',
+  price: 'desc',
+  sale_price: 'desc',
+  cost: 'desc',
+  created_at: 'desc',
+  reference_code: 'asc',
+  stock_quantity: 'desc',
+};
+
 export function ProductsTable({ initialProducts }: ProductsTableProps) {
   // Component implementation
   const router = useRouter();
@@ -271,6 +281,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   );
   const [isLoadingPrefs, setIsLoadingPrefs] = useState(true);
   const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -392,6 +403,21 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
   const logError = (...args: unknown[]) => {
     if (typeof console !== 'undefined' && console.error) console.error(...args);
+  };
+
+  // Retorna href seguro para editar o produto: prefere slug quando válido, senão usa id
+  const getProductHref = (p: Product) => {
+    try {
+      const slug =
+        p?.slug && typeof p.slug === 'string' && p.slug.trim() !== ''
+          ? p.slug.trim()
+          : null;
+      if (slug && slug !== p.id)
+        return `/dashboard/products/${encodeURIComponent(slug)}`;
+    } catch (e) {
+      // ignore
+    }
+    return `/dashboard/products/${encodeURIComponent(p.id)}`;
   };
 
   // --- EFEITOS & PERSISTÊNCIA ---
@@ -563,6 +589,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           params.set('brand', String(filters.brand[0]));
         if (filters.imageOptimization && filters.imageOptimization !== 'all')
           params.set('imageOptimization', String(filters.imageOptimization));
+        // Ordenação no modo servidor: envia chave e direção
+        if (sortConfig) {
+          params.set('sortKey', String(sortConfig.key));
+          params.set('sortDir', sortConfig.direction);
+        }
 
         const res = await fetch(`/api/products?${params.toString()}`);
         if (!res.ok) throw new Error('Erro ao buscar produtos');
@@ -614,6 +645,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     filters.maxPrice,
     filters.brand,
     filters.imageOptimization,
+    sortConfig,
   ]);
 
   // --- MANIPULAÇÃO DE COLUNAS ---
@@ -748,6 +780,93 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const SortSelectorDropdown = () => {
+    const ref = useRef<any>(null);
+    useEffect(() => {
+      const handleClickOutside = (e: any) => {
+        if (
+          isSortDropdownOpen &&
+          ref.current &&
+          !ref.current.contains(e.target)
+        ) {
+          setIsSortDropdownOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
+    }, [isSortDropdownOpen]);
+
+    const sortable = Object.values(ALL_DATA_COLUMNS).filter(
+      (c) => c.isSortable
+    );
+
+    return (
+      <div className="relative inline-block text-left" ref={ref}>
+        <button
+          type="button"
+          aria-expanded={isSortDropdownOpen}
+          onClick={() => setIsSortDropdownOpen((s) => !s)}
+          className={`px-4 py-2 rounded-lg border flex items-center gap-2 font-medium transition-colors text-sm ${isSortDropdownOpen ? 'bg-primary/5 dark:bg-primary/20 border-primary/30 dark:border-primary/20 text-primary dark:text-primary/70' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
+        >
+          <ArrowUpDown size={16} /> <span className="inline">Ordenar</span>
+        </button>
+
+        {isSortDropdownOpen && (
+          <div className="absolute right-0 mt-2 w-56 rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 z-50 border border-gray-200 dark:border-slate-800">
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 mb-2">
+                <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold">
+                  Ordenar por
+                </p>
+                <button
+                  onClick={() => setSortConfig(null)}
+                  className="text-xs text-red-500 hover:underline"
+                >
+                  Limpar
+                </button>
+              </div>
+              {sortable.map((col) => (
+                <button
+                  key={col.key}
+                  onClick={() => {
+                    // se já estiver ordenando por essa chave, alterna direção
+                    if (sortConfig && sortConfig.key === col.key) {
+                      setSortConfig({
+                        key: col.key,
+                        direction:
+                          sortConfig.direction === 'asc' ? 'desc' : 'asc',
+                      });
+                    } else {
+                      const dir =
+                        (DEFAULT_SORT_DIRECTION as any)[col.key] || 'asc';
+                      setSortConfig({ key: col.key, direction: dir });
+                    }
+                    setIsSortDropdownOpen(false);
+                  }}
+                  className="w-full text-left p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-between"
+                >
+                  <span className="text-sm text-gray-700 dark:text-slate-300">
+                    {col.title}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {sortConfig && sortConfig.key === col.key ? (
+                      sortConfig.direction === 'asc' ? (
+                        <ArrowUp size={12} />
+                      ) : (
+                        <ArrowDown size={12} />
+                      )
+                    ) : null}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -1026,7 +1145,28 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     try {
       let productsToPrint = [];
       if (selectedIds.length > 0) {
-        productsToPrint = products.filter((p) => selectedIds.includes(p.id));
+        // If we don't have all selected product objects locally, fetch them from the server
+        const localIds = new Set(products.map((p) => p.id));
+        const missingIds = selectedIds.filter((id) => !localIds.has(id));
+        if (missingIds.length > 0) {
+          try {
+            const params = new URLSearchParams();
+            params.set('userId', userId || '');
+            params.set('ids', selectedIds.join(','));
+            const res = await fetch(`/api/products?${params.toString()}`);
+            if (!res.ok) throw new Error('Erro ao buscar produtos para PDF');
+            const json = await res.json();
+            productsToPrint = json.data || [];
+          } catch (err) {
+            console.error('Falha ao buscar produtos completos:', err);
+            // fallback: use whatever we have locally
+            productsToPrint = products.filter((p) =>
+              selectedIds.includes(p.id)
+            );
+          }
+        } else {
+          productsToPrint = products.filter((p) => selectedIds.includes(p.id));
+        }
       } else {
         productsToPrint = processedProducts;
       }
@@ -1314,17 +1454,40 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             icon: Star,
             color: 'text-orange-500 dark:text-orange-400',
           },
-        ].map((k, i) => (
-          <div
-            key={i}
-            className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-between"
-          >
-            <span className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 flex items-center gap-2 mb-2">
-              <k.icon size={14} /> {k.label}
-            </span>
-            <span className={`text-2xl font-bold ${k.color}`}>{k.val}</span>
-          </div>
-        ))}
+        ].map((k, i) => {
+          const isLaunch = k.label === 'Lançamentos';
+          const isBest = k.label === 'Best Sellers';
+          const active =
+            (isLaunch && filters.onlyLaunch) ||
+            (isBest && filters.onlyBestSeller);
+          return (
+            <button
+              key={i}
+              onClick={() => {
+                // Toggle corresponding filter when KPI clicked
+                if (isLaunch) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    onlyLaunch: !prev.onlyLaunch,
+                  }));
+                } else if (isBest) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    onlyBestSeller: !prev.onlyBestSeller,
+                  }));
+                }
+                // reset to first page when applying KPI filter
+                setCurrentPage(1);
+              }}
+              className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between text-left ${active ? 'border-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800'}`}
+            >
+              <span className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 flex items-center gap-2 mb-2">
+                <k.icon size={14} /> {k.label}
+              </span>
+              <span className={`text-2xl font-bold ${k.color}`}>{k.val}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* FILTROS E BUSCA */}
@@ -1349,6 +1512,40 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
             {/* BOTÃO COLUNAS RESTAURADO */}
             <ColumnSelectorDropdown />
+
+            {/* BOTÃO ORDENAR */}
+            <SortSelectorDropdown />
+
+            {sortConfig && (
+              <div className="hidden sm:flex items-center gap-2 ml-2">
+                <span className="px-3 py-1 rounded bg-gray-100 dark:bg-slate-800 text-sm text-gray-700 dark:text-slate-300">
+                  Ordenado: {ALL_DATA_COLUMNS[sortConfig.key].title}
+                </span>
+                <button
+                  onClick={() =>
+                    setSortConfig({
+                      key: sortConfig.key,
+                      direction:
+                        sortConfig.direction === 'asc' ? 'desc' : 'asc',
+                    })
+                  }
+                  className="p-2 border rounded bg-white dark:bg-slate-900"
+                  title="Alternar direção"
+                >
+                  {sortConfig.direction === 'asc' ? (
+                    <ArrowUp size={14} />
+                  ) : (
+                    <ArrowDown size={14} />
+                  )}
+                </button>
+                <button
+                  onClick={() => setSortConfig(null)}
+                  className="text-xs text-red-500 hover:underline"
+                >
+                  Limpar
+                </button>
+              </div>
+            )}
 
             {/* BOTÃO PDF FIXO */}
             <button
@@ -1863,7 +2060,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     <td className="sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800/50 px-2 py-3 text-right shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
                       <div className="flex items-center justify-end gap-1">
                         <Link
-                          href={`/dashboard/products/${product.slug || product.id}`}
+                          href={getProductHref(product)}
                           className="p-1.5 text-gray-400 hover:text-[var(--primary)] rounded-md transition-colors"
                         >
                           <Edit2 size={16} />
@@ -1990,7 +2187,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                         onTouchStart={() => showTooltip(`${product.id}-open`)}
                       >
                         <Link
-                          href={`/dashboard/products/${product.slug || product.id}`}
+                          href={getProductHref(product)}
                           className="p-2 rounded bg-[var(--primary)] text-white flex items-center justify-center"
                           aria-label="Editar"
                         >
@@ -2216,7 +2413,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               </div>
               <div className="flex gap-2">
                 <Link
-                  href={`/dashboard/products/${viewProduct.slug || viewProduct.id}`}
+                  href={getProductHref(viewProduct)}
                   className="flex-1 bg-[var(--primary)] text-white py-3 rounded-xl font-bold text-center"
                 >
                   Editar Produto

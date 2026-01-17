@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import https from 'https';
+import sharp from 'sharp';
 
 export const runtime = 'nodejs';
 
@@ -146,9 +147,59 @@ export async function GET(request: Request) {
         }
 
         const arrayBuffer = await res.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        let buffer: Buffer = Buffer.from(arrayBuffer as any);
 
-        return new NextResponse(buffer, {
+        // Suporte a redimensionamento via query params: w, h, q, format
+        const urlObj = new URL(request.url);
+        const w = urlObj.searchParams.get('w');
+        const h = urlObj.searchParams.get('h');
+        const q = urlObj.searchParams.get('q');
+        const fmt = (urlObj.searchParams.get('format') || '').toLowerCase();
+
+        // Se solicitado, processe com sharp para reduzir tamanho sem perder qualidade
+        if ((w || h || q || fmt) && buffer && buffer.length > 0) {
+          try {
+            let pipeline = sharp(buffer).rotate();
+            // aplica resize se w/h informados
+            if (w || h) {
+              const wi = w ? Math.max(1, Number(w)) : null;
+              const hi = h ? Math.max(1, Number(h)) : null;
+              pipeline = pipeline.resize(wi || undefined, hi || undefined, {
+                fit: 'inside',
+                withoutEnlargement: true,
+              });
+            }
+
+            const quality = q ? Math.max(30, Math.min(95, Number(q))) : 80;
+
+            if (fmt === 'webp') {
+              buffer = await pipeline.webp({ quality }).toBuffer();
+            } else if (fmt === 'jpeg' || fmt === 'jpg') {
+              buffer = await pipeline.jpeg({ quality }).toBuffer();
+            } else if (fmt === 'png') {
+              buffer = await pipeline.png().toBuffer();
+            } else {
+              // default: produce jpeg for better compression
+              buffer = await pipeline.jpeg({ quality }).toBuffer();
+            }
+
+            // override contentType
+            const ct = fmt === 'webp' ? 'image/webp' : 'image/jpeg';
+            return new NextResponse(buffer as unknown as any, {
+              status: 200,
+              headers: {
+                'Content-Type': ct,
+                'Cache-Control':
+                  'public, max-age=86400, stale-while-revalidate=604800',
+              },
+            });
+          } catch (procErr: any) {
+            console.error('[proxy-image] sharp processing failed', procErr);
+            // fallback: continue to return original buffer below
+          }
+        }
+
+        return new NextResponse(buffer as unknown as any, {
           status: 200,
           headers: {
             'Content-Type': contentType,

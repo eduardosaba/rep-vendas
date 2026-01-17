@@ -56,7 +56,31 @@ export default function CuradoriaPage() {
         throw new Error(j?.error || 'Erro ao buscar estatísticas');
       }
       const json = await res.json();
-      setStats(json.data || []);
+      let data = json.data || [];
+      // Fallback: se não houver dados (ex: RPC retornou vazio por auth),
+      // tentamos buscar lista de usuários via rota administrativa que usa service role.
+      if ((!data || data.length === 0) && res.ok) {
+        try {
+          const listRes = await fetch('/api/admin/list-users');
+          if (listRes.ok) {
+            const listJson = await listRes.json();
+            // Mapear para o formato StatRow com valores padrão
+            data = (listJson || []).map((u: any) => ({
+              user_id: u.id,
+              full_name: u.full_name || '—',
+              email: u.email || null,
+              role: null,
+              can_be_clone_source: false,
+              total_products: 0,
+              brands_list: '',
+            }));
+          }
+        } catch (e) {
+          // silent
+        }
+      }
+
+      setStats(data || []);
       setCallerRole(json.callerRole || null);
     } catch (err) {
       console.error('fetchStats error', err);

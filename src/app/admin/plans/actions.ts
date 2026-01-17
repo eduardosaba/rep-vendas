@@ -70,6 +70,11 @@ export async function upsertPlan(plan: any) {
         name: plan.name,
         price: plan.price,
         max_products: plan.max_products,
+        // Mantemos `product_limit` em sincronia quando o admin editar o plano.
+        // Ao criar, o banco pode aplicar um default (ex: 50). Ao editar, precisamos
+        // garantir que este campo seja atualizado também, caso o admin tenha
+        // alterado a quantidade de SKUs permitidos.
+        product_limit: plan.product_limit ?? plan.max_products,
         active: plan.active,
 
         // --- NOVAS FUNCIONALIDADES (FEATURE FLAGS) ---
