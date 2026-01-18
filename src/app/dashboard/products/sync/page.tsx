@@ -19,6 +19,10 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import {
+  prepareProductImage,
+  prepareProductGallery,
+} from '@/lib/utils/image-logic';
 
 interface SyncPreview {
   id?: string; // Adicionado para facilitar o batch update
@@ -134,93 +138,89 @@ export default function ProductSyncPage() {
       if (!user) throw new Error('Usuário não autenticado');
 
       const updates = preview.filter((p) => p.status === 'match');
-      const mismatches = preview.filter((p) => p.status === 'not_found');
-
       setProgress({ current: 0, total: updates.length });
-      let updatedCount = 0;
-      let errorCount = 0;
 
-      // ESTRATÉGIA DE CHUNKS (Fatias de 50 produtos)
+      let updatedCount = 0;
       const chunkSize = 50;
+
       for (let i = 0; i < updates.length; i += chunkSize) {
         const chunk = updates.slice(i, i + chunkSize);
+        const batchImages: any[] = [];
 
-        // Filtra itens sem `id` — evita que o upsert tente inserir linhas incompletas
-        const validChunk = chunk.filter((item) => !!item.id);
-        if (validChunk.length !== chunk.length) {
-          const skipped = chunk.length - validChunk.length;
-          addLog(
-            `⚠️ Pulando ${skipped} item(s) sem ID no lote ${i / chunkSize + 1} (evita inserts inválidos)`
-          );
-        }
-        if (validChunk.length === 0) {
-          setProgress((prev) => ({
-            ...prev,
-            current: Math.min(i + chunkSize, updates.length),
-          }));
-          continue;
-        }
-
-        // Preparamos os dados para o UPSERT (Update em massa via ID)
-        const batchData = validChunk.map((item) => {
+        // Preparamos os dados para um ÚNICO comando UPSERT por lote
+        const batchData = chunk.map((item) => {
           let val = item.newValue;
           if (dbTargetCol === 'price' || dbTargetCol === 'stock_quantity') {
             val =
               parseFloat(String(item.newValue).replace(/[^\d.-]/g, '')) || 0;
           }
+
+          // Se a coluna alvo for imagem, usamos o normalizador
+          let imageProps = {};
+          if (dbTargetCol === 'image_url') {
+            imageProps = prepareProductImage(String(val));
+            if (val && item.id) {
+              const gallery = prepareProductGallery(item.id, String(val));
+              batchImages.push(...gallery);
+            }
+          }
+
           return {
-            id: item.id, // O ID é a chave para o Supabase saber qual linha atualizar
+            id: item.id,
+            name: item.productName, // OBRIGATÓRIO: Incluímos o nome para satisfazer a constraint NOT NULL
             [dbTargetCol]: val,
+            ...imageProps, // Injeta sync_status e sync_error se for imagem
             updated_at: new Date().toISOString(),
-            user_id: user.id, // garante que RLS permita a operação (pertence ao usuário)
+            user_id: user.id,
           };
         });
 
-        // Atualiza um-a-um para evitar inserts (upsert pode inserir linhas incompletas)
-        const results = await Promise.allSettled(
-          validChunk.map((item) => {
-            let val = item.newValue;
-            if (dbTargetCol === 'price' || dbTargetCol === 'stock_quantity') {
-              val =
-                parseFloat(String(item.newValue).replace(/[^\d.-]/g, '')) || 0;
-            }
-            const updateObj: any = {
-              [dbTargetCol]: val,
-              updated_at: new Date().toISOString(),
-              user_id: user.id,
-            };
-            return supabase
-              .from('products')
-              .update(updateObj)
-              .eq('id', item.id);
-          })
-        );
+        // Executa o lote inteiro de uma vez (Alta performance)
+        const { error } = await supabase
+          .from('products')
+          .upsert(batchData, { onConflict: 'id' });
 
-        // Avalia resultados individuais
-        let successful = 0;
-        for (const r of results) {
-          if (r.status === 'fulfilled') {
-            const resp: any = r.value;
-            if (resp.error) {
+        if (!error && batchImages.length > 0) {
+          // Atualiza a galeria: DELETE + INSERT ("substituição total" para as linhas afetadas)
+          // Isso garante que se o usuário forneceu uma lista nova, a antiga é removida.
+
+          // Coletamos os IDs de produtos que estão sendo atualizados com imagens neste lote
+          const productIds = Array.from(
+            new Set(batchImages.map((img) => img.product_id))
+          );
+
+          if (productIds.length > 0) {
+            // Removemos as imagens antigas desses produtos
+            await supabase
+              .from('product_images')
+              .delete()
+              .in('product_id', productIds);
+
+            // Inserimos a nova lista
+            const { error: galleryError } = await supabase
+              .from('product_images')
+              .insert(batchImages);
+
+            if (galleryError) {
+              console.warn('Erro ao atualizar galeria:', galleryError.message);
               addLog(
-                `❌ Erro em update: ${resp.error.message || JSON.stringify(resp.error)}`
+                `⚠️ Erro ao atualizar galeria de fotos: ${galleryError.message}`
               );
-              errorCount += 1;
-              if (stopOnError) break;
-            } else {
-              successful += 1;
             }
-          } else {
-            addLog(`❌ Erro em update (rejected): ${String(r.reason)}`);
-            errorCount += 1;
-            if (stopOnError) break;
           }
         }
 
-        updatedCount += successful;
-        addLog(
-          `✅ Bloco processado: ${updatedCount} produtos (${successful} atualizados).`
-        );
+        if (error) {
+          addLog(
+            `❌ Erro no lote ${Math.floor(i / chunkSize) + 1}: ${error.message}`
+          );
+          if (stopOnError) throw new Error(error.message);
+        } else {
+          updatedCount += batchData.length;
+          addLog(
+            `✅ Lote ${Math.floor(i / chunkSize) + 1} processado (${batchData.length} itens).`
+          );
+        }
 
         setProgress((prev) => ({
           ...prev,
@@ -228,25 +228,20 @@ export default function ProductSyncPage() {
         }));
       }
 
-      // PREPARAR DADOS DE ROLLBACK (snapshot dos valores antigos)
+      // Snapshot para Log/Rollback (Opcional, mas mantido conforme seu código)
       const rollbackData = updates.map((u) => ({
         id: u.id,
         old_value: u.currentValue,
         column: dbTargetCol,
       }));
 
-      // SALVAR LOG FINAL (inclui snapshot para possível desfazer)
       await supabase.from('sync_logs').insert({
         user_id: user.id,
         filename: 'Importação via Excel (PROCV)',
         target_column: dbTargetCol,
         total_processed: preview.length,
         updated_count: updatedCount,
-        mismatch_count: mismatches.length,
-        mismatch_list: mismatches.map((m) => ({
-          key: m.key,
-          name: m.productName,
-        })),
+        mismatch_count: preview.filter((p) => p.status === 'not_found').length,
         rollback_data: rollbackData,
       });
 
@@ -255,6 +250,7 @@ export default function ProductSyncPage() {
       setPreview([]);
     } catch (err: any) {
       addLog(`❌ Erro fatal: ${err.message}`);
+      toast.error('Falha na sincronização.');
     } finally {
       setLoading(false);
       setProgress({ current: 0, total: 0 });
@@ -368,6 +364,7 @@ export default function ProductSyncPage() {
                   <option value="stock_quantity">
                     Atualizar Estoque (Un.)
                   </option>
+                  <option value="image_url">Atualizar URL Imagens</option>
                 </select>
                 <select
                   value={valueCol}

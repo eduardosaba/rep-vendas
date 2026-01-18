@@ -8,9 +8,13 @@ import {
   Lock,
   Plus,
   Minus,
+  Loader2,
+  AlertCircle,
+  Clock,
 } from 'lucide-react';
 import Image from 'next/image';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
+import { getProductImage } from '@/lib/utils/image-logic';
 import React, { useState } from 'react';
 import { useStore } from '@/components/catalogo/store-context';
 import {
@@ -50,69 +54,34 @@ export function ProductCard({
   const stockQty = (product.stock_quantity ?? 0) as number;
   const isOutOfStock = isStockManaged && stockQty <= 0;
 
-  // --- LÓGICA DE IMAGEM COM THUMBNAIL (APENAS PARA STORAGE) ---
-  const getImageUrl = () => {
-    // Se tem image_path (Storage do Supabase), usa thumbnail otimizado
-    if (product.image_path) {
-      const url = buildSupabaseImageUrl(product.image_path, {
-        width: 400,
-        height: 400,
-        resize: 'contain',
-      });
-      return url;
-    }
+  // --- LÓGICA DE IMAGEM PADRONIZADA ---
+  // Pega apenas a primeira imagem da lista para a vitrine
+  const rawFirst = (
+    product.image_url ||
+    product.external_image_url ||
+    product.images?.[0] ||
+    ''
+  )
+    .split(',')[0]
+    .trim();
 
-    // URLs externas: funciona mas sem otimização (mais lento)
-    let externalUrl =
-      product.image_url || product.external_image_url || product.images?.[0];
-    const originalExternalUrl = externalUrl;
+  const isPending = product.sync_status === 'pending';
+  const isFailed = product.sync_status === 'failed';
 
-    // Se for um caminho relativo do storage (não começa com http), converte para URL pública
-    if (externalUrl && !externalUrl.startsWith('http')) {
-      const maybe = buildSupabaseImageUrl(externalUrl);
-      if (maybe) externalUrl = maybe;
-    }
+  // Se for path interno (Storage), resolve URL completa. Se for http, mantém.
+  const displayImageRaw =
+    rawFirst && !rawFirst.startsWith('http')
+      ? buildSupabaseImageUrl(rawFirst)
+      : rawFirst;
 
-    if (externalUrl && !imageFailed && typeof window !== 'undefined') {
-      // Aviso apenas uma vez por sessão (somente no cliente)
-      const storageKey = `warned-external-images`;
-      if (!sessionStorage.getItem(storageKey)) {
-        console.warn(
-          '⚠️ PERFORMANCE: Produtos usando imagens externas (mais lento)'
-        );
-        console.warn(
-          '💡 Recomendação: Use "Dashboard → Sincronizar Imagens" para melhorar a velocidade'
-        );
-        sessionStorage.setItem(storageKey, 'true');
-      }
-    }
+  // Aplicar versão 'small' (200px) para miniaturas do catálogo
+  const optimizedImage = getProductImage(displayImageRaw, 'small');
 
-    // If URL is external (not supabase storage) we proxy it and request a webp
-    if (externalUrl && !externalUrl.includes('supabase.co/storage')) {
-      try {
-        const proxy = `/api/proxy-image?url=${encodeURIComponent(
-          externalUrl
-        )}&w=800&fmt=webp&q=65`;
-        // keep reference to original in sessionStorage for debug if needed
-        if (typeof window !== 'undefined' && originalExternalUrl) {
-          sessionStorage.setItem('last-external-image', originalExternalUrl);
-        }
-        return proxy;
-      } catch (err) {
-        return externalUrl;
-      }
-    }
-
-    return externalUrl || null;
-  };
-
-  const displayImage = getImageUrl();
-
-  // Detectar se é imagem do Supabase Storage (pode otimizar) ou externa (não otimizar)
-  const isSupabaseStorage =
-    displayImage?.includes('supabase.co/storage') ||
-    Boolean(product.image_path);
-  const shouldOptimize = isSupabaseStorage;
+  // Fallback final
+  const displayImage =
+    imageFailed || isFailed || !optimizedImage
+      ? '/images/product-placeholder.svg'
+      : optimizedImage;
 
   // --- LÓGICA DE PREÇOS ---
   const costPrice = product.price || 0;
@@ -140,53 +109,40 @@ export function ProductCard({
       onClick={() => onViewDetails(product)}
       className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/10 ${isOutOfStock ? 'opacity-60 grayscale' : ''}`}
     >
-      {/* --- SEÇÃO DA IMAGEM --- */}
-      <div className="relative aspect-[4/5] overflow-hidden border-b border-gray-50 bg-white p-4">
-        {displayImage && !imageFailed ? (
-          <Image
-            src={displayImage}
-            alt={product.name}
-            fill
-            sizes="(max-width: 768px) 50vw, 33vw"
-            className="p-4 transition-transform duration-700 group-hover:scale-105"
-            style={{ objectFit: 'contain' }}
-            // Evita passar pelo otimizador do Next.js para imagens do
-            // Supabase, que estavam retornando 400s no ambiente local.
-            // Servimos o arquivo diretamente (unoptimized=true).
-            unoptimized={isSupabaseStorage}
-            onError={() => {
-              console.warn(`⚠️ Imagem externa com erro: ${displayImage}`);
-              console.warn(
-                '💡 Recomendação: Use o painel "Sincronizar Imagens" para internalizar e otimizar.'
-              );
-              setImageFailed(true);
-            }}
-          />
-        ) : (
-          <div className="relative flex h-full w-full items-center justify-center bg-gray-50 opacity-40">
-            <Image
-              src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
-              alt="Sem imagem"
-              fill
-              className="p-10"
-              style={{ objectFit: 'contain' }}
-              unoptimized
-            />
-            {/* If original external image exists, show a small link to it */}
-            {product.external_image_url && (
-              <a
-                href={product.external_image_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-2 left-2 rounded bg-white/90 px-2 py-1 text-xs text-primary shadow-sm"
-                title="Abrir imagem externa"
-              >
-                Ver imagem
-              </a>
-            )}
+      {/* --- SEÇÃO DA IMAGEM (PADRONIZADA) --- */}
+      <div className="relative aspect-square w-full flex items-center justify-center bg-slate-50 overflow-hidden border-b border-gray-50">
+        {/* Overlay de Otimização */}
+        {isPending && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/40 p-4 text-center backdrop-blur-[2px]">
+            <Loader2 className="mb-1 h-6 w-6 animate-spin text-indigo-500" />
+            <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">
+              Otimizando HD
+            </span>
           </div>
         )}
+
+        {/* Overlay de Falha */}
+        {isFailed && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-red-50/80 p-4 text-center">
+            <AlertCircle className="mb-1 h-6 w-6 text-red-400" />
+            <span className="text-[8px] font-bold uppercase text-red-500">
+              Erro na Imagem
+            </span>
+          </div>
+        )}
+
+        <img
+          src={displayImage}
+          alt={product.name}
+          className={`h-full w-full object-contain p-4 transition-all duration-700 ${
+            isPending ? 'blur-sm grayscale opacity-30' : 'opacity-100'
+          }`}
+          loading="lazy"
+          onError={(e) => {
+            setImageFailed(true);
+            e.currentTarget.src = '/images/product-placeholder.svg';
+          }}
+        />
 
         {/* TAGS DE DESTAQUE COM OPACIDADE */}
         <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">

@@ -102,10 +102,33 @@ export default function MatcherPage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
+      // Normaliza `images` para sempre ser um array de strings (evita falsos positivos)
+      const rawProducts = productsData || [];
+      const pData = rawProducts.map((p: any) => {
+        let imgs: string[] = [];
+        if (Array.isArray(p.images)) {
+          imgs = p.images
+            .map((it: any) =>
+              typeof it === 'string' ? it : it?.url || it?.publicUrl || ''
+            )
+            .filter(Boolean);
+        } else if (typeof p.images === 'string' && p.images.trim() !== '') {
+          imgs = p.images
+            .split(',')
+            .map((s: string) => String(s).trim())
+            .filter(Boolean);
+        }
+
+        return { ...p, images: imgs };
+      });
+
       // Ordenar: Primeiro os sem imagem, depois os com imagem
-      const pData = productsData || [];
-      const productsWithoutImage = pData.filter((p) => !p.image_url);
-      const productsWithImage = pData.filter((p) => p.image_url);
+      const productsWithoutImage = pData.filter(
+        (p: any) => !p.image_url && (!p.images || p.images.length === 0)
+      );
+      const productsWithImage = pData.filter(
+        (p: any) => p.image_url || (p.images && p.images.length > 0)
+      );
       setProducts([...productsWithoutImage, ...productsWithImage]);
 
       // B. Buscar Imagens da "Staging Area" (Piscina)
@@ -129,8 +152,8 @@ export default function MatcherPage() {
           }
 
           // Verificar se já está vinculada a algum produto (para mostrar label)
-          const alreadyLinked = pData.some((p) => {
-            const imgs = p.images || [];
+          const alreadyLinked = pData.some((p: any) => {
+            const imgs: string[] = p.images || [];
             return imgs.includes(publicUrl) || p.image_url === publicUrl;
           });
 
@@ -285,9 +308,11 @@ export default function MatcherPage() {
 
     const byImage = byBrand.filter((product) => {
       if (productImageFilter === 'all') return true;
+      const imgs = product.images;
       const hasImage =
         Boolean(product.image_url) ||
-        (product.images && product.images.length > 0);
+        (Array.isArray(imgs) && imgs.some((it) => Boolean(it))) ||
+        (typeof (imgs as any) === 'string' && (imgs as any).trim().length > 0);
       if (productImageFilter === 'with') return hasImage;
       return !hasImage;
     });
@@ -462,17 +487,7 @@ export default function MatcherPage() {
                   </select>
                 </div>
 
-                <select
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as any)}
-                  className="w-44 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="no_image_first">Sem imagem primeiro</option>
-                  <option value="has_image_first">Com imagem primeiro</option>
-                  <option value="name_asc">Nome A → Z</option>
-                  <option value="name_desc">Nome Z → A</option>
-                  <option value="ref_asc">Ref. A → Z</option>
-                </select>
+                {/* sort select moved to its own row for visibility */}
               </div>
             </div>
             {/* Linha de filtros para telas pequenas */}
@@ -516,6 +531,25 @@ export default function MatcherPage() {
                     <option value="ref_asc">Ref. A → Z</option>
                   </select>
                 </div>
+              </div>
+            </div>
+            {/* Linha separada para Ordenação - sempre visível */}
+            <div className="mt-3 w-full p-3 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
+              <div className="flex items-center justify-end">
+                <label className="text-xs text-gray-500 mr-3">
+                  Ordenar por
+                </label>
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as any)}
+                  className="w-44 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="no_image_first">Sem imagem primeiro</option>
+                  <option value="has_image_first">Com imagem primeiro</option>
+                  <option value="name_asc">Nome A → Z</option>
+                  <option value="name_desc">Nome Z → A</option>
+                  <option value="ref_asc">Ref. A → Z</option>
+                </select>
               </div>
             </div>
           </div>

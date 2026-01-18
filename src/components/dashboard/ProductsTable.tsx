@@ -39,6 +39,7 @@ import Image from 'next/image';
 import { getProductImageUrl } from '@/lib/imageUtils';
 import { toast } from 'sonner';
 import { SyncSingleButton } from '@/components/products/SyncSingleButton';
+import { getProductImage } from '@/lib/utils/image-logic';
 import {
   bulkUpdateFields,
   bulkUpdatePrice,
@@ -2109,11 +2110,12 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     product.external_image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={
+                        src={getProductImage(
                           product.image_url ||
-                          product.external_image_url ||
-                          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${product.image_path}`
-                        }
+                            product.external_image_url ||
+                            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${product.image_path}`,
+                          'small'
+                        )}
                         alt=""
                         className="object-contain h-full w-full"
                       />

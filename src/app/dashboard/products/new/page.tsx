@@ -21,6 +21,10 @@ import {
   Star,
   Trash2,
 } from 'lucide-react';
+import {
+  prepareProductImage,
+  prepareProductGallery,
+} from '@/lib/utils/image-logic';
 
 // --- TIPAGEM ---
 interface Brand {
@@ -447,6 +451,8 @@ export default function NewProductPage() {
         console.warn('Erro ao criar brand/category automático', err);
       }
 
+      const imageMeta = prepareProductImage(formData.images[0] || null);
+
       const payload = {
         user_id: user.id,
         name: formData.name,
@@ -470,13 +476,36 @@ export default function NewProductPage() {
         is_best_seller: formData.is_best_seller,
         is_active: formData.is_active,
         images: formData.images,
-        image_url: formData.images[0] || null,
+        image_url: imageMeta.image_url || null,
+        sync_status: imageMeta.sync_status,
+        sync_error: imageMeta.sync_error,
         slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
         technical_specs,
       };
 
-      const { error } = await supabase.from('products').insert(payload);
+      const { data: newProduct, error } = await supabase
+        .from('products')
+        .insert(payload)
+        .select()
+        .single();
+
       if (error) throw error;
+
+      // Salvar Galeria na nova tabela
+      if (newProduct && formData.images.length > 0) {
+        const galleryItems = prepareProductGallery(
+          newProduct.id,
+          formData.images
+        );
+        const { error: galleryError } = await supabase
+          .from('product_images')
+          .insert(galleryItems);
+
+        if (galleryError) {
+          console.error('Erro ao salvar galeria:', galleryError);
+          toast.error('Produto salvo, mas houve erro nas imagens.');
+        }
+      }
 
       toast.success('Produto cadastrado!');
       router.push('/dashboard/products');

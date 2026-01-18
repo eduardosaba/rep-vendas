@@ -23,6 +23,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
+import {
+  prepareProductImage,
+  prepareProductGallery,
+} from '@/lib/utils/image-logic';
 
 type Stats = {
   total: number;
@@ -441,6 +445,8 @@ export default function ImportMassaPage() {
 
         const slugBase = slugify(String(name) || 'produto');
 
+        const imageMeta = prepareProductImage(coverUrl || null);
+
         const productObj = {
           user_id: user.id,
           name: String(name),
@@ -456,7 +462,9 @@ export default function ImportMassaPage() {
 
           image_path: null,
           external_image_url: coverUrl,
-          image_url: coverUrl,
+          image_url: imageMeta.image_url || null,
+          sync_status: imageMeta.sync_status,
+          sync_error: imageMeta.sync_error,
           images: galleryUrls,
 
           technical_specs: Object.keys(techSpecs).length > 0 ? techSpecs : null,
@@ -514,17 +522,57 @@ export default function ImportMassaPage() {
 
         addLog(`Enviando Lote ${batchNum}/${totalBatches}...`);
 
-        // ⚠️ IMPORTANTE: Usa INSERT em vez de UPSERT para ADICIONAR produtos
-        // e NÃO sobrescrever produtos existentes com mesma referência
-        const { error } = await supabase.from('products').insert(batch);
+        // Usa INSERT com count e select para recuperar IDs gerados
+        const { data: insertedProducts, error } = await supabase
+          .from('products')
+          .insert(batch)
+          .select('id, external_image_url');
 
         if (error) {
           console.error('Erro detalhado:', JSON.stringify(error, null, 2));
           addLog(`Erro lote ${batchNum}: ${error.message}`, 'error');
           errorCount += batch.length;
         } else {
-          addLog(`Lote ${batchNum} salvo.`, 'success');
+          addLog(`Lote ${batchNum} salvo. Processando Galeria...`, 'success');
           successCount += batch.length;
+
+          // --- PROCESSAMENTO DE GALERIA ---
+          // Agora que temos os IDs, inserimos as imagens na tabela product_images
+          if (insertedProducts && insertedProducts.length > 0) {
+            const allImagesToInsert: any[] = [];
+
+            insertedProducts.forEach((p, index) => {
+              const originalItem = batch[index];
+              const imagesSource =
+                originalItem.images && originalItem.images.length > 0
+                  ? originalItem.images
+                  : p.external_image_url;
+
+              if (imagesSource) {
+                const galleryItems = prepareProductGallery(p.id, imagesSource);
+                allImagesToInsert.push(...galleryItems);
+              }
+            });
+
+            if (allImagesToInsert.length > 0) {
+              // Inserção em massa da galeria
+              const { error: galleryError } = await supabase
+                .from('product_images')
+                .insert(allImagesToInsert);
+
+              if (galleryError) {
+                addLog(
+                  `Erro ao criar galeria do lote ${batchNum}: ${galleryError.message}`,
+                  'error'
+                );
+              } else {
+                addLog(
+                  `Galeria do lote ${batchNum} criada com sucesso.`,
+                  'info'
+                );
+              }
+            }
+          }
         }
       }
 

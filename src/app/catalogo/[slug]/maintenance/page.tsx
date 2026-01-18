@@ -99,7 +99,9 @@ export default async function MaintenancePage({ params }: Props) {
                 style={{ color: primaryColor }}
               >
                 <Clock size={16} />
-                <span>Voltamos em breve</span>
+                <span>
+                  O catálogo virtual está em manutenção e logo ficará online.
+                </span>
               </div>
             </div>
 

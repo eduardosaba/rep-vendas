@@ -19,6 +19,7 @@ export default function UpdateModalClient({
   update?: UpdateProps | null;
 }) {
   const [show, setShow] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
     try {
@@ -36,10 +37,28 @@ export default function UpdateModalClient({
 
   const handleClose = () => {
     try {
-      localStorage.setItem(
-        'repvendas_last_seen_version',
-        String(update.version)
-      );
+      // Persist only if the user opted to not show again
+      if (dontShowAgain && update?.version) {
+        // Persist client-side
+        localStorage.setItem(
+          'repvendas_last_seen_version',
+          String(update.version)
+        );
+
+        // Try to persist server-side as well (best-effort)
+        try {
+          fetch('/api/me/seen-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ version: update.version }),
+            credentials: 'same-origin',
+          }).catch(() => {
+            /* ignore network errors */
+          });
+        } catch {
+          // ignore
+        }
+      }
     } catch (e) {
       // ignore
     }
@@ -95,12 +114,24 @@ export default function UpdateModalClient({
           </ul>
 
           <div className="flex justify-end">
-            <button
-              onClick={handleClose}
-              className="px-6 py-3 rounded-lg bg-[var(--primary)] text-white font-medium"
-            >
-              Entendi
-            </button>
+            <div className="flex items-center gap-4">
+              <label className="inline-flex items-center text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={dontShowAgain}
+                  onChange={(e) => setDontShowAgain(e.target.checked)}
+                  className="mr-2 rounded"
+                />
+                Não mostrar novamente para esta versão
+              </label>
+
+              <button
+                onClick={handleClose}
+                className="px-6 py-3 rounded-lg bg-[var(--primary)] text-white font-medium"
+              >
+                Entendi
+              </button>
+            </div>
           </div>
         </div>
       </div>

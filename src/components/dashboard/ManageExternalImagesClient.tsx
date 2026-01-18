@@ -317,7 +317,7 @@ export default function ManageExternalImagesClient({
                       <a
                         href={`/api/proxy-image?url=${encodeURIComponent(
                           item.external_image_url
-                        )}&w=800&format=webp&q=80`}
+                        )}&w=800&format=webp&q=80&fallback=1`}
                         target="_blank"
                         rel="noreferrer"
                         className="text-sm text-gray-500 hover:underline"

@@ -133,6 +133,17 @@ export async function GET(request: Request) {
             continue;
           }
 
+          // If caller asked for fallback behavior, redirect to original upstream URL
+          const urlObjErr = new URL(request.url);
+          const fallback = urlObjErr.searchParams.get('fallback');
+          if (fallback === '1') {
+            try {
+              return NextResponse.redirect(imageUrl);
+            } catch (e) {
+              // If redirect fails, fallthrough to error response
+            }
+          }
+
           return NextResponse.json(
             { error: 'Upstream error', status, bodySnippet: snippet },
             { status: 502 }
@@ -148,6 +159,16 @@ export async function GET(request: Request) {
             contentType,
             preview: text.slice(0, 200),
           });
+          // fallback redirect if requested
+          const urlObjNonImg = new URL(request.url);
+          const fallbackNonImg = urlObjNonImg.searchParams.get('fallback');
+          if (fallbackNonImg === '1') {
+            try {
+              return NextResponse.redirect(imageUrl);
+            } catch (e) {
+              // continue to return error below
+            }
+          }
           return NextResponse.json(
             { error: 'Not an image', contentType },
             { status: 400 }
@@ -228,6 +249,17 @@ export async function GET(request: Request) {
       target: imageUrl,
       lastError: lastError?.message || String(lastError),
     });
+    // If caller requested fallback, redirect to the original image URL
+    try {
+      const urlObjFail = new URL(request.url);
+      const fallbackFail = urlObjFail.searchParams.get('fallback');
+      if (fallbackFail === '1') {
+        return NextResponse.redirect(imageUrl);
+      }
+    } catch (e) {
+      // ignore and return error
+    }
+
     return NextResponse.json(
       {
         error: 'Failed to fetch upstream after retries',

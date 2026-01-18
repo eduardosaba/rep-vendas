@@ -1,9 +1,11 @@
-import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
+import { createRouteSupabase } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
+    const nextCookies = await cookies();
+    const supabase = await createRouteSupabase(() => nextCookies);
 
     // 1. Verifica se usuário está logado
     const {

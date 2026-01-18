@@ -207,3 +207,116 @@ export const copyImageOnWrite = inngest.createFunction(
     });
   }
 );
+
+// 5. Função de CRON para processar imagens da Galeria (product_images)
+export const processPendingImages = inngest.createFunction(
+  { id: 'process-pending-images' },
+  { cron: '*/5 * * * *' }, // A cada 5 minutos
+  async ({ step }) => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // 1. Buscar imagens pendentes (LIMIT 50)
+    const imagesToProcess = await step.run('fetch-pending', async () => {
+      const { data, error } = await supabase
+        .from('product_images')
+        .select('*')
+        .eq('sync_status', 'pending')
+        .limit(50);
+
+      if (error) throw error;
+      return data || [];
+    });
+
+    if (imagesToProcess.length === 0) {
+      return { message: 'Nenhuma imagem pendente.' };
+    }
+
+    // 2. Processar cada imagem
+    const results = await Promise.all(
+      imagesToProcess.map(async (img) => {
+        return step.run(`process-${img.id}`, async () => {
+          try {
+            // Download
+            const response = await fetch(img.url, {
+              headers: {
+                'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                Referer: 'https://commportal.safilo.com/',
+              },
+            });
+
+            if (!response.ok) {
+              await supabase
+                .from('product_images')
+                .update({
+                  sync_status: 'failed',
+                  sync_error: `HTTP ${response.status}`,
+                })
+                .eq('id', img.id);
+              return { id: img.id, status: 'failed' };
+            }
+
+            const buffer = Buffer.from(await response.arrayBuffer());
+
+            // Configuração das versões (Estratégia de Múltiplas Versões)
+            const VERSIONS = [
+              { suffix: 'small', width: 200, quality: 70 },
+              { suffix: 'medium', width: 600, quality: 80 },
+              { suffix: 'large', width: 1200, quality: 85 },
+            ];
+
+            // Gerar e enviar as 3 versões
+            for (const version of VERSIONS) {
+              const optimizedBuffer = await sharp(buffer)
+                .resize(version.width, version.width, {
+                  fit: 'inside',
+                  withoutEnlargement: true,
+                })
+                .webp({ quality: version.quality })
+                .toBuffer();
+
+              const fileName = `public/${img.product_id}/${img.id}-${version.suffix}.webp`;
+              const { error: uploadError } = await supabase.storage
+                .from('product-images')
+                .upload(fileName, optimizedBuffer, {
+                  contentType: 'image/webp',
+                  upsert: true,
+                });
+
+              if (uploadError) throw uploadError;
+            }
+
+            // Pegamos a URL da versão "medium" como padrão
+            const fileName = `public/${img.product_id}/${img.id}-medium.webp`;
+            const {
+              data: { publicUrl },
+            } = supabase.storage.from('product-images').getPublicUrl(fileName);
+
+            // Update DB
+            await supabase
+              .from('product_images')
+              .update({
+                url: publicUrl,
+                sync_status: 'synced',
+                sync_error: null,
+              })
+              .eq('id', img.id);
+
+            return { id: img.id, status: 'success' };
+          } catch (err: any) {
+            await supabase
+              .from('product_images')
+              .update({ sync_status: 'failed', sync_error: err.message })
+              .eq('id', img.id);
+            return { id: img.id, status: 'failed', error: err.message };
+          }
+        });
+      })
+    );
+
+    return { processed: results.length };
+  }
+);

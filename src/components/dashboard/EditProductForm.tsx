@@ -21,9 +21,6 @@ import {
   UploadCloud,
   Trash2,
   AlertTriangle,
-  Tag,
-  Link as LinkIcon,
-  RefreshCw, // Ícone para regenerar o slug
 } from 'lucide-react';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import ImageWithRetry from '@/components/ui/ImageWithRetry';
@@ -302,7 +299,7 @@ export function EditProductForm({ product }: { product: Product }) {
     technical_specs_mode: techSpecs.mode,
     technical_specs_text: techSpecs.text,
     technical_specs_table: techSpecs.table,
-    track_stock: true,
+    track_stock: product.track_stock ?? false,
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
     is_best_seller: product.is_best_seller || product.bestseller || false,
@@ -352,36 +349,6 @@ export function EditProductForm({ product }: { product: Product }) {
   const updateField = (field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
-  };
-
-  // --- LÓGICA DE SLUG ATUALIZADA ---
-  const createSlug = (source: string) => {
-    return source
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  };
-
-  // Gatilho ao sair do campo Nome
-  const handleNameBlur = () => {
-    if (formData.name && !formData.slug) {
-      updateField('slug', createSlug(formData.name));
-    }
-  };
-
-  // Botão manual para gerar slug (opção: Nome ou Referência)
-  const regenerateSlug = (source: 'name' | 'ref') => {
-    const text = source === 'ref' ? formData.reference_code : formData.name;
-    if (!text)
-      return toast.warning(
-        `Preencha ${source === 'ref' ? 'a Referência' : 'o Nome'} primeiro.`
-      );
-
-    const newSlug = createSlug(text);
-    updateField('slug', newSlug);
-    toast.success('Slug atualizado!');
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -604,7 +571,6 @@ export function EditProductForm({ product }: { product: Product }) {
 
       const payload = {
         name: formData.name,
-        slug: formData.slug || null,
         reference_code: formData.reference_code,
         sku: formData.sku || null,
         barcode: formData.barcode || null,
@@ -628,9 +594,7 @@ export function EditProductForm({ product }: { product: Product }) {
             : null,
         technical_specs,
         image_is_shared: isShared && !needsDetach,
-        original_image_path: needsDetach
-          ? null
-          : (product as any).original_image_path,
+        image_path: needsDetach ? null : (product as any).image_path,
       };
 
       await updateProductAction(product.id, payload);
@@ -753,52 +717,8 @@ export function EditProductForm({ product }: { product: Product }) {
                   required
                   value={formData.name}
                   onChange={(e) => updateField('name', e.target.value)}
-                  onBlur={handleNameBlur}
                   className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
                 />
-              </div>
-
-              {/* SLUG CORRIGIDO COM BOTÕES */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
-                  <LinkIcon size={14} className="text-gray-400" /> Slug (URL
-                  Amigável)
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      value={formData.slug}
-                      onChange={(e) => updateField('slug', e.target.value)}
-                      placeholder="ex: oculos-sol-aviador-preto"
-                      className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 pl-9 pr-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 text-sm font-mono"
-                    />
-                    <Tag
-                      size={16}
-                      className="absolute left-3 top-2.5 text-gray-400"
-                    />
-                  </div>
-                  {/* Botões para regenerar slug */}
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => regenerateSlug('name')}
-                      className="p-2 border border-gray-200 rounded-lg hover:bg-gray-100 text-xs text-gray-600"
-                      title="Gerar do Nome"
-                    >
-                      <RefreshCw size={16} /> Nome
-                    </button>
-                    {formData.reference_code && (
-                      <button
-                        type="button"
-                        onClick={() => regenerateSlug('ref')}
-                        className="p-2 border border-gray-200 rounded-lg hover:bg-gray-100 text-xs text-gray-600"
-                        title="Gerar da Referência"
-                      >
-                        <RefreshCw size={16} /> Ref
-                      </button>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
 

@@ -16,6 +16,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import ImageWithRetry from '@/components/ui/ImageWithRetry';
+import { ProductGallery } from '@/components/catalog/ProductGallery'; // Novo Import
 import { toast } from 'sonner';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 
@@ -35,6 +36,12 @@ interface Product {
   description?: string;
   price: number;
   images?: string[];
+  product_images?: {
+    id: string;
+    url: string;
+    sync_status: string;
+    position: number;
+  }[]; // Novo Campo
   bestseller?: boolean;
   is_launch?: boolean;
   technical_specs?: string;
@@ -141,9 +148,10 @@ export default function ProductDetailPage() {
       // Agora buscar produto escopado pelo user_id da loja
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select('*, product_images(*)')
         .eq('id', productId)
         .eq('user_id', store.user_id)
+        .order('position', { foreignTable: 'product_images', ascending: true }) // Ordena fotos
         .maybeSingle();
 
       if (error) throw error;
@@ -259,44 +267,40 @@ export default function ProductDetailPage() {
     }
   };
 
-  // Normalizar imagens do produto: converte paths relativos do storage
-  // em URLs públicas do Supabase e preserva URLs absolutas.
-  const productImages = (() => {
-    if (!product) return [] as string[];
-    const imgs: string[] = [];
+  // Preparar dados para o componente ProductGallery
+  const galleryData = (() => {
+    if (!product) return [];
 
-    // cover image from image_path if present
-    if ((product as any).image_path) {
-      const cover = buildSupabaseImageUrl((product as any).image_path, {
-        width: 800,
-        height: 800,
-        resize: 'contain',
-      });
-      if (cover) imgs.push(cover);
-    } else if ((product as any).image_url) {
-      imgs.push((product as any).image_url as string);
+    // 1. Prioridade: Tabela product_images (Nova Arquitetura)
+    if (product.product_images && product.product_images.length > 0) {
+      return product.product_images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        sync_status: img.sync_status || 'synced',
+      }));
     }
 
-    if (
-      product.images &&
-      Array.isArray(product.images) &&
-      product.images.length > 0
-    ) {
-      product.images.forEach((i) => {
-        const u = buildSupabaseImageUrl(i || null);
-        if (u && !imgs.includes(u)) imgs.push(u);
+    // 2. Fallback: Colunas Antigas convertidas para formato da galeria
+    const legacyImages: { id: string; url: string; sync_status: string }[] = [];
+
+    // Antiga image_url com filtro "pending" se for externa
+    const mainUrl = (product as any).image_url;
+    if (mainUrl) {
+      // Se temos URLs separadas por vírgula na coluna antiga
+      const urls = mainUrl.split(',').map((u: string) => u.trim());
+      urls.forEach((u: string, idx: number) => {
+        legacyImages.push({
+          id: `legacy-${idx}`,
+          url: u,
+          sync_status:
+            u.includes('http') && !u.includes('supabase')
+              ? 'pending'
+              : 'synced',
+        });
       });
     }
 
-    // fallback to single image_url if no images resolved
-    if (imgs.length === 0 && (product as any).image_url)
-      imgs.push((product as any).image_url as string);
-
-    return imgs.length > 0
-      ? imgs
-      : [
-          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70',
-        ];
+    return legacyImages;
   })();
 
   const toggleFavorite = (productId: string) => {
@@ -498,88 +502,24 @@ export default function ProductDetailPage() {
       {/* Main Content */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* Product Images */}
+          {/* Product Images - Galeria Otimizada */}
           <div className="space-y-4">
-            {/* Main Image */}
-            <div className="relative overflow-hidden rounded-lg bg-white shadow-sm">
-              {productImages && productImages.length > 0 ? (
-                <>
-                  <div className="relative">
-                    <img
-                      src={productImages[currentImageIndex]}
-                      alt={product.name}
-                      className="h-96 w-full cursor-pointer object-cover"
-                      onClick={() => openImageModal(currentImageIndex)}
-                    />
-                    <button
-                      aria-label="Ampliar imagem"
-                      onClick={() => openImageModal(currentImageIndex)}
-                      className="absolute right-3 bottom-3 rounded-full bg-white bg-opacity-90 p-2 shadow hover:bg-opacity-100"
-                      style={{
-                        color: settings?.icon_color || '#374151',
-                      }}
-                    >
-                      <ZoomIn className="h-5 w-5" />
-                    </button>
-                  </div>
-                  {/* Navigation arrows */}
-                  {productImages.length > 1 && (
-                    <>
-                      <button
-                        onClick={prevImage}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 transform rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
-                      >
-                        <ChevronLeft className="h-5 w-5 text-gray-700" />
-                      </button>
-                      <button
-                        onClick={nextImage}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 transform rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"
-                      >
-                        <ChevronRight className="h-5 w-5 text-gray-700" />
-                      </button>
-                    </>
-                  )}
-                  {/* Badge de Bestseller */}
-                  {product.bestseller && (
-                    <div className="absolute left-4 top-4 flex items-center rounded bg-yellow-400 px-3 py-1 text-sm font-bold text-yellow-900">
-                      <Star className="mr-1 h-4 w-4 fill-current" />
-                      Bestseller
-                    </div>
-                  )}
-                  {/* Badge de Lançamento */}
-                  {product.is_launch && (
-                    <div className="absolute right-4 top-4 rounded bg-green-400 px-3 py-1 text-sm font-bold text-green-900">
-                      Lançamento
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex h-96 w-full items-center justify-center bg-gray-100">
-                  <span className="text-lg text-gray-400">Sem imagem</span>
-                </div>
-              )}
-            </div>
+            <ProductGallery
+              imageUrls={galleryData}
+              productName={product.name}
+            />
 
-            {/* Thumbnail Images */}
-            {productImages && productImages.length > 1 && (
-              <div className="flex space-x-2 overflow-x-auto">
-                {productImages.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded border-2 ${
-                      index === currentImageIndex
-                        ? 'border-blue-500'
-                        : 'border-gray-300'
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt={`${product.name} ${index + 1}`}
-                      className="h-full w-full object-cover"
-                    />
-                  </button>
-                ))}
+            {/* Badge de Bestseller (Overlay fora do componente, se desejar) */}
+            {product.bestseller && (
+              <div className="mt-2 flex items-center rounded bg-yellow-400 px-3 py-1 text-sm font-bold text-yellow-900 w-fit">
+                <Star className="mr-1 h-4 w-4 fill-current" />
+                Bestseller
+              </div>
+            )}
+            {/* Badge de Lançamento */}
+            {product.is_launch && (
+              <div className="mt-1 rounded bg-green-400 px-3 py-1 text-sm font-bold text-green-900 w-fit">
+                Lançamento
               </div>
             )}
           </div>

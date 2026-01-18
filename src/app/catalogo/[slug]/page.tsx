@@ -131,16 +131,28 @@ export default async function CatalogPage({ params, searchParams }: Props) {
 
   const { data: products, error: productsError } = await supabase
     .from('products')
-    .select('*')
+    .select('*, product_images(url, is_primary)')
     .eq('user_id', catalog.user_id)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
     .range(0, fetchLimit - 1);
 
+  // Injeta a imagem principal da galeria no campo image_url para o ProductCard usar
+  const productsWithImages = products?.map((p: any) => {
+    const gallery = p.product_images || [];
+    const primary = gallery.find((i: any) => i.is_primary);
+    const displayUrl = primary ? primary.url : gallery[0]?.url;
+
+    if (displayUrl) {
+      return { ...p, image_url: displayUrl };
+    }
+    return p;
+  });
+
   return (
     <Storefront
       catalog={catalog}
-      initialProducts={products || []}
+      initialProducts={productsWithImages || []}
       startProductId={typeof productId === 'string' ? productId : undefined}
     />
   );

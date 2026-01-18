@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ProductCard } from './ProductCard';
 import { PriceDisplay } from './PriceDisplay';
+import { getProductImage } from '@/lib/utils/image-logic';
 
 interface SlideData {
   id: number;
@@ -257,8 +258,8 @@ export function ProductGrid() {
       ) : (
         <>
           {viewMode === 'grid' ? (
-            // Implementação de 5 colunas em telas grandes (lg)
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-6 gap-4 md:gap-6">
+            // Implementação otimizada para novo Card Padronizado (mais espaço)
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
               {paginatedProducts.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -292,10 +293,11 @@ export function ProductGrid() {
                         </div>
                       )}
                       <NextImage
-                        src={
+                        src={getProductImage(
                           product.image_url ||
-                          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
-                        }
+                            '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70',
+                          'medium'
+                        )}
                         alt={product.name}
                         fill
                         className="object-contain p-2 transition-transform duration-500 group-hover:scale-105"

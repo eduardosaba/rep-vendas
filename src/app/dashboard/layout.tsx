@@ -6,7 +6,6 @@ import ImpersonateBanner from '@/components/dashboard/ImpersonateBanner';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
-import UpdateNotificationModal from '@/components/dashboard/UpdateNotificationModal';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -87,7 +86,6 @@ export default function DashboardLayout({
   if (!authorized) return null;
   return (
     <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
-      <UpdateNotificationModal />
       <div className="flex h-screen w-full overflow-hidden">
         {/* Sidebar recebe o estado e a função de alteração */}
         <Sidebar

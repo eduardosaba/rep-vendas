@@ -36,12 +36,16 @@ export interface Product {
   price: number; // Preço Base / Custo
   sale_price?: number | null; // Preço de Venda Sugerido
   original_price?: number | null; // Preço "De" para promoções
+  track_stock?: boolean;
 
   // Imagens
   image_url?: string | null;
   image_path?: string | null; // Caminho no Supabase Storage
   external_image_url?: string | null;
   images?: string[]; // Galeria adicional
+  sync_status?: 'pending' | 'synced' | 'failed' | null;
+  sync_error?: string | null;
+  product_images?: { id: string; url: string; sync_status: string }[]; // Nova estrutura de galeria
 
   // Categorização e Status
   category?: string | null;

@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   Terminal,
   Save,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
@@ -122,6 +124,108 @@ export default function ControlTower() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStats, setSyncStats] = useState({ success: 0, failed: 0 });
+
+  const handleSyncImages = async () => {
+    if (isSyncing) return;
+
+    if (
+      !window.confirm(
+        'Deseja iniciar a otimização de TODAS as imagens pendentes? O processo continuará automaticamente em lotes até esvaziar a fila.'
+      )
+    ) {
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncStats({ success: 0, failed: 0 });
+    const toastId = toast.loading('Inicializando motor de otimização...', {
+      duration: Infinity,
+    });
+
+    // Função Recursiva Interna
+    const runBatch = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        const res = await fetch('/api/admin/sync-images', {
+          method: 'POST',
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.message || 'Erro na API');
+
+        // Se não houver mais imagens, encerra o ciclo
+        if (data.message === 'Nenhuma imagem pendente.') {
+          toast.success(
+            `🎉 Processo concluído! Total: ${syncStats.success + (data.detalhes?.success || 0)} otimizadas.`,
+            { id: toastId, duration: 5000 }
+          );
+          setIsSyncing(false);
+          refreshData(); // Atualiza a tela geral
+          return;
+        }
+
+        // Atualiza estatísticas acumuladas e continua
+        const currentSuccess =
+          syncStats.success + (data.detalhes?.success || 0);
+        const currentFailed = syncStats.failed + (data.detalhes?.failed || 0);
+
+        setSyncStats({
+          success: currentSuccess,
+          failed: currentFailed,
+        });
+
+        toast.loading(
+          `Otimizando... Sucesso: ${currentSuccess} | Falhas: ${currentFailed}`,
+          { id: toastId }
+        );
+
+        // Chama o próximo lote recursivamente
+        await runBatch();
+      } catch (error: any) {
+        console.error('Ciclo interrompido:', error);
+        toast.error(`Processo pausado por erro: ${error.message}`, {
+          id: toastId,
+          duration: 5000,
+        });
+        setIsSyncing(false);
+      }
+    };
+
+    // Dispara a primeira execução
+    await runBatch();
+  };
+  const handleRestandardize = async () => {
+    if (
+      !window.confirm(
+        'Isso marcará todas as imagens antigas (não-WebP) para reprocessamento. Deseja continuar?'
+      )
+    )
+      return;
+
+    addLog('🛠️ Agendando re-padronização de imagens antigas...');
+    toast.info(
+      'Para agendar a re-padronização, execute o script SQL/queue_restandardization.sql no Supabase Studio.'
+    );
+    addLog(
+      'ℹ️ Execute SQL/queue_restandardization.sql no painel para iniciar.'
+    );
+  };
+  const refreshData = () => {
+    /* Função placeholder se já não existir no contexto, 
+       mas idealmente deveria recarregar os counts da tela */
+    handleCleanup(true); // Recarrega simulando um scan para atualizar contadores se possível
   };
 
   const handleSaveGlobalConfig = async (patch: any) => {
@@ -334,6 +438,105 @@ export default function ControlTower() {
                 className="text-xs h-10 bg-red-600 hover:bg-red-700 text-white"
               >
                 <Trash2 size={14} className="mr-2" /> Limpeza Real
+              </Button>
+            </div>
+          </div>
+
+          {/* Seção de Otimização de Imagens */}
+          <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-3">
+              <RefreshCw className="text-indigo-600" size={18} />
+              <h4 className="font-bold text-slate-700 dark:text-slate-300">
+                Otimização de Imagens
+              </h4>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs text-slate-500 max-w-md">
+                Redimensiona e converte imagens pendentes (URL externa) para o
+                padrão interno (WebP 1000px).
+              </p>
+              <Button
+                onClick={handleSyncImages}
+                disabled={loading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 w-full sm:w-auto text-xs h-10"
+              >
+                <RefreshCw
+                  size={14}
+                  className={loading ? 'animate-spin' : ''}
+                />
+                OTIMIZAR IMAGENS PENDENTES
+              </Button>
+            </div>
+          </div>
+          {/* Seção de Otimização de Imagens */}
+          <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-3">
+              <RefreshCw className="text-indigo-600" size={18} />
+              <h4 className="font-bold text-slate-700 dark:text-slate-300">
+                Otimização de Imagens
+              </h4>
+            </div>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-xs text-slate-500 max-w-md">
+                  Redimensiona e converte imagens pendentes (URL externa) para o
+                  padrão interno (WebP 1000px).
+                </p>
+                <div className="flex flex-col gap-2 w-full sm:w-auto">
+                  <Button
+                    onClick={handleSyncImages}
+                    disabled={loading || isSyncing}
+                    className={`${isSyncing ? 'bg-amber-500' : 'bg-indigo-600'} hover:bg-indigo-700 text-white gap-2 w-full sm:w-auto text-xs h-10`}
+                  >
+                    {isSyncing ? (
+                      <Loader2 className="animate-spin" size={14} />
+                    ) : (
+                      <RefreshCw size={14} />
+                    )}
+                    {isSyncing
+                      ? 'PROCESSANDO FILA...'
+                      : 'OTIMIZAR TODAS AS IMAGENS'}
+                  </Button>
+                  {isSyncing && (
+                    <span className="text-[10px] font-bold text-amber-600 animate-pulse text-center">
+                      Não feche esta aba.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Contador Acumulado */}
+              {(syncStats.success > 0 || syncStats.failed > 0) && (
+                <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-50 dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700">
+                  <span className="text-emerald-600">
+                    Sucesso: {syncStats.success}
+                  </span>
+                  <span className="text-red-500">
+                    Falhas: {syncStats.failed}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {/* Seção de Manutenção de Qualidade (Tier 2) */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 mt-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                   Manutenção de Qualidade
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-1 max-w-sm leading-relaxed">
+                  Padronizar fotos antigas para o formato WebP (Mais rápido e leve).
+                  Use para atualizar imagens enviadas antes da otimização.
+                </p>
+              </div>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={handleRestandardize}
+                className="text-xs h-8 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800"
+              >
+                <Zap size={14} className="mr-2 text-amber-500" />
+                PADRONIZAR ANTIGOS
               </Button>
             </div>
           </div>

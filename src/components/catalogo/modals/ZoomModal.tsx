@@ -5,6 +5,7 @@
 import React, { useEffect } from 'react';
 import Image from 'next/image';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getProductImage } from '@/lib/utils/image-logic';
 
 // --- Tipos ---
 interface Product {
@@ -102,7 +103,7 @@ export function ZoomModal({
         {productImages[currentImageIndex] && (
           <div className="relative max-w-[90vw] max-h-[85vh] w-auto h-auto">
             <Image
-              src={productImages[currentImageIndex]}
+              src={getProductImage(productImages[currentImageIndex], 'large')}
               alt="Zoom"
               fill
               style={{ objectFit: 'contain', maxWidth: '100%' }}

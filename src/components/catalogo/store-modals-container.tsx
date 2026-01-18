@@ -410,22 +410,22 @@ export function StoreModals() {
                   </div>
                 )}
 
-                {/* Código de Barras / SKU */}
-                <div className="p-6 bg-secondary/5 rounded-3xl border border-dashed border-secondary/10 flex flex-col items-center justify-center gap-4 mb-8">
-                  <div className="flex items-center gap-2 text-secondary/40">
-                    <BarcodeIcon size={16} />
-                    <span className="text-[10px] font-bold uppercase">
-                      Código de Barras
-                    </span>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl">
-                    <Barcode
-                      value={
-                        modals.product.sku || modals.product.id.slice(0, 12)
-                      }
-                    />
-                  </div>
-                </div>
+                {/* Código de Barras / SKU — só mostrar se barcode estiver cadastrado */}
+                {modals.product?.barcode &&
+                  String(modals.product.barcode).replace(/\D/g, '').length >
+                    0 && (
+                    <div className="p-6 bg-secondary/5 rounded-3xl border border-dashed border-secondary/10 flex flex-col items-center justify-center gap-4 mb-8">
+                      <div className="flex items-center gap-2 text-secondary/40">
+                        <BarcodeIcon size={16} />
+                        <span className="text-[10px] font-bold uppercase">
+                          Código de Barras
+                        </span>
+                      </div>
+                      <div className="bg-white p-4 rounded-xl">
+                        <Barcode value={String(modals.product.barcode)} />
+                      </div>
+                    </div>
+                  )}
               </div>
 
               {/* FOOTER DE AÇÃO FIXO */}

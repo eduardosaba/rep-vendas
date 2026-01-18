@@ -5,6 +5,7 @@ import {
   internalizeSingleImage,
   cloneCatalog,
   copyImageOnWrite,
+  processPendingImages,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -14,5 +15,6 @@ export const { GET, POST, PUT } = serve({
     internalizeSingleImage,
     cloneCatalog,
     copyImageOnWrite,
+    processPendingImages,
   ],
 });

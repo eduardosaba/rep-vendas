@@ -31,6 +31,7 @@ export default function UpdateNotificationModal() {
   const [mounted, setMounted] = useState(false);
   const [updateData, setUpdateData] = useState<UpdateData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -77,9 +78,21 @@ export default function UpdateNotificationModal() {
   };
 
   const handleClose = () => {
-    if (updateData) {
-      // Salvar que o usuário já viu esta versão
+    if (updateData && dontShowAgain) {
+      // Persist client-side
       localStorage.setItem(LAST_SEEN_VERSION_KEY, updateData.version);
+
+      // Persist server-side (best-effort)
+      try {
+        fetch('/api/me/seen-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: updateData.version }),
+          credentials: 'same-origin',
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
     }
     setIsOpen(false);
   };
@@ -174,6 +187,18 @@ export default function UpdateNotificationModal() {
             </ul>
 
             {/* Actions */}
+            <div className="mb-4 flex items-center justify-center gap-4">
+              <label className="inline-flex items-center text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={dontShowAgain}
+                  onChange={(e) => setDontShowAgain(e.target.checked)}
+                  className="mr-2 rounded"
+                />
+                Não mostrar novamente para esta versão
+              </label>
+            </div>
+
             <div className="flex justify-center">
               <button
                 onClick={handleClose}

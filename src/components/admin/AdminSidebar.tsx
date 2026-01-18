@@ -21,6 +21,8 @@ import {
   ShieldCheck,
   History,
   Trash2,
+  Cpu,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -102,7 +104,7 @@ export default function AdminSidebar({
       href: '/admin/curadoria',
       icon: ShieldCheck,
     },
-    { label: 'Clear Storage', href: '/admin/clear', icon: Trash2 },
+    { label: 'Torre de Controle', href: '/admin/clear', icon: Cpu },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
     { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket },
     { label: 'Sobre / Ajuda', href: '/admin/help', icon: HelpCircle },
