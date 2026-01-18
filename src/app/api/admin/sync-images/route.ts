@@ -1,9 +1,13 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 
 export async function POST() {
-  const supabase = await createClient();
+  // Use service role for storage operations
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
   // 1. Busca os produtos pendentes com lógica de prioridade:
   // Prioridade 1: Produtos novos (sync_error é nulo)
