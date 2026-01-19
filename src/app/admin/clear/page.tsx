@@ -15,14 +15,12 @@ export const metadata: Metadata = {
 export default async function ClearStoragePage() {
   const supabase = await createClient();
 
-  // 1. Verificação de Usuário Master
+  // 1. Verificação de Usuário Autenticado
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const MASTER_EMAIL =
-    process.env.MASTER_ADMIN_EMAIL || 'eduardopedro.fsa@gmail.com';
-  const isMaster = !!user && user.email === MASTER_EMAIL;
+  const isAuthenticated = !!user;
 
   // 2. Lógica de busca de falhas de sincronização (Preservada)
   let failedCount = 0;
@@ -40,7 +38,7 @@ export default async function ClearStoragePage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8">
       {/* Ajustado para max-w-screen-2xl para maior largura útil */}
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        {isMaster ? (
+        {isAuthenticated ? (
           <div className="flex flex-col gap-8 mt-8">
             {/* SEÇÃO A: TORRE DE CONTROLE (Largura Total para não truncar tabelas) */}
             <section className="w-full">
@@ -104,11 +102,8 @@ export default async function ClearStoragePage() {
           <div className="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl mt-20 text-center">
             <h1 className="text-2xl font-bold mb-2">Acesso Restrito</h1>
             <p className="mb-6 text-sm text-gray-600 dark:text-slate-400">
-              Esta área é restrita ao usuário master. Por favor, utilize o
-              e-mail: <br />
-              <span className="font-mono font-bold text-primary">
-                {MASTER_EMAIL}
-              </span>
+              Esta área é restrita a usuários autenticados com permissões
+              administrativas.
             </p>
             <Link href="/dashboard">
               <Button className="w-full" variant="primary">

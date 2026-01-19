@@ -13,12 +13,15 @@ import {
   Save,
   RefreshCw,
   Zap,
+  FileSearch,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import EcosystemHealthCards from '@/components/admin/EcosystemHealthCards';
 import RecentActivityFeed from '@/components/admin/RecentActivityFeed';
+import Link from 'next/link';
+import { useConfirm } from '@/hooks/useConfirm';
 
 export default function ControlTower() {
   const [loading, setLoading] = useState(false);
@@ -37,6 +40,7 @@ export default function ControlTower() {
   > | null>(null);
   const [notAuthorized, setNotAuthorized] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
+  const { confirm } = useConfirm();
 
   // Auto-scroll do console
   useEffect(() => {
@@ -132,11 +136,15 @@ export default function ControlTower() {
   const handleSyncImages = async () => {
     if (isSyncing) return;
 
-    if (
-      !window.confirm(
-        'Deseja iniciar a otimização de TODAS as imagens pendentes? O processo continuará automaticamente em lotes até esvaziar a fila.'
-      )
-    ) {
+    const confirmed = await confirm({
+      title: 'Otimizar Todas as Imagens',
+      description:
+        'Deseja iniciar a otimização de TODAS as imagens pendentes? O processo continuará automaticamente em lotes até esvaziar a fila.',
+      confirmText: 'Sim, Iniciar',
+      cancelText: 'Cancelar',
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -164,6 +172,15 @@ export default function ControlTower() {
         const data = await res.json();
 
         if (!res.ok) throw new Error(data.message || 'Erro na API');
+
+        // Mostra erros específicos se houver falhas
+        if (data.errors && data.errors.length > 0) {
+          console.error('Erros de sincronização:', data.errors);
+          toast.error(
+            `Erros encontrados: ${data.errors.map((e: any) => `${e.name}: ${e.error}`).join(', ')}`,
+            { duration: 8000 }
+          );
+        }
 
         // Se não houver mais imagens, encerra o ciclo
         if (data.message === 'Nenhuma imagem pendente.') {
@@ -207,12 +224,15 @@ export default function ControlTower() {
     await runBatch();
   };
   const handleRestandardize = async () => {
-    if (
-      !window.confirm(
-        'Isso marcará todas as imagens antigas (não-WebP) para reprocessamento. Deseja continuar?'
-      )
-    )
-      return;
+    const confirmed = await confirm({
+      title: 'Re-padronizar Imagens Antigas',
+      description:
+        'Isso marcará todas as imagens antigas (não-WebP) para reprocessamento. Deseja continuar?',
+      confirmText: 'Sim, Re-padronizar',
+      cancelText: 'Cancelar',
+    });
+
+    if (!confirmed) return;
 
     addLog('🛠️ Agendando re-padronização de imagens antigas...');
     toast.info(
@@ -267,11 +287,19 @@ export default function ControlTower() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] font-mono text-slate-400">
-            SISTEMA ONLINE
-          </span>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/audit">
+            <Button variant="outline" size="sm" className="gap-2">
+              <FileSearch size={14} />
+              Auditoria de Imagens
+            </Button>
+          </Link>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-mono text-slate-400">
+              SISTEMA ONLINE
+            </span>
+          </div>
         </div>
       </header>
 
@@ -450,32 +478,6 @@ export default function ControlTower() {
                 Otimização de Imagens
               </h4>
             </div>
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-xs text-slate-500 max-w-md">
-                Redimensiona e converte imagens pendentes (URL externa) para o
-                padrão interno (WebP 1000px).
-              </p>
-              <Button
-                onClick={handleSyncImages}
-                disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 w-full sm:w-auto text-xs h-10"
-              >
-                <RefreshCw
-                  size={14}
-                  className={loading ? 'animate-spin' : ''}
-                />
-                OTIMIZAR IMAGENS PENDENTES
-              </Button>
-            </div>
-          </div>
-          {/* Seção de Otimização de Imagens */}
-          <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2 mb-3">
-              <RefreshCw className="text-indigo-600" size={18} />
-              <h4 className="font-bold text-slate-700 dark:text-slate-300">
-                Otimização de Imagens
-              </h4>
-            </div>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <p className="text-xs text-slate-500 max-w-md">
@@ -517,19 +519,20 @@ export default function ControlTower() {
                 </div>
               )}
             </div>
-            
+
             {/* Seção de Manutenção de Qualidade (Tier 2) */}
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 mt-4 flex items-center justify-between">
               <div>
                 <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
-                   Manutenção de Qualidade
+                  Manutenção de Qualidade
                 </h3>
                 <p className="text-[10px] text-slate-400 mt-1 max-w-sm leading-relaxed">
-                  Padronizar fotos antigas para o formato WebP (Mais rápido e leve).
-                  Use para atualizar imagens enviadas antes da otimização.
+                  Padronizar fotos antigas para o formato WebP (Mais rápido e
+                  leve). Use para atualizar imagens enviadas antes da
+                  otimização.
                 </p>
               </div>
-              <Button 
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRestandardize}

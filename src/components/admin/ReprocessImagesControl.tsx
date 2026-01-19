@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
+import { useConfirm } from '@/hooks/useConfirm';
 
 export default function ReprocessImagesControl({
   initialCount = 0,
@@ -11,9 +12,18 @@ export default function ReprocessImagesControl({
 }) {
   const [loading, setLoading] = useState(false);
   const [count, setCount] = useState(initialCount);
+  const { confirm } = useConfirm();
 
   const handleReprocess = async () => {
-    if (!confirm('Deseja reprocessar todos os itens com falha?')) return;
+    const confirmed = await confirm({
+      title: 'Reprocessar Falhas',
+      description:
+        'Deseja reprocessar todos os itens com falha de sincronização?',
+      confirmText: 'Sim, Reprocessar',
+      cancelText: 'Cancelar',
+    });
+
+    if (!confirmed) return;
     setLoading(true);
     try {
       const res = await fetch('/api/admin/reprocess-images', {

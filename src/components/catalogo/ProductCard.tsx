@@ -77,11 +77,15 @@ export function ProductCard({
   // Aplicar versão 'small' (200px) para miniaturas do catálogo
   const optimizedImage = getProductImage(displayImageRaw, 'small');
 
-  // Fallback final
-  const displayImage =
-    imageFailed || isFailed || !optimizedImage
-      ? '/images/product-placeholder.svg'
-      : optimizedImage;
+  // Fallback Strategy:
+  // 1. Se a imagem otimizada existe, usa ela
+  // 2. Se está pendente ou falhou, mas tem URL externa original, mostra ela
+  // 3. Caso contrário, usa placeholder
+  const displayImage = imageFailed
+    ? '/images/product-placeholder.svg'
+    : optimizedImage ||
+      product.external_image_url ||
+      '/images/product-placeholder.svg';
 
   // --- LÓGICA DE PREÇOS ---
   const costPrice = product.price || 0;

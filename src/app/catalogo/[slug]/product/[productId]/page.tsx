@@ -19,6 +19,7 @@ import ImageWithRetry from '@/components/ui/ImageWithRetry';
 import { ProductGallery } from '@/components/catalog/ProductGallery'; // Novo Import
 import { toast } from 'sonner';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
+import { getProductImage } from '@/lib/utils/image-logic';
 
 // Função para formatar preços no formato brasileiro
 const formatPrice = (price: number): string => {
@@ -273,34 +274,84 @@ export default function ProductDetailPage() {
 
     // 1. Prioridade: Tabela product_images (Nova Arquitetura)
     if (product.product_images && product.product_images.length > 0) {
-      return product.product_images.map((img) => ({
-        id: img.id,
-        url: img.url,
-        sync_status: img.sync_status || 'synced',
-      }));
+      return product.product_images.map((img) => {
+        const isPending = img.sync_status === 'pending';
+        const isFailed = img.sync_status === 'failed';
+
+        // Estratégia de Múltiplas Versões:
+        // - small (200px) para thumbnails
+        // - medium (600px) para visualização principal
+        // - large (1200px) para zoom/detalhes
+        const smallUrl = getProductImage(img.url, 'small');
+        const mediumUrl = getProductImage(img.url, 'medium');
+        const largeUrl = getProductImage(img.url, 'large');
+
+        // Fallback Strategy: Se otimização falhou/pendente, usa URL original externa
+        const externalFallback =
+          (product as any).external_image_url ||
+          img.url ||
+          '/images/product-placeholder.svg';
+
+        return {
+          id: img.id,
+          url:
+            isFailed || isPending
+              ? externalFallback
+              : mediumUrl || img.url || '/images/product-placeholder.svg',
+          thumbnailUrl:
+            isFailed || isPending
+              ? externalFallback
+              : smallUrl || img.url || '/images/product-placeholder.svg',
+          zoomUrl:
+            isFailed || isPending
+              ? externalFallback
+              : largeUrl || img.url || '/images/product-placeholder.svg',
+          sync_status: img.sync_status || 'synced',
+        };
+      });
     }
 
     // 2. Fallback: Colunas Antigas convertidas para formato da galeria
-    const legacyImages: { id: string; url: string; sync_status: string }[] = [];
+    const legacyImages: {
+      id: string;
+      url: string;
+      thumbnailUrl: string;
+      zoomUrl: string;
+      sync_status: string;
+    }[] = [];
 
     // Antiga image_url com filtro "pending" se for externa
     const mainUrl = (product as any).image_url;
+    const externalUrl = (product as any).external_image_url;
+
     if (mainUrl) {
       // Se temos URLs separadas por vírgula na coluna antiga
       const urls = mainUrl.split(',').map((u: string) => u.trim());
       urls.forEach((u: string, idx: number) => {
+        const isExternal = u.includes('http') && !u.includes('supabase');
+        const displayUrl = isExternal && externalUrl ? externalUrl : u;
+
         legacyImages.push({
           id: `legacy-${idx}`,
-          url: u,
-          sync_status:
-            u.includes('http') && !u.includes('supabase')
-              ? 'pending'
-              : 'synced',
+          url: displayUrl,
+          thumbnailUrl: displayUrl,
+          zoomUrl: displayUrl,
+          sync_status: isExternal ? 'pending' : 'synced',
         });
+      });
+    } else if (externalUrl) {
+      // Caso só tenha external_image_url
+      legacyImages.push({
+        id: 'legacy-0',
+        url: externalUrl,
+        thumbnailUrl: externalUrl,
+        zoomUrl: externalUrl,
+        sync_status: 'pending',
       });
     }
 
-    return legacyImages;
+    // Se não houver nenhuma imagem, retorna array vazio (ProductGallery mostra placeholder)
+    return legacyImages.length > 0 ? legacyImages : [];
   })();
 
   const toggleFavorite = (productId: string) => {

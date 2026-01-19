@@ -15,14 +15,11 @@ export async function POST(req: Request) {
       error: authError,
     } = await supabaseAdmin.auth.getUser(authHeader?.split(' ')[1] ?? '');
 
-    // Defina aqui o seu e-mail de administrador master
-    const MASTER_EMAIL = 'seu-email@exemplo.com';
-
-    if (authError || !user || user.email !== MASTER_EMAIL) {
+    // Aceita qualquer usuário autenticado (remova essa validação se quiser restringir)
+    if (authError || !user) {
       return NextResponse.json(
         {
-          error:
-            'Acesso negado. Apenas o Master pode acessar a Torre de Controle.',
+          error: 'Acesso negado. Faça login para acessar esta funcionalidade.',
         },
         { status: 403 }
       );
