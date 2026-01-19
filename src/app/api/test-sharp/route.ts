@@ -14,8 +14,8 @@ export async function GET() {
       create: {
         width: 100,
         height: 100,
-        channels: 3,
-        background: { r: 255, g: 0, b: 0 },
+        channels: 4,
+        background: { r: 255, g: 0, b: 0, alpha: 1 },
       },
     })
       .webp({ quality: 80 })
@@ -60,13 +60,17 @@ export async function GET() {
     console.error('[TEST-SHARP] ❌ ERRO:', error.message);
     console.error('[TEST-SHARP] Stack:', error.stack);
 
+    const suggestion =
+      'Se o erro persistir, tente reinstalar e reconstruir o Sharp:\n' +
+      'pnpm remove sharp && pnpm add sharp && pnpm run build\n' +
+      'Em ambientes serverless, garanta que o binário do Sharp seja compatível com a plataforma de execução.';
+
     return NextResponse.json(
       {
         success: false,
         error: error.message,
         stack: error.stack,
-        suggestion:
-          'Execute: pnpm remove sharp && pnpm add sharp && pnpm run build',
+        suggestion,
       },
       { status: 500 }
     );

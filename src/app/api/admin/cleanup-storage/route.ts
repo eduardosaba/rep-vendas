@@ -47,17 +47,29 @@ export async function POST(req: Request) {
     });
 
     // 3. LISTAGEM E FILTRAGEM
-    const { data: storageItems } = await supabaseAdmin.storage
-      .from('product-images')
-      .list('', { limit: 5000 });
+    // Listagem recursiva do bucket para cobrir pastas aninhadas
+    async function listRecursive(prefix = ''): Promise<string[]> {
+      const { data, error } = await supabaseAdmin.storage
+        .from('product-images')
+        .list(prefix, { limit: 1000 });
+      if (error) throw error;
+      let names: string[] = [];
+      for (const item of data || []) {
+        // Heurística: nomes sem extensão são pastas — descer recursivamente
+        if (!item.name.includes('.')) {
+          const childPrefix = prefix ? `${prefix}/${item.name}` : item.name;
+          const sub = await listRecursive(childPrefix);
+          names.push(...sub.map((n) => `${childPrefix}/${n}`));
+        } else {
+          names.push(prefix ? `${prefix}/${item.name}` : item.name);
+        }
+      }
+      return names;
+    }
 
-    const orphans =
-      storageItems
-        ?.filter(
-          (item) =>
-            item.id && !item.name.endsWith('/') && !validPaths.has(item.name)
-        )
-        .map((item) => item.name) ?? [];
+    const storageNames = await listRecursive('');
+
+    const orphans = storageNames.filter((name) => !validPaths.has(name));
 
     if (dryRun) {
       return NextResponse.json({ success: true, mode: 'dryRun', orphans });
