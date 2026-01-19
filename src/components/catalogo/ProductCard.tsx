@@ -125,8 +125,8 @@ export function ProductCard({
           </div>
         )}
 
-        {/* Overlay de Falha */}
-        {isFailed && (
+        {/* Overlay de Falha: mostrar somente se falhou E NÃO houver imagem externa/nenhuma imagem disponível */}
+        {isFailed && !rawFirst && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-red-50/80 p-4 text-center">
             <AlertCircle className="mb-1 h-6 w-6 text-red-400" />
             <span className="text-[8px] font-bold uppercase text-red-500">
@@ -143,6 +143,18 @@ export function ProductCard({
           }`}
           loading="lazy"
           onError={(e) => {
+            // Se houver uma URL externa original, tentar ela antes de marcar como falha.
+            const external =
+              product.external_image_url || product.images?.[0] || '';
+            const externalResolved =
+              external && !external.startsWith('http')
+                ? buildSupabaseImageUrl(external)
+                : external;
+            if (externalResolved && e.currentTarget.src !== externalResolved) {
+              e.currentTarget.src = externalResolved;
+              return;
+            }
+
             setImageFailed(true);
             e.currentTarget.src = '/images/product-placeholder.svg';
           }}

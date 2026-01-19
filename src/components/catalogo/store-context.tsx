@@ -8,6 +8,7 @@ import {
   useMemo,
   ReactNode,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type {
   Product,
@@ -137,6 +138,103 @@ export function StoreProvider({
   const [brandsWithLogos, setBrandsWithLogos] = useState<BrandWithLogo[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
+  const router = useRouter();
+
+  // Inicializa estados de filtros a partir da query string (permitir links compartilháveis)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('q');
+      if (q) setSearchTerm(q);
+
+      const brand = params.get('brand');
+      if (brand) {
+        if (brand.includes(','))
+          setSelectedBrand(brand.split(',').map((s) => s.trim()));
+        else setSelectedBrand(brand);
+      }
+
+      const category = params.get('category');
+      if (category) setSelectedCategory(category);
+
+      setShowOnlyNew(params.get('new') === '1');
+      setShowOnlyBestsellers(params.get('bs') === '1');
+      setShowFavorites(params.get('fav') === '1');
+
+      const sort = params.get('sort');
+      if (sort) setSortOrder(sort as any);
+
+      const view = params.get('view');
+      if (view === 'list' || view === 'grid')
+        setViewMode(view as 'grid' | 'list');
+
+      const page = params.get('page');
+      if (page) setCurrentPage(Number(page) || 1);
+    } catch (e) {
+      // ignore if window is not available or parsing fails
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sincroniza estado de filtros para a URL (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+
+        if (searchTerm) params.set('q', searchTerm);
+        else params.delete('q');
+
+        if (selectedBrand && selectedBrand !== 'all') {
+          if (Array.isArray(selectedBrand))
+            params.set('brand', selectedBrand.join(','));
+          else params.set('brand', selectedBrand as string);
+        } else params.delete('brand');
+
+        if (selectedCategory && selectedCategory !== 'all')
+          params.set('category', selectedCategory);
+        else params.delete('category');
+
+        if (showOnlyNew) params.set('new', '1');
+        else params.delete('new');
+
+        if (showOnlyBestsellers) params.set('bs', '1');
+        else params.delete('bs');
+
+        if (showFavorites) params.set('fav', '1');
+        else params.delete('fav');
+
+        if (sortOrder) params.set('sort', String(sortOrder));
+        else params.delete('sort');
+
+        if (viewMode) params.set('view', viewMode);
+        else params.delete('view');
+
+        if (currentPage && currentPage > 1)
+          params.set('page', String(currentPage));
+        else params.delete('page');
+
+        const base = window.location.pathname;
+        const qs = params.toString();
+        const url = qs ? `${base}?${qs}` : base;
+        router.replace(url);
+      } catch (e) {
+        // ignore
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [
+    searchTerm,
+    selectedBrand,
+    selectedCategory,
+    showOnlyNew,
+    showOnlyBestsellers,
+    showFavorites,
+    sortOrder,
+    viewMode,
+    currentPage,
+    router,
+  ]);
   const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
   const [loadingStates, setLoadingStates] = useState({
     submitting: false,

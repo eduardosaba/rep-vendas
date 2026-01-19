@@ -4,9 +4,10 @@ export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
   try {
-    const url = request.nextUrl.searchParams.get('url');
-    const w = parseInt(request.nextUrl.searchParams.get('w') || '200', 10);
-    const q = parseInt(request.nextUrl.searchParams.get('q') || '60', 10);
+    const params = new URL(request.url).searchParams;
+    const url = params.get('url');
+    const w = parseInt(params.get('w') || '200', 10);
+    const q = parseInt(params.get('q') || '60', 10);
 
     if (!url) {
       return new Response('Missing url', { status: 400 });
@@ -26,7 +27,10 @@ export async function GET(request: Request) {
       .webp({ quality: q })
       .toBuffer();
 
-    return new Response(out, {
+    // Convert Node Buffer to a Uint8Array to satisfy Web/Request typings
+    const ui = new Uint8Array(out);
+
+    return new Response(ui, {
       status: 200,
       headers: {
         'Content-Type': 'image/webp',

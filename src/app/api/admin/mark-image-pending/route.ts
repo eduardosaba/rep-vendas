@@ -46,7 +46,7 @@ export async function POST(request: Request) {
           sync_status: 'pending',
           created_at: new Date().toISOString(),
         },
-        { onConflict: ['product_id', 'url'] }
+        { onConflict: 'product_id,url' }
       );
 
     if (insertError) {
