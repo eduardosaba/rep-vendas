@@ -146,7 +146,10 @@ export const ProductGallery = ({ imageUrls, productName }: GalleryProps) => {
                 </div>
               ) : (
                 <img
-                  src={img.thumbnailUrl || img.url} // small (200px) para thumbnails
+                  src={
+                    img.thumbnailUrl ||
+                    `/api/thumbnail?url=${encodeURIComponent(img.url)}&w=200&q=60`
+                  }
                   alt={`Minitatura ${index + 1}`}
                   className={`w-full h-full object-cover ${img.sync_status === 'pending' ? 'opacity-30' : 'opacity-100'}`}
                   onError={() => handleImageError(index)}

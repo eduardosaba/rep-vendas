@@ -462,6 +462,27 @@ export function EditProductForm({ product }: { product: Product }) {
     updateField('images', newImages);
     toast.success('Capa atualizada (Salve para confirmar)');
     setNeedsDetach(true);
+    (async () => {
+      try {
+        if (!product?.id) return;
+        const res = await fetch('/api/admin/mark-image-pending', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId: product.id, url: selected }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error('mark-image-pending failed', json);
+          toast.error('Falha ao enfileirar sincronização da imagem.');
+        } else if (json.alreadySynced) {
+          toast.success('Imagem já sincronizada.');
+        } else {
+          toast.info('Imagem enfileirada para sincronização.');
+        }
+      } catch (err) {
+        console.error('mark-image-pending error', err);
+      }
+    })();
   };
 
   const generateDescription = () => {

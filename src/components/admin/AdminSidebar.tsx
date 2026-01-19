@@ -82,6 +82,7 @@ export default function AdminSidebar({
     { label: 'Assinaturas', href: '/admin/licenses', icon: CreditCard },
     { label: 'Clonar Catálogo', href: '/admin/clone-user', icon: Copy },
     { label: 'Auditoria de Sinc.', href: '/admin/sync-logs', icon: History },
+    { label: 'Auditoria Catalogo', href: '/admin/audit', icon: ImageIcon },
     { label: 'Planos & Preços', href: '/admin/plans', icon: Package },
     {
       label: 'Edição de Preços',

@@ -298,12 +298,38 @@ export default function NewProductPage() {
   };
 
   const setAsCover = (index: number) => {
+    const selected = formData.images[index];
     setFormData((prev) => {
       const newImages = [...prev.images];
-      const selected = newImages.splice(index, 1)[0];
-      newImages.unshift(selected);
+      const sel = newImages.splice(index, 1)[0];
+      newImages.unshift(sel);
       return { ...prev, images: newImages };
     });
+
+    (async () => {
+      try {
+        // only enqueue if product already exists (new page has no product id yet)
+        const productId = (formData as any).id;
+        if (!productId) return;
+
+        const res = await fetch('/api/admin/mark-image-pending', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId, url: selected }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error('mark-image-pending failed', json);
+          toast.error('Falha ao enfileirar sincronização da imagem.');
+        } else if (json.alreadySynced) {
+          toast.success('Imagem já sincronizada.');
+        } else {
+          toast.info('Imagem enfileirada para sincronização.');
+        }
+      } catch (err) {
+        console.error('mark-image-pending error', err);
+      }
+    })();
   };
 
   const formatCurrency = (value: string) => {
