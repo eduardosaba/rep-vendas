@@ -225,7 +225,7 @@ export function ProductGrid() {
             </span>
             <select
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
+              onChange={(e) => setSortOrder(e.target.value as any)}
               className="p-2 border-none bg-transparent text-sm font-medium text-gray-900 outline-none cursor-pointer hover:bg-gray-50 rounded-lg"
             >
               <option value="name">Nome (A-Z)</option>

@@ -171,6 +171,8 @@ export function ProductGrid() {
     setIsFilterOpen,
     sortOrder,
     setSortOrder,
+    showOnlyBestsellers,
+    setShowOnlyBestsellers,
     store,
     viewMode,
     setViewMode,
@@ -232,12 +234,25 @@ export function ProductGrid() {
 
           <select
             value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value as any;
+              if (v === 'best_sellers') {
+                setShowOnlyBestsellers(true);
+                setSortOrder('created_desc');
+                return;
+              }
+              if (showOnlyBestsellers) setShowOnlyBestsellers(false);
+              setSortOrder(v as any);
+            }}
             className="p-2.5 bg-gray-50 border border-gray-100 text-xs md:text-sm font-bold text-secondary outline-none cursor-pointer rounded-xl hover:bg-gray-100 transition-colors"
           >
-            <option value="name">Organizar: A-Z</option>
-            <option value="price_asc">Menor Preço</option>
-            <option value="price_desc">Maior Preço</option>
+            <option value="ref_asc">Referência: Crescente</option>
+            <option value="ref_desc">Referência: Decrescente</option>
+            <option value="created_desc">Lançamentos</option>
+            <option value="best_sellers">Best Sellers</option>
+            <option value="name">Nome: A-Z</option>
+            <option value="price_asc">Preço: Menor</option>
+            <option value="price_desc">Preço: Maior</option>
           </select>
         </div>
       </div>

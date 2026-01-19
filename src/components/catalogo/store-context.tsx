@@ -54,8 +54,24 @@ interface StoreContextType {
   setSelectedBrand: (s: string | string[]) => void;
   selectedCategory: string;
   setSelectedCategory: (s: string) => void;
-  sortOrder: string;
-  setSortOrder: (s: any) => void;
+  sortOrder:
+    | 'name'
+    | 'price_asc'
+    | 'price_desc'
+    | 'ref_asc'
+    | 'ref_desc'
+    | 'created_desc'
+    | 'created_asc';
+  setSortOrder: (
+    s:
+      | 'name'
+      | 'price_asc'
+      | 'price_desc'
+      | 'ref_asc'
+      | 'ref_desc'
+      | 'created_desc'
+      | 'created_asc'
+  ) => void;
   showOnlyNew: boolean;
   setShowOnlyNew: (b: boolean) => void;
   showOnlyBestsellers: boolean;
@@ -128,8 +144,14 @@ export function StoreProvider({
   const [selectedBrand, setSelectedBrand] = useState<string | string[]>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortOrder, setSortOrder] = useState<
-    'name' | 'price_asc' | 'price_desc'
-  >('name');
+    | 'name'
+    | 'price_asc'
+    | 'price_desc'
+    | 'ref_asc'
+    | 'ref_desc'
+    | 'created_desc'
+    | 'created_asc'
+  >('created_desc');
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
@@ -715,8 +737,31 @@ export function StoreProvider({
         return true;
       })
       .sort((a, b) => {
-        if (sortOrder === 'price_asc') return a.price - b.price;
-        if (sortOrder === 'price_desc') return b.price - a.price;
+        if (sortOrder === 'price_asc') return (a.price || 0) - (b.price || 0);
+        if (sortOrder === 'price_desc') return (b.price || 0) - (a.price || 0);
+        if (sortOrder === 'ref_asc')
+          return String(a.reference_code || '').localeCompare(
+            String(b.reference_code || ''),
+            undefined,
+            { numeric: true, sensitivity: 'base' }
+          );
+        if (sortOrder === 'ref_desc')
+          return String(b.reference_code || '').localeCompare(
+            String(a.reference_code || ''),
+            undefined,
+            { numeric: true, sensitivity: 'base' }
+          );
+        if (sortOrder === 'created_desc')
+          return (
+            (Date.parse(b.created_at as string) || 0) -
+            (Date.parse(a.created_at as string) || 0)
+          );
+        if (sortOrder === 'created_asc')
+          return (
+            (Date.parse(a.created_at as string) || 0) -
+            (Date.parse(b.created_at as string) || 0)
+          );
+
         return a.name.localeCompare(b.name);
       });
   }, [
