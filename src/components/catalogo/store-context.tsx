@@ -82,12 +82,12 @@ interface StoreContextType {
   setIsFilterOpen: (b: boolean) => void;
   currentBanner: number;
   modals: {
-    cart: boolean;
-    checkout: boolean;
     password: boolean;
     load: boolean;
     save: boolean;
     zoom: boolean;
+    cart: boolean;
+    checkout: boolean;
     product: Product | null;
   };
   setModal: (name: string, value: any) => void;
@@ -151,7 +151,7 @@ export function StoreProvider({
     | 'ref_desc'
     | 'created_desc'
     | 'created_asc'
-  >('created_desc');
+  >('ref_desc');
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);

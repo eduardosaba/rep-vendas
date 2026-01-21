@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/Button';
 import {
   prepareProductImage,
   prepareProductGallery,
+  processSafiloImages,
 } from '@/lib/utils/image-logic';
 
 type Stats = {
@@ -348,23 +349,17 @@ export default function ImportMassaPage() {
           ? String(getField(row, mapping.color))
           : null;
 
-        // Imagem (Apenas a primeira URL)
+        // Imagem (Processamento Safilo: P00=Capa, Remove P13/P14)
         let coverUrl: string | null = null;
         let galleryUrls: string[] = [];
 
         if (mapping.image) {
           const originalVal = getField(row, mapping.image);
-          if (originalVal && String(originalVal).trim().length > 0) {
-            const rawString = String(originalVal).trim();
-            const rawList = rawString.split(/[\s,;\n]+/);
-            galleryUrls = rawList.filter((u) =>
-              u.toLowerCase().startsWith('http')
-            );
+          const rawString = originalVal ? String(originalVal).trim() : '';
 
-            if (galleryUrls.length > 0) {
-              coverUrl = galleryUrls[0];
-            }
-          }
+          const processed = processSafiloImages(rawString);
+          coverUrl = processed.image_url;
+          galleryUrls = processed.images;
         }
 
         // LÓGICA DE DESCRIÇÃO (Ajustada)
@@ -543,13 +538,16 @@ export default function ImportMassaPage() {
 
             insertedProducts.forEach((p, index) => {
               const originalItem = batch[index];
-              const imagesSource =
-                originalItem.images && originalItem.images.length > 0
-                  ? originalItem.images
-                  : p.external_image_url;
 
-              if (imagesSource) {
-                const galleryItems = prepareProductGallery(p.id, imagesSource);
+              // Combina capa e galeria para salvar tudo na tabela product_images
+              const allImages = [];
+              if (p.external_image_url) allImages.push(p.external_image_url);
+              if (originalItem.images && Array.isArray(originalItem.images)) {
+                allImages.push(...originalItem.images);
+              }
+
+              if (allImages.length > 0) {
+                const galleryItems = prepareProductGallery(p.id, allImages);
                 allImagesToInsert.push(...galleryItems);
               }
             });

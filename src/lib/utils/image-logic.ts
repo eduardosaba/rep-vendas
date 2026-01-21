@@ -40,6 +40,59 @@ export function prepareProductImage(url: string | null | undefined) {
 }
 
 /**
+ * Organiza e filtra imagens da Safilo para o RepVendas.
+ * Aplica regras de negócio: P00 é capa, P13/P14 são removidas.
+ * @param rawString - A string de URLs separadas por vírgula ou espaço vinda do Excel.
+ */
+export function processSafiloImages(rawString: string | null | undefined) {
+  if (!rawString || String(rawString).trim() === '') {
+    return { image_url: null, images: [], sync_status: 'no_image' };
+  }
+
+  // 1. Limpa e transforma em array, removendo espaços e splitando por separadores comuns
+  let allUrls = String(rawString)
+    .trim()
+    .split(/[\s,;\n]+/)
+    .map((u) => u.trim())
+    .filter((u) => u.toLowerCase().startsWith('http')); // Garante que é URL
+
+  // 2. Filtro de Higiene: Remove P13 e P14 (Fotos técnicas inúteis para venda)
+  allUrls = allUrls.filter((url) => {
+    const lower = url.toLowerCase();
+    const isTechnical = lower.includes('p13.') || lower.includes('p14.');
+    return !isTechnical;
+  });
+
+  if (allUrls.length === 0) {
+    return { image_url: null, images: [], sync_status: 'no_image' };
+  }
+
+  // 3. Busca a Capa Ideal: Tenta encontrar o padrão P00.jpg
+  let coverIndex = allUrls.findIndex((url) =>
+    url.toLowerCase().includes('p00.')
+  );
+
+  let finalImageUrl: string | null = null;
+  let finalGallery: string[] = [];
+
+  if (coverIndex !== -1) {
+    // Se achou a P00, ela vira a capa e removemos da lista da galeria
+    finalImageUrl = allUrls[coverIndex];
+    finalGallery = allUrls.filter((_, index) => index !== coverIndex);
+  } else {
+    // Se não achou P00, a primeira vira capa e as demais galeria
+    finalImageUrl = allUrls[0] || null;
+    finalGallery = allUrls.slice(1);
+  }
+
+  return {
+    image_url: finalImageUrl,
+    images: finalGallery, // Retornando array
+    sync_status: finalImageUrl ? ('pending' as const) : ('no_image' as const),
+  };
+}
+
+/**
  * Processa uma lista de URLs (string separada por vírgula OU array de strings) e retorna objetos para inserção na tabela product_images.
  * @param productId ID do produto dono das imagens.
  * @param urlsInput String contendo URLs separadas por vírgula ou Array de strings.
