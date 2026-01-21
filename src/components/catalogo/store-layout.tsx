@@ -450,8 +450,11 @@ export function StoreHeader() {
 export function StoreSidebar() {
   const {
     brands,
+    categories,
     selectedBrand,
     setSelectedBrand,
+    selectedCategory,
+    setSelectedCategory,
     favorites,
     showFavorites,
     setShowFavorites,
@@ -659,6 +662,73 @@ export function StoreSidebar() {
                           title={brand}
                         >
                           {brand}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {categories && categories.length > 0 && (
+              <div>
+                {!isCollapsed && (
+                  <h3 className="font-bold text-sm uppercase tracking-wider mb-3 text-gray-900">
+                    Categorias
+                  </h3>
+                )}
+                <div
+                  className={`space-y-2 ${isCollapsed ? 'text-center' : ''}`}
+                >
+                  <label
+                    className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedCategory === 'all' ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-gray-300 bg-white'}`}
+                    >
+                      {selectedCategory === 'all' && (
+                        <Check size={12} className="text-white" />
+                      )}
+                    </div>
+                    <input
+                      type="radio"
+                      name="category"
+                      checked={selectedCategory === 'all'}
+                      onChange={() => setSelectedCategory('all')}
+                      className="hidden"
+                    />
+                    {!isCollapsed && (
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900">
+                        Todas
+                      </span>
+                    )}
+                  </label>
+
+                  {categories.map((cat) => (
+                    <label
+                      key={cat}
+                      className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50 w-full`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedCategory === cat ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-gray-300 bg-white'}`}
+                      >
+                        {selectedCategory === cat && (
+                          <Check size={12} className="text-white" />
+                        )}
+                      </div>
+                      <input
+                        type="radio"
+                        name="category"
+                        checked={selectedCategory === cat}
+                        onChange={() => setSelectedCategory(cat)}
+                        className="hidden"
+                      />
+                      {!isCollapsed && (
+                        <span
+                          className="text-sm text-gray-600 group-hover:text-gray-900 truncate flex-1 block text-left"
+                          title={cat}
+                        >
+                          {cat}
                         </span>
                       )}
                     </label>

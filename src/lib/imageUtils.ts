@@ -40,6 +40,18 @@ export function buildSupabaseImageUrl(
 }
 
 export function getProductImageUrl(product: Partial<Product>) {
+  // If the product is pending internalization, prefer the external URL so
+  // the storefront shows the original image while worker runs.
+  const external = product.external_image_url || product.image_url || null;
+  if (
+    product.sync_status === 'pending' &&
+    external &&
+    typeof external === 'string' &&
+    external.startsWith('http')
+  ) {
+    return { src: external, isExternal: true, isStorage: false };
+  }
+
   // Prefer internalized storage path when available
   if (product.image_path) {
     const path = product.image_path.replace(/^\//, '');
@@ -54,7 +66,6 @@ export function getProductImageUrl(product: Partial<Product>) {
   }
 
   // If there's an external image URL (imported via CSV/URL), use it directly
-  const external = product.external_image_url || product.image_url || null;
   if (external && typeof external === 'string' && external.startsWith('http')) {
     return { src: external, isExternal: true, isStorage: false };
   }

@@ -2108,17 +2108,35 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     {product.image_path ||
                     product.image_url ||
                     product.external_image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={getProductImage(
-                          product.image_url ||
-                            product.external_image_url ||
-                            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${product.image_path}`,
-                          'small'
-                        )}
-                        alt=""
-                        className="object-contain h-full w-full"
-                      />
+                      (() => {
+                        const { src, isExternal } = getProductImageUrl(
+                          product as any
+                        );
+                        if (src) {
+                          if (isExternal) {
+                            return (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={src}
+                                alt=""
+                                className="object-contain h-full w-full"
+                              />
+                            );
+                          }
+                          return (
+                            <img
+                              src={src}
+                              alt=""
+                              className="object-contain h-full w-full"
+                            />
+                          );
+                        }
+                        return (
+                          <div className="text-gray-300">
+                            <ImageIcon size={28} />
+                          </div>
+                        );
+                      })()
                     ) : (
                       <div className="text-gray-300">
                         <ImageIcon size={28} />

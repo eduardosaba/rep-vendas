@@ -175,21 +175,33 @@ export function getProductImage(
   if (!url) return '';
 
   // Se a URL já tem o padrão de múltiplas versões (-medium.webp, -small.webp, -large.webp)
-  if (url.includes('-medium.webp')) {
-    return url.replace('-medium.webp', `-${size}.webp`);
-  }
+  const patterns = [
+    {
+      ext: '.webp',
+      medium: '-medium.webp',
+      small: '-small.webp',
+      large: '-large.webp',
+    },
+    {
+      ext: '.jpg',
+      medium: '-medium.jpg',
+      small: '-small.jpg',
+      large: '-large.jpg',
+    },
+    {
+      ext: '.jpeg',
+      medium: '-medium.jpeg',
+      small: '-small.jpeg',
+      large: '-large.jpeg',
+    },
+  ];
 
-  if (url.includes('-small.webp')) {
-    return url.replace('-small.webp', `-${size}.webp`);
-  }
-
-  if (url.includes('-large.webp')) {
-    return url.replace('-large.webp', `-${size}.webp`);
-  }
-
-  // Se a URL termina em .webp genérico (sem sufixo), adiciona o sufixo antes da extensão
-  if (url.endsWith('.webp')) {
-    return url.replace('.webp', `-${size}.webp`);
+  for (const p of patterns) {
+    if (url.includes(p.medium))
+      return url.replace(p.medium, `-${size}${p.ext}`);
+    if (url.includes(p.small)) return url.replace(p.small, `-${size}${p.ext}`);
+    if (url.includes(p.large)) return url.replace(p.large, `-${size}${p.ext}`);
+    if (url.endsWith(p.ext)) return url.replace(p.ext, `-${size}${p.ext}`);
   }
 
   // Retorna a URL original se não for WebP ou não seguir o padrão

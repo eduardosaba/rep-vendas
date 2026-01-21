@@ -9,6 +9,9 @@ interface GalleryProps {
     url: string; // medium (600px) para visualização principal
     thumbnailUrl?: string; // small (200px) para miniaturas
     zoomUrl?: string; // large (1200px) para zoom/detalhes
+    externalUrl?: string;
+    externalThumbnailUrl?: string;
+    externalZoomUrl?: string;
     sync_status: string;
   }[];
   productName: string;
@@ -37,6 +40,14 @@ export const ProductGallery = ({ imageUrls, productName }: GalleryProps) => {
   const isFailed = activeImage?.sync_status === 'failed';
   const hasImageError = imageErrors.has(activeIndex);
   const modalRef = useRef<HTMLDivElement | null>(null);
+
+  // Resolved URLs: se estiver pendente, prefira `externalUrl` quando disponível.
+  const resolvedUrl = isPending
+    ? activeImage?.externalUrl || activeImage?.url
+    : activeImage?.url;
+  const resolvedZoom = isPending
+    ? activeImage?.externalZoomUrl || activeImage?.zoomUrl || activeImage?.url
+    : activeImage?.zoomUrl || activeImage?.url;
 
   const goNext = useCallback(() => {
     setActiveIndex((prev) => (prev + 1) % imageUrls.length);
@@ -109,13 +120,13 @@ export const ProductGallery = ({ imageUrls, productName }: GalleryProps) => {
           </div>
         )}
 
-        {hasImageError || !activeImage?.url ? (
+        {hasImageError || !resolvedUrl ? (
           <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800">
             <ImageIcon className="text-slate-300 dark:text-slate-600 w-16 h-16" />
           </div>
         ) : (
           <img
-            src={activeImage.url} // medium (600px)
+            src={resolvedUrl} // medium (600px)
             alt={`${productName} - vista ${activeIndex + 1}`}
             className={`w-full h-full object-contain transition-all duration-500 ${
               isPending
@@ -140,7 +151,7 @@ export const ProductGallery = ({ imageUrls, productName }: GalleryProps) => {
                 overflow-hidden bg-white dark:bg-slate-900
               `}
             >
-              {imageErrors.has(index) || !img.url ? (
+              {imageErrors.has(index) || !(img.thumbnailUrl || img.url) ? (
                 <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800">
                   <ImageIcon className="text-slate-300 dark:text-slate-600 w-8 h-8" />
                 </div>
@@ -148,6 +159,8 @@ export const ProductGallery = ({ imageUrls, productName }: GalleryProps) => {
                 <img
                   src={
                     img.thumbnailUrl ||
+                    img.externalThumbnailUrl ||
+                    img.externalUrl ||
                     `/api/thumbnail?url=${encodeURIComponent(img.url)}&w=200&q=60`
                   }
                   alt={`Minitatura ${index + 1}`}
@@ -189,13 +202,13 @@ export const ProductGallery = ({ imageUrls, productName }: GalleryProps) => {
             </button>
 
             {/* Imagem em Alta Resolução (large - 1200px) */}
-            {hasImageError || !activeImage?.url ? (
+            {hasImageError || !resolvedZoom ? (
               <div className="w-96 h-96 flex items-center justify-center bg-slate-800 rounded-2xl">
                 <ImageIcon className="text-slate-600 w-24 h-24" />
               </div>
             ) : (
               <img
-                src={activeImage.zoomUrl || activeImage.url} // large (1200px) ou fallback para medium
+                src={resolvedZoom} // large (1200px) ou fallback para medium
                 alt={`${productName} - ampliado`}
                 className="max-h-[90vh] max-w-full object-contain rounded-2xl"
                 onError={() => handleImageError(activeIndex)}

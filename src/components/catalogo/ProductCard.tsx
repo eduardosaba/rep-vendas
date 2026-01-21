@@ -55,7 +55,15 @@ export function ProductCard({
   const isOutOfStock = isStockManaged && stockQty <= 0;
 
   // --- LÓGICA DE IMAGEM PADRONIZADA ---
-  // Pega apenas a primeira imagem da lista para a vitrine
+  const isPending = product.sync_status === 'pending';
+  const isFailed = product.sync_status === 'failed';
+
+  // Preferência de exibição:
+  // 1) Se existe `image_path` (interno) usamos a versão -small gerada pelo worker
+  // 2) Se está pendente (sync_status === 'pending') e houver `external_image_url`, mostramos a URL externa
+  // 3) Caso contrário, tentamos usar `image_url`/`images[0]` convertidos para -small quando aplicável
+  let displayImage = '/images/product-placeholder.svg';
+
   const rawFirst = (
     product.image_url ||
     product.external_image_url ||
@@ -65,27 +73,22 @@ export function ProductCard({
     .split(',')[0]
     .trim();
 
-  const isPending = product.sync_status === 'pending';
-  const isFailed = product.sync_status === 'failed';
-
-  // Se for path interno (Storage), resolve URL completa. Se for http, mantém.
-  const displayImageRaw =
-    rawFirst && !rawFirst.startsWith('http')
-      ? buildSupabaseImageUrl(rawFirst)
-      : rawFirst;
-
-  // Aplicar versão 'small' (200px) para miniaturas do catálogo
-  const optimizedImage = getProductImage(displayImageRaw, 'small');
-
-  // Fallback Strategy:
-  // 1. Se a imagem otimizada existe, usa ela
-  // 2. Se está pendente ou falhou, mas tem URL externa original, mostra ela
-  // 3. Caso contrário, usa placeholder
-  const displayImage = imageFailed
-    ? '/images/product-placeholder.svg'
-    : optimizedImage ||
-      product.external_image_url ||
-      '/images/product-placeholder.svg';
+  if (product.image_path) {
+    const internalUrl = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${product.image_path}`;
+    displayImage = getProductImage(internalUrl, 'small') || internalUrl;
+  } else if (isPending && product.external_image_url) {
+    displayImage = product.external_image_url;
+  } else {
+    if (rawFirst) {
+      if (!rawFirst.startsWith('http')) {
+        const internal = buildSupabaseImageUrl(rawFirst);
+        displayImage =
+          getProductImage(internal, 'small') || internal || displayImage;
+      } else {
+        displayImage = rawFirst;
+      }
+    }
+  }
 
   // --- LÓGICA DE PREÇOS ---
   const costPrice = product.price || 0;

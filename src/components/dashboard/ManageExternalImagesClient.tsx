@@ -73,6 +73,30 @@ export default function ManageExternalImagesClient({
     typeof window !== 'undefined' ? localStorage.getItem('rv_sync_job') : null
   );
 
+  // On mount, if there's no active job id, try to fetch the latest job for this user
+  useEffect(() => {
+    if (activeJobId) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/sync-jobs/latest');
+        if (!res.ok) return;
+        const j = await res.json();
+        if (mounted && j?.success && j.job?.id) {
+          setActiveJobId(j.job.id);
+          try {
+            localStorage.setItem('rv_sync_job', j.job.id);
+          } catch {}
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [activeJobId]);
+
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
@@ -131,10 +155,24 @@ export default function ManageExternalImagesClient({
       if (response.ok && result.success) {
         setProgress(100);
         // Guarda jobId para que o console possa monitorar
+        // Prefer explicit jobId, otherwise try to re-fetch latest job
         if (result.jobId) {
           setActiveJobId(result.jobId);
           try {
             localStorage.setItem('rv_sync_job', result.jobId);
+          } catch {}
+        } else {
+          try {
+            const latest = await fetch('/api/sync-jobs/latest');
+            if (latest.ok) {
+              const body = await latest.json();
+              if (body?.success && body.job?.id) {
+                setActiveJobId(body.job.id);
+                try {
+                  localStorage.setItem('rv_sync_job', body.job.id);
+                } catch {}
+              }
+            }
           } catch {}
         }
 
@@ -423,10 +461,26 @@ function SyncConsole({ jobId }: { jobId: string }) {
         <div className="text-sm font-medium">Console de Sincronização</div>
         <div className="text-xs text-gray-500">Job: {jobId}</div>
       </div>
-
-      <div className="mb-3 text-xs text-gray-600">
-        Status: <b className="ml-1">{job?.status || '—'}</b> · Processados:{' '}
-        {job?.completed_count ?? 0}/{job?.total_count ?? 0}
+      <div className="mb-3 text-xs text-gray-600 flex items-center gap-3">
+        <div>
+          Status: <b className="ml-1">{job?.status || '—'}</b>
+        </div>
+        <div>
+          Processados:{' '}
+          <b className="ml-1">
+            {job?.completed_count ?? 0}/{job?.total_count ?? 0}
+          </b>
+        </div>
+        <div className="flex-1">
+          <div className="w-full h-2 bg-gray-200 rounded">
+            <div
+              className="h-2 bg-indigo-600 rounded transition-all"
+              style={{
+                width: `${job && job.total_count ? Math.round(((job.completed_count || 0) / job.total_count) * 100) : 0}%`,
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="max-h-56 overflow-auto text-[12px] font-mono bg-white dark:bg-slate-950 p-2 rounded">

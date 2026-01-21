@@ -47,11 +47,23 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
         <div className="relative">
           {product.images && product.images.length > 0 ? (
             <>
-              <ProductImage
-                product={{ ...product, image_url: product.images[0] }}
-                alt={product.name}
-                className="h-48 w-full cursor-pointer object-cover"
-              />
+              {(() => {
+                const displayProduct =
+                  product.sync_status === 'pending'
+                    ? {
+                        ...product,
+                        external_image_url:
+                          product.images?.[0] || product.external_image_url,
+                      }
+                    : product;
+                return (
+                  <ProductImage
+                    product={displayProduct}
+                    alt={product.name}
+                    className="h-48 w-full cursor-pointer object-cover"
+                  />
+                );
+              })()}
               {/* Overlay de zoom */}
               <div
                 className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black bg-opacity-0 opacity-0 transition-all duration-200 hover:bg-opacity-20 hover:opacity-100"
@@ -223,11 +235,23 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
             className="relative max-h-full max-w-4xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <ProductImage
-              product={{ ...product, image_url: product.images?.[0] || '' }}
-              alt={product.name}
-              className="max-h-[90vh] max-w-full object-contain"
-            />
+            {(() => {
+              const imgUrl = product.images?.[0] || '';
+              const displayProduct =
+                product.sync_status === 'pending'
+                  ? {
+                      ...product,
+                      external_image_url: imgUrl || product.external_image_url,
+                    }
+                  : { ...product, image_url: imgUrl || product.image_url };
+              return (
+                <ProductImage
+                  product={displayProduct}
+                  alt={product.name}
+                  className="max-h-[90vh] max-w-full object-contain"
+                />
+              );
+            })()}
             <button
               onClick={handleCloseModal}
               className="absolute right-4 top-4 rounded-full bg-white bg-opacity-90 p-2 transition-all hover:bg-opacity-100"

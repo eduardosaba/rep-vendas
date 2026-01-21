@@ -102,15 +102,31 @@ export function ZoomModal({
 
         {productImages[currentImageIndex] && (
           <div className="relative max-w-[90vw] max-h-[85vh] w-auto h-auto">
-            <Image
-              src={getProductImage(productImages[currentImageIndex], 'large')}
-              alt="Zoom"
-              fill
-              style={{ objectFit: 'contain', maxWidth: '100%' }}
-              className="select-none"
-              loading="eager"
-              quality={95}
-            />
+            {(() => {
+              const raw = productImages[currentImageIndex];
+              const isPending = (viewProduct as any)?.sync_status === 'pending';
+              const isExternalHost =
+                String(raw).includes('safilo') ||
+                (String(raw).startsWith('http') &&
+                  !String(raw).includes('supabase.co'));
+
+              const src =
+                isPending || isExternalHost
+                  ? raw
+                  : getProductImage(raw, 'large') || raw;
+
+              return (
+                <Image
+                  src={src}
+                  alt="Zoom"
+                  fill
+                  style={{ objectFit: 'contain', maxWidth: '100%' }}
+                  className="select-none"
+                  loading="eager"
+                  quality={95}
+                />
+              );
+            })()}
           </div>
         )}
 

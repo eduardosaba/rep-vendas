@@ -1,12 +1,12 @@
 import { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { ShieldCheck, AlertTriangle, Clock, RefreshCcw } from 'lucide-react';
+import SyncStatusBadge from '@/components/ui/SyncStatusBadge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ReprocessButton } from '@/components/admin/ReprocessButton';
 import { BrandFilter } from '@/components/admin/BrandFilter';
 import { EconomyDashboard } from '@/components/admin/EconomyDashboard';
-
 export const metadata: Metadata = {
   title: 'Auditoria de Imagens | RepVendas',
   description: 'Relatório de saúde do catálogo e internalização de imagens',
@@ -240,24 +240,35 @@ export default async function ImageAuditPage({
                         {row.brand || 'Sem Marca'}
                       </td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                            row.sync_status === 'synced'
-                              ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
-                              : row.sync_status === 'pending'
-                                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
-                                : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400'
-                          }`}
-                        >
-                          {row.sync_status === 'synced' && (
-                            <ShieldCheck size={12} />
-                          )}
-                          {row.sync_status === 'pending' && <Clock size={12} />}
-                          {row.sync_status === 'failed' && (
-                            <AlertTriangle size={12} />
-                          )}
-                          {row.sync_status}
-                        </span>
+                        {(() => {
+                          const status = row.sync_status;
+                          const label =
+                            status === 'synced'
+                              ? 'Sincronizado'
+                              : status === 'pending'
+                                ? 'Pendente'
+                                : status === 'failed'
+                                  ? 'Falha'
+                                  : status;
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                                status === 'synced'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+                                  : status === 'pending'
+                                    ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
+                                    : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400'
+                              }`}
+                            >
+                              {status === 'synced' && <ShieldCheck size={12} />}
+                              {status === 'pending' && <Clock size={12} />}
+                              {status === 'failed' && (
+                                <AlertTriangle size={12} />
+                              )}
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
                         {row.total_products}

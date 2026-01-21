@@ -88,20 +88,44 @@ export const internalizeSingleImage = inngest.createFunction(
         if (!response.ok) throw new Error(`Status ${response.status}`);
 
         const buffer = Buffer.from(await response.arrayBuffer());
-        const optimized = await sharp(buffer).resize(1200).jpeg().toBuffer();
 
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
-        const fileName = `public/${userId}/products/${productId}.jpg`;
 
-        await supabase.storage
-          .from('product-images')
-          .upload(fileName, optimized, { upsert: true });
+        // Generate 3 standard sizes: small (200), medium (600), large (1200)
+        const sizes = [
+          { suffix: 'small', width: 200 },
+          { suffix: 'medium', width: 600 },
+          { suffix: 'large', width: 1200 },
+        ];
+
+        const basePath = `public/${userId}/products/${productId}`;
+        // Upload each version and collect the medium public url to store on product
+        let mediumPublicUrl = '';
+        for (const s of sizes) {
+          const outBuf = await sharp(buffer)
+            .resize(s.width)
+            .jpeg({ quality: 85 })
+            .toBuffer();
+          const fileName = `${basePath}-${s.suffix}.jpg`;
+          await supabase.storage
+            .from('product-images')
+            .upload(fileName, outBuf, { upsert: true });
+          if (s.suffix === 'medium') {
+            const { data: urlData } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(fileName);
+            mediumPublicUrl = (urlData as any)?.publicUrl || '';
+          }
+        }
+
+        // Persist product pointing to the medium version (default for listings/details)
+        const productPath = `${basePath}-medium.jpg`;
         await supabase
           .from('products')
-          .update({ image_path: fileName })
+          .update({ image_path: productPath, image_url: mediumPublicUrl })
           .eq('id', productId);
       });
 

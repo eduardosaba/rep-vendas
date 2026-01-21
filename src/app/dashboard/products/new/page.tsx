@@ -209,6 +209,9 @@ export default function NewProductPage() {
     technical_specs_table: [{ key: '', value: '' }],
   });
 
+  // URLs marcadas para enfileirar após criação do produto (quando usuário faz matcher antes de criar)
+  const [pendingEnqueueUrls, setPendingEnqueueUrls] = useState<string[]>([]);
+
   // --- CARREGAMENTO DE DADOS (CORRIGIDO) ---
   useEffect(() => {
     const fetchData = async () => {
@@ -305,13 +308,20 @@ export default function NewProductPage() {
       newImages.unshift(sel);
       return { ...prev, images: newImages };
     });
+    // If product not created yet, remember the URL to enqueue after save
+    const productId = (formData as any).id;
+    if (!productId) {
+      setPendingEnqueueUrls((prev) =>
+        prev.includes(selected) ? prev : [...prev, selected]
+      );
+      toast.info(
+        'Imagem marcada para vinculação; será enfileirada após salvar o produto.'
+      );
+      return;
+    }
 
     (async () => {
       try {
-        // only enqueue if product already exists (new page has no product id yet)
-        const productId = (formData as any).id;
-        if (!productId) return;
-
         const res = await fetch('/api/admin/mark-image-pending', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -531,6 +541,26 @@ export default function NewProductPage() {
           console.error('Erro ao salvar galeria:', galleryError);
           toast.error('Produto salvo, mas houve erro nas imagens.');
         }
+      }
+
+      // Enfileira (mark-image-pending) as URLs que o usuário marcou enquanto o produto era novo
+      if (newProduct && pendingEnqueueUrls && pendingEnqueueUrls.length > 0) {
+        for (const url of pendingEnqueueUrls) {
+          try {
+            await fetch('/api/admin/mark-image-pending', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ productId: newProduct.id, url }),
+            });
+          } catch (err) {
+            console.error(
+              'Failed to enqueue pending url after create',
+              url,
+              err
+            );
+          }
+        }
+        setPendingEnqueueUrls([]);
       }
 
       toast.success('Produto cadastrado!');

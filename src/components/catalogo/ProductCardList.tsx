@@ -42,12 +42,24 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
         <div className="flex flex-col sm:flex-row">
           <div className="relative h-48 w-full flex-shrink-0 sm:w-48">
             {product.images && product.images.length > 0 ? (
-              <ProductImage
-                product={{ ...product, image_url: product.images[0] }}
-                alt={product.name}
-                className="h-full w-full cursor-pointer rounded-t-lg object-cover sm:rounded-l-lg sm:rounded-t-none"
-                onClick={() => setShowImageModal(true)}
-              />
+              (() => {
+                const displayProduct =
+                  product.sync_status === 'pending'
+                    ? {
+                        ...product,
+                        external_image_url:
+                          product.images?.[0] || product.external_image_url,
+                      }
+                    : product;
+                return (
+                  <ProductImage
+                    product={displayProduct}
+                    alt={product.name}
+                    className="h-full w-full cursor-pointer rounded-t-lg object-cover sm:rounded-l-lg sm:rounded-t-none"
+                    onClick={() => setShowImageModal(true)}
+                  />
+                );
+              })()
             ) : (
               <div className="flex h-full w-full items-center justify-center rounded-t-lg bg-gray-100 sm:rounded-l-lg sm:rounded-t-none">
                 <span className="text-sm text-gray-400">Sem imagem</span>
@@ -259,14 +271,24 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
                 ‹
               </button>
 
-              <ProductImage
-                product={{
-                  ...product,
-                  image_url: product.images?.[currentIndex] || '',
-                }}
-                alt={product.name}
-                className="max-h-[90vh] max-w-full object-contain"
-              />
+              {(() => {
+                const imgUrl = product.images?.[currentIndex] || '';
+                const displayProduct =
+                  product.sync_status === 'pending'
+                    ? {
+                        ...product,
+                        external_image_url:
+                          imgUrl || product.external_image_url,
+                      }
+                    : { ...product, image_url: imgUrl || product.image_url };
+                return (
+                  <ProductImage
+                    product={displayProduct}
+                    alt={product.name}
+                    className="max-h-[90vh] max-w-full object-contain"
+                  />
+                );
+              })()}
 
               <button
                 onClick={() =>

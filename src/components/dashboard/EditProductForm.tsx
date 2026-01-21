@@ -64,7 +64,32 @@ const ImageUploader = ({
           >
             {}
             <img
-              src={url}
+              src={(() => {
+                try {
+                  // If url is an external Safilo URL or other external host and likely pending,
+                  // keep it as-is so the user sees the original image until internalization.
+                  if (
+                    String(url).toLowerCase().includes('safilo') ||
+                    (String(url).startsWith('http') &&
+                      !String(url).includes('supabase.co'))
+                  )
+                    return url;
+                  // If URL is from Supabase storage or a product-images path, try to use small variant
+                  if (
+                    String(url).includes('supabase.co') ||
+                    String(url).includes('/product-images/')
+                  ) {
+                    // @ts-ignore - getProductImage handles jpg/webp mapping
+                    const {
+                      getProductImage,
+                    } = require('@/lib/utils/image-logic');
+                    return getProductImage(url, 'small') || url;
+                  }
+                  return url;
+                } catch (e) {
+                  return url;
+                }
+              })()}
               className="w-full h-full object-contain p-1 cursor-zoom-in"
               alt={`Product ${index}`}
               onClick={() => setZoomImage(url)}

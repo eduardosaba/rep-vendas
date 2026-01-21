@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
+import { getProductImage } from '@/lib/utils/image-logic';
 
 type Props = {
   product: any;
@@ -24,14 +25,22 @@ export default function ProductImage({
   const internalPath =
     (product as any).image_path || (product as any).image_path_public || null;
   const external = (product as any).external_image_url || null;
+  const placeholder =
+    '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
 
   const src = error
-    ? '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
-    : internalPath
-      ? `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${internalPath}`
-      : external
-        ? external
-        : '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
+    ? placeholder
+    : product.sync_status === 'pending' && external
+      ? external
+      : internalPath
+        ? getProductImage(
+            `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${internalPath}`,
+            'medium'
+          ) ||
+          `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${internalPath}`
+        : external
+          ? external
+          : placeholder;
 
   // Detect object-fit preference from className (object-contain/object-cover)
   const prefersContain = className?.includes('object-contain');
