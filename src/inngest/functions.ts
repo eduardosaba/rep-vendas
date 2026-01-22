@@ -63,31 +63,70 @@ export const processFullCatalog = inngest.createFunction(
   }
 );
 
+// Helper para download robusto com retries e fallback de headers
+async function robustFetchImage(
+  url: string | null | undefined
+): Promise<{ buffer: Buffer; contentType: string }> {
+  if (!url) throw new Error('URL vazia ou inválida');
+
+  let targetUrl = url.trim();
+  if (targetUrl.startsWith('//')) targetUrl = 'https:' + targetUrl;
+  else if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
+
+  const tryFetch = async (headers: Record<string, string>) => {
+    const res = await fetch(targetUrl, {
+      headers,
+      signal: AbortSignal.timeout(30000), // Timeout de 30s
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    return {
+      buffer: buf,
+      contentType: res.headers.get('content-type') || 'image/jpeg',
+    };
+  };
+
+  try {
+    // TENTATIVA 1: Identidade completa (Simulando navegador real na Safilo)
+    return await tryFetch({
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      Referer: 'https://commportal-images.safilo.com/',
+      Accept:
+        'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    });
+  } catch (err1: any) {
+    console.warn(
+      `Attempt 1 failed for ${targetUrl}: ${err1.message}. Retrying as Googlebot...`
+    );
+    try {
+      // TENTATIVA 2: Identidade de Indexador (Muitas CDNs liberam bots conhecidos)
+      return await tryFetch({
+        'User-Agent':
+          'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      });
+    } catch (err2: any) {
+      // TENTATIVA 3: Sem headers especiais
+      return await tryFetch({});
+    }
+  }
+}
+
 // 2. Função que processa UMA única imagem (com retries automáticos)
 export const internalizeSingleImage = inngest.createFunction(
   {
     id: 'internalize-single-image',
-    throttle: { limit: 5, period: '1s' }, // Evita ser banido pela Safilo (5 por segundo)
+    throttle: { limit: 5, period: '1s' },
   },
   { event: 'image/internalize.requested' },
   async ({ event, step }) => {
     const { productId, externalUrl, userId } = event.data;
-
     const jobId = event.data?.jobId;
-    // Garantir que sempre reportamos progresso (success/failure) para o job
+
     try {
       await step.run('download-and-upload', async () => {
-        // Lógica de download com os headers blindados que testamos
-        const response = await fetch(externalUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0...',
-            Referer: 'https://commportal.safilo.com/',
-          },
-        });
-
-        if (!response.ok) throw new Error(`Status ${response.status}`);
-
-        const buffer = Buffer.from(await response.arrayBuffer());
+        // Usa o helper robusto para download
+        const { buffer, contentType } = await robustFetchImage(externalUrl);
 
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -263,27 +302,11 @@ export const processPendingImages = inngest.createFunction(
       imagesToProcess.map(async (img) => {
         return step.run(`process-${img.id}`, async () => {
           try {
-            // Download
-            const response = await fetch(img.url, {
-              headers: {
-                'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                Referer: 'https://commportal.safilo.com/',
-              },
-            });
+            // Download Robusto usando o helper definido anteriormente
+            const { buffer, contentType } = await robustFetchImage(img.url);
 
-            if (!response.ok) {
-              await supabase
-                .from('product_images')
-                .update({
-                  sync_status: 'failed',
-                  sync_error: `HTTP ${response.status}`,
-                })
-                .eq('id', img.id);
-              return { id: img.id, status: 'failed' };
-            }
-
-            const buffer = Buffer.from(await response.arrayBuffer());
+            // Determina extensão baseada no content-type ou fallback para jpg
+            // (O código original forçava .webp na saída, o que é bom, mas vamos garantir o contentType correto no upload)
 
             // Configuração das versões (Estratégia de Múltiplas Versões)
             const VERSIONS = [

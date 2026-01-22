@@ -42,9 +42,31 @@ async function run() {
       .or('external_image_url.not.is.null,image_url.not.is.null');
 
     if (cntErr) throw cntErr;
-    console.log('Pendentes total:', count || 0);
+    console.log('Pendentes (Products - image_path null):', count || 0);
 
-    console.log('\n2) Amostras recentes (limit 10):');
+    console.log('\n2) Product Images (sync_status=pending):');
+    const { count: piCount, error: piErr } = await supabase
+      .from('product_images')
+      .select('*', { count: 'exact', head: true })
+      .eq('sync_status', 'pending');
+    console.log('Pendentes (ProductImages table):', piCount || 0);
+
+    console.log('\n3) Product Images (sync_status=failed):');
+    const { count: flCount, error: flErr } = await supabase
+      .from('product_images')
+      .select('*', { count: 'exact', head: true })
+      .eq('sync_status', 'failed');
+    console.log('Falhas (ProductImages table):', flCount || 0);
+
+    console.log('\n4) Amostra de falhas recentes (ProductImages):');
+    const { data: failures } = await supabase
+      .from('product_images')
+      .select('id, url, sync_error')
+      .eq('sync_status', 'failed')
+      .limit(5);
+    console.table(failures || []);
+
+    console.log('\n5) Amostra de pendentes (Products - legacy):');
     const { data: samples, error: sampErr } = await supabase
       .from('products')
       .select(
