@@ -75,11 +75,20 @@ const nextConfig = {
     // Em desenvolvimento o React Refresh usa eval; permitir 'unsafe-eval' apenas
     // quando o dev estiver explicitamente rodando em localhost.
     if (!isProd) {
+      // Detecta automaticamente ambiente local/dev.
+      // Habilita a exceção CSP (unsafe-eval) quando estiver em modo de
+      // desenvolvimento (`NODE_ENV==='development'`) ou quando as variáveis
+      // de host indicarem 'localhost'. Mantemos ainda as flags manuais.
+      const hostEnv = (
+        process.env.NEXT_PUBLIC_HOST ||
+        process.env.HOST ||
+        ''
+      ).toString();
       const isLocalhostEnv =
+        process.env.NODE_ENV === 'development' ||
+        hostEnv.includes('localhost') ||
         process.env.LOCALHOST === 'true' ||
-        process.env.NEXT_PUBLIC_ALLOW_UNSAFE_EVAL === 'true' ||
-        process.env.NEXT_PUBLIC_HOST === 'http://localhost' ||
-        process.env.NEXT_PUBLIC_HOST === 'https://localhost';
+        process.env.NEXT_PUBLIC_ALLOW_UNSAFE_EVAL === 'true';
 
       if (isLocalhostEnv) {
         const cspHeaderDev = {

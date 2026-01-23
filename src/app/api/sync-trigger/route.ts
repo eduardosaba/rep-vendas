@@ -32,13 +32,25 @@ export async function POST() {
 
   // 3. Envia o evento para o Inngest iniciar o motor em segundo plano e
   //    passa o jobId para que os workers possam reportar progresso.
-  await inngest.send({
-    name: 'catalog/sync.requested',
-    data: {
-      userId: user.id,
-      jobId,
-    },
-  });
+  try {
+    await inngest.send({
+      name: 'catalog/sync.requested',
+      data: {
+        userId: user.id,
+        jobId,
+      },
+    });
+  } catch (err: any) {
+    console.error('Inngest send error', err?.message || err);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Falha ao disparar evento Inngest',
+        details: String(err?.message || err),
+      },
+      { status: 502 }
+    );
+  }
 
   return NextResponse.json({
     success: true,

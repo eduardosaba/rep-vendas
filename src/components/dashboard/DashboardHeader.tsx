@@ -27,7 +27,6 @@ export default function DashboardHeader({
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
 
-  const supabase = createClient();
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | undefined>(undefined);
@@ -46,45 +45,56 @@ export default function DashboardHeader({
   };
 
   async function getUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (user) {
-      setUserId(user.id);
-      setUserEmail(user.email || '');
+      if (user) {
+        setUserId(user.id);
+        setUserEmail(user.email || '');
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('id', user.id)
-        .maybeSingle();
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .maybeSingle();
 
-      const avatarUrl =
-        profile?.avatar_url || user.user_metadata?.avatar_url || null;
-      setUserAvatar(avatarUrl);
+        const avatarUrl =
+          profile?.avatar_url || user.user_metadata?.avatar_url || null;
+        setUserAvatar(avatarUrl);
 
-      const channel = supabase
-        .channel(`profile-changes-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${user.id}`,
-          },
-          (payload) => {
-            const typedPayload = payload as unknown as UserProfileUpdatePayload;
-            const newAvatarUrl = typedPayload.new?.avatar_url;
-            if (newAvatarUrl !== undefined) setUserAvatar(newAvatarUrl || null);
+        const channel = supabase
+          .channel(`profile-changes-${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${user.id}`,
+            },
+            (payload) => {
+              const typedPayload =
+                payload as unknown as UserProfileUpdatePayload;
+              const newAvatarUrl = typedPayload.new?.avatar_url;
+              if (newAvatarUrl !== undefined)
+                setUserAvatar(newAvatarUrl || null);
+            }
+          )
+          .subscribe();
+
+        return () => {
+          try {
+            supabase.removeChannel(channel);
+          } catch (e) {
+            // ignore
           }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
+        };
+      }
+    } catch (err) {
+      console.error('DashboardHeader getUser error', err);
     }
     return undefined;
   }

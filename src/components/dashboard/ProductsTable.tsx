@@ -558,7 +558,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           brands.map((b: string) => ({ name: b, logo_url: map[b] || null }))
         );
       }
-      setAvailableCategories(cats.map((c: string) => ({ name: c })));
+      setAvailableCategories(
+        (cats as string[]).map((c) => ({ name: String(c) }))
+      );
     };
     fetchOptions();
   }, [supabase]);

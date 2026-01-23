@@ -1,0 +1,48 @@
+[
+  {
+    "id": "dry-h8xxdnb",
+    "name": "Óculos Exemplo",
+    "status": "dry-run",
+    "cover": "https://example.com/images/GLASSES_P00.jpg",
+    "gallery": [
+      {
+        "product_id": "dry-h8xxdnb",
+        "url": "https://example.com/images/GLASSES_P01.jpg",
+        "position": 1,
+        "sync_status": "pending"
+      },
+      {
+        "product_id": "dry-h8xxdnb",
+        "url": "https://example.com/images/GLASSES_P00.jpg",
+        "position": 0,
+        "sync_status": "pending"
+      },
+      {
+        "product_id": "dry-h8xxdnb",
+        "url": "https://example.com/images/GLASSES_P02.jpg",
+        "position": 3,
+        "sync_status": "pending"
+      }
+    ]
+  },
+  {
+    "id": "dry-ol4c6y9",
+    "name": "Óculos Sem P00",
+    "status": "dry-run",
+    "cover": "https://example.com/images/GLASSES_P01.jpg",
+    "gallery": [
+      {
+        "product_id": "dry-ol4c6y9",
+        "url": "https://example.com/images/GLASSES_P01.jpg",
+        "position": 0,
+        "sync_status": "pending"
+      },
+      {
+        "product_id": "dry-ol4c6y9",
+        "url": "https://example.com/images/GLASSES_P02.jpg",
+        "position": 2,
+        "sync_status": "pending"
+      }
+    ]
+  }
+]

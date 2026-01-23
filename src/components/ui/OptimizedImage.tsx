@@ -82,6 +82,23 @@ export function OptimizedImage({
 }: OptimizedImageProps) {
   // Para URLs externas, usa Image do Next.js sem otimizações adicionais
   const isExternal = src.startsWith('http') || src.startsWith('//');
+  // Para URLs externas, usamos <img> nativo para evitar restrições do Next.js
+  if (isExternal) {
+    return (
+      // eslint-disable-next-line jsx-a11y/alt-text
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        loading={priority ? 'eager' : 'lazy'}
+        className={className}
+        style={{ objectFit }}
+        onLoad={onLoad}
+        onError={onError}
+      />
+    );
+  }
 
   return (
     <Image
@@ -95,12 +112,8 @@ export function OptimizedImage({
       sizes={sizes || getDefaultSizes(priority)}
       className={className}
       style={{ objectFit }}
-      placeholder={isExternal ? 'empty' : 'blur'}
-      blurDataURL={
-        isExternal
-          ? undefined
-          : `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${width} ${height}'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='20'/%3E%3C/filter%3E%3Cimage filter='url(%23b)' width='100%25' height='100%25' href='${src}'/%3E%3C/svg%3E`
-      }
+      placeholder="blur"
+      blurDataURL={`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${width} ${height}'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='20'/%3E%3C/filter%3E%3Cimage filter='url(%23b)' width='100%25' height='100%25' href='${src}'/%3E%3C/svg%3E`}
       onLoad={onLoad}
       onError={onError}
     />

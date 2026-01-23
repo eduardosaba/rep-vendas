@@ -416,6 +416,35 @@ export function StoreHeader() {
 
       {categories.length > 0 && (
         <div
+          className={`border-t ${isHeaderWhite ? 'border-gray-100 bg-white' : 'border-white/10 bg-black/5'} block lg:hidden`}
+        >
+          <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex gap-4 py-3 overflow-x-auto text-sm items-center scrollbar-hide">
+            <span
+              className={`font-bold uppercase tracking-wide text-xs mr-2 flex-shrink-0 ${isHeaderWhite ? 'text-gray-500' : 'text-white/80'}`}
+            >
+              Categorias:
+            </span>
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`whitespace-nowrap ${selectedCategory === 'all' ? 'font-bold underline decoration-2 underline-offset-4 decoration-[var(--primary)]' : 'opacity-70 hover:opacity-100'} ${textColorClass} hover:text-[var(--primary)] transition-colors`}
+            >
+              Todas
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`whitespace-nowrap ${selectedCategory === cat ? 'font-bold underline decoration-2 underline-offset-4 decoration-[var(--primary)]' : 'opacity-70 hover:opacity-100'} ${textColorClass} hover:text-[var(--primary)] transition-colors`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Desktop categories (restored): visible on lg and up, hidden on mobile */}
+      {categories.length > 0 && (
+        <div
           className={`border-t ${isHeaderWhite ? 'border-gray-100 bg-white' : 'border-white/10 bg-black/5'} hidden lg:block`}
         >
           <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex gap-4 py-3 overflow-x-auto text-sm items-center scrollbar-hide">
@@ -671,7 +700,7 @@ export function StoreSidebar() {
             )}
 
             {categories && categories.length > 0 && (
-              <div>
+              <div className="hidden">
                 {!isCollapsed && (
                   <h3 className="font-bold text-sm uppercase tracking-wider mb-3 text-gray-900">
                     Categorias

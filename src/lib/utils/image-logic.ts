@@ -15,6 +15,24 @@ export function prepareProductImage(url: string | null | undefined) {
 
   const trimmedUrl = url.trim();
 
+  // Validação básica de URL: rejeita strings mal formatadas
+  const isValidHttpUrl = (u: string) => {
+    try {
+      const parsed = new URL(u);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (_) {
+      return false;
+    }
+  };
+
+  if (!isValidHttpUrl(trimmedUrl)) {
+    return {
+      image_url: null,
+      sync_status: 'failed',
+      sync_error: 'URL mal formatada',
+    };
+  }
+
   // Verifica se a URL é de um serviço externo (http/s) e não do nosso próprio storage.
   const isExternal = trimmedUrl.startsWith('http');
   const isAlreadyInternal = trimmedUrl.includes(
@@ -54,7 +72,14 @@ export function processSafiloImages(rawString: string | null | undefined) {
     .trim()
     .split(/[\s,;\n]+/)
     .map((u) => u.trim())
-    .filter((u) => u.toLowerCase().startsWith('http')); // Garante que é URL
+    .filter((u) => {
+      try {
+        const p = new URL(u);
+        return p.protocol === 'http:' || p.protocol === 'https:';
+      } catch (_) {
+        return false;
+      }
+    }); // Garante que é URL válida
 
   // 2. Filtro de Higiene: Remove P13 e P14 (Fotos técnicas inúteis para venda)
   allUrls = allUrls.filter((url) => {
@@ -117,6 +142,18 @@ export function prepareProductGallery(
       .map((u) => u.trim())
       .filter((u) => u.length > 0);
   }
+
+  if (urls.length === 0) return [];
+
+  // Validamos URLs e removemos entradas mal formatadas
+  urls = urls.filter((u) => {
+    try {
+      const p = new URL(u);
+      return p.protocol === 'http:' || p.protocol === 'https:';
+    } catch (_) {
+      return false;
+    }
+  });
 
   if (urls.length === 0) return [];
 

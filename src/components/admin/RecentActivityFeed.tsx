@@ -16,10 +16,10 @@ import { ptBR } from 'date-fns/locale';
 
 export default function RecentActivityFeed() {
   const [logs, setLogs] = useState<any[]>([]);
-  const supabase = createClient();
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (client?: any) => {
     try {
+      const supabase = client || (await createClient());
       const { data } = await supabase
         .from('activity_logs')
         .select('*, profiles(id, full_name)')
@@ -32,24 +32,45 @@ export default function RecentActivityFeed() {
   };
 
   useEffect(() => {
-    fetchLogs();
+    let mounted = true;
+    let channel: any;
 
-    const channel = supabase
-      .channel('realtime-activity-logs')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'activity_logs' },
-        (payload) => {
-          // prepend new log for instant UI feedback
-          const newRow = payload.new;
-          setLogs((prev) => [newRow, ...prev].slice(0, 20));
-        }
-      )
-      .subscribe();
+    (async () => {
+      const supabase = await createClient();
+      if (!mounted) return;
+      await fetchLogs(supabase);
+
+      try {
+        channel = supabase
+          .channel('realtime-activity-logs')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'activity_logs' },
+            (payload: any) => {
+              const newRow = payload.new;
+              setLogs((prev) => [newRow, ...prev].slice(0, 20));
+            }
+          )
+          .subscribe();
+      } catch (e) {
+        console.warn('Realtime subscription failed', e);
+      }
+    })();
 
     return () => {
+      mounted = false;
       try {
-        supabase.removeChannel(channel);
+        if (channel) {
+          const sup = (async () => await createClient())();
+          // removeChannel expects the subscription reference; call when available
+          Promise.resolve(sup).then((s: any) => {
+            try {
+              s.removeChannel(channel);
+            } catch (e) {
+              // ignore
+            }
+          });
+        }
       } catch (e) {
         // ignore
       }

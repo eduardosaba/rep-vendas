@@ -127,14 +127,27 @@ export default function LoginPage() {
     setIsSubmitting(true);
     setFormError(null);
 
-    const formData = new FormData(e.currentTarget);
-    const result = await login(null, formData);
+    try {
+      const formData = new FormData(e.currentTarget);
+      // Log do email para depuração no servidor (NÃO logar senhas)
+      console.info('Login attempt for', formData.get('email'));
 
-    if (result?.success) {
-      toast.success('Entrando no sistema...');
-      window.location.href = result.redirectTo;
-    } else {
+      const result = await login(null, formData);
+
+      if (result?.success) {
+        toast.success('Entrando no sistema...');
+        window.location.href = result.redirectTo;
+        return;
+      }
+
       setFormError(result?.error || 'Falha na autenticação');
+    } catch (err) {
+      console.error('Erro no submit de login:', err);
+      toast.error(
+        'Erro ao processar login. Veja o console do servidor para detalhes.'
+      );
+      setFormError('Erro ao processar login');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -169,15 +182,26 @@ export default function LoginPage() {
               className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-gray-100 bg-white py-3.5 font-bold text-gray-700 hover:bg-gray-50 transition-all"
             >
               {/* Imagem do Google (local) - evita falhas offline */}
-              <img
-                src="/images/google.svg"
-                className="h-5 w-5"
-                alt="Google"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src =
-                    '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
-                }}
-              />
+              {(() => {
+                const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(
+                  /\/$/,
+                  ''
+                );
+                const src = appUrl
+                  ? `${appUrl}/images/google.svg`
+                  : '/images/google.svg';
+                return (
+                  <img
+                    src={src}
+                    className="h-5 w-5"
+                    alt="Google"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src =
+                        '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
+                    }}
+                  />
+                );
+              })()}
               Continuar com Google
             </button>
 
@@ -192,7 +216,12 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form
+              method="post"
+              onSubmit={handleSubmit}
+              className="space-y-5"
+              autoComplete="on"
+            >
               {formError && (
                 <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-bold text-red-600">
                   <AlertCircle size={18} />
@@ -209,6 +238,7 @@ export default function LoginPage() {
                   <input
                     name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 py-4 pl-12 pr-4 outline-none focus:border-[#b9722e]/30 transition-all"
                     placeholder="seu@email.com"
@@ -225,6 +255,7 @@ export default function LoginPage() {
                   <input
                     name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     required
                     className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 py-4 pl-12 pr-12 outline-none focus:border-[#b9722e]/30 transition-all"
                     placeholder="••••••••"

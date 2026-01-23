@@ -11,16 +11,52 @@ import {
   ChevronUp,
   PlayCircle,
   HelpCircle,
-  Link as LinkIcon,
-  Archive,
-  RefreshCcw,
   Zap,
-  ShieldCheck,
   AlertTriangle,
-  Info,
 } from 'lucide-react';
 
 // --- DADOS DO MANUAL ---
+
+<div className="mt-4">
+  <h4 className="text-sm font-bold text-gray-900 mb-2">
+    Exemplos / Screenshots (substitua pelas suas capturas)
+  </h4>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="text-center">
+      <img
+        src="/images/product-placeholder.svg"
+        alt="Preview CSV"
+        className="mx-auto w-36 h-24 object-contain rounded-md border"
+      />
+      <p className="text-xs text-slate-500 mt-2">Preview do importador</p>
+    </div>
+    <div className="text-center">
+      <img
+        src="/images/placeholder-no-image.svg"
+        alt="Matcher UI"
+        className="mx-auto w-36 h-24 object-contain rounded-md border"
+      />
+      <p className="text-xs text-slate-500 mt-2">
+        Matcher de Fotos (arraste e solte)
+      </p>
+    </div>
+    <div className="text-center">
+      <img
+        src="/images/default-logo.png"
+        alt="Sync Page"
+        className="mx-auto w-36 h-24 object-contain rounded-md border"
+      />
+      <p className="text-xs text-slate-500 mt-2">
+        Página: Otimização & Sincronização
+      </p>
+    </div>
+  </div>
+  <p className="text-xs text-slate-400 mt-2">
+    Obs: substitua essas imagens em{' '}
+    <span className="font-mono">/public/images/help/</span> por capturas reais
+    para melhorar o guia.
+  </p>
+</div>;
 const helpCategories = [
   {
     id: 'products',
@@ -97,6 +133,96 @@ const helpCategories = [
             >
               Acessar Sincronizador <Zap size={14} className="ml-1" />
             </Link>
+          </div>
+        ),
+      },
+      {
+        title:
+          'Sincronizar produtos e imagens (Excel + Matcher + URLs externas)',
+        content: (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-700">
+              Guia rápido para importar produtos via Excel/CSV e garantir que as
+              imagens sejam internalizadas corretamente pelo motor de imagens.
+            </p>
+
+            <ol className="list-decimal list-inside ml-4 space-y-2 text-sm text-gray-600">
+              <li>
+                <strong>Preparar a planilha:</strong> inclua colunas mínimas
+                como
+                <span className="font-mono"> sku, name, price</span> e a coluna
+                de imagens chamada <span className="font-mono">images</span> com
+                URLs externas separadas por ponto‑e‑vírgula (;).
+              </li>
+              <li>
+                <strong>Upload:</strong> vá em{' '}
+                <Link
+                  href="/dashboard/products/import"
+                  className="text-indigo-600 font-bold"
+                >
+                  Produtos → Importar
+                </Link>{' '}
+                e envie o arquivo. Valide o preview antes de confirmar.
+              </li>
+              <li>
+                <strong>Usar o Matcher (quando aplicável):</strong> se você
+                tiver imagens locais ou nomes que não batem com SKU, abra o
+                <span className="font-bold"> Matcher de Fotos</span> e arraste
+                as imagens para os produtos correspondentes.
+              </li>
+              <li>
+                <strong>Importação via URLs externas:</strong> se suas imagens
+                já estão em hosts externos (ex.: fornecedores), mantenha-as na
+                coluna <span className="font-mono">images</span>. Após a
+                importação, vá para a página
+                <Link
+                  href="/dashboard/products/sync"
+                  className="text-indigo-600 font-bold"
+                >
+                  {' '}
+                  Otimização & Sincronização
+                </Link>
+                .
+              </li>
+              <li>
+                <strong>Executar Sincronização:</strong> na página de
+                Sincronização clique em <strong>Sincronizar Imagens</strong>. O
+                worker fará: download, conversão via <em>Sharp</em>, upload ao
+                bucket <em>product-images</em> e atualização da coluna
+                <span className="font-mono">image_path</span> do produto.
+              </li>
+              <li>
+                <strong>Monitorar e Reprocessar:</strong> produtos com
+                <span className="font-mono">sync_status = 'failed'</span>{' '}
+                mostrarão a razão em{' '}
+                <span className="font-mono">sync_error</span>. Use
+                <strong>Reprocessar</strong> ou execute em lote pela página de
+                administração.
+              </li>
+            </ol>
+
+            <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl text-sm text-emerald-900">
+              <strong>Checklist rápido:</strong>
+              <ul className="mt-2 ml-4 list-disc list-inside text-sm text-emerald-800">
+                <li>Exportou backup antes da importação?</li>
+                <li>Validou 3–5 linhas no preview do importador?</li>
+                <li>
+                  Executou a página de{' '}
+                  <strong>Otimização & Sincronização</strong> após importar?
+                </li>
+                <li>
+                  Verificou se os arquivos .webp aparecem no bucket{' '}
+                  <span className="font-mono">product-images</span>?
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl text-sm text-amber-900">
+              <strong>Atenção:</strong> se você receber erros TLS ao baixar
+              imagens no ambiente local, use essa opção apenas para diagnóstico.
+              Em produção, corrija o certificado do host de origem ou use um
+              proxy confiável.
+            </div>
           </div>
         ),
       },

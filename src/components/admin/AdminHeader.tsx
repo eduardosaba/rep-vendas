@@ -33,8 +33,6 @@ export default function AdminHeader({
 }) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const supabase = createClient();
-
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [platform, setPlatform] = useState({ logo_url: null as string | null });
@@ -46,8 +44,8 @@ export default function AdminHeader({
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const fetchNotifications = useCallback(async () => {
-    const { data } = await supabase
+  const fetchNotifications = useCallback(async (client: any) => {
+    const { data } = await client
       .from('user_status')
       .select('user_id, is_online, last_seen')
       .limit(10);
@@ -63,28 +61,34 @@ export default function AdminHeader({
       }));
       setNotifications(mapped);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
     const getData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || '');
-        setUserAvatar(user.user_metadata?.avatar_url || null);
-        fetchNotifications();
+      const supabase = await createClient();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          setUserEmail(user.email || '');
+          setUserAvatar(user.user_metadata?.avatar_url || null);
+          await fetchNotifications(supabase);
+        }
+        const { data: settings } = await supabase
+          .from('platform_settings')
+          .select('logo_url')
+          .eq('id', 1)
+          .maybeSingle();
+        if (settings) setPlatform({ logo_url: settings.logo_url });
+      } catch (err) {
+        // não quebrar a UI em caso de erro de auth/consumo
+        console.error('AdminHeader getData error', err);
       }
-      const { data: settings } = await supabase
-        .from('platform_settings')
-        .select('logo_url')
-        .eq('id', 1)
-        .maybeSingle();
-      if (settings) setPlatform({ logo_url: settings.logo_url });
     };
     getData();
-  }, [fetchNotifications, supabase]);
+  }, [fetchNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -98,7 +102,12 @@ export default function AdminHeader({
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      const supabase = await createClient();
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Logout failed', err);
+    }
     router.push('/login');
   };
 
@@ -187,7 +196,7 @@ export default function AdminHeader({
               {userAvatar ? (
                 <img src={userAvatar} className="h-full w-full object-cover" />
               ) : (
-                userEmail.substring(0, 2).toUpperCase()
+                (userEmail || '??').substring(0, 2).toUpperCase()
               )}
             </div>
           </button>

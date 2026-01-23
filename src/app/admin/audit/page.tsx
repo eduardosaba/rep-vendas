@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { ShieldCheck, AlertTriangle, Clock, RefreshCcw } from 'lucide-react';
+import formatSyncStatus from '@/lib/utils/syncStatus';
 import SyncStatusBadge from '@/components/ui/SyncStatusBadge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
@@ -242,14 +243,7 @@ export default async function ImageAuditPage({
                       <td className="px-6 py-4">
                         {(() => {
                           const status = row.sync_status;
-                          const label =
-                            status === 'synced'
-                              ? 'Sincronizado'
-                              : status === 'pending'
-                                ? 'Pendente'
-                                : status === 'failed'
-                                  ? 'Falha'
-                                  : status;
+                          const label = formatSyncStatus(status);
                           return (
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${

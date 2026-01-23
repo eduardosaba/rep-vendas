@@ -21,8 +21,6 @@ export default function DashboardLayout({
   // Estado centralizado do Sidebar
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  const supabase = createClient();
-
   useEffect(() => {
     let mounted = true;
 
@@ -33,6 +31,7 @@ export default function DashboardLayout({
 
     const checkSession = async () => {
       try {
+        const supabase = await createClient();
         const { data, error } = await supabase.auth.getSession();
         if (!mounted) return;
         if (error) throw error;

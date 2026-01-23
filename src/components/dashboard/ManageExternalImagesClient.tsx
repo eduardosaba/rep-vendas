@@ -11,6 +11,7 @@ import {
   ExternalLink,
   AlertTriangle,
   CloudLightning,
+  Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -21,6 +22,8 @@ interface Product {
   brand: string | null;
   category: string | null;
   external_image_url: string;
+  image_url?: string | null;
+  sync_status?: string | null;
 }
 
 type Status = 'idle' | 'processing' | 'success' | 'error';
@@ -101,6 +104,7 @@ export default function ManageExternalImagesClient({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [auditMode, setAuditMode] = useState(false);
 
   const CONFIRM_THRESHOLD = 50;
 
@@ -133,7 +137,13 @@ export default function ManageExternalImagesClient({
     const matchesCategory =
       !selectedCategory || item.category === selectedCategory;
 
-    return matchesSearch && matchesBrand && matchesCategory;
+    // NOVA LÓGICA DE AUDITORIA: quando auditMode=true, mostrar apenas itens que
+    // provavelmente não têm P00 como capa (verifica external_image_url).
+    const external = (item.external_image_url || '').toLowerCase();
+    const matchesAudit =
+      !auditMode || !external || !external.includes('p00.jpg');
+
+    return matchesSearch && matchesBrand && matchesCategory && matchesAudit;
   });
 
   /**
@@ -221,6 +231,27 @@ export default function ManageExternalImagesClient({
     }
   };
 
+  const handleMassRepair = async () => {
+    const toastId = toast.loading(
+      'Reparando capas... Verificando arrays de imagens.'
+    );
+
+    try {
+      const res = await fetch('/api/admin/repair-covers', { method: 'POST' });
+      if (!res.ok) throw new Error('Falha no reparo em massa');
+
+      toast.success('Reparo concluído!', { id: toastId });
+      // Recarrega os dados para atualizar a lista de auditoria
+      try {
+        window.location.reload();
+      } catch {
+        // fallback silencioso
+      }
+    } catch (error) {
+      toast.error('Erro ao processar reparo.', { id: toastId });
+    }
+  };
+
   const stats = {
     total: filteredItems.length,
     totalGlobal: items.length,
@@ -266,6 +297,38 @@ export default function ManageExternalImagesClient({
               </option>
             ))}
           </select>
+          <div className="md:col-span-4 flex items-center justify-end gap-3">
+            <button
+              onClick={() => {
+                setAuditMode(!auditMode);
+                toast.success(
+                  !auditMode
+                    ? 'Modo Auditoria ativado'
+                    : 'Modo Auditoria desativado'
+                );
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all ${
+                auditMode
+                  ? 'bg-amber-100 text-amber-700 border-2 border-amber-500'
+                  : 'bg-white text-gray-500 border border-gray-200'
+              }`}
+            >
+              <AlertTriangle size={16} />
+              {auditMode
+                ? 'Visualizando Falhas de Capa'
+                : 'Auditar Capas (P00)'}
+            </button>
+
+            {auditMode && (
+              <button
+                onClick={handleMassRepair}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-lg transition-all animate-in fade-in slide-in-from-left-2"
+              >
+                <Zap size={16} />
+                Corrigir Todas com Fallback
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -308,66 +371,94 @@ export default function ManageExternalImagesClient({
         </div>
       )}
 
-      {/* TABELA DE ITENS */}
+      {/* TABELA DE ITENS COM PREVIEW DINÂMICO */}
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 bg-gray-50 dark:bg-slate-800 text-gray-500 uppercase text-[10px] font-bold tracking-wider">
+          <thead className="sticky top-0 bg-gray-50 dark:bg-slate-800 text-gray-500 uppercase text-[10px] font-bold tracking-wider z-10">
             <tr>
-              <th className="px-6 py-3 w-10">Status</th>
+              <th className="px-6 py-3 w-16 text-center">Preview</th>
               <th className="px-6 py-3">Produto / Referência</th>
               <th className="px-6 py-3">Marca</th>
-              <th className="px-6 py-3">Link Original</th>
+              <th className="px-6 py-3">Status Motor</th>
+              <th className="px-6 py-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-            {filteredItems.map((item) => (
-              <tr
-                key={item.id}
-                className="hover:bg-gray-50 dark:hover:bg-slate-800/40"
-              >
-                <td className="px-6 py-4">
-                  {item.status === 'success' ? (
-                    <CheckCircle className="text-green-500" size={20} />
-                  ) : (
-                    <div className="w-5 h-5 rounded-full border-2 border-gray-200" />
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="font-semibold text-gray-900 dark:text-white">
-                    {item.name}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {item.reference_code || 'Sem ref.'}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-gray-500">{item.brand}</td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <a
-                      href={item.external_image_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-indigo-500 hover:underline flex items-center gap-1"
-                    >
-                      Ver <ExternalLink size={12} />
-                    </a>
-                    {item.external_image_url && (
+            {filteredItems.map((item) => {
+              // LÓGICA DE FALLBACK: Se estiver synced, usa a otimizada. Se não, usa a original Safilo.
+              const displayImageUrl =
+                item.status === 'success' || item.sync_status === 'synced'
+                  ? item.image_url || item.external_image_url
+                  : item.external_image_url || item.image_url;
+
+              return (
+                <tr
+                  key={item.id}
+                  className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
+                >
+                  {/* MINIATURA DO PRODUTO */}
+                  <td className="px-6 py-4 text-center">
+                    <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-slate-800 overflow-hidden border border-gray-200 dark:border-slate-700 mx-auto">
+                      <img
+                        src={displayImageUrl ?? undefined}
+                        alt={item.name}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            '/placeholder-glass.png';
+                        }}
+                      />
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-gray-900 dark:text-white line-clamp-1">
+                      {item.name}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {item.reference_code || 'Sem ref.'}
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                      {item.brand}
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    {item.status === 'success' ||
+                    item.sync_status === 'synced' ? (
+                      <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs">
+                        <CheckCircle size={14} /> Otimizada
+                      </div>
+                    ) : item.status === 'error' ? (
+                      <div className="flex items-center gap-2 text-red-500 font-bold text-xs">
+                        <XCircle size={14} /> Falha
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-amber-500 font-medium text-xs">
+                        <Loader2 className="animate-spin" size={14} /> Pendente
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
                       <a
-                        href={`/api/proxy-image?url=${encodeURIComponent(
-                          item.external_image_url
-                        )}&w=800&format=webp&q=80&fallback=1`}
+                        href={item.external_image_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm text-gray-500 hover:underline"
-                        title="Abrir versão reduzida (800px, webp)"
+                        className="p-2 hover:bg-indigo-50 text-indigo-500 rounded-full transition-colors"
+                        title="Ver original na Safilo"
                       >
-                        Ver reduzida
+                        <ExternalLink size={16} />
                       </a>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -7,6 +7,15 @@ const mockClient: any = {
   },
 };
 
+// Provide a minimal mock for `from(...).select(...).eq(...).maybeSingle()` used by middleware
+mockClient.from = jest.fn(() => ({
+  select: jest.fn().mockReturnThis(),
+  eq: jest.fn().mockReturnThis(),
+  maybeSingle: jest
+    .fn()
+    .mockResolvedValue({ data: { onboarding_completed: true, role: 'user' } }),
+}));
+
 jest.mock('@supabase/ssr', () => ({
   createServerClient: jest.fn(() => mockClient),
 }));

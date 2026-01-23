@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { getErrorMessage } from '@/lib/errorUtils';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -149,8 +150,8 @@ export default function BrandsPage() {
 
       if (error) throw error;
       setBrands(data || []);
-    } catch (error) {
-      console.error(error);
+    } catch (error: unknown) {
+      console.error(getErrorMessage(error));
       toast.error('Erro ao carregar marcas');
     } finally {
       setLoading(false);
@@ -184,12 +185,12 @@ export default function BrandsPage() {
       });
 
       fetchBrands();
-    } catch (error: any) {
-      console.error(error);
+    } catch (error: unknown) {
+      console.error(getErrorMessage(error));
       toast.error('Erro ao sincronizar', {
         id: toastId,
         description:
-          error.message ||
+          getErrorMessage(error) ||
           'Verifique se a função sync_brands foi criada no banco.',
       });
     } finally {
@@ -245,8 +246,11 @@ export default function BrandsPage() {
             }
             return prev;
           });
-        } catch (err: any) {
-          console.error('Erro ao enviar logo em background', err);
+        } catch (err: unknown) {
+          console.error(
+            'Erro ao enviar logo em background',
+            getErrorMessage(err)
+          );
           toast.error('Falha ao enviar logo. Tente novamente.');
         } finally {
           // revoke temp url to avoid leaks
@@ -265,17 +269,16 @@ export default function BrandsPage() {
 
   const uploadLogo = async (userId: string, file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/brands/${Date.now()}.${fileExt}`;
+    // Store under brands/{userId}/{timestamp}.{ext}
+    const key = `brands/${userId}/${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('product-images')
-      .upload(`brands/${fileName}`, file);
+      .upload(key, file);
 
     if (uploadError) throw uploadError;
 
-    const { data } = supabase.storage
-      .from('product-images')
-      .getPublicUrl(`brands/${fileName}`);
+    const { data } = supabase.storage.from('product-images').getPublicUrl(key);
 
     return data.publicUrl;
   };
@@ -327,11 +330,11 @@ export default function BrandsPage() {
 
       resetForm();
       fetchBrands();
-    } catch (error: any) {
-      console.error(error);
+    } catch (error: unknown) {
+      console.error(getErrorMessage(error));
       toast.error('Erro ao salvar', {
         id: toastId,
-        description: error.message,
+        description: getErrorMessage(error),
       });
     } finally {
       setSubmitting(false);
@@ -359,8 +362,9 @@ export default function BrandsPage() {
       if (editingBrand?.id === deleteId) resetForm();
 
       toast.success('Marca removida com sucesso.');
-    } catch (error: any) {
-      toast.error('Erro ao remover', { description: error.message });
+    } catch (error: unknown) {
+      const msg = getErrorMessage(error);
+      toast.error('Erro ao remover', { description: msg });
     } finally {
       setIsDeleting(false);
       setDeleteId(null);

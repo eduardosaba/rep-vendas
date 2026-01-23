@@ -33,7 +33,7 @@ export function useCatalog(
   const [searchTerm, setSearchTerm] = useState('');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -203,7 +203,7 @@ export function useCatalog(
 
         // 4. Filtro de Categoria (Usando 'Brand' como categoria por enquanto, ajuste se tiver campo category)
         const matchesCategory =
-          selectedCategory === 'Todos' || product.brand === selectedCategory;
+          selectedCategory === 'all' || product.brand === selectedCategory;
 
         // 5. Filtros Especiais (Tags)
         const matchesBestseller = !showOnlyBestsellers || product.bestseller;
@@ -261,7 +261,7 @@ export function useCatalog(
       ].sort(),
     [products]
   );
-  const categories = useMemo(() => ['Todos', ...allBrands], [allBrands]);
+  const categories = useMemo(() => [...allBrands], [allBrands]);
   const bestsellerProducts = useMemo(
     () => products.filter((p) => p.bestseller).slice(0, 10),
     [products]
@@ -300,7 +300,7 @@ export function useCatalog(
     setSearchTerm('');
     setPriceRange([0, 10000]);
     setSelectedBrands([]);
-    setSelectedCategory('Todos');
+    setSelectedCategory('all');
     setShowOnlyBestsellers(false);
     setShowOnlyNew(false);
     setCurrentPage(1);

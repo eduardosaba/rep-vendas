@@ -1,0 +1,28 @@
+[
+  {
+    "name": "Óculos Exemplo",
+    "reference_code": "REF-EX-001",
+    "brand": "MarcaEx",
+    "category": "Óticas",
+    "external_urls": [
+      "https://example.com/images/GLASSES_P01.jpg",
+      "https://example.com/images/GLASSES_P00.jpg",
+      "https://example.com/images/GLASSES_P02.jpg"
+    ],
+    "other_fields": {
+      "price": 199.9,
+      "sale_price": 179.9
+    }
+  },
+  {
+    "name": "Óculos Sem P00",
+    "reference_code": "REF-EX-002",
+    "brand": "MarcaEx",
+    "category": "Óticas",
+    "external_urls": [
+      "https://example.com/images/GLASSES_P01.jpg",
+      "https://example.com/images/GLASSES_P02.jpg"
+    ],
+    "other_fields": {}
+  }
+]

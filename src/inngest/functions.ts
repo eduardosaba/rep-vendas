@@ -367,3 +367,108 @@ export const processPendingImages = inngest.createFunction(
     return { processed: results.length };
   }
 );
+
+// 6. Função que processa um CHUNK de produtos (disparada manualmente pela UI ou cron)
+export const processChunk = inngest.createFunction(
+  { id: 'process-chunk' },
+  { event: 'catalog/sync.chunk.requested' },
+  async ({ event, step }) => {
+    const { userId, chunkSize = 20, jobId = null } = event.data || {};
+
+    if (!userId) throw new Error('Missing userId for chunk processing');
+
+    const products = await step.run('fetch-chunk', async () => {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, external_image_url')
+        .eq('user_id', userId)
+        .is('image_path', null)
+        .limit(chunkSize);
+      if (error) throw error;
+      return data || [];
+    });
+
+    // Atualiza/insere sync_jobs para refletir o total (se jobId fornecido, incrementa total)
+    if (jobId) {
+      await step.run('ensure-job', async () => {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        await supabase
+          .from('sync_jobs')
+          .upsert({
+            id: jobId,
+            status: 'processing',
+            updated_at: new Date().toISOString(),
+          })
+          .select('id');
+      });
+    }
+
+    // Dispara eventos individuais para cada produto neste chunk
+    const events = products.map((p) => ({
+      name: 'image/internalize.requested',
+      data: {
+        productId: p.id,
+        externalUrl: p.external_image_url,
+        userId,
+        jobId,
+      },
+    }));
+
+    if (events.length > 0) {
+      await step.sendEvent('trigger-chunk-items', events);
+    }
+
+    return { processed: products.length };
+  }
+);
+
+// 7. Scheduler automático que verifica usuários com itens pendentes e solicita chunks
+export const autoSyncScheduler = inngest.createFunction(
+  { id: 'auto-sync-scheduler' },
+  { cron: '*/2 * * * *' },
+  async ({ step }) => {
+    // 1. Identifica usuários que têm produtos pendentes
+    const users = await step.run('find-users-with-pending', async () => {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const { data, error } = await supabase
+        .from('products')
+        .select('user_id', { count: 'exact' })
+        .eq('sync_status', 'pending')
+        .limit(100);
+      if (error) throw error;
+      // get distinct user_ids
+      const { data: usersRes } = await supabase.rpc(
+        'distinct_user_ids_with_pending'
+      );
+      if (usersRes && Array.isArray(usersRes)) return usersRes;
+      // fallback: scan products and map
+      const rows = data || [];
+      const set = new Set<string>();
+      rows.forEach((r: any) => r.user_id && set.add(r.user_id));
+      return Array.from(set).slice(0, 50);
+    });
+
+    if (!users || users.length === 0)
+      return { message: 'No users with pending items' };
+
+    // 2. Para cada usuário, envia um evento de chunk (não bloqueante)
+    const events = users.map((u: any) => ({
+      name: 'catalog/sync.chunk.requested',
+      data: { userId: u, chunkSize: 20 },
+    }));
+
+    if (events.length > 0) await step.sendEvent('trigger-auto-chunks', events);
+
+    return { triggered_for: users.length };
+  }
+);
