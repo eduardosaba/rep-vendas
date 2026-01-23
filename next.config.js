@@ -94,7 +94,7 @@ const nextConfig = {
         const cspHeaderDev = {
           key: 'Content-Security-Policy',
           value:
-            "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-src https://vercel.live https:; frame-ancestors 'self' https://vercel.live;",
+            "default-src 'self' http://localhost:3000; script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:; connect-src 'self' https: wss:; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-src https://vercel.live https:; frame-ancestors 'self' https://vercel.live;",
         };
 
         return [
@@ -110,7 +110,7 @@ const nextConfig = {
     const cspHeader = {
       key: 'Content-Security-Policy',
       value:
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-src 'self' https:; frame-ancestors 'self';",
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https:; connect-src 'self' https: wss:; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; frame-src 'self' https:; frame-ancestors 'self';",
     };
 
     return [

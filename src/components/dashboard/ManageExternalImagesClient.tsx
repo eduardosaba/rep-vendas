@@ -12,6 +12,8 @@ import {
   AlertTriangle,
   CloudLightning,
   Zap,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -114,7 +116,6 @@ export default function ManageExternalImagesClient({
       initialProducts.map((p) => p.brand).filter((b): b is string => Boolean(b))
     )
   ).sort();
-
   const categories = Array.from(
     new Set(
       initialProducts
@@ -145,6 +146,18 @@ export default function ManageExternalImagesClient({
 
     return matchesSearch && matchesBrand && matchesCategory && matchesAudit;
   });
+
+  // Paginação: limitar para um lote seguro de itens por página
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 25; // seguro para a maioria dos navegadores
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Resetar para a primeira página sempre que os filtros mudarem
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedBrand, selectedCategory, auditMode]);
 
   /**
    * ESTA É A FUNÇÃO QUE ESCALA O SISTEMA
@@ -384,7 +397,7 @@ export default function ManageExternalImagesClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-            {filteredItems.map((item) => {
+            {paginatedItems.map((item) => {
               // LÓGICA DE FALLBACK: Se estiver synced, usa a otimizada. Se não, usa a original Safilo.
               const displayImageUrl =
                 item.status === 'success' || item.sync_status === 'synced'
@@ -403,9 +416,11 @@ export default function ManageExternalImagesClient({
                         src={displayImageUrl ?? undefined}
                         alt={item.name}
                         className="w-full h-full object-contain"
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src =
-                            '/placeholder-glass.png';
+                            '/placeholder-no-image.svg';
                         }}
                       />
                     </div>
@@ -461,6 +476,29 @@ export default function ManageExternalImagesClient({
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* PAGINAÇÃO */}
+      <div className="flex items-center justify-between p-3 border-t border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900">
+        <div className="text-sm text-gray-600">
+          Página {currentPage} de {totalPages}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1 border rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+          >
+            Anterior
+          </button>
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 border rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+          >
+            Próxima
+          </button>
+        </div>
       </div>
 
       {/* MODAL DE CONFIRMAÇÃO */}

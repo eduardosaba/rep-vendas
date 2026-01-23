@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { LazyProductImage } from '@/components/ui/LazyProductImage';
 
 interface Product {
   id: string;
@@ -219,33 +220,26 @@ export default function ProductsClient({
                   >
                     <td className="px-3 sm:px-6 py-4">
                       <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100 border border-gray-200 relative flex items-center justify-center">
+                        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100 border border-gray-200 relative">
                           {(() => {
                             const img =
                               (product as any).image_url ||
                               (product as any).external_image_url ||
                               null;
                             return img ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
+                              <LazyProductImage
                                 src={img}
                                 alt={product.name}
                                 className="h-full w-full object-cover"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).src =
-                                    '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
-                                }}
+                                fallbackSrc="/placeholder-no-image.svg"
                               />
                             ) : (
-                              <img
-                                src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
-                                alt="Sem imagem"
-                                className="h-6 w-6 object-contain opacity-80"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).src =
-                                    '/images/default-logo.png';
-                                }}
-                              />
+                              <div className="flex items-center justify-center h-full w-full">
+                                <ImageIcon
+                                  size={16}
+                                  className="text-gray-400"
+                                />
+                              </div>
                             );
                           })()}
                         </div>
@@ -327,29 +321,23 @@ export default function ProductsClient({
               className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm"
             >
               <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 border border-gray-100 flex-shrink-0">
                   {(() => {
                     const img =
                       (product as any).image_url ||
                       (product as any).external_image_url ||
                       null;
                     return img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <LazyProductImage
                         src={img}
                         alt={product.name}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src =
-                            '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
-                        }}
+                        fallbackSrc="/placeholder-no-image.svg"
                       />
                     ) : (
-                      <img
-                        src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
-                        alt="Sem imagem"
-                        className="w-full h-full object-contain opacity-80"
-                      />
+                      <div className="flex items-center justify-center h-full w-full">
+                        <ImageIcon size={16} className="text-gray-400" />
+                      </div>
                     );
                   })()}
                 </div>

@@ -1318,6 +1318,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                       src={src}
                       alt=""
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
                     />
                   );
                 }
@@ -2122,6 +2124,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                                 src={src}
                                 alt=""
                                 className="object-contain h-full w-full"
+                                loading="lazy"
+                                decoding="async"
                               />
                             );
                           }
@@ -2130,6 +2134,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                               src={src}
                               alt=""
                               className="object-contain h-full w-full"
+                              loading="lazy"
+                              decoding="async"
                             />
                           );
                         }
