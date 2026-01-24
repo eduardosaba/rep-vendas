@@ -85,6 +85,24 @@ export function StoreModals() {
   const productImages = useMemo(() => {
     if (!modals.product) return [];
     const images: string[] = [];
+    const seen = new Set<string>();
+
+    const pushIfNew = (url?: string | null) => {
+      if (!url) return;
+      const key = (() => {
+        try {
+          const u = new URL(String(url));
+          return u.pathname.split('/').pop() || String(url);
+        } catch (e) {
+          // fallback to full string
+          return String(url);
+        }
+      })();
+      if (!seen.has(key)) {
+        seen.add(key);
+        images.push(String(url));
+      }
+    };
 
     // Primary image (cover) prefers image_path -> image_url
     if (modals.product.image_path) {
@@ -93,20 +111,22 @@ export function StoreModals() {
         height: 800,
         resize: 'contain',
       });
-      if (cover) images.push(cover);
+      pushIfNew(cover || null);
     } else if (modals.product.image_url) {
-      images.push(modals.product.image_url);
+      pushIfNew(modals.product.image_url);
     }
 
-    if (modals.product.external_image_url) {
-      images.push(modals.product.external_image_url);
-    }
-
+    // Prefer product.images (internal/gallery) next so they mask external_image_url
     if (modals.product.images && Array.isArray(modals.product.images)) {
       modals.product.images.forEach((img) => {
         const url = buildSupabaseImageUrl(img || null);
-        if (url && !images.includes(url)) images.push(url);
+        pushIfNew(url || null);
       });
+    }
+
+    // Only add external_image_url if its basename wasn't already added
+    if (modals.product.external_image_url) {
+      pushIfNew(modals.product.external_image_url);
     }
 
     return images.length > 0

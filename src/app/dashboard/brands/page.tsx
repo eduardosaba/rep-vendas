@@ -17,6 +17,7 @@ import {
   AlertTriangle, // Novo ícone para o modal
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import SmartImageUpload from '@/components/SmartImageUpload';
 
 // --- TIPAGEM ---
 interface Brand {
@@ -216,56 +217,7 @@ export default function BrandsPage() {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const file = e.target.files[0];
-      const objectURL = URL.createObjectURL(file);
-      // show immediate preview
-      setFormData((prev) => ({
-        ...prev,
-        logoFile: file,
-        logoPreview: objectURL,
-      }));
-      // keep ref to revoke later
-      tempLogoUrlRef.current = objectURL;
-
-      // start background upload and replace preview when done
-      (async () => {
-        try {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (!user) return;
-
-          const publicUrl = await uploadLogo(user.id, file);
-
-          // only replace preview if it's still the temporary object URL
-          setFormData((prev) => {
-            if (prev.logoPreview === objectURL) {
-              return { ...prev, logoPreview: publicUrl, logoFile: null };
-            }
-            return prev;
-          });
-        } catch (err: unknown) {
-          console.error(
-            'Erro ao enviar logo em background',
-            getErrorMessage(err)
-          );
-          toast.error('Falha ao enviar logo. Tente novamente.');
-        } finally {
-          // revoke temp url to avoid leaks
-          try {
-            if (tempLogoUrlRef.current) {
-              URL.revokeObjectURL(tempLogoUrlRef.current);
-              tempLogoUrlRef.current = null;
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
-      })();
-    }
-  };
+  // replaced by SmartImageUpload usage in the form below
 
   const uploadLogo = async (userId: string, file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
@@ -300,7 +252,17 @@ export default function BrandsPage() {
 
       let finalLogoUrl = editingBrand?.logo_url ?? null;
 
-      if (formData.logoFile) {
+      // If the user uploaded in background, `formData.logoPreview` may already
+      // contain the public URL returned by the upload. Prefer that when it's
+      // a remote URL (starts with http). Otherwise, if a file is present,
+      // upload it now.
+      if (
+        formData.logoPreview &&
+        typeof formData.logoPreview === 'string' &&
+        formData.logoPreview.startsWith('http')
+      ) {
+        finalLogoUrl = formData.logoPreview;
+      } else if (formData.logoFile) {
         finalLogoUrl = await uploadLogo(user.id, formData.logoFile);
       }
 
@@ -466,35 +428,54 @@ export default function BrandsPage() {
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 block">
                   Logotipo
                 </label>
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors relative overflow-hidden group bg-white dark:bg-slate-950">
-                  {formData.logoPreview ? (
-                    <img
-                      src={formData.logoPreview}
-                      className="h-full w-full object-contain p-2 z-10"
-                      alt="Preview"
-                    />
-                  ) : (
-                    <div className="text-center text-gray-400 dark:text-gray-500 z-10">
-                      <ImageIcon className="mx-auto mb-2 h-8 w-8 opacity-50" />
-                      <span className="text-xs font-medium">
-                        Clique para enviar
-                      </span>
-                    </div>
-                  )}
-                  {formData.logoPreview && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                      <span className="text-white text-xs font-bold">
-                        Trocar Imagem
-                      </span>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
+                <div>
+                  <SmartImageUpload
+                    onUploadReady={async (file) => {
+                      try {
+                        // show temporary preview
+                        const objectURL = URL.createObjectURL(file as File);
+                        setFormData((prev) => ({
+                          ...prev,
+                          logoFile: file as File,
+                          logoPreview: objectURL,
+                        }));
+                        tempLogoUrlRef.current = objectURL;
+
+                        const {
+                          data: { user },
+                        } = await supabase.auth.getUser();
+                        if (!user) return;
+
+                        const publicUrl = await uploadLogo(
+                          user.id,
+                          file as File
+                        );
+
+                        setFormData((prev) => {
+                          if (prev.logoPreview === objectURL) {
+                            return {
+                              ...prev,
+                              logoPreview: publicUrl,
+                              logoFile: null,
+                            };
+                          }
+                          return prev;
+                        });
+                      } catch (err) {
+                        console.error('Erro upload logo (Smart):', err);
+                        toast.error('Falha ao enviar logo. Tente novamente.');
+                      } finally {
+                        try {
+                          if (tempLogoUrlRef.current) {
+                            URL.revokeObjectURL(tempLogoUrlRef.current);
+                            tempLogoUrlRef.current = null;
+                          }
+                        } catch {}
+                      }
+                    }}
+                    className="w-full"
                   />
-                </label>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">

@@ -378,17 +378,17 @@ export default function ProductDetailPage() {
   };
 
   const nextImage = () => {
-    if (product?.images && product.images.length > 0) {
+    if (galleryData && galleryData.length > 0) {
       setCurrentImageIndex((prev) =>
-        prev === product.images!.length - 1 ? 0 : prev + 1
+        prev === galleryData.length - 1 ? 0 : prev + 1
       );
     }
   };
 
   const prevImage = () => {
-    if (product?.images && product.images.length > 0) {
+    if (galleryData && galleryData.length > 0) {
       setCurrentImageIndex((prev) =>
-        prev === 0 ? product.images!.length - 1 : prev - 1
+        prev === 0 ? galleryData.length - 1 : prev - 1
       );
     }
   };
@@ -752,7 +752,7 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Image Modal */}
-      {showImageModal && product.images && (
+      {showImageModal && galleryData.length > 0 && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-4"
           onClick={() => setShowImageModal(false)}
@@ -764,7 +764,11 @@ export default function ProductDetailPage() {
             <div className="flex items-center justify-center">
               {modalView === 'image' ? (
                 <ImageWithRetry
-                  src={product.images[currentImageIndex]}
+                  src={
+                    galleryData[currentImageIndex]?.zoomUrl ||
+                    galleryData[currentImageIndex]?.url ||
+                    SYSTEM_LOGO_URL
+                  }
                   alt={product.name}
                   className="max-h-full max-w-full object-contain"
                   fallback={SYSTEM_LOGO_URL}
@@ -794,7 +798,7 @@ export default function ProductDetailPage() {
               )}
             </div>
             {/* Navigation in modal */}
-            {modalView === 'image' && product.images.length > 1 && (
+            {modalView === 'image' && galleryData.length > 1 && (
               <>
                 <button
                   onClick={prevImage}
@@ -830,7 +834,7 @@ export default function ProductDetailPage() {
             )}
             {/* Image counter */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transform rounded bg-black bg-opacity-50 px-3 py-1 text-white">
-              {currentImageIndex + 1} / {product.images.length}
+              {currentImageIndex + 1} / {galleryData.length}
             </div>
           </div>
         </div>

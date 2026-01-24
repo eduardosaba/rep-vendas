@@ -1,13 +1,14 @@
 import { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
-import { ShieldCheck, AlertTriangle, Clock, RefreshCcw } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Clock } from 'lucide-react';
 import formatSyncStatus from '@/lib/utils/syncStatus';
-import SyncStatusBadge from '@/components/ui/SyncStatusBadge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ReprocessButton } from '@/components/admin/ReprocessButton';
+import ReprocessRowButton from '@/components/admin/ReprocessRowButton';
 import { BrandFilter } from '@/components/admin/BrandFilter';
 import { EconomyDashboard } from '@/components/admin/EconomyDashboard';
+import CheckInconsistencyButton from '@/components/admin/CheckInconsistencyButton';
 export const metadata: Metadata = {
   title: 'Auditoria de Imagens | RepVendas',
   description: 'Relatório de saúde do catálogo e internalização de imagens',
@@ -16,10 +17,11 @@ export const metadata: Metadata = {
 export default async function ImageAuditPage({
   searchParams,
 }: {
-  searchParams: { brand?: string };
+  searchParams: Promise<{ brand?: string } | undefined>;
 }) {
   const supabase = await createClient();
-  const selectedBrand = searchParams.brand;
+  const resolvedSearchParams = (await searchParams) || {};
+  const selectedBrand = resolvedSearchParams.brand;
 
   // 1. Busca os dados resumidos da View (filtrados se houver marca selecionada)
   let summaryQuery = supabase.from('image_audit_summary').select('*');
@@ -78,6 +80,11 @@ export default async function ImageAuditPage({
         0
       ) || 0,
     failed: summary?.reduce((acc, curr) => acc + curr.total_errors, 0) || 0,
+    total_products:
+      summary?.reduce((acc, curr) => acc + (curr.total_products || 0), 0) || 0,
+    total_internalized:
+      summary?.reduce((acc, curr) => acc + (curr.total_internalized || 0), 0) ||
+      0,
   };
 
   return (
@@ -232,6 +239,7 @@ export default async function ImageAuditPage({
                     <th className="px-6 py-4">Total Produtos</th>
                     <th className="px-6 py-4">Internalizados</th>
                     <th className="px-6 py-4">Erros</th>
+                    <th className="px-6 py-4">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -273,8 +281,32 @@ export default async function ImageAuditPage({
                       <td className="px-6 py-4 text-red-500 font-medium">
                         {row.total_errors}
                       </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end">
+                          {row.sync_status === 'failed' ||
+                          row.sync_status === 'pending' ? (
+                            <ReprocessRowButton
+                              brand={row.brand}
+                              status={row.sync_status}
+                            />
+                          ) : null}
+                          <CheckInconsistencyButton
+                            brand={row.brand}
+                            status={row.sync_status}
+                          />
+                        </div>
+                      </td>
                     </tr>
                   ))}
+                  {/* Totals row */}
+                  <tr className="bg-slate-50 dark:bg-slate-800 font-bold">
+                    <td className="px-6 py-4">Totais</td>
+                    <td className="px-6 py-4">—</td>
+                    <td className="px-6 py-4">{totals.total_products}</td>
+                    <td className="px-6 py-4">{totals.total_internalized}</td>
+                    <td className="px-6 py-4">{totals.failed}</td>
+                    <td className="px-6 py-4" />
+                  </tr>
                 </tbody>
               </table>
             </div>

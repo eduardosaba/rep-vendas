@@ -196,15 +196,136 @@ export default function ImportVisualPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Sessão inválida');
 
+      // compress large images client-side before upload (uses canvas -> webp)
+      const compressIfNeeded = async (file: File) => {
+        try {
+          // Only process images
+          if (!file.type.startsWith('image/')) return file;
+
+          // If small enough, skip
+          if (file.size <= 1024 * 1024 * 2) return file; // <= 2MB
+
+          // Try to use createImageBitmap for better memory handling on large files
+          const imgBitmap = await (async () => {
+            try {
+              const blob = file;
+              // createImageBitmap works well for large images in modern browsers
+              // and prevents some decode issues that Image() has
+              // @ts-ignore - lib DOM might not have exact typing in this env
+              return await createImageBitmap(blob);
+            } catch (err) {
+              return null;
+            }
+          })();
+
+          const canvas = document.createElement('canvas');
+          let width = 0;
+          let height = 0;
+
+          if (imgBitmap) {
+            width = imgBitmap.width;
+            height = imgBitmap.height;
+          } else {
+            // fallback to Image decoding
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const r = new FileReader();
+              r.onload = () => resolve(r.result as string);
+              r.onerror = reject;
+              r.readAsDataURL(file);
+            });
+            // decode via Image
+            const img = await new Promise<HTMLImageElement | null>(
+              (resolve) => {
+                const el = new Image();
+                el.onload = () => resolve(el);
+                el.onerror = () => resolve(null);
+                el.src = dataUrl;
+              }
+            );
+            if (!img) return file;
+            width = img.width;
+            height = img.height;
+          }
+
+          const maxDim = 2000; // limit dimension to reduce memory and final size
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return file;
+
+          if (imgBitmap) ctx.drawImage(imgBitmap, 0, 0, width, height);
+          else {
+            // decode again via Image for drawing if bitmap wasn't available
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const r = new FileReader();
+              r.onload = () => resolve(r.result as string);
+              r.onerror = reject;
+              r.readAsDataURL(file);
+            });
+            const img = await new Promise<HTMLImageElement | null>(
+              (resolve) => {
+                const el = new Image();
+                el.onload = () => resolve(el);
+                el.onerror = () => resolve(null);
+                el.src = dataUrl;
+              }
+            );
+            if (!img) return file;
+            ctx.drawImage(img, 0, 0, width, height);
+          }
+
+          const compressedBlob: Blob | null = await new Promise((resolve) =>
+            canvas.toBlob((b) => resolve(b), 'image/webp', 0.8)
+          );
+
+          if (compressedBlob) {
+            addLog(
+              `Compressão: ${Math.round(file.size / 1024)}KB → ${Math.round(
+                compressedBlob.size / 1024
+              )}KB (webp)`,
+              'info'
+            );
+            // Sempre retornar a versão otimizada quando possível para evitar
+            // salvar a original grande no staging (reduz tráfego e storage).
+            return new File([compressedBlob], `${Date.now()}.webp`, {
+              type: compressedBlob.type || 'image/webp',
+            });
+          }
+
+          // Fallback: se não conseguimos gerar o webp, retorna o original
+          addLog(
+            `Compressão falhou, mantendo original: ${Math.round(file.size / 1024)}KB`,
+            'info'
+          );
+          return file;
+        } catch (err) {
+          console.warn('compressIfNeeded failed', err);
+          return file;
+        }
+      };
+
       await Promise.all(
         files.map(async (file) => {
+          const processed = (await compressIfNeeded(file)) as File;
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
           const filePath = `public/${user.id}/staging/${fileName}`; // Isolamento por usuário (prefixo public)
 
           // Upload Storage
           const { error: uploadError } = await supabase.storage
             .from('product-images')
-            .upload(filePath, file);
+            .upload(filePath, processed);
 
           if (uploadError) {
             addLog(

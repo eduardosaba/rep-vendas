@@ -38,6 +38,7 @@ import { usePlan } from '@/hooks/use-plan';
 
 // Componentes extraídos
 import { ToggleSetting } from './components/ToggleSetting';
+import SmartImageUpload from '@/components/SmartImageUpload';
 import { TabGeneral } from './components/TabGeneral';
 
 interface CatalogSettings {
@@ -465,75 +466,81 @@ export default function SettingsPage() {
       }
     })();
   };
+  const handleBannerFile = async (file: File, isMobile = false) => {
+    const preview = URL.createObjectURL(file);
+    // Check dimensions according to mobile/desktop recommended sizes
+    const rec = isMobile ? RECOMMENDED_BANNER_MOBILE : RECOMMENDED_BANNER;
+    const tooSmall = await new Promise<boolean>((resolve) => {
+      const img = new Image();
+      img.src = preview;
+      img.onload = () => {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        const recW = rec.width;
+        const recH = rec.height;
+        const recRatio = recW / recH;
+        const imgRatio = w / h;
+        const widthOk = w >= recW * 0.6;
+        const ratioOk = Math.abs(imgRatio - recRatio) / recRatio <= 0.12;
+        resolve(!(widthOk && ratioOk) && (w < recW || h < recH));
+      };
+      img.onerror = () => resolve(true);
+    });
 
-  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const files = Array.from(e.target.files);
-    const processed = await Promise.all(
-      files.map(async (file) => {
-        const preview = URL.createObjectURL(file);
-        // Check dimensions
-        const tooSmall = await new Promise<boolean>((resolve) => {
-          const img = new Image();
-          img.src = preview;
-          img.onload = () => {
-            const w = img.naturalWidth;
-            const h = img.naturalHeight;
-            const recW = RECOMMENDED_BANNER.width;
-            const recH = RECOMMENDED_BANNER.height;
-            const recRatio = recW / recH;
-            const imgRatio = w / h;
-            const widthOk = w >= recW * 0.6;
-            const ratioOk = Math.abs(imgRatio - recRatio) / recRatio <= 0.12;
-            resolve(!(widthOk && ratioOk) && (w < recW || h < recH));
-          };
-          img.onerror = () => resolve(true);
-        });
+    // Add to state immediately
+    const entry = { file, preview, tooSmall } as any;
+    if (isMobile) {
+      setNewBannerFilesMobile((prev) => [...prev, entry]);
+    } else {
+      setNewBannerFiles((prev) => [...prev, entry]);
+    }
 
-        // Start immediate upload and replace preview with publicUrl when done
-        (async () => {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            if (!user) return;
-            const fileExt = file.name.split('.').pop();
-            const fileName = `public/${user.id}/banners/banner-${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-            const { error } = await supabase.storage
-              .from('product-images')
-              .upload(fileName, file, { upsert: true });
-            if (!error) {
-              const { data } = supabase.storage
-                .from('product-images')
-                .getPublicUrl(fileName);
-              // Replace preview in state when uploaded
-              setNewBannerFiles((prev) =>
-                prev.map((p) =>
-                  p.preview === preview
-                    ? { ...p, preview: data.publicUrl, file: null }
-                    : p
-                )
-              );
-              // revoke temp URL after a delay
-              setTimeout(() => {
-                try {
-                  URL.revokeObjectURL(preview);
-                } catch {}
-              }, 2000);
-            }
-          } catch (err) {
-            console.error('banner upload failed', err);
+    toast.success('Banner adicionado! Fazendo upload em segundo plano...');
+
+    // Start background upload and replace preview when done
+    (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const fileExt = file.name.split('.').pop();
+        const suffix = Math.random().toString(36).slice(2);
+        const fileName = `public/${user.id}/banners/${isMobile ? 'mobile' : 'banner'}-${Date.now()}-${suffix}.${fileExt}`;
+        const { error } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, file, { upsert: true });
+        if (!error) {
+          const { data } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(fileName);
+          if (isMobile) {
+            setNewBannerFilesMobile((prev) =>
+              prev.map((p) =>
+                p.preview === preview
+                  ? { ...p, preview: data.publicUrl, file: null }
+                  : p
+              )
+            );
+          } else {
+            setNewBannerFiles((prev) =>
+              prev.map((p) =>
+                p.preview === preview
+                  ? { ...p, preview: data.publicUrl, file: null }
+                  : p
+              )
+            );
           }
-        })();
-
-        return { file, preview, tooSmall };
-      })
-    );
-
-    setNewBannerFiles((prev) => [...prev, ...processed]);
-    toast.success(
-      `${processed.length} banner(s) adicionado(s)! Confira o preview acima.`
-    );
+          setTimeout(() => {
+            try {
+              URL.revokeObjectURL(preview);
+            } catch {}
+          }, 2000);
+        }
+      } catch (err) {
+        console.error('banner upload failed', err);
+      }
+    })();
   };
 
   const removeNewBanner = (index: number) => {
@@ -789,17 +796,29 @@ export default function SettingsPage() {
         folder: string
       ) => {
         if (!files || files.length === 0) return [];
-        // filter out items where file was already uploaded/replaced (file === null)
+        // Preserve already-uploaded previews (file === null && preview is a public URL)
+        const alreadyUploaded = files
+          .filter(
+            (f) =>
+              !f.file &&
+              typeof f.preview === 'string' &&
+              /^https?:\/\//.test(f.preview)
+          )
+          .map((f) => f.preview);
+
+        // Items that still need uploading
         const itemsToUpload = files.filter((f) => f.file) as {
           file: File;
           preview: string;
         }[];
-        if (itemsToUpload.length === 0) return [];
+
+        if (itemsToUpload.length === 0) return alreadyUploaded;
+
         const promises = itemsToUpload.map((item, idx) =>
           uploadSingleBanner(item, folder, idx)
         );
         const results = await Promise.all(promises);
-        return results.filter(Boolean) as string[];
+        return [...alreadyUploaded, ...results.filter(Boolean)] as string[];
       };
 
       const uploadLogo = async () => {
@@ -1370,19 +1389,50 @@ export default function SettingsPage() {
                 )}
               </div>
               <div className="flex-1">
-                <input
-                  type="file"
-                  id="logo-upload"
-                  accept="image/*"
-                  onChange={handleLogoChange}
-                  className="hidden"
+                <SmartImageUpload
+                  onUploadReady={async (file) => {
+                    try {
+                      // revoke previous blob preview if any
+                      if (logoPreview && logoPreview.startsWith('blob:')) {
+                        try {
+                          URL.revokeObjectURL(logoPreview);
+                        } catch {}
+                      }
+                      const objectURL = URL.createObjectURL(file as File);
+                      setLogoFile(file as File);
+                      setLogoPreview(objectURL);
+                      toast.success(
+                        'Logo carregada! Fazendo upload em segundo plano...'
+                      );
+
+                      setLogoUploading(true);
+                      const {
+                        data: { user },
+                      } = await supabase.auth.getUser();
+                      if (!user) throw new Error('Login necessário');
+                      const fileExt = (file as File).name.split('.').pop();
+                      const fileName = `public/${user.id}/branding/logo-${Date.now()}.${fileExt}`;
+                      const { error } = await supabase.storage
+                        .from('product-images')
+                        .upload(fileName, file as File, { upsert: true });
+                      if (!error) {
+                        const { data } = supabase.storage
+                          .from('product-images')
+                          .getPublicUrl(fileName);
+                        setLogoPreview(data.publicUrl);
+                        setLogoFile(null);
+                        toast.success('Logo enviada com sucesso!');
+                      }
+                    } catch (err) {
+                      console.error('Logo upload failed (Smart):', err);
+                      toast.error(
+                        'Falha ao enviar logo. Preview mantido localmente.'
+                      );
+                    } finally {
+                      setLogoUploading(false);
+                    }
+                  }}
                 />
-                <label
-                  htmlFor="logo-upload"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-                >
-                  <UploadCloud size={16} /> Escolher Imagem
-                </label>
                 <p className="text-xs text-gray-500 mt-2">
                   Recomendado: PNG Transparente.
                 </p>
@@ -1494,12 +1544,11 @@ export default function SettingsPage() {
                 <span className="text-[10px] text-gray-400 dark:text-slate-500 mt-1">
                   {RECOMMENDED_BANNER.width}x{RECOMMENDED_BANNER.height}px
                 </span>
-                <input
-                  type="file"
+                <SmartImageUpload
                   multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleBannerChange}
+                  onUploadReady={(file) =>
+                    handleBannerFile(file as File, false)
+                  }
                 />
               </label>
             </div>
@@ -1616,12 +1665,9 @@ export default function SettingsPage() {
                   {RECOMMENDED_BANNER_MOBILE.width}x
                   {RECOMMENDED_BANNER_MOBILE.height}px
                 </span>
-                <input
-                  type="file"
+                <SmartImageUpload
                   multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleBannerMobileUpload}
+                  onUploadReady={(file) => handleBannerFile(file as File, true)}
                 />
               </label>
             </div>

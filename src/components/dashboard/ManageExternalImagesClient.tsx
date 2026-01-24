@@ -14,7 +14,12 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  RefreshCcw,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { FixedSizeList as List } from 'react-window';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
+import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { createClient } from '@/lib/supabase/client';
 
 interface Product {
@@ -107,6 +112,9 @@ export default function ManageExternalImagesClient({
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [auditMode, setAuditMode] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'pending' | 'synced' | 'failed'
+  >('all');
 
   const CONFIRM_THRESHOLD = 50;
 
@@ -126,6 +134,14 @@ export default function ManageExternalImagesClient({
 
   // Filtra items baseado nos filtros ativos
   const filteredItems = items.filter((item) => {
+    // Filtra por status (sync_status) quando selecionado
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'pending' &&
+        (item.sync_status === 'pending' || item.status === 'idle')) ||
+      (statusFilter === 'synced' && item.sync_status === 'synced') ||
+      (statusFilter === 'failed' &&
+        (item.sync_status === 'failed' || item.status === 'error'));
     const matchesSearch =
       !searchTerm ||
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -144,20 +160,123 @@ export default function ManageExternalImagesClient({
     const matchesAudit =
       !auditMode || !external || !external.includes('p00.jpg');
 
-    return matchesSearch && matchesBrand && matchesCategory && matchesAudit;
+    return (
+      matchesSearch &&
+      matchesBrand &&
+      matchesCategory &&
+      matchesAudit &&
+      matchesStatus
+    );
   });
 
   // Paginação: limitar para um lote seguro de itens por página
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 25; // seguro para a maioria dos navegadores
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
+  );
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedItems = filteredItems.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE
+  );
 
   // Resetar para a primeira página sempre que os filtros mudarem
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedBrand, selectedCategory, auditMode]);
+
+  // Configuração de colunas usada tanto no header quanto nas linhas (Row)
+  const columnClasses = {
+    photo: 'w-20 px-4 flex-shrink-0 flex justify-center',
+    product: 'flex-1 px-4 min-w-[200px] truncate',
+    brand: 'w-32 px-4 flex-shrink-0 hidden sm:flex',
+    status: 'w-28 px-4 flex-shrink-0 flex justify-center',
+    actions: 'w-16 px-4 flex-shrink-0 flex justify-end',
+  } as const;
+
+  // Header fixo para a lista virtualizada
+  const TableHeader = () => (
+    <div className="flex items-center bg-gray-50 dark:bg-slate-800/50 py-3 text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10">
+      <div className={columnClasses.photo}>Foto</div>
+      <div className={columnClasses.product}>Produto</div>
+      <div className={columnClasses.brand}>Marca</div>
+      <div className={columnClasses.status}>Status</div>
+      <div className={columnClasses.actions}></div>
+    </div>
+  );
+
+  // Linha renderizada pelo react-window
+  const Row = ({
+    index,
+    style,
+    data,
+  }: {
+    index: number;
+    style: any;
+    data: ProcessItem[];
+  }) => {
+    const item = data[index] as ProcessItem;
+    const displayImageUrl =
+      item.status === 'success' || item.sync_status === 'synced'
+        ? item.image_url || item.external_image_url
+        : item.external_image_url || item.image_url;
+
+    return (
+      <div
+        style={style}
+        className="flex items-center text-xs border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors bg-white dark:bg-slate-900"
+        key={item.id}
+      >
+        <div className={columnClasses.photo}>
+          <div className="w-10 h-10 rounded-md bg-gray-50 border border-gray-200 dark:border-slate-700 overflow-hidden flex items-center justify-center">
+            <LazyProductImage
+              src={displayImageUrl ?? ''}
+              alt={item.name}
+              className="max-w-full max-h-full object-contain"
+              fallbackSrc="/placeholder-no-image.svg"
+            />
+          </div>
+        </div>
+
+        <div
+          className={`${columnClasses.product} font-medium text-gray-900 dark:text-slate-200`}
+        >
+          {item.name}
+        </div>
+
+        <div
+          className={`${columnClasses.brand} text-gray-500 dark:text-slate-400 italic`}
+        >
+          {item.brand || 'N/A'}
+        </div>
+
+        <div className={columnClasses.status}>
+          <span
+            className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-tight ${
+              item.sync_status === 'synced'
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+            }`}
+          >
+            {(item.sync_status || '—').toUpperCase()}
+          </span>
+        </div>
+
+        <div className={columnClasses.actions}>
+          <a
+            href={item.external_image_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-gray-400 hover:text-indigo-500 transition-colors p-1"
+          >
+            <ExternalLink size={14} />
+          </a>
+        </div>
+      </div>
+    );
+  };
 
   /**
    * ESTA É A FUNÇÃO QUE ESCALA O SISTEMA
@@ -268,8 +387,49 @@ export default function ManageExternalImagesClient({
   const stats = {
     total: filteredItems.length,
     totalGlobal: items.length,
-    success: filteredItems.filter((i) => i.status === 'success').length,
-    pending: filteredItems.filter((i) => i.status === 'idle').length,
+    success: items.filter((i) => i.status === 'success').length,
+    pending: items.filter((i) => i.status === 'idle').length,
+    failed: filteredItems.filter(
+      (i) => i.status === 'error' || i.sync_status === 'failed'
+    ).length,
+  };
+
+  // Supabase client (usado para operações administrativas como bulk retry)
+  const supabase = createClient();
+  const router = useRouter();
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetryFailed = async () => {
+    const failedCount = stats.failed;
+    if (!failedCount) return;
+
+    const ok = window.confirm(
+      `Desejas colocar ${failedCount} produtos de volta na fila de sincronização?`
+    );
+    if (!ok) return;
+
+    setIsRetrying(true);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({
+          sync_status: 'pending',
+          sync_error: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('sync_status', 'failed');
+
+      if (error) throw error;
+
+      toast.success(`Reprocessamento agendado para ${failedCount} items.`);
+      try {
+        router.refresh();
+      } catch {}
+    } catch (err: any) {
+      toast.error('Falha ao reprocessar: ' + (err?.message || String(err)));
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   return (
@@ -310,6 +470,78 @@ export default function ManageExternalImagesClient({
               </option>
             ))}
           </select>
+          <div className="md:col-span-4 flex items-center justify-between gap-3">
+            <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
+              {[
+                {
+                  id: 'all',
+                  label: 'Todos',
+                  color: 'text-gray-600',
+                  count: stats.totalGlobal,
+                },
+                {
+                  id: 'pending',
+                  label: 'Pendentes',
+                  color: 'text-amber-600',
+                  count: stats.pending,
+                },
+                {
+                  id: 'synced',
+                  label: 'OK',
+                  color: 'text-emerald-600',
+                  count: stats.success,
+                },
+                {
+                  id: 'failed',
+                  label: 'Falhas',
+                  color: 'text-rose-600',
+                  count: stats.failed,
+                },
+              ].map((btn) => (
+                <button
+                  key={btn.id}
+                  onClick={() => setStatusFilter(btn.id as any)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                    statusFilter === btn.id
+                      ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <span
+                    className={
+                      statusFilter === btn.id ? 'text-blue-600' : btn.color
+                    }
+                  >
+                    {btn.label}
+                  </span>
+                  <span className="bg-gray-200 dark:bg-slate-600 px-1.5 py-0.5 rounded text-[10px] opacity-70">
+                    {btn.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* BOTÃO DE REPROCESSAR FALHAS */}
+            {stats.failed > 0 && (
+              <button
+                onClick={handleRetryFailed}
+                disabled={isRetrying}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isRetrying
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400'
+                }`}
+              >
+                <RefreshCcw
+                  size={14}
+                  className={isRetrying ? 'animate-spin' : ''}
+                />
+                {isRetrying
+                  ? 'A processar...'
+                  : `Reprocessar ${stats.failed} Falhas`}
+              </button>
+            )}
+          </div>
           <div className="md:col-span-4 flex items-center justify-end gap-3">
             <button
               onClick={() => {
@@ -384,120 +616,29 @@ export default function ManageExternalImagesClient({
         </div>
       )}
 
-      {/* TABELA DE ITENS COM PREVIEW DINÂMICO */}
-      <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 bg-gray-50 dark:bg-slate-800 text-gray-500 uppercase text-[10px] font-bold tracking-wider z-10">
-            <tr>
-              <th className="px-6 py-3 w-16 text-center">Preview</th>
-              <th className="px-6 py-3">Produto / Referência</th>
-              <th className="px-6 py-3">Marca</th>
-              <th className="px-6 py-3">Status Motor</th>
-              <th className="px-6 py-3 text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-            {paginatedItems.map((item) => {
-              // LÓGICA DE FALLBACK: Se estiver synced, usa a otimizada. Se não, usa a original Safilo.
-              const displayImageUrl =
-                item.status === 'success' || item.sync_status === 'synced'
-                  ? item.image_url || item.external_image_url
-                  : item.external_image_url || item.image_url;
-
-              return (
-                <tr
-                  key={item.id}
-                  className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
-                >
-                  {/* MINIATURA DO PRODUTO */}
-                  <td className="px-6 py-4 text-center">
-                    <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-slate-800 overflow-hidden border border-gray-200 dark:border-slate-700 mx-auto">
-                      <img
-                        src={displayImageUrl ?? undefined}
-                        alt={item.name}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            '/placeholder-no-image.svg';
-                        }}
-                      />
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-gray-900 dark:text-white line-clamp-1">
-                      {item.name}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {item.reference_code || 'Sem ref.'}
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-600 dark:text-slate-400">
-                      {item.brand}
-                    </span>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    {item.status === 'success' ||
-                    item.sync_status === 'synced' ? (
-                      <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs">
-                        <CheckCircle size={14} /> Otimizada
-                      </div>
-                    ) : item.status === 'error' ? (
-                      <div className="flex items-center gap-2 text-red-500 font-bold text-xs">
-                        <XCircle size={14} /> Falha
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-amber-500 font-medium text-xs">
-                        <Loader2 className="animate-spin" size={14} /> Pendente
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <a
-                        href={item.external_image_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 hover:bg-indigo-50 text-indigo-500 rounded-full transition-colors"
-                        title="Ver original na Safilo"
-                      >
-                        <ExternalLink size={16} />
-                      </a>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* PAGINAÇÃO */}
-      <div className="flex items-center justify-between p-3 border-t border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900">
-        <div className="text-sm text-gray-600">
-          Página {currentPage} de {totalPages}
+      {/* TABELA VIRTUALIZADA (react-window) */}
+      <div className="flex flex-col flex-1">
+        {/* Definição das larguras de coluna para manter header e rows alinhados */}
+        <style>{``}</style>
+        <div className="px-0">
+          {/* Header fixo */}
+          <TableHeader />
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1 border rounded bg-white dark:bg-slate-800 disabled:opacity-50"
-          >
-            Anterior
-          </button>
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1 border rounded bg-white dark:bg-slate-800 disabled:opacity-50"
-          >
-            Próxima
-          </button>
+
+        <div className="flex-1">
+          <AutoSizer>
+            {({ height, width }: { height: number; width: number }) => (
+              <List
+                height={height}
+                width={width}
+                itemCount={filteredItems.length}
+                itemSize={64}
+                itemData={filteredItems}
+              >
+                {Row}
+              </List>
+            )}
+          </AutoSizer>
         </div>
       </div>
 

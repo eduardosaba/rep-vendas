@@ -1,78 +1,57 @@
+/* eslint-disable max-lines */
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Link as LinkIcon,
-  Search,
-  Image as ImageIcon,
-  Check,
-  Loader2,
-  Filter,
-  RefreshCcw,
-  Layers,
-  Terminal,
-  MousePointerClick,
-  ZoomIn,
-} from 'lucide-react';
-import ImageLightbox from '@/components/ImageLightbox';
+import { ArrowLeft, RefreshCcw, Search } from 'lucide-react';
+import SmartImageUpload from '@/components/SmartImageUpload';
 
-// --- TIPAGEM ---
 interface Product {
   id: string;
   name: string;
-  reference_code: string;
-  image_url: string | null;
-  images: string[] | null;
+  reference_code?: string | null;
+  image_url?: string | null;
+  images?: string[] | null;
   brand?: string | null;
 }
-
 interface StagingImage {
   id: string;
-  storage_path: string;
-  original_name: string;
+  storage_path?: string | null;
+  original_name?: string | null;
   publicUrl: string;
   imported_from_csv?: boolean;
-  alreadyLinked?: boolean;
 }
+
+// Raw DB staging image shape intentionally not typed to avoid
+// coupling with Supabase client typings in this client component.
 
 export default function MatcherPage() {
   const supabase = createClient();
-
-  // Estados de Dados
   const [products, setProducts] = useState<Product[]>([]);
   const [images, setImages] = useState<StagingImage[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Filtros e UI
   const [showImportedOnly, setShowImportedOnly] = useState(false);
   const [searchProduct, setSearchProduct] = useState('');
-  const [brandFilter, setBrandFilter] = useState<string>('all');
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
-  const [sortOption, setSortOption] = useState<
-    'no_image_first' | 'has_image_first' | 'name_asc' | 'name_desc' | 'ref_asc'
-  >('no_image_first');
-  const [linking, setLinking] = useState(false);
+  const [brandFilter, setBrandFilter] = useState<string>('all');
   const [productImageFilter, setProductImageFilter] = useState<
     'all' | 'with' | 'without'
   >('all');
-
-  // Seleção e Drag & Drop
+  const [sortOption, setSortOption] = useState<
+    'name_asc' | 'name_desc' | 'ref_asc'
+  >('name_asc');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
     null
   );
-  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [dragOverProductId, setDragOverProductId] = useState<string | null>(
     null
   );
-
-  // Console de Logs
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  const [showUploader, setShowUploader] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -83,11 +62,10 @@ export default function MatcherPage() {
     type: 'info' | 'error' | 'success' = 'info'
   ) => {
     const icon = type === 'error' ? '❌ ' : type === 'success' ? '✅ ' : 'ℹ️ ';
-    setLogs((prev) => [...prev, `${icon}${message}`]);
+    setLogs((p) => [...p, `${icon}${message}`]);
   };
 
-  // --- 1. Carregar Dados ---
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const {
@@ -95,484 +73,273 @@ export default function MatcherPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // A. Buscar Produtos
       const { data: productsData } = await supabase
         .from('products')
         .select('id, name, reference_code, image_url, images, brand')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-
-      // Normaliza `images` para sempre ser um array de strings (evita falsos positivos)
-      const rawProducts = productsData || [];
-      const pData = rawProducts.map((p: any) => {
-        let imgs: string[] = [];
-        if (Array.isArray(p.images)) {
-          imgs = p.images
-            .map((it: any) =>
-              typeof it === 'string' ? it : it?.url || it?.publicUrl || ''
-            )
-            .filter(Boolean);
-        } else if (typeof p.images === 'string' && p.images.trim() !== '') {
-          imgs = p.images
-            .split(',')
-            .map((s: string) => String(s).trim())
-            .filter(Boolean);
-        }
-
-        return { ...p, images: imgs };
-      });
-
-      // Ordenar: Primeiro os sem imagem, depois os com imagem
-      const productsWithoutImage = pData.filter(
-        (p: any) => !p.image_url && (!p.images || p.images.length === 0)
+      const pData: Product[] = (productsData || []).map((p: Product) => ({
+        id: p.id,
+        name: p.name,
+        reference_code: p.reference_code,
+        image_url: p.image_url,
+        images: Array.isArray(p.images)
+          ? (p.images as string[])
+              .map((it) => (typeof it === 'string' ? it : String(it)))
+              .filter(Boolean)
+          : [],
+        brand: p.brand,
+      }));
+      setProducts(pData);
+      // populate brands for filter
+      const brands = Array.from(
+        new Set(pData.map((p) => p.brand).filter(Boolean))
       );
-      const productsWithImage = pData.filter(
-        (p: any) => p.image_url || (p.images && p.images.length > 0)
-      );
-      setProducts([...productsWithoutImage, ...productsWithImage]);
+      setAvailableBrands(brands as string[]);
 
-      // B. Buscar Imagens da "Staging Area" (Piscina)
       const { data: imagesData } = await supabase
         .from('staging_images')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-
-      // Processar URLs das imagens
-      const imagesWithUrls: StagingImage[] = (imagesData || []).map(
-        (img: any) => {
-          let publicUrl = '';
-          if (img.url) {
-            publicUrl = img.url;
-          } else if (img.storage_path) {
-            const { data } = supabase.storage
-              .from('product-images')
-              .getPublicUrl(img.storage_path);
-            publicUrl = data?.publicUrl || '';
-          }
-
-          // Verificar se já está vinculada a algum produto (para mostrar label)
-          const alreadyLinked = pData.some((p: any) => {
-            const imgs: string[] = p.images || [];
-            return imgs.includes(publicUrl) || p.image_url === publicUrl;
-          });
-
-          return {
-            id: img.id,
-            storage_path: img.storage_path,
-            original_name: img.file_name || img.original_name || 'Sem nome',
-            publicUrl,
-            imported_from_csv: !!img.imported_from_csv,
-            alreadyLinked,
-          };
+      const imgs: StagingImage[] = (imagesData || []).map((img) => {
+        let publicUrl = img.url || '';
+        if (!publicUrl && img.storage_path) {
+          const { data } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(img.storage_path);
+          publicUrl = data?.publicUrl || '';
         }
+        return {
+          id: img.id,
+          storage_path: img.storage_path,
+          original_name: img.file_name || img.original_name || null,
+          publicUrl,
+          imported_from_csv: !!img.imported_from_csv,
+        };
+      });
+      setImages(imgs);
+      addLog(
+        `Carregados: ${pData.length} produtos e ${imgs.length} imagens.`,
+        'info'
       );
-
-      setImages(imagesWithUrls);
-
-      if (imagesWithUrls.length > 0) {
-        addLog(
-          `Carregados: ${imagesWithUrls.length} imagens e ${pData.length} produtos.`,
-          'success'
-        );
-      } else {
-        addLog(
-          `Carregados: ${pData.length} produtos. Nenhuma imagem pendente.`,
-          'info'
-        );
-      }
-      // derive brands list for filter
-      const uniqueBrands = Array.from(
-        new Set((pData || []).map((p: any) => p.brand).filter(Boolean))
-      );
-      setAvailableBrands(uniqueBrands as string[]);
-    } catch (error) {
-      console.error(error);
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
       toast.error('Erro ao carregar dados');
-      addLog('Erro crítico ao carregar dados.', 'error');
+      addLog(`Erro ao carregar dados: ${msg}`, 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  // --- Handlers de Seleção ---
-  const toggleImageSelection = (id: string) => {
-    setSelectedImageIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+  const toggleImageSelection = (id: string) =>
+    setSelectedImageIds((p) =>
+      p.includes(id) ? p.filter((i) => i !== id) : [...p, id]
     );
-  };
 
-  // --- 2. Ação de Vincular (Link) ---
   const handleLink = async (
     productId?: string | null,
     imageIdsInput?: string[]
   ) => {
     const pid = productId || selectedProductId;
     const iids = imageIdsInput || selectedImageIds;
-
-    if (!pid) {
-      toast.warning('Selecione um produto primeiro.');
+    if (!pid || iids.length === 0) {
+      toast.error('Selecione produto e imagem');
       return;
     }
-    if (iids.length === 0) {
-      toast.warning('Selecione pelo menos uma imagem.');
-      return;
-    }
-
-    setLinking(true);
-    addLog(`Vinculando ${iids.length} foto(s) ao produto...`);
-
     try {
-      const productObj = products.find((p) => p.id === pid);
-      const imagesObj = images.filter((img) => iids.includes(img.id));
-
-      if (!productObj || imagesObj.length === 0)
-        throw new Error('Dados inválidos para vinculação.');
-
-      // Mesclar imagens existentes com as novas
-      const currentImages = productObj.images || [];
-      const newUrls = imagesObj.map((img) => img.publicUrl);
-
-      // Remove duplicatas e garante array único
-      const combinedImages = Array.from(
-        new Set([...currentImages, ...newUrls])
+      setLoading(true);
+      const product = products.find((p) => p.id === pid);
+      if (!product) throw new Error('Produto não encontrado');
+      const imagesObj = images.filter((i) => iids.includes(i.id));
+      const current = Array.isArray(product.images) ? product.images : [];
+      const combined = Array.from(
+        new Set([...current, ...imagesObj.map((i) => i.publicUrl)])
       );
-
-      // Define a primeira como capa se não houver capa
-      const newCoverUrl = productObj.image_url || combinedImages[0];
-
-      // 1. Atualizar Produto no Banco
-      const { error: updateError } = await supabase
+      const { error } = await supabase
         .from('products')
         .update({
-          image_url: newCoverUrl,
-          images: combinedImages,
+          image_url: product.image_url || combined[0],
+          images: combined,
           updated_at: new Date().toISOString(),
         })
         .eq('id', pid);
-
-      if (updateError) throw updateError;
-
-      // 2. Remover da tabela 'staging_images' (pois agora pertencem ao produto)
-      const { error: deleteError } = await supabase
-        .from('staging_images')
-        .delete()
-        .in('id', iids);
-
-      if (deleteError) throw deleteError;
-
-      // 3. Atualizar Estado Local (UI Otimista)
-      setImages((prev) => prev.filter((i) => !iids.includes(i.id)));
-
-      setProducts((prev) =>
-        prev.map((p) => {
-          if (p.id === pid) {
-            return { ...p, image_url: newCoverUrl, images: combinedImages };
-          }
-          return p;
-        })
+      if (error) throw error;
+      await supabase.from('staging_images').delete().in('id', iids);
+      setProducts((p) =>
+        p.map((x) =>
+          x.id === pid
+            ? {
+                ...x,
+                images: combined,
+                image_url: product.image_url || combined[0],
+              }
+            : x
+        )
       );
-
-      // Resetar seleções
-      setSelectedProductId(null);
+      setImages((i) => i.filter((img) => !iids.includes(img.id)));
       setSelectedImageIds([]);
-      setDragOverProductId(null);
-
-      toast.success('Imagens vinculadas com sucesso!');
-      addLog(`Sucesso: Imagens vinculadas a "${productObj.name}"`, 'success');
-    } catch (error: any) {
-      console.error('Erro ao vincular:', error);
-      toast.error('Erro ao salvar vínculo.');
-      addLog(`Erro ao vincular: ${error.message}`, 'error');
+      setSelectedProductId(null);
+      addLog('Imagens vinculadas', 'success');
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Erro ao vincular');
+      addLog(`Erro ao vincular: ${msg}`, 'error');
     } finally {
-      setLinking(false);
+      setLoading(false);
     }
   };
 
-  // Filtro Otimizado (search + brand + sorting)
   const filteredProducts = useMemo(() => {
     const term = (searchProduct || '').toLowerCase();
-    const base = products.filter((p) => {
-      const nameMatches = (p.name || '').toLowerCase().includes(term);
-      const refMatches = (p.reference_code || '').toLowerCase().includes(term);
-      return nameMatches || refMatches;
-    });
+    let base = products.filter(
+      (p) =>
+        (p.name || '').toLowerCase().includes(term) ||
+        (p.reference_code || '').toLowerCase().includes(term)
+    );
 
-    const byBrand = base.filter((product) => {
-      return brandFilter === 'all' || product.brand === brandFilter;
-    });
+    if (brandFilter !== 'all')
+      base = base.filter((p) => p.brand === brandFilter);
 
-    const byImage = byBrand.filter((product) => {
-      if (productImageFilter === 'all') return true;
-      const imgs = product.images;
-      const hasImage =
-        Boolean(product.image_url) ||
-        (Array.isArray(imgs) && imgs.some((it) => Boolean(it))) ||
-        (typeof (imgs as any) === 'string' && (imgs as any).trim().length > 0);
-      if (productImageFilter === 'with') return hasImage;
-      return !hasImage;
-    });
+    if (productImageFilter !== 'all') {
+      base = base.filter((p) => {
+        const hasImage =
+          Boolean(p.image_url) ||
+          (Array.isArray(p.images) && p.images.length > 0);
+        return productImageFilter === 'with' ? hasImage : !hasImage;
+      });
+    }
 
-    const sorted = [...byImage];
-    sorted.sort((a, b) => {
+    base.sort((a, b) => {
       switch (sortOption) {
-        case 'no_image_first': {
-          const aNo = !a.image_url ? -1 : 1;
-          const bNo = !b.image_url ? -1 : 1;
-          if (aNo !== bNo) return aNo - bNo;
-          return a.name.localeCompare(b.name);
-        }
-        case 'has_image_first': {
-          const aHas = a.image_url ? -1 : 1;
-          const bHas = b.image_url ? -1 : 1;
-          if (aHas !== bHas) return aHas - bHas;
-          return a.name.localeCompare(b.name);
-        }
         case 'name_asc':
-          return a.name.localeCompare(b.name);
+          return (a.name || '').localeCompare(b.name || '');
         case 'name_desc':
-          return b.name.localeCompare(a.name);
+          return (b.name || '').localeCompare(a.name || '');
         case 'ref_asc':
           return (a.reference_code || '').localeCompare(b.reference_code || '');
         default:
-          return a.name.localeCompare(b.name);
+          return 0;
       }
     });
 
-    return sorted;
-  }, [products, searchProduct, sortOption, brandFilter]);
+    return base;
+  }, [products, searchProduct, brandFilter, productImageFilter, sortOption]);
 
-  const filteredImages = useMemo(() => {
-    return images.filter((img) => !showImportedOnly || img.imported_from_csv);
-  }, [images, showImportedOnly]);
+  const filteredImages = useMemo(
+    () => images.filter((i) => !showImportedOnly || i.imported_from_csv),
+    [images, showImportedOnly]
+  );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0">
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/products"
-            className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
+            className="p-2 rounded bg-white shadow"
           >
-            <ArrowLeft size={20} className="text-gray-600 dark:text-gray-300" />
+            <ArrowLeft size={18} />
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              Matcher de Produtos
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Arraste fotos da direita para os produtos da esquerda.
-            </p>
-          </div>
+          <h1 className="text-xl font-bold">Matcher de Produtos</h1>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchData}
-            className="p-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
-            title="Recarregar dados"
-          >
-            <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
+        <div className="flex items-center gap-2">
+          <button onClick={fetchData} className="p-2 bg-white rounded">
+            <RefreshCcw size={16} />
           </button>
-
           <button
             onClick={() => setShowImportedOnly((s) => !s)}
-            className={`px-4 py-2.5 text-sm font-medium border rounded-lg transition-colors shadow-sm flex items-center gap-2 ${
-              showImportedOnly
-                ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[var(--primary)] dark:bg-[var(--primary)]/20 dark:border-[var(--primary)]/40 dark:text-[var(--primary)]'
-                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-900 dark:border-slate-800 dark:text-gray-300'
-            }`}
+            className="px-3 py-1 bg-white rounded"
           >
-            <Filter size={16} />
-            {showImportedOnly ? 'Apenas Importadas' : 'Todas as Fotos'}
+            {showImportedOnly ? 'Apenas importadas' : 'Todas'}
           </button>
-
           <button
             onClick={() => handleLink()}
-            disabled={
-              !selectedProductId || selectedImageIds.length === 0 || linking
-            }
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all shadow-md active:scale-95 text-sm
-              ${!selectedProductId || selectedImageIds.length === 0 ? 'bg-gray-300 dark:bg-slate-700 cursor-not-allowed opacity-70' : 'bg-[var(--primary)] hover:opacity-90'}
-            `}
+            className="px-4 py-2 bg-[var(--primary)] text-white rounded"
           >
-            {linking ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <LinkIcon size={18} />
-            )}
-            {selectedImageIds.length > 0
-              ? `Vincular (${selectedImageIds.length})`
-              : 'Vincular'}
+            Vincular
           </button>
         </div>
       </div>
 
-      {/* CONSOLE DE LOGS */}
-      {logs.length > 0 && (
-        <div className="mb-4 bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono shadow-inner border border-gray-800 max-h-32 overflow-y-auto shrink-0">
-          <div className="mb-2 text-gray-500 border-b border-gray-800 pb-1 font-bold flex items-center gap-2 sticky top-0 bg-gray-900">
-            <Terminal size={14} /> LOG DE ATIVIDADE
-          </div>
-          {logs.map((log, index) => (
-            <div
-              key={index}
-              className="truncate py-0.5 border-b border-gray-800/50 last:border-0"
-            >
-              <span className="opacity-40 mr-2">
-                [{new Date().toLocaleTimeString()}]
-              </span>
-              {log}
-            </div>
-          ))}
-          <div ref={logsEndRef} />
-        </div>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-4 rounded shadow">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-bold">Produtos ({filteredProducts.length})</h3>
+            <div className="flex items-center gap-2">
+              <select
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
+                className="text-sm rounded border px-2 py-1"
+              >
+                <option value="all">Todas as marcas</option>
+                {availableBrands.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
 
-      {/* ÁREA PRINCIPAL (2 COLUNAS) */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
-        {/* COLUNA ESQUERDA: PRODUTOS */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden h-1/2 lg:h-auto">
-          <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sticky top-0 z-10">
-            <h3 className="font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2 text-sm uppercase tracking-wider">
-              <Layers size={16} /> Produtos ({filteredProducts.length})
-            </h3>
-            <div className="relative w-full sm:w-96">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    size={16}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nome ou ref..."
-                    value={searchProduct}
-                    onChange={(e) => setSearchProduct(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  />
-                </div>
+              <select
+                value={productImageFilter}
+                onChange={(e) =>
+                  setProductImageFilter(
+                    e.target.value as 'all' | 'with' | 'without'
+                  )
+                }
+                className="text-sm rounded border px-2 py-1"
+              >
+                <option value="all">Todos</option>
+                <option value="with">Com imagem</option>
+                <option value="without">Sem imagem</option>
+              </select>
 
-                <div className="hidden sm:block">
-                  <select
-                    value={brandFilter}
-                    onChange={(e) => setBrandFilter(e.target.value)}
-                    className="w-36 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="all">Todas as marcas</option>
-                    {availableBrands.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="hidden sm:block">
-                  <select
-                    value={productImageFilter}
-                    onChange={(e) =>
-                      setProductImageFilter(e.target.value as any)
-                    }
-                    className="w-36 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="all">Todos</option>
-                    <option value="with">Com imagem</option>
-                    <option value="without">Sem imagem</option>
-                  </select>
-                </div>
-
-                {/* sort select moved to its own row for visibility */}
-              </div>
-            </div>
-            {/* Linha de filtros para telas pequenas */}
-            <div className="mt-3 sm:hidden w-full">
-              <div className="flex flex-col gap-2">
-                <select
-                  value={brandFilter}
-                  onChange={(e) => setBrandFilter(e.target.value)}
-                  className="w-full text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="all">Todas as marcas</option>
-                  {availableBrands.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="flex gap-2">
-                  <select
-                    value={productImageFilter}
-                    onChange={(e) =>
-                      setProductImageFilter(e.target.value as any)
-                    }
-                    className="flex-1 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="all">Todos</option>
-                    <option value="with">Com imagem</option>
-                    <option value="without">Sem imagem</option>
-                  </select>
-
-                  <select
-                    value={sortOption}
-                    onChange={(e) => setSortOption(e.target.value as any)}
-                    className="w-44 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="no_image_first">Sem imagem primeiro</option>
-                    <option value="has_image_first">Com imagem primeiro</option>
-                    <option value="name_asc">Nome A → Z</option>
-                    <option value="name_desc">Nome Z → A</option>
-                    <option value="ref_asc">Ref. A → Z</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            {/* Linha separada para Ordenação - sempre visível */}
-            <div className="mt-3 w-full p-3 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
-              <div className="flex items-center justify-end">
-                <label className="text-xs text-gray-500 mr-3">
-                  Ordenar por
-                </label>
-                <select
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as any)}
-                  className="w-44 text-sm rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                >
-                  <option value="no_image_first">Sem imagem primeiro</option>
-                  <option value="has_image_first">Com imagem primeiro</option>
-                  <option value="name_asc">Nome A → Z</option>
-                  <option value="name_desc">Nome Z → A</option>
-                  <option value="ref_asc">Ref. A → Z</option>
-                </select>
-              </div>
+              <select
+                value={sortOption}
+                onChange={(e) =>
+                  setSortOption(
+                    e.target.value as 'name_asc' | 'name_desc' | 'ref_asc'
+                  )
+                }
+                className="text-sm rounded border px-2 py-1"
+              >
+                <option value="name_asc">Nome A → Z</option>
+                <option value="name_desc">Nome Z → A</option>
+                <option value="ref_asc">Ref. A → Z</option>
+              </select>
             </div>
           </div>
 
-          <div className="overflow-y-auto p-3 space-y-2 flex-1 bg-gray-50/50 dark:bg-slate-950/50">
+          <div className="relative mb-2">
+            <input
+              placeholder="Buscar..."
+              value={searchProduct}
+              onChange={(e) => setSearchProduct(e.target.value)}
+              className="w-full mb-0 p-2 border rounded pl-9"
+            />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={16}
+            />
+          </div>
+          <div className="space-y-2 max-h-[60vh] overflow-auto">
             {loading ? (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                <Loader2 className="animate-spin" size={32} />
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-gray-400 p-8 text-center">
-                <Search size={32} className="mb-2 opacity-50" />
-                <p>Nenhum produto encontrado.</p>
-              </div>
+              <div className="text-gray-500">Carregando...</div>
             ) : (
-              filteredProducts.map((product) => (
+              filteredProducts.map((p) => (
                 <div
-                  key={product.id}
-                  onClick={() => setSelectedProductId(product.id)}
-                  // Eventos de Drop
+                  key={p.id}
+                  className={`p-2 border rounded cursor-pointer ${selectedProductId === p.id ? 'ring-2 ring-[var(--primary)]' : ''} ${dragOverProductId === p.id ? 'bg-green-50 ring-2 ring-green-400' : ''}`}
+                  onClick={() => setSelectedProductId(p.id)}
                   onDragOver={(e) => {
                     e.preventDefault();
-                    setDragOverProductId(product.id);
+                    setDragOverProductId(p.id);
                   }}
                   onDragLeave={() => setDragOverProductId(null)}
                   onDrop={(e) => {
@@ -585,204 +352,114 @@ export default function MatcherPage() {
                       try {
                         const ids = JSON.parse(data);
                         if (Array.isArray(ids) && ids.length > 0)
-                          handleLink(product.id, ids);
+                          handleLink(p.id, ids);
                       } catch (err) {
                         console.error(err);
                       }
                     }
                   }}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all flex justify-between items-center group
-                    ${
-                      selectedProductId === product.id
-                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 ring-1 ring-[var(--primary)]'
-                        : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-slate-600'
-                    }
-                    ${
-                      dragOverProductId === product.id
-                        ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20 scale-[1.01]'
-                        : ''
-                    }
-                  `}
                 >
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    {/* Mini Galeria */}
-                    <div className="flex -space-x-2 overflow-hidden flex-shrink-0 pl-1">
-                      {product.images && product.images.length > 0 ? (
-                        product.images
-                          .slice(0, 3)
-                          .map((url, i) => (
-                            <img
-                              key={i}
-                              src={url}
-                              alt=""
-                              className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 object-cover bg-gray-200"
-                            />
-                          ))
-                      ) : (
-                        <div className="w-10 h-10 rounded-full border-2 border-dashed border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-gray-300">
-                          <ImageIcon size={16} />
-                        </div>
-                      )}
-                      {product.images && product.images.length > 3 && (
-                        <div className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-800 bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-gray-500 dark:text-gray-400">
-                          +{product.images.length - 3}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <h4
-                        className={`font-medium text-sm truncate ${selectedProductId === product.id ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-900 dark:text-gray-200'}`}
-                      >
-                        {product.name}
-                      </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
-                        {product.reference_code}
-                      </p>
-                    </div>
+                  <div className="font-medium">{p.name}</div>
+                  <div className="text-xs text-gray-500">
+                    {p.reference_code}
                   </div>
-
-                  {selectedProductId === product.id && (
-                    <div className="h-6 w-6 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0 animate-in zoom-in">
-                      <Check size={14} />
-                    </div>
-                  )}
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* COLUNA DIREITA: IMAGENS (STAGING) */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden h-1/2 lg:h-auto">
-          <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 sticky top-0 z-10 flex justify-between items-center">
-            <h3 className="font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2 text-sm uppercase tracking-wider">
-              <ImageIcon size={16} /> Fotos Disponíveis ({filteredImages.length}
-              )
-            </h3>
-            {selectedImageIds.length > 0 && (
-              <span className="text-xs font-bold bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full animate-in fade-in">
-                {selectedImageIds.length} selecionada(s)
-              </span>
-            )}
+        <div className="bg-white p-4 rounded shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold">Fotos ({filteredImages.length})</h3>
+            <button
+              onClick={() => setShowUploader((s) => !s)}
+              className="px-3 py-1 bg-white border rounded"
+            >
+              {showUploader ? 'Fechar' : 'Adicionar'}
+            </button>
           </div>
 
-          <div className="overflow-y-auto p-4 flex-1 bg-gray-50/30 dark:bg-slate-950/50">
-            {loading ? (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                <Loader2 className="animate-spin" size={32} />
+          {showUploader && (
+            <div className="mb-3">
+              <SmartImageUpload
+                onUploadReady={async (file) => {
+                  try {
+                    const {
+                      data: { user },
+                    } = await supabase.auth.getUser();
+                    if (!user) throw new Error('Não autenticado');
+                    const filename = `${user.id}/${Date.now()}-${(file as File).name || 'upload'}`;
+                    const { error: uploadError } = await supabase.storage
+                      .from('product-images')
+                      .upload(filename, file as File);
+                    if (uploadError) throw uploadError;
+                    const { data: publicData } = supabase.storage
+                      .from('product-images')
+                      .getPublicUrl(filename);
+                    const { data: insertData, error: insertError } =
+                      await supabase
+                        .from('staging_images')
+                        .insert([
+                          {
+                            user_id: (await supabase.auth.getUser()).data.user
+                              ?.id,
+                            storage_path: filename,
+                            url: publicData?.publicUrl || null,
+                            file_name: (file as File).name,
+                          },
+                        ])
+                        .select()
+                        .maybeSingle();
+                    if (insertError) throw insertError;
+                    // Refresh data and auto-select the newly inserted image
+                    await fetchData();
+                    if (insertData && insertData.id)
+                      setSelectedImageIds([insertData.id]);
+                  } catch (err: unknown) {
+                    console.error(err);
+                    const msg =
+                      err instanceof Error ? err.message : String(err);
+                    toast.error('Erro no upload');
+                    addLog(`Erro no upload: ${msg}`, 'error');
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-auto">
+            {filteredImages.map((img) => (
+              <div
+                key={img.id}
+                draggable
+                onDragStart={(e) => {
+                  let idsToDrag = selectedImageIds;
+                  if (!idsToDrag.includes(img.id)) {
+                    idsToDrag = [img.id];
+                    setSelectedImageIds([img.id]);
+                  }
+                  e.dataTransfer.setData(
+                    'application/x-product-images',
+                    JSON.stringify(idsToDrag)
+                  );
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+                className={`p-1 border rounded cursor-pointer ${selectedImageIds.includes(img.id) ? 'ring-2 ring-indigo-500' : ''}`}
+                onClick={() => toggleImageSelection(img.id)}
+              >
+                <img
+                  src={img.publicUrl}
+                  alt={img.original_name || 'img'}
+                  className="w-full h-28 object-contain"
+                />
               </div>
-            ) : filteredImages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-8">
-                <ImageIcon size={48} className="mb-4 opacity-20" />
-                <p className="mb-4">Nenhuma foto disponível para vinculação.</p>
-                <Link
-                  href="/dashboard/products/import-visual"
-                  className="px-4 py-2 bg-[var(--primary)] text-white text-sm rounded-lg hover:opacity-90 transition-all font-medium"
-                >
-                  Carregar novas fotos
-                </Link>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredImages.map((img) => (
-                  <div
-                    key={img.id}
-                    draggable={true}
-                    // Eventos de Drag
-                    onDragStart={(e) => {
-                      let idsToDrag = selectedImageIds;
-                      // Se arrastar uma não selecionada, seleciona ela automaticamente
-                      if (!idsToDrag.includes(img.id)) {
-                        idsToDrag = [img.id];
-                        setSelectedImageIds([img.id]);
-                      }
-                      e.dataTransfer.setData(
-                        'application/x-product-images',
-                        JSON.stringify(idsToDrag)
-                      );
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }}
-                    onClick={() => toggleImageSelection(img.id)}
-                    className={`aspect-square rounded-xl border-2 cursor-grab active:cursor-grabbing overflow-hidden relative group shadow-sm bg-white dark:bg-slate-800 transition-all 
-                      ${
-                        selectedImageIds.includes(img.id)
-                          ? 'border-indigo-500 ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-900 shadow-md scale-[0.96]'
-                          : 'border-transparent hover:border-indigo-300 dark:hover:border-slate-600'
-                      }
-                    `}
-                  >
-                    {}
-                    <img
-                      src={img.publicUrl}
-                      alt="Staging"
-                      className="w-full h-full object-contain p-2 transition-transform group-hover:scale-105"
-                      onDoubleClick={() => setLightboxSrc(img.publicUrl)}
-                    />
-
-                    {/* Botão para ampliar sem interferir no drag/seleção */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLightboxSrc(img.publicUrl);
-                      }}
-                      aria-label="Ampliar foto"
-                      className="absolute top-2 left-10 p-1 bg-white/90 rounded-full z-10 shadow-sm"
-                    >
-                      <ZoomIn size={14} />
-                    </button>
-
-                    {/* Labels */}
-                    {img.imported_from_csv && (
-                      <div className="absolute top-2 left-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/80 dark:text-yellow-200 px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm">
-                        CSV
-                      </div>
-                    )}
-                    {img.alreadyLinked && (
-                      <div className="absolute top-2 right-2 bg-green-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm flex items-center gap-1">
-                        <Check size={8} /> Em uso
-                      </div>
-                    )}
-
-                    {/* Nome do arquivo (Hover) */}
-                    <div className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-[10px] p-1 truncate text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {img.original_name}
-                    </div>
-
-                    {/* Checkbox Visual */}
-                    {selectedImageIds.includes(img.id) && (
-                      <div className="absolute top-2 right-2 h-6 w-6 bg-[var(--primary)] rounded-full flex items-center justify-center text-white shadow-md animate-in zoom-in border border-white dark:border-slate-800">
-                        {selectedImageIds.length > 1 ? (
-                          <Layers size={12} />
-                        ) : (
-                          <Check size={14} />
-                        )}
-                      </div>
-                    )}
-
-                    {/* Dica de arraste (Hover) */}
-                    {!selectedImageIds.includes(img.id) && (
-                      <div className="absolute inset-0 bg-black/5 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
-                        <MousePointerClick
-                          className="text-white drop-shadow-md"
-                          size={24}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            ))}
           </div>
         </div>
       </div>
-      {lightboxSrc && (
-        <ImageLightbox
-          src={lightboxSrc}
-          alt="Preview"
-          onClose={() => setLightboxSrc(null)}
-        />
-      )}
+
+      <div ref={logsEndRef} className="sr-only" />
     </div>
   );
 }
