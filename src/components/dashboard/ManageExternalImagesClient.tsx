@@ -17,15 +17,8 @@ import {
   RefreshCcw,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import * as RW from 'react-window';
-import AutoSizer from 'react-virtualized-auto-sizer';
-// react-window export shape can vary between bundlers/versions.
-// Resolve FixedSizeList robustly and fall back to default export when necessary.
-const List: any =
-  (RW as any).FixedSizeList ||
-  (RW as any).default ||
-  (RW as any).List ||
-  (RW as any);
+import { FixedSizeList as List } from 'react-window';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { createClient } from '@/lib/supabase/client';
 
@@ -632,20 +625,31 @@ export default function ManageExternalImagesClient({
           <TableHeader />
         </div>
 
-        <div className="flex-1">
-          <AutoSizer>
-            {({ height, width }: { height: number; width: number }) => (
-              <List
-                height={height}
-                width={width}
-                itemCount={filteredItems.length}
-                itemSize={64}
-                itemData={filteredItems}
-              >
-                {Row}
-              </List>
+        <div className="flex-1 overflow-auto">
+          <div className="px-0">
+            {/* Rows (paginated) */}
+            {paginatedItems.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">Nenhum item encontrado.</div>
+            ) : (
+              paginatedItems.map((_, idx) => (
+                <Row
+                  key={paginatedItems[idx].id}
+                  index={idx}
+                  style={{}}
+                  data={paginatedItems}
+                />
+              ))
             )}
-          </AutoSizer>
+
+            {/* Pagination controls */}
+            <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <div className="text-sm text-gray-500">Página {currentPage} de {totalPages}</div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} className="px-3 py-1 rounded bg-white border">Anterior</button>
+                <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} className="px-3 py-1 rounded bg-white border">Próxima</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

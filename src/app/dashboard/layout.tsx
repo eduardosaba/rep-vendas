@@ -23,6 +23,14 @@ export default function DashboardLayout({
   // Estado centralizado do Sidebar
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
+  // Welcome manager hook must be called unconditionally to preserve hooks order
+  const {
+    shouldShow,
+    loading: welcomeLoading,
+    markAsSeen,
+    version,
+  } = useWelcomeManager();
+
   useEffect(() => {
     let mounted = true;
 
@@ -34,10 +42,10 @@ export default function DashboardLayout({
     const checkSession = async () => {
       try {
         const supabase = await createClient();
-        const { data, error } = await supabase.auth.getSession();
+        const { data: userData, error } = await supabase.auth.getUser();
         if (!mounted) return;
         if (error) throw error;
-        if (!data?.session) {
+        if (!userData?.user) {
           router.replace('/login');
         } else {
           setAuthorized(true);
@@ -85,12 +93,6 @@ export default function DashboardLayout({
   }
 
   if (!authorized) return null;
-  const {
-    shouldShow,
-    loading: welcomeLoading,
-    markAsSeen,
-    version,
-  } = useWelcomeManager();
   return (
     <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
       <div className="flex h-screen w-full overflow-hidden">

@@ -153,7 +153,12 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form
+                  method="post"
+                  action="#"
+                  onSubmit={handleSubmit}
+                  className="space-y-5"
+                >
                   {formError && (
                     <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-bold text-red-600">
                       <AlertCircle size={18} />
@@ -171,6 +176,7 @@ export default function LoginPage() {
                         name="email"
                         type="email"
                         required
+                        autoComplete="username"
                         className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 py-4 pl-12 pr-4 outline-none focus:border-[#b9722e]/30 transition-all"
                         placeholder="seu@email.com"
                       />
@@ -196,6 +202,7 @@ export default function LoginPage() {
                         name="password"
                         type={showPassword ? 'text' : 'password'}
                         required
+                        autoComplete="current-password"
                         className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 py-4 pl-12 pr-12 outline-none focus:border-[#b9722e]/30 transition-all"
                         placeholder="••••••••"
                       />
@@ -223,7 +230,12 @@ export default function LoginPage() {
               </>
             ) : (
               /* VIEW: RECUPERAÇÃO DE SENHA */
-              <form onSubmit={handleForgotPassword} className="space-y-6">
+              <form
+                method="post"
+                action="#"
+                onSubmit={handleForgotPassword}
+                className="space-y-6"
+              >
                 {formError && (
                   <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-bold text-red-600">
                     <AlertCircle size={18} />
@@ -242,6 +254,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                      autoComplete="email"
                       className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 py-4 pl-12 pr-4 outline-none focus:border-[#b9722e]/30 transition-all"
                       placeholder="seu@email.com"
                     />
