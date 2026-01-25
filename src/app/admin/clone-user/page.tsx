@@ -26,6 +26,9 @@ export default function CloneUserPage() {
   const [cloneEntries, setCloneEntries] = useState<any[]>([]);
   const [polling, setPolling] = useState(false);
   const [latestSyncJob, setLatestSyncJob] = useState<any | null>(null);
+  const [cloneTotal, setCloneTotal] = useState<number | null>(null);
+  const [cloneOffset, setCloneOffset] = useState(0);
+  const PAGE_SIZE = 200;
 
   useEffect(() => {
     async function load() {
@@ -63,6 +66,33 @@ export default function CloneUserPage() {
     }
     load();
   }, []);
+
+  // Load clones helper (reusable outside effect)
+  const loadClones = async (offset = 0, append = false) => {
+    if (!selectedUser) return;
+    try {
+      const query = supabase
+        .from('catalog_clones')
+        .select(
+          'id,source_product_id,cloned_product_id,source_user_id,target_user_id,created_at',
+          { count: 'exact' }
+        )
+        .eq('target_user_id', selectedUser)
+        .order('created_at', { ascending: false });
+
+      const start = offset;
+      const end = offset + PAGE_SIZE - 1;
+      const { data, count } = await query.range(start, end);
+      if (!data) return { data: [], count: null };
+      if (append) setCloneEntries((prev) => [...prev, ...(data || [])]);
+      else setCloneEntries(data || []);
+      setCloneTotal(typeof count === 'number' ? count : null);
+      setCloneOffset(offset + (data?.length || 0));
+      return { data, count };
+    } catch (err) {
+      console.error('Erro ao carregar clones:', err);
+    }
+  };
 
   const toggleBrand = (b: string) => {
     setSelectedBrands((prev) =>
@@ -107,19 +137,11 @@ export default function CloneUserPage() {
     let mounted = true;
     let interval: ReturnType<typeof setInterval> | null = null;
 
-    const fetchClones = async () => {
+    const fetchClones = async (offset = 0) => {
       if (!selectedUser) return;
       try {
-        const { data } = await supabase
-          .from('catalog_clones')
-          .select(
-            'id,source_product_id,cloned_product_id,source_user_id,target_user_id,created_at'
-          )
-          .eq('target_user_id', selectedUser)
-          .order('created_at', { ascending: false })
-          .limit(200);
-        if (!mounted) return;
-        setCloneEntries(data || []);
+        const res = await loadClones(offset, offset !== 0);
+        const data = res?.data || [];
         // also fetch latest sync job for this target user and update
         try {
           const { data: job } = await supabase
@@ -186,11 +208,12 @@ export default function CloneUserPage() {
     };
 
     if (selectedUser && polling) {
-      fetchClones();
-      interval = setInterval(fetchClones, 3000);
+      fetchClones(0);
+      interval = setInterval(() => fetchClones(0), 3000);
     } else if (selectedUser) {
-      // fetch once when user changes
-      fetchClones();
+      // fetch once when user changes (reset offset)
+      setCloneOffset(0);
+      fetchClones(0);
     }
 
     return () => {
@@ -294,14 +317,33 @@ export default function CloneUserPage() {
           <div className="mt-4 bg-white dark:bg-slate-900 p-3 rounded border border-gray-100 dark:border-slate-800 text-sm text-gray-600">
             {cloneEntries.length === 0
               ? 'Nenhum item clonado ainda.'
-              : `${cloneEntries.length} itens clonados (mostrando até 200).`}
+              : cloneTotal !== null
+                ? `${cloneEntries.length} itens mostrados de ${cloneTotal} clonados.`
+                : `${cloneEntries.length} itens clonados (mostrando até 200).`}
             <div className="mt-2">
-              <button
-                onClick={() => setCloneEntries((e) => [...e])}
-                className="underline"
-              >
-                Atualizar lista
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setCloneOffset(0);
+                    loadClones(0, false);
+                  }}
+                  className="underline"
+                >
+                  Atualizar lista
+                </button>
+                {cloneTotal !== null && cloneEntries.length < cloneTotal && (
+                  <button
+                    onClick={async () => {
+                      const offset = cloneEntries.length;
+                      setCloneOffset(offset);
+                      loadClones(offset, true);
+                    }}
+                    className="px-3 py-1 bg-slate-100 rounded"
+                  >
+                    Carregar Mais
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

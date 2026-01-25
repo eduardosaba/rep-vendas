@@ -44,6 +44,12 @@ export interface SyncCatalogData {
   font_family?: string | null;
   // URL de fonte customizada (ex: woff2 público)
   font_url?: string | null;
+  // Banner específico para compartilhamento/Open Graph (WhatsApp, Social)
+  share_banner_url?: string | null;
+  // Imagem de compartilhamento (Open Graph) customizada
+  og_image_url?: string | null;
+  // Logo da marca única (calculado se não fornecido)
+  single_brand_logo_url?: string | null;
 }
 
 /**
@@ -238,8 +244,24 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         mergedData.show_top_info_bar ?? data.show_top_info_bar ?? false,
       font_family: finalFont,
       font_url: mergedData.font_url ?? data.font_url ?? null,
-      banners: mergedData.banners ?? data.banners ?? null,
-      banners_mobile: mergedData.banners_mobile ?? data.banners_mobile ?? null,
+      og_image_url: mergedData.og_image_url ?? data.og_image_url ?? null,
+      // sanitize banners arrays: remove falsy values and empty arrays -> store null
+      banners: (() => {
+        const arr = mergedData.banners ?? data.banners ?? null;
+        if (!Array.isArray(arr)) return null;
+        const clean = arr
+          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
+          .filter(Boolean);
+        return clean.length > 0 ? clean : null;
+      })(),
+      banners_mobile: (() => {
+        const arr = mergedData.banners_mobile ?? data.banners_mobile ?? null;
+        if (!Array.isArray(arr)) return null;
+        const clean = arr
+          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
+          .filter(Boolean);
+        return clean.length > 0 ? clean : null;
+      })(),
       is_active: isActive,
       show_sale_price:
         mergedData.show_sale_price ?? data.show_sale_price ?? showSale,
@@ -248,6 +270,51 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       price_password_hash: mergedData.price_password_hash ?? null,
       updated_at: new Date().toISOString(),
     };
+
+    // Reconstruir lista de marcas com produtos do usuário (best-effort)
+    try {
+      const { data: col } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'public_catalogs')
+        .eq('column_name', 'brands')
+        .maybeSingle();
+      if (col) {
+        const { data: prodBrands } = await supabase
+          .from('products')
+          .select('brand')
+          .eq('user_id', userId)
+          .not('brand', 'is', null);
+        const uniqueBrands = Array.from(
+          new Set(
+            (prodBrands || [])
+              .map((p: any) => (p.brand || '').toString().trim())
+              .filter(Boolean)
+          )
+        ).sort();
+        if (uniqueBrands.length > 0) updatePayload.brands = uniqueBrands;
+
+        // Lógica de Single Brand Logo para metadados (banner fallback)
+        if (uniqueBrands.length === 1) {
+          const bName = uniqueBrands[0];
+          const { data: bData } = await supabase
+            .from('brands')
+            .select('logo_url')
+            .eq('user_id', userId)
+            .eq('name', bName)
+            .maybeSingle();
+          if (bData?.logo_url) {
+            updatePayload.single_brand_logo_url = bData.logo_url;
+          } else {
+            updatePayload.single_brand_logo_url = null;
+          }
+        } else {
+          updatePayload.single_brand_logo_url = null;
+        }
+      }
+    } catch (e) {
+      // ignore failures here (best-effort)
+    }
 
     const { error } = await supabase
       .from('public_catalogs')
@@ -377,16 +444,79 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         mergedData.top_benefit_text ?? data.top_benefit_text ?? null,
       show_top_benefit_bar:
         mergedData.show_top_benefit_bar ?? data.show_top_benefit_bar ?? false,
+      share_banner_url:
+        mergedData.share_banner_url ?? data.share_banner_url ?? null,
       show_top_info_bar:
         mergedData.show_top_info_bar ?? data.show_top_info_bar ?? false,
       font_family: finalFontInsert,
       font_url: mergedData.font_url ?? data.font_url ?? null,
-      banners: mergedData.banners ?? data.banners ?? null,
-      banners_mobile: mergedData.banners_mobile ?? data.banners_mobile ?? null,
+      og_image_url: mergedData.og_image_url ?? data.og_image_url ?? null,
+      // sanitize banners arrays: remove falsy values and empty arrays -> store null
+      banners: (() => {
+        const arr = mergedData.banners ?? data.banners ?? null;
+        if (!Array.isArray(arr)) return null;
+        const clean = arr
+          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
+          .filter(Boolean);
+        return clean.length > 0 ? clean : null;
+      })(),
+      banners_mobile: (() => {
+        const arr = mergedData.banners_mobile ?? data.banners_mobile ?? null;
+        if (!Array.isArray(arr)) return null;
+        const clean = arr
+          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
+          .filter(Boolean);
+        return clean.length > 0 ? clean : null;
+      })(),
       is_active: isActive,
       price_password_hash: mergedData.price_password_hash ?? null,
       created_at: new Date().toISOString(),
     };
+
+    // Reconstruir lista de marcas com produtos do usuário (best-effort)
+    try {
+      const { data: col } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'public_catalogs')
+        .eq('column_name', 'brands')
+        .maybeSingle();
+      if (col) {
+        const { data: prodBrands } = await supabase
+          .from('products')
+          .select('brand')
+          .eq('user_id', userId)
+          .not('brand', 'is', null);
+        const uniqueBrands = Array.from(
+          new Set(
+            (prodBrands || [])
+              .map((p: any) => (p.brand || '').toString().trim())
+              .filter(Boolean)
+          )
+        ).sort();
+        if (uniqueBrands.length > 0) insertPayload.brands = uniqueBrands;
+
+        // Lógica de Single Brand Logo para metadados (banner fallback)
+        if (uniqueBrands.length === 1) {
+          const bName = uniqueBrands[0];
+          const { data: bData } = await supabase
+            .from('brands')
+            .select('logo_url')
+            .eq('user_id', userId)
+            .eq('name', bName)
+            .maybeSingle();
+          if (bData?.logo_url) {
+            insertPayload.single_brand_logo_url = bData.logo_url;
+          } else {
+            insertPayload.single_brand_logo_url = null;
+          }
+        } else {
+          insertPayload.single_brand_logo_url = null;
+        }
+      }
+    } catch (e) {
+      // ignore failures here (best-effort)
+    }
 
     const { error } = await supabase
       .from('public_catalogs')

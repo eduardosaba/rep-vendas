@@ -47,24 +47,26 @@ export default async function ImageAuditPage({
   if (selectedBrand) errorQuery = errorQuery.eq('brand', selectedBrand);
   const { data: recentErrors } = await errorQuery;
 
-  // 4. Busca métricas de performance (economia de banda)
-  let performanceQuery = supabase
-    .from('products')
-    .select('original_size_kb, optimized_size_kb')
-    .eq('sync_status', 'synced')
-    .gt('original_size_kb', 0)
-    .gt('optimized_size_kb', 0);
-  if (selectedBrand)
-    performanceQuery = performanceQuery.eq('brand', selectedBrand);
-  const { data: performanceData } = await performanceQuery;
-
-  const performanceTotals = performanceData?.reduce(
-    (acc, curr) => ({
-      original: acc.original + (curr.original_size_kb || 0),
-      optimized: acc.optimized + (curr.optimized_size_kb || 0),
-    }),
-    { original: 0, optimized: 0 }
-  ) || { original: 0, optimized: 0 };
+  // 4. Busca métricas de performance (economia de banda) - usar agregação no banco
+  let performanceTotals = { original: 0, optimized: 0 };
+  try {
+    const selectAgg =
+      'sum(original_size_kb) as original_sum, sum(optimized_size_kb) as optimized_sum';
+    let perfQuery = supabase
+      .from('products')
+      .select(selectAgg, { head: false });
+    perfQuery = perfQuery.eq('sync_status', 'synced');
+    if (selectedBrand) perfQuery = perfQuery.eq('brand', selectedBrand);
+    const { data: perfAgg, error } = await perfQuery;
+    if (!error && perfAgg && (perfAgg as any[]).length > 0) {
+      const row: any = (perfAgg as any[])[0];
+      const original = Number(row.original_sum) || 0;
+      const optimized = Number(row.optimized_sum) || 0;
+      performanceTotals = { original, optimized };
+    }
+  } catch (e) {
+    console.error('Erro ao agregar métricas de performance:', e);
+  }
 
   const totals = {
     synced:

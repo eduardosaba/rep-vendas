@@ -12,6 +12,7 @@ interface Product {
   image_path?: string | null;
   external_image_url?: string | null;
   image_url?: string | null;
+  class_core?: string | null;
 }
 
 interface CatalogOptions {
@@ -546,7 +547,10 @@ export const generateCatalogPDF = async (
     if (zoom >= 3) {
       detailsContent = product.name;
     } else {
-      detailsContent = `Produto: ${product.name}\nRef: ${product.reference_code || '-'}\nMarca: ${product.brand || '-'}\nCat: ${product.category || '-'}`;
+      const classLine = product.class_core
+        ? `\nClasse: ${product.class_core}`
+        : '';
+      detailsContent = `Produto: ${product.name}\nRef: ${product.reference_code || '-'}\nMarca: ${product.brand || '-'}\nCat: ${product.category || '-'}${classLine}`;
     }
 
     const row = ['', detailsContent];

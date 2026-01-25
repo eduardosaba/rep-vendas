@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Cloud, ImageIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -21,6 +22,7 @@ export default function SyncStatusCard({
   const [job, setJob] = useState<SyncJob | null>(syncData || null);
   const [errors, setErrors] = useState<any[]>([]);
   const [showRaw, setShowRaw] = useState(false);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -77,6 +79,54 @@ export default function SyncStatusCard({
     // poll periodically until a job appears (so UI sees newly created jobs).
     if (!job?.id) {
       fetchLatestJobForUser();
+      // também calcula quantos produtos parecem não estar internalizados
+      (async () => {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user) return;
+          const { data: prods } = await supabase
+            .from('products')
+            .select('id, image_path, image_url, external_image_url, images')
+            .eq('user_id', user.id);
+          if (!prods) {
+            setPendingCount(0);
+            return;
+          }
+          const count = (prods as any[])
+            .map((p) => {
+              const imagesArray = Array.isArray(p.images) ? p.images : [];
+              const imagesContainStorage = imagesArray.some((it: any) => {
+                const url = typeof it === 'string' ? it : it?.url || '';
+                return (
+                  typeof url === 'string' && url.includes('supabase.co/storage')
+                );
+              });
+
+              const hasStorageImage = Boolean(
+                p.image_path ||
+                (p.image_url &&
+                  String(p.image_url).includes('supabase.co/storage')) ||
+                (p.external_image_url &&
+                  String(p.external_image_url).includes(
+                    'supabase.co/storage'
+                  )) ||
+                imagesContainStorage
+              );
+
+              const hasExternal = Boolean(
+                p.external_image_url || p.image_url || imagesArray.length > 0
+              );
+
+              return hasExternal && !hasStorageImage;
+            })
+            .filter(Boolean).length;
+          setPendingCount(count);
+        } catch (e) {
+          // ignore
+        }
+      })();
       let pollInterval = setInterval(() => {
         fetchLatestJobForUser();
       }, 3000);
@@ -142,13 +192,27 @@ export default function SyncStatusCard({
       {!job ? (
         <div className="text-sm text-gray-500">
           Nenhum trabalho em andamento.
-          <div className="mt-3">
+          {pendingCount !== null && (
+            <div className="mt-2 text-xs text-gray-600">
+              Produtos não otimizados:{' '}
+              <b className="text-indigo-600">{pendingCount}</b>
+            </div>
+          )}
+          <div className="mt-3 flex items-center gap-3">
             <button
               onClick={() => setShowRaw((s) => !s)}
               className="text-xs font-bold text-primary underline"
             >
               {showRaw ? 'Ocultar dados' : 'Mostrar dados de debug'}
             </button>
+            {pendingCount !== null && pendingCount > 0 && (
+              <Link
+                href="/dashboard/manage-external-images"
+                className="text-xs font-semibold px-3 py-1 bg-indigo-600 text-white rounded hover:opacity-90 transition"
+              >
+                Ver pendentes
+              </Link>
+            )}
             {showRaw && (
               <pre className="mt-2 max-h-40 overflow-auto text-[11px] bg-gray-50 p-2 rounded">
                 {JSON.stringify(job, null, 2)}

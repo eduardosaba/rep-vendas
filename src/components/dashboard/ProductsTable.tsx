@@ -57,6 +57,7 @@ interface Product {
   price: number;
   brand: string | null;
   category: string | null;
+  class_core?: string | null;
   image_url: string | null;
   image_path?: string | null;
   external_image_url?: string | null;
@@ -130,6 +131,12 @@ const ALL_DATA_COLUMNS: Record<DataKey, ColumnDefinition> = {
   category: {
     key: 'category',
     title: 'Categoria',
+    isSortable: true,
+    align: 'left',
+  },
+  class_core: {
+    key: 'class_core',
+    title: 'Classe',
     isSortable: true,
     align: 'left',
   },
@@ -270,6 +277,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [availableCategories, setAvailableCategories] = useState<
     { name: string }[]
   >([]);
+  const [availableClasses, setAvailableClasses] = useState<{ name: string }[]>(
+    []
+  );
 
   // Configurações da Tabela
   const [userId, setUserId] = useState<string | null>(null);
@@ -387,7 +397,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [pdfProgress, setPdfProgress] = useState({ progress: 0, message: '' });
 
   const [textConfig, setTextConfig] = useState<{
-    field: 'brand' | 'category' | '';
+    field: 'brand' | 'category' | 'class_core' | '';
     value: string;
     label: string;
   }>({ field: '', value: '', label: '' });
@@ -546,6 +556,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       const cats = Array.from(
         new Set(prods?.map((p) => p.category).filter(Boolean) || [])
       ).sort();
+      const classes = Array.from(
+        new Set(prods?.map((p: any) => p.class_core).filter(Boolean) || [])
+      ).sort();
 
       if (brands.length > 0) {
         const { data: brandData } = await supabase
@@ -560,6 +573,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       }
       setAvailableCategories(
         (cats as string[]).map((c) => ({ name: String(c) }))
+      );
+      setAvailableClasses(
+        (classes as string[]).map((c) => ({ name: String(c) }))
       );
     };
     fetchOptions();
@@ -1074,6 +1090,33 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       toast.error('Erro ao atualizar');
     }
     setIsProcessing(false);
+  };
+
+  const isAllSelectedTrue = (
+    field: 'is_launch' | 'is_best_seller' | 'is_active'
+  ) => {
+    if (selectedIds.length === 0) return false;
+    return selectedIds.every((id) => {
+      const p = products.find((pp) => pp.id === id) as any;
+      return Boolean(p && p[field]);
+    });
+  };
+
+  const isSomeSelectedTrue = (
+    field: 'is_launch' | 'is_best_seller' | 'is_active'
+  ) => {
+    if (selectedIds.length === 0) return false;
+    const any = selectedIds.some((id) => {
+      const p = products.find((pp) => pp.id === id) as any;
+      return Boolean(p && p[field]);
+    });
+    return any && !isAllSelectedTrue(field);
+  };
+
+  const handleBulkToggle = (field: 'is_launch' | 'is_best_seller') => {
+    const allTrue = isAllSelectedTrue(field);
+    // se todos true => definir false, caso contrário definir true
+    handleBulkUpdate(field, !allTrue);
   };
 
   const handleBulkTextUpdate = async () => {
@@ -1809,42 +1852,59 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             </button>
             <button
               type="button"
-              onClick={() => handleBulkUpdate('is_launch', true)}
+              onClick={() => {
+                setTextConfig({
+                  field: 'class_core',
+                  value: '',
+                  label: 'Classe',
+                });
+                setShowTextModal(true);
+              }}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
-              <Rocket size={18} className="text-purple-600" />
+              <ListOrdered size={18} className="text-indigo-500" />{' '}
               <span className="text-[10px] text-gray-600 dark:text-slate-400">
-                Lanç.
+                Classe
               </span>
             </button>
             <button
               type="button"
-              onClick={() => handleBulkUpdate('is_launch', false)}
+              onClick={() => handleBulkToggle('is_launch')}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
-              <Rocket size={18} className="text-gray-400" />
+              <Rocket
+                size={18}
+                className={
+                  isAllSelectedTrue('is_launch')
+                    ? 'text-purple-600'
+                    : isSomeSelectedTrue('is_launch')
+                      ? 'text-yellow-500'
+                      : 'text-gray-400'
+                }
+              />
               <span className="text-[10px] text-gray-600 dark:text-slate-400">
-                Rem. Lanç.
+                {isAllSelectedTrue('is_launch') ? 'Rem. Lanç.' : 'Lanç.'}
               </span>
             </button>
             <button
               type="button"
-              onClick={() => handleBulkUpdate('is_best_seller', true)}
+              onClick={() => handleBulkToggle('is_best_seller')}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
-              <Star size={18} className="text-orange-500" />
+              <Star
+                size={18}
+                className={
+                  isAllSelectedTrue('is_best_seller')
+                    ? 'text-orange-500'
+                    : isSomeSelectedTrue('is_best_seller')
+                      ? 'text-yellow-500'
+                      : 'text-gray-400'
+                }
+              />
               <span className="text-[10px] text-gray-600 dark:text-slate-400">
-                Top
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleBulkUpdate('is_best_seller', false)}
-              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
-            >
-              <Star size={18} className="text-gray-400" />
-              <span className="text-[10px] text-gray-600 dark:text-slate-400">
-                Rem. Top
+                {isAllSelectedTrue('is_best_seller')
+                  ? 'Rem. Best'
+                  : 'Best Seller'}
               </span>
             </button>
             <button
@@ -2647,9 +2707,15 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 ? availableBrands.map((b) => (
                     <option key={b.name} value={b.name} />
                   ))
-                : availableCategories.map((c) => (
-                    <option key={c.name} value={c.name} />
-                  ))}
+                : textConfig.field === 'category'
+                  ? availableCategories.map((c) => (
+                      <option key={c.name} value={c.name} />
+                    ))
+                  : textConfig.field === 'class_core'
+                    ? availableClasses.map((c) => (
+                        <option key={c.name} value={c.name} />
+                      ))
+                    : null}
             </datalist>
             <div className="flex gap-2">
               <button

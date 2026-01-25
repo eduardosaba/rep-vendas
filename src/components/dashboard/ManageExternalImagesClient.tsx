@@ -17,8 +17,15 @@ import {
   RefreshCcw,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { FixedSizeList as List } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
+import * as RW from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
+// react-window export shape can vary between bundlers/versions.
+// Resolve FixedSizeList robustly and fall back to default export when necessary.
+const List: any =
+  (RW as any).FixedSizeList ||
+  (RW as any).default ||
+  (RW as any).List ||
+  (RW as any);
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { createClient } from '@/lib/supabase/client';
 

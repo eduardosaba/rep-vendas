@@ -27,23 +27,39 @@ export default async function ManageExternalImagesPage() {
   const { data, error } = await supabase
     .from('products')
     .select(
-      'id, name, reference_code, brand, category, external_image_url, image_url, images'
+      'id, name, reference_code, brand, category, external_image_url, image_url, images, image_path'
     )
     .eq('user_id', activeUserId)
-    .is('image_path', null) // Produtos SEM imagem internalizada
     .order('id', { ascending: true });
 
   if (error) {
     console.error('Erro ao buscar produtos:', error);
   }
 
-  // Filtra apenas produtos que têm pelo menos uma URL externa
-  const productsWithExternalUrls = (data || []).filter(
-    (p) =>
+  // Filtra apenas produtos que têm pelo menos uma URL externa E que NÃO
+  // parecem ter uma imagem internalizada (mesma lógica usada em ProductsTable)
+  const productsWithExternalUrls = (data || []).filter((p: any) => {
+    const hasExternal =
       p.external_image_url ||
       p.image_url ||
-      (p.images && Array.isArray(p.images) && p.images.length > 0)
-  );
+      (p.images && Array.isArray(p.images) && p.images.length > 0);
+
+    const imagesArray = Array.isArray(p.images) ? p.images : [];
+    const imagesContainStorage = imagesArray.some((it: any) => {
+      const url = typeof it === 'string' ? it : it?.url || '';
+      return typeof url === 'string' && url.includes('supabase.co/storage');
+    });
+
+    const hasStorageImage = Boolean(
+      p.image_path ||
+      (p.image_url && String(p.image_url).includes('supabase.co/storage')) ||
+      (p.external_image_url &&
+        String(p.external_image_url).includes('supabase.co/storage')) ||
+      imagesContainStorage
+    );
+
+    return hasExternal && !hasStorageImage;
+  });
 
   // Normalize e sanitize para passar apenas campos simples ao componente cliente
   const cleanedProducts = productsWithExternalUrls.map((p: any) => {

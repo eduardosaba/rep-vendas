@@ -7,9 +7,13 @@ import {
   Rocket,
   Calendar,
   CheckCircle2,
-  AlertCircle,
   Code,
   Loader2,
+  Sparkles,
+  Zap,
+  LayoutDashboard,
+  Trash2,
+  Plus,
 } from 'lucide-react';
 
 // Tipagem correta baseada no Banco de Dados
@@ -24,54 +28,96 @@ interface UpdateItem {
   created_at: string;
 }
 
+// TEMPLATES PRÉ-DEFINIDOS PARA AGILIDADE
+const PRESET_TEMPLATES = {
+  welcome: {
+    title: '🚀 Bem-vindo ao RepVendas: Sua Potência de Vendas!',
+    highlights: [
+      '📦 GESTÃO: Sincronização via Planilha e Otimização de Imagens.',
+      '📱 VENDAS: Links curtos personalizados e filtros para WhatsApp.',
+      '🛰️ INTELIGÊNCIA: Gráfico de cliques e ranking de produtos mais vistos.',
+      '🔔 ALERTAS: Notificações em tempo real de abertura de catálogo.',
+    ],
+    colorFrom: '#0f172a',
+    colorTo: '#334155',
+  },
+  new_version: {
+    title: '✨ Novidades da Versão 1.1',
+    highlights: [
+      '📊 Novo Dashboard de Analytics integrado.',
+      '📄 Geração de Relatórios de Performance em PDF.',
+      '🔗 Encurtador de links com nomes personalizados.',
+      '⚡ Melhoria de 40% na velocidade de carregamento.',
+    ],
+    colorFrom: '#2563eb',
+    colorTo: '#0891b2',
+  },
+  tips: {
+    title: '💡 Dicas de Mestre: Potencialize suas Vendas!',
+    highlights: [
+      '🎯 USE FILTROS: Crie links temáticos (ex: só Solares) para abordagens mais assertivas.',
+      '🔗 LINKS CURTOS: Use nomes fáceis como /v/PROMO para ditar por áudio ou telefone.',
+      '📊 ANTECIPE DESEJOS: Olhe o ranking "Top Choice" antes de visitar o lojista.',
+      '📄 PROVA DE VALOR: Gere o relatório em PDF para mostrar o engajamento às marcas.',
+    ],
+    colorFrom: '#f59e0b',
+    colorTo: '#d97706',
+  },
+};
+
 export default function AdminUpdatesPage() {
-  const currentVersion = process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0';
+  const currentVersion = process.env.NEXT_PUBLIC_APP_VERSION || '1.1.0';
   const supabase = createClient();
 
   const [activeTab, setActiveTab] = useState<'editor' | 'history'>('editor');
-
-  // Estados de Carregamento e Salvamento
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
-
-  // Estado do Histórico
   const [historyUpdates, setHistoryUpdates] = useState<UpdateItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Estados do editor visual
+  // Estados do editor
   const [editorTitle, setEditorTitle] = useState(
-    '🎉 Bem-vindo ao RepVendas 2.0!'
+    PRESET_TEMPLATES.welcome.title
   );
   const [editorVersion, setEditorVersion] = useState(currentVersion);
   const [editorDate, setEditorDate] = useState(
     new Date().toISOString().split('T')[0]
   );
-  const [editorHighlights, setEditorHighlights] = useState([
-    '🎨 Sistema de temas personalizáveis',
-    '📄 Geração de PDF otimizada',
-    '🚀 Interface administrativa completa',
-  ]);
-  const [editorColorFrom, setEditorColorFrom] = useState('#0d1b2c');
-  const [editorColorTo, setEditorColorTo] = useState('#0d1b2c');
+  const [editorHighlights, setEditorHighlights] = useState(
+    PRESET_TEMPLATES.welcome.highlights
+  );
+  const [editorColorFrom, setEditorColorFrom] = useState(
+    PRESET_TEMPLATES.welcome.colorFrom
+  );
+  const [editorColorTo, setEditorColorTo] = useState(
+    PRESET_TEMPLATES.welcome.colorTo
+  );
   const [newHighlight, setNewHighlight] = useState('');
 
-  // Carregar histórico ao mudar de aba
   useEffect(() => {
-    if (activeTab === 'history') {
-      fetchHistory();
-    }
+    if (activeTab === 'history') fetchHistory();
   }, [activeTab]);
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('system_updates')
       .select('*')
       .order('date', { ascending: false });
-
     if (data) setHistoryUpdates(data);
     setLoadingHistory(false);
+  };
+
+  const loadTemplate = (type: 'welcome' | 'new_version' | 'tips') => {
+    const template = PRESET_TEMPLATES[type];
+    setEditorTitle(template.title);
+    setEditorHighlights(template.highlights);
+    setEditorColorFrom(template.colorFrom);
+    setEditorColorTo(template.colorTo);
+    toast.success(
+      `Template de ${type === 'welcome' ? 'Boas-vindas' : type === 'tips' ? 'Dicas' : 'Versão'} carregado!`
+    );
   };
 
   const addHighlight = () => {
@@ -81,21 +127,13 @@ export default function AdminUpdatesPage() {
     }
   };
 
-  const removeHighlight = (index: number) => {
-    setEditorHighlights(editorHighlights.filter((_, i) => i !== index));
-  };
-
   const saveAndPublish = async () => {
     setSaving(true);
     setSaveError('');
-    setSaveSuccess(false);
-
     try {
       const response = await fetch('/api/admin/update-version', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           version: editorVersion,
           title: editorTitle,
@@ -106,378 +144,200 @@ export default function AdminUpdatesPage() {
         }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao salvar');
-      }
+      if (!response.ok) throw new Error('Erro ao salvar no servidor');
 
       setSaveSuccess(true);
-
-      // Limpar o localStorage para forçar o modal aparecer novamente
       localStorage.removeItem('repvendas_last_seen_version');
-
-      setTimeout(() => setSaveSuccess(false), 5000);
-
-      // Limpa os campos após salvar
-      setEditorTitle('');
-      setEditorHighlights([]);
-
-      // Recarrega o histórico
-      if (activeTab === 'history') {
-        fetchHistory();
-      }
-    } catch (error) {
-      setSaveError(
-        error instanceof Error ? error.message : 'Erro desconhecido'
-      );
+      toast.success('Atualização publicada para todos!');
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error: any) {
+      setSaveError(error.message);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="p-6 md:p-8 animate-in fade-in duration-500 min-h-screen bg-gray-50 dark:bg-slate-950 pb-20">
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Rocket className="h-8 w-8 text-[var(--primary)]" />
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Gerenciar Atualizações
-          </h1>
+    <div className="p-6 md:p-8 min-h-screen bg-gray-50 dark:bg-slate-950 pb-20">
+      <header className="mb-8 flex justify-between items-end">
+        <div>
+          <div className="flex items-center gap-3 mb-2 text-primary">
+            <Sparkles className="h-8 w-8" />
+            <h1 className="text-3xl font-black tracking-tight">
+              Comunicador RepVendas
+            </h1>
+          </div>
+          <p className="text-slate-500">
+            Controle o que seus representantes visualizam ao entrar no sistema.
+          </p>
         </div>
-        <p className="text-gray-500 dark:text-gray-400">
-          Publique novidades e changelogs para todos os usuários do sistema.
-        </p>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-slate-800 overflow-x-auto">
+        {/* TEMPLATE SELECTOR */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => loadTemplate('welcome')}
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-slate-200 dark:bg-slate-800 rounded-xl hover:bg-slate-300 transition-all"
+          >
+            ✨ Template Boas-Vindas
+          </button>
+          <button
+            onClick={() => loadTemplate('new_version')}
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 transition-all"
+          >
+            🚀 Template Novidades
+          </button>
+          <button
+            onClick={() => loadTemplate('tips')}
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-amber-100 text-amber-600 rounded-xl hover:bg-amber-200 transition-all"
+          >
+            💡 Dicas de Uso
+          </button>
+        </div>
+      </header>
+
+      {/* TABS */}
+      <div className="flex gap-4 mb-8">
         <button
           onClick={() => setActiveTab('editor')}
-          className={`px-4 py-2 font-medium transition-colors relative whitespace-nowrap ${
-            activeTab === 'editor'
-              ? 'text-[var(--primary)]'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${activeTab === 'editor' ? 'bg-slate-900 text-white shadow-xl' : 'bg-white text-slate-500'}`}
         >
-          <Code className="inline-block w-4 h-4 mr-2" />
-          Editor Visual
-          {activeTab === 'editor' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
-          )}
+          <LayoutDashboard size={18} /> Editor Visual
         </button>
         <button
           onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 font-medium transition-colors relative whitespace-nowrap ${
-            activeTab === 'history'
-              ? 'text-[var(--primary)]'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${activeTab === 'history' ? 'bg-slate-900 text-white shadow-xl' : 'bg-white text-slate-500'}`}
         >
-          <Calendar className="inline-block w-4 h-4 mr-2" />
-          Histórico Publicado
-          {activeTab === 'history' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)]" />
-          )}
+          <Calendar size={18} /> Histórico
         </button>
       </div>
 
-      {/* Tab Content: Editor Visual */}
       {activeTab === 'editor' && (
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Formulário de Edição */}
+        <div className="grid lg:grid-cols-2 gap-8 items-start">
+          {/* FORMULÁRIO */}
           <div className="space-y-6">
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                ✏️ Criar Nova Versão
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                <Zap size={16} /> Configurações do Conteúdo
               </h3>
 
               <div className="space-y-4">
-                {/* Título */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Título do Popup
-                  </label>
+                <input
+                  value={editorTitle}
+                  onChange={(e) => setEditorTitle(e.target.value)}
+                  className="w-full text-xl font-bold p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-primary"
+                  placeholder="Título impactante..."
+                />
+
+                <div className="grid grid-cols-2 gap-4">
                   <input
-                    type="text"
-                    value={editorTitle}
-                    onChange={(e) => setEditorTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                    placeholder="🎉 Título da atualização"
+                    value={editorVersion}
+                    onChange={(e) => setEditorVersion(e.target.value)}
+                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
+                    placeholder="Versão (ex: 1.1.0)"
+                  />
+                  <input
+                    type="date"
+                    value={editorDate}
+                    onChange={(e) => setEditorDate(e.target.value)}
+                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
                   />
                 </div>
 
-                {/* Versão */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Versão
-                    </label>
-                    <input
-                      type="text"
-                      value={editorVersion}
-                      onChange={(e) => setEditorVersion(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                      placeholder="1.0.0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Data
-                    </label>
-                    <input
-                      type="date"
-                      value={editorDate}
-                      onChange={(e) => setEditorDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Novidades */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Novidades (Highlights)
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">
+                    Tópicos em Destaque
                   </label>
-                  <div className="space-y-2 mb-3">
-                    {editorHighlights.map((highlight, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 p-2 rounded-lg"
+                  {editorHighlights.map((h, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl group"
+                    >
+                      <span className="flex-1 text-sm font-medium">{h}</span>
+                      <button
+                        onClick={() =>
+                          setEditorHighlights(
+                            editorHighlights.filter((_, idx) => idx !== i)
+                          )
+                        }
+                        className="text-slate-300 hover:text-red-500 transition-colors"
                       >
-                        <span className="flex-1 text-sm text-gray-700 dark:text-gray-300">
-                          {highlight}
-                        </span>
-                        <button
-                          onClick={() => removeHighlight(index)}
-                          className="text-red-500 hover:text-red-700 text-sm"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 mt-4">
                     <input
-                      type="text"
                       value={newHighlight}
                       onChange={(e) => setNewHighlight(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addHighlight()}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
-                      placeholder="✨ Nova funcionalidade..."
+                      className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-sm"
+                      placeholder="Adicionar novo tópico..."
                     />
                     <button
                       onClick={addHighlight}
-                      className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90"
+                      className="p-3 bg-slate-900 text-white rounded-xl"
                     >
-                      +
+                      <Plus size={20} />
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    💡 Dica: Use emojis no início (🎨 📄 🚀 ⚡ 🔒)
-                  </p>
                 </div>
               </div>
             </div>
-
-            {/* Cores */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                🎨 Personalizar Gradiente
-              </h3>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Cor Inicial
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="color"
-                      value={editorColorFrom}
-                      onChange={(e) => setEditorColorFrom(e.target.value)}
-                      className="w-12 h-10 rounded cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={editorColorFrom}
-                      onChange={(e) => setEditorColorFrom(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Cor Final
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="color"
-                      value={editorColorTo}
-                      onChange={(e) => setEditorColorTo(e.target.value)}
-                      className="w-12 h-10 rounded cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={editorColorTo}
-                      onChange={(e) => setEditorColorTo(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className="mt-4 h-12 rounded-lg"
-                style={{
-                  background: `linear-gradient(to right, ${editorColorFrom}, ${editorColorTo})`,
-                }}
-              />
-            </div>
-
-            {/* Botão Salvar & Publicar */}
-            {saveSuccess && (
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-sm text-green-800 dark:text-green-300 flex items-center gap-2">
-                  <CheckCircle2 size={16} />
-                  <strong>Atualização publicada com sucesso!</strong>
-                </p>
-              </div>
-            )}
-
-            {saveError && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-sm text-red-800 dark:text-red-300">
-                  <strong>Erro:</strong> {saveError}
-                </p>
-              </div>
-            )}
 
             <button
               onClick={saveAndPublish}
-              disabled={saving || saveSuccess}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={saving}
+              className="w-full py-5 bg-gradient-to-r from-primary to-blue-700 text-white font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
             >
               {saving ? (
-                <>
-                  <Loader2 className="animate-spin" size={20} />
-                  Salvando...
-                </>
-              ) : saveSuccess ? (
-                <>
-                  <CheckCircle2 size={20} />
-                  Publicado!
-                </>
+                <Loader2 className="animate-spin mx-auto" />
               ) : (
-                <>
-                  <Rocket size={20} />
-                  Salvar & Publicar Atualização
-                </>
+                '🚀 PUBLICAR PARA TODOS OS USUÁRIOS'
               )}
             </button>
-
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              🔒 Isso registrará uma nova versão no banco de dados.
-              <br />
-              Todos os usuários verão este popup ao fazer login.
-            </p>
-
-            {/* Botão de Debug para Limpar Cache */}
-            <div className="border-t border-gray-200 dark:border-slate-800 pt-4 mt-4">
-              <button
-                onClick={() => {
-                  localStorage.removeItem('repvendas_last_seen_version');
-                  toast.success(
-                    'Cache limpo! Recarregue a página para ver o modal.'
-                  );
-                }}
-                className="w-full px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                🔄 Limpar Cache do Modal (Teste)
-              </button>
-              <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-2">
-                Use para testar o modal novamente sem publicar nova versão
-              </p>
-            </div>
           </div>
 
-          {/* Preview Ao Vivo */}
-          <div className="lg:sticky lg:top-6 h-fit">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-800 overflow-hidden">
-              {/* Header Dinâmico */}
+          {/* PREVIEW AO VIVO (Estilo RepVendas Premium) */}
+          <div className="sticky top-8">
+            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden transform scale-95 origin-top">
               <div
-                className="relative p-6 rounded-t-2xl"
+                className="p-10 text-center text-white"
                 style={{
-                  background: `linear-gradient(to right, ${editorColorFrom}, ${editorColorTo})`,
+                  background: `linear-gradient(135deg, ${editorColorFrom}, ${editorColorTo})`,
                 }}
               >
-                <div className="flex items-center gap-3 text-white">
-                  <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                    {/* Placeholder Logo */}
-                    <Rocket className="text-white h-8 w-8" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold">
-                      {editorTitle || 'Título da Atualização'}
-                    </h2>
-                    <p className="text-white/90 text-sm mt-1">
-                      Versão {editorVersion} •{' '}
-                      {new Date(editorDate).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                </div>
+                <Rocket size={48} className="mx-auto mb-6" />
+                <h2 className="text-3xl font-black leading-tight mb-2">
+                  {editorTitle}
+                </h2>
+                <span className="px-4 py-1 bg-white/20 rounded-full text-xs font-black uppercase tracking-widest">
+                  Versão {editorVersion}
+                </span>
               </div>
-
-              {/* Content Dinâmico */}
-              <div className="p-6">
-                <h3 className="font-semibold text-lg mb-4 text-slate-900 dark:text-white">
-                  O que há de novo:
-                </h3>
-
-                <ul className="space-y-3 mb-6">
-                  {editorHighlights.map((highlight, index) => {
-                    // Separa emoji do texto
-                    const emojiMatch = highlight.match(
-                      /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\s*/u
-                    );
-                    const emoji = emojiMatch ? emojiMatch[0].trim() : '✅';
-                    const text = emojiMatch
-                      ? highlight.slice(emojiMatch[0].length)
-                      : highlight;
-
-                    return (
-                      <li
-                        key={index}
-                        className="flex items-start gap-3 text-slate-700 dark:text-slate-300"
-                      >
-                        <span className="text-lg mt-0.5">{emoji}</span>
-                        <span className="flex-1">{text}</span>
-                      </li>
-                    );
-                  })}
+              <div className="p-10">
+                <ul className="space-y-6 mb-10">
+                  {editorHighlights.map((h, i) => (
+                    <li key={i} className="flex items-start gap-4">
+                      <div className="w-2 h-2 mt-2 rounded-full bg-primary flex-shrink-0" />
+                      <span className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                        {h}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
-
-                <div className="flex justify-center">
-                  <button
-                    className="px-8 py-2.5 rounded-lg text-white font-medium transition-all shadow-lg hover:shadow-xl"
-                    style={{
-                      background: `linear-gradient(to right, ${editorColorFrom}, ${editorColorTo})`,
-                    }}
-                  >
-                    Entendi, obrigado!
-                  </button>
-                </div>
+                <button
+                  className="w-full py-4 rounded-2xl text-white font-black uppercase tracking-widest shadow-lg"
+                  style={{ background: editorColorFrom }}
+                >
+                  Explorar Novidades
+                </button>
               </div>
             </div>
-
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
-              👁️ Preview em tempo real de como o usuário verá
-            </p>
           </div>
         </div>
       )}
 
-      {/* Tab Content: History */}
+      {/* HISTÓRICO (simplificado) */}
       {activeTab === 'history' && (
         <div className="space-y-6">
           {loadingHistory ? (
@@ -492,37 +352,34 @@ export default function AdminUpdatesPage() {
             historyUpdates.map((u) => (
               <div
                 key={u.id}
-                className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm"
+                className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
                       {u.title}
                     </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                       v{u.version} •{' '}
                       {new Date(u.date).toLocaleDateString('pt-BR')}
                     </p>
-
-                    {/* Exibe os highlights de forma compacta */}
                     <div className="flex flex-wrap gap-2 mt-2">
                       {u.highlights?.slice(0, 3).map((h, i) => (
                         <span
                           key={i}
-                          className="text-xs bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded text-gray-600 dark:text-gray-300"
+                          className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-600 dark:text-slate-300"
                         >
                           {h.substring(0, 50)}
                           {h.length > 50 ? '...' : ''}
                         </span>
                       ))}
                       {u.highlights?.length > 3 && (
-                        <span className="text-xs text-gray-400 self-center">
+                        <span className="text-xs text-slate-400 self-center">
                           + {u.highlights.length - 3} mais
                         </span>
                       )}
                     </div>
                   </div>
-
                   <CheckCircle2 className="text-green-500" />
                 </div>
               </div>

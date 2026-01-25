@@ -132,9 +132,12 @@ export const generateCatalogPDF = async (
   const tableBody = [];
 
   for (const product of products) {
+    const classLine = (product as any).class_core
+      ? `\nClasse: ${(product as any).class_core}`
+      : '';
     const row = [
       '', // Espaço para foto (desenhada via hook)
-      `Produto: ${product.name}\nRef: ${product.reference_code || '-'}\nMarca: ${product.brand || '-'}\nCat: ${product.category || '-'}`,
+      `Produto: ${product.name}\nRef: ${product.reference_code || '-'}\nMarca: ${product.brand || '-'}\nCat: ${product.category || '-'}${classLine}`,
     ];
 
     if (options.showPrices) {

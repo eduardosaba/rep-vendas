@@ -40,6 +40,7 @@ const ImageUploader = ({
   isShared: boolean;
 }) => {
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+  const supabaseClient = createClient();
   return (
     <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
       <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
@@ -66,28 +67,45 @@ const ImageUploader = ({
             <img
               src={(() => {
                 try {
-                  // If url is an external Safilo URL or other external host and likely pending,
-                  // keep it as-is so the user sees the original image until internalization.
-                  if (
-                    String(url).toLowerCase().includes('safilo') ||
-                    (String(url).startsWith('http') &&
-                      !String(url).includes('supabase.co'))
-                  )
-                    return url;
-                  // If URL is from Supabase storage or a product-images path, try to use small variant
-                  if (
-                    String(url).includes('supabase.co') ||
-                    String(url).includes('/product-images/')
-                  ) {
-                    // @ts-ignore - getProductImage handles jpg/webp mapping
-                    const {
-                      getProductImage,
-                    } = require('@/lib/utils/image-logic');
-                    return getProductImage(url, 'small') || url;
+                  const s = String(url || '').trim();
+                  // Already an absolute URL
+                  if (s.startsWith('http')) {
+                    // External Safilo or other host (keep as-is)
+                    if (
+                      s.toLowerCase().includes('safilo') ||
+                      !s.includes('supabase.co')
+                    )
+                      return s;
+                    // Supabase-hosted public URL or product-images path
+                    if (
+                      s.includes('supabase.co') ||
+                      s.includes('/product-images/')
+                    ) {
+                      // @ts-ignore - getProductImage handles jpg/webp mapping
+                      const {
+                        getProductImage,
+                      } = require('@/lib/utils/image-logic');
+                      return getProductImage(s, 'small') || s;
+                    }
+                    return s;
                   }
-                  return url;
+
+                  // If it's not an absolute URL, try to treat it as a storage path and get public URL
+                  if (s.length > 0) {
+                    try {
+                      const path = s.startsWith('/') ? s.slice(1) : s;
+                      const { data } = supabaseClient.storage
+                        .from('product-images')
+                        .getPublicUrl(path);
+                      if (data?.publicUrl) return data.publicUrl;
+                    } catch (e) {
+                      // fallback to raw value
+                    }
+                  }
+
+                  return s;
                 } catch (e) {
-                  return url;
+                  return String(url);
                 }
               })()}
               className="w-full h-full object-contain p-1 cursor-zoom-in"
@@ -307,6 +325,7 @@ export function EditProductForm({ product }: { product: Product }) {
   const [formData, setFormData] = useState({
     name: product.name || '',
     reference_code: product.reference_code || '',
+    class_core: (product as any)?.class_core || '',
     slug: product.slug || '',
     sku: product.sku || '',
     barcode: product.barcode || '',
@@ -641,9 +660,18 @@ export function EditProductForm({ product }: { product: Product }) {
         technical_specs,
         image_is_shared: isShared && !needsDetach,
         image_path: needsDetach ? null : (product as any).image_path,
+        class_core: formData.class_core || null,
       };
 
-      await updateProductAction(product.id, payload);
+      const result: any = await updateProductAction(product.id, payload);
+
+      if (!result || !result.success) {
+        const msg =
+          result?.error || 'Falha desconhecida ao atualizar o produto.';
+        toast.error('Erro ao atualizar', { description: msg });
+        setLoading(false);
+        return;
+      }
 
       // Após persistir, se era compartilhado e o usuário personalizou,
       // solicitamos ao worker que realize a cópia (copy-on-write).
@@ -1040,6 +1068,17 @@ export function EditProductForm({ product }: { product: Product }) {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Classe (opcional)
+              </label>
+              <input
+                value={formData.class_core || ''}
+                onChange={(e) => updateField('class_core', e.target.value)}
+                placeholder="Ex: Classe A"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">

@@ -37,6 +37,8 @@ export async function POST(request: Request) {
       show_top_benefit_bar,
       show_top_info_bar,
       font_family,
+      // Share banner customizado (WhatsApp / Social)
+      share_banner_url,
     } = body;
 
     // Validação básica: precisamos do ID e do Link para saber quem atualizar
@@ -77,6 +79,8 @@ export async function POST(request: Request) {
       show_top_info_bar,
       font_family,
       font_url: body.font_url ?? null,
+      og_image_url: body.og_image_url ?? null,
+      share_banner_url: body.share_banner_url ?? null,
     });
 
     return NextResponse.json({

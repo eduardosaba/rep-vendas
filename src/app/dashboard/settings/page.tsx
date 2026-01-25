@@ -30,6 +30,7 @@ import {
   Brush,
   ChevronUp,
   ChevronDown,
+  Share2,
 } from 'lucide-react';
 import { Lock } from 'lucide-react';
 import { SYSTEM_FONTS } from '@/lib/fonts';
@@ -39,6 +40,10 @@ import { usePlan } from '@/hooks/use-plan';
 // Componentes extraídos
 import { ToggleSetting } from './components/ToggleSetting';
 import SmartImageUpload from '@/components/SmartImageUpload';
+import SharePreview from '@/components/SharePreview';
+import WhatsAppLinkGenerator from '@/components/WhatsAppLinkGenerator';
+import AnalyticsChartClient from '@/components/AnalyticsChartClient';
+import MyShortLinksTable from '@/components/MyShortLinksTable';
 import { TabGeneral } from './components/TabGeneral';
 
 interface CatalogSettings {
@@ -156,6 +161,13 @@ export default function SettingsPage() {
   const [currentBannersMobile, setCurrentBannersMobile] = useState<string[]>(
     []
   );
+
+  const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
+  const [shareBannerPreview, setShareBannerPreview] = useState<string | null>(
+    null
+  );
+  const [shareBannerFile, setShareBannerFile] = useState<File | null>(null);
+  const [shareBannerUploading, setShareBannerUploading] = useState(false);
 
   // Loja Online / Offline
   const [isActive, setIsActive] = useState<boolean>(true);
@@ -347,6 +359,10 @@ export default function SettingsPage() {
             setCurrentBanners(settings.banners);
           if (Array.isArray(settings.banners_mobile))
             setCurrentBannersMobile(settings.banners_mobile);
+
+          if (settings.og_image_url) setOgImagePreview(settings.og_image_url);
+          if (settings.share_banner_url)
+            setShareBannerPreview(settings.share_banner_url);
         }
         // buscar configuração global para gating (allow_custom_fonts)
         try {
@@ -844,6 +860,31 @@ export default function SettingsPage() {
         return logoPreview;
       };
 
+      // Upload helper for share banner (used by save and immediate uploads)
+      const uploadShareBanner = async (file: File | null) => {
+        if (!file && !shareBannerPreview) return shareBannerPreview;
+        if (!file) return shareBannerPreview;
+        try {
+          setShareBannerUploading(true);
+          const fileExt = file.name.split('.').pop();
+          const fileName = `public/${currentUserId}/share-banners/share-${Date.now()}.${fileExt}`;
+          const { error } = await supabase.storage
+            .from('product-images')
+            .upload(fileName, file, { upsert: true });
+          if (!error) {
+            const { data } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(fileName);
+            return data.publicUrl;
+          }
+        } catch (err) {
+          console.error('Erro upload share banner', err);
+        } finally {
+          setShareBannerUploading(false);
+        }
+        return shareBannerPreview;
+      };
+
       const [uploadedBanners, uploadedBannersMobile, logoResult] =
         await Promise.all([
           uploadBanners(newBannerFiles, 'banners'),
@@ -894,6 +935,8 @@ export default function SettingsPage() {
         ...catalogSettings,
         font_url: formData.font_url ?? null,
         logo_url: logoUrl,
+        og_image_url: ogImagePreview,
+        share_banner_url: shareBannerPreview,
         banners: finalBanners,
         banners_mobile: finalBannersMobile,
         is_active: isActive,
@@ -934,6 +977,8 @@ export default function SettingsPage() {
           slug: formData.catalog_slug,
           store_name: formData.name,
           logo_url: logoUrl,
+          og_image_url: ogImagePreview,
+          share_banner_url: shareBannerPreview,
           banners: finalBanners,
           banners_mobile: finalBannersMobile,
           primary_color: formData.primary_color,
@@ -1672,6 +1717,87 @@ export default function SettingsPage() {
               </label>
             </div>
           </div>
+
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
+              <Share2 size={18} className="text-[var(--primary)]" /> Imagem de
+              Compartilhamento (Social)
+            </h3>
+            <div className="flex items-center gap-6">
+              <div className="relative h-32 w-56 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-slate-950 hover:bg-gray-100 transition-colors">
+                {ogImagePreview ? (
+                  <img
+                    src={ogImagePreview}
+                    className="w-full h-full object-cover"
+                    alt="OG Image Preview"
+                  />
+                ) : (
+                  <div className="text-center p-2">
+                    <ImageIcon
+                      className="mx-auto text-gray-300 mb-1"
+                      size={24}
+                    />
+                    <span className="text-xs text-gray-400 block">
+                      Sem Imagem
+                    </span>
+                  </div>
+                )}
+                {ogImagePreview && (
+                  <button
+                    onClick={() => setOgImagePreview(null)}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full shadow hover:bg-red-600 transition-colors"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Esta imagem aparecerá quando seu link for compartilhado no
+                  WhatsApp, Facebook ou LinkedIn.
+                </p>
+                <SmartImageUpload
+                  onUploadReady={async (file) => {
+                    try {
+                      // Preview imediato
+                      const objectURL = URL.createObjectURL(file as File);
+                      setOgImagePreview(objectURL);
+                      toast.success(
+                        'Imagem carregada! Fazendo upload em segundo plano...'
+                      );
+
+                      // Upload
+                      const {
+                        data: { user },
+                      } = await supabase.auth.getUser();
+                      if (!user) throw new Error('Login necessário');
+
+                      const fileExt = (file as File).name.split('.').pop();
+                      const fileName = `public/${user.id}/branding/og-image-${Date.now()}.${fileExt}`;
+
+                      const { error } = await supabase.storage
+                        .from('product-images')
+                        .upload(fileName, file as File, { upsert: true });
+
+                      if (!error) {
+                        const { data } = supabase.storage
+                          .from('product-images')
+                          .getPublicUrl(fileName);
+                        setOgImagePreview(data.publicUrl);
+                        toast.success('Imagem Social atualizada!');
+                      }
+                    } catch (err) {
+                      console.error('OG Image upload failed:', err);
+                      toast.error('Falha ao enviar imagem.');
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500">
+                  Recomendado: 1200x630 pixels. (JPG ou PNG)
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1926,6 +2052,113 @@ export default function SettingsPage() {
                             maxHeight: '100%',
                           }}
                         />
+                      </div>
+                      <div className="w-full">
+                        <div className="mt-6">
+                          <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                            <Share2
+                              size={16}
+                              className="text-[var(--primary)]"
+                            />
+                            Banner de Compartilhamento (WhatsApp)
+                          </h4>
+                          <p className="text-xs text-gray-500 mb-2">
+                            Imagem que será usada ao compartilhar o link do
+                            catálogo. Recomendado 1200x630.
+                          </p>
+                          <SmartImageUpload
+                            onUploadReady={async (file) => {
+                              try {
+                                // create preview immediately
+                                const preview = URL.createObjectURL(
+                                  file as File
+                                );
+                                setShareBannerPreview(preview);
+                                setShareBannerFile(file as File);
+                                toast.success(
+                                  'Banner de compartilhamento adicionado! Fazendo upload...'
+                                );
+
+                                // upload
+                                setShareBannerUploading(true);
+                                const {
+                                  data: { user },
+                                } = await supabase.auth.getUser();
+                                if (!user) throw new Error('Login necessário');
+                                const fileExt = (file as File).name
+                                  .split('.')
+                                  .pop();
+                                const fileName = `public/${user.id}/share-banners/share-${Date.now()}.${fileExt}`;
+                                const { error } = await supabase.storage
+                                  .from('product-images')
+                                  .upload(fileName, file as File, {
+                                    upsert: true,
+                                  });
+                                if (!error) {
+                                  const { data } = supabase.storage
+                                    .from('product-images')
+                                    .getPublicUrl(fileName);
+                                  setShareBannerPreview(data.publicUrl);
+                                  setShareBannerFile(null);
+                                  toast.success(
+                                    'Banner de compartilhamento enviado!'
+                                  );
+                                } else {
+                                  throw error;
+                                }
+                              } catch (err) {
+                                console.error(
+                                  'share banner upload failed',
+                                  err
+                                );
+                                toast.error(
+                                  'Falha ao enviar banner de compartilhamento'
+                                );
+                              } finally {
+                                setShareBannerUploading(false);
+                              }
+                            }}
+                            maxDimension={1200}
+                          />
+
+                          {shareBannerPreview && (
+                            <div className="mt-3">
+                              <p className="text-xs font-medium mb-2">
+                                Preview atual:
+                              </p>
+                              <img
+                                src={shareBannerPreview}
+                                className="w-full max-w-sm rounded-lg border shadow-sm"
+                                alt="Share banner preview"
+                              />
+                            </div>
+                          )}
+                          {/* Share preview + WhatsApp link generator */}
+                          <div className="mt-6">
+                            <SharePreview
+                              title={formData.name}
+                              description={formData.footer_message || ''}
+                              imageUrl={
+                                shareBannerPreview ||
+                                logoPreview ||
+                                '/link.webp'
+                              }
+                              domain={(
+                                process.env.NEXT_PUBLIC_APP_URL ||
+                                'repvendas.com.br'
+                              ).replace(/^https?:\/\//, '')}
+                            />
+
+                            <WhatsAppLinkGenerator
+                              catalogUrl={`${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${formData.catalog_slug || ''}`}
+                              catalogName={formData.name || 'Catálogo'}
+                            />
+                            <AnalyticsChartClient />
+                            <div className="mt-6">
+                              <MyShortLinksTable />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       <div
                         className="flex-1 px-3 py-2"

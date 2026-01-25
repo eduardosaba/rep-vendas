@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/Sidebar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import WelcomePopup from '@/components/WelcomePopup';
+import { useWelcomeManager } from '@/hooks/useWelcomeManager';
 
 export default function DashboardLayout({
   children,
@@ -83,6 +85,12 @@ export default function DashboardLayout({
   }
 
   if (!authorized) return null;
+  const {
+    shouldShow,
+    loading: welcomeLoading,
+    markAsSeen,
+    version,
+  } = useWelcomeManager();
   return (
     <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
       <div className="flex h-screen w-full overflow-hidden">
@@ -102,6 +110,14 @@ export default function DashboardLayout({
               {/* Impersonation banner (client-side check) */}
               <div id="impersonate-banner-root" />
               {children}
+              {!welcomeLoading && shouldShow && (
+                <WelcomePopup
+                  version={version}
+                  onConfirm={async () => {
+                    await markAsSeen();
+                  }}
+                />
+              )}
             </div>
           </main>
 

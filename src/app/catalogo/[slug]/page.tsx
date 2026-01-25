@@ -22,7 +22,9 @@ export async function generateMetadata(
 
   const { data: catalog } = await supabase
     .from('public_catalogs')
-    .select('store_name, logo_url, footer_message, user_id')
+    .select(
+      'store_name, logo_url, footer_message, user_id, og_image_url, single_brand_logo_url, share_banner_url'
+    )
     .eq('slug', slug)
     .eq('is_active', true)
     .maybeSingle();
@@ -46,8 +48,11 @@ export async function generateMetadata(
       const ogImage =
         product.image_url ||
         product.external_image_url ||
+        catalog.share_banner_url ||
+        catalog.og_image_url ||
+        catalog.single_brand_logo_url ||
         catalog.logo_url ||
-        null;
+        `${process.env.NEXT_PUBLIC_APP_URL || ''}/link.webp`;
       return {
         title: `${product.name} | ${catalog.store_name}`,
         description: `Por apenas ${priceFormatted}. ${product.description || 'Confira os detalhes!'}`,
@@ -60,6 +65,14 @@ export async function generateMetadata(
     }
   }
 
+  const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL || ''}/link.webp`;
+  const homeOgImage =
+    catalog.share_banner_url ||
+    catalog.og_image_url ||
+    catalog.single_brand_logo_url ||
+    catalog.logo_url ||
+    fallbackImage;
+
   return {
     title: `${catalog.store_name} | Catálogo Digital`,
     description:
@@ -67,7 +80,7 @@ export async function generateMetadata(
       'Confira nossos produtos e faça seu pedido online.',
     openGraph: {
       title: catalog.store_name,
-      images: catalog.logo_url ? [catalog.logo_url] : [],
+      images: [homeOgImage],
     },
   };
 }

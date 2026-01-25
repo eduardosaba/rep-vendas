@@ -13,7 +13,7 @@ export default function NewUserSetup() {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const availableBrands = ['Boss', 'Tommy Hilfiger', 'Love Moschino'];
+  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -23,6 +23,24 @@ export default function NewUserSetup() {
         setUsers(json || []);
       } catch (e) {
         console.error(e);
+      }
+      // fetch available brands from products table
+      try {
+        const { data: productsData, error } = await supabase
+          .from('products')
+          .select('brand')
+          .neq('brand', null);
+        if (error) throw error;
+        const set = new Set<string>();
+        (productsData || []).forEach((p: any) => {
+          if (p.brand) set.add(p.brand);
+        });
+        const list = Array.from(set).sort();
+        if (list.length > 0) setAvailableBrands(list);
+        else setAvailableBrands(['Boss', 'Tommy Hilfiger', 'Love Moschino']);
+      } catch (e) {
+        console.error('Erro ao buscar marcas:', e);
+        setAvailableBrands(['Boss', 'Tommy Hilfiger', 'Love Moschino']);
       }
     }
     load();

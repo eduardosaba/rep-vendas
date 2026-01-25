@@ -58,8 +58,12 @@ BEGIN
     INSERT INTO public.catalog_clones (source_product_id, cloned_product_id, source_user_id, target_user_id)
     VALUES (src.id, new_id, source_user_id, target_user_id);
   END LOOP;
-
-  GET DIAGNOSTICS inserted_rows = ROW_COUNT;
-  RETURN QUERY SELECT inserted_rows;
+  -- Return reliable total by counting catalog_clones for this source/target
+  RETURN QUERY
+    SELECT COUNT(*)::integer AS copied_count
+    FROM public.catalog_clones cc
+    WHERE cc.source_user_id = source_user_id
+      AND cc.target_user_id = target_user_id
+      AND cc.created_at >= now() - interval '1 hour';
 END;
 $$ LANGUAGE plpgsql;

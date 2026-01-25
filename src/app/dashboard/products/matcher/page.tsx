@@ -1,47 +1,56 @@
-/* eslint-disable max-lines */
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { ArrowLeft, RefreshCcw, Search } from 'lucide-react';
+import {
+  ArrowLeft,
+  RefreshCcw,
+  Search,
+  Link as LinkIcon,
+  Wand2,
+  Check,
+} from 'lucide-react';
 import SmartImageUpload from '@/components/SmartImageUpload';
 
 interface Product {
   id: string;
-  name: string;
-  reference_code?: string | null;
-  image_url?: string | null;
-  images?: string[] | null;
-  brand?: string | null;
-}
-interface StagingImage {
-  id: string;
-  storage_path?: string | null;
-  original_name?: string | null;
-  publicUrl: string;
-  imported_from_csv?: boolean;
+  name: string | null;
+  reference_code: string | null;
+  image_url: string | null;
+  images: string[];
+  brand: string | null;
 }
 
-// Raw DB staging image shape intentionally not typed to avoid
-// coupling with Supabase client typings in this client component.
+interface StagingImage {
+  id: string;
+  storage_path: string | null;
+  original_name: string | null;
+  publicUrl: string;
+  imported_from_csv: boolean;
+}
 
 export default function MatcherPage() {
   const supabase = createClient();
+
+  const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [images, setImages] = useState<StagingImage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showImportedOnly, setShowImportedOnly] = useState(false);
-  const [searchProduct, setSearchProduct] = useState('');
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
+
+  // Filtros
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [productImageFilter, setProductImageFilter] = useState<
     'all' | 'with' | 'without'
   >('all');
   const [sortOption, setSortOption] = useState<
     'name_asc' | 'name_desc' | 'ref_asc'
-  >('name_asc');
+  >('ref_asc');
+  const [searchProduct, setSearchProduct] = useState('');
+  const [showImportedOnly, setShowImportedOnly] = useState(false);
+
+  // Seleção e Drag-and-Drop
   const [selectedProductId, setSelectedProductId] = useState<string | null>(
     null
   );
@@ -50,20 +59,20 @@ export default function MatcherPage() {
   );
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   const [showUploader, setShowUploader] = useState(false);
-  const logsEndRef = useRef<HTMLDivElement | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
 
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
+  const [logs, setLogs] = useState<{ msg: string; type: string }[]>([]);
+  const logsEndRef = useRef<HTMLDivElement | null>(null);
 
   const addLog = (
     message: string,
     type: 'info' | 'error' | 'success' = 'info'
   ) => {
-    const icon = type === 'error' ? '❌ ' : type === 'success' ? '✅ ' : 'ℹ️ ';
-    setLogs((p) => [...p, `${icon}${message}`]);
+    setLogs((prev) => [...prev, { msg: message, type }]);
   };
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -77,32 +86,29 @@ export default function MatcherPage() {
         .from('products')
         .select('id, name, reference_code, image_url, images, brand')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      const pData: Product[] = (productsData || []).map((p: Product) => ({
-        id: p.id,
+        .order('reference_code', { ascending: true });
+
+      const pData: Product[] = (productsData || []).map((p: any) => ({
+        id: String(p.id),
         name: p.name,
         reference_code: p.reference_code,
         image_url: p.image_url,
-        images: Array.isArray(p.images)
-          ? (p.images as string[])
-              .map((it) => (typeof it === 'string' ? it : String(it)))
-              .filter(Boolean)
-          : [],
+        images: Array.isArray(p.images) ? p.images : [],
         brand: p.brand,
       }));
       setProducts(pData);
-      // populate brands for filter
+
       const brands = Array.from(
         new Set(pData.map((p) => p.brand).filter(Boolean))
-      );
-      setAvailableBrands(brands as string[]);
+      ) as string[];
+      setAvailableBrands(brands);
 
       const { data: imagesData } = await supabase
         .from('staging_images')
         .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      const imgs: StagingImage[] = (imagesData || []).map((img) => {
+        .eq('user_id', user.id);
+
+      const imgs: StagingImage[] = (imagesData || []).map((img: any) => {
         let publicUrl = img.url || '';
         if (!publicUrl && img.storage_path) {
           const { data } = supabase.storage
@@ -111,7 +117,7 @@ export default function MatcherPage() {
           publicUrl = data?.publicUrl || '';
         }
         return {
-          id: img.id,
+          id: String(img.id),
           storage_path: img.storage_path,
           original_name: img.file_name || img.original_name || null,
           publicUrl,
@@ -120,14 +126,11 @@ export default function MatcherPage() {
       });
       setImages(imgs);
       addLog(
-        `Carregados: ${pData.length} produtos e ${imgs.length} imagens.`,
+        `Pronto para operar: ${pData.length} produtos carregados.`,
         'info'
       );
-    } catch (err: unknown) {
-      console.error(err);
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error('Erro ao carregar dados');
-      addLog(`Erro ao carregar dados: ${msg}`, 'error');
+    } catch (err: any) {
+      addLog(`Erro no carregamento: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -137,10 +140,56 @@ export default function MatcherPage() {
     fetchData();
   }, [fetchData]);
 
-  const toggleImageSelection = (id: string) =>
-    setSelectedImageIds((p) =>
-      p.includes(id) ? p.filter((i) => i !== id) : [...p, id]
-    );
+  // LOGICA DE VÍNCULO AUTOMÁTICO (Baseado no nome do arquivo)
+  const handleAutoMatch = async () => {
+    setLoading(true);
+    let matchesCount = 0;
+    addLog('Iniciando busca automática por referência...', 'info');
+
+    for (const img of images) {
+      if (!img.original_name) continue;
+
+      // Limpa o nome do arquivo (remove extensão e espaços)
+      const fileNameClean = img.original_name
+        .split('.')[0]
+        .trim()
+        .toUpperCase();
+
+      const matchedProduct = products.find(
+        (p) => p.reference_code?.trim().toUpperCase() === fileNameClean
+      );
+
+      if (matchedProduct) {
+        try {
+          const updatedImages = Array.from(
+            new Set([...matchedProduct.images, img.publicUrl])
+          );
+          await supabase
+            .from('products')
+            .update({
+              image_url: matchedProduct.image_url || img.publicUrl,
+              images: updatedImages,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', matchedProduct.id);
+
+          await supabase.from('staging_images').delete().eq('id', img.id);
+          matchesCount++;
+          addLog(`Match encontrado: ${fileNameClean}`, 'success');
+        } catch (e) {
+          addLog(`Erro ao processar ${fileNameClean}`, 'error');
+        }
+      }
+    }
+
+    if (matchesCount > 0) {
+      toast.success(`${matchesCount} imagens vinculadas automaticamente!`);
+      fetchData();
+    } else {
+      toast.info('Nenhum nome de arquivo coincidiu com as referências.');
+    }
+    setLoading(false);
+  };
 
   const handleLink = async (
     productId?: string | null,
@@ -148,89 +197,60 @@ export default function MatcherPage() {
   ) => {
     const pid = productId || selectedProductId;
     const iids = imageIdsInput || selectedImageIds;
-    if (!pid || iids.length === 0) {
-      toast.error('Selecione produto e imagem');
-      return;
-    }
+
+    if (!pid || iids.length === 0)
+      return toast.error('Selecione produto e imagem.');
+
     try {
       setLoading(true);
-      const product = products.find((p) => p.id === pid);
-      if (!product) throw new Error('Produto não encontrado');
-      const imagesObj = images.filter((i) => iids.includes(i.id));
-      const current = Array.isArray(product.images) ? product.images : [];
-      const combined = Array.from(
-        new Set([...current, ...imagesObj.map((i) => i.publicUrl)])
+      const targetProduct = products.find((p) => p.id === pid);
+      if (!targetProduct) throw new Error('Produto não encontrado');
+
+      const selectedImages = images.filter((i) => iids.includes(i.id));
+      const newImagesUrls = selectedImages.map((i) => i.publicUrl);
+      const updatedImagesList = Array.from(
+        new Set([...targetProduct.images, ...newImagesUrls])
       );
-      const { error } = await supabase
+
+      await supabase
         .from('products')
         .update({
-          image_url: product.image_url || combined[0],
-          images: combined,
+          image_url: targetProduct.image_url || newImagesUrls[0],
+          images: updatedImagesList,
           updated_at: new Date().toISOString(),
         })
         .eq('id', pid);
-      if (error) throw error;
+
       await supabase.from('staging_images').delete().in('id', iids);
-      setProducts((p) =>
-        p.map((x) =>
-          x.id === pid
-            ? {
-                ...x,
-                images: combined,
-                image_url: product.image_url || combined[0],
-              }
-            : x
-        )
-      );
-      setImages((i) => i.filter((img) => !iids.includes(img.id)));
+
+      fetchData();
       setSelectedImageIds([]);
       setSelectedProductId(null);
-      addLog('Imagens vinculadas', 'success');
-    } catch (err: unknown) {
-      console.error(err);
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error('Erro ao vincular');
-      addLog(`Erro ao vincular: ${msg}`, 'error');
+      addLog(`Vinculado: ${targetProduct.reference_code}`, 'success');
+    } catch (err: any) {
+      addLog(`Erro: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const filteredProducts = useMemo(() => {
-    const term = (searchProduct || '').toLowerCase();
+    const term = searchProduct.toLowerCase();
     let base = products.filter(
       (p) =>
         (p.name || '').toLowerCase().includes(term) ||
         (p.reference_code || '').toLowerCase().includes(term)
     );
-
     if (brandFilter !== 'all')
       base = base.filter((p) => p.brand === brandFilter);
-
     if (productImageFilter !== 'all') {
       base = base.filter((p) => {
-        const hasImage =
-          Boolean(p.image_url) ||
-          (Array.isArray(p.images) && p.images.length > 0);
-        return productImageFilter === 'with' ? hasImage : !hasImage;
+        const hasImg = p.images.length > 0 || p.image_url;
+        return productImageFilter === 'with' ? hasImg : !hasImg;
       });
     }
-
-    base.sort((a, b) => {
-      switch (sortOption) {
-        case 'name_asc':
-          return (a.name || '').localeCompare(b.name || '');
-        case 'name_desc':
-          return (b.name || '').localeCompare(a.name || '');
-        case 'ref_asc':
-          return (a.reference_code || '').localeCompare(b.reference_code || '');
-        default:
-          return 0;
-      }
-    });
-
     return base;
-  }, [products, searchProduct, brandFilter, productImageFilter, sortOption]);
+  }, [products, searchProduct, brandFilter, productImageFilter]);
 
   const filteredImages = useMemo(
     () => images.filter((i) => !showImportedOnly || i.imported_from_csv),
@@ -238,228 +258,217 @@ export default function MatcherPage() {
   );
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      {/* HEADER E AÇÕES */}
+      <div className="p-4 bg-white dark:bg-slate-900 border-b flex items-center justify-between shadow-sm z-10">
+        <div className="flex items-center gap-4">
           <Link
             href="/dashboard/products"
-            className="p-2 rounded bg-white shadow"
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={20} />
           </Link>
-          <h1 className="text-xl font-bold">Matcher de Produtos</h1>
+          <h1 className="text-xl font-black">Matcher de Imagens</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchData} className="p-2 bg-white rounded">
-            <RefreshCcw size={16} />
-          </button>
           <button
-            onClick={() => setShowImportedOnly((s) => !s)}
-            className="px-3 py-1 bg-white rounded"
+            onClick={handleAutoMatch}
+            disabled={loading || images.length === 0}
+            className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-200 transition-all flex items-center gap-2"
           >
-            {showImportedOnly ? 'Apenas importadas' : 'Todas'}
+            <Wand2 size={14} /> Vínculo Automático
           </button>
           <button
             onClick={() => handleLink()}
-            className="px-4 py-2 bg-[var(--primary)] text-white rounded"
+            disabled={loading || selectedImageIds.length === 0}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center gap-2"
           >
-            Vincular
+            <LinkIcon size={14} /> Vincular Seleção
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-4 rounded shadow">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold">Produtos ({filteredProducts.length})</h3>
-            <div className="flex items-center gap-2">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-0 overflow-hidden">
+        {/* COLUNA ESQUERDA: PRODUTOS COM MINIATURAS */}
+        <div className="border-r flex flex-col bg-white dark:bg-slate-900">
+          <div className="p-4 border-b space-y-3">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={16}
+              />
+              <input
+                value={searchProduct}
+                onChange={(e) => setSearchProduct(e.target.value)}
+                placeholder="Buscar modelo ou referência..."
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div className="flex gap-2">
               <select
                 value={brandFilter}
                 onChange={(e) => setBrandFilter(e.target.value)}
-                className="text-sm rounded border px-2 py-1"
+                className="flex-1 text-[10px] font-black uppercase p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none"
               >
-                <option value="all">Todas as marcas</option>
+                <option value="all">Todas as Marcas</option>
                 {availableBrands.map((b) => (
                   <option key={b} value={b}>
                     {b}
                   </option>
                 ))}
               </select>
-
               <select
                 value={productImageFilter}
-                onChange={(e) =>
-                  setProductImageFilter(
-                    e.target.value as 'all' | 'with' | 'without'
-                  )
-                }
-                className="text-sm rounded border px-2 py-1"
+                onChange={(e) => setProductImageFilter(e.target.value as any)}
+                className="flex-1 text-[10px] font-black uppercase p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none"
               >
                 <option value="all">Todos</option>
-                <option value="with">Com imagem</option>
-                <option value="without">Sem imagem</option>
-              </select>
-
-              <select
-                value={sortOption}
-                onChange={(e) =>
-                  setSortOption(
-                    e.target.value as 'name_asc' | 'name_desc' | 'ref_asc'
-                  )
-                }
-                className="text-sm rounded border px-2 py-1"
-              >
-                <option value="name_asc">Nome A → Z</option>
-                <option value="name_desc">Nome Z → A</option>
-                <option value="ref_asc">Ref. A → Z</option>
+                <option value="without">Sem Imagem</option>
+                <option value="with">Com Imagem</option>
               </select>
             </div>
           </div>
 
-          <div className="relative mb-2">
-            <input
-              placeholder="Buscar..."
-              value={searchProduct}
-              onChange={(e) => setSearchProduct(e.target.value)}
-              className="w-full mb-0 p-2 border rounded pl-9"
-            />
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={16}
-            />
-          </div>
-          <div className="space-y-2 max-h-[60vh] overflow-auto">
-            {loading ? (
-              <div className="text-gray-500">Carregando...</div>
-            ) : (
-              filteredProducts.map((p) => (
-                <div
-                  key={p.id}
-                  className={`p-2 border rounded cursor-pointer ${selectedProductId === p.id ? 'ring-2 ring-[var(--primary)]' : ''} ${dragOverProductId === p.id ? 'bg-green-50 ring-2 ring-green-400' : ''}`}
-                  onClick={() => setSelectedProductId(p.id)}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOverProductId(p.id);
-                  }}
-                  onDragLeave={() => setDragOverProductId(null)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOverProductId(null);
-                    const data = e.dataTransfer.getData(
-                      'application/x-product-images'
-                    );
-                    if (data) {
-                      try {
-                        const ids = JSON.parse(data);
-                        if (Array.isArray(ids) && ids.length > 0)
-                          handleLink(p.id, ids);
-                      } catch (err) {
-                        console.error(err);
-                      }
-                    }
-                  }}
-                >
-                  <div className="font-medium">{p.name}</div>
-                  <div className="text-xs text-gray-500">
-                    {p.reference_code}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {filteredProducts.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => setSelectedProductId(p.id)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverProductId(null);
+                  const data = e.dataTransfer.getData(
+                    'application/x-product-images'
+                  );
+                  if (data) handleLink(p.id, JSON.parse(data));
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverProductId(p.id);
+                }}
+                onDragLeave={() => setDragOverProductId(null)}
+                className={`p-4 rounded-[1.5rem] border-2 transition-all cursor-pointer flex items-center justify-between gap-4 ${
+                  selectedProductId === p.id
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                    : dragOverProductId === p.id
+                      ? 'border-emerald-500 bg-emerald-50 shadow-inner'
+                      : 'border-transparent bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-14 h-14 rounded-xl bg-white overflow-hidden border flex-shrink-0 shadow-sm">
+                    <img
+                      src={p.image_url || p.images[0] || '/placeholder.png'}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-black text-sm text-slate-900 dark:text-white truncate uppercase tracking-tight">
+                      {p.reference_code}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400 truncate uppercase">
+                      {p.name}
+                    </p>
+
+                    {/* MINI MINIATURAS (VINCULADAS) */}
+                    {p.images.length > 0 && (
+                      <div className="flex gap-1 mt-1.5">
+                        {p.images.slice(0, 4).map((img, idx) => (
+                          <div
+                            key={idx}
+                            className="w-5 h-5 rounded-md border border-slate-200 overflow-hidden bg-white"
+                          >
+                            <img
+                              src={img}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
+                        {p.images.length > 4 && (
+                          <span className="text-[8px] font-black text-slate-400">
+                            +{p.images.length - 4}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))
-            )}
+                {p.images.length > 0 && (
+                  <Check className="text-emerald-500 flex-shrink-0" size={18} />
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded shadow">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold">Fotos ({filteredImages.length})</h3>
+        {/* COLUNA DIREITA: FOTOS PENDENTES */}
+        <div className="flex flex-col bg-slate-50 dark:bg-slate-950">
+          <div className="p-4 border-b flex items-center justify-between bg-white dark:bg-slate-900 shadow-sm">
+            <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-400">
+              Fotos Pendentes ({filteredImages.length})
+            </h3>
             <button
-              onClick={() => setShowUploader((s) => !s)}
-              className="px-3 py-1 bg-white border rounded"
+              onClick={() => setShowUploader(!showUploader)}
+              className="text-[10px] font-black uppercase text-primary underline"
             >
-              {showUploader ? 'Fechar' : 'Adicionar'}
+              {showUploader ? 'Fechar' : 'Upload'}
             </button>
           </div>
 
-          {showUploader && (
-            <div className="mb-3">
-              <SmartImageUpload
-                onUploadReady={async (file) => {
-                  try {
-                    const {
-                      data: { user },
-                    } = await supabase.auth.getUser();
-                    if (!user) throw new Error('Não autenticado');
-                    const filename = `${user.id}/${Date.now()}-${(file as File).name || 'upload'}`;
-                    const { error: uploadError } = await supabase.storage
-                      .from('product-images')
-                      .upload(filename, file as File);
-                    if (uploadError) throw uploadError;
-                    const { data: publicData } = supabase.storage
-                      .from('product-images')
-                      .getPublicUrl(filename);
-                    const { data: insertData, error: insertError } =
-                      await supabase
-                        .from('staging_images')
-                        .insert([
-                          {
-                            user_id: (await supabase.auth.getUser()).data.user
-                              ?.id,
-                            storage_path: filename,
-                            url: publicData?.publicUrl || null,
-                            file_name: (file as File).name,
-                          },
-                        ])
-                        .select()
-                        .maybeSingle();
-                    if (insertError) throw insertError;
-                    // Refresh data and auto-select the newly inserted image
-                    await fetchData();
-                    if (insertData && insertData.id)
-                      setSelectedImageIds([insertData.id]);
-                  } catch (err: unknown) {
-                    console.error(err);
-                    const msg =
-                      err instanceof Error ? err.message : String(err);
-                    toast.error('Erro no upload');
-                    addLog(`Erro no upload: ${msg}`, 'error');
-                  }
-                }}
-              />
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-auto">
+          <div className="flex-1 overflow-y-auto p-6 grid grid-cols-2 sm:grid-cols-3 gap-4 content-start">
             {filteredImages.map((img) => (
               <div
                 key={img.id}
                 draggable
                 onDragStart={(e) => {
-                  let idsToDrag = selectedImageIds;
-                  if (!idsToDrag.includes(img.id)) {
-                    idsToDrag = [img.id];
-                    setSelectedImageIds([img.id]);
-                  }
+                  const ids = selectedImageIds.includes(img.id)
+                    ? selectedImageIds
+                    : [img.id];
                   e.dataTransfer.setData(
                     'application/x-product-images',
-                    JSON.stringify(idsToDrag)
+                    JSON.stringify(ids)
                   );
-                  e.dataTransfer.effectAllowed = 'copy';
+                  if (!selectedImageIds.includes(img.id))
+                    setSelectedImageIds([img.id]);
                 }}
-                className={`p-1 border rounded cursor-pointer ${selectedImageIds.includes(img.id) ? 'ring-2 ring-indigo-500' : ''}`}
-                onClick={() => toggleImageSelection(img.id)}
+                onClick={() =>
+                  setSelectedImageIds((prev) =>
+                    prev.includes(img.id)
+                      ? prev.filter((i) => i !== img.id)
+                      : [...prev, img.id]
+                  )
+                }
+                className={`group aspect-square rounded-[2rem] border-4 overflow-hidden bg-white shadow-sm cursor-grab active:cursor-grabbing transition-all ${
+                  selectedImageIds.includes(img.id)
+                    ? 'border-indigo-500 scale-95 shadow-xl'
+                    : 'border-transparent hover:shadow-md'
+                }`}
               >
                 <img
                   src={img.publicUrl}
-                  alt={img.original_name || 'img'}
-                  className="w-full h-28 object-contain"
+                  className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform"
                 />
+                <div className="absolute bottom-2 left-0 right-0 text-[8px] font-black text-center bg-white/80 backdrop-blur truncate px-2">
+                  {img.original_name}
+                </div>
               </div>
             ))}
           </div>
+
+          {/* CONSOLE DE OPERAÇÕES */}
+          <div className="h-40 bg-slate-900 p-4 font-mono text-[9px] overflow-y-auto border-t border-slate-800">
+            {logs.map((log, i) => (
+              <div
+                key={i}
+                className={`mb-1 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : 'text-slate-500'}`}
+              >
+                {`> [${new Date().toLocaleTimeString()}] ${log.msg}`}
+              </div>
+            ))}
+            <div ref={logsEndRef} />
+          </div>
         </div>
       </div>
-
-      <div ref={logsEndRef} className="sr-only" />
     </div>
   );
 }
