@@ -629,7 +629,9 @@ export default function ManageExternalImagesClient({
           <div className="px-0">
             {/* Rows (paginated) */}
             {paginatedItems.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">Nenhum item encontrado.</div>
+              <div className="p-6 text-center text-gray-500">
+                Nenhum item encontrado.
+              </div>
             ) : (
               paginatedItems.map((_, idx) => (
                 <Row
@@ -643,10 +645,24 @@ export default function ManageExternalImagesClient({
 
             {/* Pagination controls */}
             <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-              <div className="text-sm text-gray-500">Página {currentPage} de {totalPages}</div>
+              <div className="text-sm text-gray-500">
+                Página {currentPage} de {totalPages}
+              </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} className="px-3 py-1 rounded bg-white border">Anterior</button>
-                <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} className="px-3 py-1 rounded bg-white border">Próxima</button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1 rounded bg-white border"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  className="px-3 py-1 rounded bg-white border"
+                >
+                  Próxima
+                </button>
               </div>
             </div>
           </div>

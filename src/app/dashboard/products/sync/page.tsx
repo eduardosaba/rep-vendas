@@ -137,7 +137,18 @@ export default function ProductSyncPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const updates = preview.filter((p) => p.status === 'match');
+      // Filtra apenas os itens que realmente precisam mudar e deduplica por `id`
+      const rawUpdates = preview.filter((p) => p.status === 'match');
+      const updatesMap = new Map<string, SyncPreview>();
+      rawUpdates.forEach((u) => {
+        if (u.id) updatesMap.set(String(u.id), u); // mantém o último valor para o mesmo id
+      });
+      const updates = Array.from(updatesMap.values());
+      if (updates.length < rawUpdates.length)
+        addLog(
+          `⚠️ ${rawUpdates.length - updates.length} registros duplicados foram removidos antes do upsert.`
+        );
+
       setProgress({ current: 0, total: updates.length });
 
       let updatedCount = 0;
@@ -175,12 +186,38 @@ export default function ProductSyncPage() {
           };
         });
 
-        // Executa o lote inteiro de uma vez (Alta performance)
-        const { error } = await supabase
-          .from('products')
-          .upsert(batchData, { onConflict: 'id' });
+        // Validação rápida: garantir que todos os registros do lote têm `id`
+        const invalid = batchData.filter((d) => !d.id);
+        if (invalid.length > 0) {
+          addLog(
+            `⚠️ Lote contém ${invalid.length} registros sem 'id', serão ignorados.`
+          );
+        }
 
-        if (!error && batchImages.length > 0) {
+        // Garantir IDs únicos dentro do lote para evitar ON CONFLICT DO UPDATE affecting same row twice
+        const toUpsert = Array.from(
+          new Map(
+            batchData.filter((d) => d.id).map((d) => [String(d.id), d])
+          ).values()
+        );
+
+        // Executa o lote inteiro de uma vez (Alta performance)
+        let upsertError: any = null;
+        try {
+          const upsertRes: any = await supabase
+            .from('products')
+            .upsert(toUpsert, { onConflict: 'id' });
+          upsertError = upsertRes.error;
+          const upData = upsertRes.data as any[] | null;
+          if (Array.isArray(upData) && upData.length > 0) {
+            // opcional: log retorno
+            addLog(`ℹ️ Resposta upsert: ${upData.length} linhas afetadas.`);
+          }
+        } catch (err) {
+          upsertError = err;
+        }
+
+        if (!upsertError && batchImages.length > 0) {
           // Atualiza a galeria: DELETE + INSERT ("substituição total" para as linhas afetadas)
           // Isso garante que se o usuário forneceu uma lista nova, a antiga é removida.
 
@@ -210,15 +247,41 @@ export default function ProductSyncPage() {
           }
         }
 
-        if (error) {
-          addLog(
-            `❌ Erro no lote ${Math.floor(i / chunkSize) + 1}: ${error.message}`
-          );
-          if (stopOnError) throw new Error(error.message);
+        if (upsertError) {
+          try {
+            const msg =
+              (upsertError && upsertError.message) || String(upsertError);
+            addLog(`❌ Erro no lote ${Math.floor(i / chunkSize) + 1}: ${msg}`);
+
+            // Tentar extrair detalhes adicionais do erro do Supabase
+            const details =
+              (upsertError &&
+                (upsertError.details ||
+                  upsertError.hint ||
+                  upsertError.code)) ||
+              null;
+            if (details) addLog(`❗ Detalhes: ${String(details)}`);
+
+            // Log do primeiro item do lote para diagnóstico (sem expor dados sensíveis)
+            try {
+              if (toUpsert && toUpsert.length > 0) {
+                const first = toUpsert[0];
+                addLog(
+                  `❗ Primeiro item do lote (preview): ${JSON.stringify(first)}`
+                );
+              }
+            } catch (e) {
+              // ignore JSON errors
+            }
+          } catch {}
+          if (stopOnError)
+            throw new Error(
+              (upsertError && upsertError.message) || 'Erro no upsert'
+            );
         } else {
-          updatedCount += batchData.length;
+          updatedCount += toUpsert.length;
           addLog(
-            `✅ Lote ${Math.floor(i / chunkSize) + 1} processado (${batchData.length} itens).`
+            `✅ Lote ${Math.floor(i / chunkSize) + 1} processado (${toUpsert.length} itens).`
           );
         }
 

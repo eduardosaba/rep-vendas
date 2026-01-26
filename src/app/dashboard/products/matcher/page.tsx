@@ -62,6 +62,9 @@ export default function MatcherPage() {
 
   const [logs, setLogs] = useState<{ msg: string; type: string }[]>([]);
   const logsEndRef = useRef<HTMLDivElement | null>(null);
+  const [isRealtimeActive, setIsRealtimeActive] = useState<boolean | null>(
+    null
+  );
 
   const addLog = (
     message: string,
@@ -139,6 +142,85 @@ export default function MatcherPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Realtime com fallback para Polling: tenta conectar via WebSocket; se não houver
+  // conexão estabelecida em alguns segundos, ativa Polling periódico como fallback.
+  useEffect(() => {
+    let channel: any = null;
+    let pollingId: number | null = null;
+    let fallbackTimeout: number | null = null;
+    let realtimeActive = false;
+
+    (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // cria canal e handler
+        channel = supabase.channel(`staging_images_user_${user.id}`);
+        channel.on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'staging_images',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            realtimeActive = true;
+            try {
+              setIsRealtimeActive(true);
+            } catch (e) {}
+            addLog('Nova imagem importada — atualizando (Realtime)...', 'info');
+            fetchData();
+          }
+        );
+
+        // subscribe (não depende do callback para decisão; usamos timeout como detector)
+        try {
+          channel.subscribe();
+        } catch (e) {
+          // subscribe pode falhar em redes que bloqueiam WebSockets
+        }
+
+        // se em X ms não tivermos recebido nenhum evento, assume-se que Realtime
+        // não está disponível e ativa Polling. Se um evento chegar, realtimeActive
+        // vira true e o polling não fará requests.
+        fallbackTimeout = window.setTimeout(() => {
+          if (!realtimeActive) {
+            addLog(
+              'Realtime não estabelecido — ativando Polling de fallback.',
+              'info'
+            );
+            try {
+              setIsRealtimeActive(false);
+            } catch (e) {}
+          }
+        }, 4000) as unknown as number;
+
+        // Polling periódico (executa somente enquanto realtimeActive === false)
+        pollingId = window.setInterval(() => {
+          if (!realtimeActive) {
+            fetchData();
+          }
+        }, 3000) as unknown as number;
+      } catch (e) {
+        // ignore errors — fallback de polling cobre indisponibilidade
+      }
+    })();
+
+    return () => {
+      try {
+        if (channel) supabase.removeChannel(channel);
+        if (pollingId) window.clearInterval(pollingId);
+        if (fallbackTimeout) window.clearTimeout(fallbackTimeout);
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, [supabase, fetchData]);
 
   // LOGICA DE VÍNCULO AUTOMÁTICO (Baseado no nome do arquivo)
   const handleAutoMatch = async () => {

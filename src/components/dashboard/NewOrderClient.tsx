@@ -418,6 +418,7 @@ export function NewOrderClient({
                             src={product.image_url}
                             alt={product.name}
                             fill
+                            sizes="(max-width: 640px) 100vw, 33vw"
                             style={{ objectFit: 'contain' }}
                             className="group-hover:scale-105 transition-transform"
                             loading="lazy"
@@ -574,8 +575,9 @@ export function NewOrderClient({
                       <Image
                         src={item.image_url}
                         alt={item.name || ''}
-                        fill
-                        style={{ objectFit: 'cover' }}
+                        width={56}
+                        height={56}
+                        className="object-cover"
                       />
                     </div>
                   ) : (

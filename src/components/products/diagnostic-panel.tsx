@@ -1,225 +1,181 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, Zap, CheckCircle2, AlertTriangle, Play } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function DiagnosticPanel() {
-  const [stats, setStats] = useState<{ count: number; samples: any[] } | null>(
-    null
-  );
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [progress, setProgress] = useState(0);
+export default function DiagnosticPanel() {
+  const [stats, setStats] = useState<any>(null);
+  const [isRepairing, setIsRepairing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [currentBatchMsg, setCurrentBatchMsg] = useState('');
+
+  const loadDiagnostics = async () => {
+    try {
+      const res = await fetch('/api/products/image-diagnostics');
+      const data = await res.json();
+      setStats(data);
+      return data;
+    } catch (err) {
+      console.error('Falha ao carregar diagnóstico', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    loadStats();
+    loadDiagnostics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadStats = async () => {
+  const handleRepair = async (isAuto = false) => {
+    setIsRepairing(true);
+    if (!isAuto) setCurrentBatchMsg('Iniciando reparo automático...');
+
     try {
-      const res = await fetch('/api/pending-external-images');
-      if (!res.ok) {
-        setStats({ count: 0, samples: [] });
+      const res = await fetch('/api/products/image-repair', { method: 'POST' });
+      const data = await res.json();
+
+      const updatedStats = await loadDiagnostics();
+
+      if (data.fail_count > 0) {
+        setIsRepairing(false);
+        setCurrentBatchMsg('');
+        toast.error(
+          `O loop parou: ${data.fail_count} imagem(ns) falharam no último lote. Verifique links quebrados.`,
+          {
+            duration: 5000,
+          }
+        );
         return;
       }
-      const json = await res.json();
-      const items = json.data || [];
-      const samples = items.slice(0, 5).map((row: any) => ({
-        id: row.id,
-        name: row.name,
-        external_image_url: row.external_image_url || row.image_url || null,
-      }));
-      setStats({ count: items.length, samples });
-    } catch (err) {
-      console.error('Erro ao carregar stats:', err);
-      setStats({ count: 0, samples: [] });
-    }
-  };
 
-  const getAllPending = async () => {
-    const res = await fetch('/api/pending-external-images');
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.data || [];
-  };
-
-  const syncOne = async (id: string, externalUrl: string) => {
-    const proxyBase = (
-      process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-    ).replace(/\/$/, '');
-    const proxiedUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(externalUrl)}`;
-
-    const res = await fetch('/api/process-external-image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId: id, externalUrl: proxiedUrl }),
-    });
-    if (!res.ok) throw new Error('sync failed');
-    return res.json();
-  };
-
-  const handleSyncAll = async () => {
-    if (!stats || stats.count === 0) return;
-
-    setIsSyncing(true);
-
-    const allPending = await getAllPending();
-    const total = allPending.length;
-    if (total === 0) {
-      setIsSyncing(false);
-      return;
-    }
-
-    let completed = 0;
-    let successCount = 0;
-    const failed: Array<{ id: string; reason: string }> = [];
-
-    const attemptSync = async (product: any) => {
-      const url = product.external_image_url || product.image_url;
-      const maxAttempts = 3;
-      let attempt = 0;
-      while (attempt < maxAttempts) {
-        attempt++;
-        try {
-          await syncOne(product.id, url);
-          successCount++;
-          return;
-        } catch (err: any) {
-          const waitMs = 200 * Math.pow(2, attempt - 1);
-          console.warn(
-            `[diagnostic] sync attempt ${attempt} failed for ${product.id}`,
-            err
+      if (data.success_count > 0 && updatedStats.total_external > 0) {
+        setCurrentBatchMsg(
+          `Sucesso! Processando próximo lote (${updatedStats.total_external} restantes)...`
+        );
+        setTimeout(() => {
+          handleRepair(true);
+        }, 2000);
+      } else {
+        setIsRepairing(false);
+        setCurrentBatchMsg('');
+        if (updatedStats.total_external === 0) {
+          toast.success(
+            'Fantástico! Todas as imagens foram internalizadas com sucesso.'
           );
-          if (attempt < maxAttempts) {
-            await new Promise((r) => setTimeout(r, waitMs));
-          } else {
-            failed.push({ id: product.id, reason: String(err) });
-            return;
-          }
         }
       }
-    };
-
-    const concurrency = 5;
-    let idx = 0;
-
-    const runners = new Array(concurrency).fill(0).map(async () => {
-      while (true) {
-        const i = idx;
-        idx += 1;
-        if (i >= allPending.length) return;
-        const product = allPending[i];
-        try {
-          await attemptSync(product);
-        } catch (e) {
-          console.error('[diagnostic] unexpected error in attemptSync', e);
-          failed.push({ id: product.id, reason: String(e) });
-        } finally {
-          completed += 1;
-          setProgress(Math.round((completed / total) * 100));
-        }
-      }
-    });
-
-    await Promise.all(runners);
-
-    if (failed.length > 0) {
-      toast.error(`Sincronização concluída com ${failed.length} falhas.`);
-      console.warn('failed items', failed.slice(0, 10));
-    } else {
-      toast.success(
-        `Sincronização concluída: ${successCount} imagens processadas.`
-      );
+    } catch (err) {
+      setIsRepairing(false);
+      setCurrentBatchMsg('');
+      toast.error('Erro crítico na conexão. O processo foi interrompido.');
     }
-
-    setIsSyncing(false);
-    setProgress(0);
-    loadStats();
   };
 
-  if (!stats || stats.count === 0) return null;
+  if (loading)
+    return (
+      <div className="h-20 flex items-center justify-center">
+        <Loader2 className="animate-spin text-slate-400" />
+      </div>
+    );
+
+  const total = (stats?.total_internal || 0) + (stats?.total_external || 0);
+  const progress =
+    total > 0 ? Math.round((stats.total_internal / total) * 100) : 0;
 
   return (
-    <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-amber-800">
-            <AlertTriangle className="h-5 w-5" />
-            <h3 className="font-semibold">
-              Atenção: Imagens Externas Detectadas
-            </h3>
-          </div>
-
-          <p className="text-sm text-amber-700 max-w-2xl">
-            Existem <strong>{stats.count} produtos</strong> usando imagens via
-            URL externa. Para garantir que elas apareçam no gerador de PDF e
-            carreguem mais rápido, é necessário internalizá-las.
+    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h3 className="font-black text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-1">
+            Integridade de Mídia
+          </h3>
+          <p className="text-[10px] text-slate-500 font-medium">
+            Internalização de links externos para o Supabase Storage
           </p>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-amber-800">
-              Exemplos:
-            </span>
-            <div className="flex -space-x-2">
-              {stats.samples.map((sample) => (
-                <div
-                  key={sample.id}
-                  className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-gray-200"
-                  title={sample.name}
-                >
-                  <Image
-                    src={sample.external_image_url}
-                    alt={sample.name}
-                    width={32}
-                    height={32}
-                    className="object-cover"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display =
-                        'none';
-                    }}
-                  />
-                </div>
-              ))}
-              {stats.count > 5 && (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-amber-200 text-[10px] font-bold text-amber-800">
-                  +{stats.count - 5}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
+        <span
+          className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${stats?.total_external === 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}
+        >
+          {stats?.total_external === 0 ? '100% Protegido' : 'Reparo Necessário'}
+        </span>
+      </div>
 
-        <div className="min-w-[200px] flex-shrink-0">
-          {isSyncing ? (
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-medium text-amber-800">
-                <span>Processando...</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="w-full h-2 rounded bg-amber-200">
-                <div
-                  className="h-full rounded bg-amber-600"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <p className="text-center text-xs text-amber-600">
-                Não feche esta página.
-              </p>
-            </div>
-          ) : (
-            <button
-              onClick={handleSyncAll}
-              className="w-full inline-flex items-center justify-center gap-2 rounded px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Internalizar {stats.count} Imagens
-            </button>
-          )}
+      <div className="grid grid-cols-2 gap-6 mb-8">
+        <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">
+            No Storage
+          </p>
+          <p className="text-3xl font-black text-slate-900 dark:text-white">
+            {stats?.total_internal || 0}
+          </p>
+        </div>
+        <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">
+            Links Externos
+          </p>
+          <p className="text-3xl font-black text-amber-500">
+            {stats?.total_external || 0}
+          </p>
         </div>
       </div>
+
+      <div className="space-y-3 mb-8">
+        <div className="flex justify-between text-[11px] font-black uppercase text-slate-400 tracking-widest">
+          <span>Saúde do Catálogo</span>
+          <span className="text-indigo-600">{progress}%</span>
+        </div>
+        <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-indigo-600 transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(79,70,229,0.4)]"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {stats?.total_external > 0 ? (
+        <div className="space-y-4">
+          <button
+            onClick={() => handleRepair(false)}
+            disabled={isRepairing}
+            className="w-full group relative flex items-center justify-center gap-3 py-5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
+          >
+            {isRepairing ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <>
+                <Play size={18} className="fill-current" />
+                <span>Iniciar Reparo Automático</span>
+              </>
+            )}
+          </button>
+
+          {isRepairing && (
+            <div className="flex items-center justify-center gap-2 text-indigo-600 animate-pulse">
+              <span className="text-[10px] font-black uppercase tracking-widest">
+                {currentBatchMsg}
+              </span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-3 py-5 bg-emerald-50 text-emerald-600 rounded-[1.5rem] border border-emerald-100 font-black text-[11px] uppercase tracking-[0.2em]">
+          <CheckCircle2 size={20} />
+          Blindagem de Mídia Ativa
+        </div>
+      )}
+
+      {stats?.total_external > 0 && !isRepairing && (
+        <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30 flex items-start gap-3">
+          <AlertTriangle className="text-amber-600 shrink-0" size={16} />
+          <p className="text-[10px] text-amber-700 dark:text-amber-500 font-medium leading-relaxed">
+            O sistema tentará baixar as fotos externas automaticamente em lotes
+            de 20. Se um link estiver quebrado, o processo parará para sua
+            segurança.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
-
-export default DiagnosticPanel;

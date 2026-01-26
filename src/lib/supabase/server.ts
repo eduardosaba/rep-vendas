@@ -42,7 +42,9 @@ export async function createClient() {
 
 // Compat shim para rotas API que passam uma função que retorna o store
 export async function createRouteSupabase(getCookies?: () => any) {
-  const cookieStore = getCookies ? await getCookies() : nextCookies();
+  const cookieStore = getCookies
+    ? await getCookies()
+    : await (nextCookies as any)();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,8 +52,10 @@ export async function createRouteSupabase(getCookies?: () => any) {
     {
       cookies: {
         getAll() {
-          // next/headers CookieStore has getAll()
-          return cookieStore.getAll();
+          // next/headers CookieStore may expose getAll(); be defensive
+          return cookieStore && typeof cookieStore.getAll === 'function'
+            ? cookieStore.getAll()
+            : [];
         },
         setAll(
           cookiesToSet: Array<{ name: string; value: string; options?: any }>
@@ -59,7 +63,7 @@ export async function createRouteSupabase(getCookies?: () => any) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               // Some runtimes provide a Response-like cookies API
-              if (typeof cookieStore.set === 'function')
+              if (cookieStore && typeof cookieStore.set === 'function')
                 cookieStore.set(name, value, options);
             });
           } catch {

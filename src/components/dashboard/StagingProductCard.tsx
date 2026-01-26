@@ -76,6 +76,7 @@ export function StagingProductCard({
             src={imageUrl}
             alt="Preview"
             fill
+            sizes="(max-width: 768px) 100vw, 200px"
             style={{ objectFit: 'cover', maxWidth: '100%' }}
             className="transition-transform group-hover:scale-105"
             loading="lazy"

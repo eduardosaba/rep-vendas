@@ -25,10 +25,51 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
   const waLink = `https://wa.me/?text=${encodeURIComponent(message)}`;
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(waLink);
-    setCopied(true);
-    toast.success('Link copiado para o WhatsApp!');
-    setTimeout(() => setCopied(false), 2000);
+    safeCopy(waLink).then((ok) => {
+      if (ok) {
+        setCopied(true);
+        toast.success('Link copiado para o WhatsApp!');
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        toast.error('Não foi possível copiar automaticamente. Use Ctrl+C.');
+      }
+    });
+  };
+
+  // Safe clipboard helper with textarea fallback
+  const safeCopy = async (text: string) => {
+    try {
+      if (
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === 'function'
+      ) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {
+      // ignore and fallback
+    }
+
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'absolute';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      const selected = document.getSelection()?.rangeCount
+        ? document.getSelection()
+        : null;
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (selected) {
+        // restore previous selection
+      }
+      return ok;
+    } catch (e) {
+      return false;
+    }
   };
 
   async function ensureShortLink() {

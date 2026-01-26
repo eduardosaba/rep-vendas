@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
 import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
 import { ProductsTable } from '@/components/dashboard/ProductsTable';
-import { DiagnosticPanel } from '@/components/products/diagnostic-panel';
+import DiagnosticPanel from '@/components/products/diagnostic-panel';
 import {
   FileSpreadsheet,
   Image as ImageIcon,

@@ -30,7 +30,12 @@ try {
 }
 
 // 2. Objeto de Configuração do Next.js
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX || '';
+
 const nextConfig = {
+  basePath: basePath || undefined,
+  assetPrefix: assetPrefix || undefined,
   // Otimizações experimentais
   experimental: {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
@@ -106,6 +111,19 @@ const nextConfig = {
       }
     }
 
+    // Cabeçalhos específicos para assets estáticos (imagens)
+    const imagesHeaders = [
+      {
+        source: '/images/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: isProd ? 'public, max-age=31536000, immutable' : 'no-cache',
+          },
+        ],
+      },
+    ];
+
     // Em produção adicionamos a CSP estrita
     const cspHeader = {
       key: 'Content-Security-Policy',
@@ -114,6 +132,9 @@ const nextConfig = {
     };
 
     return [
+      // imagens primeiro (mais específicas)
+      ...imagesHeaders,
+      // regra geral para todas as rotas
       {
         source: '/(.*)',
         headers: [...baseHeaders, cspHeader],

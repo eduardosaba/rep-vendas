@@ -55,6 +55,20 @@ export function useWelcomeManager() {
         .update({ last_welcome_version: APP_WELCOME_VERSION })
         .eq('id', profileId);
       if (error) throw error;
+      // Persistir também no localStorage para compatibilizar com o
+      // componente client-side `UpdateModalClient` que usa o mesmo
+      // mecanismo local para não mostrar novamente a mesma versão.
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(
+            'repvendas_last_seen_version',
+            String(APP_WELCOME_VERSION)
+          );
+        }
+      } catch (e) {
+        // ignore localStorage errors
+      }
+
       setShouldShow(false);
       return true;
     } catch (err) {

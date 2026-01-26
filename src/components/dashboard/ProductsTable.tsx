@@ -310,6 +310,38 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     // 'all' | 'optimized' | 'unoptimized'
     imageOptimization: 'all',
   });
+  // display states for currency masked inputs
+  const [displayMinPrice, setDisplayMinPrice] = useState('');
+  const [displayMaxPrice, setDisplayMaxPrice] = useState('');
+
+  const parseCurrencyToNumericString = (s: string) => {
+    const digits = String(s || '').replace(/\D/g, '');
+    if (!digits) return '';
+    const cents = Number(digits);
+    return (cents / 100).toFixed(2);
+  };
+
+  const formatBRL = (v: string) => {
+    if (!v) return '';
+    const n = Number(v);
+    if (isNaN(n)) return '';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(n);
+  };
+
+  // keep display values in sync when filters are programmatically changed (eg. clear)
+  useEffect(() => {
+    setDisplayMinPrice(
+      filters.minPrice ? formatBRL(String(filters.minPrice)) : ''
+    );
+  }, [filters.minPrice]);
+  useEffect(() => {
+    setDisplayMaxPrice(
+      filters.maxPrice ? formatBRL(String(filters.maxPrice)) : ''
+    );
+  }, [filters.maxPrice]);
 
   // Server-side filtering mode
   const [serverMode, setServerMode] = useState(false);
@@ -407,6 +439,13 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     mode: 'fixed' | 'percentage';
     value: string;
   }>({ mode: 'fixed', value: '' });
+  const [displayPrice, setDisplayPrice] = useState('');
+
+  useEffect(() => {
+    setDisplayPrice(
+      priceConfig.value ? formatBRL(String(priceConfig.value)) : ''
+    );
+  }, [priceConfig.value]);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [viewIndex, setViewIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -951,7 +990,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       if (filters.stockStatus === 'in_stock' && (p.stock_quantity || 0) <= 0)
         return false;
 
-      const price = p.cost ?? p.price ?? 0;
+      const price = p.price ?? p.cost ?? 0;
       if (filters.minPrice && price < Number(filters.minPrice)) return false;
       if (filters.maxPrice && price > Number(filters.maxPrice)) return false;
 
@@ -1367,7 +1406,15 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   );
                 }
 
-                return <Image src={src} alt="" fill className="object-cover" />;
+                return (
+                  <Image
+                    src={src}
+                    alt=""
+                    width={40}
+                    height={40}
+                    className="object-cover"
+                  />
+                );
               }
 
               return (
@@ -1656,23 +1703,30 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               </label>
               <div className="flex gap-2">
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="Mín"
-                  value={filters.minPrice}
-                  onChange={(e) =>
-                    setFilters({ ...filters, minPrice: e.target.value })
-                  }
+                  value={displayMinPrice}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    // try to parse numeric representation from typed value
+                    const numeric = parseCurrencyToNumericString(raw);
+                    setFilters((prev) => ({ ...prev, minPrice: numeric }));
+                    setDisplayMinPrice(raw ? formatBRL(numeric) : '');
+                  }}
                   className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 />
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="Máx"
-                  value={filters.maxPrice}
-                  onChange={(e) =>
-                    setFilters({ ...filters, maxPrice: e.target.value })
-                  }
+                  value={displayMaxPrice}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const numeric = parseCurrencyToNumericString(raw);
+                    setFilters((prev) => ({ ...prev, maxPrice: numeric }));
+                    setDisplayMaxPrice(raw ? formatBRL(numeric) : '');
+                  }}
                   className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 />
               </div>
@@ -2743,12 +2797,17 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               Atualizar Preço
             </h3>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               placeholder="Novo Valor"
+              value={displayPrice}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const numeric = parseCurrencyToNumericString(raw);
+                setPriceConfig((prev) => ({ ...prev, value: numeric }));
+                setDisplayPrice(raw ? formatBRL(numeric) : '');
+              }}
               className="w-full p-2 border rounded mb-4 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-              onChange={(e) =>
-                setPriceConfig({ ...priceConfig, value: e.target.value })
-              }
             />
             <div className="flex gap-2">
               <button
