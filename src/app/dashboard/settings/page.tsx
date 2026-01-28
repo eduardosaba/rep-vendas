@@ -334,6 +334,25 @@ export default function SettingsPage() {
 
       // Publicar/atualizar catálogo público quando houver `catalog_slug`.
       if (formData.catalog_slug) {
+        // calcula hash SHA-256 da senha de preço para não enviar texto puro
+        const hashString = async (s: string) => {
+          try {
+            const enc = new TextEncoder();
+            const data = enc.encode(s);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(digest))
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join('');
+          } catch (e) {
+            console.error('Hash error', e);
+            return null;
+          }
+        };
+
+        const pricePasswordHash = formData.price_password
+          ? await hashString(formData.price_password)
+          : null;
+
         try {
           const resp = await fetch('/api/public_catalogs/sync', {
             method: 'POST',
@@ -376,7 +395,7 @@ export default function SettingsPage() {
               max_installments: Number(catalogSettings.max_installments || 1),
               show_sale_price: catalogSettings.show_sale_price ?? true,
               show_cost_price: catalogSettings.show_cost_price ?? false,
-              price_password_hash: formData.price_password || null,
+              price_password_hash: pricePasswordHash,
             }),
           });
 
