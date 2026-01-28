@@ -310,7 +310,9 @@ export default function SettingsPage() {
 
       const { error } = await supabase.from('settings').upsert({
         user_id: user.id,
+        // spread formData but explicitly avoid persisting the plain price password
         ...formData,
+        price_password: null,
         ...catalogSettings,
         banners: currentBanners,
         banners_mobile: currentBannersMobile,
