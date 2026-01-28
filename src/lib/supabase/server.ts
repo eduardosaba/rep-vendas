@@ -1,50 +1,20 @@
 import { createServerClient } from '@supabase/ssr';
-import { cookies as nextCookies } from 'next/headers';
 
-export async function createClient() {
-  // next/headers `cookies()` can be async in newer Next versions — await it.
-  const cookieStore: any = await (nextCookies as any)();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll ? cookieStore.getAll() : [];
-        },
-        setAll(
-          cookiesToSet: Array<{ name: string; value: string; options?: any }>
-        ) {
-          try {
-            cookiesToSet.forEach(
-              ({
-                name,
-                value,
-                options,
-              }: {
-                name: string;
-                value: string;
-                options?: any;
-              }) => {
-                if (typeof cookieStore.set === 'function')
-                  cookieStore.set(name, value, options);
-              }
-            );
-          } catch {
-            // Server Components não permitem set direto em alguns contextos
-          }
-        },
-      },
+async function getNextCookieStore() {
+  try {
+    const mod = await import('next/headers');
+    if (mod && typeof mod.cookies === 'function') {
+      // cookies() may be async in some Next versions
+      return await (mod.cookies as any)();
     }
-  );
+  } catch (e) {
+    // not available in this runtime (e.g., pages dir or non-server environment)
+  }
+  return null;
 }
 
-// Compat shim para rotas API que passam uma função que retorna o store
-export async function createRouteSupabase(getCookies?: () => any) {
-  const cookieStore = getCookies
-    ? await getCookies()
-    : await (nextCookies as any)();
+export async function createClient() {
+  const cookieStore: any = await getNextCookieStore();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,7 +22,6 @@ export async function createRouteSupabase(getCookies?: () => any) {
     {
       cookies: {
         getAll() {
-          // next/headers CookieStore may expose getAll(); be defensive
           return cookieStore && typeof cookieStore.getAll === 'function'
             ? cookieStore.getAll()
             : [];
@@ -62,7 +31,6 @@ export async function createRouteSupabase(getCookies?: () => any) {
         ) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              // Some runtimes provide a Response-like cookies API
               if (cookieStore && typeof cookieStore.set === 'function')
                 cookieStore.set(name, value, options);
             });
@@ -75,5 +43,37 @@ export async function createRouteSupabase(getCookies?: () => any) {
   );
 }
 
-// Default export for compatibility with modules importing default
+// Compat shim para rotas API que passam uma função que retorna o store
+export async function createRouteSupabase(getCookies?: () => any) {
+  const cookieStore = getCookies
+    ? await getCookies()
+    : await getNextCookieStore();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore && typeof cookieStore.getAll === 'function'
+            ? cookieStore.getAll()
+            : [];
+        },
+        setAll(
+          cookiesToSet: Array<{ name: string; value: string; options?: any }>
+        ) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              if (cookieStore && typeof cookieStore.set === 'function')
+                cookieStore.set(name, value, options);
+            });
+          } catch {
+            // ignore
+          }
+        },
+      },
+    }
+  );
+}
+
 export default createClient;

@@ -506,22 +506,58 @@ export default function ImportMassaPage() {
         last_import_id: historyId,
       }));
 
+      // Busca produtos existentes para preservar o `slug` quando já existirem
+      const referenceCodesAll = finalBatch.map((p) => p.reference_code);
+      const existingMap: Record<string, { id: string; slug?: string }> = {};
+      if (referenceCodesAll.length > 0) {
+        const { data: existingProducts } = await supabase
+          .from('products')
+          .select('id,reference_code,slug')
+          .eq('user_id', user.id)
+          .in('reference_code', referenceCodesAll);
+
+        if (existingProducts && Array.isArray(existingProducts)) {
+          existingProducts.forEach((ep: any) => {
+            if (ep && ep.reference_code) {
+              existingMap[ep.reference_code] = { id: ep.id, slug: ep.slug };
+            }
+          });
+        }
+      }
+
       const batchSize = 100;
       const totalBatches = Math.ceil(finalBatch.length / batchSize);
 
-      addLog(`Inserindo ${finalBatch.length} itens...`);
+      addLog(`Inserindo/atualizando ${finalBatch.length} itens...`);
 
       for (let i = 0; i < finalBatch.length; i += batchSize) {
-        const batchNum = Math.floor(i / batchSize) + 1;
+        const batchNum = Math.floor(i / totalBatches) + 1;
         const batch = finalBatch.slice(i, i + batchSize);
 
         addLog(`Enviando Lote ${batchNum}/${totalBatches}...`);
 
-        // Usa INSERT com count e select para recuperar IDs gerados
-        const { data: insertedProducts, error } = await supabase
+        // Preserva slug existente quando houver
+        batch.forEach((item) => {
+          const existing = existingMap[item.reference_code];
+          if (existing && existing.slug) {
+            item.slug = existing.slug;
+          } else if (!item.slug) {
+            // Garante um slug para itens novos
+            const slugBase = String(item.name || 'produto')
+              .toLowerCase()
+              .trim()
+              .replace(/[^a-z0-9\s-]/g, '')
+              .replace(/\s+/g, '-')
+              .replace(/-+/g, '-');
+            item.slug = `${slugBase}-${Date.now().toString(36).slice(-6)}`;
+          }
+        });
+
+        // Usa UPSERT para evitar erros de duplicidade e atualizar preços/estoque
+        const { data: upsertedProducts, error } = await supabase
           .from('products')
-          .insert(batch)
-          .select('id, external_image_url');
+          .upsert(batch, { onConflict: 'user_id,reference_code' })
+          .select('id, external_image_url, reference_code');
 
         if (error) {
           console.error('Erro detalhado:', JSON.stringify(error, null, 2));
@@ -532,43 +568,46 @@ export default function ImportMassaPage() {
           successCount += batch.length;
 
           // --- PROCESSAMENTO DE GALERIA ---
-          // Agora que temos os IDs, inserimos as imagens na tabela product_images
-          if (insertedProducts && insertedProducts.length > 0) {
-            const allImagesToInsert: any[] = [];
-
-            insertedProducts.forEach((p, index) => {
-              const originalItem = batch[index];
-
-              // Combina capa e galeria para salvar tudo na tabela product_images
-              const allImages = [];
-              if (p.external_image_url) allImages.push(p.external_image_url);
-              if (originalItem.images && Array.isArray(originalItem.images)) {
-                allImages.push(...originalItem.images);
-              }
-
-              if (allImages.length > 0) {
-                const galleryItems = prepareProductGallery(p.id, allImages);
-                allImagesToInsert.push(...galleryItems);
-              }
+          // Mapear por reference_code para achar IDs retornados
+          const upsertMap: Record<string, any> = {};
+          if (upsertedProducts && Array.isArray(upsertedProducts)) {
+            upsertedProducts.forEach((p: any) => {
+              if (p && p.reference_code) upsertMap[p.reference_code] = p;
             });
+          }
 
-            if (allImagesToInsert.length > 0) {
-              // Inserção em massa da galeria
-              const { error: galleryError } = await supabase
-                .from('product_images')
-                .insert(allImagesToInsert);
+          const allImagesToInsert: any[] = [];
+          batch.forEach((originalItem) => {
+            const p = upsertMap[originalItem.reference_code];
+            const productId = p ? p.id : undefined;
+            const externalUrl = p
+              ? p.external_image_url
+              : originalItem.external_image_url;
 
-              if (galleryError) {
-                addLog(
-                  `Erro ao criar galeria do lote ${batchNum}: ${galleryError.message}`,
-                  'error'
-                );
-              } else {
-                addLog(
-                  `Galeria do lote ${batchNum} criada com sucesso.`,
-                  'info'
-                );
-              }
+            const allImages = [] as string[];
+            if (externalUrl) allImages.push(externalUrl);
+            if (originalItem.images && Array.isArray(originalItem.images)) {
+              allImages.push(...originalItem.images);
+            }
+
+            if (productId && allImages.length > 0) {
+              const galleryItems = prepareProductGallery(productId, allImages);
+              allImagesToInsert.push(...galleryItems);
+            }
+          });
+
+          if (allImagesToInsert.length > 0) {
+            const { error: galleryError } = await supabase
+              .from('product_images')
+              .insert(allImagesToInsert);
+
+            if (galleryError) {
+              addLog(
+                `Erro ao criar galeria do lote ${batchNum}: ${galleryError.message}`,
+                'error'
+              );
+            } else {
+              addLog(`Galeria do lote ${batchNum} criada com sucesso.`, 'info');
             }
           }
         }

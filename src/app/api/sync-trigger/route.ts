@@ -2,7 +2,7 @@ import { inngest } from '@/inngest/client';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-export async function POST() {
+export async function POST(req: Request) {
   const supabase = await createClient();
 
   // 1. Verifica quem é o usuário logado
@@ -12,6 +12,14 @@ export async function POST() {
 
   if (!user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
+  // lê filtros opcionais enviados pelo cliente
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch (e) {
+    body = {};
   }
 
   // 2. Cria um registro inicial em `sync_jobs` para que a UI já consiga
@@ -31,13 +39,15 @@ export async function POST() {
   const jobId = inserted?.id || null;
 
   // 3. Envia o evento para o Inngest iniciar o motor em segundo plano e
-  //    passa o jobId para que os workers possam reportar progresso.
+  //    passa o jobId e filtros para que os workers possam processar apenas
+  //    o subconjunto desejado.
   try {
     await inngest.send({
       name: 'catalog/sync.requested',
       data: {
         userId: user.id,
         jobId,
+        filters: body?.filters || null,
       },
     });
   } catch (err: any) {

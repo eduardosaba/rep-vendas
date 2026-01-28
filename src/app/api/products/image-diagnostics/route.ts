@@ -11,9 +11,10 @@ export async function GET() {
     if (!user)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Buscamos apenas os campos necessários para o diagnóstico
     const { data: products, error } = await supabase
       .from('products')
-      .select('id, image_url, images, reference_code')
+      .select('image_url, images, reference_code')
       .eq('user_id', user.id);
 
     if (error) throw error;

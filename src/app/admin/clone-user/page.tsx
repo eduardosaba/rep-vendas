@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import SyncStatusCard from '@/components/dashboard/SyncStatusCard';
+import SyncBrandPanel from '@/components/admin/SyncBrandPanel';
 
 export default function CloneUserPage() {
   const supabase = createClient();
@@ -290,23 +291,31 @@ export default function CloneUserPage() {
         </div>
       </div>
 
-      <div className="mt-4">
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="px-4 py-2 bg-[var(--primary)] text-white rounded"
-        >
-          {loading ? 'Iniciando...' : 'Clonar catálogo'}
-        </button>
-        <button
-          onClick={() => {
-            // toggle polling manually
-            setPolling((p) => !p);
-          }}
-          className="ml-3 px-4 py-2 bg-white border text-gray-700 rounded"
-        >
-          {polling ? 'Parar Console' : 'Abrir Console de Clonagem'}
-        </button>
+      <div className="mt-4 grid md:grid-cols-2 gap-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="px-4 py-2 bg-[var(--primary)] text-white rounded"
+            >
+              {loading ? 'Iniciando...' : 'Clonar catálogo'}
+            </button>
+            <button
+              onClick={() => {
+                // toggle polling manually
+                setPolling((p) => !p);
+              }}
+              className="ml-3 px-4 py-2 bg-white border text-gray-700 rounded"
+            >
+              {polling ? 'Parar Console' : 'Abrir Console de Clonagem'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <SyncBrandPanel brands={brands} />
+        </div>
       </div>
 
       {/* Clone console */}

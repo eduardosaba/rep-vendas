@@ -1,0 +1,112 @@
+[
+  {
+    "name": "Camisa Social Masculina - Algodão Premium",
+    "reference_code": "TEST-001",
+    "brand": "DemoWear",
+    "category": "Vestuário",
+    "description": "Camisa social confortável em algodão premium. Corte tradicional, perfeita para reuniões e visitas a clientes.",
+    "external_urls": ["https://picsum.photos/seed/test1/800/800"],
+    "price": 129.9,
+    "sale_price": 99.9,
+    "stock_quantity": 24
+  },
+  {
+    "name": "Tênis Casual Unissex - Solado Leve",
+    "reference_code": "TEST-002",
+    "brand": "DemoFeet",
+    "category": "Calçados",
+    "description": "Tênis casual com sola leve e design moderno. Ótimo para uso diário e demonstração em loja.",
+    "external_urls": ["https://picsum.photos/seed/test2/800/800"],
+    "price": 249.0,
+    "sale_price": 199.0,
+    "stock_quantity": 15
+  },
+  {
+    "name": "Batom Líquido Hidratante - Vermelho Clássico",
+    "reference_code": "TEST-003",
+    "brand": "BelleDemo",
+    "category": "Cosméticos",
+    "description": "Batom líquido de longa duração com acabamento acetinado e ação hidratante.",
+    "external_urls": ["https://picsum.photos/seed/test3/800/800"],
+    "price": 39.9,
+    "sale_price": 29.9,
+    "stock_quantity": 60
+  },
+  {
+    "name": "Relógio Analógico Minimal - Aço Inoxidável",
+    "reference_code": "TEST-004",
+    "brand": "TimeDemo",
+    "category": "Acessórios",
+    "description": "Relógio com design minimalista, caixa em aço inoxidável e vidro resistente a riscos.",
+    "external_urls": ["https://picsum.photos/seed/test4/800/800"],
+    "price": 349.0,
+    "sale_price": 299.0,
+    "stock_quantity": 8
+  },
+  {
+    "name": "Luminária de Mesa LED - Regulável",
+    "reference_code": "TEST-005",
+    "brand": "LightDemo",
+    "category": "Decoração",
+    "description": "Luminária de mesa com intensidade regulável, ideal para escritórios e pontos de venda.",
+    "external_urls": ["https://picsum.photos/seed/test5/800/800"],
+    "price": 179.9,
+    "sale_price": 149.9,
+    "stock_quantity": 20
+  },
+  {
+    "name": "Fone Bluetooth - Cancelamento de Ruído",
+    "reference_code": "TEST-006",
+    "brand": "SoundDemo",
+    "category": "Eletrônicos",
+    "description": "Fone Bluetooth com cancelamento ativo de ruído e bateria de longa duração.",
+    "external_urls": ["https://picsum.photos/seed/test6/800/800"],
+    "price": 399.0,
+    "sale_price": 349.0,
+    "stock_quantity": 12
+  },
+  {
+    "name": "Jogo de Copos Cristal - 6 Peças",
+    "reference_code": "TEST-007",
+    "brand": "HomeDemo",
+    "category": "Casa",
+    "description": "Conjunto de copos em cristal com acabamento refinado, ideal para apresentação de produtos.",
+    "external_urls": ["https://picsum.photos/seed/test7/800/800"],
+    "price": 89.9,
+    "sale_price": 69.9,
+    "stock_quantity": 40
+  },
+  {
+    "name": "Capa de Chuva Compacta - Unissex",
+    "reference_code": "TEST-008",
+    "brand": "RainDemo",
+    "category": "Acessórios",
+    "description": "Capa de chuva dobrável e compacta para facilidade de demonstração e venda porta a porta.",
+    "external_urls": ["https://picsum.photos/seed/test8/800/800"],
+    "price": 59.9,
+    "sale_price": 49.9,
+    "stock_quantity": 35
+  },
+  {
+    "name": "Caderno Premium A5 - 120 folhas",
+    "reference_code": "TEST-009",
+    "brand": "WriteDemo",
+    "category": "Papelaria",
+    "description": "Caderno com capa dura e miolo pontilhado, ótimo para demonstrar linha de papelaria.",
+    "external_urls": ["https://picsum.photos/seed/test9/800/800"],
+    "price": 24.9,
+    "sale_price": 19.9,
+    "stock_quantity": 120
+  },
+  {
+    "name": "Caneca Térmica - 350ml",
+    "reference_code": "TEST-010",
+    "brand": "MugDemo",
+    "category": "Cozinha",
+    "description": "Caneca térmica com vedação para manter bebidas quentes por horas.",
+    "external_urls": ["https://picsum.photos/seed/test10/800/800"],
+    "price": 69.0,
+    "sale_price": 59.0,
+    "stock_quantity": 50
+  }
+]

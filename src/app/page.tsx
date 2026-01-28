@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
+import DemoCredentialsClient from '@/components/DemoCredentialsClient';
 import { createClient } from '@/lib/supabase/server';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { redirect } from 'next/navigation';
@@ -68,12 +69,12 @@ export default async function LandingPage() {
               Benefícios
             </a>
 
-            <Link
-              href="/demo/catalogo"
+            <DemoCredentialsClient
+              href="https://www.repvendas.com.br/catalogo/teste"
+              label="Catálogo Demo"
+              showOnlyPrice={true}
               className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide flex items-center gap-1"
-            >
-              Catálogo Demo <ExternalLink size={14} className="mb-0.5" />
-            </Link>
+            />
 
             <Link
               href="/login"
@@ -144,24 +145,21 @@ export default async function LandingPage() {
             </Link>
 
             {/* Link para Demo do Dashboard */}
-            <Link
+            <DemoCredentialsClient
               href="/demo/dashboard"
+              label="Ver Dashboard Demo"
               className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/30 text-white rounded-full font-bold text-lg hover:bg-white/10 transition-all backdrop-blur-sm flex items-center justify-center gap-2"
-            >
-              <Layout size={20} />
-              Ver Dashboard Demo
-            </Link>
+            />
           </div>
 
           {/* Link Secundário para Demo do Catálogo */}
           <div className="mt-6">
-            <Link
-              href="/demo/catalogo"
+            <DemoCredentialsClient
+              href="https://www.repvendas.com.br/catalogo/teste"
+              label="Ou veja como fica o Catálogo para seu cliente"
+              showOnlyPrice={true}
               className="text-gray-400 hover:text-[#b9722e] underline underline-offset-4 text-sm transition-colors inline-flex items-center gap-1"
-            >
-              Ou veja como fica o Catálogo para seu cliente{' '}
-              <ExternalLink size={12} />
-            </Link>
+            />
           </div>
 
           <div className="mt-8 flex items-center justify-center gap-6 text-sm text-gray-400">
@@ -243,12 +241,11 @@ export default async function LandingPage() {
                     </div>
                     {/* Overlay CTA */}
                     <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-gray-50 via-transparent to-transparent">
-                      <Link
+                      <DemoCredentialsClient
                         href="/demo/dashboard"
+                        label="Interagir com a Demo"
                         className="bg-[#0d1b2c] text-white px-8 py-3 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-2"
-                      >
-                        Interagir com a Demo <ArrowRight size={16} />
-                      </Link>
+                      />
                     </div>
                   </div>
                 </div>

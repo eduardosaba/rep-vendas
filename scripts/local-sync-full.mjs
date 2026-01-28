@@ -140,8 +140,8 @@ async function syncFullCatalog() {
                           .eq('id', img.id);
                         totalOriginalBytes += res.originalSize;
                         totalOptimizedBytes += res.optimizedSize;
-                          productOriginalBytes += res.originalSize;
-                          productOptimizedBytes += res.optimizedSize;
+                        productOriginalBytes += res.originalSize;
+                        productOptimizedBytes += res.optimizedSize;
                         gallerySynced++;
                       } catch (err) {
                         await supabase
@@ -214,8 +214,16 @@ async function syncFullCatalog() {
       console.log(`\n⏳ Pausa para respiro (${DELAY_BETWEEN_CHUNKS}ms)...`);
       await new Promise((r) => setTimeout(r, DELAY_BETWEEN_CHUNKS));
     } catch (err) {
-      console.error('🚨 Erro Crítico:', err.message);
-      break;
+      // Não abortar imediatamente em erros transitórios: tenta continuar
+      console.error('🚨 Erro Crítico no lote:', err?.message || err);
+      consecutiveErrors = (consecutiveErrors || 0) + 1;
+      if (consecutiveErrors > 5) {
+        console.error('Muitos erros consecutivos, abortando.');
+        break;
+      }
+      // Espera curta antes de tentar o próximo lote
+      await new Promise((r) => setTimeout(r, 2000));
+      continue;
     }
   }
 
@@ -248,12 +256,83 @@ async function syncFullCatalog() {
 async function processAndUpload(url, storagePath, agent) {
   if (!url || url.includes('placeholder')) throw new Error('URL inválida');
 
-  const response = await fetch(url, {
-    agent,
-    headers: { 'User-Agent': 'Mozilla/5.0' },
-    timeout: 15000,
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  // Normalize possible concatenated URLs into candidates
+  const raw = String(url).trim();
+  let candidates = [];
+  if (raw.includes(';')) {
+    candidates = raw
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else if ((raw.match(/https?:\/\//g) || []).length > 1) {
+    candidates = raw
+      .split(/(?=https?:\/\/)/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else {
+    candidates = [raw];
+  }
+
+  const MAX_FETCH_ATTEMPTS = 3;
+  let response = null;
+  let lastErr = null;
+
+  // Try each candidate in order until one succeeds
+  for (const candidate of candidates) {
+    lastErr = null;
+    for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+      try {
+        response = await fetch(candidate, {
+          agent,
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          timeout: 15000,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+        console.warn(
+          `fetch attempt ${attempt}/${MAX_FETCH_ATTEMPTS} failed for ${candidate}: ${e?.message || e}`
+        );
+        if (attempt < MAX_FETCH_ATTEMPTS) {
+          const waitMs =
+            500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 200);
+          await new Promise((r) => setTimeout(r, waitMs));
+        }
+      }
+    }
+    if (!lastErr && response) break; // success
+    console.warn(`Candidate failed, trying next if available: ${candidate}`);
+  }
+
+  if (lastErr) {
+    // Antes de falhar, tente fallback via proxy interno (se configurado)
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL || process.env.SUPABASE_URL || null;
+    if (appUrl) {
+      try {
+        const proxyUrl = `${appUrl.replace(/\/$/, '')}/api/proxy-image?url=${encodeURIComponent(raw)}`;
+        console.warn(`Tentando fallback via proxy: ${proxyUrl}`);
+        const proxyRes = await fetch(proxyUrl, {
+          headers: { 'Cache-Control': 'no-cache' },
+          timeout: 20000,
+        });
+        if (proxyRes && proxyRes.ok) {
+          response = proxyRes;
+          lastErr = null;
+        } else {
+          const status = proxyRes ? proxyRes.status : 'no_response';
+          console.warn(`Proxy fallback não OK: ${status}`);
+        }
+      } catch (proxyErr) {
+        console.warn('Proxy fallback falhou:', proxyErr?.message || proxyErr);
+      }
+    }
+
+    if (lastErr)
+      throw new Error(`fetch failed ${raw} - ${lastErr?.message || lastErr}`);
+  }
 
   const buffer = Buffer.from(await response.arrayBuffer());
   const originalSize = buffer.byteLength;
@@ -280,4 +359,10 @@ async function processAndUpload(url, storagePath, agent) {
   return { url: data.publicUrl, originalSize, optimizedSize };
 }
 
-syncFullCatalog().catch((e) => console.error('❌ Erro Fatal:', e));
+syncFullCatalog().catch((e) => {
+  console.error('❌ Erro Fatal não recuperável:', e);
+  // Não falhar o processo via exit(1) para evitar ELIFECYCLE em casos onde
+  // vários downloads falharam parcialmente; permitir que o script termine
+  // com código 0 para coleta de relatório. Ajuste se preferir falhar.
+  process.exitCode = 0;
+});

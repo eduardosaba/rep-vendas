@@ -17,15 +17,37 @@ export async function POST(req: Request) {
       catalog_id,
       brand_id,
       code: requestedCode,
+      image_url,
     } = body || {};
 
-    if (!destination_url)
+    const supabase = await createRouteSupabase();
+    // If no destination_url provided but catalog_id present,
+    // try to construct a canonical catalog URL: /catalogo/{slug}
+    let finalDestination = destination_url || null;
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+
+    if (!finalDestination) {
+      // prefer catalog_id -> resolve to public_catalogs.slug if available
+      if (catalog_id) {
+        try {
+          const { data: pc } = await supabase
+            .from('public_catalogs')
+            .select('slug')
+            .eq('id', catalog_id)
+            .maybeSingle();
+          if (pc?.slug) finalDestination = `${appUrl}/catalogo/${pc.slug}`;
+        } catch (e) {
+          // ignore resolution errors
+        }
+      }
+    }
+
+    if (!finalDestination) {
       return NextResponse.json(
         { error: 'destination_url is required' },
         { status: 400 }
       );
-
-    const supabase = await createRouteSupabase();
+    }
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id || null;
 
@@ -38,14 +60,13 @@ export async function POST(req: Request) {
     const { data: existingByDest } = await supabase
       .from('short_links')
       .select('*')
-      .eq('destination_url', destination_url)
+      .eq('destination_url', finalDestination)
       .maybeSingle();
 
     if (existingByDest) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
       return NextResponse.json({
         code: existingByDest.code,
-        short_url: `${appUrl.replace(/\/$/, '')}/v/${existingByDest.code}`,
+        short_url: `${appUrl}/v/${existingByDest.code}`,
       });
     }
 
@@ -77,10 +98,11 @@ export async function POST(req: Request) {
 
     const insertPayload: any = {
       code,
-      destination_url,
+      destination_url: finalDestination,
       catalog_id: catalog_id || null,
       user_id: userId,
       brand_id: brand_id || null,
+      image_url: image_url || null,
     };
 
     const { data: inserted, error } = await supabase
@@ -94,10 +116,9 @@ export async function POST(req: Request) {
         { status: 500 }
       );
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
     return NextResponse.json({
       code: inserted.code,
-      short_url: `${appUrl.replace(/\/$/, '')}/v/${inserted.code}`,
+      short_url: `${appUrl}/v/${inserted.code}`,
     });
   } catch (err: any) {
     return NextResponse.json(

@@ -11,18 +11,50 @@ export const processFullCatalog = inngest.createFunction(
   { id: 'process-full-catalog' },
   { event: 'catalog/sync.requested' },
   async ({ event, step }) => {
-    const { userId } = event.data;
+    const { userId, filters } = event.data;
 
     const products = await step.run('fetch-pending-products', async () => {
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      const { data } = await supabase
+
+      let query = supabase
         .from('products')
-        .select('id, external_image_url')
+        .select(
+          'id, external_image_url, name, reference_code, brand, category, sync_status'
+        )
         .eq('user_id', userId)
         .is('image_path', null);
+
+      // Aplica filtros opcionais enviados pelo cliente
+      if (filters) {
+        if (filters.brand) query = query.eq('brand', filters.brand);
+        if (filters.category) query = query.eq('category', filters.category);
+        if (filters.status && filters.status !== 'all') {
+          if (filters.status === 'pending')
+            query = query.eq('sync_status', 'pending');
+          if (filters.status === 'synced')
+            query = query.eq('sync_status', 'synced');
+          if (filters.status === 'failed')
+            query = query.eq('sync_status', 'failed');
+        }
+        if (filters.search) {
+          const term = String(filters.search).trim();
+          if (term.length > 0) {
+            // busca em name e reference_code (case-insensitive)
+            query = query.or(
+              `name.ilike.%${term}%,reference_code.ilike.%${term}%`
+            );
+          }
+        }
+        if (filters.auditMode) {
+          // exclui imagens que parecem ser P00
+          query = query.filter('external_image_url', 'not.ilike', '%p00.jpg%');
+        }
+      }
+
+      const { data } = await query;
       return data || [];
     });
 

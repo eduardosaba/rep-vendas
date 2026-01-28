@@ -8,6 +8,7 @@ import {
   applyThemeColors,
   applyDashboardFont,
 } from '@/lib/theme';
+// Use API route to perform server-side sync (avoids client-side service-role usage)
 import {
   Save,
   Loader2,
@@ -330,6 +331,71 @@ export default function SettingsPage() {
       });
 
       if (error) throw error;
+
+      // Publicar/atualizar catálogo público quando houver `catalog_slug`.
+      if (formData.catalog_slug) {
+        try {
+          const resp = await fetch('/api/public_catalogs/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: user.id,
+              slug: formData.catalog_slug,
+              is_active: isActive,
+              store_name: formData.name || '',
+              logo_url: logoPreview ?? null,
+              primary_color: formData.primary_color,
+              secondary_color: formData.secondary_color,
+              header_background_color: formData.header_background_color,
+              footer_background_color: formData.footer_background_color,
+              footer_message: formData.footer_message || null,
+              phone: formData.phone || null,
+              email: formData.email || null,
+              font_family: formData.font_family || null,
+              font_url: formData.font_url ?? null,
+              share_banner_url: shareBannerPreview ?? null,
+              og_image_url: ogImagePreview ?? null,
+              banners:
+                currentBanners && currentBanners.length ? currentBanners : null,
+              banners_mobile:
+                currentBannersMobile && currentBannersMobile.length
+                  ? currentBannersMobile
+                  : null,
+              top_benefit_image_url: topBenefitImagePreview ?? null,
+              top_benefit_image_fit: topBenefitImageFit,
+              top_benefit_image_scale: topBenefitImageScale,
+              top_benefit_height: topBenefitHeight,
+              top_benefit_text_size: topBenefitTextSize,
+              top_benefit_bg_color: topBenefitBgColor,
+              top_benefit_text_color: topBenefitTextColor,
+              top_benefit_text: catalogSettings.top_benefit_text || null,
+              show_top_benefit_bar:
+                catalogSettings.show_top_benefit_bar ?? false,
+              show_top_info_bar: catalogSettings.show_top_info_bar ?? true,
+              show_installments: catalogSettings.show_installments ?? false,
+              max_installments: Number(catalogSettings.max_installments || 1),
+              show_sale_price: catalogSettings.show_sale_price ?? true,
+              show_cost_price: catalogSettings.show_cost_price ?? false,
+              price_password_hash: formData.price_password || null,
+            }),
+          });
+
+          if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            const msg = body?.error || body?.message || 'Erro desconhecido';
+            toast.error(`Sincronização pública falhou: ${msg}`);
+            setSaving(false);
+            return;
+          }
+        } catch (pubErr: any) {
+          console.error('Failed to call /api/public_catalogs/sync', pubErr);
+          const msg = pubErr?.message || 'Erro ao sincronizar catálogo público';
+          toast.error(`Sincronização pública falhou: ${msg}`);
+          setSaving(false);
+          return;
+        }
+      }
+
       toast.success('Configurações aplicadas com sucesso!', { id: toastId });
     } catch (err: any) {
       toast.error(err.message, { id: toastId });
@@ -1020,11 +1086,12 @@ export default function SettingsPage() {
             <h3 className="font-black text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2 mb-8">
               <Share2 size={18} /> Estratégia Digital
             </h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-8">
                 <WhatsAppLinkGenerator
                   catalogUrl={`https://repvendas.com.br/catalogo/${formData.catalog_slug}`}
                   catalogName={formData.name}
+                  imageUrl={shareBannerPreview || logoPreview || '/link.webp'}
                 />
                 <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
                   <p className="text-xs font-black uppercase text-slate-400 mb-4">
@@ -1037,7 +1104,7 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              <div className="space-y-4 sticky top-24">
+              <div className="space-y-4 md:sticky md:top-24">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">
                   Preview WhatsApp
                 </label>

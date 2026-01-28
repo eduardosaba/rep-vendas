@@ -11,14 +11,18 @@ export async function POST() {
     if (!user)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const storageMarker = '.supabase.co/storage';
+
+    // OTIMIZAÇÃO: Filtramos no banco produtos que NÃO possuem o marcador no image_url
+    // Isso reduz drasticamente a quantidade de dados trafegados.
     const { data: products, error } = await supabase
       .from('products')
       .select('id, image_url, images, reference_code')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .or(`image_url.not.ilike.%${storageMarker}%,image_url.is.null`);
 
     if (error) throw error;
 
-    const storageMarker = '.supabase.co/storage';
     const pendingProducts = (products || []).filter((p: any) => {
       const isMainExt = p.image_url && !p.image_url.includes(storageMarker);
       const hasArrayExt =
@@ -44,12 +48,20 @@ export async function POST() {
           if (!url || url.includes(storageMarker)) return url;
 
           const res = await fetch(url);
-          if (!res.ok) throw new Error(`download failed ${res.status}`);
+          if (!res.ok) throw new Error(`Download falhou: ${res.status}`);
           const arrayBuffer = await res.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
-          const contentType = res.headers.get('content-type') || undefined;
-          const ext = (url.split('.').pop() || 'jpg').split('?')[0];
-          const fileName = `${user.id}/repair/${(product.reference_code || 'item').replace(/[^a-zA-Z0-9-_]/g, '_')}-${Date.now()}.${ext}`;
+          const contentType = res.headers.get('content-type') || 'image/jpeg';
+
+          const ext = (url.split('.').pop() || 'jpg')
+            .split('?')[0]
+            .toLowerCase();
+          // Sanitização do nome do arquivo para evitar caracteres especiais
+          const safeRef = (product.reference_code || 'item').replace(
+            /[^a-zA-Z0-9]/g,
+            '_'
+          );
+          const fileName = `${user.id}/repair/${safeRef}-${Date.now()}.${ext}`;
 
           const { error: uploadError } = await supabase.storage
             .from('product-images')

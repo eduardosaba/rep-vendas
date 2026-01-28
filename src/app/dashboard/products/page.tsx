@@ -93,6 +93,16 @@ export default async function ProductsPage() {
   // Fallback seguro se der erro
   const safeProducts = products || [];
 
+  // Mostrar painel de diagnóstico somente para usuários master/template
+  const { data: { user } = {} } = await supabase.auth.getUser();
+  const allowedDiagnosticEmails = [
+    'eduardopedro.fsa@gmail.com',
+    'template-otica@repvendas.com.br',
+  ];
+  const showDiagnosticPanel = Boolean(
+    user && allowedDiagnosticEmails.includes(user.email || '')
+  );
+
   // Estatísticas de otimização de imagens
   const totalProducts = safeProducts.length;
   const productsWithInternalImages = safeProducts.filter(
@@ -262,8 +272,8 @@ export default async function ProductsPage() {
         </div>
       )}
 
-      {/* Painel de Diagnóstico (Só exibe se houver problemas) */}
-      {/* <DiagnosticPanel /> */}
+      {/* Painel de Diagnóstico (visível apenas para contas master/template) */}
+      {showDiagnosticPanel && <DiagnosticPanel />}
 
       {/* Tabela de Dados */}
       {/* Envolvemos em um container com borda e fundo para o tema */}

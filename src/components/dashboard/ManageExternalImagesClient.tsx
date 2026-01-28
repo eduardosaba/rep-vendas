@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { toast } from 'sonner';
+import { useConfirm } from '@/hooks/useConfirm';
 import {
   Play,
-  Pause,
   Loader2,
   CheckCircle,
   XCircle,
@@ -17,8 +17,6 @@ import {
   RefreshCcw,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { FixedSizeList as List } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { createClient } from '@/lib/supabase/client';
 
@@ -45,764 +43,279 @@ export default function ManageExternalImagesClient({
 }: {
   initialProducts: Product[];
 }) {
-  // DEBUG: loga quantos itens o componente recebeu (ajuste temporário)
-  useEffect(() => {
-    try {
-      const ids = (initialProducts || []).slice(0, 3).map((p) => p.id);
-      console.debug(
-        '[ManageExternalImagesClient] received',
-        initialProducts.length,
-        'items, sample ids=',
-        ids
-      );
-    } catch (e) {
-      console.debug('[ManageExternalImagesClient] debug log failed', e);
-    }
-  }, [initialProducts]);
   const [items, setItems] = useState<ProcessItem[]>(
     initialProducts.map((p) => ({ ...p, status: 'idle' }))
   );
 
-  // Ensure client state matches server props after hydration/navigation
-  useEffect(() => {
-    try {
-      setItems(initialProducts.map((p) => ({ ...p, status: 'idle' })));
-    } catch (e) {
-      console.debug(
-        '[ManageExternalImagesClient] failed to set items from props',
-        e
-      );
-    }
-  }, [initialProducts]);
-
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [pendingCountToConfirm, setPendingCountToConfirm] = useState(0);
-  const [activeJobId, setActiveJobId] = useState<string | null>(
-    typeof window !== 'undefined' ? localStorage.getItem('rv_sync_job') : null
-  );
+  const [processedInSession, setProcessedInSession] = useState(0);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // On mount, if there's no active job id, try to fetch the latest job for this user
-  useEffect(() => {
-    if (activeJobId) return;
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch('/api/sync-jobs/latest');
-        if (!res.ok) return;
-        const j = await res.json();
-        if (mounted && j?.success && j.job?.id) {
-          setActiveJobId(j.job.id);
-          try {
-            localStorage.setItem('rv_sync_job', j.job.id);
-          } catch {}
+  const { confirm } = useConfirm();
+  const router = useRouter();
+  const supabase = createClient();
+
+  const ITEMS_PER_PAGE = 20;
+
+  // --- MOTOR DE REPARO EM LOTE (A SOLUÇÃO DEFINITIVA) ---
+  // helper: fetch with timeout and optional retries
+  const fetchWithTimeout = async (
+    input: RequestInfo,
+    init?: RequestInit,
+    timeoutMs = 20000
+  ) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(input, {
+        ...(init || {}),
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+      return res;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  };
+
+  const runBatchRepair = async (isAuto = false) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    const toastId = isAuto
+      ? 'batch-repair'
+      : toast.loading('Iniciando processamento no servidor...');
+
+    try {
+      // tentativas simples com retry
+      let attempt = 0;
+      let lastErr: any = null;
+      while (attempt < 2) {
+        attempt++;
+        try {
+          const res = await fetchWithTimeout(
+            '/api/products/image-repair',
+            { method: 'POST' },
+            30000
+          );
+          if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            throw new Error(`API retornou status ${res.status}: ${txt}`);
+          }
+          const data = await res.json().catch(() => ({}));
+
+          if (data.fail_count > 0) {
+            setIsProcessing(false);
+            toast.error(
+              `Pausado: ${data.fail_count} falhas no lote. Verifique os logs.`,
+              { id: toastId }
+            );
+            return;
+          }
+
+          if (data.success_count > 0) {
+            setProcessedInSession((prev) => prev + data.success_count);
+            toast.success(`${data.success_count} imagens internalizadas!`, {
+              id: toastId,
+            });
+
+            if (data.remaining > 0) {
+              toast.loading(
+                `Aguardando próximo lote... (${data.remaining} restantes)`,
+                { id: 'batch-repair' }
+              );
+              await new Promise((r) => setTimeout(r, 2000));
+              // recursão/control loop para próximo lote
+              continue;
+            } else {
+              setIsProcessing(false);
+              toast.success('🎉 Sincronização global completa!', {
+                id: 'batch-repair',
+              });
+              try {
+                router.refresh();
+              } catch (_) {}
+              return;
+            }
+          } else {
+            setIsProcessing(false);
+            toast.info('Nenhuma imagem pendente encontrada.', { id: toastId });
+            return;
+          }
+        } catch (err: any) {
+          lastErr = err;
+          // small backoff
+          await new Promise((r) => setTimeout(r, 800 * attempt));
         }
-      } catch (e) {
-        // ignore
       }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [activeJobId]);
 
-  // Filtros
+      setIsProcessing(false);
+      toast.error(
+        `Falha ao comunicar com a API de mídias: ${String(lastErr)}`,
+        { id: toastId }
+      );
+    } catch (error) {
+      setIsProcessing(false);
+      toast.error('Erro inesperado no motor de reparo.', { id: toastId });
+    }
+  };
+
+  const handleStartRequest = async () => {
+    const estimatedBatches = Math.max(1, Math.ceil(items.length / 20));
+    const ok = await confirm({
+      title: 'Iniciar Sincronização Turbo?',
+      description: `O sistema processará ${items.length} itens em lotes automáticos (~${estimatedBatches} lote(s)). Mantenha esta aba aberta.`,
+      confirmText: 'Começar Agora',
+      cancelText: 'Cancelar',
+    });
+    if (ok) runBatchRepair();
+  };
+
+  // --- FILTROS ---
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [auditMode, setAuditMode] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<
-    'all' | 'pending' | 'synced' | 'failed'
-  >('all');
 
-  const CONFIRM_THRESHOLD = 50;
-
-  // Extrai listas únicas de marcas e categorias
-  const brands = Array.from(
-    new Set(
-      initialProducts.map((p) => p.brand).filter((b): b is string => Boolean(b))
-    )
-  ).sort();
-  const categories = Array.from(
-    new Set(
-      initialProducts
-        .map((p) => p.category)
-        .filter((c): c is string => Boolean(c))
-    )
-  ).sort();
-
-  // Filtra items baseado nos filtros ativos
-  const filteredItems = items.filter((item) => {
-    // Filtra por status (sync_status) quando selecionado
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'pending' &&
-        (item.sync_status === 'pending' || item.status === 'idle')) ||
-      (statusFilter === 'synced' && item.sync_status === 'synced') ||
-      (statusFilter === 'failed' &&
-        (item.sync_status === 'failed' || item.status === 'error'));
-    const matchesSearch =
-      !searchTerm ||
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.reference_code?.toLowerCase() || '').includes(
-        searchTerm.toLowerCase()
-      ) ||
-      (item.brand?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-
-    const matchesBrand = !selectedBrand || item.brand === selectedBrand;
-    const matchesCategory =
-      !selectedCategory || item.category === selectedCategory;
-
-    // NOVA LÓGICA DE AUDITORIA: quando auditMode=true, mostrar apenas itens que
-    // provavelmente não têm P00 como capa (verifica external_image_url).
-    const external = (item.external_image_url || '').toLowerCase();
-    const matchesAudit =
-      !auditMode || !external || !external.includes('p00.jpg');
-
-    return (
-      matchesSearch &&
-      matchesBrand &&
-      matchesCategory &&
-      matchesAudit &&
-      matchesStatus
-    );
-  });
-
-  // Paginação: limitar para um lote seguro de itens por página
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 25; // seguro para a maioria dos navegadores
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
-  );
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedItems = filteredItems.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE
-  );
-
-  // Resetar para a primeira página sempre que os filtros mudarem
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedBrand, selectedCategory, auditMode]);
-
-  // Configuração de colunas usada tanto no header quanto nas linhas (Row)
-  const columnClasses = {
-    photo: 'w-20 px-4 flex-shrink-0 flex justify-center',
-    product: 'flex-1 px-4 min-w-[200px] truncate',
-    brand: 'w-32 px-4 flex-shrink-0 hidden sm:flex',
-    status: 'w-28 px-4 flex-shrink-0 flex justify-center',
-    actions: 'w-16 px-4 flex-shrink-0 flex justify-end',
-  } as const;
-
-  // Header fixo para a lista virtualizada
-  const TableHeader = () => (
-    <div className="flex items-center bg-gray-50 dark:bg-slate-800/50 py-3 text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10">
-      <div className={columnClasses.photo}>Foto</div>
-      <div className={columnClasses.product}>Produto</div>
-      <div className={columnClasses.brand}>Marca</div>
-      <div className={columnClasses.status}>Status</div>
-      <div className={columnClasses.actions}></div>
-    </div>
-  );
-
-  // Linha renderizada pelo react-window
-  const Row = ({
-    index,
-    style,
-    data,
-  }: {
-    index: number;
-    style: any;
-    data: ProcessItem[];
-  }) => {
-    const item = data[index] as ProcessItem;
-    const displayImageUrl =
-      item.status === 'success' || item.sync_status === 'synced'
-        ? item.image_url || item.external_image_url
-        : item.external_image_url || item.image_url;
-
-    return (
-      <div
-        style={style}
-        className="flex items-center text-xs border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors bg-white dark:bg-slate-900"
-        key={item.id}
-      >
-        <div className={columnClasses.photo}>
-          <div className="w-10 h-10 rounded-md bg-gray-50 border border-gray-200 dark:border-slate-700 overflow-hidden flex items-center justify-center">
-            <LazyProductImage
-              src={displayImageUrl ?? ''}
-              alt={item.name}
-              className="max-w-full max-h-full object-contain"
-              fallbackSrc="/placeholder-no-image.svg"
-            />
-          </div>
-        </div>
-
-        <div
-          className={`${columnClasses.product} font-medium text-gray-900 dark:text-slate-200`}
-        >
-          {item.name}
-        </div>
-
-        <div
-          className={`${columnClasses.brand} text-gray-500 dark:text-slate-400 italic`}
-        >
-          {item.brand || 'N/A'}
-        </div>
-
-        <div className={columnClasses.status}>
-          <span
-            className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-tight ${
-              item.sync_status === 'synced'
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-            }`}
-          >
-            {(item.sync_status || '—').toUpperCase()}
-          </span>
-        </div>
-
-        <div className={columnClasses.actions}>
-          <a
-            href={item.external_image_url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-gray-400 hover:text-indigo-500 transition-colors p-1"
-          >
-            <ExternalLink size={14} />
-          </a>
-        </div>
-      </div>
-    );
-  };
-
-  /**
-   * ESTA É A FUNÇÃO QUE ESCALA O SISTEMA
-   * Em vez de fazer o loop aqui, ela avisa o Inngest para trabalhar no servidor.
-   */
-  const startBackgroundSync = async () => {
-    setIsProcessing(true);
-    setProgress(10); // Progresso visual inicial
-
-    try {
-      const response = await fetch('/api/sync-trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        setProgress(100);
-        // Guarda jobId para que o console possa monitorar
-        // Prefer explicit jobId, otherwise try to re-fetch latest job
-        if (result.jobId) {
-          setActiveJobId(result.jobId);
-          try {
-            localStorage.setItem('rv_sync_job', result.jobId);
-          } catch {}
-        } else {
-          try {
-            const latest = await fetch('/api/sync-jobs/latest');
-            if (latest.ok) {
-              const body = await latest.json();
-              if (body?.success && body.job?.id) {
-                setActiveJobId(body.job.id);
-                try {
-                  localStorage.setItem('rv_sync_job', body.job.id);
-                } catch {}
-              }
-            }
-          } catch {}
-        }
-
-        toast.success('🚀 Sincronização iniciada com sucesso!', {
-          description:
-            'O motor RepVendas está processando as imagens em segundo plano. Você pode acompanhar o progresso abaixo nesta página.',
-          duration: 8000,
-          action: {
-            label: 'Ver Progresso',
-            onClick: () => {
-              // Navega para o console nesta página
-              try {
-                window.location.hash = 'sync-console';
-              } catch {}
-            },
-          },
-        });
-      } else {
-        throw new Error(
-          result.error || 'Erro ao disparar motor de sincronização'
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const matchesSearch =
+        !searchTerm ||
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.reference_code?.toLowerCase() || '').includes(
+          searchTerm.toLowerCase()
         );
-      }
-    } catch (error: any) {
-      toast.error('Falha ao iniciar motor', {
-        description: error.message,
-      });
-      setProgress(0);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+      const matchesBrand = !selectedBrand || item.brand === selectedBrand;
+      return matchesSearch && matchesBrand;
+    });
+  }, [items, searchTerm, selectedBrand]);
 
-  const handleStartRequest = () => {
-    const pendingItems = filteredItems.filter((i) => i.status !== 'success');
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
-    if (pendingItems.length === 0) {
-      toast.info('Tudo atualizado! Nenhum item pendente nos filtros atuais.');
-      return;
-    }
-
-    if (pendingItems.length > CONFIRM_THRESHOLD) {
-      setPendingCountToConfirm(pendingItems.length);
-      setShowConfirm(true);
-    } else {
-      startBackgroundSync();
-    }
-  };
-
-  const handleMassRepair = async () => {
-    const toastId = toast.loading(
-      'Reparando capas... Verificando arrays de imagens.'
-    );
-
-    try {
-      const res = await fetch('/api/admin/repair-covers', { method: 'POST' });
-      if (!res.ok) throw new Error('Falha no reparo em massa');
-
-      toast.success('Reparo concluído!', { id: toastId });
-      // Recarrega os dados para atualizar a lista de auditoria
-      try {
-        window.location.reload();
-      } catch {
-        // fallback silencioso
-      }
-    } catch (error) {
-      toast.error('Erro ao processar reparo.', { id: toastId });
-    }
-  };
-
-  const stats = {
-    total: filteredItems.length,
-    totalGlobal: items.length,
-    success: items.filter((i) => i.status === 'success').length,
-    pending: items.filter((i) => i.status === 'idle').length,
-    failed: filteredItems.filter(
-      (i) => i.status === 'error' || i.sync_status === 'failed'
-    ).length,
-  };
-
-  // Supabase client (usado para operações administrativas como bulk retry)
-  const supabase = createClient();
-  const router = useRouter();
-  const [isRetrying, setIsRetrying] = useState(false);
-
-  const handleRetryFailed = async () => {
-    const failedCount = stats.failed;
-    if (!failedCount) return;
-
-    const ok = window.confirm(
-      `Desejas colocar ${failedCount} produtos de volta na fila de sincronização?`
-    );
-    if (!ok) return;
-
-    setIsRetrying(true);
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({
-          sync_status: 'pending',
-          sync_error: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('sync_status', 'failed');
-
-      if (error) throw error;
-
-      toast.success(`Reprocessamento agendado para ${failedCount} items.`);
-      try {
-        router.refresh();
-      } catch {}
-    } catch (err: any) {
-      toast.error('Falha ao reprocessar: ' + (err?.message || String(err)));
-    } finally {
-      setIsRetrying(false);
-    }
-  };
+  const brands = useMemo(
+    () =>
+      Array.from(
+        new Set(initialProducts.map((p) => p.brand).filter(Boolean))
+      ).sort(),
+    [initialProducts]
+  );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* FILTROS E BUSCA */}
-      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-slate-900 dark:to-slate-900 p-4 border-b border-gray-200 dark:border-slate-800">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="md:col-span-2">
-            <input
-              type="text"
-              placeholder="🔍 Buscar por nome, marca ou referência..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden">
+      {/* FILTROS */}
+      <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <input
+            type="text"
+            placeholder="Buscar produtos..."
+            className="lg:col-span-1 px-5 py-3 rounded-2xl bg-white dark:bg-slate-800 border-none shadow-sm text-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
           <select
             value={selectedBrand}
             onChange={(e) => setSelectedBrand(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+            className="px-5 py-3 rounded-2xl bg-white dark:bg-slate-800 border-none shadow-sm text-sm font-bold"
           >
             <option value="">Todas as Marcas</option>
             {brands.map((b) => (
-              <option key={b} value={b}>
+              <option key={b} value={b || ''}>
                 {b}
               </option>
             ))}
           </select>
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800"
+          <button
+            onClick={handleStartRequest}
+            disabled={isProcessing || items.length === 0}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 py-3 disabled:opacity-50"
           >
-            <option value="">Todas as Categorias</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <div className="md:col-span-4 flex items-center justify-between gap-3">
-            <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
-              {[
-                {
-                  id: 'all',
-                  label: 'Todos',
-                  color: 'text-gray-600',
-                  count: stats.totalGlobal,
-                },
-                {
-                  id: 'pending',
-                  label: 'Pendentes',
-                  color: 'text-amber-600',
-                  count: stats.pending,
-                },
-                {
-                  id: 'synced',
-                  label: 'OK',
-                  color: 'text-emerald-600',
-                  count: stats.success,
-                },
-                {
-                  id: 'failed',
-                  label: 'Falhas',
-                  color: 'text-rose-600',
-                  count: stats.failed,
-                },
-              ].map((btn) => (
-                <button
-                  key={btn.id}
-                  onClick={() => setStatusFilter(btn.id as any)}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                    statusFilter === btn.id
-                      ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600'
-                      : 'text-gray-400 hover:text-gray-600'
-                  }`}
-                >
-                  <span
-                    className={
-                      statusFilter === btn.id ? 'text-blue-600' : btn.color
-                    }
-                  >
-                    {btn.label}
-                  </span>
-                  <span className="bg-gray-200 dark:bg-slate-600 px-1.5 py-0.5 rounded text-[10px] opacity-70">
-                    {btn.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* BOTÃO DE REPROCESSAR FALHAS */}
-            {stats.failed > 0 && (
-              <button
-                onClick={handleRetryFailed}
-                disabled={isRetrying}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  isRetrying
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400'
-                }`}
-              >
-                <RefreshCcw
-                  size={14}
-                  className={isRetrying ? 'animate-spin' : ''}
-                />
-                {isRetrying
-                  ? 'A processar...'
-                  : `Reprocessar ${stats.failed} Falhas`}
-              </button>
-            )}
-          </div>
-          <div className="md:col-span-4 flex items-center justify-end gap-3">
-            <button
-              onClick={() => {
-                setAuditMode(!auditMode);
-                toast.success(
-                  !auditMode
-                    ? 'Modo Auditoria ativado'
-                    : 'Modo Auditoria desativado'
-                );
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all ${
-                auditMode
-                  ? 'bg-amber-100 text-amber-700 border-2 border-amber-500'
-                  : 'bg-white text-gray-500 border border-gray-200'
-              }`}
-            >
-              <AlertTriangle size={16} />
-              {auditMode
-                ? 'Visualizando Falhas de Capa'
-                : 'Auditar Capas (P00)'}
-            </button>
-
-            {auditMode && (
-              <button
-                onClick={handleMassRepair}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-lg transition-all animate-in fade-in slide-in-from-left-2"
-              >
-                <Zap size={16} />
-                Corrigir Todas com Fallback
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* PAINEL DE CONTROLE */}
-      <div className="bg-white dark:bg-slate-900 p-4 border-b border-gray-200 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex gap-4 items-center">
-          <div className="text-sm">
-            <span className="text-gray-500">Exibindo:</span>{' '}
-            <b className="text-indigo-600">{stats.total}</b> de{' '}
-            {stats.totalGlobal}
-          </div>
-          <div className="h-4 w-[1px] bg-gray-200"></div>
-          <div className="flex items-center gap-1.5 text-sm text-amber-600 font-medium">
-            <CloudLightning size={16} />
-            Background Ativo
-          </div>
-        </div>
-
-        <button
-          onClick={handleStartRequest}
-          disabled={isProcessing || stats.total === 0}
-          className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
-        >
-          {isProcessing ? (
-            <Loader2 className="animate-spin" size={20} />
-          ) : (
-            <Play size={18} fill="currentColor" />
-          )}
-          {isProcessing ? 'Acionando Motor...' : 'Sincronizar Catálogo'}
-        </button>
-      </div>
-
-      {/* PROGRESS BAR */}
-      {isProcessing && (
-        <div className="w-full h-1.5 bg-gray-100 dark:bg-slate-800">
-          <div
-            className="h-full bg-indigo-600 transition-all duration-1000"
-            style={{ width: `${progress}%` }}
-          ></div>
-        </div>
-      )}
-
-      {/* TABELA VIRTUALIZADA (react-window) */}
-      <div className="flex flex-col flex-1">
-        {/* Definição das larguras de coluna para manter header e rows alinhados */}
-        <style>{``}</style>
-        <div className="px-0">
-          {/* Header fixo */}
-          <TableHeader />
-        </div>
-
-        <div className="flex-1 overflow-auto">
-          <div className="px-0">
-            {/* Rows (paginated) */}
-            {paginatedItems.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                Nenhum item encontrado.
-              </div>
+            {isProcessing ? (
+              <Loader2 className="animate-spin" size={16} />
             ) : (
-              paginatedItems.map((_, idx) => (
-                <Row
-                  key={paginatedItems[idx].id}
-                  index={idx}
-                  style={{}}
-                  data={paginatedItems}
-                />
-              ))
+              <Zap size={16} />
             )}
-
-            {/* Pagination controls */}
-            <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-              <div className="text-sm text-gray-500">
-                Página {currentPage} de {totalPages}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1 rounded bg-white border"
-                >
-                  Anterior
-                </button>
-                <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  className="px-3 py-1 rounded bg-white border"
-                >
-                  Próxima
-                </button>
-              </div>
-            </div>
-          </div>
+            Sincronizar Tudo
+          </button>
         </div>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* LISTA DE PRODUTOS */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        {paginatedItems.map((item) => (
           <div
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            onClick={() => setShowConfirm(false)}
-          />
-          <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 dark:border-slate-800 text-center">
-            <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CloudLightning size={40} />
+            key={item.id}
+            className="flex items-center justify-between p-4 bg-slate-50/30 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800 rounded-3xl"
+          >
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-white overflow-hidden border">
+                <LazyProductImage
+                  src={item.image_url || item.external_image_url}
+                  alt={item.name}
+                />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm">{item.name}</h4>
+                <p className="text-[10px] uppercase font-black text-slate-400">
+                  {item.reference_code} • {item.brand}
+                </p>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Processar em Lote?
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-8">
-              Você tem <b>{pendingCountToConfirm}</b> imagens para internalizar.
-              O processo será feito em segundo plano nos nossos servidores.
-            </p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => {
-                  setShowConfirm(false);
-                  startBackgroundSync();
-                }}
-                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all"
-              >
-                Sim, iniciar agora
-              </button>
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="w-full py-4 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold"
-              >
-                Cancelar
-              </button>
-            </div>
+            <a
+              href={item.external_image_url}
+              target="_blank"
+              className="p-2 text-slate-300 hover:text-indigo-600"
+            >
+              <ExternalLink size={16} />
+            </a>
           </div>
+        ))}
+      </div>
+
+      {/* FOOTER PAGINAÇÃO */}
+      <div className="p-6 border-t flex items-center justify-between">
+        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+          {processedInSession} Processados / {items.length} Restantes
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            className="p-2 bg-slate-100 rounded-xl"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span className="px-4 py-2 font-black text-xs">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            className="p-2 bg-slate-100 rounded-xl"
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
-      )}
-      {/* SYNC CONSOLE: mostra progresso detalhado e logs */}
-      <div id="sync-console" className="mt-4">
-        {activeJobId && <SyncConsole jobId={activeJobId} />}
+      </div>
+
+      {/* CONSOLE DE LOGS (OPCIONAL) */}
+      <div className="px-6 pb-6">
+        <SyncConsole jobId={activeJobId || 'Sessão Atual'} />
       </div>
     </div>
   );
 }
 
+// Componente de Console Interno (Simplificado)
 function SyncConsole({ jobId }: { jobId: string }) {
-  const [job, setJob] = useState<any | null>(null);
-  const [items, setItems] = useState<any[]>([]);
-  const supabase = createClient();
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function fetchAll() {
-      try {
-        const { data: j } = await supabase
-          .from('sync_jobs')
-          .select('*')
-          .eq('id', jobId)
-          .maybeSingle();
-        if (mounted) setJob(j || null);
-
-        const { data: its } = await supabase
-          .from('sync_job_items')
-          .select('product_id,status,error_text,created_at')
-          .eq('job_id', jobId)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (mounted) setItems(its || []);
-      } catch (e) {
-        console.error('Failed to load sync console', e);
-      }
-    }
-
-    fetchAll();
-    const t = setInterval(fetchAll, 3000);
-    return () => {
-      mounted = false;
-      clearInterval(t);
-    };
-  }, [jobId, supabase]);
-
   return (
-    <div className="mt-6 bg-gray-50 dark:bg-slate-900 p-4 rounded-lg border border-gray-100 dark:border-slate-800">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-sm font-medium">Console de Sincronização</div>
-        <div className="text-xs text-gray-500">Job: {jobId}</div>
+    <div className="bg-slate-900 rounded-2xl p-4 font-mono text-[10px] text-emerald-400 border border-slate-800">
+      <div className="flex justify-between border-b border-slate-800 pb-2 mb-2">
+        <span className="uppercase font-bold">Log de Processamento</span>
+        <span className="opacity-50">{jobId}</span>
       </div>
-      <div className="mb-3 text-xs text-gray-600 flex items-center gap-3">
-        <div>
-          Status: <b className="ml-1">{job?.status || '—'}</b>
-        </div>
-        <div>
-          Processados:{' '}
-          <b className="ml-1">
-            {job?.completed_count ?? 0}/{job?.total_count ?? 0}
-          </b>
-        </div>
-        <div className="flex-1">
-          <div className="w-full h-2 bg-gray-200 rounded">
-            <div
-              className="h-2 bg-indigo-600 rounded transition-all"
-              style={{
-                width: `${job && job.total_count ? Math.round(((job.completed_count || 0) / job.total_count) * 100) : 0}%`,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-h-56 overflow-auto text-[12px] font-mono bg-white dark:bg-slate-950 p-2 rounded">
-        {items.length === 0 ? (
-          <div className="text-gray-500">Nenhum registro ainda.</div>
-        ) : (
-          items.map((it) => (
-            <div key={it.created_at + it.product_id} className="mb-1">
-              <span className="text-xs text-gray-400">
-                [{new Date(it.created_at).toLocaleTimeString()}]
-              </span>{' '}
-              <span
-                className={
-                  it.status === 'failed' ? 'text-red-500' : 'text-green-600'
-                }
-              >
-                {it.status.toUpperCase()}
-              </span>{' '}
-              <span className="ml-2">{it.product_id}</span>
-              {it.error_text && (
-                <div className="text-xxs text-red-400">{it.error_text}</div>
-              )}
-            </div>
-          ))
-        )}
+      <div className="h-20 overflow-y-auto space-y-1">
+        <div>{`[${new Date().toLocaleTimeString()}] Aguardando comando de sincronização...`}</div>
       </div>
     </div>
   );

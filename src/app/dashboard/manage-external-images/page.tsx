@@ -1,175 +1,129 @@
 import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server'; // Caminho padronizado
+import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
 import ManageExternalImagesClient from '@/components/dashboard/ManageExternalImagesClient';
-import SyncStatusCard from '@/components/dashboard/SyncStatusCard';
-import { CloudDownload, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import {
+  CloudDownload,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 
 export const metadata = {
   title: 'Sincronizar Imagens | Rep-Vendas',
-  description: 'Baixe e armazene imagens de links externos automaticamente.',
+  description: 'Internalização automática de mídias para o Storage.',
 };
 
 export const dynamic = 'force-dynamic';
 
 export default async function ManageExternalImagesPage() {
   const supabase = await createClient();
-
   const activeUserId = await getActiveUserId();
   if (!activeUserId) redirect('/login');
 
-  // Busca produtos que:
-  // 1. Pertencem ao usuário
-  // 2. NÃO têm imagem no Storage (image_path é null) - precisa internalizar
-  // 3. Têm pelo menos uma URL externa disponível
-  const { data, error } = await supabase
+  // 1. BUSCA OTIMIZADA: Trazemos apenas o necessário para a análise
+  const { data: products, error } = await supabase
     .from('products')
-    .select(
-      'id, name, reference_code, brand, category, external_image_url, image_url, images, image_path'
-    )
-    .eq('user_id', activeUserId)
-    .order('id', { ascending: true });
+    .select('id, name, reference_code, brand, image_url, images, image_path')
+    .eq('user_id', activeUserId);
 
-  if (error) {
-    console.error('Erro ao buscar produtos:', error);
-  }
+  if (error) console.error('Erro ao buscar produtos:', error);
 
-  // Filtra apenas produtos que têm pelo menos uma URL externa E que NÃO
-  // parecem ter uma imagem internalizada (mesma lógica usada em ProductsTable)
-  const productsWithExternalUrls = (data || []).filter((p: any) => {
-    const hasExternal =
-      p.external_image_url ||
-      p.image_url ||
-      (p.images && Array.isArray(p.images) && p.images.length > 0);
+  const storageMarker = '.supabase.co/storage';
 
-    const imagesArray = Array.isArray(p.images) ? p.images : [];
-    const imagesContainStorage = imagesArray.some((it: any) => {
-      const url = typeof it === 'string' ? it : it?.url || '';
-      return typeof url === 'string' && url.includes('supabase.co/storage');
-    });
+  // 2. LÓGICA DE FILTRAGEM REFORMULADA
+  const pendingProducts = (products || [])
+    .filter((p: any) => {
+      const isMainExternal =
+        p.image_url && !p.image_url.includes(storageMarker);
 
-    const hasStorageImage = Boolean(
-      p.image_path ||
-      (p.image_url && String(p.image_url).includes('supabase.co/storage')) ||
-      (p.external_image_url &&
-        String(p.external_image_url).includes('supabase.co/storage')) ||
-      imagesContainStorage
-    );
+      const hasArrayExternal =
+        Array.isArray(p.images) &&
+        p.images.some((img: any) => {
+          const url = typeof img === 'string' ? img : img?.url;
+          return url && !url.includes(storageMarker);
+        });
 
-    return hasExternal && !hasStorageImage;
-  });
-
-  // Normalize e sanitize para passar apenas campos simples ao componente cliente
-  const cleanedProducts = productsWithExternalUrls.map((p: any) => {
-    // tenta external_image_url, depois image_url, depois first images entry
-    const fallbackUrl =
-      p.external_image_url ||
-      p.image_url ||
-      (p.images && Array.isArray(p.images) && p.images[0]
-        ? p.images[0].url || p.images[0]
-        : null) ||
-      null;
-
-    return {
+      return !p.image_path || isMainExternal || hasArrayExternal;
+    })
+    .map((p) => ({
       id: p.id,
       name: p.name || 'Sem nome',
-      reference_code: p.reference_code || null,
-      brand: p.brand || null,
-      category: p.category || null,
-      external_image_url: fallbackUrl,
-    };
-  });
-
-  // Busca o último job de sincronização para exibir no card de status
-  let syncJob = null;
-  try {
-    const { data: lastJob } = await supabase
-      .from('sync_jobs')
-      .select('*')
-      .eq('user_id', activeUserId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    syncJob = lastJob;
-  } catch (e) {
-    console.error('Erro ao buscar sync job:', e);
-  }
+      reference_code: p.reference_code,
+      brand: p.brand,
+      category: null,
+      external_image_url:
+        p.image_url && !p.image_url.includes(storageMarker)
+          ? p.image_url
+          : Array.isArray(p.images)
+            ? p.images[0]?.url || p.images[0]
+            : null,
+    }));
 
   return (
-    <div className="flex flex-col h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl shadow-sm">
-            <CloudDownload size={24} />
+    <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950 p-6 overflow-hidden">
+      {/* HEADER PREMIUM */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-none">
+            <CloudDownload size={28} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Sincronizar Imagens
-              </h1>
-              <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 text-xs font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                {productsWithExternalUrls.length} pendentes
-              </span>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Baixe imagens de links externos (Excel) para o servidor.
+            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              Central de Mídia
+            </h1>
+            <p className="text-slate-500 font-medium">
+              Converta links externos em arquivos seguros no seu Storage.
             </p>
           </div>
         </div>
 
         <Link
           href="/dashboard/products"
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-all shadow-sm"
         >
-          <ArrowLeft size={16} />
-          Voltar para Produtos
+          <ArrowLeft size={18} />
+          Painel de Produtos
         </Link>
       </div>
 
-      {/* ÁREA PRINCIPAL (agora rolável; o card de status fica dentro dela para
-              não reduzir o espaço reservado ao conteúdo principal) */}
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col relative">
-        <div className="p-4 flex-1 min-h-0 overflow-auto">
-          {productsWithExternalUrls.length > 0 ? (
-            <ManageExternalImagesClient initialProducts={cleanedProducts} />
+      {/* ALERT BOX PARA EXPLICAR O PROCESSO */}
+      {pendingProducts.length > 0 && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="text-amber-600" size={20} />
+          <p className="text-sm text-amber-800 font-medium">
+            <strong>Dica:</strong> Para evitar bloqueios de segurança (CORS), o
+            download é processado pelo nosso servidor em lotes. Mantenha esta
+            aba aberta até a conclusão.
+          </p>
+        </div>
+      )}
+
+      {/* ÁREA DE CONTEÚDO */}
+      <div className="flex-1 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto p-2">
+          {pendingProducts.length > 0 ? (
+            <ManageExternalImagesClient initialProducts={pendingProducts} />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/20 rounded-full flex items-center justify-center mb-6">
                 <CheckCircle2
-                  className="text-green-600 dark:text-green-400"
-                  size={32}
+                  className="text-emerald-600 dark:text-emerald-400"
+                  size={48}
                 />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Tudo Atualizado!
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+                Catálogo 100% Protegido!
               </h3>
-              <p className="text-gray-500 dark:text-gray-400 max-w-md">
-                Não há produtos com links externos pendentes de download.
+              <p className="text-slate-500 max-w-sm font-medium">
+                Todas as suas imagens já estão hospedadas no servidor oficial.
               </p>
-              <Link
-                href="/dashboard/products"
-                className="mt-6 px-6 py-2 bg-[var(--primary)] text-white rounded-lg hover:opacity-90 transition-all font-medium"
-              >
-                Voltar ao Catálogo
-              </Link>
             </div>
           )}
         </div>
       </div>
-
-      {/*
-        Card de status de sincronização comentado temporariamente —
-        desativado enquanto avaliamos melhorias na funcionalidade.
-
-      <div className="mt-4">
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 shadow-sm">
-          <SyncStatusCard syncData={syncJob} />
-        </div>
-      </div>
-      */}
     </div>
   );
 }

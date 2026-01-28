@@ -6,11 +6,13 @@ import useSlugValidation from '@/hooks/useSlugValidation';
 interface LinkGeneratorProps {
   catalogUrl: string;
   catalogName: string;
+  imageUrl?: string | null;
 }
 
 const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
   catalogUrl,
   catalogName,
+  imageUrl,
 }) => {
   const [message, setMessage] = useState(
     `Olá! Tudo bem? 👓\n\nEstou enviando o nosso catálogo atualizado da *${catalogName}*.\n\nConfira as novidades aqui: ${catalogUrl}\n\nQualquer dúvida, estou à disposição!`
@@ -76,10 +78,16 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
     if (shortUrl) return shortUrl;
     setLoadingShort(true);
     try {
+      const finalDestination = normalizeDestination(
+        destinationUrl || catalogUrl
+      );
       const res = await fetch('/api/short-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ destination_url: catalogUrl }),
+        body: JSON.stringify({
+          destination_url: finalDestination,
+          image_url: imageUrl || undefined,
+        }),
       });
       const json = await res.json();
       if (json?.short_url) {
@@ -92,6 +100,18 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
       setLoadingShort(false);
     }
     return null;
+  }
+
+  // Garantir URL absoluta antes de enviar ao encurtador
+  function normalizeDestination(input: string) {
+    if (!input) return input;
+    const trimmed = input.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (trimmed.startsWith('//')) return window.location.protocol + trimmed;
+    if (trimmed.startsWith('/'))
+      return window.location.origin.replace(/\/$/, '') + trimmed;
+    // caso seja um caminho relativo sem barra, prefixa com origin/
+    return window.location.origin.replace(/\/$/, '') + '/' + trimmed;
   }
 
   return (
@@ -171,6 +191,7 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
                     body: JSON.stringify({
                       destination_url: destinationUrl || catalogUrl,
                       code: customCode || undefined,
+                      image_url: imageUrl || undefined,
                     }),
                   });
                   const json = await res.json();
@@ -225,6 +246,7 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
                     body: JSON.stringify({
                       destination_url: destinationUrl || catalogUrl,
                       code: customCode || undefined,
+                      image_url: imageUrl || undefined,
                     }),
                   });
                   const json = await res.json();

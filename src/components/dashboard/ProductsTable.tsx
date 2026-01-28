@@ -425,6 +425,52 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     title: 'Catálogo de Produtos',
     imageZoom: 3,
   });
+  const [primaryColor, setPrimaryColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const v =
+        getComputedStyle(document.documentElement).getPropertyValue(
+          '--primary'
+        ) || '';
+      const clean = v.trim();
+      if (clean) setPrimaryColor(clean);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const readableTextColor = (bg: string | null) => {
+    if (!bg) return '#ffffff';
+    const hex = bg.trim();
+    try {
+      let r = 0,
+        g = 0,
+        b = 0;
+      if (hex.startsWith('rgb')) {
+        const parts = hex.replace(/rgba?\(|\)|\s/g, '').split(',');
+        r = Number(parts[0]);
+        g = Number(parts[1]);
+        b = Number(parts[2]);
+      } else {
+        const h = hex.replace('#', '');
+        const parsed =
+          h.length === 3
+            ? h
+                .split('')
+                .map((c) => c + c)
+                .join('')
+            : h;
+        r = parseInt(parsed.substring(0, 2), 16);
+        g = parseInt(parsed.substring(2, 4), 16);
+        b = parseInt(parsed.substring(4, 6), 16);
+      }
+      const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      return luminance > 0.6 ? '#111827' : '#ffffff';
+    } catch (e) {
+      return '#ffffff';
+    }
+  };
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ progress: 0, message: '' });
 
@@ -2635,9 +2681,19 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                         }
                         className={`flex-1 py-2 px-3 rounded-lg border font-medium transition-all text-sm ${
                           pdfOptions.priceType === 'price'
-                            ? 'bg-primary text-white border-primary shadow-md'
+                            ? 'border-primary shadow-md'
                             : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
                         }`}
+                        style={
+                          pdfOptions.priceType === 'price'
+                            ? {
+                                backgroundColor:
+                                  primaryColor || 'var(--primary, #2563eb)',
+                                borderColor: primaryColor || undefined,
+                                color: readableTextColor(primaryColor),
+                              }
+                            : undefined
+                        }
                       >
                         Preço Custo
                       </button>
@@ -2651,9 +2707,19 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                         }
                         className={`flex-1 py-2 px-3 rounded-lg border font-medium transition-all text-sm ${
                           pdfOptions.priceType === 'sale_price'
-                            ? 'bg-primary text-white border-primary shadow-md'
+                            ? 'border-primary shadow-md'
                             : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
                         }`}
+                        style={
+                          pdfOptions.priceType === 'sale_price'
+                            ? {
+                                backgroundColor:
+                                  primaryColor || 'var(--primary, #2563eb)',
+                                borderColor: primaryColor || undefined,
+                                color: readableTextColor(primaryColor),
+                              }
+                            : undefined
+                        }
                       >
                         Preço Sugerido
                       </button>
@@ -2674,14 +2740,22 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                       onClick={() =>
                         setPdfOptions({ ...pdfOptions, imageZoom: z })
                       }
-                      className={`
-                                        flex-1 py-2.5 rounded-lg border font-medium transition-all
-                                        ${
-                                          pdfOptions.imageZoom === z
-                                            ? 'bg-primary text-white border-primary shadow-md ring-2 ring-primary/30 dark:ring-primary/20'
-                                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
-                                        }
-                                    `}
+                      className={`flex-1 py-2.5 rounded-lg border font-medium transition-all ${
+                        pdfOptions.imageZoom === z
+                          ? 'border-primary shadow-md ring-2'
+                          : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      }`}
+                      style={
+                        pdfOptions.imageZoom === z
+                          ? {
+                              backgroundColor:
+                                primaryColor || 'var(--primary, #2563eb)',
+                              borderColor: primaryColor || undefined,
+                              color: readableTextColor(primaryColor),
+                              boxShadow: '0 6px 18px rgba(79,70,229,0.12)',
+                            }
+                          : undefined
+                      }
                     >
                       {z}x
                     </button>
