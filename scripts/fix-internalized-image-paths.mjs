@@ -5,7 +5,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('Erro: defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente.');
+  console.error(
+    'Erro: defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente.'
+  );
   process.exit(1);
 }
 
@@ -38,7 +40,8 @@ async function processBatch(offset = 0, limit = 1000) {
     try {
       // prefer main image_url
       let candidate = null;
-      if (p.image_url && p.image_url.includes(storageMarker)) candidate = p.image_url;
+      if (p.image_url && p.image_url.includes(storageMarker))
+        candidate = p.image_url;
 
       if (!candidate && Array.isArray(p.images)) {
         for (const img of p.images) {

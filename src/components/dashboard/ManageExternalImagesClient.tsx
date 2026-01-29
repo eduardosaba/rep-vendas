@@ -28,6 +28,8 @@ interface Product {
   category: string | null;
   external_image_url: string;
   image_url?: string | null;
+  images?: any[] | null;
+  image_path?: string | null;
   sync_status?: string | null;
 }
 
@@ -51,12 +53,74 @@ export default function ManageExternalImagesClient({
   const [processedInSession, setProcessedInSession] = useState(0);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [wsAvailable, setWsAvailable] = useState<boolean | null>(null);
 
   const { confirm } = useConfirm();
   const router = useRouter();
   const supabase = createClient();
 
-  const ITEMS_PER_PAGE = 20;
+  // Mostrar todos os itens em uma página quando o total for pequeno,
+  // e evitar muitas páginas vazias. Se houver muitos itens, paginar por 50.
+  const ITEMS_PER_PAGE = Math.max(20, Math.min(200, items.length || 20));
+
+  // If realtime (WebSocket) is not available, fallback to polling (router.refresh())
+  useEffect(() => {
+    let mounted = true;
+    const tryWs = () => {
+      try {
+        const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!base || !key) {
+          if (mounted) setWsAvailable(false);
+          return;
+        }
+        const wsUrl =
+          base.replace(/^http/, 'ws') +
+          `/realtime/v1/websocket?apikey=${encodeURIComponent(key)}&vsn=1.0.0`;
+        const w = new WebSocket(wsUrl);
+        const timeout = setTimeout(() => {
+          try {
+            w.close();
+          } catch (_) {}
+          if (mounted) setWsAvailable(false);
+        }, 3000);
+        w.addEventListener('open', () => {
+          clearTimeout(timeout);
+          try {
+            w.close();
+          } catch (_) {}
+          if (mounted) setWsAvailable(true);
+        });
+        w.addEventListener('error', () => {
+          clearTimeout(timeout);
+          try {
+            w.close();
+          } catch (_) {}
+          if (mounted) setWsAvailable(false);
+        });
+      } catch (e) {
+        if (mounted) setWsAvailable(false);
+      }
+    };
+
+    tryWs();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Polling fallback: refresh server data periodically when WS is unavailable
+  useEffect(() => {
+    if (wsAvailable === false) {
+      const iv = setInterval(() => {
+        try {
+          router.refresh();
+        } catch (_) {}
+      }, 15000);
+      return () => clearInterval(iv);
+    }
+  }, [wsAvailable, router]);
 
   // --- MOTOR DE REPARO EM LOTE (A SOLUÇÃO DEFINITIVA) ---
   // helper: fetch with timeout and optional retries
@@ -94,9 +158,21 @@ export default function ManageExternalImagesClient({
       while (attempt < 2) {
         attempt++;
         try {
+          // send the visible/filtered product ids to the server so it only processes intended items
+          const payload = {
+            product_ids: filteredItems.map((i) => i.id),
+            // optional filters for server-side processing
+            brand: selectedBrand || null,
+            search: searchTerm || null,
+          };
+
           const res = await fetchWithTimeout(
             '/api/products/image-repair',
-            { method: 'POST' },
+            {
+              method: 'POST',
+              body: JSON.stringify(payload),
+              headers: { 'Content-Type': 'application/json' },
+            },
             30000
           );
           if (!res.ok) {
@@ -195,6 +271,12 @@ export default function ManageExternalImagesClient({
     currentPage * ITEMS_PER_PAGE
   );
 
+  // Ajusta a página atual caso o total de páginas mude (por filtros ou atualização)
+  useEffect(() => {
+    if (totalPages === 0) return setCurrentPage(1);
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages]);
+
   const brands = useMemo(
     () =>
       Array.from(
@@ -252,7 +334,16 @@ export default function ManageExternalImagesClient({
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-white overflow-hidden border">
                 <LazyProductImage
-                  src={item.image_url || item.external_image_url}
+                  src={
+                    item.image_url ||
+                    // if images is an array, prefer first item's url (supports string or object)
+                    (Array.isArray(item.images)
+                      ? typeof item.images[0] === 'string'
+                        ? item.images[0]
+                        : item.images[0]?.url
+                      : null) ||
+                    item.external_image_url
+                  }
                   alt={item.name}
                 />
               </div>

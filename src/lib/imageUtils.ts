@@ -12,7 +12,34 @@ export function buildSupabaseImageUrl(
   opts?: { width?: number; height?: number; resize?: string }
 ) {
   if (!img) return null;
-  const trimmed = img.trim();
+  // Normalize different possible image representations
+  let normalized: string | null = null;
+  if (typeof img === 'string') {
+    normalized = img;
+  } else if (typeof img === 'object' && img !== null) {
+    // Common object shapes: { url: '...', src: '...', path: '...'}
+    const anyImg = img as any;
+    if (anyImg.url && typeof anyImg.url === 'string') normalized = anyImg.url;
+    else if (anyImg.src && typeof anyImg.src === 'string')
+      normalized = anyImg.src;
+    else if (anyImg.publicUrl && typeof anyImg.publicUrl === 'string')
+      normalized = anyImg.publicUrl;
+    else if (anyImg.public_url && typeof anyImg.public_url === 'string')
+      normalized = anyImg.public_url;
+    else if (anyImg.path && typeof anyImg.path === 'string')
+      normalized = anyImg.path;
+    else if (anyImg.storage_path && typeof anyImg.storage_path === 'string')
+      normalized = anyImg.storage_path;
+    else {
+      // Unknown object shape — don't coerce to "[object Object]", return null
+      normalized = null;
+    }
+  } else {
+    normalized = String(img);
+  }
+
+  if (!normalized) return null;
+  const trimmed = (normalized || '').trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://'))
     return trimmed;
 

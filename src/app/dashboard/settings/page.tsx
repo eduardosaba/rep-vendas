@@ -19,40 +19,31 @@ import {
   Type,
   Settings as SettingsIcon,
   Power,
-  ImageIcon,
-  X,
-  Plus,
+  Brush,
+  Share2,
+  Package,
+  Image as ImageIcon,
+  ChevronUp,
+  ChevronDown,
   Trash2,
+  X,
+  Zap,
   DollarSign,
   Tag,
   CreditCard,
-  Package,
-  AlertTriangle,
-  Zap,
-  Brush,
-  ChevronUp,
-  ChevronDown,
-  Share2,
   Link as LinkIcon,
+  AlertTriangle,
 } from 'lucide-react';
-import { Lock } from 'lucide-react';
-import { SYSTEM_FONTS } from '@/lib/fonts';
-import { Button } from '@/components/ui/Button';
-import { usePlan } from '@/hooks/use-plan';
 
-// Presets de temas para aplicação rápida
+import { Button } from '@/components/ui/Button';
+
+// Conjunto de temas prontos usados na UI
 const THEME_PRESETS = [
   {
-    name: 'Padrão (Rep-Vendas)',
+    name: 'Padrão',
     primary: '#b9722e',
     secondary: '#0d1b2c',
     header: '#ffffff',
-  },
-  {
-    name: 'Minimalista Dark',
-    primary: '#e4e4e7',
-    secondary: '#18181b',
-    header: '#09090b',
   },
   {
     name: 'Varejo Hot (Ofertas)',
@@ -88,6 +79,7 @@ import WhatsAppLinkGenerator from '@/components/WhatsAppLinkGenerator';
 import AnalyticsChartClient from '@/components/AnalyticsChartClient';
 import MyShortLinksTable from '@/components/MyShortLinksTable';
 import { TabGeneral } from './components/TabGeneral';
+import { usePlan } from '@/hooks/use-plan';
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -142,6 +134,7 @@ export default function SettingsPage() {
   const [shareBannerPreview, setShareBannerPreview] = useState<string | null>(
     null
   );
+  const [shareUploading, setShareUploading] = useState(false);
   const [isActive, setIsActive] = useState<boolean>(true);
 
   // BARRA DE BENEFÍCIOS (AVANÇADO)
@@ -383,12 +376,12 @@ export default function SettingsPage() {
                   ? currentBannersMobile
                   : null,
               top_benefit_image_url: topBenefitImagePreview ?? null,
-              top_benefit_image_fit: topBenefitImageFit,
-              top_benefit_image_scale: topBenefitImageScale,
-              top_benefit_height: topBenefitHeight,
-              top_benefit_text_size: topBenefitTextSize,
-              top_benefit_bg_color: topBenefitBgColor,
-              top_benefit_text_color: topBenefitTextColor,
+              top_benefit_image_fit: topBenefitImageFit ?? 'cover',
+              top_benefit_image_scale: topBenefitImageScale ?? 100,
+              top_benefit_height: topBenefitHeight ?? 36,
+              top_benefit_text_size: topBenefitTextSize ?? 11,
+              top_benefit_bg_color: topBenefitBgColor ?? '#f3f4f6',
+              top_benefit_text_color: topBenefitTextColor ?? '#b9722e',
               top_benefit_text: catalogSettings.top_benefit_text || null,
               show_top_benefit_bar:
                 catalogSettings.show_top_benefit_bar ?? false,
@@ -461,7 +454,23 @@ export default function SettingsPage() {
       </div>
 
       {/* TABS NAVEGAÇÃO */}
-      <nav className="flex space-x-1 border-b border-gray-200 dark:border-slate-800 overflow-x-auto scrollbar-hide">
+      {/* Mobile: dropdown para selecionar aba (torna a aba Marketing acessível) */}
+      <div className="md:hidden mb-2">
+        <label className="sr-only">Selecionar aba</label>
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value as any)}
+          className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800"
+        >
+          {tabs.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <nav className="hidden md:flex space-x-1 border-b border-gray-200 dark:border-slate-800 overflow-x-auto scrollbar-hide">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -1119,10 +1128,53 @@ export default function SettingsPage() {
                     Banner de Compartilhamento
                   </p>
                   <SmartImageUpload
-                    onUploadReady={async (f) =>
-                      setShareBannerPreview(URL.createObjectURL(f as File))
-                    }
+                    onUploadReady={async (f) => {
+                      const file = f as File;
+                      setShareUploading(true);
+                      try {
+                        const reader = new FileReader();
+                        const dataUrl: string = await new Promise(
+                          (res, rej) => {
+                            reader.onerror = rej;
+                            reader.onload = () =>
+                              res(String(reader.result || ''));
+                            reader.readAsDataURL(file);
+                          }
+                        );
+
+                        const resp = await fetch('/api/upload/share-banner', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            dataUrl,
+                            filename: file.name,
+                          }),
+                        });
+
+                        const json = await resp.json().catch(() => ({}));
+                        if (!resp.ok || !json?.publicUrl) {
+                          throw new Error(
+                            json?.error ||
+                              json?.message ||
+                              'Upload server falhou'
+                          );
+                        }
+
+                        setShareBannerPreview(json.publicUrl);
+                        toast.success('Banner de compartilhamento carregado');
+                      } catch (err: any) {
+                        console.error('Erro upload share banner', err);
+                        toast.error(err?.message || 'Falha no upload');
+                      } finally {
+                        setShareUploading(false);
+                      }
+                    }}
                   />
+                  {shareUploading && (
+                    <div className="text-sm text-slate-500 mt-2">
+                      Enviando banner...
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="space-y-4 md:sticky md:top-24">

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Heart, X } from 'lucide-react';
 import { ProductCardProps } from '@/lib/types';
 import ProductImage from './ProductImage';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 import { Button } from '@/components/ui/Button';
 
 interface ProductCardGridProps extends ProductCardProps {
@@ -48,14 +49,25 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
           {product.images && product.images.length > 0 ? (
             <>
               {(() => {
+                const rawFirst =
+                  product.images?.[0] || product.external_image_url || '';
+                const resolvedFirst =
+                  rawFirst && !rawFirst.startsWith('http')
+                    ? buildSupabaseImageUrl(rawFirst) || rawFirst
+                    : rawFirst;
+
                 const displayProduct =
                   product.sync_status === 'pending'
                     ? {
                         ...product,
                         external_image_url:
-                          product.images?.[0] || product.external_image_url,
+                          resolvedFirst || product.external_image_url,
                       }
-                    : product;
+                    : {
+                        ...product,
+                        image_url: resolvedFirst || product.image_url,
+                      };
+
                 return (
                   <ProductImage
                     product={displayProduct}
@@ -237,13 +249,18 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
           >
             {(() => {
               const imgUrl = product.images?.[0] || '';
+              const resolved =
+                imgUrl && !imgUrl.startsWith('http')
+                  ? buildSupabaseImageUrl(imgUrl) || imgUrl
+                  : imgUrl;
               const displayProduct =
                 product.sync_status === 'pending'
                   ? {
                       ...product,
-                      external_image_url: imgUrl || product.external_image_url,
+                      external_image_url:
+                        resolved || product.external_image_url,
                     }
-                  : { ...product, image_url: imgUrl || product.image_url };
+                  : { ...product, image_url: resolved || product.image_url };
               return (
                 <ProductImage
                   product={displayProduct}

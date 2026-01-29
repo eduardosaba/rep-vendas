@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
+import { revalidatePath } from 'next/cache';
 
 /**
  * API Route para sincronizar dados entre a tabela privada 'settings'
@@ -82,6 +83,13 @@ export async function POST(request: Request) {
       og_image_url: body.og_image_url ?? null,
       share_banner_url: body.share_banner_url ?? null,
     });
+
+    // Revalidação on-demand: atualizar cache/OG da página pública imediatamente
+    try {
+      if (slug) revalidatePath(`/catalogo/${slug}`);
+    } catch (e) {
+      console.warn('/api/public_catalogs/sync revalidatePath failed', e);
+    }
 
     return NextResponse.json({
       success: true,

@@ -564,6 +564,22 @@ export default function NewProductPage() {
       }
 
       toast.success('Produto cadastrado!');
+      // trigger revalidation for public catalog (server will verify ownership)
+      try {
+        const { data: pc } = await supabase
+          .from('public_catalogs')
+          .select('slug')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (pc?.slug) {
+          await fetch(`/api/revalidate?slug=${encodeURIComponent(pc.slug)}`, {
+            method: 'POST',
+          });
+        }
+      } catch (e) {
+        console.warn('revalidate call failed', e);
+      }
+
       router.push('/dashboard/products');
     } catch (error: any) {
       console.error(error);

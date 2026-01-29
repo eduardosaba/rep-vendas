@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import createClient from '@/lib/supabase/server';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const supabase = await createClient();
 
@@ -15,19 +15,55 @@ export async function POST() {
 
     // OTIMIZAÇÃO: Filtramos no banco produtos que NÃO possuem o marcador no image_url
     // Isso reduz drasticamente a quantidade de dados trafegados.
-    const { data: products, error } = await supabase
+    // allow client to pass product_ids or filters to limit scope
+    const body = await req.json().catch(() => ({}));
+    const productIds: string[] | undefined = body?.product_ids;
+    const brand: string | undefined = body?.brand;
+    const search: string | undefined = body?.search;
+
+    let query = supabase
       .from('products')
-      .select('id, image_url, images, reference_code')
-      .eq('user_id', user.id)
-      .or(`image_url.not.ilike.%${storageMarker}%,image_url.is.null`);
+      .select('id, image_url, images, reference_code, brand, image_path')
+      .eq('user_id', user.id);
+
+    // apply product_ids if provided (limit scope explicitly)
+    if (Array.isArray(productIds) && productIds.length > 0) {
+      query = query.in('id', productIds);
+    } else {
+      // default: only candidates whose main image or images array are external OR missing image_path
+      query = query.or(
+        `image_url.not.ilike.%${storageMarker}%,image_url.is.null`
+      );
+    }
+
+    // apply brand filter if present
+    if (brand) {
+      // use exact match for brand to avoid unexpected partials
+      query = query.eq('brand', brand);
+    }
+
+    // apply search filter if present (search in name or reference_code)
+    if (search) {
+      const q = `%${search.replace(/%/g, '\\%')}%`;
+      query = query.or(`name.ilike.${q},reference_code.ilike.${q}`);
+    }
+
+    const { data: products, error } = await query;
 
     if (error) throw error;
 
+    // Filter pending products: only those that still have external images
     const pendingProducts = (products || []).filter((p: any) => {
+      // if product already has image_path (server-side stored), consider internal
+      if (p.image_path) return false;
+
       const isMainExt = p.image_url && !p.image_url.includes(storageMarker);
       const hasArrayExt =
         Array.isArray(p.images) &&
-        p.images.some((img: string) => img && !img.includes(storageMarker));
+        p.images.some((img: any) => {
+          const url = typeof img === 'string' ? img : img?.url;
+          return url && !url.includes(storageMarker);
+        });
       return isMainExt || hasArrayExt;
     });
 
@@ -73,20 +109,30 @@ export async function POST() {
             .from('product-images')
             .getPublicUrl(fileName);
 
-          return publicUrl?.publicUrl || null;
+          return { publicUrl: publicUrl?.publicUrl || null, path: fileName };
         };
 
+        let uploadedPath: string | null = null;
         if (product.image_url && !product.image_url.includes(storageMarker)) {
-          updatedImageUrl = await internalize(product.image_url);
-          changed = true;
+          const r = await internalize(product.image_url);
+          if (r) {
+            updatedImageUrl = (r as any).publicUrl || null;
+            uploadedPath = (r as any).path || null;
+            changed = true;
+          }
         }
 
         if (Array.isArray(product.images)) {
           const newImages: string[] = [];
-          for (const imgUrl of product.images) {
+          for (const imgEntry of product.images) {
+            const imgUrl =
+              typeof imgEntry === 'string' ? imgEntry : imgEntry?.url;
             if (imgUrl && !imgUrl.includes(storageMarker)) {
-              const newUrl = await internalize(imgUrl);
-              newImages.push(newUrl || imgUrl);
+              const r = await internalize(imgUrl);
+              const newUrl = r ? (r as any).publicUrl || imgUrl : imgUrl;
+              newImages.push(newUrl);
+              if (!uploadedPath && r && (r as any).path)
+                uploadedPath = (r as any).path;
               changed = true;
             } else {
               newImages.push(imgUrl);
@@ -96,13 +142,16 @@ export async function POST() {
         }
 
         if (changed) {
+          const updatePayload: any = {
+            image_url: updatedImageUrl,
+            images: updatedImages,
+            updated_at: new Date().toISOString(),
+          };
+          if (uploadedPath) updatePayload.image_path = uploadedPath;
+
           await supabase
             .from('products')
-            .update({
-              image_url: updatedImageUrl,
-              images: updatedImages,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updatePayload)
             .eq('id', product.id);
           successCount++;
         }

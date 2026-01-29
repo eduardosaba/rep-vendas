@@ -57,36 +57,68 @@ export function ProductCard({
   // --- LÓGICA DE IMAGEM PADRONIZADA ---
   const isPending = product.sync_status === 'pending';
   const isFailed = product.sync_status === 'failed';
-
-  // Preferência de exibição:
+  // Preferência de exibição (com validação defensiva):
   // 1) Se existe `image_path` (interno) usamos a versão -small gerada pelo worker
   // 2) Se está pendente (sync_status === 'pending') e houver `external_image_url`, mostramos a URL externa
-  // 3) Caso contrário, tentamos usar `image_url`/`images[0]` convertidos para -small quando aplicável
+  // 3) Caso contrário, normalizamos e usamos `image_url`/`images[0]` convertidos para -small quando aplicável
   let displayImage = '/images/product-placeholder.svg';
 
-  const rawFirst = (
-    product.image_url ||
-    product.external_image_url ||
-    product.images?.[0] ||
-    ''
-  )
-    .split(',')[0]
-    .trim();
+  const normalizeImageInput = (input: any): string | null => {
+    if (!input && input !== 0) return null;
+    if (typeof input === 'string') {
+      const first = input.split(',')[0].trim();
+      return first || null;
+    }
+    if (Array.isArray(input) && input.length > 0) {
+      const first = input[0];
+      if (typeof first === 'string') return first.split(',')[0].trim();
+      if (first && typeof first === 'object')
+        return (
+          first.url ||
+          first.src ||
+          first.publicUrl ||
+          first.public_url ||
+          first.path ||
+          null
+        );
+      return null;
+    }
+    if (typeof input === 'object' && input !== null) {
+      return (
+        input.url ||
+        input.src ||
+        input.publicUrl ||
+        input.public_url ||
+        input.path ||
+        null
+      );
+    }
+    return null;
+  };
+
+  const candidate =
+    normalizeImageInput(product.image_path) ||
+    normalizeImageInput(product.image_url) ||
+    normalizeImageInput(product.external_image_url) ||
+    normalizeImageInput(product.images) ||
+    null;
 
   if (product.image_path) {
     const internalUrl = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${product.image_path}`;
     displayImage = getProductImage(internalUrl, 'small') || internalUrl;
-  } else if (isPending && product.external_image_url) {
+  } else if (
+    isPending &&
+    product.external_image_url &&
+    typeof product.external_image_url === 'string'
+  ) {
     displayImage = product.external_image_url;
-  } else {
-    if (rawFirst) {
-      if (!rawFirst.startsWith('http')) {
-        const internal = buildSupabaseImageUrl(rawFirst);
-        displayImage =
-          getProductImage(internal, 'small') || internal || displayImage;
-      } else {
-        displayImage = rawFirst;
-      }
+  } else if (candidate) {
+    if (!candidate.startsWith('http')) {
+      const internal = buildSupabaseImageUrl(candidate);
+      displayImage =
+        getProductImage(internal, 'small') || internal || displayImage;
+    } else {
+      displayImage = candidate;
     }
   }
 
@@ -129,7 +161,7 @@ export function ProductCard({
         )}
 
         {/* Overlay de Falha: mostrar somente se falhou E NÃO houver imagem externa/nenhuma imagem disponível */}
-        {isFailed && !rawFirst && (
+        {isFailed && !candidate && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-red-50/80 p-4 text-center">
             <AlertCircle className="mb-1 h-6 w-6 text-red-400" />
             <span className="text-[8px] font-bold uppercase text-red-500">

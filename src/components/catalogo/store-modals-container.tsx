@@ -88,19 +88,19 @@ export function StoreModals() {
     const seen = new Set<string>();
 
     const pushIfNew = (url?: string | null) => {
-      if (!url) return;
+      if (!url || typeof url !== 'string') return;
       const key = (() => {
         try {
-          const u = new URL(String(url));
-          return u.pathname.split('/').pop() || String(url);
+          const u = new URL(url);
+          return u.pathname.split('/').pop() || url;
         } catch (e) {
           // fallback to full string
-          return String(url);
+          return url;
         }
       })();
       if (!seen.has(key)) {
         seen.add(key);
-        images.push(String(url));
+        images.push(url);
       }
     };
 
@@ -113,20 +113,23 @@ export function StoreModals() {
       });
       pushIfNew(cover || null);
     } else if (modals.product.image_url) {
-      pushIfNew(modals.product.image_url);
+      const normalized = typeof modals.product.image_url === 'string' ? modals.product.image_url : null;
+      pushIfNew(normalized);
     }
 
     // Prefer product.images (internal/gallery) next so they mask external_image_url
     if (modals.product.images && Array.isArray(modals.product.images)) {
       modals.product.images.forEach((img) => {
+        // buildSupabaseImageUrl already normalizes many shapes, but ensure final is string
         const url = buildSupabaseImageUrl(img || null);
-        pushIfNew(url || null);
+        if (typeof url === 'string' && url) pushIfNew(url);
       });
     }
 
     // Only add external_image_url if its basename wasn't already added
     if (modals.product.external_image_url) {
-      pushIfNew(modals.product.external_image_url);
+      const normalizedExternal = typeof modals.product.external_image_url === 'string' ? modals.product.external_image_url : null;
+      pushIfNew(normalizedExternal);
     }
 
     return images.length > 0

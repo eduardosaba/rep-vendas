@@ -28,14 +28,27 @@ export async function GET() {
 
     (products || []).forEach((p: any) => {
       const imageUrl: string | null = p.image_url || null;
-      const imagesArr: string[] = Array.isArray(p.images) ? p.images : [];
+      const imagesArr: any[] = Array.isArray(p.images) ? p.images : [];
+
+      // Consider product internalized if it has `image_path` (uploaded path)
+      // or if the URL points to the storage marker
+      const hasImagePath = !!p.image_path;
 
       const mainExternal = imageUrl && !imageUrl.includes(storageMarker);
-      const anyArrayExternal = imagesArr.some(
-        (img) => img && !img.includes(storageMarker)
-      );
+      const anyArrayExternal = imagesArr.some((img) => {
+        const url = typeof img === 'string' ? img : img?.url;
+        return url && !url.includes(storageMarker);
+      });
 
-      if (mainExternal || anyArrayExternal) {
+      // If image_path is present, treat as internal regardless of image_url
+      if (hasImagePath) {
+        totalInternal++;
+        if (samplesInternal.length < 5)
+          samplesInternal.push({
+            ref: p.reference_code,
+            url: imageUrl || imagesArr[0],
+          });
+      } else if (mainExternal || anyArrayExternal) {
         totalExternal++;
         if (samplesExternal.length < 5)
           samplesExternal.push({

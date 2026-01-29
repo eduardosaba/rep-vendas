@@ -221,21 +221,25 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       top_benefit_image_url:
         mergedData.top_benefit_image_url ?? data.top_benefit_image_url ?? null,
       top_benefit_image_fit:
-        mergedData.top_benefit_image_fit ?? data.top_benefit_image_fit ?? null,
+        mergedData.top_benefit_image_fit ??
+        data.top_benefit_image_fit ??
+        'cover',
       top_benefit_image_scale:
         mergedData.top_benefit_image_scale ??
         data.top_benefit_image_scale ??
-        null,
+        100,
       top_benefit_height:
-        mergedData.top_benefit_height ?? data.top_benefit_height ?? null,
+        mergedData.top_benefit_height ?? data.top_benefit_height ?? 36,
       top_benefit_text_size:
-        mergedData.top_benefit_text_size ?? data.top_benefit_text_size ?? null,
+        mergedData.top_benefit_text_size ?? data.top_benefit_text_size ?? 11,
       top_benefit_bg_color:
-        mergedData.top_benefit_bg_color ?? data.top_benefit_bg_color ?? null,
+        mergedData.top_benefit_bg_color ??
+        data.top_benefit_bg_color ??
+        '#f3f4f6',
       top_benefit_text_color:
         mergedData.top_benefit_text_color ??
         data.top_benefit_text_color ??
-        null,
+        '#b9722e',
       top_benefit_text:
         mergedData.top_benefit_text ?? data.top_benefit_text ?? null,
       show_top_benefit_bar:

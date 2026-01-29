@@ -18,6 +18,7 @@ import {
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ProductCard } from '@/components/catalogo/ProductCard';
+import ProductCardSkeleton from '@/components/catalogo/ProductCardSkeleton';
 import { useLayoutStore } from '@/components/catalogo/store-layout';
 import { PriceDisplay } from '@/components/catalogo/PriceDisplay';
 import { Product } from '@/lib/types'; // Importando tipo centralizado
@@ -162,6 +163,7 @@ export function ProductGrid() {
     viewMode,
     setViewMode,
     isPricesVisible,
+    isLoadingSearch,
   } = useStore();
 
   const { toggleSidebar } = useLayoutStore();
@@ -252,18 +254,22 @@ export function ProductGrid() {
         <>
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
-              {displayProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  storeSettings={store}
-                  isFavorite={favorites.includes(product.id)}
-                  isPricesVisible={isPricesVisible}
-                  onAddToCart={(p) => addToCart(p)}
-                  onToggleFavorite={(id) => toggleFavorite(id)}
-                  onViewDetails={(p) => setModal('product', p)}
-                />
-              ))}
+              {isLoadingSearch
+                ? Array.from({ length: 8 }).map((_, i) => (
+                    <ProductCardSkeleton key={`skeleton-${i}`} />
+                  ))
+                : displayProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      storeSettings={store}
+                      isFavorite={favorites.includes(product.id)}
+                      isPricesVisible={isPricesVisible}
+                      onAddToCart={(p) => addToCart(p)}
+                      onToggleFavorite={(id) => toggleFavorite(id)}
+                      onViewDetails={(p) => setModal('product', p)}
+                    />
+                  ))}
             </div>
           ) : (
             // --- MODO LISTA ---

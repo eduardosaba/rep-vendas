@@ -596,6 +596,22 @@ export function EditProductForm({ product }: { product: Product }) {
         .eq('id', product.id);
       if (error) throw error;
       toast.success('Produto excluído.');
+      // trigger revalidation for the public catalog
+      try {
+        const { data: pc } = await supabase
+          .from('public_catalogs')
+          .select('slug')
+          .eq('user_id', product.user_id)
+          .maybeSingle();
+        if (pc?.slug) {
+          await fetch(`/api/revalidate?slug=${encodeURIComponent(pc.slug)}`, {
+            method: 'POST',
+          });
+        }
+      } catch (e) {
+        console.warn('revalidate failed', e);
+      }
+
       router.push('/dashboard/products');
     } catch (error: any) {
       toast.error('Erro ao excluir', { description: error.message });

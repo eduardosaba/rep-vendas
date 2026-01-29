@@ -35,15 +35,38 @@ export default async function EditProductBySlugPage({
   const activeUserId = await getActiveUserId();
   if (!activeUserId) redirect('/login');
 
-  // Busca por slug ou id (compatibilidade com links antigos)
-  const { data: product, error } = await supabase
-    .from('products')
-    .select('*')
-    .or(`slug.eq.${slug},id.eq.${slug}`)
-    .eq('user_id', activeUserId)
-    .maybeSingle();
+  try {
+    // Busca por slug ou id (compatibilidade com links antigos)
+    const { data: product, error } = await supabase
+      .from('products')
+      .select('*')
+      .or(`slug.eq.${slug},id.eq.${slug}`)
+      .eq('user_id', activeUserId)
+      .maybeSingle();
 
-  if (error || !product) return notFound();
+    if (error) {
+      // retornar erro legível na página para diagnóstico rápido
+      return (
+        <div className="p-8">
+          <h2 className="text-xl font-bold">Erro ao carregar produto</h2>
+          <pre className="whitespace-pre-wrap mt-4 text-sm text-red-600">
+            {String(error)}
+          </pre>
+        </div>
+      );
+    }
 
-  return <EditProductForm product={product} />;
+    if (!product) return notFound();
+
+    return <EditProductForm product={product} />;
+  } catch (err: any) {
+    return (
+      <div className="p-8">
+        <h2 className="text-xl font-bold">Erro inesperado</h2>
+        <pre className="whitespace-pre-wrap mt-4 text-sm text-red-600">
+          {String(err)}
+        </pre>
+      </div>
+    );
+  }
 }

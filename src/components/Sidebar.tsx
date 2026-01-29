@@ -71,6 +71,7 @@ const MENU_ITEMS = [
       { title: 'Marcas', href: '/dashboard/brands', icon: Tag },
     ],
   },
+  { icon: Zap, label: 'Marketing', href: '/dashboard/marketing' },
   {
     icon: FileText,
     label: 'Ferramentas',

@@ -65,6 +65,17 @@ export async function updateProductAction(productId: string, formData: any) {
     try {
       revalidatePath('/dashboard/products');
       revalidatePath(`/dashboard/products/${productId}`);
+      // also revalidate public catalog page if the user has a public catalog
+      try {
+        const { data: pc } = await supabase
+          .from('public_catalogs')
+          .select('slug')
+          .eq('user_id', activeUserId)
+          .maybeSingle();
+        if (pc?.slug) revalidatePath(`/catalogo/${pc.slug}`);
+      } catch (e) {
+        // ignore failures
+      }
     } catch (e) {
       // ignore revalidate errors in server action
     }

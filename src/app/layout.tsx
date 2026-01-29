@@ -6,9 +6,33 @@ import ThemeRegistry from '@/components/ThemeRegistry';
 import { NetworkStatusIndicator } from '@/components/NetworkStatusIndicator';
 import PresenceProvider from '@/lib/presence';
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
+
 export const metadata: Metadata = {
   title: 'RepVendas SaaS',
   description: 'Sistema de Catálogo e Pedidos',
+  metadataBase: new URL(APP_URL),
+  openGraph: {
+    title: 'RepVendas SaaS',
+    description: 'Sistema de Catálogo e Pedidos',
+    url: APP_URL,
+    siteName: 'RepVendas',
+    type: 'website',
+    locale: 'pt_BR',
+    images: [
+      {
+        url: `${APP_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'RepVendas SaaS',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RepVendas SaaS',
+    description: 'Sistema de Catálogo e Pedidos',
+  },
   icons: {
     icon: '/favicon.ico',
     shortcut: '/icon-192.png',
