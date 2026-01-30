@@ -4,7 +4,7 @@ import Skeleton from '@/components/ui/Skeleton';
 export function ProductCardSkeleton() {
   return (
     <div className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300">
-      <div className="relative aspect-square w-full flex items-center justify-center bg-slate-50 overflow-hidden border-b border-gray-50">
+      <div className="relative aspect-square w-full flex items-center justify-center bg-white overflow-hidden border-b border-gray-50">
         <Skeleton className="aspect-square w-full rounded-3xl" />
       </div>
 

@@ -15,6 +15,7 @@ import {
   Heart,
   Image as ImageIcon,
 } from 'lucide-react';
+import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ProductCard } from '@/components/catalogo/ProductCard';
@@ -74,14 +75,27 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
             key={slide.id}
             className="min-w-full w-full h-full relative flex-shrink-0"
           >
-            <Image
-              src={slide.imageUrl}
-              alt={slide.altText}
-              fill
-              sizes="100vw"
-              className="object-cover"
-              priority={slide.id === 0}
-            />
+            {String(slide.imageUrl).startsWith('http') &&
+            !String(slide.imageUrl).includes('supabase.co/storage') ? (
+              <img
+                src={slide.imageUrl}
+                alt={slide.altText}
+                className="absolute inset-0 w-full h-full object-cover"
+                loading={slide.id === 0 ? 'eager' : 'lazy'}
+              />
+            ) : (
+              <Image
+                src={slide.imageUrl}
+                alt={slide.altText}
+                fill
+                sizes="100vw"
+                className="object-cover"
+                priority={slide.id === 0}
+                unoptimized={String(slide.imageUrl).includes(
+                  'supabase.co/storage'
+                )}
+              />
+            )}
             <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none opacity-50" />
           </div>
         ))}
@@ -297,14 +311,14 @@ export function ProductGrid() {
                         if (src) {
                           if (isExternal) {
                             return (
-                              // let browser fetch external images directly (avoid Next image server-side fetch)
-                              <img
-                                src={src}
-                                alt={product.name}
-                                loading="lazy"
-                                decoding="async"
-                                className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
-                              />
+                              <div className="w-full h-full">
+                                <LazyProductImage
+                                  src={src}
+                                  alt={product.name}
+                                  className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+                                  fallbackSrc="/images/default-logo.png"
+                                />
+                              </div>
                             );
                           }
 

@@ -631,7 +631,13 @@ export default function SettingsPage() {
                     key={i}
                     className="relative aspect-[14/4] rounded-2xl overflow-hidden group border-2 border-transparent hover:border-primary transition-all shadow-md"
                   >
-                    <img src={url} className="w-full h-full object-cover" />
+                    {url ? (
+                      <img src={url} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
+                        Imagem indisponível
+                      </div>
+                    )}
 
                     {/* Controles de Ordem e Delete */}
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -696,7 +702,13 @@ export default function SettingsPage() {
                     key={i}
                     className="relative aspect-video rounded-2xl overflow-hidden group border shadow-sm border-transparent hover:border-primary transition-all"
                   >
-                    <img src={url} className="w-full h-full object-cover" />
+                    {url ? (
+                      <img src={url} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
+                        Imagem indisponível
+                      </div>
+                    )}
 
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                       <button
@@ -1132,6 +1144,7 @@ export default function SettingsPage() {
                       const file = f as File;
                       setShareUploading(true);
                       try {
+                        // Ler o arquivo local como blob (optimizado) e enviar como FormData
                         const reader = new FileReader();
                         const dataUrl: string = await new Promise(
                           (res, rej) => {
@@ -1142,13 +1155,31 @@ export default function SettingsPage() {
                           }
                         );
 
+                        // Converte dataURL em Blob
+                        const blob = await (await fetch(dataUrl)).blob();
+
+                        // Obtém user id para metadata (safe fallback)
+                        const { data: { user } = {} } =
+                          await supabase.auth.getUser();
+                        const userId = user?.id || 'anon';
+
+                        const form = new FormData();
+                        // Nome do arquivo original preservado quando possível
+                        const fileObj = new File(
+                          [blob],
+                          file.name || `share-${Date.now()}.webp`,
+                          { type: blob.type || 'image/webp' }
+                        );
+                        form.append('file', fileObj);
+                        form.append('userId', String(userId));
+                        form.append(
+                          'brandSlug',
+                          formData.catalog_slug || 'share'
+                        );
+
                         const resp = await fetch('/api/upload/share-banner', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            dataUrl,
-                            filename: file.name,
-                          }),
+                          body: form,
                         });
 
                         const json = await resp.json().catch(() => ({}));

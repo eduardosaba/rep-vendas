@@ -35,7 +35,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // O primary usa var(--primary) se disponível, ou fallback para indigo
     const variants = {
       primary:
-        'bg-[var(--primary)] text-white hover:opacity-90 focus:ring-[var(--primary)] shadow-sm shadow-[var(--primary)]/20',
+        'bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 focus:ring-[var(--primary)] shadow-sm shadow-[var(--primary)]/20',
       secondary:
         'bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 focus:ring-gray-500 dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700 dark:hover:bg-slate-700 dark:focus:ring-slate-600',
       outline:
@@ -57,7 +57,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // Isso evita botões invisíveis se o CSS global falhar
     const safeStyle =
       variant === 'primary'
-        ? { backgroundColor: 'var(--primary, #b9722e)' }
+        ? {
+            backgroundColor: 'var(--primary, #b9722e)',
+            color: 'var(--primary-foreground, #ffffff)',
+          }
         : {};
 
     return (

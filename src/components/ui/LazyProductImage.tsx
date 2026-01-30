@@ -79,16 +79,21 @@ export function LazyProductImage({
       )}
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        ref={imgRef}
-        src={imageSrc || ''}
-        alt={alt}
-        className={`${className} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
-        loading="lazy"
-        decoding="async"
-        onLoad={handleLoad}
-        onError={handleError}
-      />
+      {imageSrc ? (
+        <img
+          ref={imgRef}
+          src={imageSrc}
+          alt={alt}
+          className={`${className} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
+          loading="lazy"
+          decoding="async"
+          onLoad={handleLoad}
+          onError={handleError}
+        />
+      ) : (
+        // Keep a non-downloading placeholder element to avoid rendering an empty-src img
+        <div ref={imgRef} className="w-full h-full" aria-hidden />
+      )}
     </div>
   );
 }

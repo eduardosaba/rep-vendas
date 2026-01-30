@@ -132,7 +132,7 @@ export default async function ProductsPage() {
         </div>
 
         {/* Barra de Ferramentas */}
-        <div className="grid grid-cols-2 sm:flex flex-wrap gap-3 w-full lg:w-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex gap-3 w-full lg:w-auto">
           {/* Botão Importar Excel */}
           <Link href="/dashboard/products/import-massa" className="contents">
             <Button
@@ -197,8 +197,8 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      {/* Estatísticas de Otimização de Imagens */}
-      {totalProducts > 0 && (
+      {/* Estatísticas de Otimização de Imagens (visíveis apenas para contas master/template) */}
+      {showDiagnosticPanel && totalProducts > 0 && (
         <div className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-950/20 dark:to-yellow-950/20 rounded-xl border border-orange-200 dark:border-orange-800 p-5">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-orange-500 rounded-xl">

@@ -3,58 +3,50 @@ import { Product } from './types';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
 /**
- * Build a public Supabase storage URL for a product image.
- * Accepts absolute URLs (returned unchanged), storage object paths,
- * or full URLs containing the `/product-images/` segment.
+ * Constrói uma URL pública do Supabase Storage ou retorna a URL absoluta.
+ * Suporta strings (paths) ou objetos (formato novo {url, path}).
  */
 export function buildSupabaseImageUrl(
-  img?: string | null,
+  img?: any | null,
   opts?: { width?: number; height?: number; resize?: string }
 ) {
   if (!img) return null;
-  // Normalize different possible image representations
+
   let normalized: string | null = null;
+
+  // 1. Extração Inteligente (Suporta string ou Objeto)
   if (typeof img === 'string') {
     normalized = img;
   } else if (typeof img === 'object' && img !== null) {
-    // Common object shapes: { url: '...', src: '...', path: '...'}
-    const anyImg = img as any;
-    if (anyImg.url && typeof anyImg.url === 'string') normalized = anyImg.url;
-    else if (anyImg.src && typeof anyImg.src === 'string')
-      normalized = anyImg.src;
-    else if (anyImg.publicUrl && typeof anyImg.publicUrl === 'string')
-      normalized = anyImg.publicUrl;
-    else if (anyImg.public_url && typeof anyImg.public_url === 'string')
-      normalized = anyImg.public_url;
-    else if (anyImg.path && typeof anyImg.path === 'string')
-      normalized = anyImg.path;
-    else if (anyImg.storage_path && typeof anyImg.storage_path === 'string')
-      normalized = anyImg.storage_path;
-    else {
-      // Unknown object shape — don't coerce to "[object Object]", return null
-      normalized = null;
-    }
-  } else {
-    normalized = String(img);
+    // Tenta path primeiro (mais seguro), depois url
+    normalized =
+      img.path || img.storage_path || img.url || img.src || img.publicUrl;
   }
 
-  if (!normalized) return null;
-  const trimmed = (normalized || '').trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://'))
+  if (!normalized || typeof normalized !== 'string') return null;
+
+  const trimmed = normalized.trim();
+
+  // 2. Se já for uma URL completa (HTTP), retorna ela
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
+  }
 
+  // 3. Se for um path do Storage, constrói a URL pública
   const SUPA = SUPABASE_URL.replace(/\/$/, '');
-
   let objectPath = trimmed;
+
+  // Remove o prefixo do bucket se estiver presente na string
   if (trimmed.includes('/product-images/')) {
     const parts = trimmed.split('/product-images/');
-    objectPath = parts[parts.length - 1].replace(/^\/+/, '');
+    objectPath = parts[parts.length - 1];
   }
 
   objectPath = objectPath.replace(/^\/+/, '');
   const encoded = encodeURIComponent(objectPath);
   const base = `${SUPA}/storage/v1/object/public/product-images/${encoded}`;
 
+  // 4. Aplica transformações se solicitado (Supabase Image Transformation)
   if (opts && (opts.width || opts.height || opts.resize)) {
     const params = new URLSearchParams();
     if (opts.width) params.set('width', String(opts.width));
@@ -66,38 +58,53 @@ export function buildSupabaseImageUrl(
   return base;
 }
 
+/**
+ * Resolve a imagem principal a ser exibida para um produto.
+ * Segue a ordem de prioridade: Path Interno > Galeria Interna > URL Externa.
+ */
 export function getProductImageUrl(product: Partial<Product>) {
-  // If the product is pending internalization, prefer the external URL so
-  // the storefront shows the original image while worker runs.
-  const external = product.external_image_url || product.image_url || null;
-  if (
-    product.sync_status === 'pending' &&
-    external &&
-    typeof external === 'string' &&
-    external.startsWith('http')
-  ) {
-    return { src: external, isExternal: true, isStorage: false };
-  }
-
-  // Prefer internalized storage path when available
+  // A. PRIORIDADE 1: Campo direto 'image_path' (Internalizado)
   if (product.image_path) {
     const path = product.image_path.replace(/^\//, '');
-    // Serve stored images via server proxy to avoid 403 when bucket is private
-    // The proxy endpoint will use the service role to fetch the object and stream it.
-    const proxied = `/api/storage-image?path=${encodeURIComponent(path)}`;
     return {
-      src: proxied,
+      src: `/api/storage-image?path=${encodeURIComponent(path)}`,
       isExternal: false,
       isStorage: true,
     };
   }
 
-  // If there's an external image URL (imported via CSV/URL), use it directly
+  // B. PRIORIDADE 2: Primeiro item da galeria que tenha 'path' (Internalizado)
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const firstImg = product.images[0];
+    const path = typeof firstImg === 'object' ? firstImg.path : null;
+
+    if (path) {
+      const cleanPath = path.replace(/^\//, '');
+      return {
+        src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
+        isExternal: false,
+        isStorage: true,
+      };
+    }
+  }
+
+  // C. PRIORIDADE 3: URLs Externas (campos diretos)
+  const external = product.external_image_url || product.image_url;
   if (external && typeof external === 'string' && external.startsWith('http')) {
     return { src: external, isExternal: true, isStorage: false };
   }
 
-  // Fallback: no image available
+  // D. PRIORIDADE 4: URLs Externas dentro da galeria (campo 'url')
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const firstImg = product.images[0];
+    const url = typeof firstImg === 'object' ? firstImg.url : firstImg;
+
+    if (url && typeof url === 'string' && url.startsWith('http')) {
+      return { src: url, isExternal: true, isStorage: false };
+    }
+  }
+
+  // Fallback: Sem imagem
   return { src: null, isExternal: false, isStorage: false };
 }
 

@@ -149,6 +149,7 @@ export function Sidebar({
   const [branding, setBranding] = useState<Settings | null>(
     initialSettings || null
   );
+  const [isMaster, setIsMaster] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   const isDashboardRoute = pathname?.startsWith('/dashboard');
@@ -168,6 +169,12 @@ export function Sidebar({
         const res = await supabase.auth.getUser();
         const user = res?.data?.user;
         if (!user) return;
+        // detect master user on client using public env var
+        const MASTER_EMAIL =
+          (process.env.NEXT_PUBLIC_MASTER_ADMIN_EMAIL as string) ||
+          (process.env.NEXT_PUBLIC_MASTER_EMAIL as string) ||
+          '';
+        if (MASTER_EMAIL && user.email === MASTER_EMAIL) setIsMaster(true);
         const settingsRes = await supabase
           .from('settings')
           .select('*')
@@ -415,6 +422,13 @@ export function Sidebar({
               {hasChildren && expanded && !isCollapsed && (
                 <div className="mt-1 ml-4 space-y-1 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
                   {item.children.map((child) => {
+                    // hide manage-external-images link from non-master users
+                    if (
+                      child.href === '/dashboard/manage-external-images' &&
+                      !isMaster
+                    ) {
+                      return null;
+                    }
                     if (
                       child.title === 'Gestão de Estoque' &&
                       !branding?.enable_stock_management

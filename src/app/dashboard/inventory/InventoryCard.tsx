@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Plus, Minus, Loader2 } from 'lucide-react';
 import { getProductImageUrl } from '@/lib/imageUtils';
+import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { updateStockAction } from './actions';
 import { toast } from 'sonner';
 
@@ -30,24 +31,14 @@ export function InventoryCard({ product }: { product: any }) {
       <div className="flex items-start gap-4">
         <div className="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden border border-gray-100 flex items-center justify-center">
           {(() => {
-            const { src, isExternal } = getProductImageUrl(product);
+            const { src } = getProductImageUrl(product);
             if (src) {
-              if (isExternal) {
-                // eslint-disable-next-line @next/next/no-img-element
-                return (
-                  <img
-                    src={src}
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                  />
-                );
-              }
-              // internal storage URL (optimized)
               return (
-                <img
+                <LazyProductImage
                   src={src}
                   alt={product.name}
                   className="w-full h-full object-cover"
+                  fallbackSrc="/images/default-logo.png"
                 />
               );
             }

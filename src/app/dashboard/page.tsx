@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import QuickActionCard from '@/components/QuickActionCard';
-import UpdateModalClient from '@/components/UpdateModalClient';
+import UpdateNotificationModal from '@/components/dashboard/UpdateNotificationModal';
 import SyncControlClient from '@/components/dashboard/SyncControlClient';
 // SyncStatusCard removido — card não é mais exibido no Dashboard
 import { subDays, startOfDay, subMonths, formatDistanceToNow } from 'date-fns';
@@ -167,7 +167,7 @@ export default async function DashboardPage({
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <DateFilter currentRange={range} />
-          <UpdateModalClient update={latestUpdate?.data} />
+          <UpdateNotificationModal />
           {settings.data?.catalog_slug && (
             <Link
               href={`/catalogo/${settings.data.catalog_slug}`}

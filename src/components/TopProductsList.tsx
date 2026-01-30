@@ -34,11 +34,17 @@ export const TopProductsList = ({ products }: { products: TopProduct[] }) => {
               #{index + 1}
             </span>
             <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700">
-              <img
-                src={product.image_url}
-                alt={product.name}
-                className="w-full h-full object-contain"
-              />
+              {product.image_url ? (
+                <img
+                  src={product.image_url}
+                  alt={product.name}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                  Sem imagem
+                </div>
+              )}
             </div>
 
             <div className="flex-1 min-w-0">

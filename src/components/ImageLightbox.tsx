@@ -37,11 +37,17 @@ export default function ImageLightbox({ src, alt = '', onClose }: Props) {
           <X size={18} />
         </button>
 
-        <img
-          src={src}
-          alt={alt}
-          className="block max-w-[90vw] max-h-[90vh] object-contain rounded-md shadow-lg"
-        />
+        {src ? (
+          <img
+            src={src}
+            alt={alt}
+            className="block max-w-[90vw] max-h-[90vh] object-contain rounded-md shadow-lg"
+          />
+        ) : (
+          <div className="w-[90vw] h-[60vh] bg-gray-100 flex items-center justify-center text-sm text-gray-400 rounded-md">
+            Imagem indisponível
+          </div>
+        )}
       </div>
     </div>
   );

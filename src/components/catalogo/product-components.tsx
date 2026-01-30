@@ -63,20 +63,26 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
       >
         {slides.map((slide, index) => (
           <div key={slide.id} className="w-full flex-shrink-0 relative h-full">
-            <NextImage
-              src={slide.imageUrl}
-              alt={slide.altText}
-              fill
-              sizes="100vw"
-              className="object-cover"
-              // O primeiro slide deve ter prioridade máxima para SEO e LCP
-              priority={index === 0}
-              quality={90}
-              // Para evitar erros do otimizador com alguns hosts, não
-              // encaminhamos pela pipeline do Next.js para imagens do
-              // Supabase Storage (servimos direto). Isso evita 400s upstream.
-              unoptimized={slide.imageUrl.includes('supabase.co/storage')}
-            />
+            {slide.imageUrl ? (
+              <NextImage
+                src={slide.imageUrl}
+                alt={slide.altText}
+                fill
+                sizes="100vw"
+                className="object-cover"
+                // O primeiro slide deve ter prioridade máxima para SEO e LCP
+                priority={index === 0}
+                quality={90}
+                // Para evitar erros do otimizador com alguns hosts, não
+                // encaminhamos pela pipeline do Next.js para imagens do
+                // Supabase Storage (servimos direto). Isso evita 400s upstream.
+                unoptimized={slide.imageUrl.includes('supabase.co/storage')}
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
+                Imagem indisponível
+              </div>
+            )}
             <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
           </div>
         ))}

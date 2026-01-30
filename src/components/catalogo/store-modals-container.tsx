@@ -113,7 +113,10 @@ export function StoreModals() {
       });
       pushIfNew(cover || null);
     } else if (modals.product.image_url) {
-      const normalized = typeof modals.product.image_url === 'string' ? modals.product.image_url : null;
+      const normalized =
+        typeof modals.product.image_url === 'string'
+          ? modals.product.image_url
+          : null;
       pushIfNew(normalized);
     }
 
@@ -128,7 +131,10 @@ export function StoreModals() {
 
     // Only add external_image_url if its basename wasn't already added
     if (modals.product.external_image_url) {
-      const normalizedExternal = typeof modals.product.external_image_url === 'string' ? modals.product.external_image_url : null;
+      const normalizedExternal =
+        typeof modals.product.external_image_url === 'string'
+          ? modals.product.external_image_url
+          : null;
       pushIfNew(normalizedExternal);
     }
 
@@ -302,14 +308,26 @@ export function StoreModals() {
                 className="flex-1 relative cursor-zoom-in group"
                 onClick={() => setIsImageZoomOpen(true)}
               >
-                <Image
-                  src={productImages[currentImageIndex]}
-                  alt={modals.product.name}
-                  fill
-                  className="object-contain p-8 transition-transform duration-700 group-hover:scale-105"
-                  priority
-                  unoptimized={currentImageIsSupabase}
-                />
+                {String(productImages[currentImageIndex]).startsWith('http') &&
+                !String(productImages[currentImageIndex]).includes(
+                  'supabase.co/storage'
+                ) ? (
+                  <img
+                    src={productImages[currentImageIndex]}
+                    alt={modals.product.name}
+                    className="absolute inset-0 w-full h-full object-contain p-8 transition-transform duration-700 group-hover:scale-105"
+                    loading="eager"
+                  />
+                ) : (
+                  <Image
+                    src={productImages[currentImageIndex]}
+                    alt={modals.product.name}
+                    fill
+                    className="object-contain p-8 transition-transform duration-700 group-hover:scale-105"
+                    priority
+                    unoptimized={currentImageIsSupabase}
+                  />
+                )}
                 <div className="absolute bottom-6 right-6 p-3 bg-white/80 backdrop-blur rounded-2xl shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
                   <Search size={20} className="text-primary" />
                 </div>
@@ -325,13 +343,23 @@ export function StoreModals() {
                         onClick={() => setCurrentImageIndex(idx)}
                         className={`relative w-16 h-16 rounded-xl border-2 transition-all overflow-hidden flex-shrink-0 ${currentImageIndex === idx ? 'border-primary ring-4 ring-primary/10' : 'border-gray-100 opacity-50'}`}
                       >
-                        <Image
-                          src={img}
-                          alt=""
-                          fill
-                          className="object-cover p-1"
-                          unoptimized={img.includes('supabase.co/storage')}
-                        />
+                        {String(img).startsWith('http') &&
+                        !String(img).includes('supabase.co/storage') ? (
+                          <img
+                            src={img}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover p-1"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <Image
+                            src={img}
+                            alt=""
+                            fill
+                            className="object-cover p-1"
+                            unoptimized={img.includes('supabase.co/storage')}
+                          />
+                        )}
                       </button>
                     ))}
                   </div>

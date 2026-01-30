@@ -60,67 +60,47 @@ export default function ManageExternalImagesClient({
   const supabase = createClient();
 
   // Mostrar todos os itens em uma página quando o total for pequeno,
-  // e evitar muitas páginas vazias. Se houver muitos itens, paginar por 50.
-  const ITEMS_PER_PAGE = Math.max(20, Math.min(200, items.length || 20));
+  // senão paginar por 20 por página.
+  const ITEMS_PER_PAGE = useMemo(
+    () => (items.length <= 20 ? Math.max(8, items.length) : 20),
+    [items.length]
+  );
 
-  // If realtime (WebSocket) is not available, fallback to polling (router.refresh())
+  // Polling conservador: atualiza os dados do servidor periodicamente.
+  // Evita refreshs ATIVOS durante processamento e quando a aba está oculta.
   useEffect(() => {
-    let mounted = true;
-    const tryWs = () => {
-      try {
-        const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        if (!base || !key) {
-          if (mounted) setWsAvailable(false);
-          return;
-        }
-        const wsUrl =
-          base.replace(/^http/, 'ws') +
-          `/realtime/v1/websocket?apikey=${encodeURIComponent(key)}&vsn=1.0.0`;
-        const w = new WebSocket(wsUrl);
-        const timeout = setTimeout(() => {
-          try {
-            w.close();
-          } catch (_) {}
-          if (mounted) setWsAvailable(false);
-        }, 3000);
-        w.addEventListener('open', () => {
-          clearTimeout(timeout);
-          try {
-            w.close();
-          } catch (_) {}
-          if (mounted) setWsAvailable(true);
-        });
-        w.addEventListener('error', () => {
-          clearTimeout(timeout);
-          try {
-            w.close();
-          } catch (_) {}
-          if (mounted) setWsAvailable(false);
-        });
-      } catch (e) {
-        if (mounted) setWsAvailable(false);
-      }
+    const POLL_INTERVAL = 30000; // 30s
+    let iv: any = null;
+
+    const shouldRefresh = () => {
+      if (document.visibilityState !== 'visible') return false;
+      if (isProcessing) return false;
+      return true;
     };
 
-    tryWs();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Polling fallback: refresh server data periodically when WS is unavailable
-  useEffect(() => {
-    if (wsAvailable === false) {
-      const iv = setInterval(() => {
+    const start = () => {
+      if (iv) return;
+      iv = setInterval(() => {
         try {
+          if (!shouldRefresh()) return;
           router.refresh();
         } catch (_) {}
-      }, 15000);
-      return () => clearInterval(iv);
-    }
-  }, [wsAvailable, router]);
+      }, POLL_INTERVAL);
+    };
+
+    start();
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') start();
+      else if (iv) clearInterval(iv);
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      if (iv) clearInterval(iv);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isProcessing, router]);
 
   // --- MOTOR DE REPARO EM LOTE (A SOLUÇÃO DEFINITIVA) ---
   // helper: fetch with timeout and optional retries
@@ -251,19 +231,25 @@ export default function ManageExternalImagesClient({
   // --- FILTROS ---
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  // Debounce search term to reduce re-renders
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   const filteredItems = useMemo(() => {
+    const q = debouncedSearchTerm || '';
     return items.filter((item) => {
       const matchesSearch =
-        !searchTerm ||
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.reference_code?.toLowerCase() || '').includes(
-          searchTerm.toLowerCase()
-        );
+        !q ||
+        item.name.toLowerCase().includes(q.toLowerCase()) ||
+        (item.reference_code?.toLowerCase() || '').includes(q.toLowerCase());
       const matchesBrand = !selectedBrand || item.brand === selectedBrand;
       return matchesSearch && matchesBrand;
     });
-  }, [items, searchTerm, selectedBrand]);
+  }, [items, debouncedSearchTerm, selectedBrand]);
 
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
   const paginatedItems = filteredItems.slice(
@@ -311,7 +297,7 @@ export default function ManageExternalImagesClient({
           </select>
           <button
             onClick={handleStartRequest}
-            disabled={isProcessing || items.length === 0}
+            disabled={isProcessing || filteredItems.length === 0}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 py-3 disabled:opacity-50"
           >
             {isProcessing ? (
@@ -319,50 +305,54 @@ export default function ManageExternalImagesClient({
             ) : (
               <Zap size={16} />
             )}
-            Sincronizar Tudo
+            Sincronizar Pendentes
           </button>
         </div>
       </div>
 
       {/* LISTA DE PRODUTOS */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-3">
-        {paginatedItems.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center justify-between p-4 bg-slate-50/30 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800 rounded-3xl"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-white overflow-hidden border">
-                <LazyProductImage
-                  src={
-                    item.image_url ||
-                    // if images is an array, prefer first item's url (supports string or object)
-                    (Array.isArray(item.images)
-                      ? typeof item.images[0] === 'string'
-                        ? item.images[0]
-                        : item.images[0]?.url
-                      : null) ||
-                    item.external_image_url
-                  }
-                  alt={item.name}
-                />
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {paginatedItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-slate-50/30 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800 rounded-2xl"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <div className="h-12 w-12 rounded-xl bg-white overflow-hidden border flex-shrink-0">
+                  <LazyProductImage
+                    src={
+                      item.image_url ||
+                      (Array.isArray(item.images)
+                        ? typeof item.images[0] === 'string'
+                          ? item.images[0]
+                          : item.images[0]?.url
+                        : null) ||
+                      item.external_image_url
+                    }
+                    alt={item.name}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-sm truncate">{item.name}</h4>
+                  <p className="text-[10px] uppercase font-black text-slate-400 truncate">
+                    {item.reference_code} • {item.brand}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-bold text-sm">{item.name}</h4>
-                <p className="text-[10px] uppercase font-black text-slate-400">
-                  {item.reference_code} • {item.brand}
-                </p>
+              <div className="mt-3 sm:mt-0 sm:ml-3 flex items-center gap-2">
+                <a
+                  href={item.external_image_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-2 text-slate-300 hover:text-indigo-600"
+                >
+                  <ExternalLink size={16} />
+                </a>
               </div>
             </div>
-            <a
-              href={item.external_image_url}
-              target="_blank"
-              className="p-2 text-slate-300 hover:text-indigo-600"
-            >
-              <ExternalLink size={16} />
-            </a>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* FOOTER PAGINAÇÃO */}
@@ -389,8 +379,8 @@ export default function ManageExternalImagesClient({
         </div>
       </div>
 
-      {/* CONSOLE DE LOGS (OPCIONAL) */}
-      <div className="px-6 pb-6">
+      {/* CONSOLE DE LOGS (OPCIONAL) - oculto em mobile para reduzir espaço */}
+      <div className="px-6 pb-6 hidden md:block">
         <SyncConsole jobId={activeJobId || 'Sessão Atual'} />
       </div>
     </div>

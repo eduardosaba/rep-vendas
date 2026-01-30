@@ -23,6 +23,17 @@ export default async function ManageExternalImagesPage() {
   const activeUserId = await getActiveUserId();
   if (!activeUserId) redirect('/login');
 
+  // Restrict access to master admin only
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const MASTER_EMAIL =
+    process.env.MASTER_ADMIN_EMAIL || process.env.MASTER_EMAIL;
+  if (!user || (MASTER_EMAIL && user.email !== MASTER_EMAIL)) {
+    // Redirect non-master users back to products dashboard
+    return redirect('/dashboard');
+  }
+
   // 1. BUSCA OTIMIZADA: Trazemos apenas o necessário para a análise
   const { data: products, error } = await supabase
     .from('products')
@@ -102,7 +113,7 @@ export default async function ManageExternalImagesPage() {
       )}
 
       {/* ÁREA DE CONTEÚDO */}
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto p-2">
           {pendingProducts.length > 0 ? (
             <ManageExternalImagesClient initialProducts={pendingProducts} />

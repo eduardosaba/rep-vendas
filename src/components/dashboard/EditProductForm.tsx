@@ -54,7 +54,7 @@ const ImageUploader = ({
       )}
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-        {images.map((url, index) => (
+        {images.map((urlOrEntry, index) => (
           <div
             key={index}
             className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${
@@ -64,62 +64,71 @@ const ImageUploader = ({
             }`}
           >
             {}
-            <img
-              src={(() => {
-                try {
-                  const s = String(url || '').trim();
-                  // Already an absolute URL
-                  if (s.startsWith('http')) {
-                    // External Safilo or other host (keep as-is)
-                    if (
-                      s.toLowerCase().includes('safilo') ||
-                      !s.includes('supabase.co')
-                    )
-                      return s;
-                    // Supabase-hosted public URL or product-images path
-                    if (
-                      s.includes('supabase.co') ||
-                      s.includes('/product-images/')
-                    ) {
-                      // @ts-ignore - getProductImage handles jpg/webp mapping
-                      const {
-                        getProductImage,
-                      } = require('@/lib/utils/image-logic');
-                      return getProductImage(s, 'small') || s;
-                    }
-                    return s;
-                  }
+            {(() => {
+              // resolve a URL pública para uso em src e zoom
+              try {
+                const raw = normalizeImageEntry(urlOrEntry) || '';
+                const s = String(raw).trim();
 
-                  // If it's not an absolute URL, try to treat it as a storage path and get public URL
-                  if (s.length > 0) {
-                    try {
-                      const path = s.startsWith('/') ? s.slice(1) : s;
-                      const { data } = supabaseClient.storage
-                        .from('product-images')
-                        .getPublicUrl(path);
-                      if (data?.publicUrl) return data.publicUrl;
-                    } catch (e) {
-                      // fallback to raw value
-                    }
-                  }
+                let resolved: string | null = null;
 
-                  return s;
-                } catch (e) {
-                  return String(url);
+                if (s.startsWith('http')) {
+                  // External URL (could be supabase public URL or external host)
+                  if (
+                    s.includes('supabase.co') ||
+                    s.includes('/product-images/')
+                  ) {
+                    // @ts-ignore
+                    const {
+                      getProductImage,
+                    } = require('@/lib/utils/image-logic');
+                    resolved = getProductImage(s, 'small') || s;
+                  } else {
+                    // external host (e.g., Safilo) - use as-is
+                    resolved = s;
+                  }
+                } else if (s.length > 0) {
+                  // treat as storage path -> use proxy so private buckets work
+                  const path = s.startsWith('/') ? s.slice(1) : s;
+                  resolved = `/api/storage-image?path=${encodeURIComponent(path)}`;
                 }
-              })()}
-              className="w-full h-full object-contain p-1 cursor-zoom-in"
-              alt={`Product ${index}`}
-              onClick={() => setZoomImage(url)}
-              onError={(e) => {
-                const t = e.currentTarget as HTMLImageElement;
-                t.onerror = null;
-                t.src =
-                  'https://via.placeholder.com/600x600?text=Imagem+indispon%C3%ADvel';
-              }}
-              loading="lazy"
-              style={{ height: 'auto' }}
-            />
+
+                const srcToUse = resolved || '';
+
+                return (
+                  <img
+                    src={srcToUse}
+                    className="w-full h-full object-contain p-1 cursor-zoom-in"
+                    alt={`Product ${index}`}
+                    onClick={() => setZoomImage(srcToUse)}
+                    onError={(e) => {
+                      const t = e.currentTarget as HTMLImageElement;
+                      t.onerror = null;
+                      t.src =
+                        'https://via.placeholder.com/600x600?text=Imagem+indispon%C3%ADvel';
+                    }}
+                    loading="lazy"
+                    style={{ height: 'auto' }}
+                  />
+                );
+              } catch (e) {
+                return (
+                  <img
+                    src={String(normalizeImageEntry(urlOrEntry) || '')}
+                    className="w-full h-full object-contain p-1 cursor-zoom-in"
+                    alt={`Product ${index}`}
+                    onError={(e) => {
+                      const t = e.currentTarget as HTMLImageElement;
+                      t.onerror = null;
+                      t.src =
+                        'https://via.placeholder.com/600x600?text=Imagem+indispon%C3%ADvel';
+                    }}
+                    loading="lazy"
+                    style={{ height: 'auto' }}
+                  />
+                );
+              }
+            })()}
 
             <button
               type="button"
@@ -191,10 +200,32 @@ const ImageUploader = ({
   );
 };
 
+// Normalize image entry helper (top-level so subcomponents can use)
+function normalizeImageEntry(entry: any) {
+  if (!entry) return '';
+  if (typeof entry === 'string') return entry;
+  if (typeof entry === 'object') {
+    return (
+      entry.optimized_url ||
+      entry.optimizedUrl ||
+      entry.url ||
+      entry.src ||
+      entry.publicUrl ||
+      entry.public_url ||
+      entry.path ||
+      entry.storage_path ||
+      ''
+    );
+  }
+  return String(entry || '');
+}
+
 // --- COMPONENTE PRINCIPAL ---
 export function EditProductForm({ product }: { product: Product }) {
   const router = useRouter();
   const supabase = createClient();
+
+  // (normalizeImageEntry is declared at file top so ImageUploader can use it)
 
   // Estados
   const [loading, setLoading] = useState(false);
@@ -347,7 +378,9 @@ export function EditProductForm({ product }: { product: Product }) {
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
     is_best_seller: product.is_best_seller || product.bestseller || false,
-    images: product.images || (product.image_url ? [product.image_url] : []),
+    images: (product.images || (product.image_url ? [product.image_url] : []))
+      .map((i: any) => normalizeImageEntry(i))
+      .filter(Boolean),
   });
 
   // Listener para confirmar saída

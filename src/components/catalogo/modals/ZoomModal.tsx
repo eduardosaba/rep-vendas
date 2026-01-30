@@ -6,6 +6,7 @@ import React, { useEffect } from 'react';
 import Image from 'next/image';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getProductImage } from '@/lib/utils/image-logic';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 
 // --- Tipos ---
 interface Product {
@@ -22,12 +23,71 @@ interface ZoomModalProps {
   setCurrentImageIndex: React.Dispatch<React.SetStateAction<number>>;
 }
 
-// Helper de Imagens (movido do Storefront)
+// Helper de Imagens (unificado): normaliza várias fontes possíveis
 const getProductImages = (product: Product) => {
-  if (product.images && product.images.length > 0) return product.images;
-  if (product.image_url) return [product.image_url];
-  return [];
+  if (!product) return [];
+
+  // 1) se já existe array de imagens, normalize cada entrada
+  if (product.images && product.images.length > 0) {
+    return product.images
+      .map((img) => normalizeImageSrc(img))
+      .filter(Boolean) as string[];
+  }
+
+  // 2) tenta campos individuais por ordem de prioridade
+  const candidates = [
+    // image_path pode ser um storage path (ex: userId/..). Se for, servimos via proxy
+    // mas o campo no tipo Product não está declarado; checamos dinamicamente
+    (product as any).image_path,
+    product.image_url,
+    (product as any).external_image_url,
+  ];
+
+  return candidates
+    .map((c) => normalizeImageSrc(c))
+    .filter(Boolean) as string[];
 };
+
+function normalizeImageSrc(raw?: string | null) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+
+  // Já é URL absoluta
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+
+  // Não é uma URL absoluta — preferimos servir via proxy para evitar 403
+  // Tratamos cenários common: caminhos que já incluem '/storage/v1/object/public/...'
+  // ou que contenham 'product-images' em algum lugar.
+  try {
+    // Caso o valor inclua o segmento público do Supabase, extraímos apenas o objeto
+    // Ex: '/storage/v1/object/public/product-images/foo.webp' ou full path with prefix
+    const marker = '/storage/v1/object/public/';
+    if (s.includes(marker)) {
+      const after = s.split(marker).pop() || '';
+      const parts = after.split('/');
+      // if bucket present like 'product-images/...', remove bucket prefix
+      if (parts[0] === 'product-images') parts.shift();
+      const objectPath = parts.join('/');
+      if (objectPath)
+        return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
+    }
+
+    // If includes 'product-images/' segment or looks like a relative path, use proxy
+    if (s.includes('/product-images/')) {
+      const parts = s.split('/product-images/');
+      const objectPath = parts[parts.length - 1].replace(/^\/+/, '');
+      return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
+    }
+
+    // Otherwise assume it's a simple storage path or filename and proxy it
+    const path = s.replace(/^\/+/, '');
+    return `/api/storage-image?path=${encodeURIComponent(path)}`;
+  } catch (e) {
+    const path = s.replace(/^\/+/, '');
+    return `/api/storage-image?path=${encodeURIComponent(path)}`;
+  }
+}
 
 export function ZoomModal({
   viewProduct,

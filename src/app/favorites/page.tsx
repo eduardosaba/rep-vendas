@@ -251,13 +251,23 @@ export default function FavoritesPage() {
                   {/* Imagem */}
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-white p-4">
                     {imgUrl ? (
-                      <Image
-                        src={imgUrl}
-                        alt={product.name}
-                        fill
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        className="object-contain transition-transform duration-300 group-hover:scale-105"
-                      />
+                      String(imgUrl).startsWith('http') &&
+                      !String(imgUrl).includes('supabase.co/storage') ? (
+                        <img
+                          src={imgUrl}
+                          alt={product.name}
+                          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Image
+                          src={imgUrl}
+                          alt={product.name}
+                          fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          className="object-contain transition-transform duration-300 group-hover:scale-105"
+                        />
+                      )
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-gray-50 dark:bg-slate-800">
                         <AlertCircle className="h-10 w-10 text-gray-300 dark:text-gray-600" />

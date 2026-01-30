@@ -42,29 +42,73 @@ async function syncFullCatalog() {
 
   console.log('🚀 [RepVendas] Iniciando Sincronização Inteligente...');
 
-  // Busca contagem inicial para o progresso
-  let { count: totalToProcess } = await supabase
-    .from('products')
-    .select('id', { head: true, count: 'exact' })
-    .in('sync_status', SYNC_ONLY);
+  // --- Construir a lista de IDs a processar (combina múltiplos critérios)
+  // 1) Produtos com `sync_status` em SYNC_ONLY
+  // 2) Produtos cuja `image_url` é externa (http...) e ainda não estão `synced`
+  // 3) Produtos referenciados em `product_images` com `url` externa e não `synced`
+
+  const idsToProcessSet = new Set();
+
+  try {
+    const { data: byStatus } = await supabase
+      .from('products')
+      .select('id')
+      .in('sync_status', SYNC_ONLY)
+      .not('sync_error', 'ilike', 'UNREACHABLE_HOST:%');
+    (byStatus || []).forEach((r) => r?.id && idsToProcessSet.add(r.id));
+
+    const { data: byImageUrl } = await supabase
+      .from('products')
+      .select('id')
+      .like('image_url', 'http%')
+      .not('image_url', 'ilike', '%/storage/v1/object%')
+      .neq('sync_status', 'synced')
+      .not('sync_error', 'ilike', 'UNREACHABLE_HOST:%');
+    (byImageUrl || []).forEach((r) => r?.id && idsToProcessSet.add(r.id));
+
+    const { data: imgs } = await supabase
+      .from('product_images')
+      .select('product_id')
+      .like('url', 'http%')
+      .not('url', 'ilike', '%/storage/v1/object%')
+      .neq('sync_status', 'synced')
+      .not('sync_error', 'ilike', 'UNREACHABLE_HOST:%');
+    (imgs || []).forEach(
+      (r) => r?.product_id && idsToProcessSet.add(r.product_id)
+    );
+  } catch (err) {
+    console.warn(
+      '⚠️ Falha ao construir lista de IDs inicial:',
+      err?.message || err
+    );
+  }
+
+  let allIds = Array.from(idsToProcessSet);
+  let totalToProcess = allIds.length;
 
   while (true) {
     try {
       // Busca apenas IDs que ainda não tentamos nesta sessão para evitar loops
       const processedArray = Array.from(processedIds).slice(-100);
-      let query = supabase
+      // Recomputar lista de IDs a processar (podem ter sido adicionados entre iterações)
+      allIds = Array.from(idsToProcessSet).filter(
+        (id) => !processedIds.has(id)
+      );
+      if (allIds.length === 0) break;
+
+      // Processar em páginas de CHUNK_SIZE: buscamos os dados completos por id
+      const nextBatchIds = allIds.slice(0, CHUNK_SIZE);
+      const { data: products, error } = await supabase
         .from('products')
         .select('id, name, reference_code, image_url, sync_status')
-        .in('sync_status', SYNC_ONLY);
-
-      if (processedArray.length > 0) {
-        query = query.not('id', 'in', `(${processedArray.join(',')})`);
-      }
-
-      const { data: products, error } = await query.limit(CHUNK_SIZE);
+        .in('id', nextBatchIds);
 
       if (error) throw error;
-      if (!products || products.length === 0) break;
+      if (!products || products.length === 0) {
+        // nada a processar neste lote, remover esses ids da fila e continuar
+        nextBatchIds.forEach((id) => idsToProcessSet.delete(id));
+        continue;
+      }
 
       // Processamento em lotes paralelos (Concurrency)
       for (let i = 0; i < products.length; i += PRODUCT_CONCURRENCY) {
@@ -105,8 +149,48 @@ async function syncFullCatalog() {
                 mainSuccess = true;
                 console.log('   ✅ Capa Otimizada');
               } catch (err) {
-                mainError = err.message;
+                const errMsg = String(err?.message || err || '');
+                mainError = errMsg;
                 console.error(`   ❌ Capa: ${mainError}`);
+                if (errMsg.startsWith('UNREACHABLE_HOST:')) {
+                  try {
+                    const parts = errMsg.split(':');
+                    const host = parts[1] || 'unknown';
+                    const statusCode = Number(parts[2]) || null;
+                    const resourceUrl = product.image_url || null;
+                    const { data: existing } = await supabase
+                      .from('unreachable_hosts')
+                      .select('id, occurrences')
+                      .eq('resource_url', resourceUrl)
+                      .limit(1)
+                      .maybeSingle();
+                    if (existing && existing.id) {
+                      await supabase
+                        .from('unreachable_hosts')
+                        .update({
+                          occurrences: (existing.occurrences || 1) + 1,
+                          last_seen: new Date().toISOString(),
+                          last_error: errMsg,
+                        })
+                        .eq('id', existing.id);
+                    } else {
+                      await supabase.from('unreachable_hosts').insert([
+                        {
+                          host,
+                          status_code: statusCode,
+                          resource_url: resourceUrl,
+                          product_id: product.id,
+                          last_error: errMsg,
+                        },
+                      ]);
+                    }
+                  } catch (auditErr) {
+                    console.warn(
+                      '⚠️ Falha ao salvar unreachable_hosts:',
+                      auditErr?.message || auditErr
+                    );
+                  }
+                }
               }
             }
 
@@ -144,11 +228,55 @@ async function syncFullCatalog() {
                         productOptimizedBytes += res.optimizedSize;
                         gallerySynced++;
                       } catch (err) {
+                        const errMsg = String(err?.message || err || '');
+                        // If unreachable host marker, record in audit table
+                        if (errMsg.startsWith('UNREACHABLE_HOST:')) {
+                          try {
+                            const parts = errMsg.split(':');
+                            const host = parts[1] || 'unknown';
+                            const statusCode = Number(parts[2]) || null;
+                            const resourceUrl = img.url || null;
+                            // upsert into unreachable_hosts: increment occurrences if exists
+                            const { data: existing } = await supabase
+                              .from('unreachable_hosts')
+                              .select('id, occurrences')
+                              .eq('resource_url', resourceUrl)
+                              .limit(1)
+                              .maybeSingle();
+                            if (existing && existing.id) {
+                              await supabase
+                                .from('unreachable_hosts')
+                                .update({
+                                  occurrences: (existing.occurrences || 1) + 1,
+                                  last_seen: new Date().toISOString(),
+                                  last_error: errMsg,
+                                })
+                                .eq('id', existing.id);
+                            } else {
+                              await supabase.from('unreachable_hosts').insert([
+                                {
+                                  host,
+                                  status_code: statusCode,
+                                  resource_url: resourceUrl,
+                                  product_id: product.id,
+                                  product_image_id: img.id,
+                                  last_error: errMsg,
+                                },
+                              ]);
+                            }
+                          } catch (auditErr) {
+                            console.warn(
+                              '⚠️ Falha ao salvar unreachable_hosts:',
+                              auditErr?.message || auditErr
+                            );
+                          }
+                        }
+
                         await supabase
                           .from('product_images')
                           .update({
                             sync_status: 'failed',
-                            sync_error: err.message,
+                            sync_error: errMsg,
                           })
                           .eq('id', img.id);
                       }
@@ -210,6 +338,9 @@ async function syncFullCatalog() {
           })
         );
       }
+
+      // Após processar o batch, remover os ids processados da fila
+      products.forEach((p) => idsToProcessSet.delete(p.id));
 
       console.log(`\n⏳ Pausa para respiro (${DELAY_BETWEEN_CHUNKS}ms)...`);
       await new Promise((r) => setTimeout(r, DELAY_BETWEEN_CHUNKS));
@@ -324,14 +455,49 @@ async function processAndUpload(url, storagePath, agent) {
         } else {
           const status = proxyRes ? proxyRes.status : 'no_response';
           console.warn(`Proxy fallback não OK: ${status}`);
+          // If proxy returned 404/410, treat as unreachable host
+          if (
+            proxyRes &&
+            (proxyRes.status === 404 || proxyRes.status === 410)
+          ) {
+            const hostName = (() => {
+              try {
+                return new URL(raw).hostname;
+              } catch (e) {
+                return 'unknown';
+              }
+            })();
+            throw new Error(`UNREACHABLE_HOST:${hostName}:${proxyRes.status}`);
+          }
         }
       } catch (proxyErr) {
         console.warn('Proxy fallback falhou:', proxyErr?.message || proxyErr);
+        // if proxyErr carries UNREACHABLE_HOST marker, propagate it
+        if (
+          proxyErr &&
+          String(proxyErr.message || '').startsWith('UNREACHABLE_HOST:')
+        ) {
+          throw proxyErr;
+        }
       }
     }
-
-    if (lastErr)
+    // If the lastErr indicates HTTP 404/410 at upstream, transform into UNREACHABLE marker
+    if (lastErr) {
+      const msg = String(lastErr.message || lastErr || '');
+      if (msg.includes('HTTP 404') || msg.includes('HTTP 410')) {
+        const hostName = (() => {
+          try {
+            return new URL(raw).hostname;
+          } catch (e) {
+            return 'unknown';
+          }
+        })();
+        throw new Error(
+          `UNREACHABLE_HOST:${hostName}:${msg.match(/HTTP (\d+)/)?.[1] || 'unknown'}`
+        );
+      }
       throw new Error(`fetch failed ${raw} - ${lastErr?.message || lastErr}`);
+    }
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());

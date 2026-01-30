@@ -80,6 +80,15 @@ export function OptimizedImage({
   onLoad,
   onError,
 }: OptimizedImageProps) {
+  if (!src) {
+    return (
+      <div
+        className={`bg-gray-100 w-full h-full ${className || ''} flex items-center justify-center text-sm text-gray-400`}
+      >
+        Imagem indisponível
+      </div>
+    );
+  }
   // Para URLs externas, usa Image do Next.js sem otimizações adicionais
   const isExternal = src.startsWith('http') || src.startsWith('//');
   // Para URLs externas, usamos <img> nativo para evitar restrições do Next.js

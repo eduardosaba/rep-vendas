@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { getProductImage } from '@/lib/utils/image-logic';
+import getProductImageUrl from '@/lib/imageUtils';
 
 type Props = {
   product: any;
@@ -28,13 +29,22 @@ export default function ProductImage({
   const placeholder =
     '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
 
-  const resolvedInternalUrl = internalPath
-    ? getProductImage(
-        `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${internalPath}`,
-        'medium'
-      ) ||
-      `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${internalPath}`
-    : null;
+  // Prefer the server proxy for stored images to avoid 403 on private buckets.
+  // Build a proxied path and prefer a medium-sized variant when possible.
+  let resolvedInternalUrl: string | null = null;
+  if (internalPath) {
+    try {
+      // Try to produce a "-medium" variant of the stored filename if applicable
+      const maybeSized =
+        getProductImage(internalPath, 'medium') || internalPath;
+      const encoded = encodeURIComponent(maybeSized.replace(/^\/+/, ''));
+      resolvedInternalUrl = `/api/storage-image?path=${encoded}`;
+    } catch (e) {
+      resolvedInternalUrl = `/api/storage-image?path=${encodeURIComponent(
+        internalPath.replace(/^\/+/, '')
+      )}`;
+    }
+  }
 
   const src =
     error || (!product.sync_status && !resolvedInternalUrl && !external)
@@ -71,7 +81,7 @@ export default function ProductImage({
 
   return (
     <div
-      className={`relative ${className || 'w-full h-auto'}`}
+      className={`relative bg-white ${className || 'w-full h-auto'}`}
       style={style}
       onClick={onClick}
     >

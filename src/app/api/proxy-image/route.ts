@@ -120,12 +120,19 @@ export async function GET(request: Request) {
 
         if (!res.ok) {
           const status = res.status;
-          const text = await res.text().catch(() => '');
-          const snippet = text.slice(0, 500);
+          // Try to obtain upstream body as arrayBuffer so we can forward it
+          // to the caller preserving status and content-type when reasonable.
+          let upstreamBuffer: ArrayBuffer | null = null;
+          try {
+            upstreamBuffer = await res.arrayBuffer();
+          } catch (e) {
+            // fallback to text if arrayBuffer fails
+          }
+
           console.error('[proxy-image] upstream returned non-ok', {
             target: imageUrl,
             status,
-            snippet,
+            url: imageUrl,
           });
 
           if (status >= 500 && attempt < MAX_RETRIES) {
@@ -140,13 +147,24 @@ export async function GET(request: Request) {
             try {
               return NextResponse.redirect(imageUrl);
             } catch (e) {
-              // If redirect fails, fallthrough to error response
+              // If redirect fails, fallthrough to forwarding response below
             }
           }
 
+          // Forward upstream status/body/content-type when possible (for example 404/410)
+          const upstreamCt =
+            res.headers.get('content-type') || 'application/octet-stream';
+          if (upstreamBuffer) {
+            return new NextResponse(upstreamBuffer as unknown as any, {
+              status,
+              headers: { 'Content-Type': upstreamCt },
+            });
+          }
+
+          // As a last resort, forward a small JSON with the upstream status.
           return NextResponse.json(
-            { error: 'Upstream error', status, bodySnippet: snippet },
-            { status: 502 }
+            { error: 'Upstream error', status },
+            { status }
           );
         }
 

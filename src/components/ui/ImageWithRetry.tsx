@@ -24,15 +24,16 @@ export default function ImageWithRetry({
   loading = 'lazy',
 }: Props) {
   const [attempt, setAttempt] = useState(0);
-  const [curSrc, setCurSrc] = useState(src);
+  const [curSrc, setCurSrc] = useState(src || fallback);
 
   useEffect(() => {
-    setCurSrc(src);
+    setCurSrc(src || fallback);
     setAttempt(0);
-  }, [src]);
+  }, [src, fallback]);
 
   useEffect(() => {
     if (attempt === 0) return;
+    if (!src) return; // nothing to retry
     const ms = retryDelay * attempt;
     const t = setTimeout(() => {
       // add cache-bust to force re-request

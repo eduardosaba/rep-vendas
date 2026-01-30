@@ -691,11 +691,17 @@ export default function UserProfilePage() {
                       className="group relative aspect-square rounded-xl bg-gray-50 dark:bg-slate-800 overflow-hidden ring-1 ring-gray-200 dark:ring-slate-700 hover:ring-2 hover:ring-[var(--primary)] transition-all shadow-sm hover:shadow-md"
                     >
                       {}
-                      <img
-                        src={url}
-                        alt={`Avatar ${idx}`}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      />
+                      {url ? (
+                        <img
+                          src={url}
+                          alt={`Avatar ${idx}`}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
+                          Avatar indisponível
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                     </button>
                   ))}

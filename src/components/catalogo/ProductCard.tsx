@@ -104,8 +104,9 @@ export function ProductCard({
     null;
 
   if (product.image_path) {
-    const internalUrl = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/storage/v1/object/public/product-images/${product.image_path}`;
-    displayImage = getProductImage(internalUrl, 'small') || internalUrl;
+    const path = String(product.image_path).replace(/^\/+/, '');
+    // Use server proxy to serve storage objects (handles private buckets)
+    displayImage = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=75&w=600`;
   } else if (
     isPending &&
     product.external_image_url &&
@@ -114,9 +115,8 @@ export function ProductCard({
     displayImage = product.external_image_url;
   } else if (candidate) {
     if (!candidate.startsWith('http')) {
-      const internal = buildSupabaseImageUrl(candidate);
-      displayImage =
-        getProductImage(internal, 'small') || internal || displayImage;
+      const path = String(candidate).replace(/^\/+/, '');
+      displayImage = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=75&w=600`;
     } else {
       displayImage = candidate;
     }
@@ -149,7 +149,7 @@ export function ProductCard({
       className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/10 ${isOutOfStock ? 'opacity-60 grayscale' : ''}`}
     >
       {/* --- SEÇÃO DA IMAGEM (PADRONIZADA) --- */}
-      <div className="relative aspect-square w-full flex items-center justify-center bg-slate-50 overflow-hidden border-b border-gray-50">
+      <div className="relative aspect-square w-full flex items-center justify-center bg-white overflow-hidden border-b border-gray-50">
         {/* Overlay de Otimização */}
         {isPending && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/40 p-4 text-center backdrop-blur-[2px]">

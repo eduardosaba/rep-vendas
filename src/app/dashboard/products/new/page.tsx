@@ -81,12 +81,18 @@ const ImageUploader = ({
             }
           >
             {}
-            <img
-              src={url}
-              className="w-full h-full object-cover cursor-zoom-in"
-              alt={`Product ${index}`}
-              onClick={() => setZoomImage(url)}
-            />
+            {url ? (
+              <img
+                src={url}
+                className="w-full h-full object-cover cursor-zoom-in"
+                alt={`Product ${index}`}
+                onClick={() => setZoomImage(url)}
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
+                Imagem indisponível
+              </div>
+            )}
 
             <button
               type="button"
