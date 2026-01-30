@@ -32,6 +32,7 @@ for (const a of argv) {
 const DRY_RUN = args['dry-run'] !== undefined || !args['confirm'];
 const SINCE = args['since'] || null; // e.g. 2026-01-22
 const IDS = args['ids'] ? args['ids'].split(',') : null;
+const BRAND = args['brand'] || null; // e.g. "Tommy Hilfiger" (uses ilike match)
 const LIMIT = args['limit'] ? Number(args['limit']) : 1000;
 const BUCKET = args['bucket'] || 'product-images';
 
@@ -87,6 +88,12 @@ async function gatherProducts() {
 
   if (SINCE) {
     query = query.gte('updated_at', SINCE);
+  }
+
+  if (BRAND) {
+    // Use ilike for flexible, case-insensitive partial matches
+    query = query.ilike('brand', `%${BRAND}%`);
+    console.log(`Filtrando por brand ilike %${BRAND}%`);
   }
 
   const { data, error } = await query;
