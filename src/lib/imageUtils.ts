@@ -75,8 +75,11 @@ export function getProductImageUrl(product: Partial<Product>) {
 
   // B. PRIORIDADE 2: Primeiro item da galeria que tenha 'path' (Internalizado)
   if (Array.isArray(product.images) && product.images.length > 0) {
-    const firstImg = product.images[0];
-    const path = typeof firstImg === 'object' ? firstImg.path : null;
+    const firstImg = product.images[0] as any;
+    const path =
+      firstImg && typeof firstImg === 'object' && 'path' in firstImg
+        ? (firstImg as any).path
+        : null;
 
     if (path) {
       const cleanPath = path.replace(/^\//, '');
@@ -96,8 +99,11 @@ export function getProductImageUrl(product: Partial<Product>) {
 
   // D. PRIORIDADE 4: URLs Externas dentro da galeria (campo 'url')
   if (Array.isArray(product.images) && product.images.length > 0) {
-    const firstImg = product.images[0];
-    const url = typeof firstImg === 'object' ? firstImg.url : firstImg;
+    const firstImg = product.images[0] as any;
+    const url =
+      firstImg && typeof firstImg === 'object' && 'url' in firstImg
+        ? (firstImg as any).url
+        : firstImg;
 
     if (url && typeof url === 'string' && url.startsWith('http')) {
       return { src: url, isExternal: true, isStorage: false };

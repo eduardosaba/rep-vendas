@@ -324,13 +324,14 @@ export function StoreProvider({
     const fetchLogos = async () => {
       const { data } = await supabase
         .from('brands')
-        .select('name, logo_url')
+        .select('name, logo_url, banner_url, description')
         .eq('user_id', store.user_id)
         .in('name', brands);
       if (data)
         setBrandsWithLogos(
           brands.map(
-            (b) => data.find((d) => d.name === b) || { name: b, logo_url: null }
+            (b) =>
+              data.find((d: any) => d.name === b) || { name: b, logo_url: null }
           )
         );
     };

@@ -36,11 +36,14 @@ const BRAND = args['brand'] || null; // e.g. "Tommy Hilfiger" (uses ilike match)
 const LIMIT = args['limit'] ? Number(args['limit']) : 1000;
 const BUCKET = args['bucket'] || 'product-images';
 
-const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPA_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPA_URL || !SERVICE_ROLE) {
-  console.error('Faltam variáveis de ambiente. Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY');
+  console.error(
+    'Faltam variáveis de ambiente. Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY'
+  );
   process.exit(1);
 }
 
@@ -54,7 +57,9 @@ function extractPathFromUrl(url) {
     // Supabase public URL patterns usually contain '/storage/v1/object/public/<bucket>/'
     const idx = u.pathname.indexOf('/storage/v1/object/public/');
     if (idx !== -1) {
-      return u.pathname.replace('/storage/v1/object/public/', '').replace(/^\/+/, '');
+      return u.pathname
+        .replace('/storage/v1/object/public/', '')
+        .replace(/^\/+/, '');
     }
     // Fallback: if url contains bucket name
     const parts = u.pathname.split('/').filter(Boolean);
@@ -73,7 +78,9 @@ async function gatherProducts() {
     console.log(`Buscando produtos por ids (${IDS.length})`);
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, image_path, image_url, images, external_image_url, updated_at')
+      .select(
+        'id, name, image_path, image_url, images, external_image_url, updated_at'
+      )
       .in('id', IDS)
       .limit(LIMIT);
     if (error) throw error;
@@ -82,7 +89,9 @@ async function gatherProducts() {
 
   let query = supabase
     .from('products')
-    .select('id, name, image_path, image_url, images, external_image_url, updated_at')
+    .select(
+      'id, name, image_path, image_url, images, external_image_url, updated_at'
+    )
     .neq('image_path', null)
     .limit(LIMIT);
 
@@ -138,7 +147,11 @@ async function gatherProducts() {
       }
 
       // also try to derive from image_url/external_image_url
-      if (p.image_url && typeof p.image_url === 'string' && p.image_url.startsWith('http')) {
+      if (
+        p.image_url &&
+        typeof p.image_url === 'string' &&
+        p.image_url.startsWith('http')
+      ) {
         const ex = extractPathFromUrl(p.image_url);
         if (ex) pathsToDelete.add(ex);
       }
@@ -160,7 +173,9 @@ async function gatherProducts() {
         try {
           const { data: meta, error: mErr } = await supabase.storage
             .from(BUCKET)
-            .list(path.dirname(pth) === '.' ? '' : path.dirname(pth), { limit: 1000 });
+            .list(path.dirname(pth) === '.' ? '' : path.dirname(pth), {
+              limit: 1000,
+            });
           // list returns files in folder; we check by name
           const name = path.basename(pth);
           const found = (meta || []).some((f) => f.name === name);
@@ -170,17 +185,36 @@ async function gatherProducts() {
         }
       }
 
-      report.push({ id: product.id, name: product.name, updated_at: product.updated_at, existence, paths });
+      report.push({
+        id: product.id,
+        name: product.name,
+        updated_at: product.updated_at,
+        existence,
+        paths,
+      });
     }
 
-    const outPath = path.resolve(process.cwd(), 'tmp', `delete-image-report-${Date.now()}.json`);
+    const outPath = path.resolve(
+      process.cwd(),
+      'tmp',
+      `delete-image-report-${Date.now()}.json`
+    );
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, JSON.stringify({ generated_at: new Date().toISOString(), dryRun: DRY_RUN, report }, null, 2));
+    fs.writeFileSync(
+      outPath,
+      JSON.stringify(
+        { generated_at: new Date().toISOString(), dryRun: DRY_RUN, report },
+        null,
+        2
+      )
+    );
 
     console.log(`Relatório escrito em ${outPath}`);
 
     if (DRY_RUN) {
-      console.log('Dry-run ativado — nada será removido. Para executar, re-run com --confirm');
+      console.log(
+        'Dry-run ativado — nada será removido. Para executar, re-run com --confirm'
+      );
       process.exit(0);
     }
 
@@ -189,12 +223,18 @@ async function gatherProducts() {
     const failures = [];
 
     for (const t of report) {
-      const toDelete = t.paths.filter((p) => t.existence.some((e) => e.path === p && e.exists === true));
+      const toDelete = t.paths.filter((p) =>
+        t.existence.some((e) => e.path === p && e.exists === true)
+      );
       if (toDelete.length === 0) continue;
 
-      console.log(`Removendo ${toDelete.length} objetos para produto ${t.id} - ${t.name}`);
+      console.log(
+        `Removendo ${toDelete.length} objetos para produto ${t.id} - ${t.name}`
+      );
       try {
-        const { data: delRes, error: delErr } = await supabase.storage.from(BUCKET).remove(toDelete);
+        const { data: delRes, error: delErr } = await supabase.storage
+          .from(BUCKET)
+          .remove(toDelete);
         if (delErr) {
           console.error('Erro ao remover do storage', delErr);
           failures.push({ id: t.id, error: delErr, paths: toDelete });
@@ -214,19 +254,26 @@ async function gatherProducts() {
             if (Array.isArray(newImages)) {
               newImages = newImages.filter((it) => {
                 if (!it) return true;
-                if (typeof it === 'string') return !toDelete.includes(String(it).replace(/^\/+/, ''));
-                if (typeof it === 'object') return !toDelete.includes(String(it.path || '').replace(/^\/+/, ''));
+                if (typeof it === 'string')
+                  return !toDelete.includes(String(it).replace(/^\/+/, ''));
+                if (typeof it === 'object')
+                  return !toDelete.includes(
+                    String(it.path || '').replace(/^\/+/, '')
+                  );
                 return true;
               });
             }
 
-            const updates: any = {
+            const updates = {
               image_path: null,
               image_url: null,
               images: newImages,
             };
 
-            const { error: updErr } = await supabase.from('products').update(updates).eq('id', t.id);
+            const { error: updErr } = await supabase
+              .from('products')
+              .update(updates)
+              .eq('id', t.id);
             if (updErr) {
               failures.push({ id: t.id, error: updErr, paths: toDelete });
             } else {
@@ -239,8 +286,19 @@ async function gatherProducts() {
       }
     }
 
-    const finalOut = path.resolve(process.cwd(), 'tmp', `delete-image-result-${Date.now()}.json`);
-    fs.writeFileSync(finalOut, JSON.stringify({ generated_at: new Date().toISOString(), successes, failures }, null, 2));
+    const finalOut = path.resolve(
+      process.cwd(),
+      'tmp',
+      `delete-image-result-${Date.now()}.json`
+    );
+    fs.writeFileSync(
+      finalOut,
+      JSON.stringify(
+        { generated_at: new Date().toISOString(), successes, failures },
+        null,
+        2
+      )
+    );
     console.log('Execução finalizada. Resultados em', finalOut);
   } catch (err) {
     console.error('Erro fatal:', err);

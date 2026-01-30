@@ -191,9 +191,80 @@ export function StoreHeader() {
     brandsWithLogos,
     selectedBrand,
     setSelectedBrand,
+    initialProducts,
   } = useStore();
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Compute categories relevant to the currently selected brand
+  const visibleCategories = (() => {
+    try {
+      if (!initialProducts || !selectedBrand || selectedBrand === 'all')
+        return categories || [];
+      const active = Array.isArray(selectedBrand)
+        ? (selectedBrand[0] as string)
+        : (selectedBrand as string);
+      const setCats = new Set<string>();
+      initialProducts.forEach((p: any) => {
+        if (!p) return;
+        if (!p.brand) return;
+        if (
+          String(p.brand).trim().toLowerCase() ===
+          String(active).trim().toLowerCase()
+        ) {
+          if (p.category) setCats.add(p.category);
+        }
+      });
+      return Array.from(setCats);
+    } catch (e) {
+      return categories || [];
+    }
+  })();
+
+  // Intelligent search: detect "brand <reference>" prefix and auto-select brand
+  const handleSearchInputChange = (value: string) => {
+    const v = String(value || '').trim();
+    if (!v) {
+      setSelectedBrand('all');
+      setSearchTerm('');
+      return;
+    }
+
+    // Build list of candidate brand names (from brandsWithLogos and categories list)
+    const brandNames = Array.from(
+      new Set(
+        (brandsWithLogos || [])
+          .map((b: any) => String(b.name || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => b.length - a.length); // prefer longer matches
+
+    const lower = v.toLowerCase();
+    let matched: string | null = null;
+    let remaining = '';
+    for (const name of brandNames) {
+      const nl = name.toLowerCase();
+      if (lower === nl) {
+        matched = name;
+        remaining = '';
+        break;
+      }
+      if (lower.startsWith(nl + ' ')) {
+        matched = name;
+        remaining = v.substring(name.length).trim();
+        break;
+      }
+    }
+
+    if (matched) {
+      setSelectedBrand(matched);
+      setSearchTerm(remaining);
+    } else {
+      // No brand prefix detected — clear brand selection and set raw term
+      setSelectedBrand('all');
+      setSearchTerm(v);
+    }
+  };
 
   const { toggleSidebar } = useLayoutStore();
   const getCartCount = (c: any) => {
@@ -305,9 +376,16 @@ export function StoreHeader() {
                 (inputRef as any).current = el;
               }}
               type="text"
-              placeholder="Buscar produtos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar produtos... (ex: 'Boss 1442' para filtrar por marca+referência)"
+              value={
+                // when a brand is selected and searchTerm empty, show the brand name in input
+                selectedBrand && selectedBrand !== 'all' && !searchTerm
+                  ? Array.isArray(selectedBrand)
+                    ? selectedBrand[0]
+                    : selectedBrand
+                  : searchTerm
+              }
+              onChange={(e) => handleSearchInputChange(e.target.value)}
               className="w-full h-10 lg:h-12 pl-4 pr-12 rounded-lg border-0 shadow-sm outline-none focus:ring-2 focus:ring-[var(--primary)] text-gray-900 transition-all"
               style={{
                 backgroundColor: isHeaderWhite
@@ -414,7 +492,7 @@ export function StoreHeader() {
         </div>
       )}
 
-      {categories.length > 0 && (
+      {visibleCategories.length > 0 && (
         <div
           className={`border-t ${isHeaderWhite ? 'border-gray-100 bg-white' : 'border-white/10 bg-black/5'} block lg:hidden`}
         >
@@ -430,7 +508,7 @@ export function StoreHeader() {
             >
               Todas
             </button>
-            {categories.map((cat) => (
+            {visibleCategories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
@@ -443,7 +521,7 @@ export function StoreHeader() {
         </div>
       )}
       {/* Desktop categories (restored): visible on lg and up, hidden on mobile */}
-      {categories.length > 0 && (
+      {visibleCategories.length > 0 && (
         <div
           className={`border-t ${isHeaderWhite ? 'border-gray-100 bg-white' : 'border-white/10 bg-black/5'} hidden lg:block`}
         >
@@ -459,7 +537,7 @@ export function StoreHeader() {
             >
               Todas
             </button>
-            {categories.map((cat) => (
+            {visibleCategories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}

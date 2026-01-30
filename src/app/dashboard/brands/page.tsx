@@ -24,6 +24,8 @@ interface Brand {
   id: string;
   name: string;
   logo_url: string | null;
+  banner_url?: string | null;
+  description?: string | null;
   commission_percent: number;
 }
 
@@ -32,6 +34,9 @@ interface BrandFormData {
   commission: string;
   logoFile: File | null;
   logoPreview: string | null;
+  bannerFile: File | null;
+  bannerPreview: string | null;
+  description: string;
 }
 
 const INITIAL_FORM_DATA: BrandFormData = {
@@ -39,6 +44,9 @@ const INITIAL_FORM_DATA: BrandFormData = {
   commission: '',
   logoFile: null,
   logoPreview: null,
+  bannerFile: null,
+  bannerPreview: null,
+  description: '',
 };
 
 // --- COMPONENTE DE CARD (UI Isolada) ---
@@ -117,6 +125,7 @@ export default function BrandsPage() {
   const supabase = createClient();
   const formRef = useRef<HTMLDivElement>(null);
   const tempLogoUrlRef = useRef<string | null>(null);
+  const tempBannerUrlRef = useRef<string | null>(null);
 
   // Estados de Dados
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -213,6 +222,9 @@ export default function BrandsPage() {
         : '',
       logoFile: null,
       logoPreview: brand.logo_url,
+      bannerFile: null,
+      bannerPreview: brand.banner_url ?? null,
+      description: brand.description ?? '',
     });
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
@@ -222,7 +234,22 @@ export default function BrandsPage() {
   const uploadLogo = async (userId: string, file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
     // Store under brands/{userId}/{timestamp}.{ext}
-    const key = `brands/${userId}/${Date.now()}.${fileExt}`;
+    const key = `brands/${userId}/logo/${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(key, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from('product-images').getPublicUrl(key);
+
+    return data.publicUrl;
+  };
+
+  const uploadBanner = async (userId: string, file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const key = `brands/${userId}/banner/${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('product-images')
@@ -251,6 +278,7 @@ export default function BrandsPage() {
       if (!user) throw new Error('Sessão expirada');
 
       let finalLogoUrl = editingBrand?.logo_url ?? null;
+      let finalBannerUrl = editingBrand?.banner_url ?? null;
 
       // If the user uploaded in background, `formData.logoPreview` may already
       // contain the public URL returned by the upload. Prefer that when it's
@@ -266,10 +294,22 @@ export default function BrandsPage() {
         finalLogoUrl = await uploadLogo(user.id, formData.logoFile);
       }
 
+      if (
+        formData.bannerPreview &&
+        typeof formData.bannerPreview === 'string' &&
+        formData.bannerPreview.startsWith('http')
+      ) {
+        finalBannerUrl = formData.bannerPreview;
+      } else if (formData.bannerFile) {
+        finalBannerUrl = await uploadBanner(user.id, formData.bannerFile);
+      }
+
       const payload = {
         name: formData.name,
         commission_percent: Number(formData.commission) || 0,
         logo_url: finalLogoUrl,
+        banner_url: finalBannerUrl,
+        description: formData.description || null,
         user_id: user.id,
       };
 
@@ -280,6 +320,8 @@ export default function BrandsPage() {
             name: payload.name,
             commission_percent: payload.commission_percent,
             logo_url: payload.logo_url,
+            banner_url: payload.banner_url,
+            description: payload.description,
           })
           .eq('id', editingBrand.id);
         if (error) throw error;
@@ -476,6 +518,70 @@ export default function BrandsPage() {
                     className="w-full"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 block">
+                  Banner (opcional)
+                </label>
+                <div>
+                  <SmartImageUpload
+                    onUploadReady={async (file) => {
+                      try {
+                        const objectURL = URL.createObjectURL(file as File);
+                        setFormData((prev) => ({
+                          ...prev,
+                          bannerFile: file as File,
+                          bannerPreview: objectURL,
+                        }));
+                        tempBannerUrlRef.current = objectURL;
+
+                        const {
+                          data: { user },
+                        } = await supabase.auth.getUser();
+                        if (!user) return;
+
+                        const publicUrl = await uploadBanner(user.id, file as File);
+
+                        setFormData((prev) => {
+                          if (prev.bannerPreview === objectURL) {
+                            return {
+                              ...prev,
+                              bannerPreview: publicUrl,
+                              bannerFile: null,
+                            };
+                          }
+                          return prev;
+                        });
+                      } catch (err) {
+                        console.error('Erro upload banner (Smart):', err);
+                        toast.error('Falha ao enviar banner. Tente novamente.');
+                      } finally {
+                        try {
+                          if (tempBannerUrlRef.current) {
+                            URL.revokeObjectURL(tempBannerUrlRef.current);
+                            tempBannerUrlRef.current = null;
+                          }
+                        } catch {}
+                      }
+                    }}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 block">
+                  Descrição (opcional)
+                </label>
+                <textarea
+                  className="w-full p-2.5 border border-gray-300 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all bg-white dark:bg-slate-950 dark:text-white h-28"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  placeholder="Descrição curta da marca (aparece no catálogo público)"
+                />
               </div>
 
               <div className="flex gap-2 pt-2">

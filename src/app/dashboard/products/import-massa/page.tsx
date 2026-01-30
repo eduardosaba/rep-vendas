@@ -454,12 +454,17 @@ export default function ImportMassaPage() {
           category,
           color,
           description: finalDescription,
-
+          // Garantir que o importador NÃO marque como otimizada por omissão.
+          // `image_path` deve ser null quando a imagem ainda não foi internalizada.
           image_path: null,
           external_image_url: coverUrl,
           image_url: imageMeta.image_url || null,
           sync_status: imageMeta.sync_status,
           sync_error: imageMeta.sync_error,
+          // Explicitamente define `image_optimized` como falso no momento da importação.
+          // Isso evita falsos positivos caso exista um `image_path` antigo no banco
+          // que seria preservado por um upsert que omite o campo.
+          image_optimized: false,
           images: galleryUrls,
 
           technical_specs: Object.keys(techSpecs).length > 0 ? techSpecs : null,

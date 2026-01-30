@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { ProductCard } from './ProductCard';
 import { PriceDisplay } from './PriceDisplay';
 import { getProductImage } from '@/lib/utils/image-logic';
+import BrandHeader from './BrandHeader';
 
 interface SlideData {
   id: number;
@@ -193,6 +194,20 @@ export function ProductGrid() {
     return displayProducts.slice(start, start + ITEMS_PER_PAGE);
   }, [displayProducts, currentPage]);
 
+  // Resolve a marca atualmente selecionada (se houver) para exibir banner/descrição
+  const { selectedBrand, brandsWithLogos } = useStore();
+  const activeBrandName = Array.isArray(selectedBrand)
+    ? selectedBrand[0]
+    : selectedBrand;
+  const currentBrand =
+    activeBrandName && activeBrandName !== 'all'
+      ? brandsWithLogos.find(
+          (b) =>
+            String(b.name).toLowerCase() ===
+            String(activeBrandName).toLowerCase()
+        )
+      : null;
+
   const isOutOfStock = (product: any) => {
     if (!store.enable_stock_management) return false;
     return (product.stock_quantity || 0) <= 0;
@@ -200,6 +215,8 @@ export function ProductGrid() {
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500">
+      {/* Cabeçalho da marca (banner + descrição) */}
+      {currentBrand && <BrandHeader brand={currentBrand} />}
       {/* Overlay mobile para filtros */}
       {isFilterOpen && (
         <div

@@ -218,6 +218,8 @@ export interface CartItem extends Product {
 export interface BrandWithLogo {
   name: string;
   logo_url: string | null;
+  banner_url?: string | null;
+  description?: string | null;
 }
 
 export interface Toast {
