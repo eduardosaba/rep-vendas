@@ -1,68 +1,122 @@
 import { NextResponse } from 'next/server';
 import createClient from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
     const storageMarker = '.supabase.co/storage';
 
-    // OTIMIZAÇÃO: Filtramos no banco produtos que NÃO possuem o marcador no image_url
-    // Isso reduz drasticamente a quantidade de dados trafegados.
-    // allow client to pass product_ids or filters to limit scope
+    // Support Cron Job access via secret key (in header Bearer or body.key / query ?key=)
+    const authHeader = req.headers.get('authorization');
+    const url = new URL(req.url);
+    const searchParams = url.searchParams;
     const body = await req.json().catch(() => ({}));
-    const productIds: string[] | undefined = body?.product_ids;
-    const brand: string | undefined = body?.brand;
-    const search: string | undefined = body?.search;
+    const providedKey =
+      (authHeader && authHeader.replace(/^Bearer\s+/i, '')) ||
+      body?.key ||
+      searchParams.get('key');
 
-    let query = supabase
-      .from('products')
-      .select('id, image_url, images, reference_code, brand, image_path')
-      .eq('user_id', user.id);
+    const isCron = !!(
+      providedKey &&
+      process.env.CRON_SECRET &&
+      providedKey === process.env.CRON_SECRET
+    );
 
-    // apply product_ids if provided (limit scope explicitly)
-    if (Array.isArray(productIds) && productIds.length > 0) {
-      query = query.in('id', productIds);
+    let supabase: any;
+    let user: any = null;
+
+    if (isCron) {
+      // Use service role for cron operations
+      const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!SUPA_URL || !SERVICE_KEY)
+        return NextResponse.json(
+          { error: 'Service role key not configured' },
+          { status: 500 }
+        );
+      supabase = createServiceClient(SUPA_URL, SERVICE_KEY);
     } else {
-      // default: only candidates whose main image or images array are external OR missing image_path
-      query = query.or(
-        `image_url.not.ilike.%${storageMarker}%,image_url.is.null`
+      supabase = await createClient();
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      user = authUser;
+      if (!user)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // allow client to pass product_ids or filters to limit scope
+    const productIds: string[] | undefined = body?.product_ids;
+    const brand: string | undefined =
+      body?.brand || searchParams.get('brand') || undefined;
+    const search: string | undefined =
+      body?.search || searchParams.get('search') || undefined;
+    const requestedLimit =
+      Number(body?.limit ?? searchParams.get('limit')) || undefined;
+    const limit = Math.max(1, Math.min(requestedLimit || 20, 500));
+
+    // Prefer processing items explicitly marked as pending first (recent imports)
+    let products: any[] | null = null;
+
+    const selectCols =
+      'id, user_id, name, image_url, images, reference_code, brand, image_path, sync_status';
+
+    if (Array.isArray(productIds) && productIds.length > 0) {
+      const { data: byIds } = await supabase
+        .from('products')
+        .select(selectCols)
+        .in('id', productIds)
+        .limit(100);
+      products = byIds as any[];
+    } else {
+      // First try: items explicitly marked as 'pending' (high priority)
+      const { data: pending } = await supabase
+        .from('products')
+        .select(selectCols)
+        .eq('sync_status', 'pending')
+        .limit(limit || 20);
+
+      if (pending && pending.length > 0) {
+        products = pending as any[];
+      } else {
+        // Fallback: scan for candidates with external URLs or missing image_path
+        const { data: fallback } = await supabase
+          .from('products')
+          .select(selectCols)
+          .or(`image_url.not.ilike.%${storageMarker}%,image_url.is.null`)
+          .limit(Math.max(100, limit));
+        products = fallback as any[];
+      }
+    }
+
+    // Apply in-memory filters for brand and search (safer and simpler)
+    if (brand) {
+      products = (products || []).filter(
+        (p: any) =>
+          String(p.brand || '').toLowerCase() === String(brand).toLowerCase()
+      );
+    }
+    if (search) {
+      const q = String(search).toLowerCase();
+      products = (products || []).filter((p: any) =>
+        (String(p.name || '') + ' ' + String(p.reference_code || ''))
+          .toLowerCase()
+          .includes(q)
       );
     }
 
-    // apply brand filter if present
-    if (brand) {
-      // use exact match for brand to avoid unexpected partials
-      query = query.eq('brand', brand);
-    }
-
-    // apply search filter if present (search in name or reference_code)
-    if (search) {
-      const q = `%${search.replace(/%/g, '\\%')}%`;
-      query = query.or(`name.ilike.${q},reference_code.ilike.${q}`);
-    }
-
-    const { data: products, error } = await query;
-
-    if (error) throw error;
-
-    // Filter pending products: only those that still have external images
+    // From the candidate products, keep only those that still have external images
     const pendingProducts = (products || []).filter((p: any) => {
-      // if product already has image_path (server-side stored), consider internal
-      if (p.image_path) return false;
+      // if product already has image_path and sync_status is 'synced', skip
+      if (p.image_path && p.sync_status === 'synced') return false;
 
       const isMainExt = p.image_url && !p.image_url.includes(storageMarker);
       const hasArrayExt =
         Array.isArray(p.images) &&
         p.images.some((img: any) => {
           const url = typeof img === 'string' ? img : img?.url;
-          return url && !url.includes(storageMarker);
+          const path = typeof img === 'object' && img ? img.path : null;
+          return url && !url.includes(storageMarker) && !path;
         });
       return isMainExt || hasArrayExt;
     });
@@ -75,12 +129,12 @@ export async function POST(req: Request) {
     for (const product of pendingProducts.slice(0, 20)) {
       try {
         let updatedImageUrl = product.image_url;
-        let updatedImages = Array.isArray(product.images)
+        let updatedImages: any[] = Array.isArray(product.images)
           ? [...product.images]
           : [];
         let changed = false;
 
-        const internalize = async (url: string) => {
+        const internalize = async (url: string, prod: any) => {
           if (!url || url.includes(storageMarker)) return url;
 
           const res = await fetch(url);
@@ -93,11 +147,13 @@ export async function POST(req: Request) {
             .split('?')[0]
             .toLowerCase();
           // Sanitização do nome do arquivo para evitar caracteres especiais
-          const safeRef = (product.reference_code || 'item').replace(
+          const ownerId =
+            (user && user.id) || prod.user_id || prod.userId || 'unknown';
+          const safeRef = (prod.reference_code || prod.id || 'item').replace(
             /[^a-zA-Z0-9]/g,
             '_'
           );
-          const fileName = `${user.id}/repair/${safeRef}-${Date.now()}.${ext}`;
+          const fileName = `${ownerId}/repair/${safeRef}-${Date.now()}.${ext}`;
 
           const { error: uploadError } = await supabase.storage
             .from('product-images')
@@ -114,7 +170,7 @@ export async function POST(req: Request) {
 
         let uploadedPath: string | null = null;
         if (product.image_url && !product.image_url.includes(storageMarker)) {
-          const r = await internalize(product.image_url);
+          const r = await internalize(product.image_url, product);
           if (r) {
             updatedImageUrl = (r as any).publicUrl || null;
             uploadedPath = (r as any).path || null;
@@ -123,19 +179,44 @@ export async function POST(req: Request) {
         }
 
         if (Array.isArray(product.images)) {
-          const newImages: string[] = [];
+          const newImages: any[] = [];
           for (const imgEntry of product.images) {
-            const imgUrl =
-              typeof imgEntry === 'string' ? imgEntry : imgEntry?.url;
-            if (imgUrl && !imgUrl.includes(storageMarker)) {
-              const r = await internalize(imgUrl);
+            const isObj = imgEntry && typeof imgEntry === 'object';
+            const imgUrl = isObj ? imgEntry.url : imgEntry;
+            const imgPath = isObj ? imgEntry.path : null;
+
+            if (imgUrl && !imgUrl.includes(storageMarker) && !imgPath) {
+              const r = await internalize(imgUrl, product);
               const newUrl = r ? (r as any).publicUrl || imgUrl : imgUrl;
-              newImages.push(newUrl);
-              if (!uploadedPath && r && (r as any).path)
-                uploadedPath = (r as any).path;
+              const newPath = r ? (r as any).path || null : null;
+              newImages.push({
+                url: newUrl,
+                path: newPath,
+                sync_status: 'synced',
+              });
+              if (!uploadedPath && newPath) uploadedPath = newPath;
               changed = true;
+            } else if (isObj) {
+              // Preserve object structure, but mark as synced if already internal
+              newImages.push({
+                url: imgEntry.url || null,
+                path: imgEntry.path || null,
+                sync_status: imgEntry.path
+                  ? 'synced'
+                  : imgEntry.sync_status || null,
+              });
             } else {
-              newImages.push(imgUrl);
+              // string entry (already internal or external but has no path)
+              if (imgUrl && imgUrl.includes(storageMarker)) {
+                newImages.push(imgUrl);
+              } else {
+                // external string without path — keep as object to standardize
+                newImages.push({
+                  url: imgUrl || null,
+                  path: null,
+                  sync_status: null,
+                });
+              }
             }
           }
           updatedImages = newImages;
@@ -146,6 +227,9 @@ export async function POST(req: Request) {
             image_url: updatedImageUrl,
             images: updatedImages,
             updated_at: new Date().toISOString(),
+            // mark as internalized/optimized
+            image_optimized: true,
+            sync_status: 'synced',
           };
           if (uploadedPath) updatePayload.image_path = uploadedPath;
 
@@ -173,4 +257,9 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
+}
+
+export async function GET(req: Request) {
+  // Allow GET to trigger the same processing (useful for cron jobs hitting the URL)
+  return await POST(req as any);
 }

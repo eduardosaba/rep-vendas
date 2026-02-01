@@ -12,9 +12,7 @@ import {
   AlertCircle,
   Clock,
 } from 'lucide-react';
-import Image from 'next/image';
-import { buildSupabaseImageUrl } from '@/lib/imageUtils';
-import { getProductImage } from '@/lib/utils/image-logic';
+import { SmartImage } from './SmartImage';
 import React, { useState } from 'react';
 import { useStore } from '@/components/catalogo/store-context';
 import {
@@ -170,29 +168,10 @@ export function ProductCard({
           </div>
         )}
 
-        <img
-          src={displayImage}
-          alt={product.name}
-          className={`h-full w-full object-contain p-4 transition-all duration-700 ${
-            isPending ? 'blur-sm grayscale opacity-30' : 'opacity-100'
-          }`}
-          loading="lazy"
-          onError={(e) => {
-            // Se houver uma URL externa original, tentar ela antes de marcar como falha.
-            const external =
-              product.external_image_url || product.images?.[0] || '';
-            const externalResolved =
-              external && !external.startsWith('http')
-                ? buildSupabaseImageUrl(external)
-                : external;
-            if (externalResolved && e.currentTarget.src !== externalResolved) {
-              e.currentTarget.src = externalResolved;
-              return;
-            }
-
-            setImageFailed(true);
-            e.currentTarget.src = '/images/product-placeholder.svg';
-          }}
+        <SmartImage
+          product={product}
+          className={`h-full w-full p-4`}
+          imgClassName={`transition-all duration-700 ${isPending ? 'blur-sm grayscale opacity-30' : 'opacity-100'} object-contain`}
         />
 
         {/* TAGS DE DESTAQUE COM OPACIDADE */}

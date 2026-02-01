@@ -438,6 +438,24 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     getUserId();
   }, [supabase]);
 
+  // Populate quick filter options from current products (client-side)
+  useEffect(() => {
+    const brands = Array.from(
+      new Set(products.map((p) => p.brand).filter(Boolean))
+    ).map((name) => ({ name: name as string, logo_url: null }));
+    setAvailableBrands(brands);
+
+    const categories = Array.from(
+      new Set(products.map((p) => p.category).filter(Boolean))
+    ).map((name) => ({ name: name as string }));
+    setAvailableCategories(categories);
+
+    const classes = Array.from(
+      new Set(products.map((p) => p.class_core).filter(Boolean))
+    ).map((name) => ({ name: name as string }));
+    setAvailableClasses(classes);
+  }, [products]);
+
   const savePreferences = useCallback(
     async (
       order: DataKey[],
@@ -601,6 +619,24 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           className={`px-2 py-0.5 rounded text-[10px] font-bold ${val === false ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}
         >
           {val === false ? 'Inativo' : 'Ativo'}
+        </span>
+      );
+
+    if (key === 'is_launch')
+      return (
+        <span
+          className={`px-2 py-0.5 rounded text-[11px] font-bold ${val ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}
+        >
+          {val ? 'Novo' : '-'}
+        </span>
+      );
+
+    if (key === 'is_best_seller')
+      return (
+        <span
+          className={`px-2 py-0.5 rounded text-[11px] font-bold ${val ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}
+        >
+          {val ? 'Top' : '-'}
         </span>
       );
 
@@ -847,7 +883,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary outline-none"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`px-5 py-3 rounded-2xl border text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all ${showFilters ? 'bg-primary text-white' : 'bg-white dark:bg-slate-800 text-slate-600'}`}
@@ -873,12 +909,12 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 <div className="relative">
                   <button
                     onClick={toggle}
-                    className="px-4 py-3 rounded-2xl border bg-white dark:bg-slate-800 text-xs font-black uppercase tracking-widest flex items-center gap-2"
+                    className="px-3 py-2 rounded-2xl border bg-white dark:bg-slate-800 text-xs font-black uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"
                   >
                     Colunas
                   </button>
                   {open && (
-                    <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border rounded-lg shadow-lg p-3 z-50">
+                    <div className="absolute mt-2 w-64 bg-white dark:bg-slate-900 border rounded-lg shadow-lg p-3 z-50 right-4 md:right-0 left-4 md:left-auto">
                       <div className="text-xs font-bold mb-2">
                         Mostrar colunas
                       </div>
@@ -997,6 +1033,29 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           </div>
         </div>
       )}
+
+      {/* PAGINAÇÃO (TOPO) */}
+      <div className="flex items-center justify-between px-6 py-3 bg-slate-50/50 rounded-3xl mb-3">
+        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+          Mostrando página {currentPage} de {totalPages}
+        </p>
+        <div className="flex gap-2">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+            className="p-2 bg-white border border-slate-100 rounded-2xl disabled:opacity-30 hover:shadow-md transition-all shadow-sm"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+            className="p-2 bg-white border border-slate-100 rounded-2xl disabled:opacity-30 hover:shadow-md transition-all shadow-sm"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
 
       {/* TABELA DE PRODUTOS */}
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -1213,6 +1272,162 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           >
             <ChevronRight size={20} />
           </button>
+
+          {/* QUICK FILTERS (compacto, visível em mobile e desktop) */}
+          <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-3 items-center">
+            {/* Brand multi-select */}
+            <div className="relative">
+              <button
+                className="px-3 py-2 rounded-lg border bg-white dark:bg-slate-800 text-sm"
+                onClick={() => setShowFilters((s) => !s)}
+              >
+                Filtros Rápidos
+              </button>
+            </div>
+
+            <div className="flex gap-2 flex-wrap items-center">
+              <div className="hidden md:block">
+                <label className="text-xs text-slate-400 block mb-1">
+                  Marca
+                </label>
+                <div className="min-w-[160px]">
+                  <select
+                    value={filters.brand[0] ?? ''}
+                    onChange={(e) =>
+                      setFilters((f) => ({
+                        ...f,
+                        brand: e.target.value ? [e.target.value] : [],
+                      }))
+                    }
+                    className="w-full p-2 rounded-lg bg-slate-50 text-sm"
+                  >
+                    <option value="">Todas</option>
+                    {availableBrands.map((b) => (
+                      <option key={b.name} value={b.name}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="hidden md:block">
+                <label className="text-xs text-slate-400 block mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={filters.category}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, category: e.target.value }))
+                  }
+                  className="p-2 rounded-lg bg-slate-50 text-sm min-w-[140px]"
+                >
+                  <option value="">Todas</option>
+                  {availableCategories.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">
+                  Status
+                </label>
+                <select
+                  value={filters.visibility}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, visibility: e.target.value }))
+                  }
+                  className="p-2 rounded-lg bg-slate-50 text-sm"
+                >
+                  <option value="all">Todos</option>
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">
+                  Imagem
+                </label>
+                <select
+                  value={filters.imageOptimization}
+                  onChange={(e) =>
+                    setFilters((f) => ({
+                      ...f,
+                      imageOptimization: e.target.value,
+                    }))
+                  }
+                  className="p-2 rounded-lg bg-slate-50 text-sm"
+                >
+                  <option value="all">Todas</option>
+                  <option value="optimized">Otimizada</option>
+                  <option value="external">Externa</option>
+                </select>
+              </div>
+
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">
+                    R$ Mín
+                  </label>
+                  <input
+                    type="text"
+                    value={displayMinPrice}
+                    onChange={(e) => {
+                      setDisplayMinPrice(e.target.value);
+                      setFilters((f) => ({
+                        ...f,
+                        minPrice: parseCurrencyToNumericString(e.target.value),
+                      }));
+                    }}
+                    className="p-2 rounded-lg bg-slate-50 text-sm w-28"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">
+                    R$ Máx
+                  </label>
+                  <input
+                    type="text"
+                    value={displayMaxPrice}
+                    onChange={(e) => {
+                      setDisplayMaxPrice(e.target.value);
+                      setFilters((f) => ({
+                        ...f,
+                        maxPrice: parseCurrencyToNumericString(e.target.value),
+                      }));
+                    }}
+                    className="p-2 rounded-lg bg-slate-50 text-sm w-28"
+                  />
+                </div>
+              </div>
+
+              <div className="ml-auto">
+                <button
+                  onClick={() =>
+                    setFilters({
+                      minPrice: '',
+                      maxPrice: '',
+                      onlyLaunch: false,
+                      onlyBestSeller: false,
+                      stockStatus: 'all',
+                      visibility: 'all',
+                      category: '',
+                      brand: [],
+                      color: '',
+                      imageOptimization: 'all',
+                    })
+                  }
+                  className="px-3 py-2 rounded-lg text-xs bg-slate-50"
+                >
+                  Limpar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

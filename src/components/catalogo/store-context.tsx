@@ -107,6 +107,8 @@ interface StoreContextType {
   handleSendWhatsApp: () => void;
   customerSession: CustomerInfo | null;
   clearCustomerSession: () => void;
+  pendingImagesCount?: number;
+  refreshPendingImages?: () => Promise<void>;
 }
 
 async function sha256(message: string) {
@@ -289,6 +291,26 @@ export function StoreProvider({
   const [storeSubscriptionStatus, setStoreSubscriptionStatus] = useState<
     string | null
   >(null);
+
+  // Contador global de imagens pendentes (diagnóstico)
+  const [pendingImagesCount, setPendingImagesCount] = useState<number>(0);
+
+  const refreshPendingImages = async () => {
+    try {
+      const res = await fetch('/api/products/image-diagnostics');
+      if (!res.ok) return;
+      const j = await res.json();
+      setPendingImagesCount(Number(j.total_external || 0));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    refreshPendingImages();
+    const t = setInterval(() => refreshPendingImages(), 1000 * 60 * 5);
+    return () => clearInterval(t);
+  }, [store.user_id]);
 
   // LOGIN INVISÍVEL: estado para armazenar dados do cliente reconhecido
   const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(
@@ -782,6 +804,8 @@ export function StoreProvider({
       value={{
         store,
         initialProducts,
+        pendingImagesCount,
+        refreshPendingImages,
         cart,
         favorites,
         showPrices,

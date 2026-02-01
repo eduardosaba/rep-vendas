@@ -357,9 +357,25 @@ export default function ImportMassaPage() {
           const originalVal = getField(row, mapping.image);
           const rawString = originalVal ? String(originalVal).trim() : '';
 
+          // Processamento específico para Safilo/Tommy
           const processed = processSafiloImages(rawString);
-          coverUrl = processed.image_url;
-          galleryUrls = processed.images;
+
+          // Se o processSafiloImages não retornou uma galeria mas a string
+          // contém múltiplas URLs separadas por ';', dividimos manualmente.
+          if (
+            (processed.images?.length || 0) === 0 &&
+            rawString.includes(';')
+          ) {
+            const splitUrls = rawString
+              .split(';')
+              .map((u) => u.trim())
+              .filter(Boolean);
+            coverUrl = splitUrls.length > 0 ? splitUrls[0] : null;
+            galleryUrls = splitUrls.length > 1 ? splitUrls.slice(1) : [];
+          } else {
+            coverUrl = processed.image_url;
+            galleryUrls = processed.images || [];
+          }
         }
 
         // LÓGICA DE DESCRIÇÃO (Ajustada)
@@ -442,6 +458,12 @@ export default function ImportMassaPage() {
 
         const imageMeta = prepareProductImage(coverUrl || null);
 
+        const hasExternalImage = Boolean(
+          (coverUrl && coverUrl.startsWith('http')) ||
+          (galleryUrls &&
+            galleryUrls.some((u) => !!u && String(u).startsWith('http')))
+        );
+
         const productObj = {
           user_id: user.id,
           name: String(name),
@@ -459,13 +481,23 @@ export default function ImportMassaPage() {
           image_path: null,
           external_image_url: coverUrl,
           image_url: imageMeta.image_url || null,
-          sync_status: imageMeta.sync_status,
+          // Força o status para 'pending' quando houver imagens externas
+          sync_status: hasExternalImage
+            ? 'pending'
+            : imageMeta.sync_status || 'synced',
           sync_error: imageMeta.sync_error,
           // Explicitamente define `image_optimized` como falso no momento da importação.
           // Isso evita falsos positivos caso exista um `image_path` antigo no banco
           // que seria preservado por um upsert que omite o campo.
           image_optimized: false,
-          images: galleryUrls,
+          images: (galleryUrls || [])
+            .flatMap((g) =>
+              typeof g === 'string' && g.includes(';')
+                ? g.split(';').map((u) => (u || '').trim())
+                : [g]
+            )
+            .map((u) => String(u || '').trim())
+            .filter(Boolean),
 
           technical_specs: Object.keys(techSpecs).length > 0 ? techSpecs : null,
           last_import_id: null,

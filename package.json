@@ -17,7 +17,12 @@
     "dependency-check": "echo \"Checking for unused dependencies...\" && npx depcheck --ignores='@types/*,autoprefixer,postcss,tailwindcss,baseline-browser-mapping,jest-environment-jsdom'",
     "env-check": "node -e \"const fs = require('fs'); const envExists = fs.existsSync('.env.local'); console.log(envExists ? '✅ .env.local file exists' : '❌ .env.local file missing'); if(envExists){ const env = fs.readFileSync('.env.local', 'utf8'); const hasSupabase = env.includes('NEXT_PUBLIC_SUPABASE_URL') && env.includes('NEXT_PUBLIC_SUPABASE_ANON_KEY'); console.log(hasSupabase ? '✅ Supabase environment variables found' : '❌ Supabase environment variables missing'); }\"",
     "internalize:report": "node scripts/generate-internalize-report.mjs --dir=. --out=reports/internalize-report.json",
-    "sincronizar": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:CHUNK_SIZE = '40'; $env:PRODUCT_CONCURRENCY = '8'; $env:IMAGE_CONCURRENCY = '6'; node scripts/local-sync-full.mjs 2>&1 | Tee-Object -FilePath sync-full.log\""
+    "sincronizar": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:CHUNK_SIZE = '40'; $env:PRODUCT_CONCURRENCY = '8'; $env:IMAGE_CONCURRENCY = '6'; $env:SYNC_ONLY = 'pending,failed'; node scripts/local-sync-full.mjs 2>&1 | Tee-Object -FilePath sync-full.log\"",
+    "sincronizar:reparo": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:CHUNK_SIZE = '20'; $env:PRODUCT_CONCURRENCY = '4'; $env:IMAGE_CONCURRENCY = '3'; $env:SYNC_ONLY = 'failed'; node scripts/local-sync-full.mjs 2>&1 | Tee-Object -FilePath sync-repair.log\"",
+    "sincronizar:limpar": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item sync-*.log -ErrorAction SilentlyContinue; Write-Host 'Logs limpos!' -ForegroundColor Cyan\"",
+    "cache:local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item -Recurse -Force .next/cache/images -ErrorAction SilentlyContinue; Write-Host '🚀 Cache local de imagens deletado!' -ForegroundColor Cyan\"",
+    "cache:vercel": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$token = $env:REVALIDATE_TOKEN; if(-not $token){ Write-Host 'REVALIDATE_TOKEN não definido' -ForegroundColor Yellow; exit 1 }; Invoke-RestMethod -Uri \"https://$env:NEXT_PUBLIC_VERCEL_HOST/api/admin/revalidate?secret=$token\" -Method Get; Write-Host '☁️ Vercel avisada para atualizar o catálogo!' -ForegroundColor Green\"",
+    "limpar-tudo": "pnpm cache:local && pnpm sincronizar:limpar"
   },
   "dependencies": {
     "@supabase/ssr": "0.4.0",

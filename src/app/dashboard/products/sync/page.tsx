@@ -29,6 +29,7 @@ interface SyncPreview {
   key: string;
   currentValue: any;
   newValue: any;
+  displayValue?: any;
   productName: string;
   status: 'match' | 'not_found' | 'no_change';
 }
@@ -108,15 +109,33 @@ export default function ProductSyncPage() {
         return {
           key: excelKey,
           newValue: excelValue,
+          displayValue: excelValue,
           currentValue: null,
           productName: 'Não encontrado',
           status: 'not_found',
         };
       const currentDbValue = dbProduct[dbTargetCol] || 0;
+      // If target is image_url, prepare a friendly preview (first URL + gallery hint)
+      if (dbTargetCol === 'image_url' && typeof excelValue === 'string') {
+        const firstUrl = excelValue.split(';')[0].trim();
+        const hasGallery = excelValue.includes(';');
+        const hasChanged = String(dbProduct.image_url) !== firstUrl;
+        return {
+          id: dbProduct.id,
+          key: excelKey,
+          newValue: excelValue, // keep full value for upsert
+          displayValue: `${firstUrl}${hasGallery ? ' (+ galeria)' : ''}`,
+          currentValue: dbProduct.image_url,
+          productName: dbProduct.name,
+          status: hasChanged ? 'match' : 'no_change',
+        };
+      }
+
       return {
         id: dbProduct.id, // Guardamos o ID real do banco
         key: excelKey,
         newValue: excelValue,
+        displayValue: excelValue,
         currentValue: currentDbValue,
         productName: dbProduct.name,
         status:
@@ -166,13 +185,28 @@ export default function ProductSyncPage() {
               parseFloat(String(item.newValue).replace(/[^\d.-]/g, '')) || 0;
           }
 
-          // Se a coluna alvo for imagem, usamos o normalizador
-          let imageProps = {};
+          // Lógica especial para imagens: suporta múltiplas URLs separadas por ';'
+          let imageProps: any = {};
           if (dbTargetCol === 'image_url') {
-            imageProps = prepareProductImage(String(val));
-            if (val && item.id) {
-              const gallery = prepareProductGallery(item.id, String(val));
-              batchImages.push(...gallery);
+            const rawString = String(val || '').trim();
+            const allUrls = rawString
+              ? rawString
+                  .split(';')
+                  .map((u) => u.trim())
+                  .filter((u) => u.startsWith('http'))
+              : [];
+
+            if (allUrls.length > 0) {
+              imageProps.image_url = allUrls[0];
+              imageProps.images = allUrls; // atualiza JSONB images com a galeria completa
+              imageProps.image_path = null; // força re-download
+              imageProps.image_optimized = false;
+              imageProps.sync_status = 'pending';
+
+              if (item.id) {
+                const gallery = prepareProductGallery(item.id, allUrls);
+                batchImages.push(...gallery);
+              }
             }
           }
 
@@ -180,7 +214,7 @@ export default function ProductSyncPage() {
             id: item.id,
             name: item.productName, // OBRIGATÓRIO: Incluímos o nome para satisfazer a constraint NOT NULL
             [dbTargetCol]: val,
-            ...imageProps, // Injeta sync_status e sync_error se for imagem
+            ...imageProps, // Injeta sync_status e campos de imagem se for imagem
             updated_at: new Date().toISOString(),
             user_id: user.id,
           };

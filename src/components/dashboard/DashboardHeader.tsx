@@ -187,11 +187,13 @@ export default function DashboardHeader({
             </div>
             <div className="h-10 w-10 rounded-full bg-[var(--primary)] bg-opacity-10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)] border-opacity-20 overflow-hidden ring-offset-2 ring-offset-white dark:ring-offset-slate-950 group-hover:ring-2 ring-[var(--primary)]/30 transition-all">
               {userAvatar ? (
-                <img
-                  src={userAvatar}
-                  alt="Avatar"
-                  className="h-full w-full object-cover"
-                />
+                <div className="h-full w-full">
+                  <img
+                    src={userAvatar}
+                    alt="Avatar"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
               ) : (
                 <span className="font-semibold text-xs">
                   {getInitials(userEmail)}

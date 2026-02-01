@@ -7,6 +7,7 @@ interface SmartUploadProps {
   accept?: string;
   className?: string;
   multiple?: boolean;
+  initialPreview?: string | null;
 }
 
 export const SmartImageUpload: React.FC<SmartUploadProps> = ({
@@ -16,8 +17,24 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
   accept = 'image/*',
   className = '',
   multiple = false,
+  initialPreview = null,
 }) => {
   const [preview, setPreview] = useState<string | null>(null);
+  const prevPreviewRef = React.useRef<string | null>(null);
+
+  // Sync external initial preview (e.g., when editing an item)
+  React.useEffect(() => {
+    try {
+      const prev = prevPreviewRef.current;
+      if (prev && prev.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(prev);
+        } catch (e) {}
+      }
+    } catch {}
+    prevPreviewRef.current = initialPreview ?? null;
+    setPreview(initialPreview ?? null);
+  }, [initialPreview]);
 
   const handleFile = async (file: File) => {
     try {
@@ -67,6 +84,7 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
             try {
               const url = URL.createObjectURL(blob);
               setPreview(url);
+              prevPreviewRef.current = url;
             } catch (err) {}
             const outFile = new File([blob], `${Date.now()}.webp`, {
               type: blob.type,
@@ -120,6 +138,7 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
                 try {
                   const url = URL.createObjectURL(blob);
                   setPreview(url);
+                  prevPreviewRef.current = url;
                 } catch (err) {}
                 const outFile = new File([blob], `${Date.now()}.webp`, {
                   type: blob.type,
@@ -168,7 +187,11 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
           />
           <button
             onClick={() => {
-              if (preview) URL.revokeObjectURL(preview);
+              try {
+                if (preview && preview.startsWith('blob:'))
+                  URL.revokeObjectURL(preview);
+              } catch {}
+              prevPreviewRef.current = null;
               setPreview(null);
             }}
             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs"

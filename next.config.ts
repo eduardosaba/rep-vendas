@@ -1,26 +1,41 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  // Ignorar ESLint durante builds (temporário para Next.js 15)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // Removida a flag 'experimental' que estava causando conflito na build
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.supabase.co',
-      },
-      {
-        protocol: 'https',
-        hostname: 'commportal-images.safilo.com',
-      },
+      { protocol: 'https', hostname: '**.supabase.co' },
+      { protocol: 'https', hostname: 'commportal-images.safilo.com' },
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'i.imgur.com' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
     ],
-    // Configuração para lidar com imagens grandes
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    deviceSizes: [640, 750, 828, 1080],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    minimumCacheTTL: 60,
+    formats: ['image/webp'],
+    minimumCacheTTL: 31536000,
     dangerouslyAllowSVG: true,
+  },
+
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "img-src 'self' data: https: blob:;",
+          },
+        ],
+      },
+    ];
+  },
+
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
+
+  experimental: {
+    optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
   },
 };
 

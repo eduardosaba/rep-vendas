@@ -137,6 +137,109 @@ const helpCategories = [
         ),
       },
       {
+        title: '🚀 Novo Motor de Imagens (Estratégia Resiliente)',
+        content: (
+          <div className="space-y-6">
+            <p className="text-sm leading-relaxed">
+              Desenvolvemos um sistema de <strong>Imagens em Camadas</strong>.
+              Isso significa que seu catálogo nunca fica com imagens quebradas,
+              mesmo durante grandes importações de marcas como Tommy ou Safilo.
+            </p>
+
+            {/* INFOGRÁFICO SIMULADO */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                <span className="text-xl">1️⃣</span>
+                <h5 className="text-xs font-black uppercase mt-2">
+                  Importação
+                </h5>
+                <p className="text-[10px] text-slate-500">
+                  Links externos entram como "Pendentes" e já aparecem no
+                  catálogo.
+                </p>
+              </div>
+              <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 text-center">
+                <span className="text-xl">2️⃣</span>
+                <h5 className="text-xs font-black uppercase mt-2 text-indigo-700">
+                  Sincronização
+                </h5>
+                <p className="text-[10px] text-indigo-600">
+                  O robô baixa, converte para WebP e salva no seu Storage.
+                </p>
+              </div>
+              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                <span className="text-xl">3️⃣</span>
+                <h5 className="text-xs font-black uppercase mt-2 text-emerald-700">
+                  Otimização
+                </h5>
+                <p className="text-[10px] text-emerald-600">
+                  O catálogo troca automaticamente para a versão HD e rápida.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Zap size={16} className="text-indigo-500" /> Como executar o
+                Ciclo Turbo:
+              </h4>
+
+              <div className="ml-4 space-y-4 border-l-2 border-slate-100 pl-6">
+                <div className="relative">
+                  <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-white border-4 border-indigo-500" />
+                  <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-1">
+                    Passo 1: Importar Excel
+                  </p>
+                  <p className="text-sm">
+                    Suba sua planilha. O sistema salvará as URLs originais. Seus
+                    clientes já verão as fotos (otimizadas via Next.js), mas o
+                    status será <strong>"Pendente"</strong>.
+                  </p>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-white border-4 border-indigo-500" />
+                  <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-1">
+                    Passo 2: Rodar Comando Local
+                  </p>
+                  <p className="text-sm">
+                    No terminal do seu VS Code, execute o comando de
+                    sincronização. Ele é 10x mais rápido que o navegador:
+                  </p>
+                  <div className="mt-2 p-3 bg-slate-900 rounded-xl font-mono text-[10px] text-indigo-300 shadow-inner">
+                    pnpm sincronizar
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-white border-4 border-indigo-500" />
+                  <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-1">
+                    Passo 3: Conferir Saúde
+                  </p>
+                  <p className="text-sm">
+                    Acesse o <strong>Painel de Diagnóstico</strong>. Quando a
+                    barra chegar a 100%, todas as fotos estão no seu servidor,
+                    seguras contra links quebrados dos fornecedores.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+              <h5 className="text-[10px] font-black uppercase text-blue-700 mb-2">
+                Por que isso é importante?
+              </h5>
+              <p className="text-xs text-blue-800 leading-relaxed">
+                Links de fornecedores costumam "expirar" ou mudar. Ao
+                sincronizar, você garante que as fotos da sua loja{' '}
+                <strong>nunca sumam</strong>, além de economizar até 80% de
+                dados móveis para seus clientes.
+              </p>
+            </div>
+          </div>
+        ),
+      },
+      {
         title:
           'Sincronizar produtos e imagens (Excel + Matcher + URLs externas)',
         content: (

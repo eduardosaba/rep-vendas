@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/products/image-repair",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

@@ -129,8 +129,9 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
 }
 
 export function StoreBanners() {
-  const { store } = useStore();
+  const { store, selectedBrand, brandsWithLogos } = useStore();
   const [isMobile, setIsMobile] = useState(false);
+  const [bannerVisible, setBannerVisible] = useState(true);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -140,10 +141,43 @@ export function StoreBanners() {
   }, []);
 
   const activeBanners = useMemo(() => {
+    // If a brand is selected, prefer its banner (full-width catalog banner)
+    const activeBrandName = Array.isArray(selectedBrand)
+      ? selectedBrand[0]
+      : selectedBrand;
+    if (activeBrandName && activeBrandName !== 'all') {
+      const brandObj = brandsWithLogos.find(
+        (b) =>
+          String(b.name).toLowerCase() === String(activeBrandName).toLowerCase()
+      );
+      if (brandObj) {
+        // Prefer mobile-specific banner when on mobile
+        if (isMobile && (brandObj as any).banner_mobile) {
+          return [(brandObj as any).banner_mobile];
+        }
+        if (brandObj.banner_url) {
+          return [brandObj.banner_url];
+        }
+      }
+    }
+
     const hasMobileBanners =
       store.banners_mobile && store.banners_mobile.length > 0;
     return isMobile && hasMobileBanners ? store.banners_mobile : store.banners;
-  }, [isMobile, store.banners, store.banners_mobile]);
+  }, [
+    isMobile,
+    store.banners,
+    store.banners_mobile,
+    selectedBrand,
+    brandsWithLogos,
+  ]);
+
+  // Fade transition when banners change
+  useEffect(() => {
+    setBannerVisible(false);
+    const t = setTimeout(() => setBannerVisible(true), 50);
+    return () => clearTimeout(t);
+  }, [activeBanners]);
 
   if (!activeBanners || activeBanners.length === 0) return null;
 
@@ -155,9 +189,13 @@ export function StoreBanners() {
   }));
 
   return (
-    <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 mt-4 md:mt-6">
-      <div className="w-full aspect-[16/7] md:aspect-[21/7] lg:aspect-[4/1] relative overflow-hidden rounded-2xl shadow-sm bg-gray-100 border border-gray-100">
-        <Carousel slides={slides} />
+    <div className="w-full mx-auto px-0 sm:px-0 lg:px-0 mt-4 md:mt-6">
+      <div
+        className={`w-full relative overflow-hidden rounded-2xl shadow-sm bg-gray-100 border border-gray-100 transition-opacity duration-500 ${bannerVisible ? 'opacity-100' : 'opacity-0'}`}
+      >
+        <div className="w-full aspect-[16/7] md:aspect-[21/7] lg:aspect-[4/1]">
+          <Carousel slides={slides} />
+        </div>
       </div>
     </div>
   );

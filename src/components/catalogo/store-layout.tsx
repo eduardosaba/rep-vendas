@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import Image from 'next/image';
+import { SmartImage } from './SmartImage';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -128,16 +129,23 @@ export function StoreTopBar() {
                 className="w-full md:w-2/5 flex-shrink-0 overflow-hidden rounded"
                 style={{ maxHeight: height }}
               >
-                <img
-                  src={store.top_benefit_image_url}
-                  alt="Barra de benefícios"
-                  className="h-full w-full"
+                <div
                   style={{
-                    objectFit: (store.top_benefit_image_fit as any) || 'cover',
                     transform: `scale(${(Number(store.top_benefit_image_scale) || 100) / 100})`,
                     transition: 'transform 150ms ease-out',
+                    height: '100%',
                   }}
-                />
+                >
+                  <SmartImage
+                    product={{
+                      image_url: store.top_benefit_image_url,
+                      name: store.name,
+                    }}
+                    initialSrc={store.top_benefit_image_url}
+                    className="h-full w-full"
+                    imgClassName={`h-full w-full ${(store.top_benefit_image_fit as any) === 'contain' ? 'object-contain' : 'object-cover'}`}
+                  />
+                </div>
               </div>
               <div className="w-full md:flex-1 md:pl-4 px-3 py-2">
                 <span className="font-bold block">
@@ -147,17 +155,17 @@ export function StoreTopBar() {
             </div>
           ) : (
             <div className="flex items-center gap-2 w-full">
-              <img
-                src={store.top_benefit_image_url}
-                alt="Barra de benefícios"
-                className="h-full w-full"
-                style={{
-                  maxHeight: height,
-                  objectFit: (store.top_benefit_image_fit as any) || 'cover',
-                  transform: `scale(${(Number(store.top_benefit_image_scale) || 100) / 100})`,
-                  transition: 'transform 150ms ease-out',
-                }}
-              />
+              <div style={{ maxHeight: height, height: '100%' }}>
+                <SmartImage
+                  product={{
+                    image_url: store.top_benefit_image_url,
+                    name: store.name,
+                  }}
+                  initialSrc={store.top_benefit_image_url}
+                  className="h-full w-full"
+                  imgClassName={`h-full w-full ${(store.top_benefit_image_fit as any) === 'contain' ? 'object-contain' : 'object-cover'}`}
+                />
+              </div>
             </div>
           )
         ) : store.top_benefit_text ? (
@@ -223,14 +231,15 @@ export function StoreHeader() {
 
   // Intelligent search: detect "brand <reference>" prefix and auto-select brand
   const handleSearchInputChange = (value: string) => {
-    const v = String(value || '').trim();
-    if (!v) {
+    // Keep raw value (do NOT trim) so we preserve user spaces while typing
+    const v = String(value || '');
+    if (v === '') {
       setSelectedBrand('all');
       setSearchTerm('');
       return;
     }
 
-    // Build list of candidate brand names (from brandsWithLogos and categories list)
+    // Build list of candidate brand names (from brandsWithLogos)
     const brandNames = Array.from(
       new Set(
         (brandsWithLogos || [])
@@ -251,7 +260,8 @@ export function StoreHeader() {
       }
       if (lower.startsWith(nl + ' ')) {
         matched = name;
-        remaining = v.substring(name.length).trim();
+        // preserve what user typed after the brand (may include spaces)
+        remaining = v.substring(name.length + 1);
         break;
       }
     }
@@ -351,10 +361,11 @@ export function StoreHeader() {
 
               {store.logo_url ? (
                 <div className="relative h-14 min-w-[120px] flex items-center">
-                  <img
-                    src={store.logo_url}
-                    alt={store.name}
-                    className="h-full w-auto object-contain max-w-[200px]"
+                  <SmartImage
+                    product={{ image_url: store.logo_url, name: store.name }}
+                    initialSrc={store.logo_url}
+                    className="h-full"
+                    imgClassName="h-full w-auto object-contain max-w-[200px]"
                   />
                 </div>
               ) : (
@@ -378,11 +389,9 @@ export function StoreHeader() {
               type="text"
               placeholder="Buscar produtos... (ex: 'Boss 1442' para filtrar por marca+referência)"
               value={
-                // when a brand is selected and searchTerm empty, show the brand name in input
-                selectedBrand && selectedBrand !== 'all' && !searchTerm
-                  ? Array.isArray(selectedBrand)
-                    ? selectedBrand[0]
-                    : selectedBrand
+                // When a brand is selected, show "Brand [space] searchTerm" so user can type after brand.
+                selectedBrand && selectedBrand !== 'all'
+                  ? `${Array.isArray(selectedBrand) ? (selectedBrand[0] as string) : (selectedBrand as string)}${searchTerm ? ' ' + searchTerm : ' '}`
                   : searchTerm
               }
               onChange={(e) => handleSearchInputChange(e.target.value)}
@@ -1286,10 +1295,11 @@ function CarouselBrands({
                 style={{ scrollSnapAlign: 'center' }}
               >
                 {brand.logo_url && (
-                  <img
-                    src={brand.logo_url}
-                    alt={brand.name}
-                    className={`object-contain ${isMobile ? 'h-8 w-auto max-w-[64px]' : 'h-5 w-auto max-w-[50px]'}`}
+                  <SmartImage
+                    product={{ image_url: brand.logo_url, name: brand.name }}
+                    initialSrc={brand.logo_url}
+                    className="inline-block"
+                    imgClassName={`object-contain ${isMobile ? 'h-8 w-auto max-w-[64px]' : 'h-5 w-auto max-w-[50px]'}`}
                   />
                 )}
                 {/* No mobile mostramos apenas o logo (sem nome) */}

@@ -22,6 +22,7 @@ import {
 import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
 import Image from 'next/image';
+import { SmartImage } from './SmartImage';
 import { Button } from '@/components/ui/Button';
 import Barcode from '../ui/Barcode'; // Mantido conforme seu projeto
 import { toast } from 'sonner';
@@ -82,73 +83,88 @@ export function StoreModals() {
     [cart]
   );
 
-  const productImages = useMemo(() => {
-    if (!modals.product) return [];
-    const images: string[] = [];
+  // Normaliza e retorna um array de imagens no formato { url, path? }
+  const getProductImages = (product: any) => {
+    if (!product) return [] as { url: string; path?: string }[];
+
+    const images: { url: string; path?: string }[] = [];
     const seen = new Set<string>();
 
-    const pushIfNew = (url?: string | null) => {
+    const pushIfNew = (item: { url?: string | null; path?: string | null }) => {
+      const url = item?.url || null;
       if (!url || typeof url !== 'string') return;
       const key = (() => {
         try {
           const u = new URL(url);
           return u.pathname.split('/').pop() || url;
         } catch (e) {
-          // fallback to full string
           return url;
         }
       })();
       if (!seen.has(key)) {
         seen.add(key);
-        images.push(url);
+        images.push({ url, path: item.path || undefined });
       }
     };
 
-    // Primary image (cover) prefers image_path -> image_url
-    if (modals.product.image_path) {
-      const cover = buildSupabaseImageUrl(modals.product.image_path, {
-        width: 800,
-        height: 800,
+    // 1) Imagem principal: prefira image_path (interno) -> image_url -> external_image_url
+    if (product.image_path) {
+      const cover = buildSupabaseImageUrl(product.image_path, {
+        width: 1200,
+        height: 1200,
         resize: 'contain',
       });
-      pushIfNew(cover || null);
-    } else if (modals.product.image_url) {
-      const normalized =
-        typeof modals.product.image_url === 'string'
-          ? modals.product.image_url
-          : null;
-      pushIfNew(normalized);
-    }
-
-    // Prefer product.images (internal/gallery) next so they mask external_image_url
-    if (modals.product.images && Array.isArray(modals.product.images)) {
-      modals.product.images.forEach((img) => {
-        // buildSupabaseImageUrl already normalizes many shapes, but ensure final is string
-        const url = buildSupabaseImageUrl(img || null);
-        if (typeof url === 'string' && url) pushIfNew(url);
+      pushIfNew({
+        url: cover || product.image_url || product.external_image_url || null,
+        path: product.image_path,
+      });
+    } else if (product.image_url || product.external_image_url) {
+      pushIfNew({
+        url: product.image_url || product.external_image_url,
+        path: undefined,
       });
     }
 
-    // Only add external_image_url if its basename wasn't already added
-    if (modals.product.external_image_url) {
-      const normalizedExternal =
-        typeof modals.product.external_image_url === 'string'
-          ? modals.product.external_image_url
-          : null;
-      pushIfNew(normalizedExternal);
+    // 2) Galeria (aceita strings e objetos {url, path})
+    if (Array.isArray(product.images)) {
+      product.images.forEach((img: any) => {
+        if (!img) return;
+        if (typeof img === 'string') {
+          pushIfNew({ url: img });
+        } else if (typeof img === 'object') {
+          // pode ser {url, path} ou formas legadas
+          const url =
+            img.url || img.src || img.publicUrl || img.public_url || null;
+          const path = img.path || img.storage_path || null;
+          pushIfNew({ url, path });
+        }
+      });
     }
 
-    return images.length > 0
-      ? images
-      : [
-          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70',
-        ];
-  }, [modals.product]);
+    // 3) Assegura que a external_image_url seja considerada por último
+    if (product.external_image_url)
+      pushIfNew({ url: product.external_image_url });
 
-  // Detectar se a imagem atual é do Supabase Storage (otimizar) ou externa (não otimizar)
-  const currentImageIsSupabase =
-    productImages[currentImageIndex]?.includes('supabase.co/storage') ||
-    Boolean(modals.product?.image_path);
+    if (images.length === 0)
+      return [
+        {
+          url: '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg',
+        },
+      ];
+    return images;
+  };
+
+  const productImages = useMemo(
+    () => getProductImages(modals.product),
+    [modals.product]
+  );
+
+  // Detectar se a imagem atual é do Supabase Storage (otimizar) ou externa
+  const currentImageIsSupabase = Boolean(
+    productImages[currentImageIndex]?.path ||
+    productImages[currentImageIndex]?.url?.includes('supabase.co/storage') ||
+    modals.product?.image_path
+  );
 
   useEffect(() => {
     setCurrentImageIndex(0);
@@ -308,26 +324,24 @@ export function StoreModals() {
                 className="flex-1 relative cursor-zoom-in group"
                 onClick={() => setIsImageZoomOpen(true)}
               >
-                {String(productImages[currentImageIndex]).startsWith('http') &&
-                !String(productImages[currentImageIndex]).includes(
-                  'supabase.co/storage'
-                ) ? (
-                  <img
-                    src={productImages[currentImageIndex]}
-                    alt={modals.product.name}
-                    className="absolute inset-0 w-full h-full object-contain p-8 transition-transform duration-700 group-hover:scale-105"
-                    loading="eager"
-                  />
-                ) : (
-                  <Image
-                    src={productImages[currentImageIndex]}
-                    alt={modals.product.name}
-                    fill
-                    className="object-contain p-8 transition-transform duration-700 group-hover:scale-105"
-                    priority
-                    unoptimized={currentImageIsSupabase}
-                  />
-                )}
+                {(() => {
+                  const current = productImages[currentImageIndex] || {
+                    url: null,
+                  };
+                  const imageContext = {
+                    ...modals.product,
+                    image_url: current.url,
+                    image_path: current.path,
+                  };
+                  return (
+                    <SmartImage
+                      product={imageContext}
+                      initialSrc={current.url}
+                      className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105"
+                      imgClassName="object-contain"
+                    />
+                  );
+                })()}
                 <div className="absolute bottom-6 right-6 p-3 bg-white/80 backdrop-blur rounded-2xl shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
                   <Search size={20} className="text-primary" />
                 </div>
@@ -343,23 +357,16 @@ export function StoreModals() {
                         onClick={() => setCurrentImageIndex(idx)}
                         className={`relative w-16 h-16 rounded-xl border-2 transition-all overflow-hidden flex-shrink-0 ${currentImageIndex === idx ? 'border-primary ring-4 ring-primary/10' : 'border-gray-100 opacity-50'}`}
                       >
-                        {String(img).startsWith('http') &&
-                        !String(img).includes('supabase.co/storage') ? (
-                          <img
-                            src={img}
-                            alt=""
-                            className="absolute inset-0 w-full h-full object-cover p-1"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <Image
-                            src={img}
-                            alt=""
-                            fill
-                            className="object-cover p-1"
-                            unoptimized={img.includes('supabase.co/storage')}
-                          />
-                        )}
+                        <SmartImage
+                          product={{
+                            ...modals.product,
+                            image_url: img.url,
+                            image_path: img.path,
+                          }}
+                          initialSrc={img.url}
+                          className="absolute inset-0 w-full h-full"
+                          imgClassName="object-cover p-1"
+                        />
                       </button>
                     ))}
                   </div>
@@ -578,13 +585,24 @@ export function StoreModals() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="relative w-full h-full">
-                  <Image
-                    src={productImages[currentImageIndex]}
-                    alt="Zoom"
-                    fill
-                    className="object-contain"
-                    priority
-                  />
+                  {(() => {
+                    const current = productImages[currentImageIndex] || {
+                      url: null,
+                    };
+                    const imageContext = {
+                      ...modals.product,
+                      image_url: current.url,
+                      image_path: current.path,
+                    };
+                    return (
+                      <SmartImage
+                        product={imageContext}
+                        initialSrc={current.url}
+                        className="w-full h-full"
+                        imgClassName="object-contain"
+                      />
+                    );
+                  })()}
                 </div>
               </div>
 

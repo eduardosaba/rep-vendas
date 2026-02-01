@@ -472,6 +472,10 @@ export default function BrandsPage() {
                 </label>
                 <div>
                   <SmartImageUpload
+                    key={
+                      editingBrand?.id ? `logo-${editingBrand.id}` : 'logo-new'
+                    }
+                    initialPreview={formData.logoPreview}
                     onUploadReady={async (file) => {
                       try {
                         // show temporary preview
@@ -526,6 +530,12 @@ export default function BrandsPage() {
                 </label>
                 <div>
                   <SmartImageUpload
+                    key={
+                      editingBrand?.id
+                        ? `banner-${editingBrand.id}`
+                        : 'banner-new'
+                    }
+                    initialPreview={formData.bannerPreview}
                     onUploadReady={async (file) => {
                       try {
                         const objectURL = URL.createObjectURL(file as File);
@@ -541,7 +551,10 @@ export default function BrandsPage() {
                         } = await supabase.auth.getUser();
                         if (!user) return;
 
-                        const publicUrl = await uploadBanner(user.id, file as File);
+                        const publicUrl = await uploadBanner(
+                          user.id,
+                          file as File
+                        );
 
                         setFormData((prev) => {
                           if (prev.bannerPreview === objectURL) {
@@ -578,7 +591,10 @@ export default function BrandsPage() {
                   className="w-full p-2.5 border border-gray-300 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all bg-white dark:bg-slate-950 dark:text-white h-28"
                   value={formData.description}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, description: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
                   }
                   placeholder="Descrição curta da marca (aparece no catálogo público)"
                 />

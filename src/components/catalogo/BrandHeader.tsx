@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrandWithLogo } from '@/lib/types';
+import { SmartImage } from './SmartImage';
 
 export default function BrandHeader({
   brand,
@@ -15,10 +16,10 @@ export default function BrandHeader({
       {banner_url ? (
         <div className="w-full overflow-hidden rounded-2xl bg-gray-100 dark:bg-slate-800 mb-4 shadow-sm border border-gray-100">
           <div className="relative w-full h-44 md:h-56 lg:h-72">
-            <img
-              src={banner_url}
-              alt={`${name} banner`}
-              className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+            <SmartImage
+              product={{ image_url: banner_url, name }}
+              className="w-full h-full"
+              imgClassName="object-cover transition-transform duration-700 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
             <div className="absolute left-6 bottom-4 text-white">

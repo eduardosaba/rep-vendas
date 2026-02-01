@@ -1,7 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronRight, Search, History as HistoryIcon } from 'lucide-react';
+import {
+  ChevronRight,
+  Search,
+  History as HistoryIcon,
+  Image as ImageIcon,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SyncLog {
@@ -21,34 +28,53 @@ export default function SyncLogItem({ log }: { log: SyncLog }) {
   const [open, setOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [rolledBack, setRolledBack] = useState<boolean>(!!log.rolled_back);
+  const isImageSync = log.target_column === 'image_url';
+  const Icon = isImageSync ? ImageIcon : HistoryIcon;
+
+  // Helper para extrair a primeira URL válida de uma string ou array
+  const resolveThumbnail = (val: any) => {
+    if (!val) return null;
+    if (typeof val === 'string') return val.split(';')[0].trim();
+    if (Array.isArray(val)) {
+      const first = val[0];
+      return typeof first === 'object' ? first.url : first;
+    }
+    return val?.url || null;
+  };
 
   return (
-    <div className="bg-white rounded-[2rem] border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-all">
+    <div
+      className={`bg-white rounded-[2rem] border transition-all overflow-hidden ${open ? 'shadow-xl ring-1 ring-slate-100' : 'shadow-sm hover:shadow-md border-gray-200'}`}
+    >
       <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="flex items-start gap-5">
-          <div className="p-4 rounded-2xl shadow-sm text-gray-100 bg-gray-50">
-            <HistoryIcon size={24} />
+          <div
+            className={`p-4 rounded-2xl shadow-sm ${isImageSync ? 'bg-indigo-50 text-indigo-500' : 'bg-gray-50 text-gray-400'}`}
+          >
+            <Icon size={24} />
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                 {new Date(log.created_at).toLocaleString('pt-BR')}
               </span>
-              {log.mismatch_count && log.mismatch_count > 0 && (
-                <span className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-[9px] font-black uppercase">
-                  Divergência
+              {isImageSync && (
+                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-black uppercase tracking-tighter">
+                  Mídias
                 </span>
               )}
             </div>
             <h3 className="font-bold text-slate-800 text-lg leading-tight">
-              {log.filename || 'Operação'}
+              {log.filename || 'Operação Manual'}
             </h3>
-            <p className="text-xs text-slate-500 mt-1 truncate max-w-[200px]">
-              Arquivo: {log.filename}
+            <p className="text-[10px] text-slate-400 font-mono mt-1 uppercase">
+              Coluna Alvo:{' '}
+              <span className="text-slate-600">{log.target_column}</span>
             </p>
           </div>
         </div>
 
+        {/* STATS PANEL */}
         <div className="grid grid-cols-3 gap-8 border-l border-gray-100 pl-8">
           <div>
             <p className="text-[9px] font-black uppercase text-gray-400">
@@ -78,18 +104,23 @@ export default function SyncLogItem({ log }: { log: SyncLog }) {
           </div>
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center gap-4">
           {log.rollback_data && log.rollback_data.length > 0 && (
-            <div className="mr-4">
+            <div>
               {rolledBack ? (
-                <span className="px-2 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-600">
-                  Desfeito
-                </span>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase">
+                  <CheckCircle2 size={12} /> Desfeito
+                </div>
               ) : (
                 <button
                   disabled={processing}
                   onClick={async () => {
-                    if (!confirm('Deseja desfazer esta operação?')) return;
+                    if (
+                      !confirm(
+                        'Deseja restaurar os valores anteriores a esta sincronização?'
+                      )
+                    )
+                      return;
                     try {
                       setProcessing(true);
                       const p = fetch('/api/admin/rollback-sync', {
@@ -97,42 +128,81 @@ export default function SyncLogItem({ log }: { log: SyncLog }) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ logId: log.id }),
                       }).then((r) => r.json());
+
                       toast.promise(p, {
-                        loading: 'Desfazendo operação...',
-                        success: 'Operação desfeita com sucesso',
-                        error: 'Falha ao desfazer',
+                        loading: 'Restaurando backup...',
+                        success: 'Operação revertida!',
+                        error: 'Erro ao reverter.',
                       });
+
                       const res = await p;
-                      if (res?.success) {
-                        setRolledBack(true);
-                      }
-                    } catch (e: any) {
+                      if (res?.success) setRolledBack(true);
+                    } catch (e) {
                       console.error(e);
                     } finally {
                       setProcessing(false);
                     }
                   }}
-                  className="px-3 py-2 bg-red-50 text-red-600 rounded-lg font-bold text-xs"
+                  className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-black text-[10px] uppercase hover:bg-red-100 transition-colors"
                 >
-                  Desfazer
+                  Rollback
                 </button>
               )}
             </div>
           )}
+
           <button
             onClick={() => setOpen((s) => !s)}
-            className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary transition-colors flex items-center gap-2"
-            aria-expanded={open}
+            className="p-3 bg-slate-50 rounded-2xl text-slate-400 hover:text-primary transition-all"
           >
-            {open ? 'Fechar' : 'Detalhes'}{' '}
             <ChevronRight
-              size={14}
+              size={20}
               className={`${open ? 'rotate-90' : ''} transition-transform`}
             />
           </button>
         </div>
       </div>
 
+      {/* DETALHES EXPANDIDOS */}
+      {open && isImageSync && log.rollback_data && (
+        <div className="bg-slate-50 border-t border-gray-100 p-8 space-y-8 animate-in slide-in-from-top-4 duration-500">
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em] flex items-center gap-2">
+              <ImageIcon size={14} /> Amostra das Mídias Processadas
+            </h4>
+            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-10 gap-3">
+              {log.rollback_data.slice(0, 20).map((item, idx) => {
+                const thumb = resolveThumbnail(item.old_value);
+                return (
+                  <div
+                    key={idx}
+                    className="aspect-square bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm group relative"
+                  >
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        className="w-full h-full object-contain p-1 group-hover:scale-110 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-200">
+                        <ImageIcon size={16} />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                );
+              })}
+              {log.rollback_data.length > 20 && (
+                <div className="aspect-square bg-slate-200 rounded-xl flex items-center justify-center text-[10px] font-black text-slate-500">
+                  +{log.rollback_data.length - 20}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIVERGÊNCIAS (NOT FOUND) */}
       {open && log.mismatch_count && log.mismatch_count > 0 && (
         <div className="bg-slate-50 border-t border-gray-100 p-6">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 mb-3">

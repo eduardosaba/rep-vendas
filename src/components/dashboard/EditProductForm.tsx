@@ -33,7 +33,7 @@ const ImageUploader = ({
   onSetCover,
   isShared,
 }: {
-  images: string[];
+  images: { url: string; path: string | null }[];
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
   onSetCover: (index: number) => void;
@@ -54,7 +54,7 @@ const ImageUploader = ({
       )}
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-        {images.map((urlOrEntry, index) => (
+        {images.map((imgEntry, index) => (
           <div
             key={index}
             className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${
@@ -63,34 +63,30 @@ const ImageUploader = ({
                 : 'border-gray-200 dark:border-slate-700'
             }`}
           >
-            {}
             {(() => {
-              // resolve a URL pública para uso em src e zoom
               try {
-                const raw = normalizeImageEntry(urlOrEntry) || '';
-                const s = String(raw).trim();
+                const entry = imgEntry as { url: string; path: string | null };
+                const url = entry?.url || '';
+                const path = entry?.path || null;
 
                 let resolved: string | null = null;
 
-                if (s.startsWith('http')) {
-                  // External URL (could be supabase public URL or external host)
+                if (path) {
+                  const pathClean = path.startsWith('/') ? path.slice(1) : path;
+                  resolved = `/api/storage-image?path=${encodeURIComponent(pathClean)}`;
+                } else if (url && url.startsWith('http')) {
                   if (
-                    s.includes('supabase.co') ||
-                    s.includes('/product-images/')
+                    url.includes('supabase.co') ||
+                    url.includes('/product-images/')
                   ) {
                     // @ts-ignore
                     const {
                       getProductImage,
                     } = require('@/lib/utils/image-logic');
-                    resolved = getProductImage(s, 'small') || s;
+                    resolved = getProductImage(url, 'small') || url;
                   } else {
-                    // external host (e.g., Safilo) - use as-is
-                    resolved = s;
+                    resolved = url;
                   }
-                } else if (s.length > 0) {
-                  // treat as storage path -> use proxy so private buckets work
-                  const path = s.startsWith('/') ? s.slice(1) : s;
-                  resolved = `/api/storage-image?path=${encodeURIComponent(path)}`;
                 }
 
                 const srcToUse = resolved || '';
@@ -114,7 +110,7 @@ const ImageUploader = ({
               } catch (e) {
                 return (
                   <img
-                    src={String(normalizeImageEntry(urlOrEntry) || '')}
+                    src={String((imgEntry as any)?.url || '')}
                     className="w-full h-full object-contain p-1 cursor-zoom-in"
                     alt={`Product ${index}`}
                     onError={(e) => {
@@ -201,23 +197,62 @@ const ImageUploader = ({
 };
 
 // Normalize image entry helper (top-level so subcomponents can use)
-function normalizeImageEntry(entry: any) {
-  if (!entry) return '';
-  if (typeof entry === 'string') return entry;
-  if (typeof entry === 'object') {
-    return (
+// Normalize an entry into an array of objects { url, path }
+// - Strings may contain multiple URLs separated by ';'
+// - Objects may already contain url and storage_path/path
+function normalizeImageEntry(
+  entry: any
+): { url: string; path: string | null }[] {
+  if (!entry) return [];
+
+  // If it's a string, it can contain multiple ; separated URLs
+  if (typeof entry === 'string') {
+    return entry
+      .split(';')
+      .map((u: string) => u.trim())
+      .filter(Boolean)
+      .map((u: string) => ({ url: u, path: null }));
+  }
+
+  // If it's an object, normalize known keys
+  if (typeof entry === 'object' && !Array.isArray(entry)) {
+    const url =
       entry.optimized_url ||
       entry.optimizedUrl ||
       entry.url ||
       entry.src ||
       entry.publicUrl ||
       entry.public_url ||
-      entry.path ||
-      entry.storage_path ||
-      ''
-    );
+      '';
+    const path = entry.storage_path || entry.path || entry.image_path || null;
+    return [{ url: String(url || ''), path: path || null }];
   }
-  return String(entry || '');
+
+  return [];
+}
+
+// Normalize and expand image entries into a flat array of {url,path} objects.
+function normalizeAndExplodeImageEntries(
+  images: any
+): { url: string; path: string | null }[] {
+  if (!images) return [];
+  const arr = Array.isArray(images) ? images : [images];
+  const out: { url: string; path: string | null }[] = [];
+
+  for (const entry of arr) {
+    const items = normalizeImageEntry(entry);
+    for (const it of items) {
+      if (it.url) out.push({ url: it.url.trim(), path: it.path });
+    }
+  }
+
+  // Remove duplicates by url while preserving order
+  const seen = new Set<string>();
+  return out.filter((i) => {
+    if (seen.has(i.url)) return false;
+    seen.add(i.url);
+    return true;
+  });
 }
 
 // --- COMPONENTE PRINCIPAL ---
@@ -378,9 +413,9 @@ export function EditProductForm({ product }: { product: Product }) {
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
     is_best_seller: product.is_best_seller || product.bestseller || false,
-    images: (product.images || (product.image_url ? [product.image_url] : []))
-      .map((i: any) => normalizeImageEntry(i))
-      .filter(Boolean),
+    images: normalizeAndExplodeImageEntries(
+      product.images || (product.image_url ? [product.image_url] : [])
+    ).filter(Boolean),
   });
 
   // Listener para confirmar saída
@@ -447,13 +482,13 @@ export function EditProductForm({ product }: { product: Product }) {
         tempUrl: URL.createObjectURL(file),
       }));
 
-      // Append temp previews to the form so the UI shows them at once
+      // Append temp previews as objects so UI shows them at once
       updateField('images', [
         ...(formData.images || []),
-        ...tempEntries.map((t) => t.tempUrl),
+        ...tempEntries.map((t) => ({ url: t.tempUrl, path: null })),
       ]);
 
-      // 2) Upload each file and replace its temp preview with the final publicUrl
+      // 2) Upload each file and replace its temp preview with the final publicUrl + storage path
       for (const entry of tempEntries) {
         const file = entry.file;
         const fileExt = file.name.split('.').pop();
@@ -478,12 +513,13 @@ export function EditProductForm({ product }: { product: Product }) {
           .from('product-images')
           .getPublicUrl(fullPath);
 
-        // Replace the tempUrl in formData.images with the real publicUrl
+        // Replace the tempUrl object in formData.images with the real object {url, path}
         setFormData((prev) => {
           const imgs = [...(prev.images || [])];
-          const idx = imgs.indexOf(entry.tempUrl);
-          if (idx !== -1) imgs[idx] = data.publicUrl;
-          else imgs.push(data.publicUrl);
+          const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);
+          const newObj = { url: data.publicUrl, path: fullPath };
+          if (idx !== -1) imgs[idx] = newObj;
+          else imgs.push(newObj as any);
           return { ...prev, images: imgs } as any;
         });
 
@@ -545,7 +581,10 @@ export function EditProductForm({ product }: { product: Product }) {
         const res = await fetch('/api/admin/mark-image-pending', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId: product.id, url: selected }),
+          body: JSON.stringify({
+            productId: product.id,
+            url: selected?.url || selected,
+          }),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -701,14 +740,31 @@ export function EditProductForm({ product }: { product: Product }) {
           : 0,
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
-        images: formData.images,
+        // Persist images as objects {url, path}
+        images: (formData.images || []).map((it: any) =>
+          typeof it === 'string' ? { url: it, path: null } : it
+        ),
         image_url:
           formData.images && formData.images.length > 0
-            ? formData.images[0]
+            ? formData.images[0].url || formData.images[0]
             : null,
+        // image_path will be defined below with detach logic
+        sync_status: (formData.images || []).some(
+          (img: any) => !(img && img.path)
+        )
+          ? 'pending'
+          : 'synced',
+        image_optimized: (formData.images || []).every(
+          (img: any) => !!(img && img.path)
+        ),
         technical_specs,
         image_is_shared: isShared && !needsDetach,
-        image_path: needsDetach ? null : (product as any).image_path,
+        // if user requested detach, clear image_path on product level
+        image_path: needsDetach
+          ? null
+          : formData.images && formData.images.length > 0
+            ? formData.images[0].path || (product as any).image_path
+            : (product as any).image_path,
         class_core: formData.class_core || null,
       };
 
