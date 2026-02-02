@@ -14,6 +14,23 @@ export function useWelcomeManager() {
   useEffect(() => {
     let mounted = true;
     const init = async () => {
+      // Primeiro, checar localStorage (cliente) para evitar chamadas desnecessárias
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const seen = window.localStorage.getItem(
+            'repvendas_last_seen_version'
+          );
+          if (seen && String(seen) === String(APP_WELCOME_VERSION)) {
+            if (mounted) {
+              setLoading(false);
+              setShouldShow(false);
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore localStorage errors and continue with server check
+      }
       try {
         const supabase = createClient();
         const {

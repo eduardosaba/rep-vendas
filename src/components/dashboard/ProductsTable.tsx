@@ -33,14 +33,14 @@ import {
   EyeOff,
   ListOrdered,
   Rocket,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
+import { Button } from '../ui/Button';
 import ProductBarcode from '@/components/ui/Barcode';
 import Image from 'next/image';
-import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { getProductImageUrl } from '@/lib/imageUtils';
 import { toast } from 'sonner';
+import { SyncSingleButton } from '@/components/products/SyncSingleButton';
+import { getProductImage } from '@/lib/utils/image-logic';
 import {
   bulkUpdateFields,
   bulkUpdatePrice,
@@ -51,18 +51,18 @@ import { generateCatalogPDF } from '@/utils/generateCatalogPDF';
 import { usePlanLimits } from '@/hooks/usePlanLimits';
 
 // --- INTERFACES ---
-export interface Product {
+interface Product {
   id: string;
   name: string;
   reference_code: string;
   price: number;
   brand: string | null;
   category: string | null;
-  class_core?: string | null;
   image_url: string | null;
   image_path?: string | null;
   external_image_url?: string | null;
-  images: any[] | null; // Alterado para any[] para suportar objetos {url, path}
+  images: string[] | null;
+  // Indica se a imagem principal está internalizada no Storage
   image_optimized?: boolean | null;
   is_launch: boolean;
   is_best_seller: boolean;
@@ -89,11 +89,7 @@ interface BrandOption {
   logo_url: string | null;
 }
 
-// Chaves permitidas para colunas (excluindo objetos complexos para o renderCell genérico)
-type DataKey = Exclude<
-  keyof Product,
-  'images' | 'track_stock' | 'technical_specs'
->;
+type DataKey = Exclude<keyof Product, 'images' | 'track_stock'>;
 
 interface ColumnDefinition {
   key: DataKey;
@@ -103,20 +99,25 @@ interface ColumnDefinition {
   align?: 'left' | 'right' | 'center';
 }
 
+interface UserPreferences {
+  columnOrder: DataKey[];
+  visibleKeys: Set<DataKey>;
+}
+
 interface SupabasePrefRow {
   user_id: string;
   app_id: string;
   table_key: string;
   column_order: DataKey[];
   visible_keys: DataKey[];
-  column_widths?: Record<string, number> | null;
+  column_widths?: Record<DataKey, number> | null;
 }
 
 const PREFS_TABLE_KEY = 'product_table';
 const PREFS_TABLE_NAME = 'user_preferences';
 const APP_ID = 'repvendas_saas';
 
-const ALL_DATA_COLUMNS: Record<DataKey, ColumnDefinition> = {
+const ALL_DATA_COLUMNS: Partial<Record<DataKey, ColumnDefinition>> = {
   name: { key: 'name', title: 'Produto', isSortable: true, align: 'left' },
   reference_code: {
     key: 'reference_code',
@@ -130,12 +131,6 @@ const ALL_DATA_COLUMNS: Record<DataKey, ColumnDefinition> = {
   category: {
     key: 'category',
     title: 'Categoria',
-    isSortable: true,
-    align: 'left',
-  },
-  class_core: {
-    key: 'class_core',
-    title: 'Classe',
     isSortable: true,
     align: 'left',
   },
@@ -154,88 +149,22 @@ const ALL_DATA_COLUMNS: Record<DataKey, ColumnDefinition> = {
     isNumeric: true,
     align: 'right',
   },
-  cost: {
-    key: 'cost',
-    title: 'Custo',
-    isSortable: true,
-    isNumeric: true,
-    align: 'right',
-  },
-  stock_quantity: {
-    key: 'stock_quantity',
-    title: 'Estoque',
-    isSortable: true,
-    isNumeric: true,
-    align: 'right',
-  },
-  is_active: {
-    key: 'is_active',
-    title: 'Status',
-    isSortable: true,
-    align: 'center',
-  },
-  is_launch: {
-    key: 'is_launch',
-    title: 'Novo',
-    isSortable: true,
-    align: 'center',
-  },
-  is_best_seller: {
-    key: 'is_best_seller',
-    title: 'Top',
-    isSortable: true,
-    align: 'center',
-  },
-  id: { key: 'id', title: 'ID', isSortable: true, align: 'left' },
-  created_at: {
-    key: 'created_at',
-    title: 'Data',
-    isSortable: true,
-    align: 'left',
-  },
-  image_url: {
-    key: 'image_url',
-    title: 'Img',
-    isSortable: false,
-    align: 'left',
-  },
-  image_optimized: {
-    key: 'image_optimized',
-    title: 'Imagem (Opt.)',
-    isSortable: false,
-    align: 'center',
-  },
-  image_path: {
-    key: 'image_path',
-    title: 'Path',
-    isSortable: false,
-    align: 'left',
-  },
-  external_image_url: {
-    key: 'external_image_url',
-    title: 'Ext. URL',
-    isSortable: false,
-    align: 'left',
-  },
-  description: {
-    key: 'description',
-    title: 'Desc.',
-    isSortable: false,
-    align: 'left',
-  },
-  slug: { key: 'slug', title: 'Slug', isSortable: false, align: 'left' },
 };
 
-const DEFAULT_PREFS = {
+const DEFAULT_PREFS: UserPreferences = {
   columnOrder: [
     'name',
     'reference_code',
     'price',
+    'sale_price',
     'brand',
-    'is_active',
+    'category',
+    'stock_quantity',
     'image_optimized',
-  ] as DataKey[],
-  visibleKeys: new Set<DataKey>([
+    'is_active',
+    'is_launch',
+  ],
+  visibleKeys: new Set([
     'name',
     'reference_code',
     'price',
@@ -256,19 +185,18 @@ const DEFAULT_SORT_DIRECTION: Partial<Record<DataKey, 'asc' | 'desc'>> = {
 };
 
 export function ProductsTable({ initialProducts }: ProductsTableProps) {
+  // Component implementation
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const { usage, loading: limitLoading } = usePlanLimits();
+  const { canCreate, usage, loading: limitLoading } = usePlanLimits();
 
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [availableBrands, setAvailableBrands] = useState<BrandOption[]>([]);
   const [availableCategories, setAvailableCategories] = useState<
     { name: string }[]
   >([]);
-  const [availableClasses, setAvailableClasses] = useState<{ name: string }[]>(
-    []
-  );
 
+  // Configurações da Tabela
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [columnOrder, setColumnOrder] = useState<DataKey[]>(
@@ -281,6 +209,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
+  // Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
@@ -293,32 +222,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     category: '',
     brand: [] as string[],
     color: '',
+    // 'all' | 'optimized' | 'unoptimized'
     imageOptimization: 'all',
   });
 
-  const [displayMinPrice, setDisplayMinPrice] = useState('');
-  const [displayMaxPrice, setDisplayMaxPrice] = useState('');
-
-  const parseCurrencyToNumericString = (s: string) => {
-    const digits = String(s || '').replace(/\D/g, '');
-    if (!digits) return '';
-    return (Number(digits) / 100).toFixed(2);
-  };
-
-  const formatBRL = (v: string) => {
-    const n = Number(v);
-    if (isNaN(n) || !v) return '';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(n);
-  };
-
-  useEffect(() => {
-    setDisplayMinPrice(filters.minPrice ? formatBRL(filters.minPrice) : '');
-    setDisplayMaxPrice(filters.maxPrice ? formatBRL(filters.maxPrice) : '');
-  }, [filters.minPrice, filters.maxPrice]);
-
+  // Server-side filtering mode
   const [serverMode, setServerMode] = useState(false);
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [serverMeta, setServerMeta] = useState<{
@@ -327,7 +235,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     page?: number;
   }>({});
   const [serverLoading, setServerLoading] = useState(false);
-  const fetchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const fetchTimerRef = useRef<number | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -335,41 +243,46 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     key: DataKey;
     direction: 'asc' | 'desc';
   } | null>(null);
-
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+  // Column widths for resizable columns
+  const [columnWidths, setColumnWidths] = useState<Record<DataKey, number>>(
     () => {
-      const widths: Record<string, number> = {};
-      (Object.keys(ALL_DATA_COLUMNS) as DataKey[]).forEach((key) => {
-        if (key === 'name') widths[key] = 300;
+      const defaults: Partial<Record<DataKey, number>> = {};
+      Object.keys(ALL_DATA_COLUMNS).forEach((k) => {
+        const key = k as DataKey;
+        if (key === 'name') defaults[key] = 300;
         else if (key === 'image_url' || key === 'image_optimized')
-          widths[key] = 80;
-        else widths[key] = 140;
+          defaults[key] = 80;
+        else if (key === 'price' || key === 'sale_price' || key === 'cost')
+          defaults[key] = 120;
+        else defaults[key] = 140;
       });
-      return widths;
+      return defaults as Record<DataKey, number>;
     }
   );
-
-  const resizingRef = useRef<{
+  const resizingRef = useRef<null | {
     key: DataKey;
     startX: number;
     startWidth: number;
-  } | null>(null);
+  }>(null);
 
+  // global mouse handlers for resizing
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!resizingRef.current) return;
       const { key, startX, startWidth } = resizingRef.current;
-      const delta = e.clientX - startX;
-      setColumnWidths((prev) => ({
-        ...prev,
-        [key]: Math.max(60, startWidth + delta),
-      }));
+      const delta = (e as any).clientX - startX;
+      const newWidth = Math.max(60, Math.round(startWidth + delta));
+      setColumnWidths((prev) => ({ ...prev, [key]: newWidth }));
     };
     const onUp = () => {
       if (resizingRef.current) {
         resizingRef.current = null;
         document.body.style.userSelect = '';
-        window.dispatchEvent(new CustomEvent('repvendas:colresizeend'));
+        try {
+          window.dispatchEvent(new CustomEvent('repvendas:colresizeend'));
+        } catch (e) {
+          // ignore
+        }
       }
     };
     window.addEventListener('mousemove', onMove);
@@ -380,8 +293,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     };
   }, []);
 
+  // Seleção e Modais
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -389,44 +304,41 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfOptions, setPdfOptions] = useState({
     showPrices: true,
-    priceType: 'sale_price' as 'price' | 'sale_price',
+    priceType: 'sale_price' as 'price' | 'sale_price', // 'price' = custo, 'sale_price' = sugerido
     title: 'Catálogo de Produtos',
     imageZoom: 3,
   });
-  const [primaryColor, setPrimaryColor] = useState<string | null>(null);
-
-  useEffect(() => {
-    const v = getComputedStyle(document.documentElement)
-      .getPropertyValue('--primary')
-      .trim();
-    if (v) setPrimaryColor(v);
-  }, []);
-
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ progress: 0, message: '' });
+
   const [textConfig, setTextConfig] = useState<{
-    field: 'brand' | 'category' | 'class_core' | '';
+    field: 'brand' | 'category' | '';
     value: string;
     label: string;
   }>({ field: '', value: '', label: '' });
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [preferSoftDelete, setPreferSoftDelete] = useState(false);
   const [priceConfig, setPriceConfig] = useState<{
     mode: 'fixed' | 'percentage';
     value: string;
   }>({ mode: 'fixed', value: '' });
-  const [displayPrice, setDisplayPrice] = useState('');
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [viewIndex, setViewIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
+  const touchMoved = useRef<boolean>(false);
 
-  useEffect(() => {
-    setDisplayPrice(priceConfig.value ? formatBRL(priceConfig.value) : '');
-  }, [priceConfig.value]);
+  const logError = (...args: unknown[]) => {
+    if (typeof console !== 'undefined' && console.error) console.error(...args);
+  };
 
-  const getProductHref = (p: Product) =>
-    `/dashboard/products/${encodeURIComponent(p.id)}`;
+  // Retorna href seguro para editar o produto.
+  // Para evitar 404s ocasionais por slugs inválidos, usamos o `id` como fonte
+  // de verdade — a rota de edição aceita tanto `slug` quanto `id`.
+  const getProductHref = (p: Product) => {
+    return `/dashboard/products/${encodeURIComponent(p.id)}`;
+  };
 
-  // --- PERSISTÊNCIA ---
+  // --- EFEITOS & PERSISTÊNCIA ---
   useEffect(() => {
     const getUserId = async () => {
       const {
@@ -438,29 +350,30 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     getUserId();
   }, [supabase]);
 
-  // Populate quick filter options from current products (client-side)
-  useEffect(() => {
-    const brands = Array.from(
-      new Set(products.map((p) => p.brand).filter(Boolean))
-    ).map((name) => ({ name: name as string, logo_url: null }));
-    setAvailableBrands(brands);
-
-    const categories = Array.from(
-      new Set(products.map((p) => p.category).filter(Boolean))
-    ).map((name) => ({ name: name as string }));
-    setAvailableCategories(categories);
-
-    const classes = Array.from(
-      new Set(products.map((p) => p.class_core).filter(Boolean))
-    ).map((name) => ({ name: name as string }));
-    setAvailableClasses(classes);
-  }, [products]);
+  const persistRemoteRow = useCallback(
+    async (r: SupabasePrefRow) => {
+      try {
+        const { error } = await supabase
+          .from(PREFS_TABLE_NAME)
+          .upsert([r], { onConflict: 'user_id,app_id,table_key' });
+        if (error) {
+          logError('persistRemoteRow error', error);
+          return false;
+        }
+        return true;
+      } catch (ex) {
+        logError('persistRemoteRow ex', ex);
+        return false;
+      }
+    },
+    [supabase]
+  );
 
   const savePreferences = useCallback(
     async (
       order: DataKey[],
       visible: Set<DataKey>,
-      widths?: Record<string, number>
+      widths?: Record<DataKey, number> | null
     ) => {
       if (!userId || userId === 'guest') return;
       const row: SupabasePrefRow = {
@@ -471,23 +384,29 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         visible_keys: Array.from(visible),
         column_widths: widths || null,
       };
-      await supabase
-        .from(PREFS_TABLE_NAME)
-        .upsert([row], { onConflict: 'user_id,app_id,table_key' });
+      await persistRemoteRow(row);
     },
-    [userId, supabase]
+    [persistRemoteRow, userId]
   );
 
+  // Persist column widths when resizing ends
   useEffect(() => {
-    const handler = () =>
-      savePreferences(columnOrder, visibleColumnKeys, columnWidths);
-    window.addEventListener('repvendas:colresizeend', handler);
-    return () => window.removeEventListener('repvendas:colresizeend', handler);
+    const handler = () => {
+      // debounce small delay to ensure state updated
+      setTimeout(() => {
+        savePreferences(columnOrder, visibleColumnKeys, columnWidths);
+      }, 50);
+    };
+    window.addEventListener('repvendas:colresizeend', handler as EventListener);
+    return () =>
+      window.removeEventListener(
+        'repvendas:colresizeend',
+        handler as EventListener
+      );
   }, [savePreferences, columnOrder, visibleColumnKeys, columnWidths]);
 
-  // --- FETCH PREFS ---
   useEffect(() => {
-    if (!isAuthReady || !userId || userId === 'guest') {
+    if (!supabase || !isAuthReady || !userId || userId === 'guest') {
       setIsLoadingPrefs(false);
       return;
     }
@@ -500,177 +419,438 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       .then(({ data }) => {
         if (data) {
           const loadedOrder = (data.column_order as DataKey[]).filter(
-            (k) => ALL_DATA_COLUMNS[k]
+            (key) => ALL_DATA_COLUMNS[key]
           );
           const loadedVisible = new Set(
-            (data.visible_keys as DataKey[]).filter((k) => ALL_DATA_COLUMNS[k])
+            (data.visible_keys as DataKey[]).filter(
+              (key) => ALL_DATA_COLUMNS[key]
+            )
           );
-          if (data.column_widths)
-            setColumnWidths((prev) => ({
-              ...prev,
-              ...(data.column_widths as any),
-            }));
-          setColumnOrder([
-            ...loadedOrder,
-            ...DEFAULT_PREFS.columnOrder.filter(
-              (k) => !loadedOrder.includes(k)
-            ),
-          ]);
+          // load widths if present
+          if (data.column_widths) {
+            try {
+              const widths = data.column_widths as Record<string, number>;
+              const normalized: Record<DataKey, number> = {} as any;
+              Object.keys(widths).forEach((k) => {
+                if ((ALL_DATA_COLUMNS as any)[k]) {
+                  normalized[k as DataKey] = Number(widths[k]) || 0;
+                }
+              });
+              setColumnWidths((prev) => ({ ...prev, ...normalized }));
+            } catch (e) {
+              // ignore parse errors
+            }
+          }
+          const missing = DEFAULT_PREFS.columnOrder.filter(
+            (key) => !loadedOrder.includes(key)
+          );
+          setColumnOrder([...loadedOrder, ...missing]);
           setVisibleColumnKeys(loadedVisible);
+        } else {
+          setColumnOrder(DEFAULT_PREFS.columnOrder);
+          setVisibleColumnKeys(DEFAULT_PREFS.visibleKeys);
         }
         setIsLoadingPrefs(false);
       });
   }, [supabase, isAuthReady, userId]);
 
-  // --- RENDER CELULA (FIX IMAGEM E TS) ---
-  const renderCell = (product: Product, key: DataKey) => {
-    const val = (product as any)[key];
+  // --- FETCH OPÇÕES ---
+  useEffect(() => {
+    const fetchOptions = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: prods } = await supabase
+        .from('products')
+        .select('brand, category')
+        .eq('user_id', user.id);
+      const brands = Array.from(
+        new Set(prods?.map((p) => p.brand).filter(Boolean) || [])
+      ).sort();
+      const cats = Array.from(
+        new Set(prods?.map((p) => p.category).filter(Boolean) || [])
+      ).sort();
 
-    // Função utilitária interna para garantir URL de imagem
-    const getSafeImgUrl = (img: any): string | null => {
-      if (!img) return null;
-      if (typeof img === 'string') return img;
-      if (typeof img === 'object' && img.url) return img.url;
-      return null;
+      if (brands.length > 0) {
+        const { data: brandData } = await supabase
+          .from('brands')
+          .select('name, logo_url')
+          .in('name', brands);
+        const map: any = {};
+        brandData?.forEach((b: any) => (map[b.name] = b.logo_url));
+        setAvailableBrands(
+          brands.map((b: string) => ({ name: b, logo_url: map[b] || null }))
+        );
+      }
+      setAvailableCategories(
+        (cats as string[]).map((c) => ({ name: String(c) }))
+      );
+    };
+    fetchOptions();
+  }, [supabase]);
+
+  // --- SERVER-SIDE FETCH (quando serverMode=true) ---
+  useEffect(() => {
+    if (!serverMode) return;
+    if (!userId || userId === 'guest') return;
+
+    const doFetch = async (page = currentPage) => {
+      setServerLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (userId) params.set('userId', userId);
+        params.set('page', String(page));
+        params.set('limit', String(itemsPerPage));
+        if (searchTerm) params.set('search', searchTerm);
+        if (filters.minPrice) params.set('minPrice', String(filters.minPrice));
+        if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
+        if (filters.brand && filters.brand.length > 0)
+          params.set('brand', String(filters.brand[0]));
+        if (filters.imageOptimization && filters.imageOptimization !== 'all')
+          params.set('imageOptimization', String(filters.imageOptimization));
+        // Ordenação no modo servidor: envia chave e direção
+        if (sortConfig) {
+          params.set('sortKey', String(sortConfig.key));
+          params.set('sortDir', sortConfig.direction);
+        }
+
+        const res = await fetch(`/api/products?${params.toString()}`);
+        if (!res.ok) throw new Error('Erro ao buscar produtos');
+        const json = await res.json();
+        let serverData = json.data || [];
+        // se o filtro de otimização de imagem estiver ativo, aplique uma filtragem adicional
+        if (filters.imageOptimization && filters.imageOptimization !== 'all') {
+          const filtered = (serverData as any[]).filter((p) => {
+            const hasStorageImage = Boolean(
+              p.image_path ||
+              p.image_url?.includes('supabase.co/storage') ||
+              p.external_image_url?.includes('supabase.co/storage') ||
+              (p.images &&
+                Array.isArray(p.images) &&
+                p.images.some((i: any) => i?.includes('supabase.co/storage')))
+            );
+            if (filters.imageOptimization === 'optimized')
+              return hasStorageImage;
+            if (filters.imageOptimization === 'unoptimized')
+              return !hasStorageImage;
+            return true;
+          });
+          serverData = filtered;
+        }
+        setServerProducts(serverData);
+        setServerMeta(json.meta || {});
+      } catch (e) {
+        console.error('server fetch error', e);
+      } finally {
+        setServerLoading(false);
+      }
     };
 
-    const hasStorageImage = Boolean(
-      product.image_path ||
-      product.image_url?.includes('supabase.co/storage') ||
-      (Array.isArray(product.images) &&
-        product.images.some((i) =>
-          getSafeImgUrl(i)?.includes('supabase.co/storage')
-        ))
-    );
+    // debounce
+    if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
+    // @ts-ignore
+    fetchTimerRef.current = window.setTimeout(() => doFetch(currentPage), 350);
 
-    if (key === 'name')
-      return (
-        <div className="flex items-center gap-3 min-w-[200px]">
-          <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-800 relative overflow-hidden flex-shrink-0 border border-gray-200 dark:border-slate-700">
-            {(() => {
-              const imgData = getProductImageUrl(product as any);
-              const src = getSafeImgUrl(
-                imgData?.src ||
-                  product.image_url ||
-                  product.external_image_url ||
-                  (product.images && product.images[0])
-              );
-              if (!src)
-                return (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <ImageIcon size={16} className="text-gray-400" />
-                  </div>
-                );
-              if (
-                src.startsWith('http') &&
-                !src.includes('supabase.co/storage')
-              ) {
-                // eslint-disable-next-line @next/next/no-img-element
-                return (
-                  <img
-                    src={src}
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                );
-              }
-              return (
-                <LazyProductImage
-                  src={src}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  fallbackSrc="/images/default-logo.png"
-                />
-              );
-            })()}
-          </div>
-          <div className="min-w-0">
-            <div
-              onClick={() => setViewProduct(product)}
-              className="font-medium text-gray-900 dark:text-white truncate cursor-pointer hover:text-primary transition-colors"
-            >
-              {product.name}
-            </div>
-            <div className="text-xs text-gray-500 dark:text-slate-400 truncate">
-              {product.brand || '-'}
-            </div>
-          </div>
-        </div>
-      );
+    return () => {
+      if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    serverMode,
+    userId,
+    currentPage,
+    searchTerm,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.brand,
+    filters.imageOptimization,
+    sortConfig,
+  ]);
 
-    if (key === 'barcode') {
-      const raw = String(val ?? '');
-      return /^[0-9]{7,13}$/.test(raw) ? (
-        <ProductBarcode value={raw} height={36} showNumber />
-      ) : (
-        <span className="text-xs text-gray-500 font-mono">{raw || '-'}</span>
-      );
-    }
+  // --- MANIPULAÇÃO DE COLUNAS ---
+  const toggleColumn = (key: DataKey) => {
+    const newVisible = new Set(visibleColumnKeys);
+    if (newVisible.has(key)) newVisible.delete(key);
+    else newVisible.add(key);
+    setVisibleColumnKeys(newVisible);
+    savePreferences(columnOrder, newVisible, columnWidths);
+  };
 
-    if (['price', 'cost', 'sale_price'].includes(key))
-      return (
-        <div className="font-medium">{val ? formatBRL(String(val)) : '-'}</div>
-      );
+  const moveColumn = (key: DataKey, dir: 'up' | 'down') => {
+    const idx = columnOrder.indexOf(key);
+    if (idx === -1) return;
+    let newIdx = idx;
+    if (dir === 'up' && idx > 0) newIdx = idx - 1;
+    else if (dir === 'down' && idx < columnOrder.length - 1) newIdx = idx + 1;
+    else return;
+    const newOrder = [...columnOrder];
+    [newOrder[idx], newOrder[newIdx]] = [newOrder[newIdx], newOrder[idx]];
+    setColumnOrder(newOrder);
+    savePreferences(newOrder, visibleColumnKeys, columnWidths);
+  };
 
-    if (key === 'is_active')
-      return (
-        <span
-          className={`px-2 py-0.5 rounded text-[10px] font-bold ${val === false ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}
-        >
-          {val === false ? 'Inativo' : 'Ativo'}
-        </span>
-      );
-
-    if (key === 'is_launch')
-      return (
-        <span
-          className={`px-2 py-0.5 rounded text-[11px] font-bold ${val ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}
-        >
-          {val ? 'Novo' : '-'}
-        </span>
-      );
-
-    if (key === 'is_best_seller')
-      return (
-        <span
-          className={`px-2 py-0.5 rounded text-[11px] font-bold ${val ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}
-        >
-          {val ? 'Top' : '-'}
-        </span>
-      );
-
-    if (key === 'image_optimized')
-      return (
-        <span
-          className={`px-2 py-0.5 rounded text-[11px] font-bold ${hasStorageImage ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}
-        >
-          {hasStorageImage ? 'Otimiz.' : 'Externa'}
-        </span>
-      );
+  // --- COMPONENTE DROPDOWN DE COLUNAS ---
+  const ColumnSelectorDropdown = () => {
+    const dropdownRef = useRef<any>(null);
+    useEffect(() => {
+      const handleClickOutside = (e: any) => {
+        if (
+          isColumnDropdownOpen &&
+          dropdownRef.current &&
+          !dropdownRef.current.contains(e.target)
+        ) {
+          setIsColumnDropdownOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
+    }, [isColumnDropdownOpen]);
 
     return (
-      <span className="text-gray-600 dark:text-slate-400 text-sm truncate block max-w-[150px]">
-        {String(val ?? '-')}
-      </span>
+      <div className="relative inline-block text-left" ref={dropdownRef}>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          aria-expanded={isColumnDropdownOpen}
+          onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
+          className={`${isColumnDropdownOpen ? 'ring-2 ring-[var(--primary)]' : ''} px-3`}
+        >
+          <ListOrdered size={16} /> <span className="inline">Colunas</span>
+        </Button>
+        {isColumnDropdownOpen && (
+          <div className="absolute right-0 sm:right-0 left-0 sm:left-auto mt-2 w-full sm:w-72 mx-auto sm:mx-0 max-w-sm sm:max-w-none rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-slate-800 z-50 max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-800">
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 mb-2">
+                <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold">
+                  Mostrar/Ocultar
+                </p>
+                <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={columnOrder
+                      .filter((k) => ALL_DATA_COLUMNS[k])
+                      .every((k) => visibleColumnKeys.has(k))}
+                    onChange={(e) => {
+                      const allKeys = columnOrder.filter(
+                        (k) => ALL_DATA_COLUMNS[k]
+                      );
+                      if (e.target.checked) {
+                        const newSet = new Set<DataKey>(allKeys);
+                        setVisibleColumnKeys(newSet);
+                        savePreferences(columnOrder, newSet, columnWidths);
+                      } else {
+                        const newSet = new Set<DataKey>();
+                        setVisibleColumnKeys(newSet);
+                        savePreferences(columnOrder, newSet, columnWidths);
+                      }
+                    }}
+                    className="h-4 w-4 text-primary rounded border-gray-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-primary"
+                  />
+                  Selecionar todos
+                </label>
+              </div>
+              {columnOrder.map((key, index) => {
+                const def = ALL_DATA_COLUMNS[key];
+                const isChecked = visibleColumnKeys.has(key);
+                const isFirst = index === 0;
+                const isLast = index === columnOrder.length - 1;
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition"
+                  >
+                    <div className="flex items-center min-w-0 flex-1">
+                      <input
+                        id={`col-${key}`}
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleColumn(key)}
+                        className="h-4 w-4 text-primary rounded border-gray-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-primary"
+                      />
+                      <label
+                        htmlFor={`col-${key}`}
+                        className="ml-3 block text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer"
+                      >
+                        {def ? def.title : key}
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-1 ml-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveColumn(key, 'up');
+                        }}
+                        disabled={isFirst || !isChecked}
+                        className="p-1 rounded-full text-primary dark:text-primary/70 disabled:opacity-30 hover:bg-primary/10 dark:hover:bg-primary/20"
+                      >
+                        <ArrowUp size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveColumn(key, 'down');
+                        }}
+                        disabled={isLast || !isChecked}
+                        className="p-1 rounded-full text-primary dark:text-primary/70 disabled:opacity-30 hover:bg-primary/10 dark:hover:bg-primary/20"
+                      >
+                        <ArrowDown size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const SortSelectorDropdown = () => {
+    const ref = useRef<any>(null);
+    useEffect(() => {
+      const handleClickOutside = (e: any) => {
+        if (
+          isSortDropdownOpen &&
+          ref.current &&
+          !ref.current.contains(e.target)
+        ) {
+          setIsSortDropdownOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
+    }, [isSortDropdownOpen]);
+
+    const sortable = Object.values(ALL_DATA_COLUMNS).filter(
+      (c) => c.isSortable
+    );
+
+    return (
+      <div className="relative inline-block text-left" ref={ref}>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          aria-expanded={isSortDropdownOpen}
+          onClick={() => setIsSortDropdownOpen((s) => !s)}
+          className={`${isSortDropdownOpen ? 'ring-2 ring-[var(--primary)]' : ''} px-3`}
+        >
+          <ArrowUpDown size={16} /> <span className="inline">Ordenar</span>
+        </Button>
+
+        {isSortDropdownOpen && (
+          <div className="absolute right-0 mt-2 w-56 rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 z-50 border border-gray-200 dark:border-slate-800">
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 mb-2">
+                <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold">
+                  Ordenar por
+                </p>
+                <button
+                  onClick={() => setSortConfig(null)}
+                  className="text-xs text-red-500 hover:underline"
+                >
+                  Limpar
+                </button>
+              </div>
+              {sortable.map((col) => (
+                <button
+                  key={col.key}
+                  onClick={() => {
+                    // se já estiver ordenando por essa chave, alterna direção
+                    if (sortConfig && sortConfig.key === col.key) {
+                      setSortConfig({
+                        key: col.key,
+                        direction:
+                          sortConfig.direction === 'asc' ? 'desc' : 'asc',
+                      });
+                    } else {
+                      const dir =
+                        (DEFAULT_SORT_DIRECTION as any)[col.key] || 'asc';
+                      setSortConfig({ key: col.key, direction: dir });
+                    }
+                    setIsSortDropdownOpen(false);
+                  }}
+                  className="w-full text-left p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-between"
+                >
+                  <span className="text-sm text-gray-700 dark:text-slate-300">
+                    {col.title}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {sortConfig && sortConfig.key === col.key ? (
+                      sortConfig.direction === 'asc' ? (
+                        <ArrowUp size={12} />
+                      ) : (
+                        <ArrowDown size={12} />
+                      )
+                    ) : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
   // --- FILTRAGEM ---
+  const visibleAndOrderedColumns = useMemo(
+    () =>
+      columnOrder
+        .filter((key) => visibleColumnKeys.has(key))
+        .map((key) => ALL_DATA_COLUMNS[key])
+        .filter((c): c is ColumnDefinition => !!c),
+    [columnOrder, visibleColumnKeys]
+  );
+
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
   const processedProducts = useMemo(() => {
     if (serverMode) return serverProducts;
-    let data = [...products];
+    const data = products.filter((p) => {
+      const search = (searchTerm || '').trim();
 
-    if (searchTerm) {
-      const term = normalize(searchTerm);
-      data = data.filter((p) =>
-        normalize(p.name + p.reference_code + (p.brand || '')).includes(term)
-      );
-    }
+      // Se não houver termo, passa direto
+      if (search) {
+        const norm = normalize(search);
+        const tokens = norm.split(' ').filter(Boolean);
 
-    data = data.filter((p) => {
+        // Campos onde procuramos por correspondência
+        const haystack = [
+          p.name || '',
+          p.reference_code || '',
+          p.sku || '',
+          p.barcode || '',
+          p.brand || '',
+          p.category || '',
+          p.description || '',
+        ]
+          .map((f) => (f ? normalize(String(f)) : ''))
+          .join(' ');
+
+        // Verifica se todos os tokens aparecem em algum lugar (AND search)
+        const matchesSearch = tokens.every((t) => haystack.includes(t));
+        if (!matchesSearch) return false;
+      }
       if (filters.onlyLaunch && !p.is_launch) return false;
       if (filters.onlyBestSeller && !p.is_best_seller) return false;
+      if (
+        filters.category &&
+        !p.category?.toLowerCase().includes(filters.category.toLowerCase())
+      )
+        return false;
       if (
         filters.brand.length > 0 &&
         (!p.brand || !filters.brand.includes(p.brand))
@@ -680,54 +860,133 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         return false;
       if (filters.visibility === 'inactive' && p.is_active !== false)
         return false;
-      const price = p.price || 0;
+      if (filters.stockStatus === 'out_of_stock' && (p.stock_quantity || 0) > 0)
+        return false;
+      if (filters.stockStatus === 'in_stock' && (p.stock_quantity || 0) <= 0)
+        return false;
+
+      const price = p.cost ?? p.price ?? 0;
       if (filters.minPrice && price < Number(filters.minPrice)) return false;
       if (filters.maxPrice && price > Number(filters.maxPrice)) return false;
+
+      // Imagem otimizadas vs externas
+      const hasStorageImage = Boolean(
+        p.image_path ||
+        p.image_url?.includes('supabase.co/storage') ||
+        p.external_image_url?.includes('supabase.co/storage') ||
+        (p.images &&
+          Array.isArray(p.images) &&
+          p.images.some((i) => i?.includes('supabase.co/storage')))
+      );
+      if (filters.imageOptimization === 'optimized' && !hasStorageImage)
+        return false;
+      if (filters.imageOptimization === 'unoptimized' && hasStorageImage)
+        return false;
+
       return true;
     });
 
     if (sortConfig) {
       data.sort((a: any, b: any) => {
-        const valA = a[sortConfig.key] ?? '';
-        const valB = b[sortConfig.key] ?? '';
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        if (a[sortConfig.key] < b[sortConfig.key])
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key])
+          return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
     return data;
   }, [products, searchTerm, filters, sortConfig, serverMode, serverProducts]);
 
-  const paginatedProducts = processedProducts.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  const totalPages = Math.ceil(processedProducts.length / itemsPerPage);
+  const totalPages = serverMode
+    ? Math.max(1, serverMeta.totalPages || 1)
+    : Math.max(1, Math.ceil(processedProducts.length / itemsPerPage));
 
-  const kpis = {
-    total: products.length,
-    brands: new Set(products.map((p) => p.brand).filter(Boolean)).size,
-    launch: products.filter((p) => p.is_launch).length,
-    best: products.filter((p) => p.is_best_seller).length,
-  };
+  // If serverMode is active but the client-side serverProducts fetch returns
+  // empty while we still have initial `products` (SSR payload), prefer the
+  // initial `products` as a fallback so the UI doesn't show counts but an
+  // empty table (common when impersonation is used server-side).
+  const paginatedProducts = serverMode
+    ? serverProducts && serverProducts.length > 0
+      ? serverProducts
+      : products
+    : processedProducts.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      );
 
-  const toggleSelectOne = (id: string) =>
+  const kpis = useMemo(() => {
+    const active = products.filter((p) => p.is_active !== false);
+    return {
+      total: products.length,
+      brands: new Set(active.map((p) => p.brand).filter(Boolean)).size,
+      launch: active.filter((p) => p.is_launch).length,
+      best: active.filter((p) => p.is_best_seller).length,
+    };
+  }, [products]);
+
+  // --- AÇÕES ---
+  const toggleSelectOne = (id: string) => {
+    setSelectAllMatching(false);
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
-  const toggleSelectAll = () =>
-    setSelectedIds(
-      selectedIds.length === paginatedProducts.length
-        ? []
-        : paginatedProducts.map((p) => p.id)
-    );
+  };
 
-  // --- AÇÕES EM MASSA ---
-  const handleBulkToggle = async (field: 'is_launch' | 'is_best_seller') => {
-    const allTrue = selectedIds.every(
-      (id) => products.find((p) => p.id === id)?.[field]
-    );
-    handleBulkUpdate(field, !allTrue);
+  const toggleSelectAll = () => {
+    if (selectedIds.length === paginatedProducts.length) {
+      setSelectedIds([]);
+      setSelectAllMatching(false);
+    } else {
+      setSelectedIds(paginatedProducts.map((p) => p.id));
+      setSelectAllMatching(false);
+    }
+  };
+
+  const selectAllAcrossPages = () => {
+    // Seleciona todos os produtos que batem com os filtros
+    if (serverMode) {
+      // buscar apenas IDs de todos os resultados no servidor
+      const doFetchIds = async () => {
+        try {
+          const params = new URLSearchParams();
+          if (userId) params.set('userId', userId);
+          params.set('idsOnly', 'true');
+          if (filters.imageOptimization && filters.imageOptimization !== 'all')
+            params.set('imageOptimization', String(filters.imageOptimization));
+          if (filters.minPrice)
+            params.set('minPrice', String(filters.minPrice));
+          if (filters.maxPrice)
+            params.set('maxPrice', String(filters.maxPrice));
+          if (filters.brand && filters.brand.length > 0)
+            params.set('brand', String(filters.brand[0]));
+
+          const res = await fetch(`/api/products?${params.toString()}`);
+          if (!res.ok) throw new Error('Erro ao buscar produtos');
+          const json = await res.json();
+          const ids = (json.data || []).map((d: any) => d.id);
+          setSelectedIds(ids);
+          setSelectAllMatching(true);
+        } catch (err) {
+          console.error('Erro ao selecionar todos os IDs', err);
+        }
+      };
+      doFetchIds();
+    } else {
+      setSelectedIds(processedProducts.map((p) => p.id));
+      setSelectAllMatching(true);
+    }
+  };
+
+  // tooltips visuais acionáveis por toque (mobile): chave = `${product.id}-${action}`
+  const [visibleTooltips, setVisibleTooltips] = useState<
+    Record<string, boolean>
+  >({});
+  const showTooltip = (key: string) => {
+    setVisibleTooltips((prev) => ({ ...prev, [key]: true }));
+    setTimeout(() => {
+      setVisibleTooltips((prev) => ({ ...prev, [key]: false }));
+    }, 2000);
   };
 
   const handleBulkUpdate = async (field: string, value: any) => {
@@ -739,29 +998,35 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           selectedIds.includes(p.id) ? { ...p, [field]: value } : p
         )
       );
-      toast.success('Atualizado com sucesso!');
+      toast.success('Atualizado!');
       setSelectedIds([]);
     } catch {
-      toast.error('Erro na atualização em massa');
-    } finally {
-      setIsProcessing(false);
+      toast.error('Erro ao atualizar');
     }
+    setIsProcessing(false);
   };
 
-  const executeDelete = async () => {
+  const handleBulkTextUpdate = async () => {
+    if (!textConfig.field) return;
     setIsProcessing(true);
     try {
-      const ids = deleteTargetId ? [deleteTargetId] : selectedIds;
-      await bulkDelete(ids, { preferSoft: true });
-      setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
-      toast.success('Removido com sucesso');
-      setShowDeleteModal(false);
+      await bulkUpdateFields(selectedIds, {
+        [textConfig.field]: textConfig.value,
+      });
+      setProducts((prev) =>
+        prev.map((p) =>
+          selectedIds.includes(p.id)
+            ? { ...p, [textConfig.field]: textConfig.value }
+            : p
+        )
+      );
+      toast.success('Atualizado!');
+      setShowTextModal(false);
       setSelectedIds([]);
     } catch {
-      toast.error('Erro ao excluir');
-    } finally {
-      setIsProcessing(false);
+      toast.error('Erro');
     }
+    setIsProcessing(false);
   };
 
   const handleBulkPriceUpdate = async () => {
@@ -772,428 +1037,786 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         priceConfig.mode,
         Number(priceConfig.value)
       );
-      toast.success('Preços atualizados!');
+      toast.success('Preços atualizados! Recarregando...');
       window.location.reload();
     } catch {
-      toast.error('Erro ao atualizar preços');
-    } finally {
+      toast.error('Erro');
       setIsProcessing(false);
     }
+  };
+
+  // Toggles para ações em massa (usa o primeiro produto selecionado como referência)
+  const toggleIsLaunch = () => {
+    const ref = products.find((p) => p.id === selectedIds[0]);
+    const current = ref ? Boolean(ref.is_launch) : false;
+    handleBulkUpdate('is_launch', !current);
+  };
+
+  const toggleIsBestSeller = () => {
+    const ref = products.find((p) => p.id === selectedIds[0]);
+    const current = ref ? Boolean(ref.is_best_seller) : false;
+    handleBulkUpdate('is_best_seller', !current);
+  };
+
+  const toggleIsActive = () => {
+    const ref = products.find((p) => p.id === selectedIds[0]);
+    const current = ref ? Boolean(ref.is_active) : true;
+    handleBulkUpdate('is_active', !current);
+  };
+
+  const executeDelete = async (forceSoft = false) => {
+    setIsProcessing(true);
+    try {
+      const ids = deleteTargetId ? [deleteTargetId] : selectedIds;
+      const res: any = await bulkDelete(ids, {
+        preferSoft: forceSoft || preferSoftDelete,
+      });
+      setProducts((prev) =>
+        prev
+          .map((p) =>
+            res?.softDeletedIds?.includes(p.id) ? { ...p, is_active: false } : p
+          )
+          .filter((p) => !res?.deletedIds?.includes(p.id))
+      );
+      toast.success(
+        `${res?.deletedIds?.length || 0} excluídos, ${res?.softDeletedIds?.length || 0} inativados`
+      );
+      setSelectedIds([]);
+      setShowDeleteModal(false);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setIsProcessing(false);
+    setDeleteTargetId(null);
   };
 
   const handleGeneratePdf = async () => {
     setIsGeneratingPdf(true);
     try {
-      await generateCatalogPDF(
-        selectedIds.length > 0
-          ? products.filter((p) => selectedIds.includes(p.id))
-          : processedProducts,
-        {
-          showPrices: pdfOptions.showPrices,
-          priceType: pdfOptions.priceType,
-          title: pdfOptions.title,
-          onProgress: (p, m) => setPdfProgress({ progress: p, message: m }),
+      let productsToPrint = [];
+      if (selectedIds.length > 0) {
+        // If we don't have all selected product objects locally, fetch them from the server
+        const localIds = new Set(products.map((p) => p.id));
+        const missingIds = selectedIds.filter((id) => !localIds.has(id));
+        if (missingIds.length > 0) {
+          try {
+            const params = new URLSearchParams();
+            params.set('userId', userId || '');
+            params.set('ids', selectedIds.join(','));
+            const res = await fetch(`/api/products?${params.toString()}`);
+            if (!res.ok) throw new Error('Erro ao buscar produtos para PDF');
+            const json = await res.json();
+            productsToPrint = json.data || [];
+          } catch (err) {
+            console.error('Falha ao buscar produtos completos:', err);
+            // fallback: use whatever we have locally
+            productsToPrint = products.filter((p) =>
+              selectedIds.includes(p.id)
+            );
+          }
+        } else {
+          productsToPrint = products.filter((p) => selectedIds.includes(p.id));
         }
-      );
-      toast.success('Catálogo PDF gerado!');
+      } else {
+        productsToPrint = processedProducts;
+      }
+
+      if (productsToPrint.length === 0)
+        throw new Error('Nenhum produto para gerar PDF');
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      const brandMap: any = {};
+      availableBrands.forEach((b) => (brandMap[b.name] = b.logo_url));
+
+      // Obtém cor secundária do sistema
+      let secondaryColor = '#0d1b2c'; // Fallback padrão
+      if (typeof window !== 'undefined') {
+        const root = document.documentElement;
+        secondaryColor =
+          root.style.getPropertyValue('--secondary').trim() ||
+          getComputedStyle(root).getPropertyValue('--secondary').trim() ||
+          '#0d1b2c';
+      }
+
+      await generateCatalogPDF(productsToPrint, {
+        showPrices: pdfOptions.showPrices,
+        priceType: pdfOptions.priceType,
+        title: pdfOptions.title,
+        storeName: settings?.name || 'Catálogo',
+        storeLogo: settings?.logo_url,
+        imageZoom: pdfOptions.imageZoom,
+        brandMapping: brandMap,
+        secondaryColor: secondaryColor,
+        onProgress: (progress, message) => {
+          setPdfProgress({ progress, message });
+        },
+      });
+
+      toast.success('PDF Gerado com sucesso!');
       setShowPdfModal(false);
-    } catch {
-      toast.error('Erro ao gerar PDF');
+      setPdfProgress({ progress: 0, message: '' });
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Erro ao gerar PDF', { description: error.message });
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  const visibleAndOrderedColumns = useMemo(
-    () =>
-      columnOrder
-        .filter((k) => visibleColumnKeys.has(k))
-        .map((k) => ALL_DATA_COLUMNS[k]),
-    [columnOrder, visibleColumnKeys]
+  // --- RENDERERS ---
+  const SortableHeader = ({ label, sortKey, align }: any) => (
+    <th
+      className={`relative px-4 py-3 font-medium hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap text-gray-500 dark:text-slate-400 text-xs uppercase tracking-wider ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
+      style={
+        (columnWidths as any)[sortKey]
+          ? { width: (columnWidths as any)[sortKey] }
+          : undefined
+      }
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          if (!resizingRef.current) {
+            setSortConfig({
+              key: sortKey,
+              direction:
+                sortConfig &&
+                sortConfig.key === sortKey &&
+                sortConfig.direction === 'asc'
+                  ? 'desc'
+                  : 'asc',
+            });
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            setSortConfig({
+              key: sortKey,
+              direction:
+                sortConfig &&
+                sortConfig.key === sortKey &&
+                sortConfig.direction === 'asc'
+                  ? 'desc'
+                  : 'asc',
+            });
+          }
+        }}
+        className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'} cursor-pointer`}
+      >
+        {label} <ArrowUpDown size={12} className="opacity-50" />
+      </div>
+      {/* Resizer handle (larger hit area) */}
+      <div
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const startX = (e as any).clientX;
+          resizingRef.current = {
+            key: sortKey,
+            startX,
+            startWidth: (columnWidths as any)[sortKey] || 150,
+          };
+          document.body.style.userSelect = 'none';
+        }}
+        onDoubleClick={() => {
+          // reset width to default (undefined -> uses initial state/default)
+          setColumnWidths((prev) => {
+            const next = { ...prev } as any;
+            delete next[sortKey];
+            return next;
+          });
+        }}
+        className="absolute right-0 top-0 h-full w-6 -mr-3 cursor-col-resize"
+      />
+    </th>
   );
+
+  const renderCell = (product: Product, key: DataKey) => {
+    const val = (product as any)[key];
+    // Helper para determinar se o produto possui imagem no Storage (otimizada)
+    const hasStorageImage = Boolean(
+      product.image_path ||
+      product.image_url?.includes('supabase.co/storage') ||
+      product.external_image_url?.includes('supabase.co/storage') ||
+      (product.images &&
+        Array.isArray(product.images) &&
+        product.images.some((i) => i?.includes('supabase.co/storage')))
+    );
+    if (key === 'name')
+      return (
+        <div className="flex items-center gap-3 min-w-[200px]">
+          <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-800 relative overflow-hidden flex-shrink-0 border border-gray-200 dark:border-slate-700">
+            {(() => {
+              // Prefer storage only when image_path exists, otherwise use external URL directly
+              const { src, isExternal } = getProductImageUrl(product as any);
+              if (src) {
+                if (isExternal) {
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={src}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  );
+                }
+
+                return (
+                  <Image
+                    src={src}
+                    alt=""
+                    fill
+                    sizes="40px"
+                    className="object-cover"
+                  />
+                );
+              }
+
+              return (
+                <div className="w-full h-full flex items-center justify-center">
+                  <ImageIcon size={16} className="text-gray-400" />
+                </div>
+              );
+            })()}
+          </div>
+          <div className="min-w-0">
+            <div
+              onClick={() => setViewProduct(product)}
+              className="font-medium text-gray-900 dark:text-white truncate cursor-pointer hover:text-[var(--primary)] transition-colors"
+            >
+              {product.name}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-slate-400 truncate">
+              {product.brand || '-'}
+            </div>
+          </div>
+        </div>
+      );
+    if (key === 'barcode') {
+      const raw = String(val ?? '');
+      const isValid = /^[0-9]{7,13}$/.test(raw); // Validação EAN-8/13 (mesma do componente Barcode)
+      return (
+        <div className="flex items-center">
+          {isValid ? (
+            <div className="flex-shrink-0">
+              <ProductBarcode value={raw} height={36} showNumber={true} />
+            </div>
+          ) : (
+            <span className="text-xs text-gray-500 font-mono">
+              {raw || '-'}
+            </span>
+          )}
+        </div>
+      );
+    }
+    if (key === 'reference_code' || key === 'sku')
+      return (
+        <span className="font-mono text-xs text-gray-600 dark:text-slate-400">
+          {String(val ?? '-')}
+        </span>
+      );
+    if (key === 'price' || key === 'cost' || key === 'sale_price')
+      return (
+        <div className="font-medium text-gray-900 dark:text-slate-200">
+          {val
+            ? new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              }).format(Number(val))
+            : '-'}
+        </div>
+      );
+    if (key === 'is_active')
+      return (
+        <span
+          className={`px-2 py-0.5 rounded text-[10px] font-bold ${val === false ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}
+        >
+          {val === false ? 'Inativo' : 'Ativo'}
+        </span>
+      );
+    if (key === 'is_launch')
+      return val ? <Zap size={16} className="text-purple-500 mx-auto" /> : '-';
+    if (key === 'is_best_seller')
+      return val ? <Star size={16} className="text-orange-500 mx-auto" /> : '-';
+
+    if (key === 'image_optimized') {
+      return (
+        <div className="flex items-center gap-2">
+          <span
+            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+              hasStorageImage
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'
+            }`}
+            title={
+              hasStorageImage
+                ? 'Imagem internalizada (Storage)'
+                : 'Imagem externa (não otimizada)'
+            }
+          >
+            {hasStorageImage ? 'Otimiz.' : 'Externa'}
+          </span>
+        </div>
+      );
+    }
+    return (
+      <span className="text-gray-600 dark:text-slate-400 text-sm truncate block max-w-[150px]">
+        {String(val ?? '-')}
+      </span>
+    );
+  };
 
   if (isLoadingPrefs)
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="animate-spin text-primary" />
+        <Loader2 className="animate-spin text-[var(--primary)]" />
       </div>
     );
 
   return (
     <div className="space-y-6">
-      {/* KPIS (CLICÁVEIS PARA FILTRO) */}
+      {/* KPIS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           {
             label: 'Total',
             val: kpis.total,
             icon: Package,
-            color: 'text-gray-900',
-            field: '',
+            color: 'text-gray-900 dark:text-white',
           },
           {
             label: 'Marcas',
             val: kpis.brands,
             icon: Briefcase,
-            color: 'text-green-600',
-            field: '',
+            color: 'text-green-600 dark:text-green-400',
           },
           {
             label: 'Lançamentos',
             val: kpis.launch,
             icon: Zap,
-            color: 'text-purple-600',
-            field: 'onlyLaunch',
+            color: 'text-purple-600 dark:text-purple-400',
           },
           {
             label: 'Best Sellers',
             val: kpis.best,
             icon: Star,
-            color: 'text-orange-500',
-            field: 'onlyBestSeller',
+            color: 'text-orange-500 dark:text-orange-400',
           },
-        ].map((k, i) => (
-          <button
-            key={i}
-            onClick={() =>
-              k.field &&
-              setFilters((prev) => ({
-                ...prev,
-                [k.field]: !(prev as any)[k.field],
-              }))
-            }
-            className={`p-5 rounded-[2rem] border shadow-sm flex flex-col justify-between text-left transition-all ${k.field && (filters as any)[k.field] ? 'ring-2 ring-primary border-primary bg-primary/5' : 'bg-white dark:bg-slate-900'}`}
-          >
-            <span className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2 mb-2">
-              <k.icon size={12} /> {k.label}
-            </span>
-            <span className={`text-2xl font-black ${k.color}`}>{k.val}</span>
-          </button>
-        ))}
+        ].map((k, i) => {
+          const isLaunch = k.label === 'Lançamentos';
+          const isBest = k.label === 'Best Sellers';
+          const active =
+            (isLaunch && filters.onlyLaunch) ||
+            (isBest && filters.onlyBestSeller);
+          return (
+            <button
+              key={i}
+              onClick={() => {
+                // Toggle corresponding filter when KPI clicked
+                if (isLaunch) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    onlyLaunch: !prev.onlyLaunch,
+                  }));
+                } else if (isBest) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    onlyBestSeller: !prev.onlyBestSeller,
+                  }));
+                }
+                // reset to first page when applying KPI filter
+                setCurrentPage(1);
+              }}
+              className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between text-left ${active ? 'border-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800'}`}
+            >
+              <span className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 flex items-center gap-2 mb-2">
+                <k.icon size={14} /> {k.label}
+              </span>
+              <span className={`text-2xl font-bold ${k.color}`}>{k.val}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* TOOLBAR COM BUSCA E FILTROS */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
-          <input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Pesquisar por nome, referência ou marca..."
-            className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary outline-none"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-5 py-3 rounded-2xl border text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all ${showFilters ? 'bg-primary text-white' : 'bg-white dark:bg-slate-800 text-slate-600'}`}
-          >
-            <Filter size={16} /> Filtros
-          </button>
-          {/* Column selector dropdown (in-file fallback) */}
-          {(() => {
-            const ColumnSelectorDropdown = () => {
-              const [open, setOpen] = useState(false);
-              const toggle = () => setOpen((v) => !v);
-
-              const toggleKey = (k: DataKey) => {
-                setVisibleColumnKeys((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(k)) next.delete(k);
-                  else next.add(k);
-                  return next;
-                });
-              };
-
-              return (
-                <div className="relative">
-                  <button
-                    onClick={toggle}
-                    className="px-3 py-2 rounded-2xl border bg-white dark:bg-slate-800 text-xs font-black uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"
-                  >
-                    Colunas
-                  </button>
-                  {open && (
-                    <div className="absolute mt-2 w-64 bg-white dark:bg-slate-900 border rounded-lg shadow-lg p-3 z-50 right-4 md:right-0 left-4 md:left-auto">
-                      <div className="text-xs font-bold mb-2">
-                        Mostrar colunas
-                      </div>
-                      <div className="space-y-2 max-h-64 overflow-auto">
-                        {columnOrder.map((k) => (
-                          <label
-                            key={String(k)}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={visibleColumnKeys.has(k)}
-                              onChange={() => toggleKey(k)}
-                            />
-                            <span className="truncate">
-                              {ALL_DATA_COLUMNS[k].title}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          onClick={() => setOpen(false)}
-                          className="text-xs px-3 py-1 rounded bg-slate-50 dark:bg-slate-800"
-                        >
-                          Fechar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            };
-
-            return <ColumnSelectorDropdown />;
-          })()}
-          <button
-            onClick={() => setShowPdfModal(true)}
-            className="px-5 py-3 rounded-2xl border border-slate-200 bg-white dark:bg-slate-800 text-xs font-black uppercase tracking-widest flex items-center gap-2"
-          >
-            <FileText size={16} /> PDF
-          </button>
-        </div>
-      </div>
-
-      {/* FILTROS EXPANDIDOS */}
-      {showFilters && (
-        <div className="p-8 bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 shadow-2xl grid grid-cols-1 md:grid-cols-4 gap-6 animate-in slide-in-from-top-4">
-          <div>
-            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">
-              Faixa de Preço
-            </label>
-            <div className="flex gap-2">
+      {/* FILTROS E BUSCA */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row gap-4 justify-between">
+          <div className="flex-1 flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
-                type="text"
-                placeholder="Mín"
-                value={displayMinPrice}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    minPrice: parseCurrencyToNumericString(e.target.value),
-                  }))
-                }
-                className="w-1/2 p-3 bg-slate-50 rounded-xl text-sm border-none"
-              />
-              <input
-                type="text"
-                placeholder="Máx"
-                value={displayMaxPrice}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    maxPrice: parseCurrencyToNumericString(e.target.value),
-                  }))
-                }
-                className="w-1/2 p-3 bg-slate-50 rounded-xl text-sm border-none"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar..."
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white"
               />
             </div>
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">
-              Status de Visibilidade
-            </label>
-            <select
-              value={filters.visibility}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, visibility: e.target.value }))
-              }
-              className="w-full p-3 bg-slate-50 rounded-xl text-sm border-none"
+            <Button
+              onClick={() => setShowFilters(!showFilters)}
+              variant="secondary"
+              size="sm"
+              className={`${showFilters ? 'ring-2 ring-[var(--primary)]' : ''} px-3 flex items-center gap-2`}
             >
-              <option value="all">Todos os produtos</option>
-              <option value="active">Apenas Ativos</option>
-              <option value="inactive">Apenas Inativos</option>
-            </select>
-          </div>
-          <div className="col-span-full flex justify-end">
-            <button
-              onClick={() =>
-                setFilters({
-                  minPrice: '',
-                  maxPrice: '',
-                  onlyLaunch: false,
-                  onlyBestSeller: false,
-                  stockStatus: 'all',
-                  visibility: 'all',
-                  category: '',
-                  brand: [],
-                  color: '',
-                  imageOptimization: 'all',
-                })
-              }
-              className="text-[10px] font-black uppercase text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl transition-colors"
-            >
-              Limpar todos os filtros
-            </button>
-          </div>
-        </div>
-      )}
+              <Filter size={16} /> Filtros
+            </Button>
 
-      {/* PAGINAÇÃO (TOPO) */}
-      <div className="flex items-center justify-between px-6 py-3 bg-slate-50/50 rounded-3xl mb-3">
-        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-          Mostrando página {currentPage} de {totalPages}
-        </p>
-        <div className="flex gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className="p-2 bg-white border border-slate-100 rounded-2xl disabled:opacity-30 hover:shadow-md transition-all shadow-sm"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className="p-2 bg-white border border-slate-100 rounded-2xl disabled:opacity-30 hover:shadow-md transition-all shadow-sm"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </div>
+            {/* BOTÃO COLUNAS RESTAURADO */}
+            <ColumnSelectorDropdown />
 
-      {/* TABELA DE PRODUTOS */}
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table
-            className="w-full text-left text-sm border-collapse"
-            style={{ tableLayout: 'fixed' }}
-          >
-            <thead className="bg-slate-50 dark:bg-slate-950/50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 w-16">
-                  <button onClick={toggleSelectAll}>
-                    {selectedIds.length === paginatedProducts.length &&
-                    paginatedProducts.length > 0 ? (
-                      <CheckSquare size={20} className="text-primary" />
-                    ) : (
-                      <Square size={20} className="text-slate-300" />
-                    )}
-                  </button>
-                </th>
-                {visibleAndOrderedColumns.map((col) => (
-                  <th
-                    key={col.key}
-                    style={{ width: columnWidths[col.key] || 150 }}
-                    className="px-4 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest"
-                  >
-                    <div
-                      className="flex items-center gap-1 cursor-pointer group"
-                      onClick={() =>
-                        setSortConfig({
-                          key: col.key,
-                          direction:
-                            sortConfig?.key === col.key &&
-                            sortConfig.direction === 'asc'
-                              ? 'desc'
-                              : 'asc',
-                        })
-                      }
-                    >
-                      {col.title}{' '}
-                      <ArrowUpDown
-                        size={10}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      />
-                    </div>
-                  </th>
-                ))}
-                <th className="px-6 py-4 text-right w-32 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {paginatedProducts.map((product) => (
-                <tr
-                  key={product.id}
-                  className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${selectedIds.includes(product.id) ? 'bg-primary/5' : ''}`}
+            {/* BOTÃO ORDENAR */}
+            <SortSelectorDropdown />
+
+            {sortConfig && (
+              <div className="hidden sm:flex items-center gap-2 ml-2">
+                <span className="px-3 py-1 rounded bg-gray-100 dark:bg-slate-800 text-sm text-gray-700 dark:text-slate-300">
+                  Ordenado:{' '}
+                  {ALL_DATA_COLUMNS[sortConfig.key]?.title || sortConfig.key}
+                </span>
+                <button
+                  onClick={() =>
+                    setSortConfig({
+                      key: sortConfig.key,
+                      direction:
+                        sortConfig.direction === 'asc' ? 'desc' : 'asc',
+                    })
+                  }
+                  className="p-2 border rounded bg-white dark:bg-slate-900"
+                  title="Alternar direção"
                 >
-                  <td className="px-6 py-4">
-                    <button onClick={() => toggleSelectOne(product.id)}>
-                      {selectedIds.includes(product.id) ? (
-                        <CheckSquare size={20} className="text-primary" />
-                      ) : (
-                        <Square size={20} className="text-slate-200" />
-                      )}
-                    </button>
-                  </td>
-                  {visibleAndOrderedColumns.map((col) => (
-                    <td key={col.key} className="px-4 py-4 truncate">
-                      {renderCell(product, col.key)}
-                    </td>
-                  ))}
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Link
-                        href={getProductHref(product)}
-                        className="p-2 text-slate-300 hover:text-primary transition-colors"
-                      >
-                        <Edit2 size={16} />
-                      </Link>
-                      <button
-                        onClick={() => setViewProduct(product)}
-                        className="p-2 text-slate-300 hover:text-indigo-500 transition-colors"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setDeleteTargetId(product.id);
-                          setShowDeleteModal(true);
-                        }}
-                        className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  {sortConfig.direction === 'asc' ? (
+                    <ArrowUp size={14} />
+                  ) : (
+                    <ArrowDown size={14} />
+                  )}
+                </button>
+                <button
+                  onClick={() => setSortConfig(null)}
+                  className="text-xs text-red-500 hover:underline"
+                >
+                  Limpar
+                </button>
+              </div>
+            )}
+
+            {/* BOTÃO PDF FIXO */}
+            <Button
+              onClick={() => setShowPdfModal(true)}
+              variant="secondary"
+              size="sm"
+              className={`hidden sm:flex items-center gap-2 px-3`}
+            >
+              <FileText size={16} />{' '}
+              <span className="hidden md:inline">PDF</span>
+            </Button>
+          </div>
         </div>
+
+        {/* Painel de Filtros Expandido */}
+        {showFilters && (
+          <div className="pt-4 border-t border-gray-100 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
+            <div className="col-span-2 md:col-span-4 flex items-center justify-end gap-3">
+              <label
+                className="flex items-center gap-2 text-sm text-gray-600"
+                title="Executa filtros, ordenação e paginação no servidor (recomendado para catálogos grandes). Pode devolver 0 resultados se RLS/impersonation ou filtros restritivos estiverem ativos."
+              >
+                <input
+                  type="checkbox"
+                  checked={serverMode}
+                  onChange={(e) => setServerMode(e.target.checked)}
+                />
+                Buscar no servidor
+              </label>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                Marca
+              </label>
+              <input
+                list="brands"
+                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                onChange={(e) =>
+                  setFilters({
+                    ...filters,
+                    brand: e.target.value ? [e.target.value] : [],
+                  })
+                }
+                placeholder="Todas"
+              />
+              <datalist id="brands">
+                {availableBrands.map((b) => (
+                  <option key={b.name} value={b.name} />
+                ))}
+              </datalist>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                Faixa de Preço
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Mín"
+                  value={filters.minPrice}
+                  onChange={(e) =>
+                    setFilters({ ...filters, minPrice: e.target.value })
+                  }
+                  className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Máx"
+                  value={filters.maxPrice}
+                  onChange={(e) =>
+                    setFilters({ ...filters, maxPrice: e.target.value })
+                  }
+                  className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                Categoria
+              </label>
+              <input
+                list="categories"
+                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                onChange={(e) =>
+                  setFilters({ ...filters, category: e.target.value })
+                }
+                placeholder="Todas"
+              />
+              <datalist id="categories">
+                {availableCategories.map((c) => (
+                  <option key={c.name} value={c.name} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                Status
+              </label>
+              <select
+                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                onChange={(e) =>
+                  setFilters({ ...filters, visibility: e.target.value })
+                }
+              >
+                <option value="all">Todos</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                Estoque
+              </label>
+              <select
+                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                onChange={(e) =>
+                  setFilters({ ...filters, stockStatus: e.target.value })
+                }
+              >
+                <option value="all">Todos</option>
+                <option value="in_stock">Em Estoque</option>
+                <option value="out_of_stock">Esgotado</option>
+              </select>
+            </div>
+            <div className="col-span-full flex items-center justify-between mt-2">
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={filters.onlyLaunch}
+                    onChange={(e) =>
+                      setFilters({ ...filters, onlyLaunch: e.target.checked })
+                    }
+                    className="rounded text-[var(--primary)]"
+                  />{' '}
+                  Lançamentos
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={filters.onlyBestSeller}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        onlyBestSeller: e.target.checked,
+                      })
+                    }
+                    className="rounded text-[var(--primary)]"
+                  />{' '}
+                  Best Sellers
+                </label>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                  Imagem
+                </label>
+                <select
+                  className="p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                  value={filters.imageOptimization}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      imageOptimization: e.target.value,
+                    })
+                  }
+                >
+                  <option value="all">Todas</option>
+                  <option value="optimized">Otimizadas (Storage)</option>
+                  <option value="unoptimized">Não otimizadas (Externas)</option>
+                </select>
+              </div>
+              <button
+                onClick={() =>
+                  setFilters({
+                    minPrice: '',
+                    maxPrice: '',
+                    onlyLaunch: false,
+                    onlyBestSeller: false,
+                    brand: [],
+                    category: '',
+                    stockStatus: 'all',
+                    visibility: 'all',
+                    color: '',
+                    imageOptimization: 'all',
+                  })
+                }
+                className="text-xs text-red-500 hover:underline"
+              >
+                Limpar Filtros
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* BARRA DE AÇÕES EM MASSA (FLUTUANTE) */}
+      {/* SELEÇÃO E AÇÕES EM MASSA (FLOATING BAR) */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-white dark:bg-slate-900 border border-slate-200 p-4 rounded-[2.5rem] shadow-2xl flex items-center gap-8 animate-in slide-in-from-bottom-10">
-          <div className="flex items-center gap-3 pr-8 border-r border-slate-100">
-            <span className="h-10 w-10 bg-primary text-white rounded-full flex items-center justify-center font-black text-xs shadow-lg shadow-primary/20">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 p-4 rounded-2xl shadow-2xl flex flex-col sm:flex-row items-center gap-4 animate-in slide-in-from-bottom-6 max-w-[90vw] w-auto">
+          <div className="flex items-center gap-2 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-slate-700 pb-2 sm:pb-0 sm:pr-4">
+            <span className="bg-[var(--primary)] text-white text-xs font-bold px-2 py-1 rounded-full">
               {selectedIds.length}
             </span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
               Selecionados
             </span>
           </div>
-          <div className="flex gap-6">
+
+          {/* Botões de Ação com Scroll Horizontal */}
+          <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 no-scrollbar">
             <button
-              onClick={() => handleBulkToggle('is_launch')}
-              className="flex flex-col items-center gap-1 group"
+              onClick={() => setShowPdfModal(true)}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <FileText size={18} className="text-orange-500" />{' '}
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                PDF
+              </span>
+            </button>
+            <div className="w-px h-8 bg-gray-200 dark:bg-slate-700 mx-1 shrink-0"></div>
+            <button
+              type="button"
+              onClick={() => {
+                setTextConfig({ field: 'brand', value: '', label: 'Marca' });
+                setShowTextModal(true);
+              }}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Tag size={18} className="text-primary" />{' '}
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Marca
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTextConfig({
+                  field: 'category',
+                  value: '',
+                  label: 'Categoria',
+                });
+                setShowTextModal(true);
+              }}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Layers size={18} className="text-purple-500" />{' '}
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Cat.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={toggleIsLaunch}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
               <Rocket
-                size={20}
-                className="text-purple-500 group-hover:scale-110 transition-transform"
+                size={18}
+                className={
+                  products.find((p) => p.id === selectedIds[0])?.is_launch
+                    ? 'text-purple-600'
+                    : 'text-gray-400'
+                }
               />
-              <span className="text-[9px] font-black uppercase text-slate-400">
-                Lançamento
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Lanç./Rem.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleIsBestSeller}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Star
+                size={18}
+                className={
+                  products.find((p) => p.id === selectedIds[0])?.is_best_seller
+                    ? 'text-orange-500'
+                    : 'text-gray-400'
+                }
+              />
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Top/Rem.
+              </span>
+            </button>
+
+            <button
+              onClick={toggleIsActive}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              {products.find((p) => p.id === selectedIds[0])?.is_active ===
+              false ? (
+                <EyeOff size={18} className="text-gray-400" />
+              ) : (
+                <Eye size={18} className="text-primary" />
+              )}
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Ativar/Rem.
               </span>
             </button>
             <button
               onClick={() => setShowPriceModal(true)}
-              className="flex flex-col items-center gap-1 group"
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
-              <DollarSign
-                size={20}
-                className="text-green-500 group-hover:scale-110 transition-transform"
-              />
-              <span className="text-[9px] font-black uppercase text-slate-400">
-                Alterar Preço
+              <DollarSign size={18} className="text-green-500" />{' '}
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Preço de Custo
               </span>
             </button>
             <button
@@ -1201,246 +1824,943 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 setDeleteTargetId(null);
                 setShowDeleteModal(true);
               }}
-              className="flex flex-col items-center gap-1 group"
+              className="flex flex-col items-center gap-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg min-w-[60px]"
             >
-              <Trash2
-                size={20}
-                className="text-red-500 group-hover:scale-110 transition-transform"
-              />
-              <span className="text-[9px] font-black uppercase text-slate-400">
+              <Trash2 size={18} className="text-red-500" />{' '}
+              <span className="text-[10px] text-red-600 dark:text-red-400">
                 Excluir
               </span>
             </button>
+          </div>
+          <Button
+            onClick={() => setSelectedIds([])}
+            variant="ghost"
+            size="sm"
+            className="absolute -top-2 -right-2 rounded-full p-1 shadow-md"
+          >
+            <X size={14} />
+          </Button>
+        </div>
+      )}
+
+      {/* Barra informativa para seleção cross-page */}
+      {selectedIds.length > 0 &&
+        (() => {
+          const totalMatching = serverMode
+            ? serverMeta?.totalCount || serverProducts.length
+            : processedProducts.length;
+          return totalMatching > paginatedProducts.length && !selectAllMatching;
+        })() && (
+          <div className="bg-blue-50 dark:bg-blue-950/30 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm text-blue-900 dark:text-blue-100 shadow-md mb-4 flex items-center justify-between">
+            <div className="font-medium">
+              Você selecionou{' '}
+              <strong className="font-black">{selectedIds.length}</strong> nesta
+              página. Deseja selecionar todos os{' '}
+              <strong className="font-black">
+                {serverMode
+                  ? serverMeta?.totalCount || serverProducts.length
+                  : processedProducts.length}
+              </strong>{' '}
+              resultados?
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={selectAllAcrossPages}
+                variant="primary"
+                size="sm"
+                className="font-bold"
+              >
+                Selecionar todos (
+                {serverMode
+                  ? serverMeta?.totalCount || serverProducts.length
+                  : processedProducts.length}
+                )
+              </Button>
+              <Button
+                onClick={() => {
+                  setSelectedIds([]);
+                  setSelectAllMatching(false);
+                }}
+                variant="outline"
+                size="sm"
+                className="font-bold"
+              >
+                Desmarcar
+              </Button>
+            </div>
+          </div>
+        )}
+
+      {selectAllMatching && (
+        <div className="bg-green-50 dark:bg-green-950/30 border-2 border-green-200 dark:border-green-800 rounded-lg p-4 text-sm text-green-900 dark:text-green-100 shadow-md mb-4 flex items-center justify-between">
+          <div className="font-medium">
+            ✓ Todos os{' '}
+            <strong className="font-black">
+              {serverMode
+                ? serverMeta?.totalCount || serverProducts.length
+                : processedProducts.length}
+            </strong>{' '}
+            resultados estão selecionados.
+          </div>
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setSelectedIds([])}
-              className="ml-4 p-3 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
+              onClick={() => {
+                setSelectedIds([]);
+                setSelectAllMatching(false);
+              }}
+              className="px-4 py-2 border-2 border-green-600 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/50 rounded-lg text-sm font-bold transition-colors"
             >
-              <X size={16} />
+              Desmarcar todos
             </button>
           </div>
         </div>
       )}
 
-      {/* MODAL DE EXCLUSÃO */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] max-w-sm w-full text-center shadow-2xl border border-slate-100">
-            <div className="h-24 w-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse">
-              <Trash2 size={48} />
+      {/* PAGINAÇÃO (TOPO) */}
+      <div className="p-4 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 flex items-center justify-between text-sm text-gray-500 dark:text-slate-400">
+        <div className="flex items-center gap-4">
+          <span>
+            Página {currentPage} de {totalPages}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+              variant="outline"
+              size="sm"
+              className=""
+            >
+              Ant.
+            </Button>
+            <Button
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              variant="outline"
+              size="sm"
+            >
+              Prox.
+            </Button>
+            <Button
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              variant="outline"
+              size="sm"
+            >
+              Últ.
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">Ir para página</label>
+          <input
+            type="number"
+            min={1}
+            max={totalPages}
+            defaultValue={currentPage}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const v = Number((e.target as HTMLInputElement).value || 1);
+                if (v >= 1 && v <= totalPages) setCurrentPage(v);
+              }
+            }}
+            className="w-20 p-1 text-sm border rounded bg-white dark:bg-slate-800"
+          />
+          <Button
+            onClick={(e) => {
+              const parent = (e.target as HTMLElement)
+                .previousElementSibling as HTMLInputElement | null;
+              const v = parent ? Number(parent.value || 1) : 1;
+              if (v >= 1 && v <= totalPages) setCurrentPage(v);
+            }}
+            variant="outline"
+            size="sm"
+          >
+            Ir
+          </Button>
+        </div>
+      </div>
+
+      {/* TABELA RESPONSIVA */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        {/* Desktop: tabela tradicional */}
+        <div className="hidden md:block w-full overflow-x-auto scrollbar-thin shadow-sm border border-gray-100 dark:border-slate-800 rounded-lg">
+          <table
+            className="w-full text-left text-sm border-collapse"
+            style={{ minWidth: '1000px', tableLayout: 'fixed' as const }}
+          >
+            {/* colgroup mantém larguras controladas para redimensionamento */}
+            <colgroup>
+              <col style={{ width: '48px' }} />
+              {visibleAndOrderedColumns.map((col) =>
+                col ? (
+                  <col
+                    key={`col-${col.key}`}
+                    style={{
+                      width: columnWidths[col.key]
+                        ? `${columnWidths[col.key]}px`
+                        : undefined,
+                    }}
+                  />
+                ) : null
+              )}
+              <col style={{ width: '100px' }} />
+            </colgroup>
+            <thead className="bg-gray-50 dark:bg-slate-950/50 border-b border-gray-200 dark:border-slate-800">
+              <tr>
+                <th className="px-4 py-3 w-10">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="text-gray-400 hover:text-[var(--primary)]"
+                  >
+                    {selectedIds.length > 0 &&
+                    selectedIds.length === paginatedProducts.length ? (
+                      <CheckSquare size={18} />
+                    ) : (
+                      <Square size={18} />
+                    )}
+                  </button>
+                </th>
+                {visibleAndOrderedColumns.map((col) =>
+                  col ? (
+                    <SortableHeader
+                      key={col.key}
+                      label={col.title}
+                      sortKey={col.key}
+                      align={col.align}
+                    />
+                  ) : null
+                )}
+                {/* COLUNA STICKY DE AÇÕES */}
+                <th className="sticky right-0 z-20 bg-gray-50 dark:bg-slate-900 px-4 py-3 text-right font-medium text-gray-500 dark:text-slate-400 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)] w-[100px]">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+              {paginatedProducts.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={100}
+                    className="p-12 text-center text-gray-500 dark:text-slate-400"
+                  >
+                    Nenhum produto encontrado.
+                  </td>
+                </tr>
+              ) : (
+                paginatedProducts.map((product) => (
+                  <tr
+                    key={product.id}
+                    className={`group hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${selectedIds.includes(product.id) ? 'bg-primary/10 dark:bg-primary/10' : ''}`}
+                  >
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleSelectOne(product.id)}
+                        className={
+                          selectedIds.includes(product.id)
+                            ? 'text-[var(--primary)]'
+                            : 'text-gray-300 dark:text-slate-600'
+                        }
+                      >
+                        {selectedIds.includes(product.id) ? (
+                          <CheckSquare size={18} />
+                        ) : (
+                          <Square size={18} />
+                        )}
+                      </button>
+                    </td>
+                    {visibleAndOrderedColumns.map((col) =>
+                      col ? (
+                        <td
+                          key={col.key}
+                          className={`px-4 py-3 text-gray-600 dark:text-slate-400 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
+                          style={
+                            columnWidths[col.key]
+                              ? { width: columnWidths[col.key] }
+                              : undefined
+                          }
+                        >
+                          {renderCell(product, col.key)}
+                        </td>
+                      ) : null
+                    )}
+                    {/* COLUNA STICKY DE AÇÕES (BODY) */}
+                    <td className="sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800/50 px-2 py-3 text-right shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          href={getProductHref(product)}
+                          className="p-1.5 text-gray-400 hover:text-[var(--primary)] rounded-md transition-colors"
+                        >
+                          <Edit2 size={16} />
+                        </Link>
+                        <button
+                          onClick={() => setViewProduct(product)}
+                          className="p-1.5 text-gray-400 hover:text-primary rounded-md transition-colors"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTargetId(product.id);
+                            setShowDeleteModal(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-md transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile: cards */}
+        <div className="md:hidden p-4 grid grid-cols-1 gap-4">
+          {paginatedProducts.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
+              Nenhum produto encontrado.
             </div>
-            <h3 className="text-2xl font-black mb-3">Tem certeza?</h3>
-            <p className="text-slate-500 text-sm mb-10 leading-relaxed">
-              Os itens selecionados serão removidos permanentemente do seu
-              catálogo e do banco de dados.
-            </p>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-4 bg-slate-100 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-colors"
+          ) : (
+            paginatedProducts.map((product) => (
+              <div
+                key={product.id}
+                className={`p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl shadow-sm ${selectedIds.includes(product.id) ? 'ring-2 ring-primary/30' : ''}`}
               >
-                Cancelar
+                <div className="flex items-start gap-3">
+                  <div className="h-16 w-16 rounded-lg bg-gray-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                    {product.image_path ||
+                    product.image_url ||
+                    product.external_image_url ? (
+                      (() => {
+                        const { src, isExternal } = getProductImageUrl(
+                          product as any
+                        );
+                        if (src) {
+                          if (isExternal) {
+                            return (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={src}
+                                alt=""
+                                className="object-contain h-full w-full"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            );
+                          }
+                          return (
+                            <img
+                              src={src}
+                              alt=""
+                              className="object-contain h-full w-full"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          );
+                        }
+                        return (
+                          <div className="text-gray-300">
+                            <ImageIcon size={28} />
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="text-gray-300">
+                        <ImageIcon size={28} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                          {product.name}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 truncate">
+                          {product.brand ||
+                            product.category ||
+                            product.reference_code}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-gray-900 dark:text-white">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(product.price)}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {product.stock_quantity ?? 0} em estoque
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <div
+                        className="relative group"
+                        onTouchStart={() => showTooltip(`${product.id}-select`)}
+                      >
+                        <button
+                          onClick={() => toggleSelectOne(product.id)}
+                          aria-pressed={selectedIds.includes(product.id)}
+                          className="p-2 border rounded text-sm flex items-center justify-center"
+                        >
+                          {selectedIds.includes(product.id) ? (
+                            <CheckSquare size={16} />
+                          ) : (
+                            <Square size={16} />
+                          )}
+                          <span className="sr-only">
+                            {selectedIds.includes(product.id)
+                              ? 'Selecionado'
+                              : 'Selecionar'}
+                          </span>
+                        </button>
+                        <span
+                          className={`pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${product.id}-select`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          {selectedIds.includes(product.id)
+                            ? 'Desmarcar'
+                            : 'Selecionar'}
+                        </span>
+                      </div>
+
+                      <div
+                        className="relative group"
+                        onTouchStart={() => showTooltip(`${product.id}-open`)}
+                      >
+                        <Link
+                          href={getProductHref(product)}
+                          className="p-2 rounded bg-[var(--primary)] text-white flex items-center justify-center"
+                          aria-label="Editar"
+                        >
+                          <Edit2 size={16} />
+                          <span className="sr-only">Editar</span>
+                        </Link>
+                        <span
+                          className={`pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${product.id}-open`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          Editar
+                        </span>
+                      </div>
+
+                      <div
+                        className="relative group"
+                        onTouchStart={() => showTooltip(`${product.id}-view`)}
+                      >
+                        <button
+                          onClick={() => {
+                            setViewProduct(product);
+                          }}
+                          className="p-2 border rounded text-sm flex items-center justify-center"
+                          aria-label="Visualizar"
+                        >
+                          <Eye size={16} />
+                          <span className="sr-only">Visualizar</span>
+                        </button>
+                        <span
+                          className={`pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${product.id}-view`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          Visualizar
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* PAGINAÇÃO */}
+        <div className="p-4 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 flex items-center justify-between text-sm text-gray-500 dark:text-slate-400">
+          <div className="flex items-center gap-4">
+            <span>
+              Página {currentPage} de {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+                className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+              >
+                Ant.
               </button>
               <button
-                onClick={() => executeDelete()}
-                disabled={isProcessing}
-                className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-red-100 hover:brightness-110"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
               >
-                Sim, Excluir
+                Prox.
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-50"
+              >
+                Últ.
               </button>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500">Ir para página</label>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              defaultValue={currentPage}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = Number((e.target as HTMLInputElement).value || 1);
+                  if (v >= 1 && v <= totalPages) setCurrentPage(v);
+                }
+              }}
+              className="w-20 p-1 text-sm border rounded bg-white dark:bg-slate-800"
+            />
+            <button
+              onClick={(e) => {
+                const parent = (e.target as HTMLElement)
+                  .previousElementSibling as HTMLInputElement | null;
+                const v = parent ? Number(parent.value || 1) : 1;
+                if (v >= 1 && v <= totalPages) setCurrentPage(v);
+              }}
+              className="px-3 py-1 border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800"
+            >
+              Ir
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* PAGINAÇÃO INFERIOR */}
-      <div className="flex justify-between items-center px-10 py-4 bg-slate-50/50 rounded-3xl">
-        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-          Mostrando página {currentPage} de {totalPages}
-        </p>
-        <div className="flex gap-2">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className="p-3 bg-white border border-slate-100 rounded-2xl disabled:opacity-30 hover:shadow-md transition-all shadow-sm"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className="p-3 bg-white border border-slate-100 rounded-2xl disabled:opacity-30 hover:shadow-md transition-all shadow-sm"
-          >
-            <ChevronRight size={20} />
-          </button>
+      {/* MODAL VIEW */}
+      {viewProduct && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div
+              className="relative h-64 bg-gray-100 dark:bg-slate-800 flex items-center justify-center"
+              onTouchStart={(e) => {
+                touchStartX.current = e.touches?.[0]?.clientX ?? null;
+                touchMoved.current = false;
+              }}
+              onTouchMove={(e) => {
+                const start = touchStartX.current;
+                const current = e.touches?.[0]?.clientX ?? null;
+                if (start !== null && current !== null) {
+                  const deltaX = current - start;
+                  if (Math.abs(deltaX) > 10) touchMoved.current = true;
+                }
+              }}
+              onTouchEnd={(e) => {
+                const start = touchStartX.current;
+                const end = e.changedTouches?.[0]?.clientX ?? null;
+                if (start !== null && end !== null) {
+                  const delta = end - start;
+                  const threshold = 50;
+                  if (delta > threshold) {
+                    setViewIndex((i) => Math.max(0, i - 1));
+                  } else if (delta < -threshold) {
+                    setViewIndex((i) =>
+                      Math.min((viewProduct.images?.length || 1) - 1, i + 1)
+                    );
+                  }
+                }
+                touchStartX.current = null;
+              }}
+            >
+              {(() => {
+                const selectedImage = viewProduct.image_path
+                  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${viewProduct.image_path}`
+                  : viewProduct.images && viewProduct.images.length > 0
+                    ? viewProduct.images[viewIndex]
+                    : viewProduct.image_url ||
+                      viewProduct.external_image_url ||
+                      null;
+                return selectedImage ? (
+                  <Image
+                    src={selectedImage}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 100vw, 640px"
+                    className="object-contain p-4"
+                  />
+                ) : (
+                  <ImageIcon size={48} className="text-gray-300" />
+                );
+              })()}
 
-          {/* QUICK FILTERS (compacto, visível em mobile e desktop) */}
-          <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-3 items-center">
-            {/* Brand multi-select */}
-            <div className="relative">
               <button
-                className="px-3 py-2 rounded-lg border bg-white dark:bg-slate-800 text-sm"
-                onClick={() => setShowFilters((s) => !s)}
+                onClick={() => setViewProduct(null)}
+                className="absolute top-4 right-4 bg-black/20 hover:bg-black/40 text-white rounded-full p-2"
               >
-                Filtros Rápidos
+                <X size={20} />
               </button>
-            </div>
 
-            <div className="flex gap-2 flex-wrap items-center">
-              <div className="hidden md:block">
-                <label className="text-xs text-slate-400 block mb-1">
-                  Marca
-                </label>
-                <div className="min-w-[160px]">
-                  <select
-                    value={filters.brand[0] ?? ''}
-                    onChange={(e) =>
-                      setFilters((f) => ({
-                        ...f,
-                        brand: e.target.value ? [e.target.value] : [],
-                      }))
-                    }
-                    className="w-full p-2 rounded-lg bg-slate-50 text-sm"
+              {viewProduct.images && viewProduct.images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
+                    aria-label="Anterior"
                   >
-                    <option value="">Todas</option>
-                    {availableBrands.map((b) => (
-                      <option key={b.name} value={b.name}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                    ‹
+                  </button>
+                  <button
+                    onClick={() =>
+                      setViewIndex((i) =>
+                        Math.min((viewProduct.images?.length || 1) - 1, i + 1)
+                      )
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
+                    aria-label="Próxima"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
 
-              <div className="hidden md:block">
-                <label className="text-xs text-slate-400 block mb-1">
-                  Categoria
-                </label>
-                <select
-                  value={filters.category}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, category: e.target.value }))
-                  }
-                  className="p-2 rounded-lg bg-slate-50 text-sm min-w-[140px]"
-                >
-                  <option value="">Todas</option>
-                  {availableCategories.map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {c.name}
-                    </option>
+              {viewProduct.images && viewProduct.images.length > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                  {viewProduct.images.map((_, idx) => (
+                    <span
+                      key={idx}
+                      className={`h-1 w-6 rounded ${idx === viewIndex ? 'bg-white' : 'bg-white/40'}`}
+                    />
                   ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Status
-                </label>
-                <select
-                  value={filters.visibility}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, visibility: e.target.value }))
-                  }
-                  className="p-2 rounded-lg bg-slate-50 text-sm"
-                >
-                  <option value="all">Todos</option>
-                  <option value="active">Ativos</option>
-                  <option value="inactive">Inativos</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Imagem
-                </label>
-                <select
-                  value={filters.imageOptimization}
-                  onChange={(e) =>
-                    setFilters((f) => ({
-                      ...f,
-                      imageOptimization: e.target.value,
-                    }))
-                  }
-                  className="p-2 rounded-lg bg-slate-50 text-sm"
-                >
-                  <option value="all">Todas</option>
-                  <option value="optimized">Otimizada</option>
-                  <option value="external">Externa</option>
-                </select>
-              </div>
-
-              <div className="flex items-end gap-2">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">
-                    R$ Mín
-                  </label>
-                  <input
-                    type="text"
-                    value={displayMinPrice}
-                    onChange={(e) => {
-                      setDisplayMinPrice(e.target.value);
-                      setFilters((f) => ({
-                        ...f,
-                        minPrice: parseCurrencyToNumericString(e.target.value),
-                      }));
-                    }}
-                    className="p-2 rounded-lg bg-slate-50 text-sm w-28"
-                  />
                 </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1">
-                    R$ Máx
-                  </label>
-                  <input
-                    type="text"
-                    value={displayMaxPrice}
-                    onChange={(e) => {
-                      setDisplayMaxPrice(e.target.value);
-                      setFilters((f) => ({
-                        ...f,
-                        maxPrice: parseCurrencyToNumericString(e.target.value),
-                      }));
-                    }}
-                    className="p-2 rounded-lg bg-slate-50 text-sm w-28"
-                  />
-                </div>
+              )}
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                {viewProduct.name}
+              </h2>
+              <div className="flex gap-2 mb-4">
+                <span className="bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 px-2 py-1 rounded text-xs">
+                  {viewProduct.brand || 'Sem marca'}
+                </span>
+                <span className="bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 px-2 py-1 rounded text-xs">
+                  {viewProduct.reference_code}
+                </span>
               </div>
-
-              <div className="ml-auto">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(viewProduct.price)}
+              </div>
+              <div className="flex gap-2">
+                <Link
+                  href={getProductHref(viewProduct)}
+                  className="flex-1 bg-[var(--primary)] text-white py-3 rounded-xl font-bold text-center"
+                >
+                  Editar Produto
+                </Link>
                 <button
-                  onClick={() =>
-                    setFilters({
-                      minPrice: '',
-                      maxPrice: '',
-                      onlyLaunch: false,
-                      onlyBestSeller: false,
-                      stockStatus: 'all',
-                      visibility: 'all',
-                      category: '',
-                      brand: [],
-                      color: '',
-                      imageOptimization: 'all',
-                    })
-                  }
-                  className="px-3 py-2 rounded-lg text-xs bg-slate-50"
+                  onClick={() => setViewProduct(null)}
+                  className="flex-1 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 py-3 rounded-xl font-medium"
                 >
-                  Limpar
+                  Fechar
                 </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* MODAL PDF (CORRIGIDO: FLEXBOX + FIXED COLORS) */}
+      {showPdfModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            {/* Header Fixo */}
+            <div className="p-6 border-b border-gray-100 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <FileText className="text-primary" /> Gerar Catálogo PDF
+              </h3>
+            </div>
+
+            {/* Corpo com Scroll */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Título do Catálogo
+                </label>
+                <input
+                  type="text"
+                  value={pdfOptions.title}
+                  onChange={(e) =>
+                    setPdfOptions({ ...pdfOptions, title: e.target.value })
+                  }
+                  className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-lg">
+                  <label
+                    className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer flex-1"
+                    htmlFor="check-price"
+                  >
+                    Mostrar Preços
+                  </label>
+                  <input
+                    id="check-price"
+                    type="checkbox"
+                    checked={pdfOptions.showPrices}
+                    onChange={(e) =>
+                      setPdfOptions({
+                        ...pdfOptions,
+                        showPrices: e.target.checked,
+                      })
+                    }
+                    className="w-5 h-5 rounded text-primary focus:ring-primary cursor-pointer"
+                  />
+                </div>
+
+                {pdfOptions.showPrices && (
+                  <div className="p-3 border border-gray-100 dark:border-slate-800 rounded-lg bg-gray-50 dark:bg-slate-800/50">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Tipo de Preço
+                    </label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          setPdfOptions({ ...pdfOptions, priceType: 'price' })
+                        }
+                        variant={
+                          pdfOptions.priceType === 'price'
+                            ? 'primary'
+                            : 'outline'
+                        }
+                        size="md"
+                        className="flex-1"
+                      >
+                        Preço Custo
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          setPdfOptions({
+                            ...pdfOptions,
+                            priceType: 'sale_price',
+                          })
+                        }
+                        variant={
+                          pdfOptions.priceType === 'sale_price'
+                            ? 'primary'
+                            : 'outline'
+                        }
+                        size="md"
+                        className="flex-1"
+                      >
+                        Preço Sugerido
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Tamanho das Imagens (Zoom)
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((z) => (
+                    <Button
+                      key={z}
+                      type="button"
+                      onClick={() =>
+                        setPdfOptions({ ...pdfOptions, imageZoom: z })
+                      }
+                      variant={
+                        pdfOptions.imageZoom === z ? 'primary' : 'outline'
+                      }
+                      size="sm"
+                      className="flex-1"
+                    >
+                      {z}x
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  {pdfOptions.imageZoom === 1 &&
+                    'Lista compacta (Muitos itens)'}
+                  {pdfOptions.imageZoom === 3 && 'Equilibrado (Recomendado)'}
+                  {pdfOptions.imageZoom === 5 && 'Imagens Grandes (Detalhes)'}
+                </p>
+              </div>
+            </div>
+
+            {/* Footer Fixo */}
+            <div className="p-6 pt-4 border-t border-gray-100 dark:border-slate-800 flex gap-3 bg-gray-50/50 dark:bg-slate-900/50 rounded-b-2xl">
+              <Button
+                onClick={() => setShowPdfModal(false)}
+                variant="outline"
+                size="md"
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleGeneratePdf}
+                disabled={isGeneratingPdf}
+                variant="primary"
+                size="md"
+                className="flex-1 justify-center"
+                leftIcon={
+                  isGeneratingPdf ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <Download size={18} />
+                  )
+                }
+              >
+                Gerar PDF
+              </Button>
+            </div>
+
+            {/* Barra de Progresso */}
+            {isGeneratingPdf && (
+              <div className="px-6 pb-6 pt-0">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <span>{pdfProgress.message || 'Gerando PDF...'}</span>
+                    <span>{pdfProgress.progress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
+                      style={{ width: pdfProgress.progress + '%' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TEXTO (MARCA/CAT) */}
+      {showTextModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-2xl p-6 border border-gray-200 dark:border-slate-800 shadow-xl">
+            <h3 className="text-lg font-bold mb-4 dark:text-white">
+              Definir {textConfig.label}
+            </h3>
+            <input
+              list="modal-opts"
+              className="w-full p-2 border rounded mb-4 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              value={textConfig.value}
+              onChange={(e) =>
+                setTextConfig({ ...textConfig, value: e.target.value })
+              }
+              placeholder="Digite ou selecione..."
+            />
+            <datalist id="modal-opts">
+              {textConfig.field === 'brand'
+                ? availableBrands.map((b) => (
+                    <option key={b.name} value={b.name} />
+                  ))
+                : availableCategories.map((c) => (
+                    <option key={c.name} value={c.name} />
+                  ))}
+            </datalist>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowTextModal(false)}
+                className="flex-1 p-2 border border-gray-200 dark:border-slate-700 rounded dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkTextUpdate}
+                className="flex-1 p-2 bg-primary text-white rounded hover:bg-primary/90"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PREÇO */}
+      {showPriceModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-sm w-full border border-gray-200 dark:border-slate-800 shadow-xl">
+            <h3 className="text-lg font-bold mb-4 dark:text-white">
+              Atualizar Preço
+            </h3>
+            <input
+              type="number"
+              placeholder="Novo Valor"
+              className="w-full p-2 border rounded mb-4 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              onChange={(e) =>
+                setPriceConfig({ ...priceConfig, value: e.target.value })
+              }
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowPriceModal(false)}
+                className="flex-1 p-2 border border-gray-200 dark:border-slate-700 rounded dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkPriceUpdate}
+                className="flex-1 p-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DELETE */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-sm w-full text-center border border-gray-200 dark:border-slate-800 shadow-xl">
+            <Trash2 size={40} className="mx-auto text-red-500 mb-4" />
+            <h3 className="text-lg font-bold mb-2 dark:text-white">
+              Tem certeza?
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+              Isso excluirá os itens selecionados.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 p-2 border border-gray-200 dark:border-slate-700 rounded dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => executeDelete()}
+                className="flex-1 p-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// Helpers Utilitários
-function normalize(s: string) {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-}
-
+// Export default para compatibilidade
 export default ProductsTable;

@@ -44,6 +44,8 @@ export function Storefront({
       user_id: (c['user_id'] as string) || '',
       name: (c['store_name'] as string) || '',
       logo_url: (c['logo_url'] as string) || null,
+      // catalog slug from public_catalogs (used to build home links)
+      catalog_slug: (c['slug'] as string) || undefined,
       primary_color: (c['primary_color'] as string) || '#b9722e',
       secondary_color: (c['secondary_color'] as string) || '#0d1b2c',
       phone: (c['phone'] as string) || undefined,
@@ -81,6 +83,45 @@ export function Storefront({
     }),
     [catalog, c]
   );
+
+  // share_banner_url may exist on the public_catalogs row (not part of Settings type)
+  const shareBanner = (c['share_banner_url'] as string) || undefined;
+
+  // Normalize image URLs to absolute when they are relative paths
+  const PUBLIC_BASE =
+    typeof window !== 'undefined'
+      ? process.env.NEXT_PUBLIC_APP_URL || ''
+      : process.env.NEXT_PUBLIC_APP_URL || '';
+  const resolveUrl = (u?: string | null) => {
+    if (!u) return u ?? null;
+    if (u.startsWith('http') || u.startsWith('//')) return u;
+    if (u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
+    return u;
+  };
+
+  // If a single share banner exists but banners is empty, prefer showing it
+  if (!store.banners || store.banners.length === 0) {
+    if (shareBanner) {
+      (store.banners as any) = [resolveUrl(shareBanner) as any];
+    }
+  } else {
+    (store.banners as any) = (store.banners || []).map((s: any) =>
+      resolveUrl(s as string)
+    );
+  }
+
+  if (store.banners_mobile && store.banners_mobile.length > 0) {
+    (store.banners_mobile as any) = store.banners_mobile.map((s: any) =>
+      resolveUrl(s as string)
+    );
+  }
+
+  if (store.logo_url)
+    (store.logo_url as any) = resolveUrl(store.logo_url) as any;
+  if (store.top_benefit_image_url)
+    (store.top_benefit_image_url as any) = resolveUrl(
+      store.top_benefit_image_url
+    ) as any;
 
   /**
    * 2. GESTÃO DE CORES DINÂMICAS

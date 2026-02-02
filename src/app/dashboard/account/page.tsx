@@ -178,7 +178,7 @@ export default function AccountPage() {
                   <div className="h-24 w-24 rounded-full overflow-hidden bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
                     {avatarPreview || avatarUrl ? (
                       <img
-                        src={avatarPreview || avatarUrl || ''}
+                        src={avatarPreview || (avatarUrl as string)}
                         alt="Avatar"
                         className="h-full w-full object-cover"
                       />

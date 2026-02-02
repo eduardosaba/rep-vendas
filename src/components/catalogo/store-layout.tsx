@@ -360,14 +360,22 @@ export function StoreHeader() {
               </div>
 
               {store.logo_url ? (
-                <div className="relative h-14 min-w-[120px] flex items-center">
+                <a
+                  href={
+                    store.catalog_slug
+                      ? `/catalogo/${store.catalog_slug}`
+                      : `/catalogo/${store.user_id}`
+                  }
+                  aria-label={`Ir para ${store.name || 'catálogo'}`}
+                  className="relative h-14 min-w-[120px] flex items-center"
+                >
                   <SmartImage
                     product={{ image_url: store.logo_url, name: store.name }}
                     initialSrc={store.logo_url}
                     className="h-full"
                     imgClassName="h-full w-auto object-contain max-w-[200px]"
                   />
-                </div>
+                </a>
               ) : (
                 <div
                   className={`h-14 px-4 rounded flex items-center justify-center font-bold text-xl ${isHeaderWhite ? 'bg-gray-100 text-gray-900' : 'bg-white/20 text-white'}`}
@@ -387,7 +395,7 @@ export function StoreHeader() {
                 (inputRef as any).current = el;
               }}
               type="text"
-              placeholder="Buscar produtos... (ex: 'Boss 1442' para filtrar por marca+referência)"
+              placeholder="Buscar produtos... (ex: filtrar por marca + referência)"
               value={
                 // When a brand is selected, show "Brand [space] searchTerm" so user can type after brand.
                 selectedBrand && selectedBrand !== 'all'

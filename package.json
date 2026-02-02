@@ -22,6 +22,7 @@
     "sincronizar:limpar": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item sync-*.log -ErrorAction SilentlyContinue; Write-Host 'Logs limpos!' -ForegroundColor Cyan\"",
     "cache:local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item -Recurse -Force .next/cache/images -ErrorAction SilentlyContinue; Write-Host '🚀 Cache local de imagens deletado!' -ForegroundColor Cyan\"",
     "cache:vercel": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$token = $env:REVALIDATE_TOKEN; if(-not $token){ Write-Host 'REVALIDATE_TOKEN não definido' -ForegroundColor Yellow; exit 1 }; Invoke-RestMethod -Uri \"https://$env:NEXT_PUBLIC_VERCEL_HOST/api/admin/revalidate?secret=$token\" -Method Get; Write-Host '☁️ Vercel avisada para atualizar o catálogo!' -ForegroundColor Green\"",
+    "approve-builds": "node scripts/approve-builds.mjs",
     "limpar-tudo": "pnpm cache:local && pnpm sincronizar:limpar"
   },
   "dependencies": {

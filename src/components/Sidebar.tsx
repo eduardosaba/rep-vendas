@@ -174,7 +174,20 @@ export function Sidebar({
           (process.env.NEXT_PUBLIC_MASTER_ADMIN_EMAIL as string) ||
           (process.env.NEXT_PUBLIC_MASTER_EMAIL as string) ||
           '';
-        if (MASTER_EMAIL && user.email === MASTER_EMAIL) setIsMaster(true);
+        const MASTER_USER_ID =
+          (process.env.NEXT_PUBLIC_MASTER_USER_ID as string) || '';
+        const ADMINS = (process.env.NEXT_PUBLIC_ADMINS as string) || '';
+
+        let masterDetected = false;
+        if (MASTER_EMAIL && user.email === MASTER_EMAIL) masterDetected = true;
+        if (MASTER_USER_ID && user.id === MASTER_USER_ID) masterDetected = true;
+        if (ADMINS) {
+          const list = ADMINS.split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (user.email && list.includes(user.email)) masterDetected = true;
+        }
+        if (masterDetected) setIsMaster(true);
         const settingsRes = await supabase
           .from('settings')
           .select('*')
@@ -422,10 +435,16 @@ export function Sidebar({
               {hasChildren && expanded && !isCollapsed && (
                 <div className="mt-1 ml-4 space-y-1 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
                   {item.children.map((child) => {
-                    // hide manage-external-images link from non-master users
+                    // hide manage-external-images link from non-master and non-template users
+                    const isTemplateAccount = Boolean(
+                      (branding as any)?.is_template ||
+                      (branding as any)?.is_template_account ||
+                      (branding as any)?.template_user
+                    );
                     if (
                       child.href === '/dashboard/manage-external-images' &&
-                      !isMaster
+                      !isMaster &&
+                      !isTemplateAccount
                     ) {
                       return null;
                     }

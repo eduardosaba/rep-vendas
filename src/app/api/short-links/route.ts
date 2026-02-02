@@ -21,10 +21,27 @@ export async function POST(req: Request) {
     } = body || {};
 
     const supabase = await createRouteSupabase();
+    // Resolve base app URL: prefer NEXT_PUBLIC_APP_URL, then VERCEL_URL, then request host, else localhost
+    const hostHeader = req.headers.get('host');
+    const envAppUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
+      : null;
+    const vercelUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL.replace(/\/$/, '')}`
+      : null;
+    const inferredFromHost = hostHeader
+      ? `https://${hostHeader.replace(/\/$/, '')}`
+      : null;
+    const appUrl = (
+      envAppUrl ||
+      vercelUrl ||
+      inferredFromHost ||
+      'http://localhost:3000'
+    ).replace(/\/$/, '');
+
     // If no destination_url provided but catalog_id present,
     // try to construct a canonical catalog URL: /catalogo/{slug}
     let finalDestination = destination_url || null;
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
 
     if (!finalDestination) {
       // prefer catalog_id -> resolve to public_catalogs.slug if available
@@ -195,6 +212,101 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+// Update a short link (partial). Body: { id, code?, destination_url?, image_url? }
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const {
+      id,
+      code: newCode,
+      destination_url: newDestination,
+      image_url: newImage,
+    } = body || {};
+    if (!id)
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+    const supabase = await createRouteSupabase();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
+    if (!userId)
+      return NextResponse.json({ error: 'not_authenticated' }, { status: 401 });
+
+    // Check ownership
+    const { data: existing } = await supabase
+      .from('short_links')
+      .select('user_id, code')
+      .eq('id', id)
+      .maybeSingle();
+    if (!existing)
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    if (existing.user_id !== userId)
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
+    const payload: any = {};
+    if (typeof newDestination === 'string')
+      payload.destination_url = newDestination;
+    if (typeof newImage === 'string') payload.image_url = newImage;
+
+    if (typeof newCode === 'string' && newCode.trim() !== '') {
+      const normalized = newCode.trim().toUpperCase();
+      // ensure uniqueness (exclude current id)
+      const { data: conflict } = await supabase
+        .from('short_links')
+        .select('id')
+        .eq('code', normalized)
+        .neq('id', id)
+        .maybeSingle();
+      if (conflict)
+        return NextResponse.json({ error: 'code_taken' }, { status: 409 });
+      payload.code = normalized;
+    }
+
+    if (Object.keys(payload).length === 0)
+      return NextResponse.json({ error: 'nothing_to_update' }, { status: 400 });
+
+    const { data: updated, error } = await supabase
+      .from('short_links')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !updated)
+      return NextResponse.json(
+        { error: error?.message || 'update_failed' },
+        { status: 500 }
+      );
+
+    // Resolve base app URL: prefer NEXT_PUBLIC_APP_URL, then VERCEL_URL, then request host, else localhost
+    const hostHeader = req.headers.get('host');
+    const envAppUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
+      : null;
+    const vercelUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL.replace(/\/$/, '')}`
+      : null;
+    const inferredFromHost = hostHeader
+      ? `https://${hostHeader.replace(/\/$/, '')}`
+      : null;
+    const appUrl = (
+      envAppUrl ||
+      vercelUrl ||
+      inferredFromHost ||
+      'http://localhost:3000'
+    ).replace(/\/$/, '');
+
+    return NextResponse.json({
+      short_url: `${appUrl}/v/${updated.code}`,
+      data: updated,
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || String(err) },

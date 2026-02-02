@@ -106,7 +106,7 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
                     {brandLogos && brandLogos[brand] ? (
                       <div className="relative h-6 w-6">
                         <Image
-                          src={brandLogos[brand] || ''}
+                          src={String(brandLogos[brand])}
                           alt={`${brand} logo`}
                           fill
                           style={{ objectFit: 'contain' }}

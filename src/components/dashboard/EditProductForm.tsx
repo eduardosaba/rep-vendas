@@ -41,6 +41,55 @@ const ImageUploader = ({
 }) => {
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const supabaseClient = createClient();
+
+  const StorageFirstImage = ({
+    storagePath,
+    externalUrl,
+    alt,
+  }: {
+    storagePath: string | null;
+    externalUrl: string | null;
+    alt?: string;
+  }) => {
+    const placeholder = 'https://via.placeholder.com/600x600?text=Sem+imagem';
+
+    const [src, setSrc] = React.useState<string>(() => {
+      if (storagePath) {
+        const pathClean = storagePath.startsWith('/')
+          ? storagePath.slice(1)
+          : storagePath;
+        return `/api/storage-image?path=${encodeURIComponent(pathClean)}`;
+      }
+      if (externalUrl) return externalUrl;
+      return placeholder;
+    });
+
+    const triedExternal = React.useRef(false);
+
+    return (
+      <img
+        src={src}
+        className="w-full h-full object-contain p-1 cursor-zoom-in"
+        alt={alt || 'Product image'}
+        onClick={() => src && setZoomImage(src)}
+        onError={(e) => {
+          const t = e.currentTarget as HTMLImageElement;
+          // If we attempted storage first and have an externalUrl, try it once
+          if (storagePath && externalUrl && !triedExternal.current) {
+            triedExternal.current = true;
+            setSrc(externalUrl);
+            return;
+          }
+          // Avoid infinite loop and show placeholder
+          t.onerror = null;
+          setSrc(placeholder);
+        }}
+        loading="lazy"
+        style={{ height: 'auto' }}
+      />
+    );
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
       <h3 className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-slate-800 pb-2 mb-4 flex items-center gap-2">
@@ -54,102 +103,52 @@ const ImageUploader = ({
       )}
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-        {images.map((imgEntry, index) => (
-          <div
-            key={index}
-            className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${
-              index === 0
-                ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900'
-                : 'border-gray-200 dark:border-slate-700'
-            }`}
-          >
-            {(() => {
-              try {
-                const entry = imgEntry as { url: string; path: string | null };
-                const url = entry?.url || '';
-                const path = entry?.path || null;
+        {images.map((imgEntry, index) => {
+          const entry = imgEntry as { url: string; path: string | null };
+          const url = entry?.url || '';
+          const path = entry?.path || null;
+          const external = url && url.startsWith('http') ? url : null;
 
-                let resolved: string | null = null;
-
-                if (path) {
-                  const pathClean = path.startsWith('/') ? path.slice(1) : path;
-                  resolved = `/api/storage-image?path=${encodeURIComponent(pathClean)}`;
-                } else if (url && url.startsWith('http')) {
-                  if (
-                    url.includes('supabase.co') ||
-                    url.includes('/product-images/')
-                  ) {
-                    // @ts-ignore
-                    const {
-                      getProductImage,
-                    } = require('@/lib/utils/image-logic');
-                    resolved = getProductImage(url, 'small') || url;
-                  } else {
-                    resolved = url;
-                  }
-                }
-
-                const srcToUse = resolved || '';
-
-                return (
-                  <img
-                    src={srcToUse}
-                    className="w-full h-full object-contain p-1 cursor-zoom-in"
-                    alt={`Product ${index}`}
-                    onClick={() => setZoomImage(srcToUse)}
-                    onError={(e) => {
-                      const t = e.currentTarget as HTMLImageElement;
-                      t.onerror = null;
-                      t.src =
-                        'https://via.placeholder.com/600x600?text=Imagem+indispon%C3%ADvel';
-                    }}
-                    loading="lazy"
-                    style={{ height: 'auto' }}
-                  />
-                );
-              } catch (e) {
-                return (
-                  <img
-                    src={String((imgEntry as any)?.url || '')}
-                    className="w-full h-full object-contain p-1 cursor-zoom-in"
-                    alt={`Product ${index}`}
-                    onError={(e) => {
-                      const t = e.currentTarget as HTMLImageElement;
-                      t.onerror = null;
-                      t.src =
-                        'https://via.placeholder.com/600x600?text=Imagem+indispon%C3%ADvel';
-                    }}
-                    loading="lazy"
-                    style={{ height: 'auto' }}
-                  />
-                );
-              }
-            })()}
-
-            <button
-              type="button"
-              onClick={() => onRemove(index)}
-              className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 z-10"
-              title="Remover imagem"
+          return (
+            <div
+              key={index}
+              className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${
+                index === 0
+                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900'
+                  : 'border-gray-200 dark:border-slate-700'
+              }`}
             >
-              <X size={14} />
-            </button>
+              <StorageFirstImage
+                storagePath={path}
+                externalUrl={external}
+                alt={`Imagem ${index + 1}`}
+              />
 
-            {index === 0 ? (
-              <div className="absolute bottom-0 inset-x-0 bg-primary/90 text-white text-[10px] text-center py-1 font-bold z-10">
-                CAPA
-              </div>
-            ) : (
               <button
                 type="button"
-                onClick={() => onSetCover(index)}
-                className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-primary/80 transition-colors z-10"
+                onClick={() => onRemove(index)}
+                className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 z-10"
+                title="Remover imagem"
               >
-                Definir Capa
+                <X size={14} />
               </button>
-            )}
-          </div>
-        ))}
+
+              {index === 0 ? (
+                <div className="absolute bottom-0 inset-x-0 bg-primary/90 text-white text-[10px] text-center py-1 font-bold z-10">
+                  CAPA
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSetCover(index)}
+                  className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 hover:bg-primary/80 transition-colors z-10"
+                >
+                  Definir Capa
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-blue-300 transition-all group relative">
           <div className="p-3 bg-gray-100 dark:bg-slate-800 rounded-full group-hover:bg-primary/10 dark:group-hover:bg-primary/20 group-hover:text-primary transition-colors">
@@ -417,6 +416,17 @@ export function EditProductForm({ product }: { product: Product }) {
       product.images || (product.image_url ? [product.image_url] : [])
     ).filter(Boolean),
   });
+
+  // DEBUG: log das imagens para diagnóstico rápido (remover depois)
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line no-console
+      console.debug(
+        '[DEBUG] EditProductForm formData.images:',
+        formData.images
+      );
+    } catch (e) {}
+  }, [formData.images]);
 
   // Listener para confirmar saída
   useEffect(() => {

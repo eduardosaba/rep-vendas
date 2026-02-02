@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const filePath = searchParams.get('path');
+  const debug = searchParams.get('debug');
   const bucketParam = searchParams.get('bucket');
 
   if (!filePath) {
@@ -44,6 +45,17 @@ export async function GET(request: Request) {
 
     if (dlError || !downloadData) {
       console.error('[storage-image] 404 ou Erro:', dlError);
+      if (debug === '1') {
+        return NextResponse.json(
+          {
+            ok: false,
+            bucket: effectiveBucket,
+            path: effectivePath,
+            error: String(dlError?.message || dlError),
+          },
+          { status: 404 }
+        );
+      }
       return returnPlaceholderSvg(effectivePath, 404);
     }
 
@@ -64,6 +76,19 @@ export async function GET(request: Request) {
     };
 
     const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+    if (debug === '1') {
+      return NextResponse.json(
+        {
+          ok: true,
+          bucket: effectiveBucket,
+          path: effectivePath,
+          contentType,
+          size: buffer.length,
+        },
+        { status: 200 }
+      );
+    }
 
     // 6. Resposta com Cache agressivo para performance
     return new NextResponse(buffer, {

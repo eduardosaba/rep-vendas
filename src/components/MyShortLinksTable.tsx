@@ -27,7 +27,12 @@ export default function MyShortLinksTable() {
     try {
       const res = await fetch('/api/short-links');
       const json = await res.json();
-      setLinks(json.data || []);
+      if (!res.ok) {
+        console.error('Failed loading short links', json);
+        setLinks([]);
+      } else {
+        setLinks(json.data || []);
+      }
     } catch (e) {
       // ignore
     } finally {
@@ -54,6 +59,10 @@ export default function MyShortLinksTable() {
         body: JSON.stringify({ id }),
       });
       const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error || 'Falha ao remover');
+        return;
+      }
       if (json?.success) {
         toast.success('Link removido');
         load();

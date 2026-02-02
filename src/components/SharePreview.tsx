@@ -6,6 +6,8 @@ interface SharePreviewProps {
   description: string;
   imageUrl: string;
   domain: string;
+  href?: string;
+  message?: string | null;
 }
 
 const SharePreview: React.FC<SharePreviewProps> = ({
@@ -13,6 +15,8 @@ const SharePreview: React.FC<SharePreviewProps> = ({
   description,
   imageUrl,
   domain,
+  href,
+  message,
 }) => {
   return (
     <div className="mt-8 space-y-4">
@@ -22,11 +26,22 @@ const SharePreview: React.FC<SharePreviewProps> = ({
 
       <div className="max-w-sm bg-[#e7f3ef] dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="aspect-[1.91/1] w-full bg-white relative overflow-hidden border-b border-slate-200 dark:border-slate-700">
-          <img
-            src={imageUrl || '/link.webp'}
-            alt="Link Preview"
-            className="w-full h-full object-contain p-2"
-          />
+          {href ? (
+            // eslint-disable-next-line @next/next/no-html-link-for-pages
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              <img
+                src={imageUrl || '/link.webp'}
+                alt="Link Preview"
+                className="w-full h-full object-cover"
+              />
+            </a>
+          ) : (
+            <img
+              src={imageUrl || '/link.webp'}
+              alt="Link Preview"
+              className="w-full h-full object-cover"
+            />
+          )}
         </div>
 
         <div className="p-3 space-y-1">
@@ -36,10 +51,16 @@ const SharePreview: React.FC<SharePreviewProps> = ({
           <h5 className="text-sm font-bold text-slate-900 dark:text-white truncate">
             {title || 'Catálogo Digital'}
           </h5>
-          <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
-            {description ||
-              'Confira nossas coleções exclusivas e faça seu pedido diretamente pelo catálogo virtual.'}
-          </p>
+          {message ? (
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+              {message}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+              {description ||
+                'Confira nossas coleções exclusivas e faça seu pedido diretamente pelo catálogo virtual.'}
+            </p>
+          )}
         </div>
       </div>
 

@@ -29,7 +29,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     // Estilos Base (Foco, Transição, Layout)
     const baseStyles =
-      'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]';
+      'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 appearance-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] active:opacity-95';
 
     // Variantes de Cor (com Dark Mode)
     // O primary usa var(--primary) se disponível, ou fallback para indigo
@@ -53,15 +53,43 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       lg: 'h-12 px-6 text-base',
     };
 
-    // Fallback se var(--primary) não estiver definido (usa cor padrão do sistema)
-    // Isso evita botões invisíveis se o CSS global falhar
-    const safeStyle =
-      variant === 'primary'
-        ? {
+    // Fallbacks inline por variante para evitar texto/invisível
+    // quando variáveis CSS não estiverem definidas ou classes forem sobrescritas
+    const safeStyle: React.CSSProperties = (() => {
+      switch (variant) {
+        case 'primary':
+          return {
             backgroundColor: 'var(--primary, #b9722e)',
             color: 'var(--primary-foreground, #ffffff)',
-          }
-        : {};
+          };
+        case 'secondary':
+          return {
+            backgroundColor: 'var(--secondary, #ffffff)',
+            color: 'var(--secondary-foreground, #111827)',
+          };
+        case 'outline':
+          return {
+            backgroundColor: 'transparent',
+            color: 'var(--outline-foreground, #374151)',
+          };
+        case 'ghost':
+          return {
+            backgroundColor: 'transparent',
+            color: 'var(--ghost-foreground, #374151)',
+          };
+        case 'danger':
+          return {
+            backgroundColor: 'var(--danger, #dc2626)',
+            color: 'var(--danger-foreground, #ffffff)',
+          };
+        default:
+          return {};
+      }
+    })();
+
+    // Merge estilo seguro com estilo passado via props (props.style tem precedência)
+    const incomingStyle = (props.style as React.CSSProperties) || {};
+    const styleObj: React.CSSProperties = { ...safeStyle, ...incomingStyle };
 
     return (
       <button
@@ -69,7 +97,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
         disabled={disabled || isLoading}
-        style={safeStyle}
+        style={styleObj}
         {...props}
       >
         {isLoading ? (
