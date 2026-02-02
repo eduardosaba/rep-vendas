@@ -36,15 +36,24 @@ export function buildSupabaseImageUrl(
   const SUPA = SUPABASE_URL.replace(/\/$/, '');
   let objectPath = trimmed;
 
-  // Remove o prefixo do bucket se estiver presente na string
-  if (trimmed.includes('/product-images/')) {
+  // Se o valor já contém um caminho completo do Supabase (/storage/v1/object/public/...),
+  // extraímos apenas a parte após esse segmento para evitar duplicações (ex: public/public/...)
+  const marker = '/storage/v1/object/public/';
+  if (trimmed.includes(marker)) {
+    objectPath = trimmed.split(marker).pop() || '';
+  } else if (trimmed.includes('/product-images/')) {
+    // Compatibilidade antiga: remove o prefixo de product-images se presente
     const parts = trimmed.split('/product-images/');
     objectPath = parts[parts.length - 1];
   }
 
-  objectPath = objectPath.replace(/^\/+/, '');
+  // Remova barras iniciais e possíveis prefixos redundantes "public/"
+  objectPath = objectPath.replace(/^\/+/, '').replace(/^public\//, '');
+
+  // Agora construímos a URL pública usando o bucket/prefix que veio no próprio path
+  // (não forçamos mais "product-images" como bucket estático)
   const encoded = encodeURIComponent(objectPath);
-  const base = `${SUPA}/storage/v1/object/public/product-images/${encoded}`;
+  const base = `${SUPA}/storage/v1/object/public/${encoded}`;
 
   // 4. Aplica transformações se solicitado (Supabase Image Transformation)
   if (opts && (opts.width || opts.height || opts.resize)) {
