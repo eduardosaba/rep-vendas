@@ -1,4 +1,5 @@
 'use client';
+// touch: incluir este arquivo no próximo commit (deploy cache-bust)
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
