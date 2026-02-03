@@ -18,7 +18,8 @@ export async function POST(request: Request) {
 
     // 2. Recebe os dados do formulário
     const body = await request.json();
-    const { version, title, date, highlights, colorFrom, colorTo } = body;
+    const { version, title, date, highlights, colorFrom, colorTo, forceShow } =
+      body;
 
     // 3. Validação Básica
     if (!version || !title) {
@@ -29,17 +30,21 @@ export async function POST(request: Request) {
     }
 
     // 4. Insere/Atualiza no Banco de Dados (upsert para evitar conflict por version)
-    const { error: upsertError } = await supabase.from('system_updates').upsert(
-      {
-        version,
-        title,
-        date,
-        highlights, // O Supabase aceita array de strings direto se a coluna for text[]
-        color_from: colorFrom,
-        color_to: colorTo,
-      },
-      { onConflict: 'version' }
-    );
+    const payload: any = {
+      version,
+      title,
+      date,
+      highlights, // O Supabase aceita array de strings direto se a coluna for text[]
+      color_from: colorFrom,
+      color_to: colorTo,
+    };
+
+    // opcional: incluir flag administrativa se fornecida
+    if (typeof forceShow !== 'undefined') payload.force_show = !!forceShow;
+
+    const { error: upsertError } = await supabase
+      .from('system_updates')
+      .upsert(payload, { onConflict: 'version' });
 
     if (upsertError) {
       console.error('Erro ao upsert update:', upsertError);

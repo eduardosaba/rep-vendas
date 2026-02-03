@@ -27,6 +27,60 @@ const SYNC_ONLY = (process.env.SYNC_ONLY || 'pending,failed')
   .split(',')
   .map((s) => s.trim());
 
+// Responsiveness sizes (w) for gallery/main variants
+const RESPONSIVE_SIZES = [320, 640, 1000];
+const BUCKET =
+  process.env.PRODUCT_IMAGES_BUCKET ||
+  process.env.STORAGE_BUCKET ||
+  'product-images';
+const CREATE_BUCKETS =
+  (process.env.CREATE_BUCKETS || 'false').toLowerCase() === 'true';
+
+// helper to ensure bucket exists (idempotent)
+async function ensureBucket(bucketName) {
+  try {
+    const { data, error } = await supabase.storage.createBucket(bucketName, {
+      public: true,
+    });
+    if (error && !/already exists/i.test(String(error.message || ''))) {
+      throw error;
+    }
+    return true;
+  } catch (e) {
+    // If createBucket is not allowed or returns 409, try to ignore
+    if (
+      String(e.message || '')
+        .toLowerCase()
+        .includes('already exists')
+    )
+      return true;
+    console.warn('ensureBucket warning:', e.message || e);
+    return false;
+  }
+}
+
+async function uploadToBucket(
+  bucketName,
+  path,
+  buf,
+  contentType = 'image/webp'
+) {
+  const { error } = await supabase.storage
+    .from(bucketName)
+    .upload(path, buf, { upsert: true, contentType });
+  if (error) throw error;
+  const { data } = supabase.storage.from(bucketName).getPublicUrl(path);
+  return data?.publicUrl;
+}
+
+async function getPublicUrlFromBucket(bucketName, path) {
+  const { data } = supabase.storage.from(bucketName).getPublicUrl(path);
+  return data?.publicUrl;
+}
+const CHECKPOINT_FILE =
+  process.env.SYNC_CHECKPOINT_FILE || '.sync-checkpoint.json';
+const MAX_RETRIES = Number(process.env.IMAGE_MAX_RETRIES) || 3;
+
 async function syncFullCatalog() {
   const agent = new https.Agent({ rejectUnauthorized: false });
 
@@ -62,6 +116,23 @@ async function syncFullCatalog() {
     console.warn('⚠️ Falha ao construir lista de IDs:', err.message);
   }
 
+  // Carrega checkpoint (ids processados) para permitir resume
+  try {
+    const fs = await import('fs');
+    if (fs.existsSync && fs.existsSync(CHECKPOINT_FILE)) {
+      const raw = fs.readFileSync(CHECKPOINT_FILE, 'utf8');
+      const cp = JSON.parse(raw || '{"processed":[]}');
+      if (Array.isArray(cp.processed)) {
+        for (const id of cp.processed) idsToProcessSet.delete(id);
+        console.log(
+          `🔁 Checkpoint carregado: removidos ${cp.processed.length} ids já processados`
+        );
+      }
+    }
+  } catch (e) {
+    // não bloqueante
+  }
+
   let allIds = Array.from(idsToProcessSet);
   let totalToProcess = allIds.length;
 
@@ -72,7 +143,9 @@ async function syncFullCatalog() {
     const nextBatchIds = allIds.slice(0, CHUNK_SIZE);
     const { data: products, error } = await supabase
       .from('products')
-      .select('id, name, reference_code, image_url, sync_status, images')
+      .select(
+        'id, name, reference_code, image_url, sync_status, images, brand, user_id'
+      )
       .in('id', nextBatchIds);
 
     if (error) throw error;
@@ -100,34 +173,96 @@ async function syncFullCatalog() {
           let productOptimizedBytes = 0;
 
           // 1. PROCESSAR IMAGEM PRINCIPAL (CAPA)
-          if (product.sync_status !== 'synced' && product.image_url) {
-            try {
-              const storagePath = `products/${product.id}-main.webp`;
-              const res = await processAndUpload(
-                product.image_url,
-                storagePath,
-                agent
-              );
+          if (product.sync_status !== 'synced') {
+            // marca como processing para evitar re-processamento concorrente
+            await supabase
+              .from('products')
+              .update({ sync_status: 'processing' })
+              .eq('id', product.id);
 
-              // ATUALIZAÇÃO COMPATÍVEL COM ESTRATÉGIA RESILIENTE
-              await supabase
-                .from('products')
-                .update({
-                  image_url: res.url, // URL pública
-                  image_path: storagePath, // NOVO: Path interno
-                  image_optimized: true, // NOVO: Ativa selo verde
-                })
-                .eq('id', product.id);
+            // prefira imagem com sufixo P00 nas possíveis imagens da galeria
+            const pickCoverFromImages = (() => {
+              try {
+                const imgs = product.images || [];
+                if (Array.isArray(imgs) && imgs.length > 0) {
+                  // imgs may be array of strings or objects
+                  for (const it of imgs) {
+                    const url =
+                      typeof it === 'string' ? it : it.url || it.path || null;
+                    if (url && /P00\./i.test(url)) return url;
+                  }
+                  // fallback: first url-like
+                  const first = imgs[0];
+                  return typeof first === 'string' ? first : first?.url || null;
+                }
+              } catch (e) {
+                return null;
+              }
+              return null;
+            })();
 
-              totalOriginalBytes += res.originalSize;
-              totalOptimizedBytes += res.optimizedSize;
-              productOriginalBytes += res.originalSize;
-              productOptimizedBytes += res.optimizedSize;
-              mainSuccess = true;
-              console.log('   ✅ Capa Otimizada');
-            } catch (err) {
-              mainError = String(err?.message || err);
-              console.error(`   ❌ Capa: ${mainError}`);
+            const coverUrl = pickCoverFromImages || product.image_url;
+            if (coverUrl) {
+              try {
+                const brandRaw = product.brand || product.user_id || 'unknown';
+                const brandSlug =
+                  String(brandRaw || 'unknown')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/(^-|-$)/g, '') || 'unknown';
+
+                // decide target bucket and storage base depending on CREATE_BUCKETS
+                let targetBucket = BUCKET;
+                let storageBase = '';
+                if (CREATE_BUCKETS) {
+                  targetBucket = `${BUCKET}-${brandSlug}`;
+                  await ensureBucket(targetBucket);
+                  storageBase = `products/${product.id}/main`;
+                } else {
+                  storageBase = `public/brands/${brandSlug}/products/${product.id}/main`;
+                }
+
+                const res = await processAndUploadVariants(
+                  coverUrl,
+                  storageBase,
+                  agent,
+                  RESPONSIVE_SIZES,
+                  targetBucket
+                );
+
+                // choose largest variant as main
+                const mainVariant = res.variants.reduce((a, b) =>
+                  a.size > b.size ? a : b
+                );
+
+                // ATUALIZAÇÃO COMPATÍVEL
+                await supabase
+                  .from('products')
+                  .update({
+                    image_url: mainVariant.url,
+                    image_path: mainVariant.path,
+                    image_optimized: true,
+                    // keep a record of variants for frontend
+                    image_variants: res.variants.map((v) => ({
+                      size: v.size,
+                      url: v.url,
+                      path: v.path,
+                    })),
+                  })
+                  .eq('id', product.id);
+
+                totalOriginalBytes += res.originalSize;
+                totalOptimizedBytes += res.optimizedTotal;
+                productOriginalBytes += res.originalSize;
+                productOptimizedBytes += res.optimizedTotal;
+                mainSuccess = true;
+                console.log('   ✅ Capa Otimizada');
+              } catch (err) {
+                mainError = String(err?.message || err);
+                console.error(`   ❌ Capa: ${mainError}`);
+              }
+            } else {
+              console.log('   ⚠️ Sem URL de capa encontrada');
             }
           }
 
@@ -153,26 +288,55 @@ async function syncFullCatalog() {
                         ? rawUrl.split(';')[0].trim()
                         : rawUrl.trim();
 
-                      const gPath = `products/gallery/${img.id}.webp`;
-                      const res = await processAndUpload(
+                      const brandRaw =
+                        product.brand || product.user_id || 'unknown';
+                      const brandSlug =
+                        String(brandRaw || 'unknown')
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, '-')
+                          .replace(/(^-|-$)/g, '') || 'unknown';
+
+                      let targetBucket = BUCKET;
+                      let baseGalleryPath = '';
+                      if (CREATE_BUCKETS) {
+                        targetBucket = `${BUCKET}-${brandSlug}`;
+                        await ensureBucket(targetBucket);
+                        baseGalleryPath = `products/${product.id}/gallery/${img.id}`;
+                      } else {
+                        baseGalleryPath = `public/brands/${brandSlug}/products/${product.id}/gallery/${img.id}`;
+                      }
+
+                      const res = await processAndUploadVariants(
                         cleanUrl,
-                        gPath,
-                        agent
+                        baseGalleryPath,
+                        agent,
+                        RESPONSIVE_SIZES,
+                        targetBucket
+                      );
+
+                      // pick main variant for gallery entry
+                      const galleryMain = res.variants.reduce((a, b) =>
+                        a.size > b.size ? a : b
                       );
 
                       await supabase
                         .from('product_images')
                         .update({
-                          optimized_url: res.url,
-                          storage_path: gPath, // Garantindo o path na tabela auxiliar
+                          optimized_url: galleryMain.url,
+                          storage_path: galleryMain.path, // principal path
+                          optimized_variants: res.variants.map((v) => ({
+                            size: v.size,
+                            url: v.url,
+                            path: v.path,
+                          })),
                           sync_status: 'synced',
                         })
                         .eq('id', img.id);
 
                       totalOriginalBytes += res.originalSize;
-                      totalOptimizedBytes += res.optimizedSize;
+                      totalOptimizedBytes += res.optimizedTotal;
                       productOriginalBytes += res.originalSize;
-                      productOptimizedBytes += res.optimizedSize;
+                      productOptimizedBytes += res.optimizedTotal;
                       gallerySynced++;
                     } catch (err) {
                       console.error(`   ❌ Galeria item: ${err.message}`);
@@ -213,6 +377,26 @@ async function syncFullCatalog() {
             })
             .eq('id', product.id);
 
+          // Salva checkpoint local para permitir resume em caso de queda
+          try {
+            const fs = await import('fs');
+            let cp = { processed: [] };
+            if (fs.existsSync && fs.existsSync(CHECKPOINT_FILE)) {
+              try {
+                const raw = fs.readFileSync(CHECKPOINT_FILE, 'utf8');
+                cp = JSON.parse(raw || '{"processed":[]}');
+              } catch (e) {
+                cp = { processed: [] };
+              }
+            }
+            cp.processed = cp.processed || [];
+            if (!cp.processed.includes(product.id))
+              cp.processed.push(product.id);
+            fs.writeFileSync(CHECKPOINT_FILE, JSON.stringify(cp));
+          } catch (e) {
+            // não bloqueante
+          }
+
           if (isOk) totalProductsSynced++;
           else totalProductsFailed++;
           processedCount++;
@@ -245,7 +429,12 @@ async function syncFullCatalog() {
 }
 
 // --- FUNÇÃO DE PROCESSAMENTO (SHARP) ---
-async function processAndUpload(url, storagePath, agent) {
+async function processAndUpload(
+  url,
+  storagePath,
+  agent,
+  targetBucket = BUCKET
+) {
   if (!url || url.includes('placeholder')) throw new Error('URL inválida');
 
   const response = await fetch(url, { agent, timeout: 15000 });
@@ -255,29 +444,109 @@ async function processAndUpload(url, storagePath, agent) {
   const originalSize = buffer.byteLength;
 
   // Sharp: Otimização pesada para WebP
+  // legacy single-variant upload (kept for compatibility)
   const optimized = await sharp(buffer, { failOn: 'none' })
     .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 75 })
     .toBuffer();
 
-  const { error } = await supabase.storage
-    .from('product-images')
-    .upload(storagePath, optimized, {
-      upsert: true,
-      contentType: 'image/webp',
-    });
-
-  if (error) throw error;
-
-  const { data } = supabase.storage
-    .from('product-images')
-    .getPublicUrl(storagePath);
+  // upload using helper to chosen bucket
+  const publicUrl = await uploadToBucket(
+    targetBucket,
+    storagePath,
+    optimized,
+    'image/webp'
+  );
   return {
-    url: data.publicUrl,
+    url: publicUrl,
     path: storagePath,
     originalSize,
     optimizedSize: optimized.byteLength,
   };
+}
+
+// New: process and upload multiple responsive variants. storageBase is base path (no suffix)
+async function processAndUploadVariants(
+  url,
+  storageBase,
+  agent,
+  sizes = RESPONSIVE_SIZES,
+  targetBucket = BUCKET
+) {
+  if (!url || url.includes('placeholder')) throw new Error('URL inválida');
+
+  const response = await fetch(url, { agent, timeout: 15000 });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const originalSize = buffer.byteLength;
+
+  const variants = [];
+  let optimizedTotal = 0;
+
+  // ensure sizes are unique and sorted
+  const uniqueSizes = Array.from(new Set(sizes)).sort((a, b) => a - b);
+
+  // upload variants and keep buffers to avoid re-fetch
+  let largestBuf = null;
+  for (const s of uniqueSizes) {
+    const outBuf = await sharp(buffer, { failOn: 'none' })
+      .resize(s, s, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 75 })
+      .toBuffer();
+
+    const path = `${storageBase}-${s}w.webp`;
+    const urlPublic = await uploadToBucket(
+      targetBucket,
+      path,
+      outBuf,
+      'image/webp'
+    );
+    variants.push({
+      size: s,
+      path,
+      url: urlPublic,
+      optimizedSize: outBuf.byteLength,
+    });
+    optimizedTotal += outBuf.byteLength;
+    largestBuf = outBuf; // last assigned will be largest
+  }
+
+  // also create a non-suffixed main file pointing to largest size for compatibility
+  const largest = variants[variants.length - 1];
+  const mainPath = `${storageBase}.webp`;
+  try {
+    if (largestBuf) {
+      await uploadToBucket(targetBucket, mainPath, largestBuf, 'image/webp');
+    }
+  } catch (e) {
+    // best-effort; ignore
+  }
+
+  const mainUrl =
+    (await getPublicUrlFromBucket(targetBucket, mainPath)) || largest.url;
+
+  return {
+    variants,
+    main: { size: largest.size, path: mainPath, url: mainUrl },
+    originalSize,
+    optimizedTotal,
+  };
+}
+
+// Helper: retry operation with exponential backoff
+async function retryOperation(fn, attempts = MAX_RETRIES, delayMs = 500) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const wait = delayMs * Math.pow(2, i);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
 }
 
 syncFullCatalog().catch((e) => {

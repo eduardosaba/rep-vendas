@@ -61,7 +61,7 @@ const ImageUploader = ({
       </h3>
 
       {isShared && (
-        <div className="flex items-center gap-1.5 text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full uppercase mb-3 inline-flex">
+        <div className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full uppercase mb-3">
           Imagens Compartilhadas (Master)
         </div>
       )}

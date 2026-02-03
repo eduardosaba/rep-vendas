@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 const LAST_SEEN_VERSION_KEY = 'repvendas_last_seen_version';
@@ -14,6 +14,11 @@ interface UpdateData {
   highlights: string[];
   color_from: string;
   color_to: string;
+  // possíveis flags administrativas (fallbacks caso o schema mude)
+  force_show?: boolean;
+  for_all?: boolean;
+  show_to_all?: boolean;
+  is_important?: boolean;
 }
 
 /**
@@ -31,7 +36,6 @@ export default function UpdateNotificationModal() {
   const [mounted, setMounted] = useState(false);
   const [updateData, setUpdateData] = useState<UpdateData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -63,10 +67,23 @@ export default function UpdateNotificationModal() {
         const lastSeenVersion = localStorage.getItem(LAST_SEEN_VERSION_KEY);
         const currentVersion = data.version;
 
-        // Exibir apenas se:
-        // 1. Nunca viu nenhuma versão (novo usuário)
-        // 2. Viu uma versão diferente da atual (atualização)
-        if (!lastSeenVersion || lastSeenVersion !== currentVersion) {
+        // Se a atualização tem uma flag administrativa para forçar exibição,
+        // obedecemos a isso (ex.: admin envia mensagem urgente)
+        const forceShow = !!(
+          data.force_show ||
+          data.for_all ||
+          data.show_to_all ||
+          data.is_important
+        );
+
+        // Exibir quando:
+        // - forçado pelo admin (forceShow)
+        // - ou quando a versão atual é diferente da última vista
+        if (
+          forceShow ||
+          !lastSeenVersion ||
+          lastSeenVersion !== currentVersion
+        ) {
           setIsOpen(true);
         }
       }
@@ -78,11 +95,15 @@ export default function UpdateNotificationModal() {
   };
 
   const handleClose = () => {
-    if (updateData && dontShowAgain) {
-      // Persist client-side
-      localStorage.setItem(LAST_SEEN_VERSION_KEY, updateData.version);
+    if (updateData) {
+      // Persistir localmente sempre que o usuário fechar (marcar como visto)
+      try {
+        localStorage.setItem(LAST_SEEN_VERSION_KEY, updateData.version);
+      } catch {
+        // ignore (privacy mode)
+      }
 
-      // Persist server-side (best-effort)
+      // Persistir server-side (best-effort) para suportar múltiplos dispositivos
       try {
         fetch('/api/me/seen-update', {
           method: 'POST',
@@ -94,6 +115,7 @@ export default function UpdateNotificationModal() {
         // ignore
       }
     }
+
     setIsOpen(false);
   };
 
@@ -186,18 +208,7 @@ export default function UpdateNotificationModal() {
               })}
             </ul>
 
-            {/* Actions */}
-            <div className="mb-4 flex items-center justify-center gap-4">
-              <label className="inline-flex items-center text-sm text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={dontShowAgain}
-                  onChange={(e) => setDontShowAgain(e.target.checked)}
-                  className="mr-2 rounded"
-                />
-                Não mostrar novamente para esta versão
-              </label>
-            </div>
+            {/* Actions (fechado ao clicar; marcado como visto automaticamente) */}
 
             <div className="flex justify-center">
               <button
@@ -207,7 +218,7 @@ export default function UpdateNotificationModal() {
                   background: `linear-gradient(to right, ${updateData.color_from}, ${updateData.color_to})`,
                 }}
               >
-                Entendi, obrigado!
+                Entendi — marcado como visto
               </button>
             </div>
           </div>

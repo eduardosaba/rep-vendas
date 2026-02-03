@@ -20,6 +20,7 @@
     "sincronizar": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:CHUNK_SIZE = '40'; $env:PRODUCT_CONCURRENCY = '8'; $env:IMAGE_CONCURRENCY = '6'; $env:SYNC_ONLY = 'pending,failed'; node scripts/local-sync-full.mjs 2>&1 | Tee-Object -FilePath sync-full.log\"",
     "sincronizar:reparo": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:CHUNK_SIZE = '20'; $env:PRODUCT_CONCURRENCY = '4'; $env:IMAGE_CONCURRENCY = '3'; $env:SYNC_ONLY = 'failed'; node scripts/local-sync-full.mjs 2>&1 | Tee-Object -FilePath sync-repair.log\"",
     "sincronizar:limpar": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item sync-*.log -ErrorAction SilentlyContinue; Write-Host 'Logs limpos!' -ForegroundColor Cyan\"",
+    "status:images": "node scripts/check-images-status.mjs",
     "cache:local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item -Recurse -Force .next/cache/images -ErrorAction SilentlyContinue; Write-Host '🚀 Cache local de imagens deletado!' -ForegroundColor Cyan\"",
     "cache:vercel": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$token = $env:REVALIDATE_TOKEN; if(-not $token){ Write-Host 'REVALIDATE_TOKEN não definido' -ForegroundColor Yellow; exit 1 }; Invoke-RestMethod -Uri \"https://$env:NEXT_PUBLIC_VERCEL_HOST/api/admin/revalidate?secret=$token\" -Method Get; Write-Host '☁️ Vercel avisada para atualizar o catálogo!' -ForegroundColor Green\"",
     "approve-builds": "node scripts/approve-builds.mjs",

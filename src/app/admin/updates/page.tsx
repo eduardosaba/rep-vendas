@@ -26,6 +26,7 @@ interface UpdateItem {
   color_from: string;
   color_to: string;
   created_at: string;
+  force_show?: boolean;
 }
 
 // TEMPLATES PRÉ-DEFINIDOS PARA AGILIDADE
@@ -93,6 +94,7 @@ export default function AdminUpdatesPage() {
   const [editorColorTo, setEditorColorTo] = useState(
     PRESET_TEMPLATES.welcome.colorTo
   );
+  const [editorForceShow, setEditorForceShow] = useState(false);
   const [newHighlight, setNewHighlight] = useState('');
 
   useEffect(() => {
@@ -141,6 +143,7 @@ export default function AdminUpdatesPage() {
           highlights: editorHighlights,
           colorFrom: editorColorFrom,
           colorTo: editorColorTo,
+          forceShow: editorForceShow,
         }),
       });
 
@@ -148,6 +151,7 @@ export default function AdminUpdatesPage() {
 
       setSaveSuccess(true);
       localStorage.removeItem('repvendas_last_seen_version');
+      setEditorForceShow(false);
       toast.success('Atualização publicada para todos!');
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: any) {
@@ -241,6 +245,18 @@ export default function AdminUpdatesPage() {
                     onChange={(e) => setEditorDate(e.target.value)}
                     className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
                   />
+                </div>
+
+                <div className="flex items-center gap-3 mt-4">
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={editorForceShow}
+                      onChange={(e) => setEditorForceShow(e.target.checked)}
+                      className="rounded"
+                    />
+                    Forçar exibição para todos (ignora última versão vista)
+                  </label>
                 </div>
 
                 <div className="space-y-2">
@@ -356,9 +372,16 @@ export default function AdminUpdatesPage() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                      {u.title}
-                    </h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                        {u.title}
+                      </h3>
+                      {u.force_show && (
+                        <span className="text-xs font-black uppercase tracking-widest bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 px-2 py-1 rounded-full">
+                          FORÇAR
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                       v{u.version} •{' '}
                       {new Date(u.date).toLocaleDateString('pt-BR')}
