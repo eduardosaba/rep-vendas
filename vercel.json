@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/products/image-repair",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }
