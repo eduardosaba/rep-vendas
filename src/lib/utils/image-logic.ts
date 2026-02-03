@@ -60,7 +60,7 @@ export function prepareProductImage(url: string | null | undefined) {
 /**
  * Organiza e filtra imagens da Safilo para o RepVendas.
  * Aplica regras de negócio: P00 é capa, P13/P14 são removidas.
- * @param rawString - A string de URLs separadas por vírgula ou espaço vinda do Excel.
+ * @param rawString - A string de URLs separadas por vírgula, ponto-e-vírgula ou espaço vinda do Excel.
  */
 export function processSafiloImages(rawString: string | null | undefined) {
   if (!rawString || String(rawString).trim() === '') {
@@ -68,11 +68,13 @@ export function processSafiloImages(rawString: string | null | undefined) {
   }
 
   // 1. Limpa e transforma em array, removendo espaços e splitando por separadores comuns
+  // IMPORTANTE: Aceita ; , \s \n como separadores (Excel pode usar ; para múltiplas URLs)
   let allUrls = String(rawString)
     .trim()
     .split(/[\s,;\n]+/)
     .map((u) => u.trim())
     .filter((u) => {
+      if (!u || u.length === 0) return false;
       try {
         const p = new URL(u);
         return p.protocol === 'http:' || p.protocol === 'https:';
@@ -118,9 +120,9 @@ export function processSafiloImages(rawString: string | null | undefined) {
 }
 
 /**
- * Processa uma lista de URLs (string separada por vírgula OU array de strings) e retorna objetos para inserção na tabela product_images.
+ * Processa uma lista de URLs (string separada por vírgula/ponto-e-vírgula OU array de strings) e retorna objetos para inserção na tabela product_images.
  * @param productId ID do produto dono das imagens.
- * @param urlsInput String contendo URLs separadas por vírgula ou Array de strings.
+ * @param urlsInput String contendo URLs separadas por vírgula, ponto-e-vírgula ou Array de strings.
  * @returns Array de objetos prontos para insert na tabela product_images.
  */
 export function prepareProductGallery(
@@ -134,11 +136,21 @@ export function prepareProductGallery(
   let urls: string[] = [];
 
   if (Array.isArray(urlsInput)) {
-    urls = urlsInput.map((u) => u.trim()).filter((u) => u.length > 0);
-  } else if (typeof urlsInput === 'string' && urlsInput.trim() !== '') {
-    // Divide por vírgula, limpa espaços e remove vazios
+    // Flattens arrays que podem conter strings com separadores internos
     urls = urlsInput
-      .split(',')
+      .flatMap((u) => {
+        const str = typeof u === 'string' ? u : String(u || '');
+        // Se a string contém separadores (;, ou espaço), split
+        if (str.includes(';') || str.includes(',')) {
+          return str.split(/[;,]+/).map((s) => s.trim());
+        }
+        return [str.trim()];
+      })
+      .filter((u) => u.length > 0);
+  } else if (typeof urlsInput === 'string' && urlsInput.trim() !== '') {
+    // Divide por vírgula OU ponto-e-vírgula, limpa espaços e remove vazios
+    urls = urlsInput
+      .split(/[;,]+/)
       .map((u) => u.trim())
       .filter((u) => u.length > 0);
   }
@@ -154,6 +166,9 @@ export function prepareProductGallery(
       return false;
     }
   });
+
+  // Deduplicação: Remove URLs idênticas
+  urls = Array.from(new Set(urls));
 
   if (urls.length === 0) return [];
 

@@ -464,6 +464,24 @@ export default function ImportMassaPage() {
             galleryUrls.some((u) => !!u && String(u).startsWith('http')))
         );
 
+        // Monta array COMPLETO de imagens: capa + galeria
+        // O local-sync-full.mjs espera que products.images contenha TODAS as URLs externas
+        const allImageUrls: string[] = [];
+        if (coverUrl) allImageUrls.push(coverUrl);
+        if (galleryUrls && galleryUrls.length > 0) {
+          allImageUrls.push(...galleryUrls);
+        }
+        // Flatten e dedup
+        const flattenedImages = allImageUrls
+          .flatMap((g) =>
+            typeof g === 'string' && g.includes(';')
+              ? g.split(';').map((u) => (u || '').trim())
+              : [g]
+          )
+          .map((u) => String(u || '').trim())
+          .filter(Boolean);
+        const uniqueImages = Array.from(new Set(flattenedImages));
+
         const productObj = {
           user_id: user.id,
           name: String(name),
@@ -490,14 +508,8 @@ export default function ImportMassaPage() {
           // Isso evita falsos positivos caso exista um `image_path` antigo no banco
           // que seria preservado por um upsert que omite o campo.
           image_optimized: false,
-          images: (galleryUrls || [])
-            .flatMap((g) =>
-              typeof g === 'string' && g.includes(';')
-                ? g.split(';').map((u) => (u || '').trim())
-                : [g]
-            )
-            .map((u) => String(u || '').trim())
-            .filter(Boolean),
+          // CRÍTICO: Salva TODAS as URLs (capa + galeria) para o sync processar
+          images: uniqueImages,
 
           technical_specs: Object.keys(techSpecs).length > 0 ? techSpecs : null,
           last_import_id: null,
