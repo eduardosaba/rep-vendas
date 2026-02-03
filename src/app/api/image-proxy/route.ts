@@ -76,7 +76,20 @@ export async function GET(req: Request) {
       }
     }
 
-    // TLS: não alteramos NODE_TLS_REJECT_UNAUTHORIZED aqui — sempre validamos certificados.
+    // TLS: em ambiente de desenvolvimento podemos permitir TLS inseguro
+    // quando `ALLOW_INSECURE_TLS` estiver truthy. Isso facilita fetch de hosts
+    // com certificados incompletos em ambientes de teste.
+    const allowInsecure = !!(
+      process.env.ALLOW_INSECURE_TLS && process.env.ALLOW_INSECURE_TLS !== '0'
+    );
+    let prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    if (allowInsecure) {
+      try {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      } catch (e) {
+        // ignore
+      }
+    }
 
     const res = await fetchWithTimeout(
       targetUrl.toString(),
@@ -91,6 +104,17 @@ export async function GET(req: Request) {
       },
       45000
     );
+
+    // restaurar configuração TLS global (se alterada)
+    if (allowInsecure) {
+      try {
+        if (typeof prev === 'undefined')
+          delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+        else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev;
+      } catch (e) {
+        // ignore
+      }
+    }
 
     if (!res.ok) {
       return NextResponse.json(

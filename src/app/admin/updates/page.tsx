@@ -303,7 +303,7 @@ export default function AdminUpdatesPage() {
             <button
               onClick={saveAndPublish}
               disabled={saving}
-              className="w-full py-5 bg-gradient-to-r from-primary to-blue-700 text-white font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+              className="w-full py-5 bg-gradient-to-r from-primary to-blue-700 text-black font-black uppercase tracking-[0.2em] rounded-[2rem] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 className="animate-spin mx-auto" />

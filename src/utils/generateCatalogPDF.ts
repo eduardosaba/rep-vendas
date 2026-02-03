@@ -99,15 +99,44 @@ const getUrlData = async (
     // Imagens da Safilo ou outros hosts externos falham no fetch direto devido ao CORS
     const isExternal = !url.includes('supabase.co') && url.startsWith('http');
 
-    // 2. Se for externa, usa a sua rota de API como ponte
+    // 2. Se for externa, usa a sua rota de API como ponte.
+    // Use URL absoluta para evitar problemas com basePath/service workers.
+    const proxyPath = `/api/image-proxy?url=${encodeURIComponent(url)}`;
     const finalUrl = isExternal
-      ? `/api/image-proxy?url=${encodeURIComponent(url)}`
+      ? typeof window !== 'undefined'
+        ? `${window.location.origin}${proxyPath}`
+        : proxyPath
       : url;
 
-    const res = await fetch(finalUrl);
+    let res: Response | null = null;
+    try {
+      res = await fetch(finalUrl);
+    } catch (e) {
+      // falha no fetch (network/CORS). Se for externa, tentar fetch direto como fallback
+      console.warn(
+        'generateCatalogPDF: fetch falhou (proxy) para',
+        finalUrl,
+        e
+      );
+      if (isExternal) {
+        try {
+          res = await fetch(url);
+        } catch (e2) {
+          console.error(
+            'generateCatalogPDF: fetch direto também falhou para',
+            url,
+            e2
+          );
+          return null;
+        }
+      } else {
+        return null;
+      }
+    }
+    if (!res) return null;
     if (!res.ok) {
       console.warn(
-        `generateCatalogPDF: fetch falhou para ${url} com status ${res.status}`
+        `generateCatalogPDF: fetch retornou status ${res.status} para ${finalUrl}`
       );
       return null;
     }

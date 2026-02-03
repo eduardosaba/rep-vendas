@@ -1,12 +1,6 @@
 'use client';
 
-import React, {
-  useState,
-  useMemo,
-  useEffect,
-  useCallback,
-  useRef,
-} from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -40,7 +34,6 @@ import { Button } from '../ui/Button';
 import ProductBarcode from '@/components/ui/Barcode';
 import Image from 'next/image';
 import { getProductImageUrl } from '@/lib/imageUtils';
-import type { Product as LibProduct } from '@/lib/types';
 import { toast } from 'sonner';
 // imports removed: SyncSingleButton, getProductImage (not used)
 import {
@@ -63,7 +56,7 @@ interface Product {
   image_url: string | null;
   image_path?: string | null;
   external_image_url?: string | null;
-  images?: string[];
+  images: string[] | null;
   // Indica se a imagem principal está internalizada no Storage
   image_optimized?: boolean | null;
   is_launch: boolean;
@@ -188,13 +181,9 @@ const DEFAULT_SORT_DIRECTION: Partial<Record<DataKey, 'asc' | 'desc'>> = {
 
 export function ProductsTable({ initialProducts }: ProductsTableProps) {
   // Component implementation
-  const _router = useRouter();
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const {
-    canCreate: _canCreate,
-    usage: _usage,
-    loading: _limitLoading,
-  } = usePlanLimits();
+  const { canCreate, usage, loading: limitLoading } = usePlanLimits();
 
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [availableBrands, setAvailableBrands] = useState<BrandOption[]>([]);
@@ -240,7 +229,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     totalPages?: number;
     page?: number;
   }>({});
-  const [_serverLoading, setServerLoading] = useState(false);
+  const [serverLoading, setServerLoading] = useState(false);
   const fetchTimerRef = useRef<number | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -303,7 +292,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
 
-  const [_isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showTextModal, setShowTextModal] = useState(false);
@@ -323,7 +312,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     label: string;
   }>({ field: '', value: '', label: '' });
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [preferSoftDelete, _setPreferSoftDelete] = useState(false);
+  const [preferSoftDelete, setPreferSoftDelete] = useState(false);
   const [priceConfig, setPriceConfig] = useState<{
     mode: 'fixed' | 'percentage';
     value: string;
@@ -486,11 +475,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           .from('brands')
           .select('name, logo_url')
           .in('name', brands);
-        const map: Record<string, string | null> = {};
-        brandData?.forEach(
-          (b: { name: string; logo_url: string | null }) =>
-            (map[b.name] = b.logo_url)
-        );
+        const map: any = {};
+        brandData?.forEach((b: any) => (map[b.name] = b.logo_url));
         setAvailableBrands(
           brands.map((b: string) => ({ name: b, logo_url: map[b] || null }))
         );
@@ -530,22 +516,17 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         const res = await fetch(`/api/products?${params.toString()}`);
         if (!res.ok) throw new Error('Erro ao buscar produtos');
         const json = await res.json();
-        const serverDataRaw = json.data || [];
-        let serverData = serverDataRaw as Product[];
+        let serverData = json.data || [];
         // se o filtro de otimização de imagem estiver ativo, aplique uma filtragem adicional
         if (filters.imageOptimization && filters.imageOptimization !== 'all') {
-          const filtered = serverData.filter((p) => {
+          const filtered = (serverData as any[]).filter((p) => {
             const hasStorageImage = Boolean(
               p.image_path ||
               p.image_url?.includes('supabase.co/storage') ||
               p.external_image_url?.includes('supabase.co/storage') ||
               (p.images &&
                 Array.isArray(p.images) &&
-                p.images.some((i) =>
-                  typeof i === 'string'
-                    ? i.includes('supabase.co/storage')
-                    : false
-                ))
+                p.images.some((i: any) => i?.includes('supabase.co/storage')))
             );
             if (filters.imageOptimization === 'optimized')
               return hasStorageImage;
@@ -609,15 +590,13 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
   // --- COMPONENTE DROPDOWN DE COLUNAS ---
   const ColumnSelectorDropdown = () => {
-    const dropdownRef = useRef<HTMLDivElement | null>(null);
+    const dropdownRef = useRef<any>(null);
     useEffect(() => {
-      const handleClickOutside = (e: Event) => {
-        const target = e.target as Node | null;
+      const handleClickOutside = (e: any) => {
         if (
           isColumnDropdownOpen &&
           dropdownRef.current &&
-          target &&
-          !dropdownRef.current.contains(target)
+          !dropdownRef.current.contains(e.target)
         ) {
           setIsColumnDropdownOpen(false);
         }
@@ -625,7 +604,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       document.addEventListener('mousedown', handleClickOutside);
       return () =>
         document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    }, [isColumnDropdownOpen]);
 
     return (
       <div className="relative inline-block text-left" ref={dropdownRef}>
@@ -729,15 +708,13 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   };
 
   const SortSelectorDropdown = () => {
-    const ref = useRef<HTMLDivElement | null>(null);
+    const ref = useRef<any>(null);
     useEffect(() => {
-      const handleClickOutside = (e: Event) => {
-        const target = e.target as Node | null;
+      const handleClickOutside = (e: any) => {
         if (
           isSortDropdownOpen &&
           ref.current &&
-          target &&
-          !ref.current.contains(target)
+          !ref.current.contains(e.target)
         ) {
           setIsSortDropdownOpen(false);
         }
@@ -745,7 +722,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       document.addEventListener('mousedown', handleClickOutside);
       return () =>
         document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    }, [isSortDropdownOpen]);
 
     const sortable = Object.values(ALL_DATA_COLUMNS).filter(
       (c) => c.isSortable
@@ -791,9 +768,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                       });
                     } else {
                       const dir =
-                        (DEFAULT_SORT_DIRECTION[col.key as DataKey] as
-                          | 'asc'
-                          | 'desc') || 'asc';
+                        (DEFAULT_SORT_DIRECTION as any)[col.key] || 'asc';
                       setSortConfig({ key: col.key, direction: dir });
                     }
                     setIsSortDropdownOpen(false);
@@ -910,26 +885,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     });
 
     if (sortConfig) {
-      data.sort((a: Product, b: Product) => {
-        const va = a[sortConfig.key];
-        const vb = b[sortConfig.key];
-
-        if (va == null && vb == null) return 0;
-        if (va == null) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (vb == null) return sortConfig.direction === 'asc' ? 1 : -1;
-
-        const na = Number(va as unknown as number);
-        const nb = Number(vb as unknown as number);
-        if (!Number.isNaN(na) && !Number.isNaN(nb)) {
-          if (na < nb) return sortConfig.direction === 'asc' ? -1 : 1;
-          if (na > nb) return sortConfig.direction === 'asc' ? 1 : -1;
-          return 0;
-        }
-
-        const sa = String(va);
-        const sb = String(vb);
-        if (sa < sb) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (sa > sb) return sortConfig.direction === 'asc' ? 1 : -1;
+      data.sort((a: any, b: any) => {
+        if (a[sortConfig.key] < b[sortConfig.key])
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key])
+          return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
@@ -1002,7 +962,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           const res = await fetch(`/api/products?${params.toString()}`);
           if (!res.ok) throw new Error('Erro ao buscar produtos');
           const json = await res.json();
-          const ids = (json.data || []).map((d: { id: string }) => d.id);
+          const ids = (json.data || []).map((d: any) => d.id);
           setSelectedIds(ids);
           setSelectAllMatching(true);
         } catch (err) {
@@ -1027,7 +987,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     }, 2000);
   };
 
-  const handleBulkUpdate = async (field: string, value: unknown) => {
+  const handleBulkUpdate = async (field: string, value: any) => {
     setIsProcessing(true);
     try {
       await bulkUpdateFields(selectedIds, { [field]: value });
@@ -1106,9 +1066,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     setIsProcessing(true);
     try {
       const ids = deleteTargetId ? [deleteTargetId] : selectedIds;
-      const res = (await bulkDelete(ids, {
+      const res: any = await bulkDelete(ids, {
         preferSoft: forceSoft || preferSoftDelete,
-      })) as { deletedIds?: string[]; softDeletedIds?: string[] };
+      });
       setProducts((prev) =>
         prev
           .map((p) =>
@@ -1121,9 +1081,8 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       );
       setSelectedIds([]);
       setShowDeleteModal(false);
-    } catch (e: unknown) {
-      const err = e as Error;
-      toast.error(err?.message ?? String(e));
+    } catch (e: any) {
+      toast.error(e.message);
     }
     setIsProcessing(false);
     setDeleteTargetId(null);
@@ -1172,7 +1131,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         .eq('user_id', user?.id)
         .maybeSingle();
 
-      const brandMap: Record<string, string | null> = {};
+      const brandMap: any = {};
       availableBrands.forEach((b) => (brandMap[b.name] = b.logo_url));
 
       // Obtém cor secundária do sistema
@@ -1202,29 +1161,22 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       toast.success('PDF Gerado com sucesso!');
       setShowPdfModal(false);
       setPdfProgress({ progress: 0, message: '' });
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error(error);
-      const err = error as Error;
-      toast.error('Erro ao gerar PDF', {
-        description: err?.message ?? String(error),
-      });
+      toast.error('Erro ao gerar PDF', { description: error.message });
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
   // --- RENDERERS ---
-  interface SortableHeaderProps {
-    label: string;
-    sortKey: DataKey;
-    align?: 'left' | 'right' | 'center';
-  }
-
-  const SortableHeader = ({ label, sortKey, align }: SortableHeaderProps) => (
+  const SortableHeader = ({ label, sortKey, align }: any) => (
     <th
       className={`relative px-4 py-3 font-medium hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap text-gray-500 dark:text-slate-400 text-xs uppercase tracking-wider ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}
       style={
-        columnWidths[sortKey] ? { width: columnWidths[sortKey] } : undefined
+        (columnWidths as any)[sortKey]
+          ? { width: (columnWidths as any)[sortKey] }
+          : undefined
       }
     >
       <div
@@ -1265,21 +1217,20 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         onMouseDown={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          const ev = e as React.MouseEvent;
-          const startX = ev.clientX;
+          const startX = (e as any).clientX;
           resizingRef.current = {
             key: sortKey,
             startX,
-            startWidth: columnWidths[sortKey] || 150,
+            startWidth: (columnWidths as any)[sortKey] || 150,
           };
           document.body.style.userSelect = 'none';
         }}
         onDoubleClick={() => {
           // reset width to default (undefined -> uses initial state/default)
           setColumnWidths((prev) => {
-            const next: Partial<Record<DataKey, number>> = { ...prev };
+            const next = { ...prev } as any;
             delete next[sortKey];
-            return next as Record<DataKey, number>;
+            return next;
           });
         }}
         className="absolute right-0 top-0 h-full w-6 -mr-3 cursor-col-resize"
@@ -1288,7 +1239,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   );
 
   const renderCell = (product: Product, key: DataKey) => {
-    const val = product[key];
+    const val = (product as any)[key];
     // Helper para determinar se o produto possui imagem no Storage (otimizada)
     const hasStorageImage = Boolean(
       product.image_path ||
@@ -1304,9 +1255,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-800 relative overflow-hidden flex-shrink-0 border border-gray-200 dark:border-slate-700">
             {(() => {
               // Prefer storage only when image_path exists, otherwise use external URL directly
-              const { src, isExternal } = getProductImageUrl(
-                product as unknown as Partial<LibProduct>
-              );
+              const { src, isExternal } = getProductImageUrl(product as any);
               if (src) {
                 if (isExternal) {
                   return (
@@ -2184,7 +2133,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     product.external_image_url ? (
                       (() => {
                         const { src, isExternal } = getProductImageUrl(
-                          product as unknown as Partial<LibProduct>
+                          product as any
                         );
                         if (src) {
                           if (isExternal) {
