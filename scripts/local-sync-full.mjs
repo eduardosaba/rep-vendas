@@ -306,38 +306,73 @@ async function syncFullCatalog() {
                         baseGalleryPath = `public/brands/${brandSlug}/products/${product.id}/gallery/${img.id}`;
                       }
 
-                      const res = await processAndUploadVariants(
-                        cleanUrl,
-                        baseGalleryPath,
-                        agent,
-                        RESPONSIVE_SIZES,
-                        targetBucket
-                      );
+                      // Split múltiplas URLs (ex: "url1;url2" ou "url1,url2")
+                      const parts = rawUrl
+                        .split(/[;,]/)
+                        .map((s) => s.trim())
+                        .filter(Boolean);
 
-                      // pick main variant for gallery entry
-                      const galleryMain = res.variants.reduce((a, b) =>
-                        a.size > b.size ? a : b
-                      );
+                      if (parts.length === 0) return;
 
-                      await supabase
-                        .from('product_images')
-                        .update({
-                          optimized_url: galleryMain.url,
-                          storage_path: galleryMain.path, // principal path
-                          optimized_variants: res.variants.map((v) => ({
-                            size: v.size,
-                            url: v.url,
-                            path: v.path,
-                          })),
-                          sync_status: 'synced',
-                        })
-                        .eq('id', img.id);
+                      for (let pi = 0; pi < parts.length; pi++) {
+                        const partUrl = parts[pi];
+                        try {
+                          const res = await processAndUploadVariants(
+                            partUrl,
+                            `${baseGalleryPath}${pi > 0 ? `-${pi}` : ''}`,
+                            agent,
+                            RESPONSIVE_SIZES,
+                            targetBucket
+                          );
 
-                      totalOriginalBytes += res.originalSize;
-                      totalOptimizedBytes += res.optimizedTotal;
-                      productOriginalBytes += res.originalSize;
-                      productOptimizedBytes += res.optimizedTotal;
-                      gallerySynced++;
+                          // pick main variant for gallery entry
+                          const galleryMain = res.variants.reduce((a, b) =>
+                            a.size > b.size ? a : b
+                          );
+
+                          if (pi === 0) {
+                            // Atualiza a linha existente com o primeiro resultado
+                            await supabase
+                              .from('product_images')
+                              .update({
+                                optimized_url: galleryMain.url,
+                                storage_path: galleryMain.path,
+                                optimized_variants: res.variants.map((v) => ({
+                                  size: v.size,
+                                  url: v.url,
+                                  path: v.path,
+                                })),
+                                sync_status: 'synced',
+                              })
+                              .eq('id', img.id);
+                          } else {
+                            // Para URLs adicionais, cria novas linhas já marcadas como 'synced'
+                            await supabase.from('product_images').insert([
+                              {
+                                product_id: product.id,
+                                url: partUrl,
+                                optimized_url: galleryMain.url,
+                                storage_path: galleryMain.path,
+                                optimized_variants: res.variants.map((v) => ({
+                                  size: v.size,
+                                  url: v.url,
+                                  path: v.path,
+                                })),
+                                sync_status: 'synced',
+                                created_at: new Date().toISOString(),
+                              },
+                            ]);
+                          }
+
+                          totalOriginalBytes += res.originalSize;
+                          totalOptimizedBytes += res.optimizedTotal;
+                          productOriginalBytes += res.originalSize;
+                          productOptimizedBytes += res.optimizedTotal;
+                          gallerySynced++;
+                        } catch (err) {
+                          console.error(`   ❌ Galeria item: ${err.message}`);
+                        }
+                      }
                     } catch (err) {
                       console.error(`   ❌ Galeria item: ${err.message}`);
                     }

@@ -79,11 +79,11 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
 
   const isActive = data.is_active ?? true; // Captura o valor vindo do dashboard
 
-  // Verifica existência
+  // Verifica existência pelo `slug` — mais seguro para evitar alterações cruzadas
   const { data: existing } = await supabase
     .from('public_catalogs')
-    .select('id')
-    .eq('user_id', userId)
+    .select('id, user_id, slug')
+    .eq('slug', slug)
     .maybeSingle();
 
   // helper: tentar registrar auditoria (se tabela existir), não bloquear fluxo
@@ -320,10 +320,11 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       // ignore failures here (best-effort)
     }
 
+    // Atualiza apenas o registro correspondente ao `slug` (escopo por catálogo)
     const { error } = await supabase
       .from('public_catalogs')
       .update(updatePayload)
-      .eq('user_id', userId);
+      .eq('slug', slug);
     if (error) throw error;
   } else {
     // INSERT new public_catalogs entry

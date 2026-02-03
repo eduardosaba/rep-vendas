@@ -547,31 +547,58 @@ export default function ImportMassaPage() {
       const referenceCodesAll = finalBatch.map((p) => p.reference_code);
       const existingMap: Record<string, { id: string; slug?: string }> = {};
       if (referenceCodesAll.length > 0) {
-        const { data: existingProducts } = await supabase
-          .from('products')
-          .select('id,reference_code,slug')
-          .eq('user_id', user.id)
-          .in('reference_code', referenceCodesAll);
+        addLog(
+          `Buscando ${referenceCodesAll.length} produtos já existentes (em chunks)...`
+        );
+        const chunkSizeExisting = 500; // reduz o tamanho para evitar query muito longa
+        for (let j = 0; j < referenceCodesAll.length; j += chunkSizeExisting) {
+          const chunk = referenceCodesAll.slice(j, j + chunkSizeExisting);
+          const chunkIndex = Math.floor(j / chunkSizeExisting) + 1;
+          addLog(
+            `Buscando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSizeExisting, referenceCodesAll.length)})`
+          );
+          const { data: existingProducts, error: existingError } =
+            await supabase
+              .from('products')
+              .select('id,reference_code,slug')
+              .eq('user_id', user.id)
+              .in('reference_code', chunk);
 
-        if (existingProducts && Array.isArray(existingProducts)) {
-          existingProducts.forEach((ep: any) => {
-            if (ep && ep.reference_code) {
-              existingMap[ep.reference_code] = { id: ep.id, slug: ep.slug };
-            }
-          });
+          if (existingError) {
+            addLog(
+              `Erro ao buscar produtos existentes (chunk ${chunkIndex}): ${existingError.message}`,
+              'error'
+            );
+            continue;
+          }
+
+          if (existingProducts && Array.isArray(existingProducts)) {
+            existingProducts.forEach((ep: any) => {
+              if (ep && ep.reference_code) {
+                existingMap[ep.reference_code] = { id: ep.id, slug: ep.slug };
+              }
+            });
+          }
         }
+        addLog(
+          `Busca de produtos existentes concluída. Encontrados: ${Object.keys(existingMap).length}`
+        );
       }
 
       const batchSize = 100;
       const totalBatches = Math.ceil(finalBatch.length / batchSize);
 
-      addLog(`Inserindo/atualizando ${finalBatch.length} itens...`);
+      addLog(
+        `Inserindo/atualizando ${finalBatch.length} itens em ${totalBatches} lotes...`
+      );
 
       for (let i = 0; i < finalBatch.length; i += batchSize) {
-        const batchNum = Math.floor(i / totalBatches) + 1;
+        const batchNum = Math.floor(i / batchSize) + 1;
         const batch = finalBatch.slice(i, i + batchSize);
 
-        addLog(`Enviando Lote ${batchNum}/${totalBatches}...`);
+        addLog(
+          `Enviando Lote ${batchNum}/${totalBatches} (itens ${i + 1}-${Math.min(i + batchSize, finalBatch.length)})...`
+        );
 
         // Preserva slug existente quando houver
         batch.forEach((item) => {
@@ -613,6 +640,26 @@ export default function ImportMassaPage() {
             });
           }
 
+          // Alguns drivers/versões do Supabase podem não retornar todas as linhas
+          // no `upsert(...).select()`; para garantir que temos os IDs, buscamos
+          // explicitamente os produtos que ficaram faltando.
+          const missingRefs = batch
+            .map((it) => it.reference_code)
+            .filter((rc) => rc && !upsertMap[rc]);
+          if (missingRefs.length > 0) {
+            const { data: fetchedMissing } = await supabase
+              .from('products')
+              .select('id,external_image_url,reference_code')
+              .eq('user_id', user.id)
+              .in('reference_code', missingRefs);
+
+            if (fetchedMissing && Array.isArray(fetchedMissing)) {
+              fetchedMissing.forEach((p: any) => {
+                if (p && p.reference_code) upsertMap[p.reference_code] = p;
+              });
+            }
+          }
+
           const allImagesToInsert: any[] = [];
           batch.forEach((originalItem) => {
             const p = upsertMap[originalItem.reference_code];
@@ -634,18 +681,41 @@ export default function ImportMassaPage() {
           });
 
           if (allImagesToInsert.length > 0) {
-            const { error: galleryError } = await supabase
-              .from('product_images')
-              .insert(allImagesToInsert);
-
-            if (galleryError) {
-              addLog(
-                `Erro ao criar galeria do lote ${batchNum}: ${galleryError.message}`,
-                'error'
+            addLog(
+              `Inserindo ${allImagesToInsert.length} imagens de galeria (em chunks)...`
+            );
+            const galleryChunkSize = 500;
+            for (
+              let k = 0;
+              k < allImagesToInsert.length;
+              k += galleryChunkSize
+            ) {
+              const galleryChunk = allImagesToInsert.slice(
+                k,
+                k + galleryChunkSize
               );
-            } else {
-              addLog(`Galeria do lote ${batchNum} criada com sucesso.`, 'info');
+              const chunkIndex = Math.floor(k / galleryChunkSize) + 1;
+              addLog(
+                `Inserindo chunk de galeria ${chunkIndex} (items ${k + 1}-${Math.min(k + galleryChunkSize, allImagesToInsert.length)})`
+              );
+              const { error: galleryError } = await supabase
+                .from('product_images')
+                .insert(galleryChunk);
+
+              if (galleryError) {
+                addLog(
+                  `Erro ao criar galeria do lote ${batchNum} (chunk ${chunkIndex}): ${galleryError.message}`,
+                  'error'
+                );
+                // não interrompe todo o processo, continua com os próximos chunks
+              } else {
+                addLog(
+                  `Chunk de galeria ${chunkIndex} salvo com sucesso.`,
+                  'info'
+                );
+              }
             }
+            addLog(`Galeria do lote ${batchNum} processada.`, 'info');
           }
         }
       }

@@ -7,6 +7,7 @@ import { usePlanLimits } from '@/hooks/usePlanLimits';
 import { ImageDropzone } from '@/components/dashboard/ImageDropzone';
 import { StagingProductCard } from '@/components/dashboard/StagingProductCard';
 import { toast } from 'sonner';
+import { useConfirm } from '@/hooks/useConfirm';
 import {
   ArrowLeft,
   Loader2,
@@ -83,10 +84,13 @@ export default function ImportVisualPage() {
 
   // Estados
   const [stagingImages, setStagingImages] = useState<StagingImage[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [totalToProcess, setTotalToProcess] = useState(0);
 
   // --- Helpers ---
   const addLog = useCallback(
@@ -175,6 +179,117 @@ export default function ImportVisualPage() {
   useEffect(() => {
     fetchStagingImages();
   }, [fetchStagingImages]);
+
+  // Seleção em massa helpers
+  const { confirm } = useConfirm();
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const selectAll = () => setSelectedIds(stagingImages.map((s) => s.id));
+  const clearSelection = () => setSelectedIds([]);
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const ok = await confirm({
+      title: `Excluir ${selectedIds.length} imagens?`,
+      description: `Esta ação removerá os arquivos do storage e os registros de staging. Deseja continuar?`,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+    });
+    if (!ok) return;
+    setUploading(true);
+    addLog(`Excluindo ${selectedIds.length} imagens...`, 'info');
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário inválido');
+      // Preparar lista de itens a serem processados
+      const items = selectedIds
+        .map((id) => stagingImages.find((i) => i.id === id))
+        .filter(Boolean) as StagingImage[];
+
+      setTotalToProcess(items.length);
+      setProcessedCount(0);
+
+      // 1) Remover arquivos do storage em batches concorrentes para não travar
+      const storageBatchSize = 8; // controla concorrência
+      for (let i = 0; i < items.length; i += storageBatchSize) {
+        const batch = items.slice(i, i + storageBatchSize);
+        await Promise.all(
+          batch.map(async (img) => {
+            try {
+              const { error } = await supabase.storage
+                .from('product-images')
+                .remove([img.storage_path]);
+              if (error) {
+                addLog(
+                  `Falha ao remover do storage: ${img.original_name} (${error.message})`,
+                  'error'
+                );
+              } else {
+                addLog(`Storage removido: ${img.original_name}`, 'info');
+              }
+            } catch (err: any) {
+              addLog(
+                `Erro storage ${img.original_name}: ${err.message}`,
+                'error'
+              );
+            } finally {
+              setProcessedCount((p) => p + 1);
+            }
+          })
+        );
+      }
+
+      // 2) Deletar registros do DB em lote (chunks para evitar query muito grande)
+      const idChunks: string[][] = [];
+      const dbChunkSize = 500;
+      for (let i = 0; i < selectedIds.length; i += dbChunkSize) {
+        idChunks.push(selectedIds.slice(i, i + dbChunkSize));
+      }
+
+      for (const chunk of idChunks) {
+        try {
+          const { error } = await supabase
+            .from('staging_images')
+            .delete()
+            .in('id', chunk);
+          if (error) {
+            addLog(
+              `Falha ao remover registros (chunk): ${error.message}`,
+              'error'
+            );
+          } else {
+            addLog(`Registros removidos: ${chunk.length}`, 'success');
+          }
+        } catch (err: any) {
+          addLog(`Erro ao remover chunk: ${err.message}`, 'error');
+        }
+      }
+
+      // garantir que o progresso alcance o total
+      setProcessedCount((_) => totalToProcess || items.length);
+
+      // Atualiza UI
+      await fetchStagingImages();
+      clearSelection();
+      toast.success('Imagens removidas com sucesso');
+    } catch (e: any) {
+      addLog(`Erro bulk delete: ${e.message}`, 'error');
+      toast.error('Erro ao excluir imagens');
+    } finally {
+      setUploading(false);
+      // reset progresso após breve atraso para UX
+      setTimeout(() => {
+        setProcessedCount(0);
+        setTotalToProcess(0);
+      }, 800);
+    }
+  };
 
   // 3. Upload de novas imagens
   const handleUpload = async (files: File[]) => {
@@ -547,18 +662,52 @@ export default function ImportVisualPage() {
                 ({stagingImages.length} pendentes)
               </span>
             </h3>
+
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="mr-2"
+                  checked={
+                    selectedIds.length > 0 &&
+                    selectedIds.length === stagingImages.length
+                  }
+                  onChange={(e) =>
+                    e.target.checked ? selectAll() : clearSelection()
+                  }
+                />
+                Selecionar tudo
+              </label>
+              <button
+                onClick={handleBulkDelete}
+                disabled={selectedIds.length === 0 || uploading}
+                className={`px-3 py-2 text-sm rounded-lg font-medium transition-colors ${selectedIds.length === 0 ? 'bg-gray-100 text-gray-400' : 'bg-red-600 text-white hover:bg-red-700'}`}
+              >
+                Excluir selecionados ({selectedIds.length})
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {stagingImages.map((img) => (
-              <StagingProductCard
-                key={img.id}
-                id={img.id}
-                imageUrl={img.publicUrl}
-                originalName={img.original_name}
-                onSave={handleSaveProduct}
-                onDelete={handleDeleteImage}
-              />
+              <div key={img.id} className="relative">
+                <label className="absolute top-2 left-2 z-10 bg-white/80 dark:bg-black/60 rounded-full p-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(img.id)}
+                    onChange={() => toggleSelect(img.id)}
+                    className="w-4 h-4"
+                  />
+                </label>
+                <StagingProductCard
+                  key={img.id}
+                  id={img.id}
+                  imageUrl={img.publicUrl}
+                  originalName={img.original_name}
+                  onSave={handleSaveProduct}
+                  onDelete={handleDeleteImage}
+                />
+              </div>
             ))}
           </div>
         </div>
