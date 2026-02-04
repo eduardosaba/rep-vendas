@@ -212,18 +212,28 @@ export function StoreModals() {
                     className="flex gap-4 rounded-2xl border border-gray-100 p-3 bg-white"
                   >
                     <div className="relative h-20 w-20 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
-                      <Image
-                        src={
-                          item.image_url ||
-                          '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
-                        }
-                        alt={item.name}
-                        fill
-                        className="object-contain p-2"
-                        unoptimized={(item.image_url || '').includes(
-                          'supabase.co/storage'
-                        )}
-                      />
+                      {/* Usa SmartImage com variant="thumbnail" se internalizado */}
+                      {item.image_variants && item.image_variants.length > 0 ? (
+                        <SmartImage
+                          product={item}
+                          className="h-full w-full"
+                          imgClassName="object-contain p-2"
+                          variant="thumbnail"
+                        />
+                      ) : (
+                        <Image
+                          src={
+                            item.image_url ||
+                            '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
+                          }
+                          alt={item.name}
+                          fill
+                          className="object-contain p-2"
+                          unoptimized={(item.image_url || '').includes(
+                            'supabase.co/storage'
+                          )}
+                        />
+                      )}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-black text-secondary line-clamp-1">

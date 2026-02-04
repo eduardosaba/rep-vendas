@@ -85,7 +85,7 @@ export function getProductImageUrl(product: Partial<Product>) {
   // B. PRIORIDADE 2: Primeiro item da galeria (suporta objetos {url, path} ou strings)
   if (Array.isArray(product.images) && product.images.length > 0) {
     const firstImg = product.images[0] as any;
-    
+
     // B1. Se for objeto, prioriza 'path' (storage otimizado) sobre 'url' (externa)
     if (firstImg && typeof firstImg === 'object') {
       const path = firstImg.path || firstImg.storage_path;
@@ -97,12 +97,15 @@ export function getProductImageUrl(product: Partial<Product>) {
           isStorage: true,
         };
       }
-      
+
       // B2. Se não tem path mas tem url, usa url
       const url = firstImg.url || firstImg.src;
       if (url && typeof url === 'string') {
         // Se URL é do storage, usa proxy
-        if (url.includes('supabase.co/storage') || url.includes('/storage/v1/object')) {
+        if (
+          url.includes('supabase.co/storage') ||
+          url.includes('/storage/v1/object')
+        ) {
           const cleanPath = url.replace(/^\//, '');
           return {
             src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
@@ -116,10 +119,13 @@ export function getProductImageUrl(product: Partial<Product>) {
         }
       }
     }
-    
+
     // B3. Se for string simples
     if (typeof firstImg === 'string') {
-      if (firstImg.includes('supabase.co/storage') || firstImg.includes('/storage/v1/object')) {
+      if (
+        firstImg.includes('supabase.co/storage') ||
+        firstImg.includes('/storage/v1/object')
+      ) {
         const cleanPath = firstImg.replace(/^\//, '');
         return {
           src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,

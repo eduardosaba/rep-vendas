@@ -10,6 +10,7 @@ interface SmartImageProps {
   imgClassName?: string; // image class
   initialSrc?: string | null;
   sizes?: string;
+  variant?: 'thumbnail' | 'card' | 'full'; // Novo: controla qual variante usar
 }
 
 export function SmartImage({
@@ -18,31 +19,83 @@ export function SmartImage({
   imgClassName = '',
   initialSrc = null,
   sizes,
+  variant = 'card',
 }: SmartImageProps) {
-  const internalPath = product?.image_path
-    ? `/api/storage-image?path=${encodeURIComponent(String(product.image_path).replace(/^\/+/, ''))}`
-    : null;
+  // Gera srcset a partir de image_variants se disponível
+  const generateSrcSet = () => {
+    if (!product?.image_variants || !Array.isArray(product.image_variants)) {
+      return null;
+    }
+
+    return product.image_variants
+      .map((v: any) => {
+        const cleanPath = String(v.path).startsWith('/')
+          ? String(v.path).substring(1)
+          : String(v.path);
+        const path = encodeURIComponent(cleanPath);
+        return `/api/storage-image?path=${path} ${v.size}w`;
+      })
+      .join(', ');
+  };
+
+  // Escolhe URL baseado na variante solicitada
+  const getImageSrc = () => {
+    if (initialSrc) return initialSrc;
+
+    // Se tem variantes, escolhe baseado no contexto
+    if (product?.image_variants && Array.isArray(product.image_variants)) {
+      const variants = product.image_variants;
+      let targetVariant = variants[variants.length - 1]; // Default: maior
+
+      if (variant === 'thumbnail') {
+        // Thumbnail: sempre a menor (480w)
+        targetVariant = variants[0];
+      } else if (variant === 'card') {
+        // Card: usa 480w se disponível, senão maior
+        targetVariant =
+          variants.find((v: any) => v.size === 480) || variants[0];
+      }
+      // variant === 'full': usa a maior (já é o default)
+
+      const cleanPath = String(targetVariant.path).startsWith('/')
+        ? String(targetVariant.path).substring(1)
+        : String(targetVariant.path);
+      const path = encodeURIComponent(cleanPath);
+      return `/api/storage-image?path=${path}`;
+    }
+
+    // Fallback: lógica antiga
+    if (product?.image_path) {
+      const cleanPath = String(product.image_path).startsWith('/')
+        ? String(product.image_path).substring(1)
+        : String(product.image_path);
+      return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+    }
+
+    return product?.external_image_url || product?.image_url || null;
+  };
+
+  const srcSet = generateSrcSet();
+  const imageSrc = getImageSrc();
   const external = product?.external_image_url || product?.image_url || null;
 
-  const [src, setSrc] = useState<string | null>(
-    initialSrc || internalPath || external
-  );
+  const [src, setSrc] = useState<string | null>(imageSrc);
   const [errored, setErrored] = useState(false);
 
   useEffect(() => {
-    const next = initialSrc || internalPath || external;
-    setSrc(next);
+    setSrc(imageSrc);
     setErrored(false);
   }, [
-    initialSrc,
+    imageSrc,
     product?.image_path,
     product?.image_url,
     product?.external_image_url,
+    product?.image_variants,
   ]);
 
   const handleError = () => {
     // If we tried internal first, fallback to external once
-    if (src && internalPath && src === internalPath && external) {
+    if (src && imageSrc && src === imageSrc && external) {
       setSrc(external);
       return;
     }
@@ -51,18 +104,34 @@ export function SmartImage({
 
   const isPending = product?.sync_status === 'pending';
 
+  // Se tem srcset, usa img nativo para aproveitar responsive images
+  const useNativeImg = srcSet && variant !== 'thumbnail';
+
   return (
     <div className={`relative w-full h-full ${className}`}>
       {src && !errored ? (
-        <Image
-          src={src}
-          alt={product?.name || 'Produto'}
-          fill
-          sizes={sizes || '200px'}
-          className={`object-contain ${imgClassName}`}
-          onError={handleError}
-          // allow external images optimization when configured in next.config
-        />
+        useNativeImg ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            srcSet={srcSet || undefined}
+            alt={product?.name || 'Produto'}
+            className={`w-full h-full object-contain ${imgClassName}`}
+            sizes={sizes || '(max-width: 768px) 100vw, 200px'}
+            loading="lazy"
+            decoding="async"
+            onError={handleError}
+          />
+        ) : (
+          <Image
+            src={src}
+            alt={product?.name || 'Produto'}
+            fill
+            sizes={sizes || '200px'}
+            className={`object-contain ${imgClassName}`}
+            onError={handleError}
+          />
+        )
       ) : errored ? (
         <div className="flex h-full w-full flex-col items-center justify-center bg-slate-50 dark:bg-slate-900">
           <svg

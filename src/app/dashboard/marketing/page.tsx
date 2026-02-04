@@ -43,15 +43,15 @@ export default async function MarketingPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 min-h-screen pb-20">
-      <header className="space-y-2">
+    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 min-h-screen pb-20">
+      <header className="space-y-3">
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-widest">
           Marketing & Vendas
         </div>
-        <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
           Ferramentas de Venda
         </h1>
-        <p className="text-slate-500 font-medium max-w-2xl">
+        <p className="text-sm md:text-base text-slate-500 font-medium max-w-2xl">
           Personalize a experiência visual do seu cliente ao receber seu link.
           Um banner atraente aumenta em até 40% a taxa de cliques.
         </p>

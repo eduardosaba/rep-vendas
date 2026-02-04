@@ -16,6 +16,7 @@ import {
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ProductCard } from './ProductCard';
+import { SmartImage } from './SmartImage';
 import { PriceDisplay } from './PriceDisplay';
 import { getProductImage } from '@/lib/utils/image-logic';
 import BrandHeader from './BrandHeader';
@@ -368,16 +369,28 @@ export function ProductGrid() {
                           </span>
                         </div>
                       )}
-                      <NextImage
-                        src={getProductImage(
-                          product.image_url ||
-                            '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70',
-                          'medium'
-                        )}
-                        alt={product.name}
-                        fill
-                        className="object-contain p-2 transition-transform duration-500 group-hover:scale-105"
-                      />
+                      {/* Usa SmartImage com srcset se internalizado, senão fallback para URL externa */}
+                      {product.image_variants &&
+                      product.image_variants.length > 0 ? (
+                        <SmartImage
+                          product={product}
+                          className="h-full w-full"
+                          imgClassName="object-contain p-2 transition-transform duration-500 group-hover:scale-105"
+                          variant="card"
+                          sizes="(max-width: 640px) 128px, 224px"
+                        />
+                      ) : (
+                        <NextImage
+                          src={getProductImage(
+                            product.image_url ||
+                              '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70',
+                            'medium'
+                          )}
+                          alt={product.name}
+                          fill
+                          className="object-contain p-2 transition-transform duration-500 group-hover:scale-105"
+                        />
+                      )}
                     </div>
 
                     <div className="flex flex-1 flex-col sm:flex-row p-4 sm:p-6 gap-4 justify-between">

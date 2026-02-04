@@ -58,6 +58,7 @@ interface Product {
   image_path?: string | null;
   external_image_url?: string | null;
   images: string[] | null;
+  image_variants?: Array<{ size: number; path: string; url?: string }> | null; // Variantes responsivas
   // Indica se a imagem principal está internalizada no Storage
   image_optimized?: boolean | null;
   is_launch: boolean;
@@ -1255,10 +1256,25 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         <div className="flex items-center gap-3 min-w-[200px]">
           <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-800 relative overflow-hidden flex-shrink-0 border border-gray-200 dark:border-slate-700">
             {(() => {
-              // Prefer storage only when image_path exists, otherwise use external URL directly
-              const { src, isExternal } = getProductImageUrl(product as any);
-              if (src) {
-                if (isExternal) {
+              // Usa variante 480w para thumbnail (economia de banda)
+              let thumbnailSrc: string | undefined = undefined;
+
+              if (
+                product.image_variants &&
+                Array.isArray(product.image_variants)
+              ) {
+                const smallVariant =
+                  product.image_variants.find((v: any) => v.size === 480) ||
+                  product.image_variants[0];
+                const cleanPath = String(smallVariant.path).startsWith('/')
+                  ? String(smallVariant.path).substring(1)
+                  : String(smallVariant.path);
+                thumbnailSrc = `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+              } else {
+                const { src, isExternal } = getProductImageUrl(product as any);
+                thumbnailSrc = src || undefined;
+
+                if (isExternal && src) {
                   return (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -1270,10 +1286,12 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     />
                   );
                 }
+              }
 
+              if (thumbnailSrc) {
                 return (
                   <Image
-                    src={src}
+                    src={thumbnailSrc}
                     alt=""
                     fill
                     sizes="40px"

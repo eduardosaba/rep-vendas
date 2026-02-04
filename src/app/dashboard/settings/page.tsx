@@ -87,7 +87,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [showPricePassword, setShowPricePassword] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    'general' | 'appearance' | 'display' | 'marketing' | 'stock'
+    'general' | 'appearance' | 'display' | 'marketing' | 'stock' | 'sync'
   >('general');
 
   // FORM DATA PRINCIPAL
@@ -431,6 +431,7 @@ export default function SettingsPage() {
     { id: 'display', label: 'Exibição', icon: Layout },
     { id: 'marketing', label: 'Marketing', icon: Share2 },
     { id: 'stock', label: 'Estoque', icon: Package },
+    { id: 'sync', label: 'Sincronização', icon: Zap },
   ];
 
   return (
@@ -1263,6 +1264,53 @@ export default function SettingsPage() {
                 />
               </div>
             </ToggleSetting>
+          </div>
+        </div>
+      )}
+
+      {/* --- ABA SINCRONIZAÇÃO (MASTER ONLY) --- */}
+      {activeTab === 'sync' && (
+        <div className="space-y-8 animate-in slide-in-from-right-4">
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-black text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <Zap size={18} className="text-blue-600" /> Painel de
+                Sincronização
+              </h3>
+              <a
+                href="/dashboard/settings/sync"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <Zap size={16} />
+                Abrir Torre de Controle
+              </a>
+            </div>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Gerencie a sincronização de imagens externas para o Supabase
+              Storage. Visualize logs em tempo real, monitore o progresso e
+              processe imagens pesadas de forma controlada.
+            </p>
+            <div className="mt-6 p-6 bg-blue-50 dark:bg-blue-950/30 rounded-2xl border border-blue-100 dark:border-blue-900">
+              <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                💡 Como funciona?
+              </h4>
+              <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc list-inside">
+                <li>
+                  Importações via Excel marcam imagens como{' '}
+                  <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900 rounded">
+                    pending
+                  </code>
+                </li>
+                <li>CRON job processa automaticamente à madrugada (2h)</li>
+                <li>
+                  Painel Master permite disparar sync manual para urgências
+                </li>
+                <li>Logs em tempo real mostram progresso e erros</li>
+                <li>Throttling inteligente previne timeouts e sobrecarga</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}

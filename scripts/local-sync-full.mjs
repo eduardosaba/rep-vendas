@@ -28,7 +28,8 @@ const SYNC_ONLY = (process.env.SYNC_ONLY || 'pending,failed')
   .map((s) => s.trim());
 
 // Responsiveness sizes (w) for gallery/main variants
-const RESPONSIVE_SIZES = [320, 640, 1000];
+// Otimizado: 480w (mobile), 1200w (desktop)
+const RESPONSIVE_SIZES = [480, 1200];
 const BUCKET =
   process.env.PRODUCT_IMAGES_BUCKET ||
   process.env.STORAGE_BUCKET ||
@@ -211,15 +212,21 @@ async function syncFullCatalog() {
                     .replace(/[^a-z0-9]+/g, '-')
                     .replace(/(^-|-$)/g, '') || 'unknown';
 
+                // Sanitizar reference_code para uso em path
+                const refCode = (product.reference_code || product.id)
+                  .trim()
+                  .replace(/[^a-zA-Z0-9-_]/g, '_')
+                  .substring(0, 100); // Limita tamanho
+
                 // decide target bucket and storage base depending on CREATE_BUCKETS
                 let targetBucket = BUCKET;
                 let storageBase = '';
                 if (CREATE_BUCKETS) {
                   targetBucket = `${BUCKET}-${brandSlug}`;
                   await ensureBucket(targetBucket);
-                  storageBase = `products/${product.id}/main`;
+                  storageBase = `products/${refCode}/main`;
                 } else {
-                  storageBase = `public/brands/${brandSlug}/products/${product.id}/main`;
+                  storageBase = `public/brands/${brandSlug}/products/${refCode}/main`;
                 }
 
                 const res = await processAndUploadVariants(
@@ -544,26 +551,14 @@ async function processAndUploadVariants(
       optimizedSize: outBuf.byteLength,
     });
     optimizedTotal += outBuf.byteLength;
-    largestBuf = outBuf; // last assigned will be largest
   }
 
-  // also create a non-suffixed main file pointing to largest size for compatibility
+  // Usar maior variante como URL principal (sem criar arquivo duplicado)
   const largest = variants[variants.length - 1];
-  const mainPath = `${storageBase}.webp`;
-  try {
-    if (largestBuf) {
-      await uploadToBucket(targetBucket, mainPath, largestBuf, 'image/webp');
-    }
-  } catch (e) {
-    // best-effort; ignore
-  }
-
-  const mainUrl =
-    (await getPublicUrlFromBucket(targetBucket, mainPath)) || largest.url;
 
   return {
     variants,
-    main: { size: largest.size, path: mainPath, url: mainUrl },
+    main: { size: largest.size, path: largest.path, url: largest.url },
     originalSize,
     optimizedTotal,
   };

@@ -14,6 +14,7 @@ import {
   Terminal,
   History,
   UploadCloud,
+  Info,
 } from 'lucide-react';
 
 // --- TIPAGEM ---
@@ -293,12 +294,41 @@ export default function ImportVisualPage() {
 
   // 3. Upload de novas imagens
   const handleUpload = async (files: File[]) => {
-    // Verificação de limite
+    // ✅ VALIDAÇÃO 1: Limite do plano
     if (usage.current + stagingImages.length + files.length > usage.max) {
       toast.warning('Limite do plano excedido', {
         description: `Você está tentando enviar mais fotos do que seu plano permite.`,
         duration: 5000,
       });
+      return; // ← Bloqueia upload
+    }
+
+    // ✅ VALIDAÇÃO 2: Tamanho máximo (5MB por arquivo)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const oversizedFiles = files.filter((f) => f.size > MAX_FILE_SIZE);
+
+    if (oversizedFiles.length > 0) {
+      const fileList = oversizedFiles
+        .map((f) => `${f.name} (${Math.round(f.size / 1024 / 1024)}MB)`)
+        .join(', ');
+
+      toast.error('Arquivos muito grandes detectados', {
+        description: `Limite: 5MB por foto. Arquivos rejeitados: ${fileList}`,
+        duration: 8000,
+      });
+      addLog(
+        `❌ Bloqueado: ${oversizedFiles.length} arquivo(s) excedem 5MB`,
+        'error'
+      );
+      return;
+    }
+
+    // ✅ VALIDAÇÃO 3: Tipo de arquivo
+    const invalidFiles = files.filter((f) => !f.type.startsWith('image/'));
+    if (invalidFiles.length > 0) {
+      toast.error('Apenas imagens são permitidas');
+      addLog(`❌ ${invalidFiles.length} arquivo(s) não são imagens`, 'error');
+      return;
     }
 
     setUploading(true);
@@ -317,8 +347,8 @@ export default function ImportVisualPage() {
           // Only process images
           if (!file.type.startsWith('image/')) return file;
 
-          // If small enough, skip
-          if (file.size <= 1024 * 1024 * 2) return file; // <= 2MB
+          // ⚡ SEMPRE comprimir imagens > 1MB (reduzido de 2MB)
+          if (file.size <= 1024 * 1024) return file; // <= 1MB
 
           // Try to use createImageBitmap for better memory handling on large files
           const imgBitmap = await (async () => {
@@ -362,7 +392,8 @@ export default function ImportVisualPage() {
             height = img.height;
           }
 
-          const maxDim = 2000; // limit dimension to reduce memory and final size
+          // 📐 Limita dimensões para economizar storage e melhorar performance
+          const maxDim = 1600; // ← Reduzido de 2000px para 1600px (suficiente para catálogo)
           if (width > height) {
             if (width > maxDim) {
               height = Math.round((height * maxDim) / width);
@@ -401,17 +432,22 @@ export default function ImportVisualPage() {
             ctx.drawImage(img, 0, 0, width, height);
           }
 
-          const compressedBlob: Blob | null = await new Promise((resolve) =>
-            canvas.toBlob((b) => resolve(b), 'image/webp', 0.8)
+          const compressedBlob: Blob | null = await new Promise(
+            (resolve) => canvas.toBlob((b) => resolve(b), 'image/webp', 0.75) // ← Qualidade reduzida de 0.8 para 0.75
           );
 
           if (compressedBlob) {
-            addLog(
-              `Compressão: ${Math.round(file.size / 1024)}KB → ${Math.round(
-                compressedBlob.size / 1024
-              )}KB (webp)`,
-              'info'
+            const originalKB = Math.round(file.size / 1024);
+            const compressedKB = Math.round(compressedBlob.size / 1024);
+            const savings = Math.round(
+              ((file.size - compressedBlob.size) / file.size) * 100
             );
+
+            addLog(
+              `✨ Otimizado: ${originalKB}KB → ${compressedKB}KB (economizou ${savings}%)`,
+              'success'
+            );
+
             // Sempre retornar a versão otimizada quando possível para evitar
             // salvar a original grande no staging (reduz tráfego e storage).
             return new File([compressedBlob], `${Date.now()}.webp`, {
@@ -419,9 +455,26 @@ export default function ImportVisualPage() {
             });
           }
 
-          // Fallback: se não conseguimos gerar o webp, retorna o original
+          // ⚠️ Fallback: se compressão falhou, ainda tenta reduzir qualidade JPEG/PNG
+          addLog(`⚠️ WebP falhou, tentando fallback JPEG...`, 'info');
+
+          const jpegBlob: Blob | null = await new Promise((resolve) =>
+            canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.7)
+          );
+
+          if (jpegBlob && jpegBlob.size < file.size) {
+            addLog(
+              `✅ Fallback OK: ${Math.round(file.size / 1024)}KB → ${Math.round(jpegBlob.size / 1024)}KB`,
+              'info'
+            );
+            return new File([jpegBlob], `${Date.now()}.jpg`, {
+              type: 'image/jpeg',
+            });
+          }
+
+          // Último recurso: retorna original (já validamos que é <= 5MB)
           addLog(
-            `Compressão falhou, mantendo original: ${Math.round(file.size / 1024)}KB`,
+            `⚠️ Mantendo original: ${Math.round(file.size / 1024)}KB (compressão não ajudou)`,
             'info'
           );
           return file;
@@ -638,11 +691,22 @@ export default function ImportVisualPage() {
         {uploading ? (
           <div className="h-48 flex flex-col items-center justify-center border-2 border-dashed border-blue-100 dark:border-blue-900/30 bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400 rounded-xl animate-pulse">
             <Loader2 size={32} className="animate-spin mb-3" />
-            <p className="font-medium">Enviando para sua galeria segura...</p>
-            <p className="text-xs opacity-70 mt-1">Por favor, aguarde.</p>
+            <p className="font-medium">Otimizando e enviando...</p>
+            <p className="text-xs opacity-70 mt-1">
+              Comprimindo imagens para economizar espaço
+            </p>
           </div>
         ) : (
-          <ImageDropzone onDrop={handleUpload} />
+          <div className="space-y-3">
+            <ImageDropzone onDrop={handleUpload} />
+            <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <Info size={14} />
+              <span>
+                Máximo: <strong>5MB</strong> por foto | Formatos: JPG, PNG, WebP
+                | Compressão automática
+              </span>
+            </div>
+          </div>
         )}
       </div>
 
