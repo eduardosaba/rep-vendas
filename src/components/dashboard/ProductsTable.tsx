@@ -146,6 +146,37 @@ const ALL_DATA_COLUMNS: Partial<Record<DataKey, ColumnDefinition>> = {
     isNumeric: true,
     align: 'right',
   },
+  stock_quantity: {
+    key: 'stock_quantity',
+    title: 'Estoque',
+    isSortable: true,
+    isNumeric: true,
+    align: 'right',
+  },
+  image_optimized: {
+    key: 'image_optimized',
+    title: 'Imagem',
+    isSortable: true,
+    align: 'center',
+  },
+  is_active: {
+    key: 'is_active',
+    title: 'Status',
+    isSortable: true,
+    align: 'center',
+  },
+  is_launch: {
+    key: 'is_launch',
+    title: 'Lançamento',
+    isSortable: true,
+    align: 'center',
+  },
+  is_best_seller: {
+    key: 'is_best_seller',
+    title: 'Best Seller',
+    isSortable: true,
+    align: 'center',
+  },
 };
 
 const DEFAULT_PREFS: UserPreferences = {
@@ -1366,6 +1397,12 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       return val ? <Zap size={16} className="text-purple-500 mx-auto" /> : '-';
     if (key === 'is_best_seller')
       return val ? <Star size={16} className="text-orange-500 mx-auto" /> : '-';
+    if (key === 'stock_quantity')
+      return (
+        <div className="text-sm font-medium text-gray-900 dark:text-slate-200 text-right">
+          {val !== undefined && val !== null ? val : '-'}
+        </div>
+      );
 
     if (key === 'image_optimized') {
       return (

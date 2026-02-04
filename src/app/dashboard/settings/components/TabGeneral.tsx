@@ -1,5 +1,13 @@
 import React from 'react';
-import { Store, Phone, MessageSquare, Lock, Eye, EyeOff } from 'lucide-react';
+import {
+  Store,
+  Phone,
+  MessageSquare,
+  Lock,
+  Eye,
+  EyeOff,
+  Power,
+} from 'lucide-react';
 
 interface TabGeneralProps {
   formData: any;
@@ -9,6 +17,8 @@ interface TabGeneralProps {
   handleSlugChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   showPassword?: boolean;
   onToggleShowPassword?: () => void;
+  isActive: boolean;
+  onToggleActive: () => void;
 }
 
 export function TabGeneral({
@@ -17,9 +27,54 @@ export function TabGeneral({
   handleSlugChange,
   showPassword = false,
   onToggleShowPassword,
+  isActive,
+  onToggleActive,
 }: TabGeneralProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
+      {/* STATUS DO CATÁLOGO ONLINE */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm md:col-span-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2 rounded-lg ${isActive ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-slate-800'}`}
+            >
+              <Power
+                size={20}
+                className={
+                  isActive
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-gray-400'
+                }
+              />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">
+                Catálogo Online
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {isActive
+                  ? 'Seu catálogo está público e acessível aos clientes'
+                  : 'Seu catálogo está em manutenção - clientes verão página de aviso'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleActive}
+            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 ${
+              isActive ? 'bg-green-600' : 'bg-gray-200 dark:bg-slate-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                isActive ? 'translate-x-7' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
       <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm md:col-span-2 space-y-6">
         <h3 className="font-semibold text-gray-900 dark:text-white flex gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
           <Store size={18} className="text-[var(--primary)]" /> Dados Básicos

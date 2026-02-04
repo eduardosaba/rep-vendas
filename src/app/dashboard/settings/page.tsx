@@ -497,6 +497,8 @@ export default function SettingsPage() {
           }
           showPassword={showPricePassword}
           onToggleShowPassword={() => setShowPricePassword(!showPricePassword)}
+          isActive={isActive}
+          onToggleActive={() => setIsActive(!isActive)}
         />
       )}
 
