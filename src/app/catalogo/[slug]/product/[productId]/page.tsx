@@ -37,6 +37,7 @@ interface Product {
   description?: string;
   price: number;
   images?: string[];
+  gallery_images?: { url: string; path: string }[]; // ✨ NOVO v1.3: Galeria dedicada
   product_images?: {
     id: string;
     url: string;
@@ -149,7 +150,7 @@ export default function ProductDetailPage() {
       // Agora buscar produto escopado pelo user_id da loja
       const { data, error } = await supabase
         .from('products')
-        .select('*, product_images(*)')
+        .select('*, product_images(*), gallery_images')
         .eq('id', productId)
         .eq('user_id', store.user_id)
         .order('position', { foreignTable: 'product_images', ascending: true }) // Ordena fotos
@@ -272,42 +273,78 @@ export default function ProductDetailPage() {
   const galleryData = (() => {
     if (!product) return [];
 
-    // 1. Prioridade: Tabela product_images (Nova Arquitetura)
+    // 1. PRIORIDADE MÁXIMA: Campo gallery_images em products (v1.3)
+    const galleryImagesField = (product as any).gallery_images;
+    if (
+      galleryImagesField &&
+      Array.isArray(galleryImagesField) &&
+      galleryImagesField.length > 0
+    ) {
+      const items = galleryImagesField.map((img: any, idx: number) => {
+        // gallery_images já contém URLs otimizadas (1200w)
+        const optimizedUrl = img.url || null;
+        const storagePath = img.path || null;
+
+        // Se tiver path, construir variantes (480w, 1200w)
+        const smallUrl = storagePath
+          ? getProductImage(optimizedUrl, 'small')
+          : optimizedUrl;
+        const mediumUrl = storagePath
+          ? getProductImage(optimizedUrl, 'medium')
+          : optimizedUrl;
+        const largeUrl = storagePath
+          ? getProductImage(optimizedUrl, 'large')
+          : optimizedUrl; // ✅ SEMPRE 1200w quando otimizada
+
+        return {
+          id: `gallery-${idx}`,
+          url: mediumUrl || optimizedUrl || '/images/product-placeholder.svg',
+          thumbnailUrl:
+            smallUrl || optimizedUrl || '/images/product-placeholder.svg',
+          zoomUrl:
+            largeUrl || optimizedUrl || '/images/product-placeholder.svg', // ✅ 1200w para zoom
+          sync_status: 'synced',
+        };
+      });
+      return items;
+    }
+
+    // 2. Fallback: Tabela product_images (Arquitetura Antiga)
     if (product.product_images && product.product_images.length > 0) {
       // Map to gallery items then dedupe by resolved url to avoid duplicates
       const items = product.product_images.map((img) => {
         const isPending = img.sync_status === 'pending';
         const isFailed = img.sync_status === 'failed';
+        const isSynced = img.sync_status === 'synced';
+
+        // ✅ CORREÇÃO: Buscar optimized_url quando synced (vem de product_images)
+        const optimizedUrl = isSynced ? (img as any).optimized_url : null;
+        const storagePath = isSynced ? (img as any).storage_path : null;
+
+        // URL base: usar otimizada se disponível, senão original externa
+        const baseUrl = optimizedUrl || img.url;
 
         // Estratégia de Múltiplas Versões:
-        // - small (200px) para thumbnails
+        // - small (480w) para thumbnails
         // - medium (600px) para visualização principal
-        // - large (1200px) para zoom/detalhes
-        const smallUrl = getProductImage(img.url, 'small');
-        const mediumUrl = getProductImage(img.url, 'medium');
-        const largeUrl = getProductImage(img.url, 'large');
+        // - large (1200w) para zoom/detalhes - SEMPRE ALTA QUALIDADE
+        const smallUrl = isSynced ? getProductImage(baseUrl, 'small') : baseUrl;
+        const mediumUrl = isSynced
+          ? getProductImage(baseUrl, 'medium')
+          : baseUrl;
+        const largeUrl = isSynced
+          ? getProductImage(baseUrl, 'large') // ✅ 1200w para zoom
+          : baseUrl; // ✅ Fallback para URL externa se não otimizada
 
-        // Fallback Strategy: Se otimização falhou/pendente, usa URL original externa
-        const externalFallback =
-          (product as any).external_image_url ||
-          img.url ||
-          '/images/product-placeholder.svg';
+        // Fallback Strategy: Se otimização falhou, usa URL original externa
+        const externalFallback = img.url || '/images/product-placeholder.svg';
 
         return {
           id: img.id,
-          url:
-            isFailed || isPending
-              ? externalFallback
-              : mediumUrl || img.url || '/images/product-placeholder.svg',
-          thumbnailUrl:
-            isFailed || isPending
-              ? externalFallback
-              : smallUrl || img.url || '/images/product-placeholder.svg',
-          zoomUrl:
-            isFailed || isPending
-              ? externalFallback
-              : largeUrl || img.url || '/images/product-placeholder.svg',
-          sync_status: img.sync_status || 'synced',
+          url: mediumUrl || externalFallback,
+          thumbnailUrl: smallUrl || externalFallback,
+          zoomUrl: largeUrl || externalFallback,
+          sync_status: img.sync_status || 'pending',
         };
       });
 
@@ -327,7 +364,7 @@ export default function ProductDetailPage() {
       return deduped;
     }
 
-    // 2. Fallback: Colunas Antigas convertidas para formato da galeria
+    // 3. Fallback Final: Colunas Antigas convertidas para formato da galeria
     const legacyImages: {
       id: string;
       url: string;

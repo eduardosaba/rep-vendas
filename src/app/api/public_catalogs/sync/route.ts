@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { revalidatePath } from 'next/cache';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 /**
  * API Route para sincronizar dados entre a tabela privada 'settings'
@@ -43,16 +44,60 @@ export async function POST(request: Request) {
     } = body;
 
     // Validação básica: precisamos do ID e do Link para saber quem atualizar
-    if (!user_id || !slug) {
+    if (!user_id) {
       return NextResponse.json(
-        { error: 'user_id and slug are required' },
+        { error: 'user_id is required' },
+        { status: 400 }
+      );
+    }
+
+    // Se slug não for fornecido, tentamos localizar um catálogo público
+    // já existente para o `user_id` e usar seu slug. Isso permite que
+    // atualizações em `settings` propaguem phone/email mesmo sem o admin
+    // preencher manualmente o slug novamente.
+    let finalSlug = slug;
+    if (!finalSlug) {
+      try {
+        const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+          const svc = createServiceClient(
+            SUPABASE_URL,
+            SUPABASE_SERVICE_ROLE_KEY
+          );
+          const { data: existing } = await svc
+            .from('public_catalogs')
+            .select('slug')
+            .eq('user_id', user_id)
+            .maybeSingle();
+          if (existing && existing.slug) {
+            finalSlug = existing.slug;
+            console.log(
+              `✅ Slug encontrado automaticamente para user_id=${user_id}: ${finalSlug}`
+            );
+          }
+        }
+      } catch (e) {
+        console.warn(
+          '/api/public_catalogs/sync: failed to lookup slug by user_id',
+          e
+        );
+      }
+    }
+
+    if (!finalSlug) {
+      return NextResponse.json(
+        {
+          error:
+            'slug is required (no existing public catalog found for this user)',
+        },
         { status: 400 }
       );
     }
 
     // Chama a função auxiliar que executa o UPSERT no banco
     await syncPublicCatalog(user_id, {
-      slug,
+      slug: finalSlug,
       is_active: is_active ?? true, // Garante que se vier vazio, a loja continue online por padrão
       store_name,
       logo_url,
@@ -86,14 +131,18 @@ export async function POST(request: Request) {
 
     // Revalidação on-demand: atualizar cache/OG da página pública imediatamente
     try {
-      if (slug) revalidatePath(`/catalogo/${slug}`);
+      if (finalSlug) revalidatePath(`/catalogo/${finalSlug}`);
     } catch (e) {
       console.warn('/api/public_catalogs/sync revalidatePath failed', e);
     }
 
+    console.log(
+      `✅ Catálogo '${finalSlug}' sincronizado com sucesso (status: ${is_active ? 'Online' : 'Offline'})`
+    );
+
     return NextResponse.json({
       success: true,
-      message: `Catálogo '${slug}' sincronizado com status: ${is_active ? 'Online' : 'Offline'}`,
+      message: `Catálogo '${finalSlug}' sincronizado com status: ${is_active ? 'Online' : 'Offline'}`,
     });
   } catch (err: any) {
     console.error('ERRO CRÍTICO em API /api/public_catalogs/sync:', err);

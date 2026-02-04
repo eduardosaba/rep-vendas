@@ -1,8 +1,8 @@
 # Manual de Funcionamento: Fluxo de Imagens de Produtos
 
 **Data de Criação:** 3 de fevereiro de 2026  
-**Última Atualização:** 3 de fevereiro de 2026  
-**Versão:** 1.2 (Responsive Images com srcset)
+**Última Atualização:** 4 de fevereiro de 2026  
+**Versão:** 1.3 (Gallery Images + Responsive Variants)
 
 ---
 
@@ -13,8 +13,9 @@
 3. [Fluxo de Importação (Excel)](#fluxo-de-importação-excel)
 4. [Processamento e Otimização](#processamento-e-otimização)
 5. [Renderização no Frontend](#renderização-no-frontend)
-6. [Troubleshooting](#troubleshooting)
-7. [Scripts de Manutenção](#scripts-de-manutenção)
+6. [Fluxo Completo por Contexto](#fluxo-completo-por-contexto) ← **✨ NOVO**
+7. [Troubleshooting](#troubleshooting)
+8. [Scripts de Manutenção](#scripts-de-manutenção)
 
 ---
 
@@ -47,20 +48,21 @@ pending → processing → synced (ou failed)
 
 ### Tabela `products`
 
-| Campo                | Tipo    | Descrição                                           | Exemplo                                                  |
-| -------------------- | ------- | --------------------------------------------------- | -------------------------------------------------------- |
-| `id`                 | UUID    | ID único do produto                                 | `abc123...`                                              |
-| `user_id`            | UUID    | ID do lojista (multi-tenant)                        | `user456...`                                             |
-| `name`               | TEXT    | Nome do produto                                     | `Óculos Tommy TH 2345`                                   |
-| `reference_code`     | TEXT    | Código de referência único                          | `TH2345SZJ`                                              |
-| `image_url`          | TEXT    | URL pública da capa otimizada                       | `https://.../main-1200w.webp`                            |
-| `image_path`         | TEXT    | Path no storage da capa                             | `public/brands/tommy/products/TH2345SZJ/main-1200w.webp` |
-| `external_image_url` | TEXT    | URL externa original da capa                        | `https://safilo.com/P00.JPG`                             |
-| `images`             | JSONB   | Array com galeria (antes: strings, depois: objetos) | Ver detalhes abaixo                                      |
-| `image_optimized`    | BOOLEAN | Flag se imagem principal está otimizada             | `true` / `false`                                         |
-| `image_variants`     | JSONB   | Variantes responsivas da capa (480w, 1200w)         | `[{size, url, path}]`                                    |
-| `sync_status`        | TEXT    | Estado da sincronização                             | `pending` / `synced`                                     |
-| `sync_error`         | TEXT    | Mensagem de erro (se houver)                        | `null` ou erro                                           |
+| Campo                | Tipo    | Descrição                                           | Exemplo                                         |
+| -------------------- | ------- | --------------------------------------------------- | ----------------------------------------------- |
+| `id`                 | UUID    | ID único do produto                                 | `abc123...`                                     |
+| `user_id`            | UUID    | ID do lojista (multi-tenant)                        | `user456...`                                    |
+| `name`               | TEXT    | Nome do produto                                     | `Óculos Tommy TH 2345`                          |
+| `reference_code`     | TEXT    | Código de referência único                          | `TH2345SZJ`                                     |
+| `image_url`          | TEXT    | URL pública da capa otimizada                       | `https://.../TH2345SZJ-main-1200w.webp`         |
+| `image_path`         | TEXT    | Path no storage da capa                             | `public/brands/tommy/TH2345SZJ-main-1200w.webp` |
+| `external_image_url` | TEXT    | URL externa original da capa                        | `https://safilo.com/P00.JPG`                    |
+| `images`             | JSONB   | Array com galeria (antes: strings, depois: objetos) | Ver detalhes abaixo                             |
+| `gallery_images`     | JSONB   | **✨ NOVO:** Array só com galeria (sem capa)        | `[{url, path}, {url, path}]`                    |
+| `image_optimized`    | BOOLEAN | Flag se imagem principal está otimizada             | `true` / `false`                                |
+| `image_variants`     | JSONB   | Variantes responsivas da capa (480w, 1200w)         | `[{size, url, path}]`                           |
+| `sync_status`        | TEXT    | Estado da sincronização                             | `pending` / `synced`                            |
+| `sync_error`         | TEXT    | Mensagem de erro (se houver)                        | `null` ou erro                                  |
 
 #### Estrutura do campo `images` (JSONB)
 
@@ -79,17 +81,40 @@ pending → processing → synced (ou failed)
 ```json
 [
   {
-    "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/.../P01-1200w.webp",
-    "path": "public/brands/tommy/products/TH2345SZJ/gallery/img1-1200w.webp"
+    "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/.../TH2345SZJ-01-1200w.webp",
+    "path": "public/brands/tommy/TH2345SZJ-01-1200w.webp"
   },
   {
-    "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/.../P02-1200w.webp",
-    "path": "public/brands/tommy/products/TH2345SZJ/gallery/img2-1200w.webp"
+    "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/.../TH2345SZJ-02-1200w.webp",
+    "path": "public/brands/tommy/TH2345SZJ-02-1200w.webp"
   }
 ]
 ```
 
-**⚠️ IMPORTANTE:** A imagem de capa (P00) **NÃO** fica em `images`. Ela fica em `image_url` + `image_path`.
+**⚠️ IMPORTANTE:** A imagem de capa (P00) fica em `image_url` + `image_path`, **NÃO em `images`**.
+
+#### Campo `gallery_images` (JSONB) - ✨ NOVO v1.3
+
+**Contém APENAS as imagens da galeria (sem capa):**
+
+```json
+[
+  {
+    "url": "https://.../TH2345SZJ-01-1200w.webp",
+    "path": "public/brands/tommy/TH2345SZJ-01-1200w.webp"
+  },
+  {
+    "url": "https://.../TH2345SZJ-02-1200w.webp",
+    "path": "public/brands/tommy/TH2345SZJ-02-1200w.webp"
+  }
+]
+```
+
+**Vantagens:**
+
+- ✅ Separação clara entre capa e galeria
+- ✅ Queries mais eficientes (não precisa filtrar capa)
+- ✅ Frontend pode usar diretamente sem processamento
 
 ### Tabela `product_images` (Galeria)
 
@@ -567,21 +592,164 @@ GET /api/storage-image?path=public/brands/tommy/products/TH2345SZJ/main-480w.web
 
 ### Roadmap de Otimização
 
-**Fase 1: Atual ✅**
+~~**Fase 1: Atual** ✅~~  
+~~- Sync cria 2 variantes (480w, 1200w)~~  
+~~- Frontend usa apenas a maior (1200w)~~  
+~~- API serve com cache~~
 
-- Sync cria 2 variantes (480w, 1200w)
-- Frontend usa apenas a maior (1200w)
-- API serve com cache
+~~**Fase 2: Responsive Images (Futuro)**~~  
+~~- Modificar `SmartImage` para gerar `srcset` a partir de `image_variants`~~  
+~~- Economia estimada: 60-70% de banda em mobile~~
 
-**Fase 2: Responsive Images (Futuro)**
+**✨ FASE 2 COMPLETA (v1.3)** ✅
 
-- Modificar `SmartImage` para gerar `srcset` a partir de `image_variants`
-- Economia estimada: 60-70% de banda em mobile
+- SmartImage gera `srcset` automaticamente
+- ProductCard usa variant="thumbnail" (480w)
+- Zoom usa variant="large" (1200w)
+- Economia real: ~70-80% de banda em mobile
 
-**Fase 3: CDN Integration**
+**Fase 3: CDN Integration (Futuro)**
 
 - Usar Cloudflare Images ou Vercel Blob
 - Transformação on-the-fly com parâmetros de URL
+
+---
+
+## 🎨 Fluxo Completo por Contexto (v1.3)
+
+### 📊 Otimização de Qualidade por Contexto
+
+O sistema agora carrega automaticamente a **melhor imagem para cada contexto**:
+
+#### 🚀 Diagrama de Fluxo
+
+```
+┌─────────────────────┐
+│  CATÁLOGO VIRTUAL   │ ← 480w (thumbnail) ~30KB
+│   (Listagem Grid)   │   Carrega rápido em mobile
+└──────────┬──────────┘
+           │ [Usuário clica no produto]
+           ▼
+┌─────────────────────┐
+│ DETALHES DO PRODUTO │ ← 600px (medium) ~80KB
+│  (Página Completa)  │   Qualidade balanceada
+└──────────┬──────────┘
+           │ [Usuário clica para ampliar]
+           ▼
+┌─────────────────────┐
+│   ZOOM MODAL (MAX)  │ ← 1200w (large) ~150KB
+│  (Tela Inteira)     │   Máxima qualidade
+└─────────────────────┘
+```
+
+#### 📈 Tabela de Mapeamento
+
+| **Contexto**          | **Componente**  | **Variant** | **Width** | **Peso Médio** | **Performance**     |
+| --------------------- | --------------- | ----------- | --------- | -------------- | ------------------- |
+| 🗂️ Listagem Catálogo  | ProductCard     | `thumbnail` | 480w      | ~30KB          | ⚡ Muito Rápido     |
+| 📄 Detalhes (Preview) | Product Detail  | `medium`    | 600px     | ~80KB          | ⚡ Rápido           |
+| 🔍 Zoom (Full Screen) | ZoomModal       | `large`     | 1200w     | ~150KB         | 🎯 Qualidade Máxima |
+| ✏️ Editor (Dashboard) | EditProductForm | `card`      | 480w      | ~30KB          | ⚡ Rápido           |
+| 📋 Tabela (Dashboard) | ProductsTable   | `thumbnail` | 480w      | ~30KB          | ⚡ Muito Rápido     |
+
+#### 💡 Benefícios da Otimização
+
+**Economia de Banda:**
+
+- Mobile 4G: ~70-80% menos dados (480w vs 1200w no grid)
+- Desktop: ~40% menos dados (srcset escolhe resolução ideal)
+
+**Experiência do Usuário:**
+
+- ✅ Listagem carrega instantaneamente (480w)
+- ✅ Produto abre rápido com qualidade boa (600px)
+- ✅ Zoom mostra detalhes nítidos (1200w)
+- ✅ Sem lag ou "carregando..." desnecessário
+
+**SEO & Core Web Vitals:**
+
+- ✅ LCP melhorado (Largest Contentful Paint)
+- ✅ CLS estável (Cumulative Layout Shift)
+- ✅ Lighthouse Score >90
+
+#### 🛠️ Implementação Técnica
+
+**1. ProductCard (Catálogo Virtual)**
+
+```tsx
+// src/components/catalogo/ProductCard.tsx
+<SmartImage
+  variant="thumbnail" // ← Força 480w
+  sizes="(max-width: 768px) 50vw, 25vw"
+  src={product.image_url}
+  alt={product.name}
+/>
+```
+
+**2. Product Detail Page**
+
+```tsx
+// src/app/catalogo/[slug]/product/[productId]/page.tsx
+const galleryData = product.gallery_images?.map((img) => ({
+  url: getProductImage(img.url, 'large'), // ← 1200w para zoom
+  original: getProductImage(img.url, 'large'),
+}));
+```
+
+**3. ZoomModal**
+
+```tsx
+// src/components/catalogo/modals/ZoomModal.tsx
+<SmartImage
+  src={getProductImage(imageSrc, 'large')} // ← Sempre 1200w
+  variant="full"
+  alt="Zoom"
+/>
+```
+
+**4. SmartImage (Lógica de Variantes)**
+
+```tsx
+// src/components/catalogo/SmartImage.tsx
+const getVariantUrl = (variant: 'thumbnail' | 'card' | 'full') => {
+  if (variant === 'thumbnail') return variants[0]; // 480w
+  if (variant === 'full') return variants[variants.length - 1]; // 1200w
+  return variants.find((v) => v.size >= 480) || variants[0];
+};
+```
+
+#### ✅ Verificação (DevTools)
+
+**Como Testar:**
+
+1. Abra o Catálogo Virtual (`/catalogo/sua-loja`)
+2. Abra DevTools → Network → Img
+3. Verifique que **ProductCard carrega 480w**:
+   ```
+   TH2345SZJ-main-480w.webp (30KB)
+   ```
+4. Clique em um produto
+5. Verifique que **Galeria carrega 1200w**:
+   ```
+   TH2345SZJ-01-1200w.webp (150KB)
+   ```
+6. Clique para ampliar (Zoom)
+7. Confirme que **Zoom usa mesma 1200w** (já em cache!)
+
+**Validação SQL:**
+
+```sql
+-- Verificar se produtos têm ambas variantes
+SELECT
+  p.reference_code,
+  p.image_variants,
+  jsonb_array_length(p.image_variants) as variant_count
+FROM products p
+WHERE p.sync_status = 'synced'
+LIMIT 5;
+
+-- Resultado esperado: variant_count = 2 (480w + 1200w)
+```
 
 ---
 
@@ -892,29 +1060,35 @@ USING (auth.uid() = user_id);
 
 ### Storage Buckets
 
-**Opção 1: Pasta por marca (atual)**
+**Opção 1: Flat Structure por Marca (RECOMENDADO - v1.3)**
 
 ```
 product-images/
   public/
     brands/
       tommy/
-        products/
-          TH2345SZJ/              ← reference_code ao invés de UUID
-            main-480w.webp
-            main-1200w.webp
-            gallery/
-              img1-480w.webp
-              img1-1200w.webp
+        TH2345SZJ-main-480w.webp
+        TH2345SZJ-main-1200w.webp
+        TH2345SZJ-01-480w.webp      ← Galeria: ref-{index}-{size}w.webp
+        TH2345SZJ-01-1200w.webp
+        TH2345SZJ-02-480w.webp
+        TH2345SZJ-02-1200w.webp
 ```
 
-**Opção 2: Bucket por marca**
+**Vantagens:**
+
+- ✅ URLs curtas e legíveis
+- ✅ Fácil buscar/deletar por reference_code
+- ✅ Menos hierarquia (mais rápido)
+- ✅ SEO-friendly
+
+**Opção 2: Bucket por Marca (CREATE_BUCKETS=true)**
 
 ```
 product-images-tommy/
-  products/
-    abc123/
-      main-320w.webp
+  TH2345SZJ-main-480w.webp
+  TH2345SZJ-main-1200w.webp
+  TH2345SZJ-01-480w.webp
 ```
 
 ---

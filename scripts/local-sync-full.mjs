@@ -224,9 +224,9 @@ async function syncFullCatalog() {
                 if (CREATE_BUCKETS) {
                   targetBucket = `${BUCKET}-${brandSlug}`;
                   await ensureBucket(targetBucket);
-                  storageBase = `products/${refCode}/main`;
+                  storageBase = `${refCode}-main`; // ✅ FLAT: ref-main-480w.webp
                 } else {
-                  storageBase = `public/brands/${brandSlug}/products/${refCode}/main`;
+                  storageBase = `public/brands/${brandSlug}/${refCode}-main`; // ✅ FLAT
                 }
 
                 const res = await processAndUploadVariants(
@@ -275,12 +275,15 @@ async function syncFullCatalog() {
 
           // 2. PROCESSAR GALERIA SECUNDÁRIA
           let gallerySynced = 0;
+          console.log(`   📸 Iniciando processamento de galeria...`);
           try {
             let { data: gallery } = await supabase
               .from('product_images')
               .select('id, url')
               .eq('product_id', product.id)
               .neq('sync_status', 'synced');
+
+            console.log(`   ℹ️ Encontradas ${gallery?.length || 0} imagens pendentes em product_images`);
 
             // If there are no product_images rows, try to create them from product.images (handles concatenated URLs from import)
             if ((!gallery || gallery.length === 0) && product.images) {
@@ -368,6 +371,7 @@ async function syncFullCatalog() {
             }
 
             if (gallery?.length > 0) {
+              console.log(`   🔄 Processando ${gallery.length} imagens da galeria em lotes de ${IMAGE_CONCURRENCY}...`);
               for (let j = 0; j < gallery.length; j += IMAGE_CONCURRENCY) {
                 const imgBatch = gallery.slice(j, j + IMAGE_CONCURRENCY);
                 await Promise.all(
@@ -390,12 +394,20 @@ async function syncFullCatalog() {
 
                       let targetBucket = BUCKET;
                       let baseGalleryPath = '';
+                      const refCode = (product.reference_code || product.id)
+                        .trim()
+                        .replace(/[^a-zA-Z0-9-_]/g, '_')
+                        .substring(0, 100);
+                      
+                      // Usar position ou index sequencial para nome do arquivo
+                      const imgIndex = ((img as any).position ?? j + 1).toString().padStart(2, '0');
+                      
                       if (CREATE_BUCKETS) {
                         targetBucket = `${BUCKET}-${brandSlug}`;
                         await ensureBucket(targetBucket);
-                        baseGalleryPath = `products/${product.id}/gallery/${img.id}`;
+                        baseGalleryPath = `${refCode}-${imgIndex}`; // ✅ FLAT: TH2345-01-480w.webp
                       } else {
-                        baseGalleryPath = `public/brands/${brandSlug}/products/${product.id}/gallery/${img.id}`;
+                        baseGalleryPath = `public/brands/${brandSlug}/${refCode}-${imgIndex}`; // ✅ FLAT
                       }
 
                       // Split múltiplas URLs (ex: "url1;url2" ou "url1,url2")
@@ -408,6 +420,7 @@ async function syncFullCatalog() {
 
                       for (let pi = 0; pi < parts.length; pi++) {
                         const partUrl = parts[pi];
+                        console.log(`   🌐 Processando URL da galeria: ${partUrl.substring(0, 80)}...`);
                         try {
                           const res = await processAndUploadVariants(
                             partUrl,
@@ -424,7 +437,8 @@ async function syncFullCatalog() {
 
                           if (pi === 0) {
                             // Atualiza a linha existente com o primeiro resultado
-                            await supabase
+                            console.log(`   🔄 Atualizando product_images id=${img.id} para synced`);
+                            const { error: updateErr } = await supabase
                               .from('product_images')
                               .update({
                                 optimized_url: galleryMain.url,
@@ -437,9 +451,15 @@ async function syncFullCatalog() {
                                 sync_status: 'synced',
                               })
                               .eq('id', img.id);
+                            if (updateErr) {
+                              console.error(`   ❌ Erro ao atualizar product_images: ${updateErr.message || updateErr}`);
+                            } else {
+                              console.log(`   ✅ product_images id=${img.id} marcado como synced`);
+                            }
                           } else {
                             // Para URLs adicionais, cria novas linhas já marcadas como 'synced'
-                            await supabase.from('product_images').insert([
+                            console.log(`   ➕ Criando novo registro product_images para URL extra`);
+                            const { error: insertErr } = await supabase.from('product_images').insert([
                               {
                                 product_id: product.id,
                                 url: partUrl,
@@ -454,6 +474,9 @@ async function syncFullCatalog() {
                                 created_at: new Date().toISOString(),
                               },
                             ]);
+                            if (insertErr) {
+                              console.error(`   ❌ Erro ao inserir product_images: ${insertErr.message || insertErr}`);
+                            }
                           }
 
                           totalOriginalBytes += res.originalSize;
@@ -462,15 +485,18 @@ async function syncFullCatalog() {
                           productOptimizedBytes += res.optimizedTotal;
                           gallerySynced++;
                         } catch (err) {
-                          console.error(`   ❌ Galeria item: ${err.message}`);
+                          console.error(`   ❌ Galeria item (URL ${pi}): ${err.message || err}`);
                         }
                       }
                     } catch (err) {
-                      console.error(`   ❌ Galeria item: ${err.message}`);
+                      console.error(`   ❌ Galeria item (geral): ${err.message || err}`);
                     }
                   })
                 );
               }
+              console.log(`   ✅ Galeria: ${gallerySynced} imagens otimizadas com sucesso`);
+            } else {
+              console.log(`   ⚠️ Nenhuma imagem pendente encontrada na galeria`);
             }
           } catch (e) {
             console.error('   ⚠️ Erro Galeria:', e.message);
@@ -506,14 +532,25 @@ async function syncFullCatalog() {
           }
 
           // Buscar galeria completa para montar o JSONB de objetos {url, path}
+          console.log(`   📋 Montando products.images final para produto ${product.id}...`);
           const { data: finalImgs } = await supabase
             .from('product_images')
-            .select('optimized_url, storage_path')
+            .select('optimized_url, storage_path, is_primary')
             .eq('product_id', product.id)
             .eq('sync_status', 'synced');
 
+          console.log(`   ℹ️ Imagens sincronizadas encontradas: ${finalImgs?.length || 0}`);
+
           const imageObjects =
             finalImgs?.map((i) => ({
+              url: i.optimized_url,
+              path: i.storage_path,
+            })) || [];
+
+          // Separar galeria (sem capa) para coluna dedicada
+          const galleryOnly = finalImgs
+            ?.filter((i) => !i.is_primary)
+            .map((i) => ({
               url: i.optimized_url,
               path: i.storage_path,
             })) || [];
@@ -591,12 +628,15 @@ async function syncFullCatalog() {
               }
             }
 
+            console.log(`   💾 Salvando ${finalImagesToSave?.length || 0} imagens em products.images (${isOk ? 'synced' : 'failed'})`);
+            console.log(`   🖼️ Salvando ${galleryOnly?.length || 0} imagens em products.gallery_images`);
             await supabase
               .from('products')
               .update({
                 sync_status: isOk ? 'synced' : 'failed',
                 sync_error: isOk ? null : mainError || 'no_images_found',
                 images: finalImagesToSave, // preserve external URLs until internalized
+                gallery_images: galleryOnly, // ✅ NOVA COLUNA: só galeria otimizada
                 original_size_kb: Math.round(productOriginalBytes / 1024),
                 optimized_size_kb: Math.round(productOptimizedBytes / 1024),
                 updated_at: new Date().toISOString(),
@@ -614,6 +654,7 @@ async function syncFullCatalog() {
                 sync_status: isOk ? 'synced' : 'failed',
                 sync_error: isOk ? null : mainError || 'no_images_found',
                 images: imageObjects,
+                gallery_images: galleryOnly, // ✅ NOVA COLUNA: galeria separada
                 original_size_kb: Math.round(productOriginalBytes / 1024),
                 optimized_size_kb: Math.round(productOptimizedBytes / 1024),
                 updated_at: new Date().toISOString(),

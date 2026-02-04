@@ -172,8 +172,8 @@ export function ProductCard({
           product={product}
           className={`h-full w-full p-4`}
           imgClassName={`transition-all duration-700 ${isPending ? 'blur-sm grayscale opacity-30' : 'opacity-100'} object-contain`}
-          variant="card"
-          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          variant="thumbnail"
+          sizes="(max-width: 768px) 50vw, 25vw"
         />
 
         {/* TAGS DE DESTAQUE COM OPACIDADE */}
