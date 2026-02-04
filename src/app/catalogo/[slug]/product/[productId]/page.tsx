@@ -274,7 +274,8 @@ export default function ProductDetailPage() {
 
     // 1. Prioridade: Tabela product_images (Nova Arquitetura)
     if (product.product_images && product.product_images.length > 0) {
-      return product.product_images.map((img) => {
+      // Map to gallery items then dedupe by resolved url to avoid duplicates
+      const items = product.product_images.map((img) => {
         const isPending = img.sync_status === 'pending';
         const isFailed = img.sync_status === 'failed';
 
@@ -309,6 +310,21 @@ export default function ProductDetailPage() {
           sync_status: img.sync_status || 'synced',
         };
       });
+
+      // Deduplicate while preserving order (use normalized url without query)
+      const seen = new Set<string>();
+      const deduped: typeof items = [];
+      for (const it of items) {
+        const key = (it.zoomUrl || it.url || it.thumbnailUrl || '')
+          .split('?')[0]
+          .replace(/#.*$/, '');
+        if (!key) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(it);
+      }
+
+      return deduped;
     }
 
     // 2. Fallback: Colunas Antigas convertidas para formato da galeria

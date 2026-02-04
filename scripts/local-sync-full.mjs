@@ -276,11 +276,96 @@ async function syncFullCatalog() {
           // 2. PROCESSAR GALERIA SECUNDÁRIA
           let gallerySynced = 0;
           try {
-            const { data: gallery } = await supabase
+            let { data: gallery } = await supabase
               .from('product_images')
               .select('id, url')
               .eq('product_id', product.id)
               .neq('sync_status', 'synced');
+
+            // If there are no product_images rows, try to create them from product.images (handles concatenated URLs from import)
+            if ((!gallery || gallery.length === 0) && product.images) {
+              try {
+                const toInsert = [];
+                const seen = new Set();
+
+                const extractUrls = (input) => {
+                  const out = [];
+                  if (!input) return out;
+                  if (Array.isArray(input)) {
+                    for (const it of input) {
+                      if (!it) continue;
+                      if (typeof it === 'object') {
+                        if (it.url) out.push(String(it.url).trim());
+                        else if (it.path) out.push(String(it.path).trim());
+                      } else if (typeof it === 'string') {
+                        out.push(
+                          ...String(it)
+                            .split(/[;,]+/)
+                            .map((s) => s.trim())
+                        );
+                      }
+                    }
+                  } else if (typeof input === 'string') {
+                    out.push(...input.split(/[;,]+/).map((s) => s.trim()));
+                  }
+                  return out.filter(Boolean);
+                };
+
+                const rawUrls = extractUrls(product.images || []);
+                // Ensure cover is included too (some imports stored cover in image_url)
+                if (product.image_url && !rawUrls.includes(product.image_url)) {
+                  rawUrls.unshift(product.image_url);
+                }
+
+                for (let idx = 0; idx < rawUrls.length; idx++) {
+                  const u = rawUrls[idx];
+                  if (!u) continue;
+                  const key = u.split('?')[0].replace(/#.*$/, '');
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+                  const isExternal = u.startsWith('http');
+                  const isInternal =
+                    u.includes(SUPABASE_URL) ||
+                    u.includes('/storage/v1/object');
+                  toInsert.push({
+                    product_id: product.id,
+                    url: u,
+                    sync_status: isInternal ? 'synced' : 'pending',
+                    is_primary: idx === 0,
+                    position: idx,
+                    created_at: new Date().toISOString(),
+                  });
+                }
+
+                if (toInsert.length > 0) {
+                  const { error: insErr } = await supabase
+                    .from('product_images')
+                    .insert(toInsert);
+                  if (insErr) {
+                    console.warn(
+                      '   ⚠️ Falha ao criar product_images:',
+                      insErr.message || insErr
+                    );
+                  } else {
+                    console.log(
+                      `   ℹ️ Criados ${toInsert.length} registros em product_images a partir de products.images`
+                    );
+                    // reload gallery
+                    const gResp = await supabase
+                      .from('product_images')
+                      .select('id, url')
+                      .eq('product_id', product.id)
+                      .neq('sync_status', 'synced');
+                    gallery = gResp.data || [];
+                  }
+                }
+              } catch (e) {
+                console.warn(
+                  '   ⚠️ Erro ao popular product_images from products.images:',
+                  e.message || e
+                );
+              }
+            }
 
             if (gallery?.length > 0) {
               for (let j = 0; j < gallery.length; j += IMAGE_CONCURRENCY) {
@@ -392,7 +477,33 @@ async function syncFullCatalog() {
           }
 
           // 3. FINALIZAR ESTADOS DO PRODUTO E JSONB IMAGES
-          const isOk = mainSuccess || gallerySynced > 0;
+          let isOk = mainSuccess || gallerySynced > 0;
+
+          // Só marcar como 'synced' se NÃO houver imagens pendentes em product_images
+          try {
+            const { count, error: pendingErr } = await supabase
+              .from('product_images')
+              .select('id', { count: 'exact', head: true })
+              .eq('product_id', product.id)
+              .neq('sync_status', 'synced');
+
+            if (pendingErr) {
+              console.warn(
+                '   ⚠️ Erro ao verificar product_images pendentes:',
+                pendingErr.message || pendingErr
+              );
+            } else {
+              const pending = count || 0;
+              if (pending > 0) {
+                isOk = false;
+              }
+            }
+          } catch (e) {
+            console.warn(
+              '   ⚠️ Falha ao checar pendentes de product_images:',
+              e.message || e
+            );
+          }
 
           // Buscar galeria completa para montar o JSONB de objetos {url, path}
           const { data: finalImgs } = await supabase
@@ -407,17 +518,108 @@ async function syncFullCatalog() {
               path: i.storage_path,
             })) || [];
 
-          await supabase
-            .from('products')
-            .update({
-              sync_status: isOk ? 'synced' : 'failed',
-              sync_error: isOk ? null : mainError || 'no_images_found',
-              images: imageObjects, // NOVO: Converte array de strings para array de OBJETOS
-              original_size_kb: Math.round(productOriginalBytes / 1024),
-              optimized_size_kb: Math.round(productOptimizedBytes / 1024),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', product.id);
+          // Also include pending/external images from product_images (preserve until internalized)
+          try {
+            const { data: allGallery } = await supabase
+              .from('product_images')
+              .select('url, optimized_url, storage_path, sync_status')
+              .eq('product_id', product.id)
+              .order('position', { ascending: true });
+
+            const merged = [];
+            const seenUrls = new Set();
+
+            // 1) add internalized (synced) variants first (we already have imageObjects)
+            for (const it of imageObjects) {
+              const key = (it.url || '').split('?')[0];
+              if (!key) continue;
+              seenUrls.add(key);
+              merged.push(it);
+            }
+
+            // 2) include gallery entries that are not yet synced (preserve external URLs)
+            if (allGallery && allGallery.length > 0) {
+              for (const g of allGallery) {
+                const rawUrl = g.optimized_url || g.url;
+                const key = (rawUrl || '').split('?')[0];
+                if (!key) continue;
+                if (seenUrls.has(key)) continue;
+                // If it's synced, prefer optimized_url/path
+                if (g.sync_status === 'synced' && g.optimized_url) {
+                  merged.push({
+                    url: g.optimized_url,
+                    path: g.storage_path || null,
+                  });
+                } else {
+                  // pending/external -> keep original url until processed
+                  merged.push({ url: g.url, path: null });
+                }
+                seenUrls.add(key);
+              }
+            }
+
+            // 3) Fallback: if merged is empty, preserve original product.images if present
+            let finalImagesToSave = merged;
+            if (
+              (!finalImagesToSave || finalImagesToSave.length === 0) &&
+              product.images
+            ) {
+              const arr = Array.isArray(product.images)
+                ? product.images
+                : [product.images];
+              for (const it of arr) {
+                if (!it) continue;
+                if (typeof it === 'string') {
+                  const k = it.split('?')[0];
+                  if (!seenUrls.has(k)) {
+                    finalImagesToSave.push({ url: it, path: null });
+                    seenUrls.add(k);
+                  }
+                } else if (typeof it === 'object') {
+                  const u = it.url || it.path || null;
+                  if (u) {
+                    const k = String(u).split('?')[0];
+                    if (!seenUrls.has(k)) {
+                      finalImagesToSave.push({
+                        url: String(u),
+                        path: it.path || null,
+                      });
+                      seenUrls.add(k);
+                    }
+                  }
+                }
+              }
+            }
+
+            await supabase
+              .from('products')
+              .update({
+                sync_status: isOk ? 'synced' : 'failed',
+                sync_error: isOk ? null : mainError || 'no_images_found',
+                images: finalImagesToSave, // preserve external URLs until internalized
+                original_size_kb: Math.round(productOriginalBytes / 1024),
+                optimized_size_kb: Math.round(productOptimizedBytes / 1024),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', product.id);
+          } catch (e) {
+            console.warn(
+              '   ⚠️ Erro ao mesclar imagens para salvar products.images:',
+              e.message || e
+            );
+            // fallback to previous behavior to avoid leaving product in inconsistent state
+            await supabase
+              .from('products')
+              .update({
+                sync_status: isOk ? 'synced' : 'failed',
+                sync_error: isOk ? null : mainError || 'no_images_found',
+                images: imageObjects,
+                original_size_kb: Math.round(productOriginalBytes / 1024),
+                optimized_size_kb: Math.round(productOptimizedBytes / 1024),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', product.id);
+          }
 
           // Salva checkpoint local para permitir resume em caso de queda
           try {
@@ -579,7 +781,13 @@ async function retryOperation(fn, attempts = MAX_RETRIES, delayMs = 500) {
   throw lastErr;
 }
 
-syncFullCatalog().catch((e) => {
-  console.error('❌ Erro Fatal:', e);
-  process.exitCode = 0;
-});
+syncFullCatalog()
+  .then(() => {
+    // Encerrar explicitamente com sucesso para evitar sinais externos
+    process.exit(0);
+  })
+  .catch((e) => {
+    console.error('❌ Erro Fatal:', e);
+    // Encerrar com código não-zero para sinalizar falha quando realmente ocorrer
+    process.exit(1);
+  });

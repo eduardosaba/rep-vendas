@@ -38,6 +38,38 @@ export default function MarketingClient({
   const defaultSlug = catalogSlug || formData?.slug || initialData?.slug || '';
   const defaultCatalogUrl = `https://www.repvendas.com.br/catalogo/${defaultSlug}`;
 
+  // Recarrega banner do banco ao montar o componente
+  React.useEffect(() => {
+    const loadBanner = async () => {
+      if (!userId) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('share_banner_url')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profile?.share_banner_url) {
+        let fullUrl = profile.share_banner_url;
+
+        // Se não for URL completa, busca a URL pública
+        if (!fullUrl.startsWith('http')) {
+          const { data: pub } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(fullUrl.replace(/^\/+/, ''));
+
+          if (pub?.publicUrl) {
+            fullUrl = `${pub.publicUrl}?v=${Date.now()}`;
+          }
+        }
+
+        setShareBannerPreview(fullUrl);
+      }
+    };
+
+    loadBanner();
+  }, [userId, supabase]);
+
   const [shareMessage, setShareMessage] = useState<string>(() => {
     const name = formData?.name || initialData?.name || 'Meu Catálogo';
     return `Olá! Tudo bem? 👋\n\nEstou enviando o nosso catálogo atualizado da *${name}*.\n\nConfira as novidades aqui: ${defaultCatalogUrl}\n\nQualquer dúvida, estou à disposição!`;

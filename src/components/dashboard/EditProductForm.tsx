@@ -53,6 +53,8 @@ const ImageUploader = ({
   }) => {
     const placeholder = 'https://via.placeholder.com/600x600?text=Sem+imagem';
 
+    // Prefer the internal storage proxy first (works with private buckets).
+    // If proxy fails, fall back to the external URL once.
     const [src, setSrc] = React.useState<string>(() => {
       if (storagePath) {
         const pathClean = storagePath.startsWith('/')
@@ -64,6 +66,7 @@ const ImageUploader = ({
       return placeholder;
     });
 
+    const triedStorage = React.useRef(false);
     const triedExternal = React.useRef(false);
 
     return (
@@ -74,12 +77,23 @@ const ImageUploader = ({
         onClick={() => src && setZoomImage(src)}
         onError={(e) => {
           const t = e.currentTarget as HTMLImageElement;
-          // If we attempted storage first and have an externalUrl, try it once
-          if (storagePath && externalUrl && !triedExternal.current) {
+          // If current src is external and storagePath is available, try storage once
+          if (!triedStorage.current && storagePath && src === externalUrl) {
+            triedStorage.current = true;
+            const pathClean = storagePath.startsWith('/')
+              ? storagePath.slice(1)
+              : storagePath;
+            setSrc(`/api/storage-image?path=${encodeURIComponent(pathClean)}`);
+            return;
+          }
+
+          // If current src is storage proxy and we have an external url, try it once
+          if (!triedExternal.current && externalUrl && src !== externalUrl) {
             triedExternal.current = true;
             setSrc(externalUrl);
             return;
           }
+
           // Avoid infinite loop and show placeholder
           t.onerror = null;
           setSrc(placeholder);
@@ -1135,13 +1149,30 @@ export function EditProductForm({ product }: { product: Product }) {
             </div>
           </div>
 
-          <ImageUploader
-            images={formData.images || []}
-            onUpload={handleImageUpload}
-            onRemove={removeImage}
-            onSetCover={setAsCover}
-            isShared={!!(product as any).image_is_shared}
-          />
+          {/* Se a galeria estiver vazia, mostrar a capa (`image_url` / `image_path`) como fallback */}
+          {(() => {
+            const hasImgs =
+              Array.isArray(formData.images) && formData.images.length > 0;
+            const fallbackCover = (product as any)?.image_url
+              ? [
+                  {
+                    url: (product as any).image_url,
+                    path: (product as any).image_path || null,
+                  },
+                ]
+              : [];
+            const imagesForUploader = hasImgs ? formData.images : fallbackCover;
+
+            return (
+              <ImageUploader
+                images={imagesForUploader || []}
+                onUpload={handleImageUpload}
+                onRemove={removeImage}
+                onSetCover={setAsCover}
+                isShared={!!(product as any).image_is_shared}
+              />
+            );
+          })()}
         </div>
 
         {/* DIREITA */}

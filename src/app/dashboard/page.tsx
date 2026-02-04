@@ -47,19 +47,8 @@ export default async function DashboardPage({
   if (range === '6m') startDate = subMonths(new Date(), 6).toISOString();
   const now = new Date().toISOString();
 
-  // 2. Busca de Dados
-  const [
-    totals,
-    products,
-    orders,
-    recentOrders,
-    settings,
-    profile,
-    chartData,
-    lastSync,
-    latestUpdate,
-    syncJob,
-  ] = await Promise.all([
+  // 2. Busca de Dados (com Promise.allSettled para não travar no erro)
+  const results = await Promise.allSettled([
     supabase
       .rpc('get_dashboard_totals', {
         owner_id: activeUserId,
@@ -120,18 +109,54 @@ export default async function DashboardPage({
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    // clients count moved to RPC for performance
-    supabase.rpc('get_dashboard_clients_count', {
-      p_owner_id: activeUserId,
-      p_start_date: startDate,
-    }),
   ]);
 
-  // Contagem de clientes (moved to DB via RPC for performance and memory safety)
+  // Extrair valores com fallback seguro
+  const totals =
+    results[0].status === 'fulfilled'
+      ? results[0].value
+      : { data: null, error: null };
+  const products =
+    results[1].status === 'fulfilled'
+      ? results[1].value
+      : { count: null, error: null };
+  const orders =
+    results[2].status === 'fulfilled'
+      ? results[2].value
+      : { count: null, error: null };
+  const recentOrders =
+    results[3].status === 'fulfilled'
+      ? results[3].value
+      : { data: [], error: null };
+  const settings =
+    results[4].status === 'fulfilled'
+      ? results[4].value
+      : { data: null, error: null };
+  const profile =
+    results[5].status === 'fulfilled'
+      ? results[5].value
+      : { data: null, error: null };
+  const chartData =
+    results[6].status === 'fulfilled'
+      ? results[6].value
+      : { data: [], error: null };
+  const lastSync =
+    results[7].status === 'fulfilled'
+      ? results[7].value
+      : { data: null, error: null };
+  const latestUpdate =
+    results[8].status === 'fulfilled'
+      ? results[8].value
+      : { data: null, error: null };
+  const syncJob =
+    results[9].status === 'fulfilled'
+      ? results[9].value
+      : { data: null, error: null };
+
+  // Contagem de clientes (extraído do Promise.all para evitar duplicação)
   let clientsCount = 0;
   try {
-    // Supabase RPC may return scalar or an object — normalize robustly
-    const clientsRes: any = await supabase.rpc('get_dashboard_clients_count', {
+    const clientsRes = await supabase.rpc('get_dashboard_clients_count', {
       p_owner_id: activeUserId,
       p_start_date: startDate,
     });
@@ -141,7 +166,6 @@ export default async function DashboardPage({
     console.error('Erro ao calcular clientes únicos via RPC:', err);
     clientsCount = 0;
   }
-  // ... (Lógica de contagem de clientes omitida para brevidade, permanece a mesma do seu arquivo)
 
   // 3. Lógica de Sincronização Ajustada
   const syncDate = lastSync.data ? new Date(lastSync.data.created_at) : null;

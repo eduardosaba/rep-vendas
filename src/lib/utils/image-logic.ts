@@ -225,37 +225,31 @@ export function getProductImage(
   size: 'small' | 'medium' | 'large' = 'medium'
 ): string {
   if (!url) return '';
+  // Suporte a variantes nomeadas como '-480w' / '-1200w' (padrão atual do sync).
+  // Mapear pedidos de tamanho para as variantes desejadas:
+  // - small  => 480w
+  // - medium => 1200w (usado como visualização principal no detalhe)
+  // - large  => 1200w (zoom)
+  const targetWidth = size === 'small' ? '480' : '1200';
 
-  // Se a URL já tem o padrão de múltiplas versões (-medium.webp, -small.webp, -large.webp)
-  const patterns = [
-    {
-      ext: '.webp',
-      medium: '-medium.webp',
-      small: '-small.webp',
-      large: '-large.webp',
-    },
-    {
-      ext: '.jpg',
-      medium: '-medium.jpg',
-      small: '-small.jpg',
-      large: '-large.jpg',
-    },
-    {
-      ext: '.jpeg',
-      medium: '-medium.jpeg',
-      small: '-small.jpeg',
-      large: '-large.jpeg',
-    },
-  ];
+  try {
+    // 1) Se houver um sufixo -{N}w antes da extensão, substituí-lo
+    // Ex: main-480w.webp -> main-1200w.webp
+    const reWidth = /-(\d+)w(\.[a-zA-Z0-9]+)(\?.*)?$/;
+    if (reWidth.test(url)) {
+      return url.replace(reWidth, `-${targetWidth}w$2$3`);
+    }
 
-  for (const p of patterns) {
-    if (url.includes(p.medium))
-      return url.replace(p.medium, `-${size}${p.ext}`);
-    if (url.includes(p.small)) return url.replace(p.small, `-${size}${p.ext}`);
-    if (url.includes(p.large)) return url.replace(p.large, `-${size}${p.ext}`);
-    if (url.endsWith(p.ext)) return url.replace(p.ext, `-${size}${p.ext}`);
+    // 2) Se a URL termina diretamente com uma extensão (.webp/.jpg) sem sufixo numeric,
+    //    substituímos a extensão por -{targetWidth}w.ext
+    const reExt = /(\.[a-zA-Z0-9]+)(\?.*)?$/;
+    if (reExt.test(url)) {
+      return url.replace(reExt, `-${targetWidth}w$1$2`);
+    }
+  } catch (e) {
+    // fallback para retornar a url original
+    return url;
   }
 
-  // Retorna a URL original se não for WebP ou não seguir o padrão
   return url;
 }

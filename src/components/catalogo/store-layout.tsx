@@ -174,7 +174,29 @@ export function StoreTopBar() {
           </span>
         ) : null}
 
-        {/* contact phone intentionally not shown here; displayed in top info bar */}
+        {/* contact phone: mostra número com link para WhatsApp quando configurado */}
+        {store.phone ? (
+          normalizePhoneDigits(store.phone) ? (
+            <a
+              href={whatsappHref(store.phone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-medium hover:text-[var(--primary)]"
+              style={{ color: textColor }}
+            >
+              <Phone size={14} />
+              <span>{formatPhoneDisplay(store.phone)}</span>
+            </a>
+          ) : (
+            <div
+              className="inline-flex items-center gap-2 text-sm font-medium"
+              style={{ color: textColor }}
+            >
+              <Phone size={14} />
+              <span>{String(store.phone)}</span>
+            </div>
+          )
+        ) : null}
       </div>
     </div>
   );
@@ -1055,17 +1077,25 @@ export function StoreFooter() {
               Atendimento
             </h4>
             <ul className="space-y-2 text-sm opacity-90">
-              <li>
-                <a
-                  href={whatsappHref(store.phone)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 hover:text-[var(--primary)] transition-colors"
-                >
-                  <Phone size={14} />{' '}
-                  <span>{formatPhoneDisplay(store.phone)}</span>
-                </a>
-              </li>
+              {store.phone ? (
+                <li>
+                  {normalizePhoneDigits(store.phone) ? (
+                    <a
+                      href={whatsappHref(store.phone)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 hover:text-[var(--primary)] transition-colors"
+                    >
+                      <Phone size={14} />{' '}
+                      <span>{formatPhoneDisplay(store.phone)}</span>
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <Phone size={14} /> {String(store.phone)}
+                    </span>
+                  )}
+                </li>
+              ) : null}
               {store.email && (
                 <li>
                   <span className="inline-flex items-center gap-2">

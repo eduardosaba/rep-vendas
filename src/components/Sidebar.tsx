@@ -83,9 +83,14 @@ const MENU_ITEMS = [
         icon: History,
       },
       {
+        title: 'Sincronizar imagens',
+        href: '/dashboard/settings/sync',
+        icon: Zap,
+      },
+      {
         title: 'Sincronizador PROCV',
         href: '/dashboard/products/sync',
-        icon: Zap,
+        icon: RefreshCcw,
       },
       {
         title: 'Importar Excel',

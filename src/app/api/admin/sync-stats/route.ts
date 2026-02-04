@@ -1,21 +1,31 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-  // Autenticação básica (pode melhorar com verificação de role)
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET || '';
+  const supabase = await createClient();
 
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  // Verifica autenticação do usuário
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
     return new Response('Não autorizado', { status: 401 });
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  );
+  // Opcional: Verificar se é admin
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  // Se quiser restringir apenas para admins, descomente:
+  // if (profile?.role !== 'admin') {
+  //   return new Response('Acesso negado', { status: 403 });
+  // }
 
   try {
     // 1. Estatísticas gerais por sync_status

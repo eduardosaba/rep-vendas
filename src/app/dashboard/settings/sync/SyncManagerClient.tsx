@@ -87,11 +87,7 @@ export default function SyncManagerClient() {
   const loadStats = async () => {
     setIsLoadingStats(true);
     try {
-      const response = await fetch('/api/admin/sync-stats', {
-        headers: {
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}`,
-        },
-      });
+      const response = await fetch('/api/admin/sync-stats');
 
       if (!response.ok) throw new Error('Erro ao carregar estatísticas');
 
