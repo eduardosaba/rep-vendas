@@ -4,10 +4,6 @@ import QRCode from 'qrcode';
 import HTMLFlipBook from 'react-pageflip';
 import { createClient } from '@/lib/supabase/client';
 
-// react-pageflip prop types are strict; alias to any to avoid prop mismatch errors in TS
-const FlipBook: any = HTMLFlipBook as any;
-
-// Interfaces
 interface Representative {
   full_name?: string | null;
   whatsapp_number?: string | null;
@@ -32,15 +28,21 @@ interface Props {
   storeName?: string;
   showPrices?: boolean;
   priceType?: 'price' | 'sale_price';
-  primaryColor?: string;
-  secondaryColor?: string;
+  primaryColor?: string; // Escolhida pelo usuário
+  secondaryColor?: string; // Escolhida pelo usuário
   onProgress?: (p: number, msg?: string) => void;
 }
 
-const defaultPrimary = '#1A1A1A'; // Mais elegante (preto luxo)
-const defaultSecondary = '#757575';
+// --- HELPERS AUXILIARES ---
+const hexToRgb = (hex: string): [number, number, number] => {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.substring(0, 2), 16),
+    parseInt(h.substring(2, 4), 16),
+    parseInt(h.substring(4, 6), 16),
+  ];
+};
 
-// --- HELPERS ---
 async function fetchImageAsDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
@@ -51,29 +53,19 @@ async function fetchImageAsDataUrl(url: string): Promise<string | null> {
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(blob);
     });
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
-  return [
-    parseInt(h.substring(0, 2), 16),
-    parseInt(h.substring(2, 4), 16),
-    parseInt(h.substring(4, 6), 16),
-  ];
-}
-
-// --- COMPONENTE PRINCIPAL ---
 export const ProductCatalogPdfV2: React.FC<Props> = ({
   products,
   title,
-  storeName = 'RepVendas',
+  storeName,
   showPrices = true,
   priceType = 'price',
-  primaryColor = defaultPrimary,
-  secondaryColor = defaultSecondary,
+  primaryColor = '#1A1A1A',
+  secondaryColor = '#F5F5F5',
   onProgress,
 }) => {
   const [generating, setGenerating] = useState(false);
@@ -81,7 +73,6 @@ export const ProductCatalogPdfV2: React.FC<Props> = ({
   const [cart, setCart] = useState<any[]>([]);
   const [rep, setRep] = useState<Representative | null>(null);
 
-  // Busca perfil do representante automaticamente
   useEffect(() => {
     const fetchProfile = async () => {
       const supabase = createClient();
@@ -93,7 +84,7 @@ export const ProductCatalogPdfV2: React.FC<Props> = ({
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         if (data) setRep(data);
       }
     };
@@ -105,80 +96,45 @@ export const ProductCatalogPdfV2: React.FC<Props> = ({
     total: cart.reduce((acc, curr) => acc + curr.price * curr.quantity, 0),
   });
 
-  const updateCart = (product: Product, delta: number) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.productId === product.id);
-      if (existing) {
-        const newQty = existing.quantity + delta;
-        if (newQty <= 0)
-          return prev.filter((item) => item.productId !== product.id);
-        return prev.map((item) =>
-          item.productId === product.id ? { ...item, quantity: newQty } : item
-        );
-      }
-      if (delta <= 0) return prev;
-      return [
-        ...prev,
-        {
-          productId: product.id,
-          name: product.name,
-          reference: product.reference_code,
-          price:
-            (priceType === 'sale_price' ? product.sale_price : product.price) ||
-            product.price,
-          quantity: 1,
-        },
-      ];
-    });
-  };
-
-  // --- GERAÇÃO DO PDF ---
+  // --- GERAÇÃO DO PDF ESTILO REVISTA ---
   const handleGeneratePDF = async () => {
     setGenerating(true);
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     const pageW = 210;
     const pageH = 297;
     const rgbPrimary = hexToRgb(primaryColor);
+    const rgbSecondary = hexToRgb(secondaryColor);
 
-    // 1. CAPA ESTILIZADA
-    onProgress?.(5, 'Criando capa...');
+    // 1. CAPA ESTILO EDITORIAL
+    onProgress?.(10, 'Desenhando capa...');
     doc.setFillColor(...rgbPrimary);
-    doc.rect(0, 0, pageW, pageH * 0.4, 'F'); // Bloco superior
+    doc.rect(0, 0, 70, pageH, 'F'); // Faixa lateral moderna
 
     if (rep?.avatar_url) {
-      const logoData = await fetchImageAsDataUrl(rep.avatar_url);
-      if (logoData)
-        doc.addImage(logoData, 'PNG', pageW / 2 - 25, 20, 50, 25, '', 'FAST');
+      const logo = await fetchImageAsDataUrl(rep.avatar_url);
+      if (logo) doc.addImage(logo, 'PNG', 15, 20, 40, 40, '', 'FAST');
     }
 
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(...rgbPrimary);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.text(title.toUpperCase(), pageW / 2, pageH * 0.35, { align: 'center' });
+    doc.setFontSize(45);
+    doc.text('CATÁLOGO', 80, 80);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'normal');
+    doc.text(title.toUpperCase(), 80, 95);
 
-    doc.setTextColor(40, 40, 40);
-    doc.setFontSize(14);
-    doc.text(storeName, pageW / 2, pageH * 0.5, { align: 'center' });
+    // Info do Representante na Capa
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`REPRESENTANTE: ${rep?.full_name || '---'}`, 80, 260);
+    doc.text(`WHATSAPP: ${rep?.whatsapp_number || '---'}`, 80, 266);
 
-    if (rep) {
-      doc.setFontSize(10);
-      doc.text(`Consultor: ${rep.full_name || ''}`, pageW / 2, pageH * 0.85, {
-        align: 'center',
-      });
-      doc.text(
-        `WhatsApp: ${rep.whatsapp_number || ''}`,
-        pageW / 2,
-        pageH * 0.9,
-        { align: 'center' }
-      );
-    }
-
-    // 2. GRID DE PRODUTOS
+    // 2. PÁGINAS DE PRODUTOS (GRID 2x2)
     const cols = 2;
     const rows = 2;
     const margin = 15;
-    const cellW = (pageW - margin * 2) / cols;
-    const cellH = (pageH - margin * 2 - 20) / rows;
+    const cellW = (pageW - margin * 2.5) / cols;
+    const cellH = (pageH - margin * 3) / rows;
 
     for (let i = 0; i < products.length; i++) {
       if (i % 4 === 0) doc.addPage();
@@ -186,66 +142,46 @@ export const ProductCatalogPdfV2: React.FC<Props> = ({
       const p = products[i];
       const col = i % 2;
       const row = Math.floor((i % 4) / 2);
-      const x = margin + col * cellW;
-      const y = margin + 20 + row * cellH;
+      const x = margin + col * (cellW + 5);
+      const y = margin + 15 + row * (cellH + 5);
 
-      // Moldura leve
-      doc.setDrawColor(230, 230, 230);
-      doc.rect(x + 2, y + 2, cellW - 4, cellH - 4);
-
-      // Imagem
+      // Imagem Otimizada (480w)
       const variant =
         p.image_variants?.find((v) => v.size === 480)?.url || p.image_url;
-      const imgData = variant ? await fetchImageAsDataUrl(variant) : null;
+      const img = variant ? await fetchImageAsDataUrl(variant) : null;
 
-      if (imgData) {
-        doc.addImage(
-          imgData,
-          'JPEG',
-          x + 5,
-          y + 5,
-          cellW - 10,
-          cellH * 0.6,
-          '',
-          'MEDIUM'
-        );
-      } else {
-        doc.setFillColor(250, 250, 250);
-        doc.rect(x + 5, y + 5, cellW - 10, cellH * 0.6, 'F');
-        doc.setTextColor(200, 200, 200);
-        doc.text('SEM FOTO', x + cellW / 2, y + cellH * 0.3, {
-          align: 'center',
-        });
+      if (img) {
+        doc.addImage(img, 'JPEG', x, y, cellW, cellH * 0.7, '', 'MEDIUM');
       }
 
-      // Detalhes
-      doc.setTextColor(...rgbPrimary);
+      // Tipografia de Grife
+      doc.setTextColor(40, 40, 40);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text(p.name.substring(0, 25), x + 6, y + cellH * 0.7);
+      doc.setFontSize(11);
+      doc.text(p.name.toUpperCase(), x, y + cellH * 0.75);
 
-      doc.setTextColor(100, 100, 100);
+      doc.setTextColor(150, 150, 150);
       doc.setFont('helvetica', 'italic');
-      doc.setFontSize(8);
-      doc.text(`Ref: ${p.reference_code || '---'}`, x + 6, y + cellH * 0.75);
+      doc.setFontSize(9);
+      doc.text(`REF: ${p.reference_code || '---'}`, x, y + cellH * 0.81);
 
       if (showPrices) {
-        doc.setTextColor(0, 100, 0);
+        doc.setTextColor(...rgbPrimary);
         doc.setFont('helvetica', 'bold');
         const price =
           (priceType === 'sale_price' ? p.sale_price : p.price) || p.price;
-        doc.text(`R$ ${price.toFixed(2)}`, x + cellW - 6, y + cellH * 0.75, {
-          align: 'right',
-        });
+        doc.text(`R$ ${price.toFixed(2)}`, x, y + cellH * 0.88);
       }
 
-      // Rodapé da página
-      const pageNum = doc.getNumberOfPages();
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Página ${pageNum} | ${storeName}`, pageW / 2, pageH - 10, {
-        align: 'center',
-      });
+      // Rodapé discreto
+      doc.setFontSize(7);
+      doc.setTextColor(180, 180, 180);
+      doc.text(
+        `${storeName} | Página ${doc.getNumberOfPages()}`,
+        pageW / 2,
+        pageH - 8,
+        { align: 'center' }
+      );
 
       onProgress?.(Math.round((i / products.length) * 100));
     }
@@ -255,173 +191,236 @@ export const ProductCatalogPdfV2: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
+    <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100">
+      <div className="flex flex-wrap gap-3 mb-6">
         <button
           onClick={handleGeneratePDF}
           disabled={generating}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition"
+          className="flex-1 min-w-[200px] h-12 rounded-lg font-bold text-white transition-all active:scale-95 shadow-lg"
+          style={{ backgroundColor: primaryColor }}
         >
-          {generating ? '🚀 Gerando...' : 'Gerar PDF Premium'}
+          {generating ? '⌛ GERANDO...' : '📥 BAIXAR PDF REVISTA'}
         </button>
         <button
           onClick={() => setPreviewOpen(true)}
-          className="border border-blue-600 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition"
+          className="flex-1 min-w-[200px] h-12 rounded-lg font-bold border-2 transition-all hover:bg-gray-50 active:scale-95"
+          style={{ borderColor: primaryColor, color: primaryColor }}
         >
-          📖 Abrir Revista Interativa
+          📖 REVISTA DIGITAL (FLIP)
         </button>
       </div>
 
+      {/* MODAL FLIPBOOK INTERATIVO */}
       {previewOpen && (
-        <div className="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-5xl h-[90vh] rounded-2xl overflow-hidden flex flex-col relative">
-            {/* Header Flipbook */}
-            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="font-bold text-gray-800">{title}</h2>
+        <div className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-6xl h-[95vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-3 h-10 rounded-full"
+                  style={{ backgroundColor: primaryColor }}
+                ></div>
+                <h2 className="font-black text-xl uppercase tracking-widest">
+                  {title}
+                </h2>
+              </div>
               <div className="flex items-center gap-4">
-                <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
-                  🛒 {cartSummary().items} itens no pedido
-                </span>
+                <div className="px-4 py-2 rounded-full font-bold text-sm bg-green-100 text-green-700 border border-green-200">
+                  🛒 {cartSummary().items} itens selecionados
+                </div>
                 <button
                   onClick={() => setPreviewOpen(false)}
-                  className="text-gray-500 hover:text-black"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition"
                 >
-                  ✖
+                  ✕
                 </button>
               </div>
             </div>
 
-            {/* Flipbook Content */}
-            <div className="flex-1 overflow-hidden flex items-center justify-center bg-gray-200">
-              <FlipBook
+            <div className="flex-1 bg-zinc-200 overflow-hidden flex items-center justify-center p-10">
+              <HTMLFlipBook
                 width={500}
                 height={700}
-                size="stretch"
-                minWidth={315}
-                maxWidth={1000}
+                size="fixed"
+                minWidth={300}
                 minHeight={400}
-                maxHeight={1533}
+                maxWidth={1000}
+                maxHeight={1400}
+                drawShadow={true}
+                flippingTime={1000}
+                usePortrait={false}
+                startPage={0}
+                autoSize={true}
+                maxShadowOpacity={0.5}
                 showCover={true}
+                mobileScrollSupport={true}
+                clickEventForward={true}
+                useMouseEvents={true}
+                swipeDistance={30}
+                showPageCorners={true}
+                disableFlipByClick={false}
                 className="shadow-2xl"
               >
                 {/* Capa Flipbook */}
-                <div className="bg-white p-12 flex flex-col items-center justify-center text-center shadow-inner">
-                  <div className="w-24 h-1 bg-black mb-6"></div>
-                  <h1 className="text-4xl font-black mb-2">{title}</h1>
-                  <p className="text-gray-500 tracking-[0.2em] uppercase text-sm mb-12">
-                    Coleção 2026
-                  </p>
+                <div
+                  className="bg-white p-12 flex flex-col items-center justify-center text-center border-r-8"
+                  style={{ borderRightColor: primaryColor }}
+                >
+                  <h1
+                    className="text-5xl font-black mb-4 leading-none"
+                    style={{ color: primaryColor }}
+                  >
+                    {title}
+                  </h1>
+                  <div className="w-20 h-2 bg-black mb-10"></div>
                   {rep?.avatar_url && (
-                    <img src={rep.avatar_url} className="w-32 mb-8" />
+                    <img
+                      src={rep.avatar_url}
+                      className="w-40 grayscale hover:grayscale-0 transition-all mb-10"
+                    />
                   )}
-                  <p className="text-gray-400 text-xs">
-                    Exclusivo para parceiros comerciais
+                  <p className="uppercase tracking-[0.3em] text-gray-400 text-xs">
+                    Coleção Oficial 2026
                   </p>
                 </div>
 
-                {/* Páginas de Produtos */}
-                {products.map((p) => (
-                  <div
-                    key={p.id}
-                    className="bg-white p-8 border-l shadow-sm flex flex-col h-full"
-                  >
-                    <div className="flex-1 flex items-center justify-center bg-gray-50 rounded-xl mb-6">
-                      <img
-                        src={
-                          p.image_variants?.find((v) => v.size === 480)?.url ||
-                          p.image_url ||
-                          '/placeholder.png'
-                        }
-                        className="max-h-[300px] object-contain mix-blend-multiply"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-bold uppercase tracking-tight">
-                        {p.name}
-                      </h3>
-                      <p className="text-gray-400 font-mono text-sm">
-                        REF: {p.reference_code}
-                      </p>
+                {/* Páginas Internas */}
+                {products.map((p) => {
+                  const itemQty =
+                    cart.find((i) => i.productId === p.id)?.quantity || 0;
+                  return (
+                    <div
+                      key={p.id}
+                      className="bg-white p-10 flex flex-col h-full border-l border-gray-100"
+                    >
+                      <div className="flex-1 flex items-center justify-center bg-zinc-50 rounded-2xl mb-8 group relative">
+                        <img
+                          src={
+                            p.image_variants?.find((v) => v.size === 480)
+                              ?.url ||
+                            p.image_url ||
+                            ''
+                          }
+                          className="max-h-[350px] object-contain transition-transform group-hover:scale-110"
+                        />
+                      </div>
+                      <div className="space-y-4">
+                        <h3 className="text-2xl font-black text-gray-900 leading-tight">
+                          {p.name}
+                        </h3>
+                        <p className="text-gray-400 font-medium tracking-widest">
+                          REF: {p.reference_code}
+                        </p>
 
-                      <div className="flex justify-between items-end pt-4">
-                        {showPrices && (
-                          <div>
-                            <p className="text-xs text-gray-400">
-                              Preço Sugerido
+                        <div className="flex justify-between items-center pt-6 border-t border-gray-100">
+                          {showPrices && (
+                            <p
+                              className="text-3xl font-black"
+                              style={{ color: primaryColor }}
+                            >
+                              R$ {p.price.toFixed(2)}
                             </p>
-                            <p className="text-2xl font-black text-green-700">
-                              R${' '}
-                              {(
-                                (priceType === 'sale_price'
-                                  ? p.sale_price
-                                  : p.price) || p.price
-                              ).toFixed(2)}
-                            </p>
+                          )}
+
+                          {/* SELETOR DE QUANTIDADE */}
+                          <div className="flex items-center bg-gray-100 rounded-full p-1 border border-gray-200">
+                            <button
+                              onClick={() => {
+                                const q = Math.max(0, itemQty - 1);
+                                setCart((prev) =>
+                                  q === 0
+                                    ? prev.filter((i) => i.productId !== p.id)
+                                    : prev.map((i) =>
+                                        i.productId === p.id
+                                          ? { ...i, quantity: q }
+                                          : i
+                                      )
+                                );
+                              }}
+                              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white"
+                            >
+                              -
+                            </button>
+                            <span className="w-12 text-center font-bold text-lg">
+                              {itemQty}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setCart((prev) =>
+                                  itemQty === 0
+                                    ? [
+                                        ...prev,
+                                        {
+                                          productId: p.id,
+                                          name: p.name,
+                                          reference: p.reference_code,
+                                          price: p.price,
+                                          quantity: 1,
+                                        },
+                                      ]
+                                    : prev.map((i) =>
+                                        i.productId === p.id
+                                          ? { ...i, quantity: itemQty + 1 }
+                                          : i
+                                      )
+                                );
+                              }}
+                              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white"
+                            >
+                              +
+                            </button>
                           </div>
-                        )}
-
-                        {/* CONTROLES DE QUANTIDADE */}
-                        <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                          <button
-                            onClick={() => updateCart(p, -1)}
-                            className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-md transition"
-                          >
-                            -
-                          </button>
-                          <span className="w-10 text-center font-bold">
-                            {cart.find((i) => i.productId === p.id)?.quantity ||
-                              0}
-                          </span>
-                          <button
-                            onClick={() => updateCart(p, 1)}
-                            className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-md transition"
-                          >
-                            +
-                          </button>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
-                {/* Página Final / Checkout */}
-                <div className="bg-gray-50 p-12 flex flex-col items-center justify-center text-center">
-                  <h2 className="text-3xl font-black mb-6">Finalizar Pedido</h2>
-                  <div className="w-full bg-white rounded-2xl p-6 shadow-sm mb-8">
-                    <p className="text-gray-500 mb-2">
-                      Total de Itens:{' '}
-                      <span className="text-black font-bold">
-                        {cartSummary().items}
-                      </span>
-                    </p>
-                    <p className="text-gray-500">
-                      Valor Estimado:{' '}
-                      <span className="text-green-700 font-bold">
-                        R$ {cartSummary().total.toFixed(2)}
-                      </span>
-                    </p>
-                  </div>
+                {/* Checkout / Pedido Final */}
+                <div className="bg-zinc-50 p-12 flex flex-col items-center justify-center">
+                  <div className="w-full max-w-md bg-white p-10 rounded-3xl shadow-xl text-center">
+                    <h2 className="text-3xl font-black mb-8">
+                      RESUMO DO PEDIDO
+                    </h2>
+                    <div className="space-y-4 mb-10 text-left border-b pb-8">
+                      <p className="flex justify-between text-gray-500">
+                        Total de itens:{' '}
+                        <span className="text-black font-bold">
+                          {cartSummary().items}
+                        </span>
+                      </p>
+                      <p className="flex justify-between text-gray-500 text-xl">
+                        Total:{' '}
+                        <span
+                          className="font-black"
+                          style={{ color: primaryColor }}
+                        >
+                          R$ {cartSummary().total.toFixed(2)}
+                        </span>
+                      </p>
+                    </div>
 
-                  <button
-                    disabled={cart.length === 0}
-                    onClick={() => {
-                      const itemsTxt = cart
-                        .map(
-                          (i) =>
-                            `• ${i.quantity}x ${i.name} (REF: ${i.reference})`
-                        )
-                        .join('%0A');
-                      const msg = `Olá ${rep?.full_name}, gostaria de solicitar o seguinte pedido via catálogo:%0A%0A${itemsTxt}%0A%0A*Total: R$ ${cartSummary().total.toFixed(2)}*`;
-                      window.open(
-                        `https://wa.me/${rep?.whatsapp_number?.replace(/\D/g, '')}?text=${msg}`
-                      );
-                    }}
-                    className="bg-green-600 text-white px-8 py-4 rounded-full font-bold shadow-lg hover:bg-green-700 transition disabled:bg-gray-300"
-                  >
-                    🚀 Enviar via WhatsApp
-                  </button>
+                    <button
+                      disabled={cart.length === 0}
+                      onClick={() => {
+                        const itemsTxt = cart
+                          .map(
+                            (i) =>
+                              `• ${i.quantity}x ${i.name} (REF: ${i.reference})`
+                          )
+                          .join('%0A');
+                        const msg = `Olá ${rep?.full_name}, gostaria de enviar este pedido através do catálogo interativo:%0A%0A${itemsTxt}%0A%0A*TOTAL: R$ ${cartSummary().total.toFixed(2)}*`;
+                        window.open(
+                          `https://wa.me/${rep?.whatsapp_number?.replace(/\D/g, '')}?text=${msg}`
+                        );
+                      }}
+                      className="w-full py-5 rounded-2xl font-black text-lg bg-green-500 text-white shadow-xl shadow-green-200 hover:bg-green-600 transition-all disabled:bg-gray-300"
+                    >
+                      🚀 ENVIAR VIA WHATSAPP
+                    </button>
+                  </div>
                 </div>
-              </FlipBook>
+              </HTMLFlipBook>
             </div>
           </div>
         </div>

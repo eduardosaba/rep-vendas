@@ -89,17 +89,24 @@ export default function UserProfilePage() {
 
       setUserId(user.id);
 
-      // Executa as duas buscas ao mesmo tempo
-      const [profileResponse, subResponse] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-        supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-      ]);
+      // Executa as três buscas ao mesmo tempo
+      const [profileResponse, settingsResponse, subResponse] =
+        await Promise.all([
+          supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+          supabase
+            .from('settings')
+            .select('phone')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+        ]);
 
       const profile = profileResponse.data;
+      const settings = settingsResponse.data;
       const sub = subResponse.data;
 
       // Configura Perfil
@@ -107,7 +114,7 @@ export default function UserProfilePage() {
         full_name: profile?.full_name || user.user_metadata?.full_name || '',
         email: user.email || '',
         store_name: profile?.store_name || '',
-        whatsapp: profile?.whatsapp || '',
+        whatsapp: settings?.phone || '',
         avatar_url:
           profile?.avatar_url || user.user_metadata?.avatar_url || null,
       });
@@ -228,17 +235,45 @@ export default function UserProfilePage() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      const updates = {
+      // Normaliza telefone antes de salvar
+      const normalizePhone = (
+        phone: string | null | undefined
+      ): string | null => {
+        if (!phone || phone.trim() === '') return null;
+        return phone.trim();
+      };
+
+      const normalizedPhone = normalizePhone(formData.whatsapp);
+
+      const profileUpdates = {
         id: userId,
         full_name: formData.full_name,
         store_name: formData.store_name,
-        whatsapp: formData.whatsapp,
+        whatsapp: normalizedPhone,
         avatar_url: formData.avatar_url,
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase.from('profiles').upsert(updates);
-      if (error) throw error;
+      const settingsUpdates = {
+        user_id: userId,
+        phone: normalizedPhone,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Salva em paralelo: profiles e settings
+      const [profileError, settingsError] = await Promise.all([
+        supabase
+          .from('profiles')
+          .upsert(profileUpdates)
+          .then((r) => r.error),
+        supabase
+          .from('settings')
+          .upsert(settingsUpdates)
+          .then((r) => r.error),
+      ]);
+
+      if (profileError) throw profileError;
+      if (settingsError) throw settingsError;
 
       await supabase.auth.updateUser({
         data: { full_name: formData.full_name },

@@ -318,12 +318,69 @@ export default function SettingsPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const { error } = await supabase.from('settings').upsert({
+      // Hash da senha de preço (se fornecida)
+      const hashString = async (s: string) => {
+        try {
+          const enc = new TextEncoder();
+          const data = enc.encode(s);
+          const digest = await crypto.subtle.digest('SHA-256', data);
+          return Array.from(new Uint8Array(digest))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+        } catch (e) {
+          console.error('Hash error', e);
+          return null;
+        }
+      };
+
+      const pricePasswordHash = formData.price_password
+        ? await hashString(formData.price_password)
+        : null;
+
+      // Normaliza telefone
+      const normalizePhone = (
+        phone: string | null | undefined
+      ): string | null => {
+        if (!phone || phone.trim() === '') return null;
+        return phone.trim();
+      };
+
+      const normalizedPhone = normalizePhone(formData.phone);
+      const normalizedEmail = formData.email?.trim() || null;
+
+      // 1. Salvar em settings
+      const { error: settingsError } = await supabase.from('settings').upsert({
         user_id: user.id,
-        // spread formData but explicitly avoid persisting the plain price password
-        ...formData,
-        price_password: null,
-        ...catalogSettings,
+        // Dados gerais
+        name: formData.name || '',
+        phone: normalizedPhone,
+        email: normalizedEmail,
+        catalog_slug: formData.catalog_slug || '',
+        font_family: formData.font_family,
+        font_url: formData.font_url,
+        plan_type: formData.plan_type,
+        primary_color: formData.primary_color,
+        secondary_color: formData.secondary_color,
+        header_background_color: formData.header_background_color,
+        footer_background_color: formData.footer_background_color,
+        footer_message: formData.footer_message || null,
+        representative_name: formData.representative_name || null,
+        whatsapp_message_template: formData.whatsapp_message_template || null,
+        // Catalog settings
+        show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
+        show_top_info_bar: catalogSettings.show_top_info_bar,
+        top_benefit_text: catalogSettings.top_benefit_text || null,
+        show_installments: catalogSettings.show_installments,
+        max_installments: Number(catalogSettings.max_installments || 12),
+        show_discount_tag: catalogSettings.show_discount_tag,
+        cash_price_discount_percent: Number(
+          catalogSettings.cash_price_discount_percent || 5
+        ),
+        manage_stock: catalogSettings.manage_stock,
+        global_allow_backorder: catalogSettings.global_allow_backorder,
+        show_cost_price: catalogSettings.show_cost_price,
+        show_sale_price: catalogSettings.show_sale_price,
+        // Mídias
         banners: currentBanners,
         banners_mobile: currentBannersMobile,
         logo_url: logoPreview,
@@ -338,93 +395,75 @@ export default function SettingsPage() {
         top_benefit_image_align: topBenefitImageAlign,
         og_image_url: ogImagePreview,
         share_banner_url: shareBannerPreview,
+        // Estado e segurança
         is_active: isActive,
+        price_password_hash: pricePasswordHash,
         updated_at: new Date().toISOString(),
       });
 
-      if (error) throw error;
+      if (settingsError) throw settingsError;
 
-      // Publicar/atualizar catálogo público quando houver `catalog_slug`.
+      // 2. Salvar telefone em profiles.whatsapp (compatibilidade)
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: user.id,
+        whatsapp: normalizedPhone,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (profileError) throw profileError;
+
+      // 3. Salvar em public_catalogs (se houver slug)
       if (formData.catalog_slug) {
-        // calcula hash SHA-256 da senha de preço para não enviar texto puro
-        const hashString = async (s: string) => {
-          try {
-            const enc = new TextEncoder();
-            const data = enc.encode(s);
-            const digest = await crypto.subtle.digest('SHA-256', data);
-            return Array.from(new Uint8Array(digest))
-              .map((b) => b.toString(16).padStart(2, '0'))
-              .join('');
-          } catch (e) {
-            console.error('Hash error', e);
-            return null;
-          }
-        };
-
-        const pricePasswordHash = formData.price_password
-          ? await hashString(formData.price_password)
-          : null;
-
-        try {
-          const resp = await fetch('/api/public_catalogs/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: user.id,
-              slug: formData.catalog_slug,
-              is_active: isActive,
-              store_name: formData.name || '',
-              logo_url: logoPreview ?? null,
-              primary_color: formData.primary_color,
-              secondary_color: formData.secondary_color,
-              header_background_color: formData.header_background_color,
-              footer_background_color: formData.footer_background_color,
-              footer_message: formData.footer_message || null,
-              phone: formData.phone || null,
-              email: formData.email || null,
-              font_family: formData.font_family || null,
-              font_url: formData.font_url ?? null,
-              share_banner_url: shareBannerPreview ?? null,
-              og_image_url: ogImagePreview ?? null,
-              banners:
-                currentBanners && currentBanners.length ? currentBanners : null,
-              banners_mobile:
-                currentBannersMobile && currentBannersMobile.length
-                  ? currentBannersMobile
-                  : null,
-              top_benefit_image_url: topBenefitImagePreview ?? null,
-              top_benefit_image_fit: topBenefitImageFit ?? 'cover',
-              top_benefit_image_scale: topBenefitImageScale ?? 100,
-              top_benefit_height: topBenefitHeight ?? 36,
-              top_benefit_text_size: topBenefitTextSize ?? 11,
-              top_benefit_bg_color: topBenefitBgColor ?? '#f3f4f6',
-              top_benefit_text_color: topBenefitTextColor ?? '#b9722e',
-              top_benefit_text: catalogSettings.top_benefit_text || null,
-              show_top_benefit_bar:
-                catalogSettings.show_top_benefit_bar ?? false,
-              show_top_info_bar: catalogSettings.show_top_info_bar ?? true,
-              show_installments: catalogSettings.show_installments ?? false,
-              max_installments: Number(catalogSettings.max_installments || 1),
-              show_sale_price: catalogSettings.show_sale_price ?? true,
-              show_cost_price: catalogSettings.show_cost_price ?? false,
-              price_password_hash: pricePasswordHash,
-            }),
+        const { error: publicError } = await supabase
+          .from('public_catalogs')
+          .upsert({
+            user_id: user.id,
+            slug: formData.catalog_slug,
+            is_active: isActive,
+            store_name: formData.name || '',
+            logo_url: logoPreview ?? null,
+            primary_color: formData.primary_color,
+            secondary_color: formData.secondary_color,
+            header_background_color: formData.header_background_color,
+            footer_background_color: formData.footer_background_color,
+            footer_message: formData.footer_message || null,
+            phone: normalizedPhone,
+            email: normalizedEmail,
+            font_family: formData.font_family || null,
+            font_url: formData.font_url ?? null,
+            share_banner_url: shareBannerPreview ?? null,
+            og_image_url: ogImagePreview ?? null,
+            banners:
+              currentBanners && currentBanners.length ? currentBanners : null,
+            banners_mobile:
+              currentBannersMobile && currentBannersMobile.length
+                ? currentBannersMobile
+                : null,
+            top_benefit_image_url: topBenefitImagePreview ?? null,
+            top_benefit_image_fit: topBenefitImageFit ?? 'cover',
+            top_benefit_image_scale: topBenefitImageScale ?? 100,
+            top_benefit_height: topBenefitHeight ?? 36,
+            top_benefit_text_size: topBenefitTextSize ?? 11,
+            top_benefit_bg_color: topBenefitBgColor ?? '#f3f4f6',
+            top_benefit_text_color: topBenefitTextColor ?? '#b9722e',
+            top_benefit_text: catalogSettings.top_benefit_text || null,
+            show_top_benefit_bar: catalogSettings.show_top_benefit_bar ?? false,
+            show_top_info_bar: catalogSettings.show_top_info_bar ?? true,
+            show_installments: catalogSettings.show_installments ?? false,
+            max_installments: Number(catalogSettings.max_installments || 1),
+            show_sale_price: catalogSettings.show_sale_price ?? true,
+            show_cost_price: catalogSettings.show_cost_price ?? false,
+            // Mapeamento de campos com nomes diferentes
+            enable_stock_management: catalogSettings.manage_stock ?? false,
+            show_cash_discount: catalogSettings.show_discount_tag ?? false,
+            cash_price_discount_percent: Number(
+              catalogSettings.cash_price_discount_percent || 5
+            ),
+            price_password_hash: pricePasswordHash,
+            updated_at: new Date().toISOString(),
           });
 
-          if (!resp.ok) {
-            const body = await resp.json().catch(() => ({}));
-            const msg = body?.error || body?.message || 'Erro desconhecido';
-            toast.error(`Sincronização pública falhou: ${msg}`);
-            setSaving(false);
-            return;
-          }
-        } catch (pubErr: any) {
-          console.error('Failed to call /api/public_catalogs/sync', pubErr);
-          const msg = pubErr?.message || 'Erro ao sincronizar catálogo público';
-          toast.error(`Sincronização pública falhou: ${msg}`);
-          setSaving(false);
-          return;
-        }
+        if (publicError) throw publicError;
       }
 
       toast.success('Configurações aplicadas com sucesso!', { id: toastId });
@@ -583,9 +622,38 @@ export default function SettingsPage() {
                     <input
                       type="file"
                       className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) setLogoPreview(URL.createObjectURL(f));
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+
+                        try {
+                          const {
+                            data: { user },
+                          } = await supabase.auth.getUser();
+                          if (!user) throw new Error('Usuário não autenticado');
+
+                          // Upload para Supabase Storage
+                          const fileExt = file.name.split('.').pop();
+                          const fileName = `logo-${Date.now()}.${fileExt}`;
+                          const filePath = `${user.id}/branding/${fileName}`;
+
+                          const { error: uploadError } = await supabase.storage
+                            .from('product-images')
+                            .upload(filePath, file, { upsert: true });
+
+                          if (uploadError) throw uploadError;
+
+                          const { data } = supabase.storage
+                            .from('product-images')
+                            .getPublicUrl(filePath);
+
+                          setLogoPreview(data.publicUrl);
+                          toast.success('Logo carregada com sucesso!');
+                        } catch (err: any) {
+                          console.error('Erro ao fazer upload da logo:', err);
+                          toast.error(err.message || 'Erro ao fazer upload');
+                        }
                       }}
                     />
                   </label>

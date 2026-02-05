@@ -84,74 +84,215 @@ export function StoreModals() {
   );
 
   // Normaliza e retorna um array de imagens no formato { url, path? }
+  // Usa a mesma estratégia da página de edição: prioriza storage path, depois external URL
+  const normalizeImageEntry = (
+    entry: any
+  ): { url: string; path: string | null }[] => {
+    if (!entry) return [];
+
+    // Se for string, pode conter múltiplas URLs separadas por ';'
+    if (typeof entry === 'string') {
+      return entry
+        .split(';')
+        .map((u: string) => u.trim())
+        .filter(Boolean)
+        .map((u: string) => ({ url: u, path: null }));
+    }
+
+    // Se for objeto, normaliza chaves conhecidas
+    if (typeof entry === 'object' && !Array.isArray(entry)) {
+      const url =
+        entry.optimized_url ||
+        entry.optimizedUrl ||
+        entry.url ||
+        entry.src ||
+        entry.publicUrl ||
+        entry.public_url ||
+        '';
+      const path = entry.storage_path || entry.path || entry.image_path || null;
+      return [{ url: String(url || ''), path: path || null }];
+    }
+
+    return [];
+  };
+
   const getProductImages = (product: any) => {
-    if (!product) return [] as { url: string; path?: string }[];
+    if (!product) return [] as { url: string; path: string | null }[];
 
-    const images: { url: string; path?: string }[] = [];
-    const seen = new Set<string>();
+    const images: { url: string; path: string | null }[] = [];
+    const seenUrls = new Set<string>(); // Rastreia URLs exatas para evitar duplicatas
+    const seenBaseKeys = new Set<string>(); // Rastreia keys base para evitar diferentes variantes
+    const optimizedKeys = new Set<string>(); // Rastreia imagens que já têm versão otimizada
 
-    const pushIfNew = (item: { url?: string | null; path?: string | null }) => {
-      const url = item?.url || null;
-      if (!url || typeof url !== 'string') return;
-      const key = (() => {
-        try {
-          const u = new URL(url);
-          return u.pathname.split('/').pop() || url;
-        } catch (e) {
-          return url;
-        }
-      })();
-      if (!seen.has(key)) {
-        seen.add(key);
-        images.push({ url, path: item.path || undefined });
+    // Substitui variantes 480w por 1200w na URL
+    const upgradeTo1200w = (url: string): string => {
+      if (!url) return url;
+      return url.replace(/-480w(\.[a-zA-Z0-9]+)$/, '-1200w$1');
+    };
+
+    // Gera chave única removendo variantes de tamanho
+    const getBaseKey = (url: string): string => {
+      if (!url) return '';
+      try {
+        const u = new URL(url);
+        const filename = u.pathname.split('/').pop() || url;
+        // Remove sufixos -480w, -1200w, etc
+        return filename.replace(/-\d+w(\.[a-zA-Z0-9]+)?$/, '$1');
+      } catch (e) {
+        return url.replace(/-\d+w(\.[a-zA-Z0-9]+)?$/, '$1');
       }
     };
 
-    // 1) Imagem principal: prefira image_path (interno) -> image_url -> external_image_url
+    const pushIfNew = (
+      item: { url: string; path: string | null },
+      priority: 'optimized' | 'external' = 'external'
+    ) => {
+      if (!item.url || typeof item.url !== 'string') return;
+
+      // Ignora URLs vazias, espaços ou inválidas
+      const cleanUrl = item.url.trim();
+      if (!cleanUrl || cleanUrl.length < 10) return; // URL mínima deve ter pelo menos 10 caracteres
+
+      // Valida se é uma URL válida ou path relativo
+      if (!cleanUrl.startsWith('http') && !cleanUrl.startsWith('/')) return;
+
+      // SEMPRE faz upgrade para 1200w (tanto otimizadas quanto externas)
+      const upgradedUrl = upgradeTo1200w(cleanUrl);
+      const baseKey = getBaseKey(upgradedUrl);
+      if (!baseKey) return;
+
+      // Se for imagem otimizada (com path)
+      if (item.path && priority === 'optimized') {
+        // Verifica duplicatas por URL exata E por base key
+        if (!seenUrls.has(upgradedUrl) && !seenBaseKeys.has(baseKey)) {
+          optimizedKeys.add(baseKey);
+          seenBaseKeys.add(baseKey);
+          seenUrls.add(upgradedUrl);
+          images.push({ url: upgradedUrl, path: item.path });
+        }
+      }
+      // Se for externa, só adiciona se não houver versão otimizada
+      else if (!item.path && priority === 'external') {
+        if (
+          !seenUrls.has(upgradedUrl) &&
+          !seenBaseKeys.has(baseKey) &&
+          !optimizedKeys.has(baseKey)
+        ) {
+          seenBaseKeys.add(baseKey);
+          seenUrls.add(upgradedUrl);
+          images.push({ url: upgradedUrl, path: null });
+        }
+      }
+    };
+
+    // FASE 1: Processar imagens OTIMIZADAS (com path) primeiro
+
+    // 1.1) Capa principal otimizada
     if (product.image_path) {
-      const cover = buildSupabaseImageUrl(product.image_path, {
-        width: 1200,
-        height: 1200,
-        resize: 'contain',
-      });
-      pushIfNew({
-        url: cover || product.image_url || product.external_image_url || null,
-        path: product.image_path,
-      });
-    } else if (product.image_url || product.external_image_url) {
-      pushIfNew({
-        url: product.image_url || product.external_image_url,
-        path: undefined,
-      });
+      pushIfNew(
+        {
+          url:
+            product.image_url ||
+            product.external_image_url ||
+            product.image_path,
+          path: product.image_path,
+        },
+        'optimized'
+      );
     }
 
-    // 2) Galeria (aceita strings e objetos {url, path})
-    if (Array.isArray(product.images)) {
-      product.images.forEach((img: any) => {
-        if (!img) return;
-        if (typeof img === 'string') {
-          pushIfNew({ url: img });
-        } else if (typeof img === 'object') {
-          // pode ser {url, path} ou formas legadas
-          const url =
-            img.url || img.src || img.publicUrl || img.public_url || null;
-          const path = img.path || img.storage_path || null;
-          pushIfNew({ url, path });
+    // 1.2) gallery_images otimizadas (com path)
+    if (
+      Array.isArray(product.gallery_images) &&
+      product.gallery_images.length > 0
+    ) {
+      product.gallery_images.forEach((entry: any) => {
+        if (!entry) return;
+
+        if (typeof entry === 'object' && !Array.isArray(entry)) {
+          const url = entry.url || entry.publicUrl || entry.public_url || null;
+          const path = entry.path || entry.storage_path || null;
+
+          if (url && path) {
+            pushIfNew({ url, path }, 'optimized');
+          }
         }
       });
     }
 
-    // 3) Assegura que a external_image_url seja considerada por último
-    if (product.external_image_url)
-      pushIfNew({ url: product.external_image_url });
+    // 1.3) images otimizadas (com path)
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      product.images.forEach((entry: any) => {
+        const normalized = normalizeImageEntry(entry);
+        normalized.forEach((item) => {
+          if (item.url && item.path) {
+            pushIfNew(item, 'optimized');
+          }
+        });
+      });
+    }
 
-    if (images.length === 0)
+    // FASE 2: Processar imagens EXTERNAS (sem path) apenas se não houver versão otimizada
+
+    // 2.1) Capa externa (fallback)
+    if (!product.image_path) {
+      if (product.image_url) {
+        pushIfNew({ url: product.image_url, path: null }, 'external');
+      } else if (product.external_image_url) {
+        pushIfNew({ url: product.external_image_url, path: null }, 'external');
+      }
+    }
+
+    // 2.2) gallery_images externas
+    if (
+      Array.isArray(product.gallery_images) &&
+      product.gallery_images.length > 0
+    ) {
+      product.gallery_images.forEach((entry: any) => {
+        if (!entry) return;
+
+        if (typeof entry === 'object' && !Array.isArray(entry)) {
+          const url = entry.url || entry.publicUrl || entry.public_url || null;
+          const path = entry.path || entry.storage_path || null;
+
+          if (url && !path) {
+            pushIfNew({ url, path: null }, 'external');
+          }
+        } else if (typeof entry === 'string') {
+          pushIfNew({ url: entry, path: null }, 'external');
+        }
+      });
+    }
+
+    // 2.3) images externas
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      product.images.forEach((entry: any) => {
+        const normalized = normalizeImageEntry(entry);
+        normalized.forEach((item) => {
+          if (item.url && !item.path) {
+            pushIfNew(item, 'external');
+          }
+        });
+      });
+    }
+
+    // Fallback: placeholder se não houver imagens
+    if (images.length === 0) {
       return [
         {
           url: '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg',
+          path: null,
         },
       ];
-    return images;
+    }
+
+    // Filtro final: remove URLs duplicatas exatas (segurança adicional)
+    const finalSet = new Set<string>();
+    return images.filter((img) => {
+      if (!img.url || finalSet.has(img.url)) return false;
+      finalSet.add(img.url);
+      return true;
+    });
   };
 
   const productImages = useMemo(
@@ -338,18 +479,13 @@ export function StoreModals() {
                   const current = productImages[currentImageIndex] || {
                     url: null,
                   };
-                  const imageContext = {
-                    ...modals.product,
-                    image_url: current.url,
-                    image_path: current.path,
-                  };
+                  // Força usar a URL 1200w já processada, ignorando path para evitar downgrade
                   return (
-                    <SmartImage
-                      product={imageContext}
-                      variant="full"
-                      preferredSize={1200}
-                      className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105"
-                      imgClassName="object-contain"
+                    <img
+                      src={current.url}
+                      alt={modals.product?.name || 'Produto'}
+                      className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105 object-contain"
+                      loading="lazy"
                     />
                   );
                 })()}
@@ -602,18 +738,13 @@ export function StoreModals() {
                     const current = productImages[currentImageIndex] || {
                       url: null,
                     };
-                    const imageContext = {
-                      ...modals.product,
-                      image_url: current.url,
-                      image_path: current.path,
-                    };
+                    // Usa diretamente a URL 1200w já processada
                     return (
-                      <SmartImage
-                        product={imageContext}
-                        variant="full"
-                        preferredSize={1200}
-                        className="w-full h-full"
-                        imgClassName="object-contain"
+                      <img
+                        src={current.url}
+                        alt={modals.product?.name || 'Produto'}
+                        className="w-full h-full object-contain"
+                        loading="lazy"
                       />
                     );
                   })()}
