@@ -650,7 +650,21 @@ async function syncFullCatalog() {
 
           // 1) Capa (prioritária) - usar image_url atual do produto se existir
           try {
-            const coverUrl = product.image_url || null;
+            // Preferir construir a URL pública a partir do path interno (se presente)
+            // para garantir que a versão internalizada seja a capa exibida.
+            let coverUrl = null;
+            try {
+              if (product.image_path) {
+                const keyPath = String(product.image_path).replace(/^\/+/, '');
+                const publicUrl = await getPublicUrlFromBucket(BUCKET, keyPath);
+                if (publicUrl) coverUrl = publicUrl;
+              }
+            } catch (innerErr) {
+              // ignore and fallback to product.image_url
+            }
+
+            if (!coverUrl && product.image_url) coverUrl = product.image_url;
+
             if (coverUrl) {
               const key = String(coverUrl).split('?')[0];
               seen.add(key);
@@ -719,6 +733,19 @@ async function syncFullCatalog() {
           const galleryOnly = mergedAll
             .filter((it) => !it.is_primary)
             .map((it) => ({ url: it.url, path: it.path }));
+
+          // Normalize is_primary: garantir apenas um primary (o primeiro)
+          try {
+            if (mergedAll.length > 0) {
+              mergedAll = mergedAll.map((it, idx) => ({
+                url: it.url,
+                path: it.path || null,
+                is_primary: idx === 0,
+              }));
+            }
+          } catch (e) {
+            // ignore normalization errors
+          }
 
           // Persistir resultado consolidado
           try {

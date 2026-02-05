@@ -153,8 +153,17 @@ export function StoreModals() {
       const cleanUrl = item.url.trim();
       if (!cleanUrl || cleanUrl.length < 10) return; // URL mínima deve ter pelo menos 10 caracteres
 
-      // Valida se é uma URL válida ou path relativo
-      if (!cleanUrl.startsWith('http') && !cleanUrl.startsWith('/')) return;
+      // Valida se é uma URL/Path válido: aceita URLs HTTP, caminhos absolutos
+      // que começam com '/' e caminhos de Storage como 'public/...' ou qualquer
+      // string que contenha uma barra (ex: 'public/brands/...') — isso permite
+      // paths que o `pnpm run sincronizar` grava no banco sem barra inicial.
+      const isLikelyPath =
+        cleanUrl.startsWith('http') ||
+        cleanUrl.startsWith('/') ||
+        cleanUrl.startsWith('public/') ||
+        cleanUrl.includes('/product-images/') ||
+        /[^\s]+\//.test(cleanUrl);
+      if (!isLikelyPath) return;
 
       // SEMPRE faz upgrade para 1200w (tanto otimizadas quanto externas)
       const upgradedUrl = upgradeTo1200w(cleanUrl);
@@ -189,9 +198,20 @@ export function StoreModals() {
 
     // 1.1) Capa principal otimizada
     if (product.image_path) {
+      // Preferir construir a URL pública a partir do path interno para evitar
+      // manter a URL externa original como primeiro item. Se a construção
+      // falhar, caímos para os campos existentes.
+      let publicUrl: string | null = null;
+      try {
+        publicUrl = buildSupabaseImageUrl(product.image_path) || null;
+      } catch (e) {
+        publicUrl = null;
+      }
+
       pushIfNew(
         {
           url:
+            publicUrl ||
             product.image_url ||
             product.external_image_url ||
             product.image_path,
@@ -303,7 +323,8 @@ export function StoreModals() {
   // Detectar se a imagem atual é do Supabase Storage (otimizar) ou externa
   const currentImageIsSupabase = Boolean(
     productImages[currentImageIndex]?.path ||
-    productImages[currentImageIndex]?.url?.includes('supabase.co/storage') ||
+    (typeof productImages[currentImageIndex]?.url === 'string' &&
+      productImages[currentImageIndex]?.url.includes('supabase.co/storage')) ||
     modals.product?.image_path
   );
 

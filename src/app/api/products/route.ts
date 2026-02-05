@@ -145,11 +145,19 @@ export async function GET(req: Request) {
       returned = (returned as any[]).filter((p) => {
         const hasStorageImage = Boolean(
           p.image_path ||
-          p.image_url?.includes('supabase.co/storage') ||
-          p.external_image_url?.includes('supabase.co/storage') ||
+          (typeof p.image_url === 'string' &&
+            p.image_url.includes('supabase.co/storage')) ||
+          (typeof p.external_image_url === 'string' &&
+            p.external_image_url.includes('supabase.co/storage')) ||
           (p.images &&
             Array.isArray(p.images) &&
-            p.images.some((i: any) => i?.includes('supabase.co/storage')))
+            p.images.some((i: any) =>
+              typeof i === 'string'
+                ? i.includes('supabase.co/storage')
+                : i && typeof i.url === 'string'
+                  ? i.url.includes('supabase.co/storage')
+                  : false
+            ))
         );
         if (imageOptimization === 'optimized') return hasStorageImage;
         if (imageOptimization === 'unoptimized') return !hasStorageImage;
