@@ -169,6 +169,7 @@ export function SmartImage({
             sizes={sizes || '200px'}
             className={`object-contain ${imgClassName}`}
             onError={handleError}
+            unoptimized={true}
           />
         )
       ) : errored ? (

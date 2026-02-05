@@ -260,6 +260,8 @@ export const ProductCatalogPdfV2: React.FC<Props> = ({
                 showPageCorners={true}
                 disableFlipByClick={false}
                 className="shadow-2xl"
+                style={{}}
+                startZIndex={0}
               >
                 {/* Capa Flipbook */}
                 <div

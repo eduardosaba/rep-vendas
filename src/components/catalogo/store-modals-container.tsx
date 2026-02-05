@@ -27,6 +27,14 @@ import { Button } from '@/components/ui/Button';
 import Barcode from '../ui/Barcode'; // Mantido conforme seu projeto
 import { toast } from 'sonner';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
+import {
+  normalizeImageEntry,
+  normalizeAndExplodeImageEntries,
+  getBaseKeyFromUrl,
+  dedupePreferOptimized,
+  ensureOptimizedFirst,
+  upgradeTo1200w,
+} from '@/lib/imageHelpers';
 import { PasswordModal } from './modals/PasswordModal';
 
 export function StoreModals() {
@@ -78,132 +86,16 @@ export function StoreModals() {
     }
   }, [customerSession]);
 
-  const cartTotal = useMemo(
-    () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
-    [cart]
-  );
-
-  // Normaliza e retorna um array de imagens no formato { url, path? }
-  // Usa a mesma estratégia da página de edição: prioriza storage path, depois external URL
-  const normalizeImageEntry = (
-    entry: any
-  ): { url: string; path: string | null }[] => {
-    if (!entry) return [];
-
-    // Se for string, pode conter múltiplas URLs separadas por ';'
-    if (typeof entry === 'string') {
-      return entry
-        .split(';')
-        .map((u: string) => u.trim())
-        .filter(Boolean)
-        .map((u: string) => ({ url: u, path: null }));
-    }
-
-    // Se for objeto, normaliza chaves conhecidas
-    if (typeof entry === 'object' && !Array.isArray(entry)) {
-      const url =
-        entry.optimized_url ||
-        entry.optimizedUrl ||
-        entry.url ||
-        entry.src ||
-        entry.publicUrl ||
-        entry.public_url ||
-        '';
-      const path = entry.storage_path || entry.path || entry.image_path || null;
-      return [{ url: String(url || ''), path: path || null }];
-    }
-
-    return [];
-  };
-
   const getProductImages = (product: any) => {
     if (!product) return [] as { url: string; path: string | null }[];
 
-    const images: { url: string; path: string | null }[] = [];
-    const seenUrls = new Set<string>(); // Rastreia URLs exatas para evitar duplicatas
-    const seenBaseKeys = new Set<string>(); // Rastreia keys base para evitar diferentes variantes
-    const optimizedKeys = new Set<string>(); // Rastreia imagens que já têm versão otimizada
+    const out: { url: string; path: string | null }[] = [];
 
-    // Substitui variantes 480w por 1200w na URL
-    const upgradeTo1200w = (url: string): string => {
-      if (!url) return url;
-      return url.replace(/-480w(\.[a-zA-Z0-9]+)$/, '-1200w$1');
-    };
-
-    // Gera chave única removendo variantes de tamanho
-    const getBaseKey = (url: string): string => {
-      if (!url) return '';
-      try {
-        const u = new URL(url);
-        const filename = u.pathname.split('/').pop() || url;
-        // Remove sufixos -480w, -1200w, etc
-        return filename.replace(/-\d+w(\.[a-zA-Z0-9]+)?$/, '$1');
-      } catch (e) {
-        return url.replace(/-\d+w(\.[a-zA-Z0-9]+)?$/, '$1');
-      }
-    };
-
-    const pushIfNew = (
-      item: { url: string; path: string | null },
-      priority: 'optimized' | 'external' = 'external'
-    ) => {
-      if (!item.url || typeof item.url !== 'string') return;
-
-      // Ignora URLs vazias, espaços ou inválidas
-      const cleanUrl = item.url.trim();
-      if (!cleanUrl || cleanUrl.length < 10) return; // URL mínima deve ter pelo menos 10 caracteres
-
-      // Valida se é uma URL/Path válido: aceita URLs HTTP, caminhos absolutos
-      // que começam com '/' e caminhos de Storage como 'public/...' ou qualquer
-      // string que contenha uma barra (ex: 'public/brands/...') — isso permite
-      // paths que o `pnpm run sincronizar` grava no banco sem barra inicial.
-      const isLikelyPath =
-        cleanUrl.startsWith('http') ||
-        cleanUrl.startsWith('/') ||
-        cleanUrl.startsWith('public/') ||
-        cleanUrl.includes('/product-images/') ||
-        /[^\s]+\//.test(cleanUrl);
-      if (!isLikelyPath) return;
-
-      // SEMPRE faz upgrade para 1200w (tanto otimizadas quanto externas)
-      const upgradedUrl = upgradeTo1200w(cleanUrl);
-      const baseKey = getBaseKey(upgradedUrl);
-      if (!baseKey) return;
-
-      // Se for imagem otimizada (com path)
-      if (item.path && priority === 'optimized') {
-        // Verifica duplicatas por URL exata E por base key
-        if (!seenUrls.has(upgradedUrl) && !seenBaseKeys.has(baseKey)) {
-          optimizedKeys.add(baseKey);
-          seenBaseKeys.add(baseKey);
-          seenUrls.add(upgradedUrl);
-          images.push({ url: upgradedUrl, path: item.path });
-        }
-      }
-      // Se for externa, só adiciona se não houver versão otimizada
-      else if (!item.path && priority === 'external') {
-        if (
-          !seenUrls.has(upgradedUrl) &&
-          !seenBaseKeys.has(baseKey) &&
-          !optimizedKeys.has(baseKey)
-        ) {
-          seenBaseKeys.add(baseKey);
-          seenUrls.add(upgradedUrl);
-          images.push({ url: upgradedUrl, path: null });
-        }
-      }
-    };
-
-    // FASE 1: Processar imagens OTIMIZADAS (com path) primeiro
-
-    // 1.1) Capa principal otimizada — prioriza `image_variants`, depois `image_path`
+    // 1) Priorizar variantes / image_path (otimizadas)
     if (
       Array.isArray(product.image_variants) &&
       product.image_variants.length > 0
     ) {
-      // image_variants pode ser um array de objetos com chaves como
-      // optimized_url, url, path/storage_path. Preferimos a primeira variante
-      // que contenha uma URL válida.
       const firstVar =
         product.image_variants.find((v: any) =>
           Boolean(v && (v.optimized_url || v.optimizedUrl || v.url || v.src))
@@ -216,125 +108,61 @@ export function StoreModals() {
         firstVar?.src ||
         null;
       const varPath = firstVar?.path || firstVar?.storage_path || null;
-
-      if (varUrl) {
-        pushIfNew(
-          { url: varUrl, path: varPath },
-          varPath ? 'optimized' : 'external'
-        );
-      }
+      if (varUrl) out.push({ url: varUrl, path: varPath });
     } else if (product.image_path) {
-      // Preferir construir a URL pública a partir do path interno para evitar
-      // manter a URL externa original como primeiro item. Se a construção
-      // falhar, caímos para os campos existentes.
       let publicUrl: string | null = null;
       try {
         publicUrl = buildSupabaseImageUrl(product.image_path) || null;
       } catch (e) {
         publicUrl = null;
       }
-
-      pushIfNew(
-        {
-          url:
-            publicUrl ||
-            product.image_url ||
-            product.external_image_url ||
-            product.image_path,
-          path: product.image_path,
-        },
-        'optimized'
-      );
+      out.push({
+        url:
+          publicUrl ||
+          product.image_url ||
+          product.external_image_url ||
+          product.image_path,
+        path: product.image_path,
+      });
     }
 
-    // 1.2) gallery_images otimizadas (com path)
+    // 2) gallery_images (explode entries)
     if (
       Array.isArray(product.gallery_images) &&
       product.gallery_images.length > 0
     ) {
-      product.gallery_images.forEach((entry: any) => {
-        if (!entry) return;
-
-        if (typeof entry === 'object' && !Array.isArray(entry)) {
-          const url = entry.url || entry.publicUrl || entry.public_url || null;
-          const path = entry.path || entry.storage_path || null;
-
-          if (url && path) {
-            pushIfNew({ url, path }, 'optimized');
-          }
-        }
-      });
+      out.push(...normalizeAndExplodeImageEntries(product.gallery_images));
     }
 
-    // 1.3) images otimizadas (com path)
+    // 3) product.images (explode entries)
     if (Array.isArray(product.images) && product.images.length > 0) {
-      product.images.forEach((entry: any) => {
-        const normalized = normalizeImageEntry(entry);
-        normalized.forEach((item) => {
-          if (item.url && item.path) {
-            pushIfNew(item, 'optimized');
-          }
-        });
-      });
+      out.push(...normalizeAndExplodeImageEntries(product.images));
     }
 
-    // FASE 2: Processar imagens EXTERNAS (sem path) apenas se não houver versão otimizada
-
-    // 2.1) Capa externa (fallback)
+    // 4) Fallbacks: image_url / external_image_url
     if (!product.image_path) {
-      if (product.image_url) {
-        pushIfNew({ url: product.image_url, path: null }, 'external');
-      } else if (product.external_image_url) {
-        pushIfNew({ url: product.external_image_url, path: null }, 'external');
-      }
+      if (product.image_url) out.push({ url: product.image_url, path: null });
+      else if (product.external_image_url)
+        out.push({ url: product.external_image_url, path: null });
     }
 
-    // 2.2) gallery_images externas
-    if (
-      Array.isArray(product.gallery_images) &&
-      product.gallery_images.length > 0
-    ) {
-      product.gallery_images.forEach((entry: any) => {
-        if (!entry) return;
+    // Normalize urls (upgrade to 1200w) and remove trivially short/invalid
+    const cleaned = out
+      .map((i) => ({ url: (i.url || '').trim(), path: i.path }))
+      .filter((i) => i.url && i.url.length > 6)
+      .map((i) => ({ url: upgradeTo1200w(i.url), path: i.path }));
 
-        if (typeof entry === 'object' && !Array.isArray(entry)) {
-          const url = entry.url || entry.publicUrl || entry.public_url || null;
-          const path = entry.path || entry.storage_path || null;
+    // Deduplicate preferring optimized entries
+    const deduped = dedupePreferOptimized(cleaned);
+    const ordered = ensureOptimizedFirst(deduped);
 
-          if (url && !path) {
-            pushIfNew({ url, path: null }, 'external');
-          }
-        } else if (typeof entry === 'string') {
-          pushIfNew({ url: entry, path: null }, 'external');
-        }
-      });
+    if (!ordered || ordered.length === 0) {
+      return [{ url: '/images/product-placeholder.svg', path: null }];
     }
 
-    // 2.3) images externas
-    if (Array.isArray(product.images) && product.images.length > 0) {
-      product.images.forEach((entry: any) => {
-        const normalized = normalizeImageEntry(entry);
-        normalized.forEach((item) => {
-          if (item.url && !item.path) {
-            pushIfNew(item, 'external');
-          }
-        });
-      });
-    }
-
-    // Fallback: placeholder se não houver imagens
-    if (images.length === 0) {
-      return [
-        {
-          url: '/images/product-placeholder.svg',
-          path: null,
-        },
-      ];
-    }
-
-    // Filtro final: remove URLs duplicatas exatas (segurança adicional)
+    // Final safety: remove exact-duplicate urls
     const finalSet = new Set<string>();
-    return images.filter((img) => {
+    return ordered.filter((img) => {
       if (!img.url || finalSet.has(img.url)) return false;
       finalSet.add(img.url);
       return true;
@@ -344,6 +172,15 @@ export function StoreModals() {
   const productImages = useMemo(
     () => getProductImages(modals.product),
     [modals.product]
+  );
+
+  const cartTotal = useMemo(
+    () =>
+      cart.reduce(
+        (acc: number, item: any) => acc + item.price * item.quantity,
+        0
+      ),
+    [cart]
   );
 
   // Detectar se a imagem atual é do Supabase Storage (otimizar) ou externa
@@ -394,7 +231,7 @@ export function StoreModals() {
                   <p className="font-bold mt-4">Carrinho vazio</p>
                 </div>
               ) : (
-                cart.map((item) => (
+                cart.map((item: any) => (
                   <div
                     key={item.id}
                     className="flex gap-4 rounded-2xl border border-gray-100 p-3 bg-white"
@@ -701,7 +538,7 @@ export function StoreModals() {
                     <div className="flex items-center gap-4 bg-gray-100 p-2 rounded-2xl">
                       <button
                         onClick={() =>
-                          setDetailQuantity((q) => Math.max(1, q - 1))
+                          setDetailQuantity((q: number) => Math.max(1, q - 1))
                         }
                         className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm"
                       >
@@ -711,7 +548,7 @@ export function StoreModals() {
                         {detailQuantity}
                       </span>
                       <button
-                        onClick={() => setDetailQuantity((q) => q + 1)}
+                        onClick={() => setDetailQuantity((q: number) => q + 1)}
                         className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm"
                       >
                         <Plus size={18} />
@@ -764,7 +601,7 @@ export function StoreModals() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCurrentImageIndex((i) =>
+                      setCurrentImageIndex((i: number) =>
                         i === 0 ? productImages.length - 1 : i - 1
                       );
                     }}
@@ -776,7 +613,7 @@ export function StoreModals() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCurrentImageIndex((i) =>
+                      setCurrentImageIndex((i: number) =>
                         i === productImages.length - 1 ? 0 : i + 1
                       );
                     }}

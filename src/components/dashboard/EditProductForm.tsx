@@ -24,6 +24,13 @@ import {
 } from 'lucide-react';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import ImageWithRetry from '@/components/ui/ImageWithRetry';
+import {
+  normalizeImageEntry,
+  normalizeAndExplodeImageEntries,
+  getBaseKeyFromUrl,
+  dedupePreferOptimized,
+  ensureOptimizedFirst,
+} from '@/lib/imageHelpers';
 
 // --- SUB-COMPONENTE: UPLOAD ---
 const ImageUploader = ({
@@ -209,64 +216,7 @@ const ImageUploader = ({
   );
 };
 
-// Normalize image entry helper (top-level so subcomponents can use)
-// Normalize an entry into an array of objects { url, path }
-// - Strings may contain multiple URLs separated by ';'
-// - Objects may already contain url and storage_path/path
-function normalizeImageEntry(
-  entry: any
-): { url: string; path: string | null }[] {
-  if (!entry) return [];
-
-  // If it's a string, it can contain multiple ; separated URLs
-  if (typeof entry === 'string') {
-    return entry
-      .split(';')
-      .map((u: string) => u.trim())
-      .filter(Boolean)
-      .map((u: string) => ({ url: u, path: null }));
-  }
-
-  // If it's an object, normalize known keys
-  if (typeof entry === 'object' && !Array.isArray(entry)) {
-    const url =
-      entry.optimized_url ||
-      entry.optimizedUrl ||
-      entry.url ||
-      entry.src ||
-      entry.publicUrl ||
-      entry.public_url ||
-      '';
-    const path = entry.storage_path || entry.path || entry.image_path || null;
-    return [{ url: String(url || ''), path: path || null }];
-  }
-
-  return [];
-}
-
-// Normalize and expand image entries into a flat array of {url,path} objects.
-function normalizeAndExplodeImageEntries(
-  images: any
-): { url: string; path: string | null }[] {
-  if (!images) return [];
-  const arr = Array.isArray(images) ? images : [images];
-  const out: { url: string; path: string | null }[] = [];
-
-  for (const entry of arr) {
-    const items = normalizeImageEntry(entry);
-    for (const it of items) {
-      if (it.url) out.push({ url: it.url.trim(), path: it.path });
-    }
-  }
-
-  // Remove duplicates by url while preserving order
-  const seen = new Set<string>();
-  return out.filter((i) => {
-    if (seen.has(i.url)) return false;
-    seen.add(i.url);
-    return true;
-  });
-}
+// Helpers moved to `src/lib/imageHelpers.ts`
 
 // --- COMPONENTE PRINCIPAL ---
 export function EditProductForm({ product }: { product: Product }) {
@@ -426,9 +376,13 @@ export function EditProductForm({ product }: { product: Product }) {
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
     is_best_seller: product.is_best_seller || product.bestseller || false,
-    images: normalizeAndExplodeImageEntries(
-      product.images || (product.image_url ? [product.image_url] : [])
-    ).filter(Boolean),
+    images: ensureOptimizedFirst(
+      dedupePreferOptimized(
+        normalizeAndExplodeImageEntries(
+          product.images || (product.image_url ? [product.image_url] : [])
+        ).filter(Boolean)
+      )
+    ),
   });
 
   // DEBUG: log das imagens para diagnóstico rápido (remover depois)
@@ -611,6 +565,26 @@ export function EditProductForm({ product }: { product: Product }) {
       };
     } else {
       normalizedSelected = { url: String(selectedRaw || ''), path: null };
+    }
+
+    // Se existe uma versão otimizada (com path) para a mesma imagem, preferi-la
+    const selectedBase = getBaseKeyFromUrl(normalizedSelected.url || '');
+    if (!normalizedSelected.path && selectedBase) {
+      const optimizedCandidate = (formData.images || []).find((it: any) =>
+        Boolean(
+          it?.path &&
+          getBaseKeyFromUrl(it.url || it.path || '') === selectedBase
+        )
+      );
+      if (optimizedCandidate) {
+        normalizedSelected = {
+          url:
+            optimizedCandidate.url ||
+            optimizedCandidate.path ||
+            normalizedSelected.url,
+          path: optimizedCandidate.path || normalizedSelected.path,
+        };
+      }
     }
 
     // Coloca o item normalizado no início
@@ -1229,7 +1203,9 @@ export function EditProductForm({ product }: { product: Product }) {
                   },
                 ]
               : [];
-            const imagesForUploader = hasImgs ? formData.images : fallbackCover;
+            const imagesForUploader = ensureOptimizedFirst(
+              hasImgs ? formData.images : fallbackCover
+            );
 
             return (
               <ImageUploader
