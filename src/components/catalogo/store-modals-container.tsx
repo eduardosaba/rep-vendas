@@ -196,8 +196,34 @@ export function StoreModals() {
 
     // FASE 1: Processar imagens OTIMIZADAS (com path) primeiro
 
-    // 1.1) Capa principal otimizada
-    if (product.image_path) {
+    // 1.1) Capa principal otimizada — prioriza `image_variants`, depois `image_path`
+    if (
+      Array.isArray(product.image_variants) &&
+      product.image_variants.length > 0
+    ) {
+      // image_variants pode ser um array de objetos com chaves como
+      // optimized_url, url, path/storage_path. Preferimos a primeira variante
+      // que contenha uma URL válida.
+      const firstVar =
+        product.image_variants.find((v: any) =>
+          Boolean(v && (v.optimized_url || v.optimizedUrl || v.url || v.src))
+        ) || product.image_variants[0];
+
+      const varUrl =
+        firstVar?.optimized_url ||
+        firstVar?.optimizedUrl ||
+        firstVar?.url ||
+        firstVar?.src ||
+        null;
+      const varPath = firstVar?.path || firstVar?.storage_path || null;
+
+      if (varUrl) {
+        pushIfNew(
+          { url: varUrl, path: varPath },
+          varPath ? 'optimized' : 'external'
+        );
+      }
+    } else if (product.image_path) {
       // Preferir construir a URL pública a partir do path interno para evitar
       // manter a URL externa original como primeiro item. Se a construção
       // falhar, caímos para os campos existentes.
@@ -300,7 +326,7 @@ export function StoreModals() {
     if (images.length === 0) {
       return [
         {
-          url: '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg',
+          url: '/images/product-placeholder.svg',
           path: null,
         },
       ];
@@ -394,6 +420,12 @@ export function StoreModals() {
                           unoptimized={(item.image_url || '').includes(
                             'supabase.co/storage'
                           )}
+                          onError={(e) => {
+                            try {
+                              (e.currentTarget as HTMLImageElement).src =
+                                '/images/product-placeholder.svg';
+                            } catch (err) {}
+                          }}
                         />
                       )}
                     </div>
@@ -507,6 +539,12 @@ export function StoreModals() {
                       alt={modals.product?.name || 'Produto'}
                       className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105 object-contain"
                       loading="lazy"
+                      onError={(e) => {
+                        try {
+                          (e.currentTarget as HTMLImageElement).src =
+                            '/images/product-placeholder.svg';
+                        } catch (err) {}
+                      }}
                     />
                   );
                 })()}
@@ -766,6 +804,12 @@ export function StoreModals() {
                         alt={modals.product?.name || 'Produto'}
                         className="w-full h-full object-contain"
                         loading="lazy"
+                        onError={(e) => {
+                          try {
+                            (e.currentTarget as HTMLImageElement).src =
+                              '/images/product-placeholder.svg';
+                          } catch (err) {}
+                        }}
                       />
                     );
                   })()}

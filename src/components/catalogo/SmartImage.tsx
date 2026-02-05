@@ -121,10 +121,22 @@ export function SmartImage({
   ]);
 
   const handleError = () => {
-    // If we tried internal first, fallback to external once
-    if (src && imageSrc && src === imageSrc && external) {
-      setSrc(external);
-      return;
+    // Fallback sequence:
+    // 1) If we tried internal first and there's an external URL, use it.
+    // 2) Else try local placeholder asset.
+    // 3) If already tried placeholder, mark errored.
+    const placeholder = '/images/product-placeholder.svg';
+    try {
+      if (src && imageSrc && src === imageSrc && external) {
+        setSrc(external);
+        return;
+      }
+      if (src !== placeholder) {
+        setSrc(placeholder);
+        return;
+      }
+    } catch (err) {
+      // ignore
     }
     setErrored(true);
   };
