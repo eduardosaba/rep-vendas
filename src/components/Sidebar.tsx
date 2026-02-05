@@ -308,6 +308,12 @@ export function Sidebar({
       {/* Navegação */}
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
         {MENU_ITEMS.map((item) => {
+          // Hide admin-only links for non-master users (checked via `isMaster` state)
+          if (!isMaster) {
+            // If the top-level item itself points to the sync settings page, hide it
+            if (item.href === '/dashboard/settings/sync') return null;
+            // If any child is the sync settings page, we'll filter it out below when rendering children
+          }
           const active = item.exact
             ? pathname === item.href
             : pathname?.startsWith(item.href);
@@ -446,6 +452,13 @@ export function Sidebar({
                       (branding as any)?.is_template_account ||
                       (branding as any)?.template_user
                     );
+                    // hide sync settings page for non-master users
+                    if (
+                      child.href === '/dashboard/settings/sync' &&
+                      !isMaster
+                    ) {
+                      return null;
+                    }
                     if (
                       child.href === '/dashboard/manage-external-images' &&
                       !isMaster &&

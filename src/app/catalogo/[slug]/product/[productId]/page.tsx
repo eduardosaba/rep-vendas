@@ -272,96 +272,132 @@ export default function ProductDetailPage() {
   // Preparar dados para o componente ProductGallery
   const galleryData = (() => {
     if (!product) return [];
+    // Helper para criar item (respeita storage path quando existir)
+    const makeItem = (
+      url: string | null,
+      storagePath: string | null,
+      sync_status = 'synced',
+      id?: string
+    ) => {
+      const optimizedUrl = url || null;
+      const smallUrl = storagePath
+        ? getProductImage(optimizedUrl, 'small')
+        : optimizedUrl;
+      const mediumUrl = storagePath
+        ? getProductImage(optimizedUrl, 'medium')
+        : optimizedUrl;
+      const largeUrl = storagePath
+        ? getProductImage(optimizedUrl, 'large')
+        : optimizedUrl;
+      const fallback = '/images/product-placeholder.svg';
+      return {
+        id: id || `img-${Math.random().toString(36).slice(2, 9)}`,
+        url: mediumUrl || optimizedUrl || fallback,
+        thumbnailUrl: smallUrl || optimizedUrl || fallback,
+        zoomUrl: largeUrl || optimizedUrl || fallback,
+        sync_status: sync_status,
+      };
+    };
 
-    // 1. PRIORIDADE MÁXIMA: Campo gallery_images em products (v1.3)
+    // 1. Prioridade: `gallery_images` (nova coluna) — NÃO inclui capa por design
     const galleryImagesField = (product as any).gallery_images;
+    const coverUrl = (product as any).image_url || null;
     if (
       galleryImagesField &&
       Array.isArray(galleryImagesField) &&
       galleryImagesField.length > 0
     ) {
-      const items = galleryImagesField.map((img: any, idx: number) => {
-        // gallery_images já contém URLs otimizadas (1200w)
-        const optimizedUrl = img.url || null;
-        const storagePath = img.path || null;
+      // montar lista: capa primeiro (se existir), depois galeria (removendo duplicados)
+      const seen = new Set<string>();
+      const result: any[] = [];
+      if (coverUrl) {
+        const coverPath = (product as any).image_path || null;
+        const cov = makeItem(coverUrl, coverPath, 'synced', 'cover');
+        seen.add(
+          (cov.zoomUrl || cov.url || '').split('?')[0].replace(/#.*$/, '')
+        );
+        result.push(cov);
+      }
 
-        // Se tiver path, construir variantes (480w, 1200w)
-        const smallUrl = storagePath
-          ? getProductImage(optimizedUrl, 'small')
-          : optimizedUrl;
-        const mediumUrl = storagePath
-          ? getProductImage(optimizedUrl, 'medium')
-          : optimizedUrl;
-        const largeUrl = storagePath
-          ? getProductImage(optimizedUrl, 'large')
-          : optimizedUrl; // ✅ SEMPRE 1200w quando otimizada
-
-        return {
-          id: `gallery-${idx}`,
-          url: mediumUrl || optimizedUrl || '/images/product-placeholder.svg',
-          thumbnailUrl:
-            smallUrl || optimizedUrl || '/images/product-placeholder.svg',
-          zoomUrl:
-            largeUrl || optimizedUrl || '/images/product-placeholder.svg', // ✅ 1200w para zoom
-          sync_status: 'synced',
-        };
-      });
-      return items;
+      for (let i = 0; i < galleryImagesField.length; i++) {
+        const img = galleryImagesField[i];
+        const url = img?.url || null;
+        const path = img?.path || null;
+        const key = (url || '').split('?')[0].replace(/#.*$/, '');
+        if (!url) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(makeItem(url, path, 'synced', `gallery-${i}`));
+      }
+      return result;
     }
 
     // 2. Fallback: Tabela product_images (Arquitetura Antiga)
     if (product.product_images && product.product_images.length > 0) {
       // Map to gallery items then dedupe by resolved url to avoid duplicates
-      const items = product.product_images.map((img) => {
+      const items = product.product_images.map((img: any) => {
         const isPending = img.sync_status === 'pending';
-        const isFailed = img.sync_status === 'failed';
         const isSynced = img.sync_status === 'synced';
-
-        // ✅ CORREÇÃO: Buscar optimized_url quando synced (vem de product_images)
-        const optimizedUrl = isSynced ? (img as any).optimized_url : null;
-        const storagePath = isSynced ? (img as any).storage_path : null;
-
-        // URL base: usar otimizada se disponível, senão original externa
-        const baseUrl = optimizedUrl || img.url;
-
-        // Estratégia de Múltiplas Versões:
-        // - small (480w) para thumbnails
-        // - medium (600px) para visualização principal
-        // - large (1200w) para zoom/detalhes - SEMPRE ALTA QUALIDADE
-        const smallUrl = isSynced ? getProductImage(baseUrl, 'small') : baseUrl;
-        const mediumUrl = isSynced
-          ? getProductImage(baseUrl, 'medium')
-          : baseUrl;
-        const largeUrl = isSynced
-          ? getProductImage(baseUrl, 'large') // ✅ 1200w para zoom
-          : baseUrl; // ✅ Fallback para URL externa se não otimizada
-
-        // Fallback Strategy: Se otimização falhou, usa URL original externa
-        const externalFallback = img.url || '/images/product-placeholder.svg';
-
-        return {
-          id: img.id,
-          url: mediumUrl || externalFallback,
-          thumbnailUrl: smallUrl || externalFallback,
-          zoomUrl: largeUrl || externalFallback,
-          sync_status: img.sync_status || 'pending',
-        };
+        const optimizedUrl = isSynced ? img.optimized_url || null : null;
+        const storagePath = isSynced ? img.storage_path || null : null;
+        const baseUrl = optimizedUrl || img.url || null;
+        return makeItem(
+          baseUrl,
+          storagePath,
+          img.sync_status || 'pending',
+          img.id
+        );
       });
 
-      // Deduplicate while preserving order (use normalized url without query)
-      const seen = new Set<string>();
-      const deduped: typeof items = [];
+      // ensure cover is first (prefer is_primary or match with product.image_url)
+      const coverKey = (coverUrl || '').split('?')[0].replace(/#.*$/, '');
+      const ordered: any[] = [];
+      const seen2 = new Set<string>();
+
+      // 1) try to find is_primary
+      const primary = product.product_images.find((pi: any) => pi.is_primary);
+      if (primary) {
+        const pkey = ((primary as any).optimized_url || primary.url || '')
+          .split('?')[0]
+          .replace(/#.*$/, '');
+        if (pkey) {
+          const pItem = items.find((it) => it.id === primary.id);
+          if (pItem) {
+            ordered.push(pItem);
+            seen2.add(
+              (pItem.zoomUrl || pItem.url || '')
+                .split('?')[0]
+                .replace(/#.*$/, '')
+            );
+          }
+        }
+      }
+
+      // 2) if no primary found, try to use product.image_url
+      if (ordered.length === 0 && coverKey) {
+        const match = items.find(
+          (it) =>
+            (it.zoomUrl || it.url || '').split('?')[0].replace(/#.*$/, '') ===
+            coverKey
+        );
+        if (match) {
+          ordered.push(match);
+          seen2.add(coverKey);
+        }
+      }
+
+      // 3) append remaining items excluding seen and excluding duplicates of cover
       for (const it of items) {
         const key = (it.zoomUrl || it.url || it.thumbnailUrl || '')
           .split('?')[0]
           .replace(/#.*$/, '');
         if (!key) continue;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deduped.push(it);
+        if (seen2.has(key)) continue;
+        seen2.add(key);
+        ordered.push(it);
       }
 
-      return deduped;
+      return ordered;
     }
 
     // 3. Fallback Final: Colunas Antigas convertidas para formato da galeria

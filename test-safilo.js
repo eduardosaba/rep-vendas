@@ -6,8 +6,19 @@ if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
 
-// Ignora erros de certificado SSL para o teste
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Apenas habilite explicitamente em ambiente local definindo
+// ALLOW_INSECURE_TLS=1 e executando o script com
+// NODE_TLS_REJECT_UNAUTHORIZED=0 node test-safilo.js
+if (process.env.ALLOW_INSECURE_TLS === '1') {
+  console.warn(
+    'ALLOW_INSECURE_TLS=1 detected — enabling insecure TLS for local testing only'
+  );
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  } catch (e) {
+    // ignore
+  }
+}
 
 async function testDownload() {
   const targetUrl =

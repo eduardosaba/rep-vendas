@@ -76,19 +76,18 @@ export async function GET(req: Request) {
       }
     }
 
-    // TLS: em ambiente de desenvolvimento podemos permitir TLS inseguro
-    // quando `ALLOW_INSECURE_TLS` estiver truthy. Isso facilita fetch de hosts
-    // com certificados incompletos em ambientes de teste.
+    // TLS handling: do NOT change global `NODE_TLS_REJECT_UNAUTHORIZED` here.
+    // For local debugging you may set `NODE_TLS_REJECT_UNAUTHORIZED=0` in
+    // your development environment manually (not in source). If you need to
+    // allow insecure TLS for specific requests, implement a per-request
+    // https.Agent/axios httpsAgent instead of mutating process.env.
     const allowInsecure = !!(
       process.env.ALLOW_INSECURE_TLS && process.env.ALLOW_INSECURE_TLS !== '0'
     );
-    let prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
     if (allowInsecure) {
-      try {
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-      } catch (e) {
-        // ignore
-      }
+      console.warn(
+        'ALLOW_INSECURE_TLS set: Do NOT set NODE_TLS_REJECT_UNAUTHORIZED in source or production. Use only for local debugging.'
+      );
     }
 
     const res = await fetchWithTimeout(
@@ -105,16 +104,7 @@ export async function GET(req: Request) {
       45000
     );
 
-    // restaurar configuração TLS global (se alterada)
-    if (allowInsecure) {
-      try {
-        if (typeof prev === 'undefined')
-          delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-        else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev;
-      } catch (e) {
-        // ignore
-      }
-    }
+    // No global env mutation performed, nothing to restore.
 
     if (!res.ok) {
       return NextResponse.json(

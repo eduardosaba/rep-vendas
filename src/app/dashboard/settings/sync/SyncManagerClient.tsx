@@ -51,7 +51,13 @@ interface SyncProgress {
   brand?: string;
 }
 
-export default function SyncManagerClient() {
+export default function SyncManagerClient({
+  userId,
+  isAdmin,
+}: {
+  userId?: string;
+  isAdmin?: boolean;
+}) {
   const [stats, setStats] = useState<SyncStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -263,8 +269,9 @@ export default function SyncManagerClient() {
                 Sincronização de Imagens
               </h1>
               <p className="text-slate-600 dark:text-slate-400 mt-1">
-                Painel Master - Gerenciamento de URLs externas → Supabase
-                Storage
+                {isAdmin
+                  ? 'Painel Master - Gerenciamento de URLs externas → Supabase Storage'
+                  : 'Painel de Sincronização (dados limitados ao seu usuário)'}
               </p>
             </div>
             <button

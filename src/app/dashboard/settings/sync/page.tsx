@@ -32,17 +32,19 @@ export default async function SyncPage() {
   if (!user) {
     redirect('/login');
   }
-
-  // Verifica se é admin/master
+  // Verifica papel do usuário (se existir) — admins têm visão global
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (!profile || (profile.role !== 'admin' && profile.role !== 'master')) {
-    redirect('/dashboard');
-  }
+  const isAdmin = Boolean(
+    profile && (profile.role === 'admin' || profile.role === 'master')
+  );
 
-  return <SyncManagerClient />;
+  // Passamos `userId` e `isAdmin` para o componente cliente. Usuários normais
+  // verão apenas dados relacionados ao seu `user.id`; admins podem optar por
+  // ver estatísticas globais quando o cliente suportar essa opção.
+  return <SyncManagerClient userId={user.id} isAdmin={isAdmin} />;
 }

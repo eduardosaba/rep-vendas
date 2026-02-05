@@ -594,21 +594,83 @@ export function EditProductForm({ product }: { product: Product }) {
 
   const setAsCover = (index: number) => {
     const newImages = [...formData.images];
-    const selected = newImages.splice(index, 1)[0];
-    newImages.unshift(selected);
+    const selectedRaw = newImages.splice(index, 1)[0];
+
+    // Normalizar entrada selecionada para garantir que `url` seja string
+    let normalizedSelected: { url: string; path: string | null };
+    if (typeof selectedRaw === 'string') {
+      normalizedSelected = { url: selectedRaw, path: null };
+    } else if (selectedRaw && typeof selectedRaw === 'object') {
+      normalizedSelected = {
+        url:
+          (selectedRaw as any).url ||
+          (selectedRaw as any).tempUrl ||
+          (selectedRaw as any).path ||
+          '',
+        path: (selectedRaw as any).path || null,
+      };
+    } else {
+      normalizedSelected = { url: String(selectedRaw || ''), path: null };
+    }
+
+    // Coloca o item normalizado no início
+    newImages.unshift(normalizedSelected as any);
     updateField('images', newImages);
     toast.success('Capa atualizada (Salve para confirmar)');
     setNeedsDetach(true);
+
+    // Se for um blob URL (preview local), não chamar o endpoint de enfileiramento
+    const selectedUrl = normalizedSelected.url || '';
+    if (!product?.id) return;
+    if (selectedUrl.startsWith('blob:')) {
+      toast.info('Capa temporária selecionada. Aguarde o upload finalizar.');
+      return;
+    }
+
     (async () => {
       try {
-        if (!product?.id) return;
+        // Tenta encontrar um product_image já existente que corresponda à URL (optimized_url, storage_path ou url)
+        try {
+          const { data: pi } = await supabase
+            .from('product_images')
+            .select('id, sync_status')
+            .eq('product_id', product.id)
+            .or(
+              `optimized_url.eq.${encodeURIComponent(selectedUrl)},storage_path.eq.${encodeURIComponent(selectedUrl)},url.eq.${encodeURIComponent(selectedUrl)}`
+            )
+            .limit(1)
+            .maybeSingle();
+
+          if (pi && pi.id && pi.sync_status === 'synced') {
+            // Chama o endpoint administrativo para set-cover
+            const res = await fetch('/api/admin/set-cover', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                productId: product.id,
+                productImageId: pi.id,
+              }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (res.ok && json.success) {
+              toast.success('Capa atualizada com sucesso.');
+              // Força refresh para refletir nova capa
+              try {
+                router.refresh();
+              } catch {}
+              return;
+            }
+          }
+        } catch (e) {
+          // Falha na busca — seguir fallback para enfileirar
+          console.warn('product_images lookup failed', e);
+        }
+
+        // Fallback: enfileirar via mark-image-pending (compatibilidade)
         const res = await fetch('/api/admin/mark-image-pending', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productId: product.id,
-            url: selected?.url || selected,
-          }),
+          body: JSON.stringify({ productId: product.id, url: selectedUrl }),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -746,6 +808,81 @@ export function EditProductForm({ product }: { product: Product }) {
 
       const isShared = (product as any).image_is_shared;
 
+      // Proteção: mesclar imagens do form com as imagens existentes no banco
+      // para evitar sobrescrever a galeria quando o form estiver incompleto.
+      const normalizePayloadEntry = (it: any) =>
+        typeof it === 'string'
+          ? { url: it, path: null }
+          : it || { url: '', path: null };
+
+      let mergedImages: { url: string; path: string | null }[] = (
+        formData.images || []
+      ).map((it: any) => normalizePayloadEntry(it));
+
+      try {
+        // Se o usuário não forneceu imagens no form (ou está vazio), preserve as existentes
+        const { data: current } = await supabase
+          .from('products')
+          .select('images, reference_code')
+          .eq('id', product.id)
+          .maybeSingle();
+
+        const existing: any[] = (
+          current && Array.isArray(current.images) ? current.images : []
+        ) as any[];
+
+        // Função auxiliar para gerar uma chave âncora (usa filename base e reference_code quando disponível)
+        const anchorKey = (it: any) => {
+          if (!it) return '';
+          const candidate = (it.path || it.url || '') as string;
+          const filename = candidate.split('/').pop() || '';
+          const base = filename
+            .replace(/-\d+w(\.[a-zA-Z0-9]+)?$/, '')
+            .replace(/\.[a-zA-Z0-9]+$/, '');
+          if (
+            current?.reference_code &&
+            base.includes(current.reference_code)
+          ) {
+            return `${current.reference_code}::${base}`;
+          }
+          return base || it.url || it.path || '';
+        };
+
+        if (!mergedImages || mergedImages.length === 0) {
+          mergedImages = existing.map((it: any) => normalizePayloadEntry(it));
+        } else {
+          // Merge preservando ordem do form e adicionando itens existentes que não foram sobrescritos
+          const seen = new Set<string>();
+          const out: any[] = [];
+
+          // Primeiro, insere os itens enviados pelo form (eles têm prioridade)
+          for (const it of mergedImages) {
+            const key = anchorKey(it);
+            if (!seen.has(key)) {
+              seen.add(key);
+              out.push(normalizePayloadEntry(it));
+            }
+          }
+
+          // Depois, anexa itens existentes que não estão presentes no form
+          for (const it of existing) {
+            const key = anchorKey(it);
+            if (!seen.has(key)) {
+              seen.add(key);
+              out.push(normalizePayloadEntry(it));
+            }
+          }
+
+          mergedImages = out;
+        }
+      } catch (e) {
+        console.warn('Failed merging images in handleSubmit', e);
+        // fallback: use form images as-is
+        mergedImages = (formData.images || []).map((it: any) =>
+          typeof it === 'string' ? { url: it, path: null } : it
+        );
+      }
+
       const payload = {
         name: formData.name,
         reference_code: formData.reference_code,
@@ -764,10 +901,8 @@ export function EditProductForm({ product }: { product: Product }) {
           : 0,
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
-        // Persist images as objects {url, path}
-        images: (formData.images || []).map((it: any) =>
-          typeof it === 'string' ? { url: it, path: null } : it
-        ),
+        // Persist images as objects {url, path} (merged/protected)
+        images: mergedImages,
         image_url:
           formData.images && formData.images.length > 0
             ? formData.images[0].url || formData.images[0]

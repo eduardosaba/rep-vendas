@@ -22,17 +22,54 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = createServerClient(supabaseUrl, serviceKey);
 
-    // Check if there's already a synced entry for this product+url
-    const { data: existing } = await supabaseAdmin
+    // Fetch product_images for this product and try to match by url, optimized_url or storage_path
+    const { data: imagesForProduct, error: fetchErr } = await supabaseAdmin
       .from('product_images')
-      .select('id, sync_status')
+      .select('id, url, optimized_url, storage_path, sync_status')
       .eq('product_id', productId)
-      .eq('url', url)
-      .limit(1)
-      .maybeSingle();
+      .limit(100);
 
-    if (existing && existing.sync_status === 'synced') {
+    if (fetchErr) {
+      console.error('[mark-image-pending] fetch error', fetchErr);
+      return NextResponse.json(
+        { success: false, error: fetchErr.message },
+        { status: 500 }
+      );
+    }
+
+    const found = (imagesForProduct || []).find((r: any) => {
+      if (!r) return false;
+      const candidates = [r.url, r.optimized_url, r.storage_path]
+        .filter(Boolean)
+        .map(String);
+      return candidates.includes(String(url));
+    });
+
+    // If there's already a synced image matching this url (by any of the known fields), avoid reenfileirar
+    if (found && found.sync_status === 'synced') {
       return NextResponse.json({ success: true, alreadySynced: true });
+    }
+
+    // If we found a matching row (but not yet synced), ensure it's marked pending and don't insert duplicate
+    if (found) {
+      try {
+        if (found.sync_status !== 'pending') {
+          await supabaseAdmin
+            .from('product_images')
+            .update({ sync_status: 'pending' })
+            .eq('id', found.id);
+        }
+      } catch (e) {
+        console.warn('[mark-image-pending] ensure pending failed', e);
+      }
+
+      // Also mark product as pending to prioritize
+      await supabaseAdmin
+        .from('products')
+        .update({ sync_status: 'pending' })
+        .eq('id', productId);
+
+      return NextResponse.json({ success: true, alreadyExists: true });
     }
 
     // Insert product_images row if not exists

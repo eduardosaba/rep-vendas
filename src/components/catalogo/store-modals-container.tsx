@@ -346,7 +346,8 @@ export function StoreModals() {
                   return (
                     <SmartImage
                       product={imageContext}
-                      initialSrc={current.url}
+                      variant="full"
+                      preferredSize={1200}
                       className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105"
                       imgClassName="object-contain"
                     />
@@ -373,8 +374,10 @@ export function StoreModals() {
                             image_url: img.url,
                             image_path: img.path,
                           }}
+                          preferredSize={480}
                           initialSrc={img.url}
                           className="absolute inset-0 w-full h-full"
+                          variant="thumbnail"
                           imgClassName="object-cover p-1"
                         />
                       </button>
@@ -607,7 +610,8 @@ export function StoreModals() {
                     return (
                       <SmartImage
                         product={imageContext}
-                        initialSrc={current.url}
+                        variant="full"
+                        preferredSize={1200}
                         className="w-full h-full"
                         imgClassName="object-contain"
                       />

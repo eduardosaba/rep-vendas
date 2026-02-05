@@ -158,6 +158,7 @@ export default function SettingsPage() {
   >('left');
 
   const { planType: planTypeHook } = usePlan();
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -166,6 +167,22 @@ export default function SettingsPage() {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user) return setLoading(false);
+
+        // Verifica papel do usuário para habilitar abas/links administrativos
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
+          if (
+            profile &&
+            (profile.role === 'admin' || profile.role === 'master')
+          )
+            setIsAdmin(true);
+        } catch (e) {
+          // ignore profile fetch errors
+        }
 
         const { data: settings } = await supabase
           .from('settings')
@@ -431,7 +448,8 @@ export default function SettingsPage() {
     { id: 'display', label: 'Exibição', icon: Layout },
     { id: 'marketing', label: 'Marketing', icon: Share2 },
     { id: 'stock', label: 'Estoque', icon: Package },
-    { id: 'sync', label: 'Sincronização', icon: Zap },
+    // A aba 'Sincronização' é visível apenas para administradores/master
+    ...(isAdmin ? [{ id: 'sync', label: 'Sincronização', icon: Zap }] : []),
   ];
 
   return (

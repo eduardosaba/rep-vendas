@@ -31,9 +31,11 @@ export async function POST(request: Request) {
 
   const { product_ids = [], brand_id, limit = 20, force = false } = body;
 
-  // Configura insecure TLS se necessário
+  // TLS handling: do NOT mutate `NODE_TLS_REJECT_UNAUTHORIZED` here.
   if (process.env.ALLOW_INSECURE_TLS === '1') {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    console.warn(
+      'ALLOW_INSECURE_TLS set: do NOT change NODE_TLS_REJECT_UNAUTHORIZED in source. Use only for local debug via your shell.'
+    );
   }
 
   // Cria encoder para SSE

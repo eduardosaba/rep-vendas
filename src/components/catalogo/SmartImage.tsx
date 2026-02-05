@@ -11,6 +11,7 @@ interface SmartImageProps {
   initialSrc?: string | null;
   sizes?: string;
   variant?: 'thumbnail' | 'card' | 'full'; // Novo: controla qual variante usar
+  preferredSize?: number; // solicita explicitamente a variante (ex: 480, 1200)
 }
 
 export function SmartImage({
@@ -20,18 +21,30 @@ export function SmartImage({
   initialSrc = null,
   sizes,
   variant = 'card',
+  preferredSize,
 }: SmartImageProps) {
   // Gera srcset a partir de image_variants se disponível
   const generateSrcSet = () => {
-    if (!product?.image_variants || !Array.isArray(product.image_variants)) {
-      return null;
-    }
+    // Prefer `optimized_variants` (per-image) then fallback to `image_variants` (product-level)
+    const raw = product?.optimized_variants || product?.image_variants;
+    if (!raw || !Array.isArray(raw) || raw.length === 0) return null;
 
-    return product.image_variants
+    const variants = raw
+      .map((v: any) => ({
+        size: Number(v.size || v.width || 0),
+        url: v.url,
+        path: v.path,
+      }))
+      .filter((v: any) => v.size && (v.url || v.path));
+
+    if (variants.length === 0) return null;
+
+    return variants
       .map((v: any) => {
-        const cleanPath = String(v.path).startsWith('/')
+        if (v.url) return `${v.url} ${v.size}w`;
+        const cleanPath = String(v.path || '').startsWith('/')
           ? String(v.path).substring(1)
-          : String(v.path);
+          : String(v.path || '');
         const path = encodeURIComponent(cleanPath);
         return `/api/storage-image?path=${path} ${v.size}w`;
       })
@@ -42,29 +55,41 @@ export function SmartImage({
   const getImageSrc = () => {
     if (initialSrc) return initialSrc;
 
-    // Se tem variantes, escolhe baseado no contexto
-    if (product?.image_variants && Array.isArray(product.image_variants)) {
-      const variants = product.image_variants;
-      let targetVariant = variants[variants.length - 1]; // Default: maior
+    // Collect variants from optimized_variants (image row) or image_variants (product)
+    const raw = product?.optimized_variants || product?.image_variants;
+    const variants = Array.isArray(raw)
+      ? raw
+          .map((v: any) => ({
+            size: Number(v.size || v.width || 0),
+            url: v.url,
+            path: v.path,
+          }))
+          .filter((v: any) => v.size && (v.url || v.path))
+      : [];
 
-      if (variant === 'thumbnail') {
-        // Thumbnail: sempre a menor (480w)
-        targetVariant = variants[0];
-      } else if (variant === 'card') {
-        // Card: usa 480w se disponível, senão maior
-        targetVariant =
-          variants.find((v: any) => v.size === 480) || variants[0];
+    if (variants.length > 0) {
+      // Try preferredSize -> if not present pick the largest
+      let chosen = null as any;
+      if (typeof preferredSize === 'number') {
+        chosen = variants.find(
+          (v: any) => Number(v.size) === Number(preferredSize)
+        );
       }
-      // variant === 'full': usa a maior (já é o default)
-
-      const cleanPath = String(targetVariant.path).startsWith('/')
-        ? String(targetVariant.path).substring(1)
-        : String(targetVariant.path);
-      const path = encodeURIComponent(cleanPath);
-      return `/api/storage-image?path=${path}`;
+      if (!chosen) {
+        chosen = variants.reduce((a: any, b: any) =>
+          a.size >= b.size ? a : b
+        );
+      }
+      if (chosen) {
+        if (chosen.url) return chosen.url;
+        const cleanPath = String(chosen.path || '').startsWith('/')
+          ? String(chosen.path).substring(1)
+          : String(chosen.path || '');
+        return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+      }
     }
 
-    // Fallback: lógica antiga
+    // Fallback: product.image_path -> external URLs
     if (product?.image_path) {
       const cleanPath = String(product.image_path).startsWith('/')
         ? String(product.image_path).substring(1)
@@ -91,6 +116,8 @@ export function SmartImage({
     product?.image_url,
     product?.external_image_url,
     product?.image_variants,
+    product?.optimized_variants,
+    preferredSize,
   ]);
 
   const handleError = () => {

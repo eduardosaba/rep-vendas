@@ -20,17 +20,14 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   );
 
-  // Configura opção insegura opcional (apenas quando permitido em dev)
+  // TLS handling: do NOT mutate `NODE_TLS_REJECT_UNAUTHORIZED` in runtime code.
   const allowInsecure =
     process.env.ALLOW_INSECURE_TLS === '1' ||
     process.env.ALLOW_INSECURE_TLS === 'true';
   if (allowInsecure) {
     console.warn(
-      'ALLOW_INSECURE_TLS enabled: desabilitando verificação TLS (dev only)'
+      'ALLOW_INSECURE_TLS set: do NOT change NODE_TLS_REJECT_UNAUTHORIZED in source. For local debugging, set NODE_TLS_REJECT_UNAUTHORIZED in your shell only.'
     );
-    // Nota: desabilitamos verificação TLS via variavel de ambiente para o fetch/undici
-    // Isso só deve ser usado em desenvolvimento local para contornar certificados inválidos.
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
 
   // 1. Busca os produtos pendentes com lógica de prioridade:

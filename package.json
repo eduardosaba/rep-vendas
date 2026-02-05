@@ -21,6 +21,7 @@
     "sincronizar:reparo": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:CHUNK_SIZE = '20'; $env:PRODUCT_CONCURRENCY = '4'; $env:IMAGE_CONCURRENCY = '3'; $env:SYNC_ONLY = 'failed'; node scripts/local-sync-full.mjs 2>&1 | Tee-Object -FilePath sync-repair.log\"",
     "sincronizar:limpar": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item sync-*.log -ErrorAction SilentlyContinue; Write-Host 'Logs limpos!' -ForegroundColor Cyan\"",
     "status:images": "node scripts/check-images-status.mjs",
+    "verificação": "node scripts/check_sync_samples.mjs",
     "cache:local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Remove-Item -Recurse -Force .next/cache/images -ErrorAction SilentlyContinue; Write-Host '🚀 Cache local de imagens deletado!' -ForegroundColor Cyan\"",
     "cache:vercel": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$token = $env:REVALIDATE_TOKEN; if(-not $token){ Write-Host 'REVALIDATE_TOKEN não definido' -ForegroundColor Yellow; exit 1 }; Invoke-RestMethod -Uri \"https://$env:NEXT_PUBLIC_VERCEL_HOST/api/admin/revalidate?secret=$token\" -Method Get; Write-Host '☁️ Vercel avisada para atualizar o catálogo!' -ForegroundColor Green\"",
     "approve-builds": "node scripts/approve-builds.mjs",
@@ -40,9 +41,11 @@
     "next": "15.3.8",
     "next-themes": "^0.3.0",
     "p-limit": "^7.2.0",
+    "qrcode": "^1.5.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-dropzone": "^14.3.8",
+    "react-pageflip": "^2.0.3",
     "react-window": "^2.2.5",
     "recharts": "^2.15.4",
     "sharp": "^0.34.5",
@@ -76,6 +79,7 @@
     "pg": "^8.16.3",
     "postcss": "^8.5.6",
     "prettier": "^3.7.4",
+    "puppeteer": "^24.36.1",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3"
   }

@@ -472,13 +472,30 @@ export const generateCatalogPDF = async (
         const product = products[data.row.index];
         const imgData = productImages[product.id];
         if (imgData) {
+          // Preserve aspect ratio and center the image inside the cell
+          const padding = 2; // small padding inside cell
+          const maxW = data.cell.width - padding * 2;
+          const maxH = data.cell.height - padding * 2;
+
+          // imgData.ratio = width / height
+          let drawW = maxW;
+          let drawH = drawW / imgData.ratio;
+
+          if (drawH > maxH) {
+            drawH = maxH;
+            drawW = drawH * imgData.ratio;
+          }
+
+          const offsetX = data.cell.x + (data.cell.width - drawW) / 2;
+          const offsetY = data.cell.y + (data.cell.height - drawH) / 2;
+
           doc.addImage(
             imgData.base64,
             detectImageFormat(imgData.base64),
-            data.cell.x + 1,
-            data.cell.y + 1,
-            data.cell.width - 2,
-            data.cell.height - 2
+            offsetX,
+            offsetY,
+            drawW,
+            drawH
           );
         }
       }

@@ -559,7 +559,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               p.external_image_url?.includes('supabase.co/storage') ||
               (p.images &&
                 Array.isArray(p.images) &&
-                p.images.some((i: any) => i?.includes('supabase.co/storage')))
+                p.images.some((i: any) =>
+                  typeof i === 'string'
+                    ? i.includes('supabase.co/storage')
+                    : (i?.url || '').includes('supabase.co/storage')
+                ))
             );
             if (filters.imageOptimization === 'optimized')
               return hasStorageImage;
@@ -907,7 +911,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         p.external_image_url?.includes('supabase.co/storage') ||
         (p.images &&
           Array.isArray(p.images) &&
-          p.images.some((i) => i?.includes('supabase.co/storage')))
+          p.images.some((i: any) =>
+            typeof i === 'string'
+              ? i.includes('supabase.co/storage')
+              : (i?.url || '').includes('supabase.co/storage')
+          ))
       );
       if (filters.imageOptimization === 'optimized' && !hasStorageImage)
         return false;

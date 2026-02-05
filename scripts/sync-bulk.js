@@ -10,7 +10,17 @@ dotenv.config({ path: '.env.local' });
 
 // 1. CONFIGURAÇÃO DE AMBIENTE (Igual ao seu teste que funcionou)
 if (dns.setDefaultResultOrder) dns.setDefaultResultOrder('ipv4first');
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Apenas habilite TLS inseguro em execução local definindo ALLOW_INSECURE_TLS=1
+if (process.env.ALLOW_INSECURE_TLS === '1') {
+  console.warn(
+    'ALLOW_INSECURE_TLS=1 detected — enabling insecure TLS for local testing'
+  );
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  } catch (e) {
+    // ignore
+  }
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,

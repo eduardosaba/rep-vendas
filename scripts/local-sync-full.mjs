@@ -18,6 +18,30 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Global handlers to capture unexpected crashes and rejections
+process.on('uncaughtException', async (err) => {
+  try {
+    const fs = await import('fs');
+    const msg = `[${new Date().toISOString()}] uncaughtException: ${err.stack || err}\n`;
+    fs.writeFileSync('sync-error.log', msg, { flag: 'a' });
+  } catch (e) {
+    console.error('Falha ao gravar sync-error.log (uncaughtException):', e);
+  }
+  console.error('uncaughtException:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason) => {
+  try {
+    const fs = await import('fs');
+    const msg = `[${new Date().toISOString()}] unhandledRejection: ${reason && reason.stack ? reason.stack : String(reason)}\n`;
+    fs.writeFileSync('sync-error.log', msg, { flag: 'a' });
+  } catch (e) {
+    console.error('Falha ao gravar sync-error.log (unhandledRejection):', e);
+  }
+  console.error('unhandledRejection:', reason);
+});
+
 // --- AJUSTES DE PERFORMANCE ---
 const CHUNK_SIZE = Number(process.env.CHUNK_SIZE) || 20;
 const DELAY_BETWEEN_CHUNKS = Number(process.env.DELAY_BETWEEN_CHUNKS) || 1500;
@@ -98,23 +122,54 @@ async function syncFullCatalog() {
   const idsToProcessSet = new Set();
 
   try {
-    // 1) Busca por status pendente
-    const { data: byStatus } = await supabase
+    // 1) Busca produtos com status pendente/failed, mas filtrando apenas
+    // aqueles que têm URL externa disponível (image_url, external_image_url
+    // ou entries em images que apontem para http). Produtos sem imagens externas
+    // não serão nem processados nem logados.
+    const { data: candidates, error: candErr } = await supabase
       .from('products')
-      .select('id')
+      .select('id, image_url, external_image_url, images, sync_status')
       .in('sync_status', SYNC_ONLY);
-    (byStatus || []).forEach((r) => r?.id && idsToProcessSet.add(r.id));
 
-    // 2) Busca por URLs externas (Tommy/Safilo)
-    const { data: byImageUrl } = await supabase
-      .from('products')
-      .select('id')
-      .like('image_url', 'http%')
-      .not('image_url', 'ilike', '%/storage/v1/object%')
-      .neq('sync_status', 'synced');
-    (byImageUrl || []).forEach((r) => r?.id && idsToProcessSet.add(r.id));
+    if (candErr) throw candErr;
+
+    const looksLikeExternal = (p) => {
+      try {
+        const img = p.image_url || '';
+        const ext = p.external_image_url || '';
+        const isExternalImg =
+          typeof img === 'string' &&
+          img.startsWith('http') &&
+          !img.includes('/storage/v1/object');
+        const isExternalExt = typeof ext === 'string' && ext.startsWith('http');
+        if (isExternalImg || isExternalExt) return true;
+        const images = p.images || [];
+        if (Array.isArray(images)) {
+          for (const it of images) {
+            if (!it) continue;
+            if (typeof it === 'string' && it.startsWith('http')) return true;
+            if (
+              typeof it === 'object' &&
+              it.url &&
+              String(it.url).startsWith('http')
+            )
+              return true;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      return false;
+    };
+
+    (candidates || []).forEach((p) => {
+      if (p?.id && looksLikeExternal(p)) idsToProcessSet.add(p.id);
+    });
   } catch (err) {
-    console.warn('⚠️ Falha ao construir lista de IDs:', err.message);
+    console.warn(
+      '⚠️ Falha ao construir lista de IDs (filtro externo):',
+      err.message || err
+    );
   }
 
   // Carrega checkpoint (ids processados) para permitir resume
@@ -161,9 +216,20 @@ async function syncFullCatalog() {
       await Promise.all(
         batch.map(async (product) => {
           if (processedIds.has(product.id)) return;
-          processedIds.add(product.id);
 
           const ref = product.reference_code || 'S/REF';
+
+          // Skip products that have no external image URL (images not yet provided)
+          // Important: do NOT mark them as processed so they remain pending for later
+          if (!product.image_url) {
+            console.log(
+              `📦 ⏭️ Pulando (sem external_image_url): ${ref} (${product.id})`
+            );
+            return;
+          }
+
+          processedIds.add(product.id);
+
           console.log(
             `📦 [${processedCount + 1}/${totalToProcess}] Processando: ${ref}`
           );
@@ -279,11 +345,13 @@ async function syncFullCatalog() {
           try {
             let { data: gallery } = await supabase
               .from('product_images')
-              .select('id, url')
+              .select('id, url, position, is_primary')
               .eq('product_id', product.id)
               .neq('sync_status', 'synced');
 
-            console.log(`   ℹ️ Encontradas ${gallery?.length || 0} imagens pendentes em product_images`);
+            console.log(
+              `   ℹ️ Encontradas ${gallery?.length || 0} imagens pendentes em product_images`
+            );
 
             // If there are no product_images rows, try to create them from product.images (handles concatenated URLs from import)
             if ((!gallery || gallery.length === 0) && product.images) {
@@ -371,11 +439,13 @@ async function syncFullCatalog() {
             }
 
             if (gallery?.length > 0) {
-              console.log(`   🔄 Processando ${gallery.length} imagens da galeria em lotes de ${IMAGE_CONCURRENCY}...`);
+              console.log(
+                `   🔄 Processando ${gallery.length} imagens da galeria em lotes de ${IMAGE_CONCURRENCY}...`
+              );
               for (let j = 0; j < gallery.length; j += IMAGE_CONCURRENCY) {
                 const imgBatch = gallery.slice(j, j + IMAGE_CONCURRENCY);
                 await Promise.all(
-                  imgBatch.map(async (img) => {
+                  imgBatch.map(async (img, idxInBatch) => {
                     try {
                       // Proteção: some imports erroneamente salvaram várias URLs
                       // concatenadas em um único campo separado por ';'.
@@ -398,10 +468,16 @@ async function syncFullCatalog() {
                         .trim()
                         .replace(/[^a-zA-Z0-9-_]/g, '_')
                         .substring(0, 100);
-                      
+
                       // Usar position ou index sequencial para nome do arquivo
-                      const imgIndex = ((img as any).position ?? j + 1).toString().padStart(2, '0');
-                      
+                      const positionVal =
+                        typeof img.position !== 'undefined'
+                          ? img.position
+                          : j +
+                            (typeof idxInBatch === 'number' ? idxInBatch : 0) +
+                            1;
+                      const imgIndex = String(positionVal).padStart(2, '0');
+
                       if (CREATE_BUCKETS) {
                         targetBucket = `${BUCKET}-${brandSlug}`;
                         await ensureBucket(targetBucket);
@@ -420,7 +496,9 @@ async function syncFullCatalog() {
 
                       for (let pi = 0; pi < parts.length; pi++) {
                         const partUrl = parts[pi];
-                        console.log(`   🌐 Processando URL da galeria: ${partUrl.substring(0, 80)}...`);
+                        console.log(
+                          `   🌐 Processando URL da galeria: ${partUrl.substring(0, 80)}...`
+                        );
                         try {
                           const res = await processAndUploadVariants(
                             partUrl,
@@ -437,7 +515,9 @@ async function syncFullCatalog() {
 
                           if (pi === 0) {
                             // Atualiza a linha existente com o primeiro resultado
-                            console.log(`   🔄 Atualizando product_images id=${img.id} para synced`);
+                            console.log(
+                              `   🔄 Atualizando product_images id=${img.id} para synced`
+                            );
                             const { error: updateErr } = await supabase
                               .from('product_images')
                               .update({
@@ -452,30 +532,40 @@ async function syncFullCatalog() {
                               })
                               .eq('id', img.id);
                             if (updateErr) {
-                              console.error(`   ❌ Erro ao atualizar product_images: ${updateErr.message || updateErr}`);
+                              console.error(
+                                `   ❌ Erro ao atualizar product_images: ${updateErr.message || updateErr}`
+                              );
                             } else {
-                              console.log(`   ✅ product_images id=${img.id} marcado como synced`);
+                              console.log(
+                                `   ✅ product_images id=${img.id} marcado como synced`
+                              );
                             }
                           } else {
                             // Para URLs adicionais, cria novas linhas já marcadas como 'synced'
-                            console.log(`   ➕ Criando novo registro product_images para URL extra`);
-                            const { error: insertErr } = await supabase.from('product_images').insert([
-                              {
-                                product_id: product.id,
-                                url: partUrl,
-                                optimized_url: galleryMain.url,
-                                storage_path: galleryMain.path,
-                                optimized_variants: res.variants.map((v) => ({
-                                  size: v.size,
-                                  url: v.url,
-                                  path: v.path,
-                                })),
-                                sync_status: 'synced',
-                                created_at: new Date().toISOString(),
-                              },
-                            ]);
+                            console.log(
+                              `   ➕ Criando novo registro product_images para URL extra`
+                            );
+                            const { error: insertErr } = await supabase
+                              .from('product_images')
+                              .insert([
+                                {
+                                  product_id: product.id,
+                                  url: partUrl,
+                                  optimized_url: galleryMain.url,
+                                  storage_path: galleryMain.path,
+                                  optimized_variants: res.variants.map((v) => ({
+                                    size: v.size,
+                                    url: v.url,
+                                    path: v.path,
+                                  })),
+                                  sync_status: 'synced',
+                                  created_at: new Date().toISOString(),
+                                },
+                              ]);
                             if (insertErr) {
-                              console.error(`   ❌ Erro ao inserir product_images: ${insertErr.message || insertErr}`);
+                              console.error(
+                                `   ❌ Erro ao inserir product_images: ${insertErr.message || insertErr}`
+                              );
                             }
                           }
 
@@ -485,18 +575,26 @@ async function syncFullCatalog() {
                           productOptimizedBytes += res.optimizedTotal;
                           gallerySynced++;
                         } catch (err) {
-                          console.error(`   ❌ Galeria item (URL ${pi}): ${err.message || err}`);
+                          console.error(
+                            `   ❌ Galeria item (URL ${pi}): ${err.message || err}`
+                          );
                         }
                       }
                     } catch (err) {
-                      console.error(`   ❌ Galeria item (geral): ${err.message || err}`);
+                      console.error(
+                        `   ❌ Galeria item (geral): ${err.message || err}`
+                      );
                     }
                   })
                 );
               }
-              console.log(`   ✅ Galeria: ${gallerySynced} imagens otimizadas com sucesso`);
+              console.log(
+                `   ✅ Galeria: ${gallerySynced} imagens otimizadas com sucesso`
+              );
             } else {
-              console.log(`   ⚠️ Nenhuma imagem pendente encontrada na galeria`);
+              console.log(
+                `   ⚠️ Nenhuma imagem pendente encontrada na galeria`
+              );
             }
           } catch (e) {
             console.error('   ⚠️ Erro Galeria:', e.message);
@@ -532,111 +630,105 @@ async function syncFullCatalog() {
           }
 
           // Buscar galeria completa para montar o JSONB de objetos {url, path}
-          console.log(`   📋 Montando products.images final para produto ${product.id}...`);
+          console.log(
+            `   📋 Montando products.images final para produto ${product.id}...`
+          );
           const { data: finalImgs } = await supabase
             .from('product_images')
             .select('optimized_url, storage_path, is_primary')
             .eq('product_id', product.id)
             .eq('sync_status', 'synced');
 
-          console.log(`   ℹ️ Imagens sincronizadas encontradas: ${finalImgs?.length || 0}`);
+          console.log(
+            `   ℹ️ Imagens sincronizadas encontradas: ${finalImgs?.length || 0}`
+          );
 
-          const imageObjects =
-            finalImgs?.map((i) => ({
-              url: i.optimized_url,
-              path: i.storage_path,
-            })) || [];
+          // Re-montar lista final com dedupe/ordenação: capa primeiro, depois
+          // imagens sincronizadas por posição, depois externos pendentes.
+          const mergedAll = [];
+          const seen = new Set();
 
-          // Separar galeria (sem capa) para coluna dedicada
-          const galleryOnly = finalImgs
-            ?.filter((i) => !i.is_primary)
-            .map((i) => ({
-              url: i.optimized_url,
-              path: i.storage_path,
-            })) || [];
-
-          // Also include pending/external images from product_images (preserve until internalized)
+          // 1) Capa (prioritária) - usar image_url atual do produto se existir
           try {
-            const { data: allGallery } = await supabase
+            const coverUrl = product.image_url || null;
+            if (coverUrl) {
+              const key = String(coverUrl).split('?')[0];
+              seen.add(key);
+              mergedAll.push({
+                url: coverUrl,
+                path: product.image_path || null,
+                is_primary: true,
+              });
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          // 2) Imagens já sincronizadas, ordenadas por position (garante ordem da galeria)
+          try {
+            const { data: syncedImgs } = await supabase
               .from('product_images')
-              .select('url, optimized_url, storage_path, sync_status')
+              .select('optimized_url,storage_path,is_primary,position')
+              .eq('product_id', product.id)
+              .eq('sync_status', 'synced')
+              .order('position', { ascending: true });
+
+            (syncedImgs || []).forEach((it) => {
+              const url = it.optimized_url || null;
+              const key = String(url || '').split('?')[0];
+              if (!key) return;
+              if (seen.has(key)) return;
+              seen.add(key);
+              mergedAll.push({
+                url,
+                path: it.storage_path || null,
+                is_primary: !!it.is_primary,
+              });
+            });
+          } catch (e) {
+            console.warn(
+              '   ⚠️ Erro ao buscar imagens sincronizadas:',
+              e.message || e
+            );
+          }
+
+          // 3) Entradas externas/pending (preservar ordem de posição)
+          try {
+            const { data: allGalleryFull } = await supabase
+              .from('product_images')
+              .select('url,optimized_url,storage_path,sync_status,position')
               .eq('product_id', product.id)
               .order('position', { ascending: true });
 
-            const merged = [];
-            const seenUrls = new Set();
+            (allGalleryFull || []).forEach((g) => {
+              const current = g.optimized_url || g.url || null;
+              const key = String(current || '').split('?')[0];
+              if (!key) return;
+              if (seen.has(key)) return;
+              seen.add(key);
+              // prefer optimized url if present, but keep original url in `url` to preserve source
+              const outUrl = g.optimized_url || g.url;
+              const outPath = g.storage_path || null;
+              mergedAll.push({ url: outUrl, path: outPath, is_primary: false });
+            });
+          } catch (e) {
+            console.warn('   ⚠️ Erro ao mesclar externos:', e.message || e);
+          }
 
-            // 1) add internalized (synced) variants first (we already have imageObjects)
-            for (const it of imageObjects) {
-              const key = (it.url || '').split('?')[0];
-              if (!key) continue;
-              seenUrls.add(key);
-              merged.push(it);
-            }
+          // gallery_images: somente itens não-primary
+          const galleryOnly = mergedAll
+            .filter((it) => !it.is_primary)
+            .map((it) => ({ url: it.url, path: it.path }));
 
-            // 2) include gallery entries that are not yet synced (preserve external URLs)
-            if (allGallery && allGallery.length > 0) {
-              for (const g of allGallery) {
-                const rawUrl = g.optimized_url || g.url;
-                const key = (rawUrl || '').split('?')[0];
-                if (!key) continue;
-                if (seenUrls.has(key)) continue;
-                // If it's synced, prefer optimized_url/path
-                if (g.sync_status === 'synced' && g.optimized_url) {
-                  merged.push({
-                    url: g.optimized_url,
-                    path: g.storage_path || null,
-                  });
-                } else {
-                  // pending/external -> keep original url until processed
-                  merged.push({ url: g.url, path: null });
-                }
-                seenUrls.add(key);
-              }
-            }
-
-            // 3) Fallback: if merged is empty, preserve original product.images if present
-            let finalImagesToSave = merged;
-            if (
-              (!finalImagesToSave || finalImagesToSave.length === 0) &&
-              product.images
-            ) {
-              const arr = Array.isArray(product.images)
-                ? product.images
-                : [product.images];
-              for (const it of arr) {
-                if (!it) continue;
-                if (typeof it === 'string') {
-                  const k = it.split('?')[0];
-                  if (!seenUrls.has(k)) {
-                    finalImagesToSave.push({ url: it, path: null });
-                    seenUrls.add(k);
-                  }
-                } else if (typeof it === 'object') {
-                  const u = it.url || it.path || null;
-                  if (u) {
-                    const k = String(u).split('?')[0];
-                    if (!seenUrls.has(k)) {
-                      finalImagesToSave.push({
-                        url: String(u),
-                        path: it.path || null,
-                      });
-                      seenUrls.add(k);
-                    }
-                  }
-                }
-              }
-            }
-
-            console.log(`   💾 Salvando ${finalImagesToSave?.length || 0} imagens em products.images (${isOk ? 'synced' : 'failed'})`);
-            console.log(`   🖼️ Salvando ${galleryOnly?.length || 0} imagens em products.gallery_images`);
+          // Persistir resultado consolidado
+          try {
             await supabase
               .from('products')
               .update({
                 sync_status: isOk ? 'synced' : 'failed',
                 sync_error: isOk ? null : mainError || 'no_images_found',
-                images: finalImagesToSave, // preserve external URLs until internalized
-                gallery_images: galleryOnly, // ✅ NOVA COLUNA: só galeria otimizada
+                images: mergedAll,
+                gallery_images: galleryOnly,
                 original_size_kb: Math.round(productOriginalBytes / 1024),
                 optimized_size_kb: Math.round(productOptimizedBytes / 1024),
                 updated_at: new Date().toISOString(),
@@ -644,22 +736,9 @@ async function syncFullCatalog() {
               .eq('id', product.id);
           } catch (e) {
             console.warn(
-              '   ⚠️ Erro ao mesclar imagens para salvar products.images:',
+              '   ⚠️ Erro ao salvar JSONB do produto:',
               e.message || e
             );
-            // fallback to previous behavior to avoid leaving product in inconsistent state
-            await supabase
-              .from('products')
-              .update({
-                sync_status: isOk ? 'synced' : 'failed',
-                sync_error: isOk ? null : mainError || 'no_images_found',
-                images: imageObjects,
-                gallery_images: galleryOnly, // ✅ NOVA COLUNA: galeria separada
-                original_size_kb: Math.round(productOriginalBytes / 1024),
-                optimized_size_kb: Math.round(productOptimizedBytes / 1024),
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', product.id);
           }
 
           // Salva checkpoint local para permitir resume em caso de queda
@@ -827,8 +906,15 @@ syncFullCatalog()
     // Encerrar explicitamente com sucesso para evitar sinais externos
     process.exit(0);
   })
-  .catch((e) => {
-    console.error('❌ Erro Fatal:', e);
+  .catch(async (e) => {
+    try {
+      const fs = await import('fs');
+      const msg = `[${new Date().toISOString()}] Fatal Error: ${e && e.stack ? e.stack : String(e)}\n`;
+      fs.writeFileSync('sync-error.log', msg, { flag: 'a' });
+    } catch (fsErr) {
+      console.error('Falha ao gravar sync-error.log:', fsErr);
+    }
+    console.error('❌ Erro Fatal:', e && e.stack ? e.stack : e);
     // Encerrar com código não-zero para sinalizar falha quando realmente ocorrer
     process.exit(1);
   });

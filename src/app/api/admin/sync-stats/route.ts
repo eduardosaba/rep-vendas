@@ -15,23 +15,24 @@ export async function GET(request: Request) {
     return new Response('Não autorizado', { status: 401 });
   }
 
-  // Opcional: Verificar se é admin
+  // Verificar papel do usuário (admin/master têm visão global)
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .maybeSingle();
 
-  // Se quiser restringir apenas para admins, descomente:
-  // if (profile?.role !== 'admin') {
-  //   return new Response('Acesso negado', { status: 403 });
-  // }
+  const isAdmin = Boolean(
+    profile && (profile.role === 'admin' || profile.role === 'master')
+  );
 
   try {
     // 1. Estatísticas gerais por sync_status
-    const { data: statusCounts } = await supabase
+    const statusQuery = supabase
       .from('products')
       .select('sync_status', { count: 'exact' });
+    if (!isAdmin) statusQuery.eq('user_id', user.id);
+    const { data: statusCounts } = await statusQuery;
 
     const stats = {
       pending: 0,
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
     });
 
     // 2. Produtos com erro recente (últimos 20)
-    const { data: recentErrors } = await supabase
+    const recentErrorsQuery = supabase
       .from('products')
       .select(
         'id, name, reference_code, sync_error, sync_status, updated_at, brand:brands(name)'
@@ -57,12 +58,16 @@ export async function GET(request: Request) {
       .eq('sync_status', 'failed')
       .order('updated_at', { ascending: false })
       .limit(20);
+    if (!isAdmin) recentErrorsQuery.eq('user_id', user.id);
+    const { data: recentErrors } = await recentErrorsQuery;
 
     // 3. Produtos pendentes por marca
-    const { data: pendingByBrand } = await supabase
+    const pendingByBrandQuery = supabase
       .from('products')
       .select('brand:brands(name)', { count: 'exact' })
       .eq('sync_status', 'pending');
+    if (!isAdmin) pendingByBrandQuery.eq('user_id', user.id);
+    const { data: pendingByBrand } = await pendingByBrandQuery;
 
     const brandCounts: Record<string, number> = {};
     pendingByBrand?.forEach((p: any) => {
@@ -74,21 +79,25 @@ export async function GET(request: Request) {
     const yesterday = new Date();
     yesterday.setHours(yesterday.getHours() - 24);
 
-    const { data: recentPending } = await supabase
+    const recentPendingQuery = supabase
       .from('products')
       .select('id, name, reference_code, created_at, brand:brands(name)')
       .eq('sync_status', 'pending')
       .gte('created_at', yesterday.toISOString())
       .order('created_at', { ascending: false })
       .limit(50);
+    if (!isAdmin) recentPendingQuery.eq('user_id', user.id);
+    const { data: recentPending } = await recentPendingQuery;
 
     // 5. Estatísticas de storage (opcional - pode ser pesado)
-    const { data: storageStats } = await supabase
+    const storageQuery = supabase
       .from('products')
       .select('image_path, image_variants')
       .eq('sync_status', 'synced')
       .not('image_path', 'is', null)
       .limit(1000); // Sample para cálculo
+    if (!isAdmin) storageQuery.eq('user_id', user.id);
+    const { data: storageStats } = await storageQuery;
 
     let totalVariants = 0;
     storageStats?.forEach((p: any) => {
