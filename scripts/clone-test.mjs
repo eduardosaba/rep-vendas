@@ -49,9 +49,9 @@ async function main() {
       brands,
     });
     const { data, error } = await supabase.rpc('clone_catalog_smart', {
-      source_user_id: sourceUserId,
-      target_user_id: targetUserId,
-      brands_to_copy: brands,
+      p_source_user_id: sourceUserId,
+      p_target_user_id: targetUserId,
+      p_brands_to_copy: brands,
     });
     if (error) throw error;
     console.log('RPC result:', data);

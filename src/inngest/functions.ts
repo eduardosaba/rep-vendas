@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import dns from 'node:dns';
 import sharp from 'sharp';
 import { copyImageToUser } from '@/lib/copyImageToUser';
+import { copyBrandImageToUser } from '@/lib/copyBrandImageToUser';
 
 if (dns.setDefaultResultOrder) dns.setDefaultResultOrder('ipv4first');
 
@@ -258,9 +259,9 @@ export const cloneCatalog = inngest.createFunction(
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       const { data, error } = await supabase.rpc('clone_catalog_smart', {
-        source_user_id,
-        target_user_id,
-        brands_to_copy: brands || null,
+        p_source_user_id: source_user_id,
+        p_target_user_id: target_user_id,
+        p_brands_to_copy: brands || null,
       });
       if (error) throw error;
       try {
@@ -297,6 +298,28 @@ export const copyImageOnWrite = inngest.createFunction(
         sourcePath,
         targetUserId,
         productId,
+      });
+      return result;
+    });
+  }
+);
+
+// Copy-on-write for brand assets (logo/banner)
+export const copyBrandImageOnWrite = inngest.createFunction(
+  { id: 'copy-brand-image-on-write' },
+  { event: 'image/copy_brand.requested' },
+  async ({ event, step }) => {
+    const { sourcePath, targetUserId, brandId, asset } = event.data || {};
+    if (!sourcePath || !targetUserId || !brandId || !asset) {
+      throw new Error('Missing parameters for copy-brand-on-write');
+    }
+
+    return await step.run('do-copy-brand', async () => {
+      const result = await copyBrandImageToUser({
+        sourcePath,
+        targetUserId,
+        brandId,
+        asset: asset === 'banner' ? 'banner' : 'logo',
       });
       return result;
     });

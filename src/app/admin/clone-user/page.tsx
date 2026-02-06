@@ -62,6 +62,25 @@ export default function CloneUserPage() {
         }
       });
 
+      // Global handler to surface unhandled promise rejections while on this page
+      useEffect(() => {
+        const onUnhandled = (ev: PromiseRejectionEvent) => {
+          try {
+            console.error('[CloneUserPage] Unhandled rejection:', ev.reason);
+            // Show lightweight toast so user knows something failed silently
+            try {
+              toast.error(
+                'Erro não tratado detectado. Veja o console para detalhes.'
+              );
+            } catch (e) {}
+          } catch (e) {
+            // ignore
+          }
+        };
+        window.addEventListener('unhandledrejection', onUnhandled as any);
+        return () =>
+          window.removeEventListener('unhandledrejection', onUnhandled as any);
+      }, []);
       setBrands(Object.keys(map).sort());
       setBrandsData(map);
     }
@@ -109,25 +128,63 @@ export default function CloneUserPage() {
     try {
       const session = await supabase.auth.getSession();
       const token = session?.data?.session?.access_token;
+      const payload = { targetUserId: selectedUser, brands: selectedBrands };
+
       const res = await fetch('/api/admin/setup-new-user', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           Authorization: token ? `Bearer ${token}` : '',
         },
-        body: JSON.stringify({
-          targetUserId: selectedUser,
-          brands: selectedBrands,
-        }),
+        body: JSON.stringify(payload),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Erro');
+
+      // Try to read response as text first (safe), then parse JSON if possible
+      let textBody: string | null = null;
+      let jsonBody: any = null;
+      try {
+        textBody = await res.text();
+        try {
+          jsonBody = textBody ? JSON.parse(textBody) : null;
+        } catch (e) {
+          jsonBody = null; // not JSON
+        }
+      } catch (e) {
+        console.error('[CloneUserPage] failed to read response body', e);
+      }
+
+      if (!res.ok) {
+        console.error('[CloneUserPage] setup-new-user failed', {
+          status: res.status,
+          statusText: res.statusText,
+          body: textBody,
+        });
+        const errMsg =
+          jsonBody?.error ||
+          jsonBody?.message ||
+          `Erro: ${res.status} ${res.statusText}`;
+        throw new Error(String(errMsg));
+      }
+
+      // If API returned an error shape inside 200, respect it
+      if (jsonBody && (jsonBody.error || jsonBody.success === false)) {
+        console.error(
+          '[CloneUserPage] setup-new-user returned error payload',
+          jsonBody
+        );
+        const errMsg =
+          jsonBody.error || jsonBody.message || 'Erro ao iniciar clone';
+        throw new Error(String(errMsg));
+      }
+
       toast.success('Clone iniciado');
       // start polling for clone status
       setPolling(true);
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || 'Erro ao iniciar clone');
+      // Prefer human-friendly message, fallback to generic
+      const message = e?.message || String(e) || 'Erro ao iniciar clone';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -201,10 +258,13 @@ export default function CloneUserPage() {
             });
           }
         } catch (e) {
-          // ignore
+          console.error(
+            '[CloneUserPage] error computing per-brand clone stats',
+            e
+          );
         }
       } catch (err) {
-        // ignore
+        console.error('[CloneUserPage] error fetching clones', err);
       }
     };
 

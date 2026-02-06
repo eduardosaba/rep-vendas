@@ -1,0 +1,16 @@
+{
+  "product": {
+    "id": "92ac9824-1867-48f6-b091-3b371cc6a90b",
+    "name": "MOS168/S 086",
+    "brand": "MOSCHINO",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS168_S_086-1770257638302.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS168_S_086-1770257638302.jpg",
+        "sync_status": "synced"
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": []
+}

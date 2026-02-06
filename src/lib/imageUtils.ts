@@ -52,7 +52,11 @@ export function buildSupabaseImageUrl(
 
   // Agora construímos a URL pública usando o bucket/prefix que veio no próprio path
   // (não forçamos mais "product-images" como bucket estático)
-  const encoded = encodeURIComponent(objectPath);
+  // Encode each path segment separately to avoid encoding slashes
+  const encoded = objectPath
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
   const base = `${SUPA}/storage/v1/object/public/${encoded}`;
 
   // 4. Aplica transformações se solicitado (Supabase Image Transformation)

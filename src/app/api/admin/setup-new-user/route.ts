@@ -70,9 +70,9 @@ export async function POST(req: Request) {
     }
 
     const { data, error } = await supabase.rpc('clone_catalog_smart', {
-      source_user_id: sourceId,
-      target_user_id: body.targetUserId,
-      brands_to_copy: body.brands,
+      p_source_user_id: sourceId,
+      p_target_user_id: body.targetUserId,
+      p_brands_to_copy: body.brands,
     });
 
     if (error) throw error;

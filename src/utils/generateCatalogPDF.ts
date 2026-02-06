@@ -26,6 +26,8 @@ interface CatalogOptions {
   itemsPerPage?: number;
   brandMapping?: Record<string, string | null>;
   secondaryColor?: string;
+  primaryColor?: string;
+  coverTemplate?: number;
   onProgress?: (progress: number, message: string) => void;
 }
 
@@ -277,7 +279,9 @@ export const generateCatalogPDF = async (
 
   const productImages: Record<string, ProcessedImage> = {};
   const brandLogosData: Record<string, ProcessedImage> = {};
+  const productBrandLogos: Record<string, ProcessedImage> = {};
   let brandCoverData: ProcessedImage | null = null;
+  let storeLogoData: ProcessedImage | null = null;
 
   const totalSteps =
     products.length +
@@ -303,11 +307,38 @@ export const generateCatalogPDF = async (
       (async () => {
         let urlToLoad: string | null = null;
         if (product.image_path) {
-          // --- LIMPEZA DE PATH DUPLICADO PARA EVITAR ERRO 400 ---
-          const cleanPath = product.image_path
-            .replace(/^\/?public\//, '')
-            .replace(/^\/+/, '');
-          urlToLoad = `${supabaseUrl}/storage/v1/object/public/product-images/${encodeURIComponent(cleanPath)}`;
+          // --- LIMPEZA E DETECÇÃO DE BUCKET/PATH ---
+          // Trata casos como:
+          // - 'public/brands/hugo-boss/..' (prefixo 'public' usado por import)
+          // - 'product-images/...' (bucket explícito)
+          // - 'brands/..' ou apenas 'abc.jpg'
+          const rawPath = String(product.image_path).replace(/^\/+/, '');
+          const parts = rawPath.split('/').filter(Boolean);
+          let bucket = 'product-images';
+          let key = rawPath;
+
+          if (parts.length > 1) {
+            // se o primeiro segmento for 'public', ignoramos e usamos o bucket padrão
+            if (parts[0] === 'public') {
+              bucket = 'product-images';
+              key = parts.slice(1).join('/');
+            } else if (parts[0] === 'product-images' || parts[0] === 'brands') {
+              bucket = parts.shift()!;
+              key = parts.join('/');
+            } else {
+              // caso geral: use bucket padrão e todo o caminho como chave
+              bucket = 'product-images';
+              key = rawPath;
+            }
+          } else {
+            // apenas um segmento -> filename, use bucket padrão
+            bucket = 'product-images';
+            key = rawPath;
+          }
+
+          urlToLoad = `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(
+            bucket
+          )}/${encodeURIComponent(key)}`;
         } else if (product.external_image_url) {
           urlToLoad = product.external_image_url;
         } else if (product.image_url && product.image_url.startsWith('http')) {
@@ -317,6 +348,43 @@ export const generateCatalogPDF = async (
         if (urlToLoad) {
           const data = await getUrlData(urlToLoad, true);
           if (data) productImages[product.id] = data;
+        }
+        // Se houver um caminho de logo específico no produto, tentar carregar
+        if ((product as any).brand_logo_path) {
+          try {
+            const rawPath = String((product as any).brand_logo_path).replace(
+              /^\/+/,
+              ''
+            );
+            const parts = rawPath.split('/').filter(Boolean);
+            let bucket = 'product-images';
+            let key = rawPath;
+
+            if (parts.length > 1) {
+              if (parts[0] === 'public') {
+                bucket = 'product-images';
+                key = parts.slice(1).join('/');
+              } else if (
+                parts[0] === 'product-images' ||
+                parts[0] === 'brands'
+              ) {
+                bucket = parts.shift()!;
+                key = parts.join('/');
+              } else {
+                bucket = 'product-images';
+                key = rawPath;
+              }
+            }
+
+            const logoUrl = `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(
+              bucket
+            )}/${encodeURIComponent(key)}`;
+            const logoData = await getUrlData(logoUrl, false);
+            if (logoData)
+              productBrandLogos[product.id] = await compositeOnWhite(logoData);
+          } catch (err) {
+            // ignore errors no logo
+          }
         }
         updateProgress(1, `Carregando produtos...`);
       })()
@@ -353,7 +421,8 @@ export const generateCatalogPDF = async (
     promises.push(
       (async () => {
         const _storeLogoData = await getUrlData(options.storeLogo!, false);
-        if (_storeLogoData) await compositeOnWhite(_storeLogoData);
+        if (_storeLogoData)
+          storeLogoData = await compositeOnWhite(_storeLogoData);
         updateProgress(1, 'Carregando logo da loja...');
       })()
     );
@@ -375,51 +444,154 @@ export const generateCatalogPDF = async (
     ];
   }
 
-  doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-  doc.rect(0, 0, 210, 297, 'F');
-  doc.setDrawColor(255, 255, 255);
-  doc.setLineWidth(0.5);
-  doc.rect(10, 10, 190, 277);
-
-  let yPos = 80;
-
-  if (brandCoverData) {
-    const coverData = brandCoverData as ProcessedImage;
-    const maxW = 100;
-    const maxH = 60;
-    let w = maxW;
-    let h = w / coverData.ratio;
-    if (h > maxH) {
-      h = maxH;
-      w = h * coverData.ratio;
-    }
-    const x = (210 - w) / 2;
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(x - 10, yPos - 10, w + 20, h + 20, 2, 2, 'F');
-    doc.addImage(
-      coverData.base64,
-      detectImageFormat(coverData.base64),
-      x,
-      yPos,
-      w,
-      h
-    );
-    yPos += h + 40;
+  // Use primaryColor for cover/background when provided, fallback to secondaryColor
+  let coverColor = secondaryColor;
+  if (options.primaryColor) {
+    try {
+      const ph = options.primaryColor.replace('#', '');
+      coverColor = [
+        parseInt(ph.substr(0, 2), 16),
+        parseInt(ph.substr(2, 2), 16),
+        parseInt(ph.substr(4, 2), 16),
+      ];
+    } catch {}
   }
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(32);
-  doc.setFont('helvetica', 'bold');
-  doc.text(options.title.toUpperCase(), 105, yPos, { align: 'center' });
+  // Desenho da capa: suporta múltiplos templates (1,2,3)
+  // Prepara cor primária em RGB
+  let primaryRgb = coverColor;
+  if (options.primaryColor) {
+    try {
+      const ph = options.primaryColor.replace('#', '');
+      primaryRgb = [
+        parseInt(ph.substr(0, 2), 16),
+        parseInt(ph.substr(2, 2), 16),
+        parseInt(ph.substr(4, 2), 16),
+      ];
+    } catch {}
+  }
 
-  yPos += 15;
-  if (options.storeName) {
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(200, 200, 200);
-    doc.text(`Representante: ${options.storeName}`, 105, yPos, {
-      align: 'center',
-    });
+  const tpl = options.coverTemplate || 1;
+
+  if (tpl === 1) {
+    // Template 1: fundo colorido (primary/cover) com logo centralizada e título
+    doc.setFillColor(coverColor[0], coverColor[1], coverColor[2]);
+    doc.rect(0, 0, 210, 297, 'F');
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, 190, 277);
+
+    let yPos = 80;
+    if (brandCoverData) {
+      const coverData = brandCoverData as ProcessedImage;
+      const maxW = 100;
+      const maxH = 60;
+      let w = maxW;
+      let h = w / coverData.ratio;
+      if (h > maxH) {
+        h = maxH;
+        w = h * coverData.ratio;
+      }
+      const x = (210 - w) / 2;
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(x - 10, yPos - 10, w + 20, h + 20, 2, 2, 'F');
+      doc.addImage(
+        coverData.base64,
+        detectImageFormat(coverData.base64),
+        x,
+        yPos,
+        w,
+        h
+      );
+      yPos += h + 40;
+    }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(32);
+    doc.setFont('helvetica', 'bold');
+    doc.text(options.title.toUpperCase(), 105, yPos, { align: 'center' });
+
+    yPos += 15;
+    if (options.storeName) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(200, 200, 200);
+      doc.text(`Representante: ${options.storeName}`, 105, yPos, {
+        align: 'center',
+      });
+    }
+  } else if (tpl === 2) {
+    // Template 2: layout dividido - esquerda para título, direita para imagem
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, 210, 297, 'F');
+
+    // faixa primária esquerda
+    doc.setFillColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
+    doc.rect(10, 30, 100, 237, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.text(options.title.toUpperCase(), 20, 80, { maxWidth: 90 });
+
+    if (brandCoverData) {
+      const coverData = brandCoverData as ProcessedImage;
+      const maxW = 90;
+      const maxH = 250;
+      let w = maxW;
+      let h = w / coverData.ratio;
+      if (h > maxH) {
+        h = maxH;
+        w = h * coverData.ratio;
+      }
+      const x = 210 - 10 - w;
+      const y = (297 - h) / 2;
+      doc.addImage(
+        coverData.base64,
+        detectImageFormat(coverData.base64),
+        x,
+        y,
+        w,
+        h
+      );
+    }
+  } else {
+    // Template 3: banda diagonal ou retângulo primário com título destacado
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, 210, 297, 'F');
+
+    // retângulo central em primary
+    doc.setFillColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
+    const bandH = 80;
+    const bandY = 297 / 2 - bandH / 2;
+    doc.roundedRect(10, bandY, 190, bandH, 4, 4, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(30);
+    doc.setFont('helvetica', 'bold');
+    doc.text(options.title.toUpperCase(), 105, bandY + bandH / 2 + 8, { align: 'center' });
+
+    if (brandCoverData) {
+      const coverData = brandCoverData as ProcessedImage;
+      const maxW = 60;
+      const maxH = 60;
+      let w = maxW;
+      let h = w / coverData.ratio;
+      if (h > maxH) {
+        h = maxH;
+        w = h * coverData.ratio;
+      }
+      const x = 20;
+      const y = 20;
+      doc.addImage(
+        coverData.base64,
+        detectImageFormat(coverData.base64),
+        x,
+        y,
+        w,
+        h
+      );
+    }
   }
 
   // MIOLO E TABELA
@@ -428,10 +600,8 @@ export const generateCatalogPDF = async (
   if (options.showPrices) tableHead[0].push('PREÇO');
 
   const tableBody = products.map((product) => {
-    let detailsContent =
-      zoom >= 3
-        ? product.name
-        : `Produto: ${product.name}\nRef: ${product.reference_code || '-'}\nMarca: ${product.brand || '-'}\nCat: ${product.category || '-'}`;
+    // Always show detailed content (name, ref, brand, category)
+    const detailsContent = `Produto: ${product.name}\nRef: ${product.reference_code || '-'}\nMarca: ${product.brand || '-'}\nCat: ${product.category || '-'}`;
     const row = ['', detailsContent];
     if (options.showPrices) {
       const priceToShow =
@@ -497,6 +667,34 @@ export const generateCatalogPDF = async (
             drawW,
             drawH
           );
+        }
+      }
+      // Desenha o logo da marca do produto no canto superior direito da célula de detalhes
+      if (data.section === 'body' && data.column.index === 1) {
+        const product = products[data.row.index];
+        const logo = productBrandLogos[product.id];
+        if (logo) {
+          try {
+            const maxSize = 20;
+            let lw = maxSize;
+            let lh = lw / logo.ratio;
+            if (lh > maxSize) {
+              lh = maxSize;
+              lw = lh * logo.ratio;
+            }
+            const x = data.cell.x + data.cell.width - lw - 4;
+            const y = data.cell.y + 4;
+            doc.addImage(
+              logo.base64,
+              detectImageFormat(logo.base64),
+              x,
+              y,
+              lw,
+              lh
+            );
+          } catch {
+            // ignore drawing errors
+          }
         }
       }
     },

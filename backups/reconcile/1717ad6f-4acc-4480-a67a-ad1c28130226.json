@@ -1,0 +1,31 @@
+{
+  "product": {
+    "id": "1717ad6f-4acc-4480-a67a-ad1c28130226",
+    "name": "MOS147/S 807",
+    "brand": "MOSCHINO",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257528891.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257528891.jpg",
+        "sync_status": "synced"
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257531120.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257531120.jpg",
+        "sync_status": "synced"
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257533659.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257533659.jpg",
+        "sync_status": "synced"
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257535843.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS147_S_807-1770257535843.jpg",
+        "sync_status": "synced"
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": []
+}

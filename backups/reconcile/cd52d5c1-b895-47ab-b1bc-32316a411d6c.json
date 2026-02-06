@@ -1,0 +1,16 @@
+{
+  "product": {
+    "id": "cd52d5c1-b895-47ab-b1bc-32316a411d6c",
+    "name": "MOS168/S 807",
+    "brand": "MOSCHINO",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS168_S_807-1770257646138.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS168_S_807-1770257646138.jpg",
+        "sync_status": "synced"
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": []
+}

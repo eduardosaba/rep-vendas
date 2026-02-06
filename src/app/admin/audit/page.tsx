@@ -104,7 +104,7 @@ export default async function ImageAuditPage({
 
   const healthScore =
     totals.total_products > 0
-      ? Math.round((totals.synced / totals.total_products) * 100)
+      ? Math.round((totals.total_internalized / totals.total_products) * 100)
       : 0;
 
   return (
@@ -153,7 +153,8 @@ export default async function ImageAuditPage({
               </h2>
             </div>
             <p className="text-xs font-bold text-slate-500">
-              {totals.synced} de {totals.total_products} imagens seguras
+              {totals.total_internalized} de {totals.total_products} imagens
+              internalizadas
             </p>
           </div>
           <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-1">
@@ -163,8 +164,6 @@ export default async function ImageAuditPage({
             />
           </div>
         </div>
-
-        {/* METRICAS RÁPIDAS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:translate-y-[-4px] transition-transform">
             <div className="flex justify-between items-start mb-4">
@@ -172,11 +171,11 @@ export default async function ImageAuditPage({
                 <ShieldCheck size={24} />
               </div>
               <span className="text-3xl font-black text-slate-900 dark:text-slate-200">
-                {totals.synced}
+                {totals.total_internalized}
               </span>
             </div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              WebP Otimizado
+              Internalizados
             </p>
           </div>
 

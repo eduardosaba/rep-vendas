@@ -1336,12 +1336,16 @@ function CarouselBrands({
                   <SmartImage
                     product={{ image_url: brand.logo_url, name: brand.name }}
                     initialSrc={brand.logo_url}
-                    className="inline-block"
-                    imgClassName={`object-contain ${isMobile ? 'h-8 w-auto max-w-[64px]' : 'h-5 w-auto max-w-[50px]'}`}
+                    className={`${isMobile ? 'h-8 w-auto inline-block' : 'h-5 w-auto inline-block'}`}
+                    imgClassName={
+                      isMobile
+                        ? 'object-contain h-full w-auto max-w-[64px]'
+                        : 'object-contain h-full w-auto max-w-[50px]'
+                    }
                   />
                 )}
-                {/* No mobile mostramos apenas o logo (sem nome) */}
-                {!isMobile && (
+                {/* Mostrar nome quando em desktop OU quando não há logo no mobile */}
+                {(!isMobile || !brand.logo_url) && (
                   <span
                     className={`text-xs font-bold whitespace-nowrap ${!active ? 'group-hover:text-[var(--primary)]' : ''}`}
                   >

@@ -25,6 +25,8 @@ interface Brand {
   name: string;
   logo_url: string | null;
   banner_url?: string | null;
+  logo_path?: string | null;
+  banner_path?: string | null;
   description?: string | null;
   commission_percent: number;
 }
@@ -33,9 +35,9 @@ interface BrandFormData {
   name: string;
   commission: string;
   logoFile: File | null;
-  logoPreview: string | null;
+  logoPreview: string | { publicUrl: string; path: string } | null;
   bannerFile: File | null;
-  bannerPreview: string | null;
+  bannerPreview: string | { publicUrl: string; path: string } | null;
   description: string;
 }
 
@@ -231,7 +233,10 @@ export default function BrandsPage() {
 
   // replaced by SmartImageUpload usage in the form below
 
-  const uploadLogo = async (userId: string, file: File): Promise<string> => {
+  const uploadLogo = async (
+    userId: string,
+    file: File
+  ): Promise<{ publicUrl: string; path: string }> => {
     const fileExt = file.name.split('.').pop();
     // Store under brands/{userId}/{timestamp}.{ext}
     const key = `brands/${userId}/logo/${Date.now()}.${fileExt}`;
@@ -244,10 +249,13 @@ export default function BrandsPage() {
 
     const { data } = supabase.storage.from('product-images').getPublicUrl(key);
 
-    return data.publicUrl;
+    return { publicUrl: data.publicUrl, path: key };
   };
 
-  const uploadBanner = async (userId: string, file: File): Promise<string> => {
+  const uploadBanner = async (
+    userId: string,
+    file: File
+  ): Promise<{ publicUrl: string; path: string }> => {
     const fileExt = file.name.split('.').pop();
     const key = `brands/${userId}/banner/${Date.now()}.${fileExt}`;
 
@@ -259,7 +267,7 @@ export default function BrandsPage() {
 
     const { data } = supabase.storage.from('product-images').getPublicUrl(key);
 
-    return data.publicUrl;
+    return { publicUrl: data.publicUrl, path: key };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -279,6 +287,10 @@ export default function BrandsPage() {
 
       let finalLogoUrl = editingBrand?.logo_url ?? null;
       let finalBannerUrl = editingBrand?.banner_url ?? null;
+      let finalLogoPath: string | null =
+        (editingBrand as any)?.logo_path ?? null;
+      let finalBannerPath: string | null =
+        (editingBrand as any)?.banner_path ?? null;
 
       // If the user uploaded in background, `formData.logoPreview` may already
       // contain the public URL returned by the upload. Prefer that when it's
@@ -290,8 +302,16 @@ export default function BrandsPage() {
         formData.logoPreview.startsWith('http')
       ) {
         finalLogoUrl = formData.logoPreview;
+        try {
+          const u = new URL(finalLogoUrl);
+          const seg = u.pathname.split('/');
+          const idx = seg.indexOf('public');
+          if (idx >= 0) finalLogoPath = seg.slice(idx + 1).join('/');
+        } catch {}
       } else if (formData.logoFile) {
-        finalLogoUrl = await uploadLogo(user.id, formData.logoFile);
+        const res = await uploadLogo(user.id, formData.logoFile);
+        finalLogoUrl = res.publicUrl;
+        finalLogoPath = res.path;
       }
 
       if (
@@ -300,15 +320,25 @@ export default function BrandsPage() {
         formData.bannerPreview.startsWith('http')
       ) {
         finalBannerUrl = formData.bannerPreview;
+        try {
+          const u = new URL(finalBannerUrl);
+          const seg = u.pathname.split('/');
+          const idx = seg.indexOf('public');
+          if (idx >= 0) finalBannerPath = seg.slice(idx + 1).join('/');
+        } catch {}
       } else if (formData.bannerFile) {
-        finalBannerUrl = await uploadBanner(user.id, formData.bannerFile);
+        const res = await uploadBanner(user.id, formData.bannerFile);
+        finalBannerUrl = res.publicUrl;
+        finalBannerPath = res.path;
       }
 
-      const payload = {
+      const payload: any = {
         name: formData.name,
         commission_percent: Number(formData.commission) || 0,
         logo_url: finalLogoUrl,
         banner_url: finalBannerUrl,
+        logo_path: finalLogoPath,
+        banner_path: finalBannerPath,
         description: formData.description || null,
         user_id: user.id,
       };
@@ -326,6 +356,49 @@ export default function BrandsPage() {
           .eq('id', editingBrand.id);
         if (error) throw error;
         toast.success('Marca atualizada!', { id: toastId });
+        // If the brand currently references a shared URL and the user did not upload
+        // a new file, request a copy-on-write so the brand has its own copy.
+        try {
+          const originalLogo = editingBrand.logo_url;
+          const originalBanner = editingBrand.banner_url;
+          // Trigger CoW for logo when no new file uploaded and original exists
+          if (
+            !formData.logoFile &&
+            originalLogo &&
+            originalLogo.includes('/storage/v1/object/public/')
+          ) {
+            fetch('/api/image/copy-on-write-brand', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sourceUrl: originalLogo,
+                brandId: editingBrand.id,
+                asset: 'logo',
+              }),
+            }).catch((e) =>
+              console.error('Failed to request brand logo copy-on-write', e)
+            );
+          }
+          if (
+            !formData.bannerFile &&
+            originalBanner &&
+            originalBanner.includes('/storage/v1/object/public/')
+          ) {
+            fetch('/api/image/copy-on-write-brand', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sourceUrl: originalBanner,
+                brandId: editingBrand.id,
+                asset: 'banner',
+              }),
+            }).catch((e) =>
+              console.error('Failed to request brand banner copy-on-write', e)
+            );
+          }
+        } catch (e) {
+          console.warn('Failed to enqueue brand copy-on-write', e);
+        }
       } else {
         const { error } = await supabase.from('brands').insert(payload);
         if (error) throw error;
@@ -475,7 +548,11 @@ export default function BrandsPage() {
                     key={
                       editingBrand?.id ? `logo-${editingBrand.id}` : 'logo-new'
                     }
-                    initialPreview={formData.logoPreview}
+                    initialPreview={
+                      typeof formData.logoPreview === 'string'
+                        ? formData.logoPreview
+                        : formData.logoPreview?.publicUrl || null
+                    }
                     onUploadReady={async (file) => {
                       try {
                         // show temporary preview
@@ -535,7 +612,11 @@ export default function BrandsPage() {
                         ? `banner-${editingBrand.id}`
                         : 'banner-new'
                     }
-                    initialPreview={formData.bannerPreview}
+                    initialPreview={
+                      typeof formData.bannerPreview === 'string'
+                        ? formData.bannerPreview
+                        : formData.bannerPreview?.publicUrl || null
+                    }
                     onUploadReady={async (file) => {
                       try {
                         const objectURL = URL.createObjectURL(file as File);

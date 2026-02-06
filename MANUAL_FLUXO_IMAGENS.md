@@ -1,8 +1,8 @@
 # Manual de Funcionamento: Fluxo de Imagens de Produtos
 
 **Data de Criação:** 3 de fevereiro de 2026  
-**Última Atualização:** 4 de fevereiro de 2026  
-**Versão:** 1.3 (Gallery Images + Responsive Variants)
+**Última Atualização:** 5 de fevereiro de 2026  
+**Versão:** 1.4 (Gallery Images + Editor & Store Modals)
 
 ---
 
@@ -581,12 +581,13 @@ GET /api/storage-image?path=public/brands/tommy/products/TH2345SZJ/main-480w.web
 
 ### Componentes que Usam Imagens
 
-| Componente    | Arquivo                                                | Método                | Variantes Usadas?             |
-| ------------- | ------------------------------------------------------ | --------------------- | ----------------------------- |
-| ProductsTable | `src/components/dashboard/ProductsTable.tsx`           | Lógica inline         | ✅ Força 480w (thumbnails)    |
-| ProductCard   | `src/components/catalogo/ProductCard.tsx`              | SmartImage            | ✅ srcset (480w/1200w)        |
-| SmartImage    | `src/components/catalogo/SmartImage.tsx`               | `<img>` nativo        | ✅ srcset quando tem variants |
-| ProductDetail | `src/app/catalogo/[slug]/product/[productId]/page.tsx` | JOIN `product_images` | ⏳ Pendente (usa 1200w)       |
+| Componente           | Arquivo                                                | Método                                               | Variantes Usadas?                     |
+| -------------------- | ------------------------------------------------------ | ---------------------------------------------------- | ------------------------------------- |
+| ProductsTable        | `src/components/dashboard/ProductsTable.tsx`           | Lógica inline                                        | ✅ Força 480w (thumbnails)            |
+| ProductCard          | `src/components/catalogo/ProductCard.tsx`              | SmartImage                                           | ✅ srcset (480w/1200w)                |
+| SmartImage           | `src/components/catalogo/SmartImage.tsx`               | `<img>` nativo                                       | ✅ srcset quando tem variants         |
+| StoreModalsContainer | `src/components/catalogo/store-modals-container.tsx`   | Modal/gallery (unifica lógica com `EditProductForm`) | ✅ usa gallery_normalization & srcset |
+| ProductDetail        | `src/app/catalogo/[slug]/product/[productId]/page.tsx` | JOIN `product_images`                                | ⏳ Pendente (usa 1200w)               |
 
 \* _Na galeria de detalhes, cada imagem em `product_images` tem `optimized_variants` disponível, mas ainda não está sendo usado com `srcset`._
 
@@ -1115,13 +1116,15 @@ Use este checklist após importação ou sync:
 
 ### Arquivos-Chave
 
-| Arquivo                                            | Descrição                |
-| -------------------------------------------------- | ------------------------ |
-| `src/app/dashboard/products/import-massa/page.tsx` | Importação Excel         |
-| `src/lib/utils/image-logic.ts`                     | Helpers de processamento |
-| `scripts/local-sync-full.mjs`                      | Script de sincronização  |
-| `src/lib/imageUtils.ts`                            | Frontend image utils     |
-| `src/components/catalogo/ProductCard.tsx`          | Renderização catálogo    |
+| Arquivo                                              | Descrição                  |
+| ---------------------------------------------------- | -------------------------- |
+| `src/app/dashboard/products/import-massa/page.tsx`   | Importação Excel           |
+| `src/lib/utils/image-logic.ts`                       | Helpers de processamento   |
+| `scripts/local-sync-full.mjs`                        | Script de sincronização    |
+| `src/lib/imageUtils.ts`                              | Frontend image utils       |
+| `src/components/catalogo/ProductCard.tsx`            | Renderização catálogo      |
+| `src/components/catalogo/store-modals-container.tsx` | Modal/galeria e thumbnails |
+| `src/components/dashboard/EditProductForm.tsx`       | Editor produto (galeria)   |
 
 ### Variáveis de Ambiente
 
@@ -1174,4 +1177,4 @@ CREATE_BUCKETS=false  # true para bucket por marca
 
 ---
 
-**Fim do Manual** | Versão 1.2 | 2026-02-03
+**Fim do Manual** | Versão 1.4 | 2026-02-05

@@ -1,0 +1,107 @@
+{
+  "product": {
+    "id": "28edea12-ffa3-485a-8e6a-2065e5a0cda1",
+    "name": "MOS651 086",
+    "brand": "MOSCHINO",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-main-1200w.webp",
+        "path": null,
+        "is_primary": true
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-00-1200w.webp",
+        "path": "public/brands/moschino/MOS651_086-00-1200w.webp",
+        "is_primary": true
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-01-1200w.webp",
+        "path": "public/brands/moschino/MOS651_086-01-1200w.webp",
+        "is_primary": false
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-02-1200w.webp",
+        "path": "public/brands/moschino/MOS651_086-02-1200w.webp",
+        "is_primary": false
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": [
+    {
+      "id": "5f519e55-664f-419f-a249-059a27cbea87",
+      "product_id": "28edea12-ffa3-485a-8e6a-2065e5a0cda1",
+      "url": "https://commportal-images.safilo.com/10/91/79/109179008600_P01.JPG",
+      "is_primary": true,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 0,
+      "created_at": "2026-02-05T01:47:59.88364+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-00-1200w.webp",
+      "storage_path": "public/brands/moschino/MOS651_086-00-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-00-480w.webp",
+          "path": "public/brands/moschino/MOS651_086-00-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-00-1200w.webp",
+          "path": "public/brands/moschino/MOS651_086-00-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:34:22.18318+00:00"
+    },
+    {
+      "id": "adc37a02-5594-4154-ade8-fd9cddd5957a",
+      "product_id": "28edea12-ffa3-485a-8e6a-2065e5a0cda1",
+      "url": "https://commportal-images.safilo.com/10/91/79/109179008600_P02.JPG",
+      "is_primary": false,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 1,
+      "created_at": "2026-02-05T01:47:59.88364+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-01-1200w.webp",
+      "storage_path": "public/brands/moschino/MOS651_086-01-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-01-480w.webp",
+          "path": "public/brands/moschino/MOS651_086-01-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-01-1200w.webp",
+          "path": "public/brands/moschino/MOS651_086-01-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:34:21.442169+00:00"
+    },
+    {
+      "id": "7223421e-cc1f-4ca9-b8a7-2ff0b8506ea8",
+      "product_id": "28edea12-ffa3-485a-8e6a-2065e5a0cda1",
+      "url": "https://commportal-images.safilo.com/10/91/79/109179008600_P07.JPG",
+      "is_primary": false,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 2,
+      "created_at": "2026-02-05T01:47:59.88364+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-02-1200w.webp",
+      "storage_path": "public/brands/moschino/MOS651_086-02-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-02-480w.webp",
+          "path": "public/brands/moschino/MOS651_086-02-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/moschino/MOS651_086-02-1200w.webp",
+          "path": "public/brands/moschino/MOS651_086-02-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:34:21.447482+00:00"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import {
   internalizeSingleImage,
   cloneCatalog,
   copyImageOnWrite,
+  copyBrandImageOnWrite,
   processPendingImages,
 } from '@/inngest/functions';
 

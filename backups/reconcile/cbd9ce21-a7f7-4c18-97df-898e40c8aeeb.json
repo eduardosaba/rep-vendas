@@ -1,0 +1,16 @@
+{
+  "product": {
+    "id": "cbd9ce21-a7f7-4c18-97df-898e40c8aeeb",
+    "name": "MOS169/S 2F7",
+    "brand": "MOSCHINO",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS169_S_2F7-1770257652270.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS169_S_2F7-1770257652270.jpg",
+        "sync_status": "synced"
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": []
+}

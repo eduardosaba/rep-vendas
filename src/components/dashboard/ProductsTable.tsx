@@ -335,6 +335,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     priceType: 'sale_price' as 'price' | 'sale_price', // 'price' = custo, 'sale_price' = sugerido
     title: 'Catálogo de Produtos',
     imageZoom: 3,
+    primaryColor: '#994314',
+    coverCount: 1,
+    selectedCoverIndex: 0,
+    coverTemplate: 1,
   });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ progress: 0, message: '' });
@@ -352,6 +356,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   }>({ mode: 'fixed', value: '' });
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [viewIndex, setViewIndex] = useState(0);
+  const [viewImageFailed, setViewImageFailed] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchMoved = useRef<boolean>(false);
 
@@ -1193,6 +1198,13 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           '#0d1b2c';
       }
 
+      // determine coverImageUrl from pdfOptions.selectedCoverIndex and availableBrands
+      const brandCandidates = availableBrands
+        .map((b) => b.logo_url)
+        .filter(Boolean) as string[];
+      const chosenCover =
+        brandCandidates[pdfOptions.selectedCoverIndex] || undefined;
+
       await generateCatalogPDF(productsToPrint, {
         showPrices: pdfOptions.showPrices,
         priceType: pdfOptions.priceType,
@@ -1201,7 +1213,10 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         storeLogo: settings?.logo_url,
         imageZoom: pdfOptions.imageZoom,
         brandMapping: brandMap,
+        coverImageUrl: chosenCover,
+        coverTemplate: pdfOptions.coverTemplate,
         secondaryColor: secondaryColor,
+        primaryColor: pdfOptions.primaryColor,
         onProgress: (progress, message) => {
           setPdfProgress({ progress, message });
         },
@@ -1530,14 +1545,14 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       {/* FILTROS E BUSCA */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row gap-4 justify-between">
-          <div className="flex-1 flex gap-2">
-            <div className="relative flex-1">
+          <div className="flex-1 flex flex-wrap md:flex-nowrap gap-2 items-center">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar..."
-                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white"
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white min-w-0"
               />
             </div>
             <Button
@@ -2460,24 +2475,62 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 touchStartX.current = null;
               }}
             >
+              {/* normalize images to an array to avoid runtime errors when some products have a string/null */}
               {(() => {
-                const selectedImage = viewProduct.image_path
-                  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${viewProduct.image_path}`
-                  : viewProduct.images && viewProduct.images.length > 0
-                    ? viewProduct.images[viewIndex]
-                    : viewProduct.image_url ||
-                      viewProduct.external_image_url ||
+                const imagesArray = Array.isArray(viewProduct.images)
+                  ? viewProduct.images
+                  : viewProduct.images
+                    ? [viewProduct.images]
+                    : [];
+
+                // reset failure flag when product or index changes
+                useEffect(() => {
+                  setViewImageFailed(false);
+                }, [viewProduct?.id, viewIndex]);
+                // reset failure flag when product or index changes
+                useEffect(() => {
+                  setViewImageFailed(false);
+                }, [viewProduct?.id, viewIndex]);
+
+                const makeSafeUrl = (raw: string | undefined | null) => {
+                  if (!raw) return null;
+                  try {
+                    // If it's already an absolute URL, encode URI components safely
+                    const u = new URL(raw);
+                    return encodeURI(u.toString());
+                  } catch (e) {
+                    // Not an absolute URL — try encoding path segments
+                    return encodeURI(raw);
+                  }
+                };
+
+                const selectedImage = viewProduct?.image_path
+                  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${encodeURIComponent(
+                      String(viewProduct.image_path)
+                    )}`
+                  : imagesArray.length > 0
+                    ? makeSafeUrl(
+                        imagesArray[viewIndex % imagesArray.length] as string
+                      )
+                    : makeSafeUrl(viewProduct?.image_url) ||
+                      makeSafeUrl(viewProduct?.external_image_url) ||
                       null;
-                return selectedImage ? (
+
+                if (!selectedImage || viewImageFailed) {
+                  return <ImageIcon size={48} className="text-gray-300" />;
+                }
+
+                return (
+                  // key = selectedImage to force reload when URL changes
                   <Image
+                    key={selectedImage}
                     src={selectedImage}
-                    alt=""
+                    alt={viewProduct?.name || ''}
                     fill
                     sizes="(max-width: 640px) 100vw, 640px"
                     className="object-contain p-4"
+                    onError={() => setViewImageFailed(true)}
                   />
-                ) : (
-                  <ImageIcon size={48} className="text-gray-300" />
                 );
               })()}
 
@@ -2488,39 +2541,55 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                 <X size={20} />
               </button>
 
-              {viewProduct.images && viewProduct.images.length > 1 && (
-                <>
-                  <button
-                    onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
-                    aria-label="Anterior"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    onClick={() =>
-                      setViewIndex((i) =>
-                        Math.min((viewProduct.images?.length || 1) - 1, i + 1)
-                      )
-                    }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
-                    aria-label="Próxima"
-                  >
-                    ›
-                  </button>
-                </>
-              )}
+              {(() => {
+                const imagesArray = Array.isArray(viewProduct.images)
+                  ? viewProduct.images
+                  : viewProduct.images
+                    ? [viewProduct.images]
+                    : [];
 
-              {viewProduct.images && viewProduct.images.length > 1 && (
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
-                  {viewProduct.images.map((_, idx) => (
-                    <span
-                      key={idx}
-                      className={`h-1 w-6 rounded ${idx === viewIndex ? 'bg-white' : 'bg-white/40'}`}
-                    />
-                  ))}
-                </div>
-              )}
+                return imagesArray.length > 1 ? (
+                  <>
+                    <button
+                      onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
+                      aria-label="Anterior"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      onClick={() =>
+                        setViewIndex((i) =>
+                          Math.min((imagesArray.length || 1) - 1, i + 1)
+                        )
+                      }
+                      className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-white/80"
+                      aria-label="Próxima"
+                    >
+                      ›
+                    </button>
+                  </>
+                ) : null;
+              })()}
+
+              {(() => {
+                const imagesArray = Array.isArray(viewProduct.images)
+                  ? viewProduct.images
+                  : viewProduct.images
+                    ? [viewProduct.images]
+                    : [];
+
+                return imagesArray.length > 1 ? (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                    {imagesArray.map((_, idx) => (
+                      <span
+                        key={idx}
+                        className={`h-1 w-6 rounded ${idx === viewIndex ? 'bg-white' : 'bg-white/40'}`}
+                      />
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
             <div className="p-6 overflow-y-auto">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
@@ -2584,6 +2653,147 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   }
                   className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-primary outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Cor Primária do Catálogo
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={pdfOptions.primaryColor}
+                    onChange={(e) =>
+                      setPdfOptions({
+                        ...pdfOptions,
+                        primaryColor: e.target.value,
+                      })
+                    }
+                    className="w-12 h-8 p-0 border rounded"
+                    aria-label="Cor Primária"
+                  />
+                  <span className="text-sm text-gray-600 dark:text-slate-300">
+                    {pdfOptions.primaryColor}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Quantidade de opções de capa
+                </label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() =>
+                        setPdfOptions({
+                          ...pdfOptions,
+                          coverCount: n,
+                          selectedCoverIndex: 0,
+                        })
+                      }
+                      className={`px-3 py-1 rounded border ${pdfOptions.coverCount === n ? 'bg-[var(--primary)] text-white' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300'}`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Pré-visualizar capas
+                </label>
+                <div className="flex gap-3 items-start">
+                  {(() => {
+                    // candidates: use availableBrands logos as cover options
+                    const candidates = availableBrands
+                      .map((b) => b.logo_url)
+                      .filter(Boolean) as string[];
+                    // pad to coverCount with nulls
+                    while (candidates.length < pdfOptions.coverCount)
+                      candidates.push('');
+                    return (
+                      <div className="flex gap-2">
+                        {candidates
+                          .slice(0, pdfOptions.coverCount)
+                          .map((url, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() =>
+                                setPdfOptions({
+                                  ...pdfOptions,
+                                  selectedCoverIndex: idx,
+                                })
+                              }
+                              className={`w-20 h-12 rounded overflow-hidden border ${pdfOptions.selectedCoverIndex === idx ? 'ring-2 ring-[var(--primary)]' : 'border-gray-200 dark:border-slate-700'}`}
+                            >
+                              {url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={url}
+                                  alt={`capa-${idx}`}
+                                  className="object-cover w-full h-full"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xs text-gray-500">
+                                  Sem imagem
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500 mb-1 block">
+                      Preview selecionado
+                    </label>
+                    <div className="w-full h-32 bg-gray-50 dark:bg-slate-900 rounded border border-gray-200 dark:border-slate-800 flex items-center justify-center overflow-hidden">
+                      {(() => {
+                        const candidates = availableBrands
+                          .map((b) => b.logo_url)
+                          .filter(Boolean) as string[];
+                        const url =
+                          candidates[pdfOptions.selectedCoverIndex] || '';
+                        return url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={url}
+                            alt="preview-capa"
+                            className="object-contain w-full h-full p-2"
+                          />
+                        ) : (
+                          <div className="text-sm text-gray-500 dark:text-slate-400">
+                            Nenhuma imagem disponível para pré-visualizar
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Modelo de Capa
+                </label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3].map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setPdfOptions({ ...pdfOptions, coverTemplate: t })}
+                      className={`px-3 py-1 rounded border ${pdfOptions.coverTemplate === t ? 'bg-[var(--primary)] text-white' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300'}`}
+                    >
+                      Modelo {t}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -2758,18 +2968,22 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   ))}
             </datalist>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => setShowTextModal(false)}
-                className="flex-1 p-2 border border-gray-200 dark:border-slate-700 rounded dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800"
+                variant="outline"
+                size="md"
+                className="flex-1"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleBulkTextUpdate}
-                className="flex-1 p-2 bg-primary text-white rounded hover:bg-primary/90"
+                variant="primary"
+                size="md"
+                className="flex-1"
               >
                 Salvar
-              </button>
+              </Button>
             </div>
           </div>
         </div>

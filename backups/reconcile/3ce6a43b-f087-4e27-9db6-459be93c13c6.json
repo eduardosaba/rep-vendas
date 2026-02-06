@@ -1,0 +1,16 @@
+{
+  "product": {
+    "id": "3ce6a43b-f087-4e27-9db6-459be93c13c6",
+    "name": "MOS169/S 5F6",
+    "brand": "MOSCHINO",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS169_S_5F6-1770257659840.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS169_S_5F6-1770257659840.jpg",
+        "sync_status": "synced"
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": []
+}

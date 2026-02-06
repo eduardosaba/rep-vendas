@@ -1,0 +1,137 @@
+{
+  "product": {
+    "id": "d0cc79bb-36d4-49d8-9b4a-a15be6e626c9",
+    "name": "MOL072/S H7P",
+    "brand": "Love Moschino",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-main-1200w.webp",
+        "path": null,
+        "is_primary": true
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-00-1200w.webp",
+        "path": "public/brands/love-moschino/MOL072_S_H7P-00-1200w.webp",
+        "is_primary": true
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-02-1200w.webp",
+        "path": "public/brands/love-moschino/MOL072_S_H7P-02-1200w.webp",
+        "is_primary": false
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-03-1200w.webp",
+        "path": "public/brands/love-moschino/MOL072_S_H7P-03-1200w.webp",
+        "is_primary": false
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-04-1200w.webp",
+        "path": "public/brands/love-moschino/MOL072_S_H7P-04-1200w.webp",
+        "is_primary": false
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": [
+    {
+      "id": "c7cda430-5679-4f17-8b79-e6c725876986",
+      "product_id": "d0cc79bb-36d4-49d8-9b4a-a15be6e626c9",
+      "url": "https://commportal-images.safilo.com/20/66/60/2066600H7PHA_P00.JPG",
+      "is_primary": true,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 0,
+      "created_at": "2026-02-05T03:17:32.916433+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-00-1200w.webp",
+      "storage_path": "public/brands/love-moschino/MOL072_S_H7P-00-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-00-480w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-00-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-00-1200w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-00-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:34:36.379856+00:00"
+    },
+    {
+      "id": "3311f607-2c20-4e5f-95d0-e1ce703ac9db",
+      "product_id": "d0cc79bb-36d4-49d8-9b4a-a15be6e626c9",
+      "url": "https://commportal-images.safilo.com/20/66/60/2066600H7PHA_P01.JPG",
+      "is_primary": false,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 2,
+      "created_at": "2026-02-05T03:17:32.916433+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-02-1200w.webp",
+      "storage_path": "public/brands/love-moschino/MOL072_S_H7P-02-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-02-480w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-02-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-02-1200w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-02-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:34:36.056324+00:00"
+    },
+    {
+      "id": "42dc9c8c-82ab-44ff-b9b6-1365bfbf3d95",
+      "product_id": "d0cc79bb-36d4-49d8-9b4a-a15be6e626c9",
+      "url": "https://commportal-images.safilo.com/20/66/60/2066600H7PHA_P02.JPG",
+      "is_primary": false,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 3,
+      "created_at": "2026-02-05T03:17:32.916433+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-03-1200w.webp",
+      "storage_path": "public/brands/love-moschino/MOL072_S_H7P-03-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-03-480w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-03-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-03-1200w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-03-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:34:36.056996+00:00"
+    },
+    {
+      "id": "33098e74-ee1f-4fa4-bb47-b682af927efd",
+      "product_id": "d0cc79bb-36d4-49d8-9b4a-a15be6e626c9",
+      "url": "https://commportal-images.safilo.com/20/66/60/2066600H7PHA_P07.JPG",
+      "is_primary": false,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 4,
+      "created_at": "2026-02-05T03:17:32.916433+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-04-1200w.webp",
+      "storage_path": "public/brands/love-moschino/MOL072_S_H7P-04-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-04-480w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-04-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/love-moschino/MOL072_S_H7P-04-1200w.webp",
+          "path": "public/brands/love-moschino/MOL072_S_H7P-04-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:34:39.89005+00:00"
+    }
+  ]
+}

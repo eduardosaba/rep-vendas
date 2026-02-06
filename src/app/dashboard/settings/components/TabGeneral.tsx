@@ -15,6 +15,7 @@ interface TabGeneralProps {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => void;
   handleSlugChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  slugRef?: React.RefObject<HTMLInputElement>;
   showPassword?: boolean;
   onToggleShowPassword?: () => void;
   isActive: boolean;
@@ -25,6 +26,7 @@ export function TabGeneral({
   formData,
   handleChange,
   handleSlugChange,
+  slugRef,
   showPassword = false,
   onToggleShowPassword,
   isActive,
@@ -134,6 +136,7 @@ export function TabGeneral({
             <input
               type="text"
               name="catalog_slug"
+              ref={slugRef}
               value={formData.catalog_slug}
               onChange={handleSlugChange}
               className="flex-1 p-2.5 border border-gray-300 dark:border-slate-700 rounded-r-lg sm:rounded-l-none rounded-l-lg focus:ring-2 focus:ring-[var(--primary)] outline-none font-mono text-[var(--primary)] font-bold bg-white dark:bg-slate-950"

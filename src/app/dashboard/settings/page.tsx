@@ -85,6 +85,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
   const [saving, setSaving] = useState(false);
+  const slugRef = useRef<HTMLInputElement | null>(null);
   const [showPricePassword, setShowPricePassword] = useState(false);
   const [activeTab, setActiveTab] = useState<
     'general' | 'appearance' | 'display' | 'marketing' | 'stock' | 'sync'
@@ -312,6 +313,7 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     const toastId = toast.loading('Salvando alterações...');
+    let publicAction: 'created' | 'updated' | null = null;
     try {
       const {
         data: { user },
@@ -414,61 +416,116 @@ export default function SettingsPage() {
 
       // 3. Salvar em public_catalogs (se houver slug)
       if (formData.catalog_slug) {
-        const { error: publicError } = await supabase
+        // Checa se o slug já existe e pertence a outro usuário
+        const { data: existingSlug } = await supabase
           .from('public_catalogs')
-          .upsert({
-            user_id: user.id,
-            slug: formData.catalog_slug,
-            is_active: isActive,
-            store_name: formData.name || '',
-            logo_url: logoPreview ?? null,
-            primary_color: formData.primary_color,
-            secondary_color: formData.secondary_color,
-            header_background_color: formData.header_background_color,
-            footer_background_color: formData.footer_background_color,
-            footer_message: formData.footer_message || null,
-            phone: normalizedPhone,
-            email: normalizedEmail,
-            font_family: formData.font_family || null,
-            font_url: formData.font_url ?? null,
-            share_banner_url: shareBannerPreview ?? null,
-            og_image_url: ogImagePreview ?? null,
-            banners:
-              currentBanners && currentBanners.length ? currentBanners : null,
-            banners_mobile:
-              currentBannersMobile && currentBannersMobile.length
-                ? currentBannersMobile
-                : null,
-            top_benefit_image_url: topBenefitImagePreview ?? null,
-            top_benefit_image_fit: topBenefitImageFit ?? 'cover',
-            top_benefit_image_scale: topBenefitImageScale ?? 100,
-            top_benefit_height: topBenefitHeight ?? 36,
-            top_benefit_text_size: topBenefitTextSize ?? 11,
-            top_benefit_bg_color: topBenefitBgColor ?? '#f3f4f6',
-            top_benefit_text_color: topBenefitTextColor ?? '#b9722e',
-            top_benefit_text: catalogSettings.top_benefit_text || null,
-            show_top_benefit_bar: catalogSettings.show_top_benefit_bar ?? false,
-            show_top_info_bar: catalogSettings.show_top_info_bar ?? true,
-            show_installments: catalogSettings.show_installments ?? false,
-            max_installments: Number(catalogSettings.max_installments || 1),
-            show_sale_price: catalogSettings.show_sale_price ?? true,
-            show_cost_price: catalogSettings.show_cost_price ?? false,
-            // Mapeamento de campos com nomes diferentes
-            enable_stock_management: catalogSettings.manage_stock ?? false,
-            show_cash_discount: catalogSettings.show_discount_tag ?? false,
-            cash_price_discount_percent: Number(
-              catalogSettings.cash_price_discount_percent || 5
-            ),
-            price_password_hash: pricePasswordHash,
-            updated_at: new Date().toISOString(),
-          });
+          .select('user_id')
+          .eq('slug', formData.catalog_slug)
+          .maybeSingle();
+
+        if (existingSlug && existingSlug.user_id !== user.id) {
+          throw new Error(
+            'O slug informado já está em uso por outra loja. Escolha outro slug.'
+          );
+        }
+
+        // Tenta atualizar o registro do próprio usuário, se existir
+        const { data: existingByUser } = await supabase
+          .from('public_catalogs')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        const publicPayload = {
+          user_id: user.id,
+          slug: formData.catalog_slug,
+          is_active: isActive,
+          store_name: formData.name || '',
+          logo_url: logoPreview ?? null,
+          primary_color: formData.primary_color,
+          secondary_color: formData.secondary_color,
+          header_background_color: formData.header_background_color,
+          footer_background_color: formData.footer_background_color,
+          footer_message: formData.footer_message || null,
+          phone: normalizedPhone,
+          email: normalizedEmail,
+          font_family: formData.font_family || null,
+          font_url: formData.font_url ?? null,
+          share_banner_url: shareBannerPreview ?? null,
+          og_image_url: ogImagePreview ?? null,
+          banners:
+            currentBanners && currentBanners.length ? currentBanners : null,
+          banners_mobile:
+            currentBannersMobile && currentBannersMobile.length
+              ? currentBannersMobile
+              : null,
+          top_benefit_image_url: topBenefitImagePreview ?? null,
+          top_benefit_image_fit: topBenefitImageFit ?? 'cover',
+          top_benefit_image_scale: topBenefitImageScale ?? 100,
+          top_benefit_height: topBenefitHeight ?? 36,
+          top_benefit_text_size: topBenefitTextSize ?? 11,
+          top_benefit_bg_color: topBenefitBgColor ?? '#f3f4f6',
+          top_benefit_text_color: topBenefitTextColor ?? '#b9722e',
+          top_benefit_text: catalogSettings.top_benefit_text || null,
+          show_top_benefit_bar: catalogSettings.show_top_benefit_bar ?? false,
+          show_top_info_bar: catalogSettings.show_top_info_bar ?? true,
+          show_installments: catalogSettings.show_installments ?? false,
+          max_installments: Number(catalogSettings.max_installments || 1),
+          show_sale_price: catalogSettings.show_sale_price ?? true,
+          show_cost_price: catalogSettings.show_cost_price ?? false,
+          // Mapeamento de campos com nomes diferentes
+          enable_stock_management: catalogSettings.manage_stock ?? false,
+          show_cash_discount: catalogSettings.show_discount_tag ?? false,
+          cash_price_discount_percent: Number(
+            catalogSettings.cash_price_discount_percent || 5
+          ),
+          price_password_hash: pricePasswordHash,
+          updated_at: new Date().toISOString(),
+        };
+
+        let publicError = null;
+        if (existingByUser) {
+          const { error } = await supabase
+            .from('public_catalogs')
+            .update(publicPayload)
+            .eq('user_id', user.id);
+          publicError = error;
+          if (!publicError) publicAction = 'updated';
+        } else {
+          const { error } = await supabase
+            .from('public_catalogs')
+            .insert(publicPayload);
+          publicError = error;
+          if (!publicError) publicAction = 'created';
+        }
 
         if (publicError) throw publicError;
       }
 
-      toast.success('Configurações aplicadas com sucesso!', { id: toastId });
+      const baseMsg = 'Configurações aplicadas com sucesso!';
+      const publicMsg = publicAction
+        ? ` (${publicAction === 'created' ? 'Catálogo público criado' : 'Catálogo público atualizado'})`
+        : '';
+      toast.success(baseMsg + publicMsg, { id: toastId });
     } catch (err: any) {
-      toast.error(err.message, { id: toastId });
+      const msg = err?.message || String(err);
+      if (msg.includes('slug') || msg.includes('Slug')) {
+        toast.error(
+          'O slug informado já está em uso por outra loja. Escolha outro slug.',
+          { id: toastId }
+        );
+        try {
+          // foca e seleciona o valor do slug para facilitar a correção pelo usuário
+          if (slugRef && slugRef.current) {
+            slugRef.current.focus();
+            slugRef.current.select();
+          }
+        } catch (e) {
+          // ignore
+        }
+      } else {
+        toast.error(msg, { id: toastId });
+      }
     } finally {
       setSaving(false);
     }
@@ -552,6 +609,7 @@ export default function SettingsPage() {
           handleSlugChange={(e: any) =>
             setFormData({ ...formData, catalog_slug: e.target.value })
           }
+          slugRef={slugRef}
           showPassword={showPricePassword}
           onToggleShowPassword={() => setShowPricePassword(!showPricePassword)}
           isActive={isActive}

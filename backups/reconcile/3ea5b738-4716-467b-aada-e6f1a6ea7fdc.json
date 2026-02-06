@@ -1,0 +1,16 @@
+{
+  "product": {
+    "id": "3ea5b738-4716-467b-aada-e6f1a6ea7fdc",
+    "name": "MOS169/S ECJ",
+    "brand": "MOSCHINO",
+    "images": [
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS169_S_ECJ-1770257665799.jpg",
+        "path": "1c059105-4f66-47e5-932f-c3e90ca5b8e7/repair/MOS169_S_ECJ-1770257665799.jpg",
+        "sync_status": "synced"
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": []
+}

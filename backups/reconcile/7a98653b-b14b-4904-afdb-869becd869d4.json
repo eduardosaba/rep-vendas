@@ -1,0 +1,97 @@
+{
+  "product": {
+    "id": "7a98653b-b14b-4904-afdb-869becd869d4",
+    "name": "TH 1643 807",
+    "brand": "TOMMY HILFIGER",
+    "images": [
+      {
+        "url": "{\"url\": \"https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp\", \"path\": \"public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp\", \"is_primary\": true}",
+        "path": null,
+        "is_primary": true
+      },
+      {
+        "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+        "path": "public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+        "is_primary": true
+      }
+    ],
+    "sync_status": "synced"
+  },
+  "product_images": [
+    {
+      "id": "478fc37b-5b53-4fb4-adb9-3888c7a082c2",
+      "product_id": "7a98653b-b14b-4904-afdb-869becd869d4",
+      "url": "https://commportal-images.safilo.com/10/21/03/102103080700_P00.JPG",
+      "is_primary": true,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 0,
+      "created_at": "2026-02-05T03:29:21.263923+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+      "storage_path": "public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-480w.webp",
+          "path": "public/brands/tommy-hilfiger/TH_1643_807-00-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+          "path": "public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-05T16:03:30.285727+00:00"
+    },
+    {
+      "id": "9652ce16-b5d6-4bc9-bb84-23a625edc606",
+      "product_id": "7a98653b-b14b-4904-afdb-869becd869d4",
+      "url": "https://commportal-images.safilo.com/10/21/03/102103080700_P02.JPG;",
+      "is_primary": false,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 0,
+      "created_at": "2026-02-05T03:29:21.263923+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+      "storage_path": "public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-480w.webp",
+          "path": "public/brands/tommy-hilfiger/TH_1643_807-00-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+          "path": "public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:43:52.060579+00:00"
+    },
+    {
+      "id": "32b8ba25-06f9-4aee-8ce5-f4693016ffa2",
+      "product_id": "7a98653b-b14b-4904-afdb-869becd869d4",
+      "url": "https://commportal-images.safilo.com/10/21/03/102103080700_P07.JPG",
+      "is_primary": false,
+      "sync_status": "synced",
+      "sync_error": null,
+      "position": 0,
+      "created_at": "2026-02-05T03:29:21.263923+00:00",
+      "optimized_url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+      "storage_path": "public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+      "optimized_variants": [
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-480w.webp",
+          "path": "public/brands/tommy-hilfiger/TH_1643_807-00-480w.webp",
+          "size": 480
+        },
+        {
+          "url": "https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/product-images/public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+          "path": "public/brands/tommy-hilfiger/TH_1643_807-00-1200w.webp",
+          "size": 1200
+        }
+      ],
+      "updated_at": "2026-02-06T01:43:52.594149+00:00"
+    }
+  ]
+}
