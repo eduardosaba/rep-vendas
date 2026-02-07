@@ -94,6 +94,15 @@ const BrandCard = ({
             src={brand.logo_url}
             className="w-full h-full object-contain p-2"
             alt={brand.name}
+            onError={(e) => {
+              try {
+                // log for debugging and fallback to placeholder
+                // eslint-disable-next-line no-console
+                console.warn('Erro ao carregar logo da marca:', brand.logo_url);
+                (e.currentTarget as HTMLImageElement).src =
+                  '/images/product-placeholder.svg';
+              } catch (_) {}
+            }}
           />
         ) : (
           <span className="text-2xl font-bold text-gray-300 dark:text-slate-600 uppercase select-none">
@@ -234,13 +243,13 @@ export default function BrandsPage() {
 
   // replaced by SmartImageUpload usage in the form below
 
-  const uploadLogo = async (
+  const uploadAsset = async (
     userId: string,
-    file: File
+    file: File,
+    folder: 'logo' | 'banner'
   ): Promise<{ publicUrl: string; path: string }> => {
     const fileExt = file.name.split('.').pop();
-    // Store under brands/{userId}/{timestamp}.{ext}
-    const key = `brands/${userId}/logo/${Date.now()}.${fileExt}`;
+    const key = `brands/${userId}/${folder}/${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('product-images')
@@ -249,25 +258,6 @@ export default function BrandsPage() {
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage.from('product-images').getPublicUrl(key);
-
-    return { publicUrl: data.publicUrl, path: key };
-  };
-
-  const uploadBanner = async (
-    userId: string,
-    file: File
-  ): Promise<{ publicUrl: string; path: string }> => {
-    const fileExt = file.name.split('.').pop();
-    const key = `brands/${userId}/banner/${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('product-images')
-      .upload(key, file);
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from('product-images').getPublicUrl(key);
-
     return { publicUrl: data.publicUrl, path: key };
   };
 
@@ -276,9 +266,7 @@ export default function BrandsPage() {
     if (!formData.name) return;
     setSubmitting(true);
 
-    const toastId = toast.loading(
-      formData.logoFile ? 'Enviando logo...' : 'Salvando alterações...'
-    );
+    const toastId = toast.loading('Salvando alterações...');
 
     try {
       const {
@@ -286,51 +274,38 @@ export default function BrandsPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Sessão expirada');
 
-      let finalLogoUrl = editingBrand?.logo_url ?? null;
-      let finalBannerUrl = editingBrand?.banner_url ?? null;
-      let finalLogoPath: string | null =
-        (editingBrand as any)?.logo_path ?? null;
-      let finalBannerPath: string | null =
-        (editingBrand as any)?.banner_path ?? null;
+      // 1. Resolver Logo
+      let finalLogoUrl: string | null = null;
+      let finalLogoPath: string | null = null;
 
-      // If the user uploaded in background, `formData.logoPreview` may already
-      // contain the public URL returned by the upload. Prefer that when it's
-      // a remote URL (starts with http). Otherwise, if a file is present,
-      // upload it now.
       if (
-        formData.logoPreview &&
         typeof formData.logoPreview === 'string' &&
         formData.logoPreview.startsWith('http')
       ) {
         finalLogoUrl = formData.logoPreview;
-        try {
-          const u = new URL(finalLogoUrl);
-          const seg = u.pathname.split('/');
-          const idx = seg.indexOf('public');
-          if (idx >= 0) finalLogoPath = seg.slice(idx + 1).join('/');
-        } catch {}
       } else if (formData.logoFile) {
-        const res = await uploadLogo(user.id, formData.logoFile);
+        const res = await uploadAsset(user.id, formData.logoFile, 'logo');
         finalLogoUrl = res.publicUrl;
         finalLogoPath = res.path;
+      } else if (editingBrand?.logo_url) {
+        finalLogoUrl = editingBrand.logo_url;
       }
 
+      // 2. Resolver Banner
+      let finalBannerUrl: string | null = null;
+      let finalBannerPath: string | null = null;
+
       if (
-        formData.bannerPreview &&
         typeof formData.bannerPreview === 'string' &&
         formData.bannerPreview.startsWith('http')
       ) {
         finalBannerUrl = formData.bannerPreview;
-        try {
-          const u = new URL(finalBannerUrl);
-          const seg = u.pathname.split('/');
-          const idx = seg.indexOf('public');
-          if (idx >= 0) finalBannerPath = seg.slice(idx + 1).join('/');
-        } catch {}
       } else if (formData.bannerFile) {
-        const res = await uploadBanner(user.id, formData.bannerFile);
+        const res = await uploadAsset(user.id, formData.bannerFile, 'banner');
         finalBannerUrl = res.publicUrl;
         finalBannerPath = res.path;
+      } else if (editingBrand?.banner_url) {
+        finalBannerUrl = editingBrand.banner_url;
       }
 
       const payload: any = {
@@ -347,61 +322,10 @@ export default function BrandsPage() {
       if (editingBrand) {
         const { error } = await supabase
           .from('brands')
-          .update({
-            name: payload.name,
-            commission_percent: payload.commission_percent,
-            logo_url: payload.logo_url,
-            banner_url: payload.banner_url,
-            logo_path: payload.logo_path,
-            banner_path: payload.banner_path,
-            description: payload.description,
-          })
+          .update(payload)
           .eq('id', editingBrand.id);
         if (error) throw error;
         toast.success('Marca atualizada!', { id: toastId });
-        // If the brand currently references a shared URL and the user did not upload
-        // a new file, request a copy-on-write so the brand has its own copy.
-        try {
-          const originalLogo = editingBrand.logo_url;
-          const originalBanner = editingBrand.banner_url;
-          // Trigger CoW for logo when no new file uploaded and original exists
-          if (
-            !formData.logoFile &&
-            originalLogo &&
-            originalLogo.includes('/storage/v1/object/public/')
-          ) {
-            fetch('/api/image/copy-on-write-brand', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sourceUrl: originalLogo,
-                brandId: editingBrand.id,
-                asset: 'logo',
-              }),
-            }).catch((e) =>
-              console.error('Failed to request brand logo copy-on-write', e)
-            );
-          }
-          if (
-            !formData.bannerFile &&
-            originalBanner &&
-            originalBanner.includes('/storage/v1/object/public/')
-          ) {
-            fetch('/api/image/copy-on-write-brand', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sourceUrl: originalBanner,
-                brandId: editingBrand.id,
-                asset: 'banner',
-              }),
-            }).catch((e) =>
-              console.error('Failed to request brand banner copy-on-write', e)
-            );
-          }
-        } catch (e) {
-          console.warn('Failed to enqueue brand copy-on-write', e);
-        }
       } else {
         const { error } = await supabase.from('brands').insert(payload);
         if (error) throw error;
@@ -410,11 +334,10 @@ export default function BrandsPage() {
 
       resetForm();
       fetchBrands();
-    } catch (error: unknown) {
-      console.error(getErrorMessage(error));
+    } catch (error: any) {
       toast.error('Erro ao salvar', {
         id: toastId,
-        description: getErrorMessage(error),
+        description: error.message,
       });
     } finally {
       setSubmitting(false);
@@ -572,16 +495,17 @@ export default function BrandsPage() {
                         } = await supabase.auth.getUser();
                         if (!user) return;
 
-                        const publicUrl = await uploadLogo(
+                        const res = await uploadAsset(
                           user.id,
-                          file as File
+                          file as File,
+                          'logo'
                         );
 
                         setFormData((prev) => {
                           if (prev.logoPreview === objectURL) {
                             return {
                               ...prev,
-                              logoPreview: publicUrl,
+                              logoPreview: res.publicUrl,
                               logoFile: null,
                             };
                           }
@@ -635,16 +559,17 @@ export default function BrandsPage() {
                         } = await supabase.auth.getUser();
                         if (!user) return;
 
-                        const publicUrl = await uploadBanner(
+                        const res = await uploadAsset(
                           user.id,
-                          file as File
+                          file as File,
+                          'banner'
                         );
 
                         setFormData((prev) => {
                           if (prev.bannerPreview === objectURL) {
                             return {
                               ...prev,
-                              bannerPreview: publicUrl,
+                              bannerPreview: res.publicUrl,
                               bannerFile: null,
                             };
                           }

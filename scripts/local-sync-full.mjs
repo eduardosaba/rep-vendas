@@ -128,7 +128,9 @@ async function syncFullCatalog() {
     // não serão nem processados nem logados.
     const { data: candidates, error: candErr } = await supabase
       .from('products')
-      .select('id, image_url, external_image_url, images, sync_status')
+      .select(
+        'id, image_url, external_image_url, images, gallery_images, image_path, image_variants, sync_status'
+      )
       .in('sync_status', SYNC_ONLY);
 
     if (candErr) throw candErr;
@@ -155,6 +157,30 @@ async function syncFullCatalog() {
             )
               return true;
           }
+        }
+        // also consider gallery_images and image_path
+        try {
+          const g = p.gallery_images || [];
+          if (Array.isArray(g)) {
+            for (const it of g) {
+              if (!it) continue;
+              if (typeof it === 'string' && it.startsWith('http')) return true;
+              if (
+                typeof it === 'object' &&
+                it.url &&
+                String(it.url).startsWith('http')
+              )
+                return true;
+            }
+          }
+        } catch (e) {}
+        if (
+          p.image_path &&
+          typeof p.image_path === 'string' &&
+          !p.image_path.startsWith('/')
+        ) {
+          // image_path that looks like an external URL (rare) should count
+          if (p.image_path.startsWith('http')) return true;
         }
       } catch (e) {
         // ignore
@@ -252,15 +278,21 @@ async function syncFullCatalog() {
               try {
                 const imgs = product.images || [];
                 if (Array.isArray(imgs) && imgs.length > 0) {
-                  // imgs may be array of strings or objects
                   for (const it of imgs) {
                     const url =
                       typeof it === 'string' ? it : it.url || it.path || null;
                     if (url && /P00\./i.test(url)) return url;
                   }
-                  // fallback: first url-like
                   const first = imgs[0];
                   return typeof first === 'string' ? first : first?.url || null;
+                }
+                // fallback to gallery_images if images empty
+                const gimgs = product.gallery_images || [];
+                if (Array.isArray(gimgs) && gimgs.length > 0) {
+                  const first = gimgs[0];
+                  return typeof first === 'string'
+                    ? first
+                    : first?.url || first?.path || null;
                 }
               } catch (e) {
                 return null;
@@ -268,7 +300,20 @@ async function syncFullCatalog() {
               return null;
             })();
 
-            const coverUrl = pickCoverFromImages || product.image_url;
+            let coverUrl = pickCoverFromImages || product.image_url || null;
+            // if we still don't have an http url but have image_path, try to build public url
+            if (
+              (!coverUrl || !String(coverUrl).startsWith('http')) &&
+              product.image_path
+            ) {
+              try {
+                const keyPath = String(product.image_path).replace(/^\/+/, '');
+                const pub = await getPublicUrlFromBucket(BUCKET, keyPath);
+                if (pub) coverUrl = pub;
+              } catch (e) {
+                // ignore, fallback to image_url
+              }
+            }
             if (coverUrl) {
               try {
                 const brandRaw = product.brand || product.user_id || 'unknown';
@@ -355,8 +400,11 @@ async function syncFullCatalog() {
               `   ℹ️ Encontradas ${gallery?.length || 0} imagens pendentes em product_images`
             );
 
-            // If there are no product_images rows, try to create them from product.images (handles concatenated URLs from import)
-            if ((!gallery || gallery.length === 0) && product.images) {
+            // If there are no product_images rows, try to create them from product.images or gallery_images (handles concatenated URLs from import)
+            if (
+              (!gallery || gallery.length === 0) &&
+              (product.images || product.gallery_images)
+            ) {
               try {
                 const toInsert = [];
                 const seen = new Set();
@@ -384,7 +432,11 @@ async function syncFullCatalog() {
                   return out.filter(Boolean);
                 };
 
-                const rawUrls = extractUrls(product.images || []);
+                const rawUrls = extractUrls(
+                  product.images && Array.isArray(product.images)
+                    ? product.images
+                    : product.gallery_images || []
+                );
                 // Ensure cover is included too (some imports stored cover in image_url)
                 if (product.image_url && !rawUrls.includes(product.image_url)) {
                   rawUrls.unshift(product.image_url);

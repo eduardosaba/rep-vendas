@@ -90,8 +90,29 @@ export function StoreModals() {
     if (!product) return [] as { url: string; path: string | null }[];
 
     const out: { url: string; path: string | null }[] = [];
+    const seenPaths = new Set<string>();
+    const seenBaseKeys = new Set<string>();
 
-    // 1) Priorizar variantes / image_path (otimizadas)
+    // Helper para evitar duplicatas baseado em path ou base key
+    const isDuplicate = (url: string, path: string | null) => {
+      if (path) {
+        if (seenPaths.has(path)) return true;
+        seenPaths.add(path);
+      }
+      const baseKey = getBaseKeyFromUrl(url);
+      if (baseKey && seenBaseKeys.has(baseKey)) return true;
+      if (baseKey) seenBaseKeys.add(baseKey);
+      return false;
+    };
+
+    // Detecta se produto está migrado (tem gallery_images ou image_path)
+    const isMigratedProduct = Boolean(
+      product.image_path ||
+      (Array.isArray(product.gallery_images) &&
+        product.gallery_images.length > 0)
+    );
+
+    // 1) Priorizar variantes / image_path (otimizadas) - IMAGEM PRINCIPAL
     if (
       Array.isArray(product.image_variants) &&
       product.image_variants.length > 0
@@ -108,76 +129,115 @@ export function StoreModals() {
         firstVar?.src ||
         null;
       const varPath = firstVar?.path || firstVar?.storage_path || null;
-      if (varUrl) out.push({ url: varUrl, path: varPath });
+      if (varUrl && !isDuplicate(varUrl, varPath)) {
+        out.push({ url: varUrl, path: varPath });
+      }
     } else if (product.image_path) {
-      // Quando image_path existe, NUNCA use image_url ou external_image_url
-      // (evita duplicação após clone/cleanup)
+      // Quando image_path existe, use APENAS ele para a capa
       let publicUrl: string | null = null;
       try {
         publicUrl = buildSupabaseImageUrl(product.image_path) || null;
       } catch (e) {
         publicUrl = null;
       }
-      out.push({
-        url: publicUrl || product.image_path,
-        path: product.image_path,
-      });
+      const finalUrl = publicUrl || product.image_path;
+      if (!isDuplicate(finalUrl, product.image_path)) {
+        out.push({
+          url: finalUrl,
+          path: product.image_path,
+        });
+      }
     }
 
-    // 2) gallery_images (explode entries)
+    // 2) gallery_images (explode entries) - FONTE PRIORITÁRIA PARA GALERIA
     if (
       Array.isArray(product.gallery_images) &&
       product.gallery_images.length > 0
     ) {
-      out.push(...normalizeAndExplodeImageEntries(product.gallery_images));
+      const galleryEntries = normalizeAndExplodeImageEntries(
+        product.gallery_images
+      );
+      galleryEntries.forEach((entry) => {
+        // Validação: URL deve ser válida e path deve estar OK
+        if (entry.url && entry.url.trim().length > 10) {
+          if (!isDuplicate(entry.url, entry.path)) {
+            out.push(entry);
+          }
+        }
+      });
     }
 
-    // 3) product.images (explode entries) - validar se não são URLs vazias/nulas
-    if (Array.isArray(product.images) && product.images.length > 0) {
+    // 3) product.images - APENAS se produto NÃO estiver migrado
+    // Evita poluir galeria com URLs antigas/quebradas em produtos migrados
+    if (
+      !isMigratedProduct &&
+      Array.isArray(product.images) &&
+      product.images.length > 0
+    ) {
       const validImages = product.images.filter((img: any) => {
-        if (typeof img === 'string') return img && img.trim().length > 6;
+        if (typeof img === 'string') {
+          // Rejeita URLs muito curtas ou inválidas
+          const trimmed = img.trim();
+          if (trimmed.length < 10) return false;
+          // Rejeita se contiver 'null', 'undefined', etc
+          if (/null|undefined|none/i.test(trimmed)) return false;
+          return true;
+        }
         if (typeof img === 'object' && img) {
           const url =
             img.url || img.src || img.optimized_url || img.optimizedUrl;
-          return url && url.trim().length > 6;
+          if (!url || typeof url !== 'string') return false;
+          const trimmed = url.trim();
+          if (trimmed.length < 10) return false;
+          if (/null|undefined|none/i.test(trimmed)) return false;
+          return true;
         }
         return false;
       });
+
       if (validImages.length > 0) {
-        out.push(...normalizeAndExplodeImageEntries(validImages));
+        const imageEntries = normalizeAndExplodeImageEntries(validImages);
+        imageEntries.forEach((entry) => {
+          if (entry.url && entry.url.trim().length > 10) {
+            if (!isDuplicate(entry.url, entry.path)) {
+              out.push(entry);
+            }
+          }
+        });
       }
     }
 
     // 4) Fallbacks: image_url / external_image_url
-    // APENAS se não houver image_path (produtos legados sem migração)
-    if (!product.image_path && !product.image_variants) {
-      if (product.image_url && product.image_url.trim().length > 6) {
-        out.push({ url: product.image_url, path: null });
+    // APENAS se não houver image_path E não houver gallery_images (produto totalmente legado)
+    if (!product.image_path && !product.image_variants && !isMigratedProduct) {
+      if (product.image_url && product.image_url.trim().length > 10) {
+        if (!isDuplicate(product.image_url, null)) {
+          out.push({ url: product.image_url, path: null });
+        }
       } else if (
         product.external_image_url &&
-        product.external_image_url.trim().length > 6
+        product.external_image_url.trim().length > 10
       ) {
-        out.push({ url: product.external_image_url, path: null });
+        if (!isDuplicate(product.external_image_url, null)) {
+          out.push({ url: product.external_image_url, path: null });
+        }
       }
     }
 
     // Normalize urls (upgrade to 1200w) and remove trivially short/invalid
     const cleaned = out
       .map((i) => ({ url: (i.url || '').trim(), path: i.path }))
-      .filter((i) => i.url && i.url.length > 6)
+      .filter((i) => i.url && i.url.length > 10) // Mínimo 10 chars para URL válida
+      .filter((i) => !/null|undefined|none/i.test(i.url)) // Rejeita strings inválidas
       .map((i) => ({ url: upgradeTo1200w(i.url), path: i.path }));
 
-    // Deduplicate preferring optimized entries
-    const deduped = dedupePreferOptimized(cleaned);
-    const ordered = ensureOptimizedFirst(deduped);
-
-    if (!ordered || ordered.length === 0) {
+    if (!cleaned || cleaned.length === 0) {
       return [{ url: '/images/product-placeholder.svg', path: null }];
     }
 
-    // Final safety: remove exact-duplicate urls
+    // Final safety: remove exact-duplicate urls (se ainda houver)
     const finalSet = new Set<string>();
-    return ordered.filter((img) => {
+    return cleaned.filter((img) => {
       if (!img.url || finalSet.has(img.url)) return false;
       finalSet.add(img.url);
       return true;
@@ -255,7 +315,13 @@ export function StoreModals() {
                       {/* Usa SmartImage com variant="thumbnail" se internalizado */}
                       {item.image_variants && item.image_variants.length > 0 ? (
                         <SmartImage
-                          product={item}
+                          product={{
+                            id: item.id,
+                            name: item.name,
+                            brand: item.brand,
+                            image_url: item.image_url,
+                            image_path: item.image_path,
+                          }}
                           className="h-full w-full"
                           imgClassName="object-contain p-2"
                           variant="thumbnail"
@@ -388,7 +454,9 @@ export function StoreModals() {
                   return (
                     <SmartImage
                       product={{
-                        ...modals.product,
+                        id: modals.product.id,
+                        name: modals.product.name,
+                        brand: modals.product.brand,
                         image_url: current.url,
                         image_path: current.path,
                       }}
@@ -406,7 +474,7 @@ export function StoreModals() {
               </div>
 
               {/* Thumbnails */}
-              {productImages.length > 1 && (
+              {modals.product && productImages.length > 1 && (
                 <div className="h-24 px-6 pb-6 overflow-x-auto no-scrollbar">
                   <div className="flex gap-3 justify-center">
                     {productImages.map((img, idx) => (
@@ -417,7 +485,9 @@ export function StoreModals() {
                       >
                         <SmartImage
                           product={{
-                            ...modals.product,
+                            id: modals.product!.id,
+                            name: modals.product!.name,
+                            brand: modals.product!.brand,
                             image_url: img.url,
                             image_path: img.path,
                           }}
@@ -653,7 +723,9 @@ export function StoreModals() {
                     return (
                       <SmartImage
                         product={{
-                          ...modals.product,
+                          id: modals.product.id,
+                          name: modals.product.name,
+                          brand: modals.product.brand,
                           image_url: current.url,
                           image_path: current.path,
                         }}

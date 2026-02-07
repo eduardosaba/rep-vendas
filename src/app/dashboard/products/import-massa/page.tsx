@@ -520,11 +520,37 @@ export default function ImportMassaPage() {
       }
 
       const productsToInsert = Array.from(uniqueProductsMap.values());
-      const duplicatesRemoved = rows.length - productsToInsert.length;
+      const duplicatesInFile = rows.length - productsToInsert.length;
 
-      if (duplicatesRemoved > 0) {
-        addLog(`Aviso: ${duplicatesRemoved} produtos duplicados removidos.`);
+      if (duplicatesInFile > 0) {
+        addLog(
+          `ℹ️ ${duplicatesInFile} linhas duplicadas removidas da planilha (mesma referência).`
+        );
       }
+
+      // Verificar quantos produtos JÁ EXISTEM no banco
+      addLog('Verificando produtos existentes no banco...');
+      const allRefCodes = productsToInsert.map((p) => p.reference_code);
+      const { data: existingInDb } = await supabase
+        .from('products')
+        .select('reference_code')
+        .eq('user_id', user.id)
+        .in('reference_code', allRefCodes);
+
+      const existingRefCodes = new Set(
+        (existingInDb || []).map((p) => p.reference_code)
+      );
+      const newProductsCount = productsToInsert.filter(
+        (p) => !existingRefCodes.has(p.reference_code)
+      ).length;
+      const updateProductsCount = productsToInsert.filter((p) =>
+        existingRefCodes.has(p.reference_code)
+      ).length;
+
+      addLog(
+        `📊 Resumo: ${newProductsCount} NOVOS | ${updateProductsCount} ATUALIZAÇÕES`,
+        'success'
+      );
 
       // Histórico
       let brandSummary = 'Diversas';
@@ -661,7 +687,9 @@ export default function ImportMassaPage() {
           if (missingRefs.length > 0) {
             const { data: fetchedMissing } = await supabase
               .from('products')
-              .select('id,external_image_url,reference_code')
+              .select(
+                'id,external_image_url,reference_code,gallery_images,image_path'
+              )
               .eq('user_id', user.id)
               .in('reference_code', missingRefs);
 
@@ -684,6 +712,20 @@ export default function ImportMassaPage() {
             if (externalUrl) allImages.push(externalUrl);
             if (originalItem.images && Array.isArray(originalItem.images)) {
               allImages.push(...originalItem.images);
+            } else if (
+              p &&
+              p.gallery_images &&
+              Array.isArray(p.gallery_images)
+            ) {
+              // if import didn't include images but DB already has gallery_images, include them
+              allImages.push(
+                ...p.gallery_images.map((g: any) =>
+                  typeof g === 'string' ? g : g.url || g.path
+                )
+              );
+            } else if (p && p.image_path) {
+              // include image_path as a source (will be resolved by sync script)
+              allImages.unshift(p.image_path);
             }
 
             if (productId && allImages.length > 0) {
