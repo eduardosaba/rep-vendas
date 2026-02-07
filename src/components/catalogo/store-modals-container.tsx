@@ -110,6 +110,8 @@ export function StoreModals() {
       const varPath = firstVar?.path || firstVar?.storage_path || null;
       if (varUrl) out.push({ url: varUrl, path: varPath });
     } else if (product.image_path) {
+      // Quando image_path existe, NUNCA use image_url ou external_image_url
+      // (evita duplicação após clone/cleanup)
       let publicUrl: string | null = null;
       try {
         publicUrl = buildSupabaseImageUrl(product.image_path) || null;
@@ -117,11 +119,7 @@ export function StoreModals() {
         publicUrl = null;
       }
       out.push({
-        url:
-          publicUrl ||
-          product.image_url ||
-          product.external_image_url ||
-          product.image_path,
+        url: publicUrl || product.image_path,
         path: product.image_path,
       });
     }
@@ -134,16 +132,33 @@ export function StoreModals() {
       out.push(...normalizeAndExplodeImageEntries(product.gallery_images));
     }
 
-    // 3) product.images (explode entries)
+    // 3) product.images (explode entries) - validar se não são URLs vazias/nulas
     if (Array.isArray(product.images) && product.images.length > 0) {
-      out.push(...normalizeAndExplodeImageEntries(product.images));
+      const validImages = product.images.filter((img: any) => {
+        if (typeof img === 'string') return img && img.trim().length > 6;
+        if (typeof img === 'object' && img) {
+          const url =
+            img.url || img.src || img.optimized_url || img.optimizedUrl;
+          return url && url.trim().length > 6;
+        }
+        return false;
+      });
+      if (validImages.length > 0) {
+        out.push(...normalizeAndExplodeImageEntries(validImages));
+      }
     }
 
     // 4) Fallbacks: image_url / external_image_url
-    if (!product.image_path) {
-      if (product.image_url) out.push({ url: product.image_url, path: null });
-      else if (product.external_image_url)
+    // APENAS se não houver image_path (produtos legados sem migração)
+    if (!product.image_path && !product.image_variants) {
+      if (product.image_url && product.image_url.trim().length > 6) {
+        out.push({ url: product.image_url, path: null });
+      } else if (
+        product.external_image_url &&
+        product.external_image_url.trim().length > 6
+      ) {
         out.push({ url: product.external_image_url, path: null });
+      }
     }
 
     // Normalize urls (upgrade to 1200w) and remove trivially short/invalid
@@ -367,21 +382,21 @@ export function StoreModals() {
               >
                 {(() => {
                   const current = productImages[currentImageIndex] || {
-                    url: null,
+                    url: '/images/product-placeholder.svg',
+                    path: null,
                   };
-                  // Força usar a URL 1200w já processada, ignorando path para evitar downgrade
                   return (
-                    <img
-                      src={current.url}
-                      alt={modals.product?.name || 'Produto'}
-                      className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105 object-contain"
-                      loading="lazy"
-                      onError={(e) => {
-                        try {
-                          (e.currentTarget as HTMLImageElement).src =
-                            '/images/product-placeholder.svg';
-                        } catch (err) {}
+                    <SmartImage
+                      product={{
+                        ...modals.product,
+                        image_url: current.url,
+                        image_path: current.path,
                       }}
+                      preferredSize={1200}
+                      initialSrc={current.url}
+                      className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105"
+                      imgClassName="object-contain w-full h-full"
+                      variant="full"
                     />
                   );
                 })()}
@@ -632,21 +647,21 @@ export function StoreModals() {
                 <div className="relative w-full h-full">
                   {(() => {
                     const current = productImages[currentImageIndex] || {
-                      url: null,
+                      url: '/images/product-placeholder.svg',
+                      path: null,
                     };
-                    // Usa diretamente a URL 1200w já processada
                     return (
-                      <img
-                        src={current.url}
-                        alt={modals.product?.name || 'Produto'}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                        onError={(e) => {
-                          try {
-                            (e.currentTarget as HTMLImageElement).src =
-                              '/images/product-placeholder.svg';
-                          } catch (err) {}
+                      <SmartImage
+                        product={{
+                          ...modals.product,
+                          image_url: current.url,
+                          image_path: current.path,
                         }}
+                        preferredSize={1200}
+                        initialSrc={current.url}
+                        className="w-full h-full"
+                        imgClassName="object-contain w-full h-full"
+                        variant="full"
                       />
                     );
                   })()}

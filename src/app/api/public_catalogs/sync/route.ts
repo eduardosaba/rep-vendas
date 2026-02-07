@@ -43,6 +43,10 @@ export async function POST(request: Request) {
       share_banner_url,
     } = body;
 
+    // Extract singular banner fields separately (fallbacks for compatibility)
+    const banner = body.banner ?? null;
+    const banner_mobile = body.banner_mobile ?? null;
+
     // Validação básica: precisamos do ID e do Link para saber quem atualizar
     if (!user_id) {
       return NextResponse.json(
@@ -96,13 +100,18 @@ export async function POST(request: Request) {
     }
 
     // Chama a função auxiliar que executa o UPSERT no banco
+    // Repasse explícito de campos críticos (telefone, email, hash de senha)
+    // para garantir que sejam persistidos mesmo se a leitura de `settings`
+    // falhar por questões de permissões/rls no client anon.
     await syncPublicCatalog(user_id, {
       slug: finalSlug,
-      is_active: is_active ?? true, // Garante que se vier vazio, a loja continue online por padrão
+      is_active: is_active ?? true,
       store_name,
       logo_url,
       banners,
       banners_mobile,
+      banner,
+      banner_mobile,
       primary_color,
       secondary_color,
       footer_message,
@@ -114,7 +123,7 @@ export async function POST(request: Request) {
       max_installments,
       show_cash_discount,
       cash_price_discount_percent,
-      // Repassa os campos da Top Bar para que o catálogo reflita o branding
+      // Top Bar visuals
       top_benefit_image_url,
       top_benefit_height,
       top_benefit_text_size,
@@ -127,6 +136,10 @@ export async function POST(request: Request) {
       font_url: body.font_url ?? null,
       og_image_url: body.og_image_url ?? null,
       share_banner_url: body.share_banner_url ?? null,
+      // Campos críticos vindos do payload
+      phone: body.phone ?? null,
+      email: body.email ?? null,
+      price_password_hash: body.price_password_hash ?? null,
     });
 
     // Revalidação on-demand: atualizar cache/OG da página pública imediatamente

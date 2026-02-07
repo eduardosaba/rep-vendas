@@ -13,6 +13,15 @@ export async function POST(req: Request) {
         { status: 400 }
       );
 
+    // ✅ CRÍTICO: Senha vazia NÃO valida
+    const plain = String(password).trim();
+    if (!plain || plain.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: 'empty_password' },
+        { status: 400 }
+      );
+    }
+
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SUPABASE_SERVICE_ROLE_KEY =
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
@@ -42,8 +51,6 @@ export async function POST(req: Request) {
       .select('price_password_hash')
       .eq('user_id', userId)
       .maybeSingle();
-
-    const plain = String(password).trim();
 
     // 1) check plain password (settings)
     if (settings && (settings as any).price_password) {

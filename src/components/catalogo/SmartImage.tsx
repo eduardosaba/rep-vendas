@@ -97,12 +97,20 @@ export function SmartImage({
       return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
     }
 
-    return product?.external_image_url || product?.image_url || null;
+    // APENAS usar external URLs se não houver image_path e a URL for válida
+    const extUrl = product?.external_image_url || product?.image_url || null;
+    if (extUrl && typeof extUrl === 'string' && extUrl.trim().length > 6) {
+      return extUrl;
+    }
+    return null;
   };
 
   const srcSet = generateSrcSet();
   const imageSrc = getImageSrc();
-  const external = product?.external_image_url || product?.image_url || null;
+  // Validar external URLs apenas se não houver image_path
+  const external = !product?.image_path
+    ? product?.external_image_url || product?.image_url || null
+    : null;
 
   const [src, setSrc] = useState<string | null>(imageSrc);
   const [errored, setErrored] = useState(false);

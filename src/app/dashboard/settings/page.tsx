@@ -414,29 +414,10 @@ export default function SettingsPage() {
 
       if (profileError) throw profileError;
 
-      // 3. Salvar em public_catalogs (se houver slug)
+      // 3. Sincronizar com public_catalogs usando API server-side
+      //    (evita problemas de RLS e garante uso do service role)
       if (formData.catalog_slug) {
-        // Checa se o slug já existe e pertence a outro usuário
-        const { data: existingSlug } = await supabase
-          .from('public_catalogs')
-          .select('user_id')
-          .eq('slug', formData.catalog_slug)
-          .maybeSingle();
-
-        if (existingSlug && existingSlug.user_id !== user.id) {
-          throw new Error(
-            'O slug informado já está em uso por outra loja. Escolha outro slug.'
-          );
-        }
-
-        // Tenta atualizar o registro do próprio usuário, se existir
-        const { data: existingByUser } = await supabase
-          .from('public_catalogs')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        const publicPayload = {
+        const payload = {
           user_id: user.id,
           slug: formData.catalog_slug,
           is_active: isActive,
@@ -473,39 +454,31 @@ export default function SettingsPage() {
           max_installments: Number(catalogSettings.max_installments || 1),
           show_sale_price: catalogSettings.show_sale_price ?? true,
           show_cost_price: catalogSettings.show_cost_price ?? false,
-          // Mapeamento de campos com nomes diferentes
           enable_stock_management: catalogSettings.manage_stock ?? false,
           show_cash_discount: catalogSettings.show_discount_tag ?? false,
           cash_price_discount_percent: Number(
             catalogSettings.cash_price_discount_percent || 5
           ),
           price_password_hash: pricePasswordHash,
-          updated_at: new Date().toISOString(),
         };
 
-        let publicError = null;
-        if (existingByUser) {
-          const { error } = await supabase
-            .from('public_catalogs')
-            .update(publicPayload)
-            .eq('user_id', user.id);
-          publicError = error;
-          if (!publicError) publicAction = 'updated';
-        } else {
-          const { error } = await supabase
-            .from('public_catalogs')
-            .insert(publicPayload);
-          publicError = error;
-          if (!publicError) publicAction = 'created';
+        try {
+          const res = await fetch('/api/public_catalogs/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json();
+          if (!res.ok)
+            throw new Error(json?.error || 'Erro ao sincronizar catálogo');
+          publicAction = json?.message ? 'updated' : 'updated';
+        } catch (e: any) {
+          throw e;
         }
-
-        if (publicError) throw publicError;
       }
 
       const baseMsg = 'Configurações aplicadas com sucesso!';
-      const publicMsg = publicAction
-        ? ` (${publicAction === 'created' ? 'Catálogo público criado' : 'Catálogo público atualizado'})`
-        : '';
+      const publicMsg = publicAction ? ' (Catálogo público atualizado)' : '';
       toast.success(baseMsg + publicMsg, { id: toastId });
     } catch (err: any) {
       const msg = err?.message || String(err);

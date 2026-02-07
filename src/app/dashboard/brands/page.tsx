@@ -217,13 +217,14 @@ export default function BrandsPage() {
 
   const handleEdit = (brand: Brand) => {
     setEditingBrand(brand);
+    // Force SmartImageUpload to remount with new key when editing different brand
     setFormData({
       name: brand.name,
       commission: brand.commission_percent
         ? String(brand.commission_percent)
         : '',
       logoFile: null,
-      logoPreview: brand.logo_url,
+      logoPreview: brand.logo_url || null,
       bannerFile: null,
       bannerPreview: brand.banner_url ?? null,
       description: brand.description ?? '',
@@ -351,6 +352,8 @@ export default function BrandsPage() {
             commission_percent: payload.commission_percent,
             logo_url: payload.logo_url,
             banner_url: payload.banner_url,
+            logo_path: payload.logo_path,
+            banner_path: payload.banner_path,
             description: payload.description,
           })
           .eq('id', editingBrand.id);

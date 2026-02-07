@@ -34,6 +34,9 @@ export interface SyncCatalogData {
   top_benefit_text_size?: number;
   banners?: string[] | null;
   banners_mobile?: string[] | null;
+  // Singular fallbacks for compatibility
+  banner?: string | null;
+  banner_mobile?: string | null;
   top_benefit_bg_color?: string;
   top_benefit_text_color?: string;
   // Top benefit content + visibility
@@ -249,23 +252,11 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       font_family: finalFont,
       font_url: mergedData.font_url ?? data.font_url ?? null,
       og_image_url: mergedData.og_image_url ?? data.og_image_url ?? null,
-      // sanitize banners arrays: remove falsy values and empty arrays -> store null
-      banners: (() => {
-        const arr = mergedData.banners ?? data.banners ?? null;
-        if (!Array.isArray(arr)) return null;
-        const clean = arr
-          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
-          .filter(Boolean);
-        return clean.length > 0 ? clean : null;
-      })(),
-      banners_mobile: (() => {
-        const arr = mergedData.banners_mobile ?? data.banners_mobile ?? null;
-        if (!Array.isArray(arr)) return null;
-        const clean = arr
-          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
-          .filter(Boolean);
-        return clean.length > 0 ? clean : null;
-      })(),
+      // We'll sanitize banners/mobile values below and write to the
+      // appropriate column(s) depending on the DB schema (plural vs singular)
+      // placeholders for now; actual assignment happens after we detect columns
+      banners: null,
+      banners_mobile: null,
       is_active: isActive,
       show_sale_price:
         mergedData.show_sale_price ?? data.show_sale_price ?? showSale,
@@ -318,6 +309,57 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       }
     } catch (e) {
       // ignore failures here (best-effort)
+    }
+
+    // Detectar colunas de banner (plural ou singular) e atribuir valores
+    try {
+      const { data: cols } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'public_catalogs');
+      const colNames = (cols || []).map((c: any) => String(c.column_name));
+
+      const sanitize = (v: any) => {
+        if (Array.isArray(v)) {
+          const clean = v
+            .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
+            .filter(Boolean);
+          return clean.length > 0 ? clean : null;
+        }
+        if (typeof v === 'string' && v.trim()) return [v.trim()];
+        return null;
+      };
+
+      const incomingBanners = sanitize(
+        mergedData.banners ??
+          data.banners ??
+          mergedData.banner ??
+          data.banner ??
+          null
+      );
+      const incomingBannersMobile = sanitize(
+        mergedData.banners_mobile ??
+          data.banners_mobile ??
+          mergedData.banner_mobile ??
+          data.banner_mobile ??
+          null
+      );
+
+      if (colNames.includes('banners')) {
+        updatePayload.banners = incomingBanners;
+      } else if (colNames.includes('banner')) {
+        updatePayload.banner = incomingBanners ? incomingBanners[0] : null;
+      }
+
+      if (colNames.includes('banners_mobile')) {
+        updatePayload.banners_mobile = incomingBannersMobile;
+      } else if (colNames.includes('banner_mobile')) {
+        updatePayload.banner_mobile = incomingBannersMobile
+          ? incomingBannersMobile[0]
+          : null;
+      }
+    } catch (e) {
+      // best-effort: ignore if we can't detect columns
     }
 
     // Atualiza apenas o registro correspondente ao `slug` (escopo por catálogo)
@@ -456,23 +498,9 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       font_family: finalFontInsert,
       font_url: mergedData.font_url ?? data.font_url ?? null,
       og_image_url: mergedData.og_image_url ?? data.og_image_url ?? null,
-      // sanitize banners arrays: remove falsy values and empty arrays -> store null
-      banners: (() => {
-        const arr = mergedData.banners ?? data.banners ?? null;
-        if (!Array.isArray(arr)) return null;
-        const clean = arr
-          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
-          .filter(Boolean);
-        return clean.length > 0 ? clean : null;
-      })(),
-      banners_mobile: (() => {
-        const arr = mergedData.banners_mobile ?? data.banners_mobile ?? null;
-        if (!Array.isArray(arr)) return null;
-        const clean = arr
-          .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
-          .filter(Boolean);
-        return clean.length > 0 ? clean : null;
-      })(),
+      // placeholders; we'll decide which column to write after detecting schema
+      banners: null,
+      banners_mobile: null,
       is_active: isActive,
       price_password_hash: mergedData.price_password_hash ?? null,
       created_at: new Date().toISOString(),
@@ -521,6 +549,57 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       }
     } catch (e) {
       // ignore failures here (best-effort)
+    }
+
+    // Detectar colunas de banner no esquema e atribuir valores adequados
+    try {
+      const { data: cols } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'public_catalogs');
+      const colNames = (cols || []).map((c: any) => String(c.column_name));
+
+      const sanitize = (v: any) => {
+        if (Array.isArray(v)) {
+          const clean = v
+            .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
+            .filter(Boolean);
+          return clean.length > 0 ? clean : null;
+        }
+        if (typeof v === 'string' && v.trim()) return [v.trim()];
+        return null;
+      };
+
+      const incomingBanners = sanitize(
+        mergedData.banners ??
+          data.banners ??
+          mergedData.banner ??
+          data.banner ??
+          null
+      );
+      const incomingBannersMobile = sanitize(
+        mergedData.banners_mobile ??
+          data.banners_mobile ??
+          mergedData.banner_mobile ??
+          data.banner_mobile ??
+          null
+      );
+
+      if (colNames.includes('banners')) {
+        insertPayload.banners = incomingBanners;
+      } else if (colNames.includes('banner')) {
+        insertPayload.banner = incomingBanners ? incomingBanners[0] : null;
+      }
+
+      if (colNames.includes('banners_mobile')) {
+        insertPayload.banners_mobile = incomingBannersMobile;
+      } else if (colNames.includes('banner_mobile')) {
+        insertPayload.banner_mobile = incomingBannersMobile
+          ? incomingBannersMobile[0]
+          : null;
+      }
+    } catch (e) {
+      // best-effort
     }
 
     const { error } = await supabase

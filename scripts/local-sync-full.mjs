@@ -309,10 +309,12 @@ async function syncFullCatalog() {
                 );
 
                 // ATUALIZAÇÃO COMPATÍVEL
+                // IMPORTANTE: Limpar external_image_url e image_url para evitar duplicação em clones
                 await supabase
                   .from('products')
                   .update({
-                    image_url: mainVariant.url,
+                    image_url: null, // ✅ Limpo - usar image_path
+                    external_image_url: null, // ✅ Limpo após internalização
                     image_path: mainVariant.path,
                     image_optimized: true,
                     // keep a record of variants for frontend
@@ -756,6 +758,9 @@ async function syncFullCatalog() {
                 sync_error: isOk ? null : mainError || 'no_images_found',
                 images: mergedAll,
                 gallery_images: galleryOnly,
+                // ✅ Limpar URLs externas após internalização completa
+                external_image_url: null,
+                image_url: null,
                 original_size_kb: Math.round(productOriginalBytes / 1024),
                 optimized_size_kb: Math.round(productOptimizedBytes / 1024),
                 updated_at: new Date().toISOString(),

@@ -851,22 +851,37 @@ export function StoreProvider({
           ),
         unlockPrices: async (p) => {
           const plain = p.trim();
+
+          // ✅ VALIDAÇÃO CRÍTICA: Senha vazia NÃO desbloqueia
+          if (!plain || plain.length === 0) {
+            toast.error('Digite uma senha válida');
+            return false;
+          }
+
+          // Verificar se há senha configurada no catálogo
+          const hasPasswordConfigured =
+            (store as any).price_password_hash || (store as any).price_password;
+
           // Primeiro, se existe hash no sistema (compatibilidade), verifique-o
           if ((store as any).price_password_hash) {
             const hash = await sha256(plain);
             if (hash === (store as any).price_password_hash) {
               setShowPrices(true);
+              toast.success('Preços desbloqueados!');
               return true;
             }
           }
+
           // Em seguida, suporte a senha em texto simples (legado/solicitado)
           if (
             (store as any).price_password &&
             plain === (store as any).price_password
           ) {
             setShowPrices(true);
+            toast.success('Preços desbloqueados!');
             return true;
           }
+
           // Fallback server-side: se o cliente não tem o hash/plano disponível
           // (caso de catálogos novos/testes), chamamos uma rota segura que usa
           // a Service Role para validar a senha contra `settings` ou
@@ -884,6 +899,7 @@ export function StoreProvider({
               const j = await res.json();
               if (j.ok) {
                 setShowPrices(true);
+                toast.success('Preços desbloqueados!');
                 return true;
               }
             }
@@ -891,6 +907,13 @@ export function StoreProvider({
             console.error('verify-password request failed', e);
           }
 
+          // ✅ SE CHEGOU AQUI: Senha foi fornecida mas está INCORRETA
+          if (hasPasswordConfigured) {
+            toast.error('Senha incorreta');
+            return false;
+          }
+
+          // ⚠️ FALLBACKS: Apenas quando NÃO há senha configurada
           // If global control allows trial unlock bypass, allow it
           if (globalControls?.allow_trial_unlock) {
             setShowPrices(true);
@@ -903,6 +926,7 @@ export function StoreProvider({
             return true;
           }
 
+          toast.error('Acesso negado');
           return false;
         },
         handleFinalizeOrder,
