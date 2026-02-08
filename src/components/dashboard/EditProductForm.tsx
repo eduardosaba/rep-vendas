@@ -58,33 +58,57 @@ const ImageUploader = ({
     externalUrl: string | null;
     alt?: string;
   }) => {
-    const placeholder = 'https://via.placeholder.com/600x600?text=Sem+imagem';
+    const placeholder = '/images/product-placeholder.svg';
 
-    // Prefer the internal storage proxy first (works with private buckets).
-    // If proxy fails, fall back to the external URL once.
+    // Normalize and prioritize storage path
     const [src, setSrc] = React.useState<string>(() => {
-      if (storagePath) {
+      // 1. Try storage path first (most reliable)
+      if (storagePath && typeof storagePath === 'string') {
         const pathClean = storagePath.startsWith('/')
           ? storagePath.slice(1)
           : storagePath;
+        // If path looks like a full storage URL, extract the path part
+        if (pathClean.includes('/storage/v1/object/public/')) {
+          const parts = pathClean.split('/storage/v1/object/public/');
+          const objectPath = parts[parts.length - 1];
+          return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
+        }
         return `/api/storage-image?path=${encodeURIComponent(pathClean)}`;
       }
-      if (externalUrl) return externalUrl;
+      
+      // 2. Try external URL second
+      if (externalUrl && typeof externalUrl === 'string') {
+        // If external URL is actually a storage URL, use proxy
+        if (
+          externalUrl.includes('supabase.co/storage') ||
+          externalUrl.includes('/storage/v1/object')
+        ) {
+          const parts = externalUrl.split('/storage/v1/object/public/');
+          if (parts.length > 1) {
+            const objectPath = parts[parts.length - 1];
+            return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
+          }
+        }
+        return externalUrl;
+      }
+      
       return placeholder;
     });
 
     const triedStorage = React.useRef(false);
     const triedExternal = React.useRef(false);
+    const triedPlaceholder = React.useRef(false);
 
     return (
       <img
         src={src}
         className="w-full h-full object-contain p-1 cursor-zoom-in"
         alt={alt || 'Product image'}
-        onClick={() => src && setZoomImage(src)}
+        onClick={() => src && src !== placeholder && setZoomImage(src)}
         onError={(e) => {
           const t = e.currentTarget as HTMLImageElement;
-          // If current src is external and storagePath is available, try storage once
+          
+          // Strategy 1: If showing external and have storage path, try storage
           if (!triedStorage.current && storagePath && src === externalUrl) {
             triedStorage.current = true;
             const pathClean = storagePath.startsWith('/')
@@ -94,16 +118,20 @@ const ImageUploader = ({
             return;
           }
 
-          // If current src is storage proxy and we have an external url, try it once
-          if (!triedExternal.current && externalUrl && src !== externalUrl) {
+          // Strategy 2: If showing storage and have external, try external
+          if (!triedExternal.current && externalUrl && src !== externalUrl && src !== placeholder) {
             triedExternal.current = true;
             setSrc(externalUrl);
             return;
           }
 
-          // Avoid infinite loop and show placeholder
-          t.onerror = null;
-          setSrc(placeholder);
+          // Strategy 3: Show placeholder to avoid infinite loop
+          if (!triedPlaceholder.current) {
+            triedPlaceholder.current = true;
+            t.onerror = null;
+            setSrc(placeholder);
+            return;
+          }
         }}
         loading="lazy"
         style={{ height: 'auto' }}
@@ -349,6 +377,16 @@ export function EditProductForm({ product }: { product: Product }) {
   };
 
   const techSpecs = parseTechnicalSpecs(product.technical_specs);
+
+  // DEBUG: diagnóstico de imagens recebidas do banco
+  useEffect(() => {
+    console.group('[EditProductForm] Diagnóstico de Imagens do Produto');
+    console.log('product.gallery_images:', (product as any).gallery_images);
+    console.log('product.images:', product.images);
+    console.log('product.image_url:', product.image_url);
+    console.log('product.image_path:', (product as any).image_path);
+    console.groupEnd();
+  }, []);
 
   // Inicializa o formulário
   const [formData, setFormData] = useState({

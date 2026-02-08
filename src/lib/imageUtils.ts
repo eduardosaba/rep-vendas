@@ -73,7 +73,7 @@ export function buildSupabaseImageUrl(
 
 /**
  * Resolve a imagem principal a ser exibida para um produto.
- * Segue a ordem de prioridade: Path Interno > Galeria Interna > URL Externa.
+ * Segue a ordem de prioridade: Path Interno > Galeria Migrada > Galeria Legada > URL Externa.
  */
 export function getProductImageUrl(product: Partial<Product>) {
   // A. PRIORIDADE 1: Campo direto 'image_path' (Internalizado)
@@ -86,9 +86,10 @@ export function getProductImageUrl(product: Partial<Product>) {
     };
   }
 
-  // B. PRIORIDADE 2: Primeiro item da galeria (suporta objetos {url, path} ou strings)
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    const firstImg = product.images[0] as any;
+  // B. PRIORIDADE 2: Galeria migrada 'gallery_images' (novo schema)
+  const galleryImages = (product as any).gallery_images;
+  if (Array.isArray(galleryImages) && galleryImages.length > 0) {
+    const firstImg = galleryImages[0] as any;
 
     // B1. Se for objeto, prioriza 'path' (storage otimizado) sobre 'url' (externa)
     if (firstImg && typeof firstImg === 'object') {
@@ -143,7 +144,64 @@ export function getProductImageUrl(product: Partial<Product>) {
     }
   }
 
-  // C. PRIORIDADE 3: URLs Externas (campos diretos)
+  // C. PRIORIDADE 3: Galeria legada 'images' (fallback para produtos não migrados)
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const firstImg = product.images[0] as any;
+
+    // C1. Se for objeto, prioriza 'path' (storage otimizado) sobre 'url' (externa)
+    if (firstImg && typeof firstImg === 'object') {
+      const path = firstImg.path || firstImg.storage_path;
+      if (path && typeof path === 'string') {
+        const cleanPath = path.replace(/^\//, '');
+        return {
+          src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
+          isExternal: false,
+          isStorage: true,
+        };
+      }
+
+      // C2. Se não tem path mas tem url, usa url
+      const url = firstImg.url || firstImg.src;
+      if (url && typeof url === 'string') {
+        // Se URL é do storage, usa proxy
+        if (
+          url.includes('supabase.co/storage') ||
+          url.includes('/storage/v1/object')
+        ) {
+          const cleanPath = url.replace(/^\//, '');
+          return {
+            src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
+            isExternal: false,
+            isStorage: true,
+          };
+        }
+        // Senão, é externa
+        if (url.startsWith('http')) {
+          return { src: url, isExternal: true, isStorage: false };
+        }
+      }
+    }
+
+    // C3. Se for string simples
+    if (typeof firstImg === 'string') {
+      if (
+        firstImg.includes('supabase.co/storage') ||
+        firstImg.includes('/storage/v1/object')
+      ) {
+        const cleanPath = firstImg.replace(/^\//, '');
+        return {
+          src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
+          isExternal: false,
+          isStorage: true,
+        };
+      }
+      if (firstImg.startsWith('http')) {
+        return { src: firstImg, isExternal: true, isStorage: false };
+      }
+    }
+  }
+
+  // D. PRIORIDADE 4: URLs Externas (campos diretos)
   const external = product.external_image_url || product.image_url;
   if (external && typeof external === 'string' && external.startsWith('http')) {
     return { src: external, isExternal: true, isStorage: false };
