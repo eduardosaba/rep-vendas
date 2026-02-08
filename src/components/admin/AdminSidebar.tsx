@@ -83,6 +83,11 @@ export default function AdminSidebar({
     { label: 'Clonar Catálogo', href: '/admin/clone-user', icon: Copy },
     { label: 'Auditoria de Sinc.', href: '/admin/sync-logs', icon: History },
     { label: 'Auditoria Catalogo', href: '/admin/audit', icon: ImageIcon },
+    {
+      label: 'Status de Importação',
+      href: '/admin/import-status',
+      icon: BarChart2,
+    },
     { label: 'Planos & Preços', href: '/admin/plans', icon: Package },
     {
       label: 'Edição de Preços',

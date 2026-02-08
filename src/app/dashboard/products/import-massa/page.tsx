@@ -528,11 +528,12 @@ export default function ImportMassaPage() {
         );
       }
 
-      // Verificar quantos produtos JÁ EXISTEM no banco (busca em chunks para escalabilidade)
-      addLog('Verificando produtos existentes no banco (em chunks)...');
+      // --- OTIMIZAÇÃO: BUSCA DE EXISTENTES EM CHUNKS MENORES (200) ---
+      addLog(
+        'Verificando produtos existentes no banco (chunks otimizados de 200)...'
+      );
       const allRefCodes = productsToInsert.map((p) => p.reference_code);
       const existingRefCodes = new Set<string>();
-      // existingMap armazena dados já conhecidos para evitar buscas adicionais posteriormente
       const existingMap: Record<
         string,
         {
@@ -545,20 +546,28 @@ export default function ImportMassaPage() {
       > = {};
 
       if (allRefCodes.length > 0) {
-        const chunkSize = 1000; // tamanho do chunk para evitar consultas muito grandes
+        const chunkSize = 200; // REDUZIDO de 1000 para 200 para evitar timeout
         for (let j = 0; j < allRefCodes.length; j += chunkSize) {
           const chunk = allRefCodes.slice(j, j + chunkSize);
           const chunkIndex = Math.floor(j / chunkSize) + 1;
           addLog(
-            `Buscando produtos existentes chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSize, allRefCodes.length)})...`
+            `Verificando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSize, allRefCodes.length)})...`
           );
-          const { data: existingChunk } = await supabase
+          const { data: existingChunk, error: searchError } = await supabase
             .from('products')
             .select(
               'id,reference_code,slug,gallery_images,image_path,external_image_url'
             )
             .eq('user_id', user.id)
             .in('reference_code', chunk as any[]);
+
+          if (searchError) {
+            addLog(
+              `Aviso: Erro ao consultar chunk ${chunkIndex}: ${searchError.message}`,
+              'error'
+            );
+            continue;
+          }
 
           if (existingChunk && Array.isArray(existingChunk)) {
             existingChunk.forEach((p: any) => {
@@ -663,11 +672,11 @@ export default function ImportMassaPage() {
         );
       }
 
-      const batchSize = 100;
+      const batchSize = 50; // REDUZIDO de 100 para 50 para garantir resposta rápida
       const totalBatches = Math.ceil(finalBatch.length / batchSize);
 
       addLog(
-        `Inserindo/atualizando ${finalBatch.length} itens em ${totalBatches} lotes...`
+        `Inserindo/atualizando ${finalBatch.length} itens em ${totalBatches} lotes otimizados...`
       );
 
       for (let i = 0; i < finalBatch.length; i += batchSize) {
@@ -703,8 +712,10 @@ export default function ImportMassaPage() {
 
         if (error) {
           console.error('Erro detalhado:', JSON.stringify(error, null, 2));
-          addLog(`Erro lote ${batchNum}: ${error.message}`, 'error');
+          addLog(`❌ Erro lote ${batchNum}: ${error.message}`, 'error');
+          // Se o erro for de timeout, o batch size de 50 deve prevenir isso
           errorCount += batch.length;
+          continue; // Pula para o próximo lote em vez de quebrar tudo
         } else {
           addLog(`Lote ${batchNum} salvo. Processando Galeria...`, 'success');
           successCount += batch.length;
@@ -776,9 +787,9 @@ export default function ImportMassaPage() {
 
           if (allImagesToInsert.length > 0) {
             addLog(
-              `Inserindo ${allImagesToInsert.length} imagens de galeria (em chunks)...`
+              `Inserindo ${allImagesToInsert.length} imagens de galeria...`
             );
-            const galleryChunkSize = 500;
+            const galleryChunkSize = 200; // REDUZIDO de 500 para 200
             for (
               let k = 0;
               k < allImagesToInsert.length;
@@ -790,7 +801,7 @@ export default function ImportMassaPage() {
               );
               const chunkIndex = Math.floor(k / galleryChunkSize) + 1;
               addLog(
-                `Inserindo chunk de galeria ${chunkIndex} (items ${k + 1}-${Math.min(k + galleryChunkSize, allImagesToInsert.length)})`
+                `  → Galeria chunk ${chunkIndex} (${k + 1}-${Math.min(k + galleryChunkSize, allImagesToInsert.length)})`
               );
               const { error: galleryError } = await supabase
                 .from('product_images')
@@ -798,18 +809,13 @@ export default function ImportMassaPage() {
 
               if (galleryError) {
                 addLog(
-                  `Erro ao criar galeria do lote ${batchNum} (chunk ${chunkIndex}): ${galleryError.message}`,
+                  `  ⚠️ Aviso: Erro na galeria chunk ${chunkIndex}: ${galleryError.message}`,
                   'error'
                 );
                 // não interrompe todo o processo, continua com os próximos chunks
-              } else {
-                addLog(
-                  `Chunk de galeria ${chunkIndex} salvo com sucesso.`,
-                  'info'
-                );
               }
             }
-            addLog(`Galeria do lote ${batchNum} processada.`, 'info');
+            addLog(`✓ Galeria do lote ${batchNum} processada.`, 'success');
           }
         }
       }

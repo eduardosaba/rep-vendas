@@ -353,6 +353,46 @@ export default function SettingsPage() {
     });
   };
 
+  // --- Upload de banners para Storage ---
+  const uploadBannersToStorage = async (
+    files: File[],
+    type: 'desktop' | 'mobile'
+  ): Promise<string[]> => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não autenticado');
+
+    const uploadedUrls: string[] = [];
+    const toastId = toast.loading(`Enviando ${files.length} banner(s)...`);
+
+    try {
+      for (const file of files) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `banner-${type}-${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+        const filePath = `${user.id}/branding/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(data.publicUrl);
+      }
+
+      toast.success(`${files.length} banner(s) enviado(s)!`, { id: toastId });
+      return uploadedUrls;
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao enviar banners', { id: toastId });
+      throw err;
+    }
+  };
+
   // --- Função para aplicar um tema pronto ---
   const applyTheme = (theme: (typeof THEME_PRESETS)[0]) => {
     setFormData((prev) => ({
@@ -412,6 +452,68 @@ export default function SettingsPage() {
       const normalizedEmail = formData.email?.trim() || null;
 
       // 1. Salvar em settings
+      // Antes de salvar, certifique-se que previews `blob:` foram enviados ao Storage
+      const ensurePublicUrl = async (val: string | null) => {
+        if (!val) return val;
+        try {
+          if (typeof val === 'string' && val.startsWith('blob:')) {
+            const resp = await fetch(val);
+            const blob = await resp.blob();
+            const fileExt = (blob.type && blob.type.split('/').pop()) || 'webp';
+            const fileName = `branding-${Date.now()}.${fileExt}`;
+            const filePath = `${user.id}/branding/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('product-images')
+              .upload(filePath, blob as Blob, { upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(filePath);
+            return data?.publicUrl ?? null;
+          }
+        } catch (e) {
+          // falha ao subir preview; deixa o valor original para que o fluxo reporte erro
+          console.warn('ensurePublicUrl error', e);
+        }
+        return val;
+      };
+
+      const ensureArrayPublic = async (arr: string[] | null) => {
+        if (!arr || !Array.isArray(arr)) return arr;
+        const out: string[] = [];
+        for (const item of arr) {
+          if (item && item.startsWith('blob:')) {
+            const uploaded = await ensurePublicUrl(item);
+            if (uploaded) out.push(uploaded);
+          } else if (item) {
+            out.push(item);
+          }
+        }
+        return out;
+      };
+
+      // Converte previews locais (blob:) para URLs públicas quando necessário
+      const safeTopBenefitImage = await ensurePublicUrl(topBenefitImagePreview);
+      const safeOgImage = await ensurePublicUrl(ogImagePreview);
+      const safeShareBanner = await ensurePublicUrl(shareBannerPreview);
+      const safeLogo = await ensurePublicUrl(logoPreview);
+      const safeBanners = await ensureArrayPublic(currentBanners);
+      const safeBannersMobile = await ensureArrayPublic(currentBannersMobile);
+
+      // atualiza estados com as URLs públicas retornadas (se houver)
+      if (safeTopBenefitImage && safeTopBenefitImage !== topBenefitImagePreview)
+        setTopBenefitImagePreview(safeTopBenefitImage);
+      if (safeOgImage && safeOgImage !== ogImagePreview)
+        setOgImagePreview(safeOgImage);
+      if (safeShareBanner && safeShareBanner !== shareBannerPreview)
+        setShareBannerPreview(safeShareBanner);
+      if (safeLogo && safeLogo !== logoPreview) setLogoPreview(safeLogo);
+      if (safeBanners) setCurrentBanners(safeBanners);
+      if (safeBannersMobile) setCurrentBannersMobile(safeBannersMobile);
+
       const { error: settingsError } = await supabase.from('settings').upsert({
         user_id: user.id,
         // Dados gerais
@@ -483,7 +585,7 @@ export default function SettingsPage() {
           slug: formData.catalog_slug,
           is_active: isActive,
           store_name: formData.name || '',
-          logo_url: logoPreview ?? null,
+          logo_url: safeLogo ?? logoPreview ?? null,
           primary_color: formData.primary_color,
           secondary_color: formData.secondary_color,
           header_background_color: formData.header_background_color,
@@ -493,15 +595,22 @@ export default function SettingsPage() {
           email: normalizedEmail,
           font_family: formData.font_family || null,
           font_url: formData.font_url ?? null,
-          share_banner_url: shareBannerPreview ?? null,
-          og_image_url: ogImagePreview ?? null,
+          share_banner_url: safeShareBanner ?? shareBannerPreview ?? null,
+          og_image_url: safeOgImage ?? ogImagePreview ?? null,
           banners:
-            currentBanners && currentBanners.length ? currentBanners : null,
+            safeBanners && safeBanners.length
+              ? safeBanners
+              : currentBanners && currentBanners.length
+                ? currentBanners
+                : null,
           banners_mobile:
-            currentBannersMobile && currentBannersMobile.length
-              ? currentBannersMobile
-              : null,
-          top_benefit_image_url: topBenefitImagePreview ?? null,
+            safeBannersMobile && safeBannersMobile.length
+              ? safeBannersMobile
+              : currentBannersMobile && currentBannersMobile.length
+                ? currentBannersMobile
+                : null,
+          top_benefit_image_url:
+            safeTopBenefitImage ?? topBenefitImagePreview ?? null,
           top_benefit_image_fit: topBenefitImageFit ?? 'cover',
           top_benefit_image_scale: topBenefitImageScale ?? 100,
           top_benefit_height: topBenefitHeight ?? 36,
@@ -795,13 +904,21 @@ export default function SettingsPage() {
                   <input
                     type="file"
                     className="hidden"
+                    accept="image/*"
                     multiple
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const files = Array.from(e.target.files || []);
-                      setCurrentBanners((p) => [
-                        ...p,
-                        ...files.map((f) => URL.createObjectURL(f)),
-                      ]);
+                      if (!files.length) return;
+
+                      try {
+                        const urls = await uploadBannersToStorage(
+                          files,
+                          'desktop'
+                        );
+                        setCurrentBanners((p) => [...p, ...urls]);
+                      } catch (err) {
+                        console.error('Erro ao enviar banners:', err);
+                      }
                     }}
                   />
                 </label>
@@ -866,13 +983,21 @@ export default function SettingsPage() {
                   <input
                     type="file"
                     className="hidden"
+                    accept="image/*"
                     multiple
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const files = Array.from(e.target.files || []);
-                      setCurrentBannersMobile((p) => [
-                        ...p,
-                        ...files.map((f) => URL.createObjectURL(f)),
-                      ]);
+                      if (!files.length) return;
+
+                      try {
+                        const urls = await uploadBannersToStorage(
+                          files,
+                          'mobile'
+                        );
+                        setCurrentBannersMobile((p) => [...p, ...urls]);
+                      } catch (err) {
+                        console.error('Erro ao enviar banners mobile:', err);
+                      }
                     }}
                   />
                 </label>

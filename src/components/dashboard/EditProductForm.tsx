@@ -75,7 +75,7 @@ const ImageUploader = ({
         }
         return `/api/storage-image?path=${encodeURIComponent(pathClean)}`;
       }
-      
+
       // 2. Try external URL second
       if (externalUrl && typeof externalUrl === 'string') {
         // If external URL is actually a storage URL, use proxy
@@ -91,7 +91,7 @@ const ImageUploader = ({
         }
         return externalUrl;
       }
-      
+
       return placeholder;
     });
 
@@ -107,7 +107,7 @@ const ImageUploader = ({
         onClick={() => src && src !== placeholder && setZoomImage(src)}
         onError={(e) => {
           const t = e.currentTarget as HTMLImageElement;
-          
+
           // Strategy 1: If showing external and have storage path, try storage
           if (!triedStorage.current && storagePath && src === externalUrl) {
             triedStorage.current = true;
@@ -119,7 +119,12 @@ const ImageUploader = ({
           }
 
           // Strategy 2: If showing storage and have external, try external
-          if (!triedExternal.current && externalUrl && src !== externalUrl && src !== placeholder) {
+          if (
+            !triedExternal.current &&
+            externalUrl &&
+            src !== externalUrl &&
+            src !== placeholder
+          ) {
             triedExternal.current = true;
             setSrc(externalUrl);
             return;

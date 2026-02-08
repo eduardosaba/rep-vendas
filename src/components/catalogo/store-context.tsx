@@ -404,8 +404,27 @@ export function StoreProvider({
           const banner = extractUrl(d.banner_url);
           const resolve = (u: string | null) => {
             if (!u) return null;
+
+            // Se é URL do Supabase Storage, roteia pelo proxy
+            if (
+              u.includes('supabase.co/storage') ||
+              u.includes('/storage/v1/object')
+            ) {
+              // Extrai o path após '/storage/v1/object/public/' ou usa URL completa
+              const match = u.match(/\/storage\/v1\/object\/public\/(.+)$/);
+              if (match && match[1]) {
+                return `/api/storage-image?path=${encodeURIComponent(match[1])}`;
+              }
+              // Fallback: passa URL completa pro proxy
+              return `/api/storage-image?path=${encodeURIComponent(u)}`;
+            }
+
+            // URLs externas (HTTP/HTTPS não-storage)
             if (u.startsWith('http') || u.startsWith('//')) return u;
+
+            // Paths relativos
             if (u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
+
             return u;
           };
           return {
