@@ -379,7 +379,10 @@ export function EditProductForm({ product }: { product: Product }) {
     images: ensureOptimizedFirst(
       dedupePreferOptimized(
         normalizeAndExplodeImageEntries(
-          product.images || (product.image_url ? [product.image_url] : [])
+          // Prefer migrated fields: gallery_images, then legacy images, then single image_url
+          (product as any).gallery_images ||
+            product.images ||
+            (product.image_url ? [product.image_url] : [])
         ).filter(Boolean)
       )
     ),
@@ -730,13 +733,15 @@ export function EditProductForm({ product }: { product: Product }) {
         // Se o usuário não forneceu imagens no form (ou está vazio), preserve as existentes
         const { data: current } = await supabase
           .from('products')
-          .select('images, reference_code')
+          .select('images, gallery_images, reference_code, image_path')
           .eq('id', product.id)
           .maybeSingle();
 
-        const existing: any[] = (
-          current && Array.isArray(current.images) ? current.images : []
-        ) as any[];
+        // Prefer migrated `gallery_images` when present, otherwise fallback to `images`.
+        const existingRaw: any = current
+          ? (current.gallery_images ?? current.images ?? [])
+          : [];
+        const existing: any[] = Array.isArray(existingRaw) ? existingRaw : [];
 
         // Função auxiliar para gerar uma chave âncora (usa filename base e reference_code quando disponível)
         const anchorKey = (it: any) => {
@@ -810,6 +815,8 @@ export function EditProductForm({ product }: { product: Product }) {
         is_best_seller: formData.is_best_seller,
         // Persist images as objects {url, path} (merged/protected)
         images: mergedImages,
+        // New migrated field: keep gallery_images in sync
+        gallery_images: mergedImages,
         image_url:
           formData.images && formData.images.length > 0
             ? formData.images[0].url || formData.images[0]

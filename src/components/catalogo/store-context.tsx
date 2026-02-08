@@ -349,13 +349,80 @@ export function StoreProvider({
         .select('name, logo_url, banner_url, description')
         .eq('user_id', store.user_id)
         .in('name', brands);
-      if (data)
+      if (data) {
+        const PUBLIC_BASE =
+          typeof window !== 'undefined'
+            ? process.env.NEXT_PUBLIC_APP_URL || ''
+            : process.env.NEXT_PUBLIC_APP_URL || '';
+
+        const extractUrl = (raw: any): string | null => {
+          if (!raw && raw !== '') return null;
+          try {
+            // If it's already an object with common keys
+            if (typeof raw === 'object') {
+              if (raw.publicUrl) return String(raw.publicUrl);
+              if (raw.secureUrl) return String(raw.secureUrl);
+              if (raw.url) return String(raw.url);
+            }
+
+            // If it's a JSON string, try to parse
+            if (typeof raw === 'string') {
+              const s = raw.trim();
+              if (s.startsWith('{') || s.startsWith('[') || s.startsWith('"')) {
+                try {
+                  const parsed = JSON.parse(s);
+                  if (!parsed) return null;
+                  if (Array.isArray(parsed) && parsed.length > 0)
+                    return String(parsed[0]);
+                  if (typeof parsed === 'string') return parsed;
+                  if (parsed.publicUrl) return String(parsed.publicUrl);
+                  if (parsed.secureUrl) return String(parsed.secureUrl);
+                  if (parsed.url) return String(parsed.url);
+                } catch (e) {
+                  // fallthrough to regexp
+                }
+              }
+
+              // Try regex extraction for embedded publicUrl
+              const m = raw.match(/publicUrl"\s*:\s*"(https?:\/\/[^"]+)"/i);
+              if (m && m[1]) return m[1];
+
+              // Plain URL
+              if (/^https?:\/\//i.test(raw)) return raw;
+              // Trim surrounding quotes
+              const trimmed = raw.replace(/^"|"$/g, '');
+              if (/^https?:\/\//i.test(trimmed)) return trimmed;
+            }
+          } catch (e) {
+            // ignore
+          }
+          return null;
+        };
+
+        const normalize = (d: any) => {
+          const logo = extractUrl(d.logo_url);
+          const banner = extractUrl(d.banner_url);
+          const resolve = (u: string | null) => {
+            if (!u) return null;
+            if (u.startsWith('http') || u.startsWith('//')) return u;
+            if (u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
+            return u;
+          };
+          return {
+            name: d.name,
+            logo_url: resolve(logo),
+            banner_url: resolve(banner),
+            description: d.description || null,
+          } as any;
+        };
+
         setBrandsWithLogos(
-          brands.map(
-            (b) =>
-              data.find((d: any) => d.name === b) || { name: b, logo_url: null }
-          )
+          brands.map((b) => {
+            const found = data.find((d: any) => d.name === b);
+            return found ? normalize(found) : { name: b, logo_url: null };
+          })
         );
+      }
     };
     if (brands.length > 0) fetchLogos();
   }, [brands, store.user_id]);

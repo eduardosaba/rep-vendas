@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Home, AlertTriangle } from 'lucide-react';
 
 export default function NotFound() {
   const logoUrl =
@@ -10,7 +9,23 @@ export default function NotFound() {
       <div className="bg-white p-8 sm:p-10 rounded-2xl shadow-xl max-w-lg w-full border border-gray-100">
         <div className="flex flex-col items-center">
           <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-4 text-amber-600 ring-1 ring-amber-50">
-            <AlertTriangle size={36} />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width="36"
+              height="36"
+              fill="currentColor"
+              className="text-amber-600"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4m0 4h.01"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
           </div>
 
           <img src={logoUrl} alt="RepVendas" className="h-10 mb-4" />
@@ -29,7 +44,7 @@ export default function NotFound() {
               href="/dashboard"
               className="inline-flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-all shadow"
             >
-              <Home size={18} /> Voltar ao Início
+              <span aria-hidden>🏠</span> Voltar ao Início
             </Link>
 
             <Link

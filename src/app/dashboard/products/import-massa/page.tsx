@@ -528,24 +528,59 @@ export default function ImportMassaPage() {
         );
       }
 
-      // Verificar quantos produtos JÁ EXISTEM no banco
-      addLog('Verificando produtos existentes no banco...');
+      // Verificar quantos produtos JÁ EXISTEM no banco (busca em chunks para escalabilidade)
+      addLog('Verificando produtos existentes no banco (em chunks)...');
       const allRefCodes = productsToInsert.map((p) => p.reference_code);
-      const { data: existingInDb } = await supabase
-        .from('products')
-        .select('reference_code')
-        .eq('user_id', user.id)
-        .in('reference_code', allRefCodes);
+      const existingRefCodes = new Set<string>();
+      // existingMap armazena dados já conhecidos para evitar buscas adicionais posteriormente
+      const existingMap: Record<
+        string,
+        {
+          id: string;
+          slug?: string;
+          gallery_images?: any;
+          image_path?: string;
+          external_image_url?: string;
+        }
+      > = {};
 
-      const existingRefCodes = new Set(
-        (existingInDb || []).map((p) => p.reference_code)
-      );
+      if (allRefCodes.length > 0) {
+        const chunkSize = 1000; // tamanho do chunk para evitar consultas muito grandes
+        for (let j = 0; j < allRefCodes.length; j += chunkSize) {
+          const chunk = allRefCodes.slice(j, j + chunkSize);
+          const chunkIndex = Math.floor(j / chunkSize) + 1;
+          addLog(
+            `Buscando produtos existentes chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSize, allRefCodes.length)})...`
+          );
+          const { data: existingChunk } = await supabase
+            .from('products')
+            .select(
+              'id,reference_code,slug,gallery_images,image_path,external_image_url'
+            )
+            .eq('user_id', user.id)
+            .in('reference_code', chunk as any[]);
+
+          if (existingChunk && Array.isArray(existingChunk)) {
+            existingChunk.forEach((p: any) => {
+              if (p && p.reference_code) {
+                existingRefCodes.add(p.reference_code);
+                existingMap[p.reference_code] = {
+                  id: p.id,
+                  slug: p.slug,
+                  gallery_images: p.gallery_images,
+                  image_path: p.image_path,
+                  external_image_url: p.external_image_url,
+                };
+              }
+            });
+          }
+        }
+      }
+
       const newProductsCount = productsToInsert.filter(
         (p) => !existingRefCodes.has(p.reference_code)
       ).length;
-      const updateProductsCount = productsToInsert.filter((p) =>
-        existingRefCodes.has(p.reference_code)
-      ).length;
+      const updateProductsCount = productsToInsert.length - newProductsCount;
 
       addLog(
         `📊 Resumo: ${newProductsCount} NOVOS | ${updateProductsCount} ATUALIZAÇÕES`,
@@ -583,24 +618,26 @@ export default function ImportMassaPage() {
 
       // Busca produtos existentes para preservar o `slug` quando já existirem
       const referenceCodesAll = finalBatch.map((p) => p.reference_code);
-      const existingMap: Record<string, { id: string; slug?: string }> = {};
       if (referenceCodesAll.length > 0) {
         addLog(
-          `Buscando ${referenceCodesAll.length} produtos já existentes (em chunks)...`
+          `Buscando ${referenceCodesAll.length} produtos já existentes (em chunks, consultando apenas refs faltantes)...`
         );
-        const chunkSizeExisting = 500; // reduz o tamanho para evitar query muito longa
+        const chunkSizeExisting = 500;
         for (let j = 0; j < referenceCodesAll.length; j += chunkSizeExisting) {
           const chunk = referenceCodesAll.slice(j, j + chunkSizeExisting);
+          // apenas buscar refs que ainda não temos em existingMap
+          const missingChunk = chunk.filter((rc) => !existingMap[rc]);
+          if (missingChunk.length === 0) continue;
           const chunkIndex = Math.floor(j / chunkSizeExisting) + 1;
           addLog(
-            `Buscando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSizeExisting, referenceCodesAll.length)})`
+            `Buscando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSizeExisting, referenceCodesAll.length)}) - ${missingChunk.length} faltantes...`
           );
           const { data: existingProducts, error: existingError } =
             await supabase
               .from('products')
               .select('id,reference_code,slug')
               .eq('user_id', user.id)
-              .in('reference_code', chunk);
+              .in('reference_code', missingChunk as any[]);
 
           if (existingError) {
             addLog(
@@ -613,7 +650,10 @@ export default function ImportMassaPage() {
           if (existingProducts && Array.isArray(existingProducts)) {
             existingProducts.forEach((ep: any) => {
               if (ep && ep.reference_code) {
-                existingMap[ep.reference_code] = { id: ep.id, slug: ep.slug };
+                existingMap[ep.reference_code] = {
+                  id: ep.id,
+                  slug: ep.slug,
+                } as any;
               }
             });
           }

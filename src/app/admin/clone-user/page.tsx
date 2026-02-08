@@ -41,6 +41,18 @@ export default function CloneUserPage() {
     'sale_price',
     'is_active',
   ]);
+  const PROPERTY_OPTIONS: { key: string; label: string }[] = [
+    { key: 'price', label: 'Preço Custo' },
+    { key: 'sale_price', label: 'Preço de Vendas' },
+    { key: 'is_active', label: 'Status Ativo/inativo' },
+    { key: 'is_launch', label: 'Lançamento' },
+    { key: 'is_best_seller', label: 'Best Seller' },
+    { key: 'description', label: 'Descrição' },
+    { key: 'barcode', label: 'Código de barras' },
+    { key: 'technical_specs', label: 'Ficha Técnica' },
+    { key: 'color', label: 'Cor' },
+    { key: 'stock_quantity', label: 'Estoque Quantidade' },
+  ];
   const [brandSearchTerm, setBrandSearchTerm] = useState('');
   const [showOnlyPending, setShowOnlyPending] = useState(false);
   const PAGE_SIZE = 200;
@@ -78,27 +90,97 @@ export default function CloneUserPage() {
         .select('id, full_name, email');
       setUsers(usersData || []);
 
+      // Fetch products grouped by brand but also include owner (user_id)
       const { data: productsData } = await supabase
         .from('products')
-        .select('brand, updated_at')
+        .select('brand, updated_at, user_id')
         .not('brand', 'is', null);
+
+      // Build map: brand -> { countsByUser: { userId: count }, latestByUser: { userId: latestDate } }
+      const brandAgg: Record<
+        string,
+        {
+          countsByUser: Record<string, number>;
+          latestByUser: Record<string, string | null>;
+        }
+      > = {};
+
+      const userIds = new Set<string>();
+      (productsData || []).forEach((p: any) => {
+        const b = p.brand;
+        if (!b) return;
+        const uid = String(p.user_id || '');
+        userIds.add(uid);
+        if (!brandAgg[b]) brandAgg[b] = { countsByUser: {}, latestByUser: {} };
+        brandAgg[b].countsByUser[uid] =
+          (brandAgg[b].countsByUser[uid] || 0) + 1;
+        const u = p.updated_at;
+        const prev = brandAgg[b].latestByUser[uid];
+        if (u && (!prev || new Date(u) > new Date(prev))) {
+          brandAgg[b].latestByUser[uid] = u;
+        }
+      });
+
+      // Fetch profiles for these userIds to detect template users (role === 'template')
+      const ids = Array.from(userIds).filter(Boolean);
+      let profilesById: Record<string, any> = {};
+      if (ids.length > 0) {
+        try {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, role')
+            .in('id', ids as any[]);
+          (profiles || []).forEach((pr: any) => {
+            profilesById[String(pr.id)] = pr;
+          });
+        } catch (e) {
+          // ignore profile lookup failures — fallback behavior below
+        }
+      }
 
       const map: Record<
         string,
         { count: number; latestUpdatedAt: string | null }
       > = {};
-      (productsData || []).forEach((p: any) => {
-        const b = p.brand;
-        if (!b) return;
-        if (!map[b]) map[b] = { count: 0, latestUpdatedAt: null };
-        map[b].count += 1;
-        const u = p.updated_at;
-        if (
-          u &&
-          (!map[b].latestUpdatedAt ||
-            new Date(u) > new Date(map[b].latestUpdatedAt))
-        ) {
-          map[b].latestUpdatedAt = u;
+
+      Object.entries(brandAgg).forEach(([brand, info]) => {
+        const userCounts = info.countsByUser;
+        const userLatest = info.latestByUser;
+
+        // Prefer a template user if present
+        const templateUser = Object.keys(userCounts).find(
+          (uid) => profilesById[uid] && profilesById[uid].role === 'template'
+        );
+
+        let chosenUser = templateUser || null;
+
+        if (!chosenUser) {
+          const owners = Object.keys(userCounts);
+          if (owners.length === 1) chosenUser = owners[0];
+          else if (owners.length > 1) {
+            // Multiple owners: choose the owner with the largest single count (do NOT sum)
+            chosenUser = owners.reduce(
+              (max, uid) =>
+                userCounts[uid] > (userCounts[max] || 0) ? uid : max,
+              owners[0]
+            );
+          }
+        }
+
+        if (chosenUser) {
+          map[brand] = {
+            count: userCounts[chosenUser] || 0,
+            latestUpdatedAt: userLatest[chosenUser] || null,
+          };
+        } else {
+          // No owner (shouldn't happen) — fallback to total count and latest across users
+          const total = Object.values(userCounts).reduce((s, v) => s + v, 0);
+          const latest = Object.values(userLatest).reduce(
+            (best, v) =>
+              !best || (v && new Date(v) > new Date(best)) ? v : best,
+            null as string | null
+          );
+          map[brand] = { count: total, latestUpdatedAt: latest };
         }
       });
 
@@ -723,39 +805,28 @@ export default function CloneUserPage() {
                       master para os clones:
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-                      {[
-                        'price',
-                        'sale_price',
-                        'is_active',
-                        'is_launch',
-                        'is_best_seller',
-                        'description',
-                        'barcode',
-                        'technical_specs',
-                        'color',
-                        'stock_quantity',
-                      ].map((prop) => (
+                      {PROPERTY_OPTIONS.map((opt) => (
                         <label
-                          key={prop}
+                          key={opt.key}
                           className="flex items-center gap-1 text-xs"
                         >
                           <input
                             type="checkbox"
-                            checked={selectedProperties.includes(prop)}
+                            checked={selectedProperties.includes(opt.key)}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setSelectedProperties((prev) => [
                                   ...prev,
-                                  prop,
+                                  opt.key,
                                 ]);
                               } else {
                                 setSelectedProperties((prev) =>
-                                  prev.filter((p) => p !== prop)
+                                  prev.filter((p) => p !== opt.key)
                                 );
                               }
                             }}
                           />
-                          <span>{prop.replace(/_/g, ' ')}</span>
+                          <span>{opt.label}</span>
                         </label>
                       ))}
                     </div>

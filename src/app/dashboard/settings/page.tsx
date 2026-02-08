@@ -137,6 +137,7 @@ export default function SettingsPage() {
   );
   const [shareUploading, setShareUploading] = useState(false);
   const [isActive, setIsActive] = useState<boolean>(true);
+  const [hasPricePassword, setHasPricePassword] = useState(false);
 
   // BARRA DE BENEFÍCIOS (AVANÇADO)
   const [topBenefitImagePreview, setTopBenefitImagePreview] = useState<
@@ -192,6 +193,59 @@ export default function SettingsPage() {
           .maybeSingle();
 
         if (settings) {
+          // utility to extract a URL from various stored shapes
+          // utility to extract a URL from various stored shapes
+          const extractUrl = (raw: any): string | null => {
+            if (raw == null) return null;
+            try {
+              if (typeof raw === 'string') {
+                const s = raw.trim();
+                // JSON string
+                if (
+                  s.startsWith('{') ||
+                  s.startsWith('[') ||
+                  s.startsWith('"')
+                ) {
+                  try {
+                    const parsed = JSON.parse(s);
+                    if (!parsed) return null;
+                    if (typeof parsed === 'string') return parsed;
+                    if (Array.isArray(parsed) && parsed.length > 0)
+                      return String(parsed[0]);
+                    if (parsed.publicUrl) return String(parsed.publicUrl);
+                    if (parsed.secureUrl) return String(parsed.secureUrl);
+                    if (parsed.url) return String(parsed.url);
+                  } catch (e) {
+                    // ignore
+                  }
+                }
+                // regex for embedded publicUrl
+                const m = s.match(/publicUrl"\s*:\s*"(https?:\/\/[^"]+)"/i);
+                if (m && m[1]) return m[1];
+                if (/^https?:\/\//i.test(s)) return s;
+                const trimmed = s.replace(/^\"|\"$/g, '');
+                if (/^https?:\/\//i.test(trimmed)) return trimmed;
+                return null;
+              }
+              if (typeof raw === 'object') {
+                if (raw.publicUrl) return String(raw.publicUrl);
+                if (raw.secureUrl) return String(raw.secureUrl);
+                if (raw.url) return String(raw.url);
+                // if it's an array-like object
+                if (Array.isArray(raw) && raw.length > 0) return String(raw[0]);
+              }
+            } catch (e) {
+              return null;
+            }
+            return null;
+          };
+
+          const normalizeArray = (arr: any): string[] => {
+            if (!arr) return [];
+            if (!Array.isArray(arr)) return [];
+            return arr.map((i) => extractUrl(i)).filter(Boolean) as string[];
+          };
+
           setFormData({
             name: settings.name || '',
             phone: settings.phone || '',
@@ -206,7 +260,7 @@ export default function SettingsPage() {
               settings.header_background_color || '#ffffff',
             footer_background_color:
               settings.footer_background_color || '#0d1b2c',
-            price_password: settings.price_password || '',
+            price_password: '', // never pre-fill plain password
             footer_message: settings.footer_message || '',
             representative_name: settings.representative_name || '',
             whatsapp_message_template: settings.whatsapp_message_template || '',
@@ -228,10 +282,14 @@ export default function SettingsPage() {
             show_sale_price: settings.show_sale_price ?? true,
           });
 
-          setLogoPreview(settings.logo_url);
-          setCurrentBanners(settings.banners || []);
-          setCurrentBannersMobile(settings.banners_mobile || []);
-          setTopBenefitImagePreview(settings.top_benefit_image_url || null);
+          // Normalize logo and banners to be strings (public URLs) to avoid rendering errors
+          const lp = extractUrl(settings.logo_url) || null;
+          setLogoPreview(lp);
+          setCurrentBanners(normalizeArray(settings.banners));
+          setCurrentBannersMobile(normalizeArray(settings.banners_mobile));
+          setTopBenefitImagePreview(
+            extractUrl(settings.top_benefit_image_url) || null
+          );
           setTopBenefitHeight(settings.top_benefit_height || 36);
           setTopBenefitTextSize(settings.top_benefit_text_size || 11);
           setTopBenefitBgColor(settings.top_benefit_bg_color || '#f3f4f6');
@@ -240,12 +298,15 @@ export default function SettingsPage() {
           setTopBenefitImageScale(settings.top_benefit_image_scale || 100);
           setTopBenefitTextAlign(settings.top_benefit_text_align || 'center');
           setTopBenefitImageAlign(settings.top_benefit_image_align || 'left');
-          setOgImagePreview(settings.og_image_url || null);
-          setShareBannerPreview(settings.share_banner_url || null);
+          setOgImagePreview(extractUrl(settings.og_image_url) || null);
+          setShareBannerPreview(extractUrl(settings.share_banner_url) || null);
           setIsActive(settings.is_active ?? true);
+
+          // password: indicate existence of saved password (hash) but do not display it
+          setHasPricePassword(!!settings.price_password_hash);
         }
-      } catch (err) {
-        console.error(err);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
