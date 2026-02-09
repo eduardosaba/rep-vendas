@@ -514,137 +514,67 @@ export default function SettingsPage() {
       if (safeBanners) setCurrentBanners(safeBanners);
       if (safeBannersMobile) setCurrentBannersMobile(safeBannersMobile);
 
-      const { error: settingsError } = await supabase.from('settings').upsert({
-        user_id: user.id,
-        // Dados gerais
-        name: formData.name || '',
-        phone: normalizedPhone,
-        email: normalizedEmail,
-        catalog_slug: formData.catalog_slug || '',
-        font_family: formData.font_family,
-        font_url: formData.font_url,
-        plan_type: formData.plan_type,
-        primary_color: formData.primary_color,
-        secondary_color: formData.secondary_color,
-        header_background_color: formData.header_background_color,
-        footer_background_color: formData.footer_background_color,
+      // 1. Send entire settings payload to server-side endpoint which
+      //    will upsert `settings` and `profiles` and perform the
+      //    `syncPublicCatalog` on the server (atomic and uses service role).
+      const serverPayload = {
+        slug: formData.catalog_slug || null,
+        name: formData.name || null,
+        phone: normalizedPhone || null,
+        email: normalizedEmail || null,
+        primary_color: formData.primary_color || null,
+        secondary_color: formData.secondary_color || null,
+        header_background_color: formData.header_background_color || null,
+        footer_background_color: formData.footer_background_color || null,
         footer_message: formData.footer_message || null,
-        representative_name: formData.representative_name || null,
-        whatsapp_message_template: formData.whatsapp_message_template || null,
-        // Catalog settings
-        show_top_benefit_bar: catalogSettings.show_top_benefit_bar,
-        show_top_info_bar: catalogSettings.show_top_info_bar,
+        banners:
+          safeBanners ??
+          (currentBanners && currentBanners.length ? currentBanners : null),
+        banners_mobile:
+          safeBannersMobile ??
+          (currentBannersMobile && currentBannersMobile.length
+            ? currentBannersMobile
+            : null),
+        logo_url: safeLogo ?? logoPreview ?? null,
+        og_image_url: safeOgImage ?? ogImagePreview ?? null,
+        share_banner_url: safeShareBanner ?? shareBannerPreview ?? null,
+        top_benefit_image_url:
+          safeTopBenefitImage ?? topBenefitImagePreview ?? null,
+        top_benefit_image_fit: topBenefitImageFit ?? 'cover',
+        top_benefit_image_scale: topBenefitImageScale ?? 100,
+        top_benefit_height: topBenefitHeight ?? 36,
+        top_benefit_text_size: topBenefitTextSize ?? 11,
+        top_benefit_bg_color: topBenefitBgColor ?? '#f3f4f6',
+        top_benefit_text_color: topBenefitTextColor ?? '#b9722e',
         top_benefit_text: catalogSettings.top_benefit_text || null,
-        show_installments: catalogSettings.show_installments,
-        max_installments: Number(catalogSettings.max_installments || 12),
-        show_discount_tag: catalogSettings.show_discount_tag,
+        show_top_benefit_bar: catalogSettings.show_top_benefit_bar ?? false,
+        show_top_info_bar: catalogSettings.show_top_info_bar ?? true,
+        show_installments: catalogSettings.show_installments ?? false,
+        max_installments: Number(catalogSettings.max_installments || 1),
+        show_sale_price: catalogSettings.show_sale_price ?? true,
+        show_cost_price: catalogSettings.show_cost_price ?? false,
+        manage_stock: catalogSettings.manage_stock ?? false,
         cash_price_discount_percent: Number(
           catalogSettings.cash_price_discount_percent || 5
         ),
-        manage_stock: catalogSettings.manage_stock,
-        global_allow_backorder: catalogSettings.global_allow_backorder,
-        show_cost_price: catalogSettings.show_cost_price,
-        show_sale_price: catalogSettings.show_sale_price,
-        // Mídias
-        banners: currentBanners,
-        banners_mobile: currentBannersMobile,
-        logo_url: logoPreview,
-        top_benefit_image_url: topBenefitImagePreview,
-        top_benefit_height: topBenefitHeight,
-        top_benefit_text_size: topBenefitTextSize,
-        top_benefit_bg_color: topBenefitBgColor,
-        top_benefit_text_color: topBenefitTextColor,
-        top_benefit_image_fit: topBenefitImageFit,
-        top_benefit_image_scale: topBenefitImageScale,
-        top_benefit_text_align: topBenefitTextAlign,
-        top_benefit_image_align: topBenefitImageAlign,
-        og_image_url: ogImagePreview,
-        share_banner_url: shareBannerPreview,
-        // Estado e segurança
         is_active: isActive,
-        price_password_hash: pricePasswordHash,
-        updated_at: new Date().toISOString(),
-      });
+        font_family: formData.font_family || null,
+        font_url: formData.font_url ?? null,
+        price_password_hash: pricePasswordHash ?? null,
+      };
 
-      if (settingsError) throw settingsError;
-
-      // 2. Salvar telefone em profiles.whatsapp (compatibilidade)
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: user.id,
-        whatsapp: normalizedPhone,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (profileError) throw profileError;
-
-      // 3. Sincronizar com public_catalogs usando API server-side
-      //    (evita problemas de RLS e garante uso do service role)
       if (formData.catalog_slug) {
-        const payload = {
-          user_id: user.id,
-          slug: formData.catalog_slug,
-          is_active: isActive,
-          store_name: formData.name || '',
-          logo_url: safeLogo ?? logoPreview ?? null,
-          primary_color: formData.primary_color,
-          secondary_color: formData.secondary_color,
-          header_background_color: formData.header_background_color,
-          footer_background_color: formData.footer_background_color,
-          footer_message: formData.footer_message || null,
-          phone: normalizedPhone,
-          email: normalizedEmail,
-          font_family: formData.font_family || null,
-          font_url: formData.font_url ?? null,
-          share_banner_url: safeShareBanner ?? shareBannerPreview ?? null,
-          og_image_url: safeOgImage ?? ogImagePreview ?? null,
-          banners:
-            safeBanners && safeBanners.length
-              ? safeBanners
-              : currentBanners && currentBanners.length
-                ? currentBanners
-                : null,
-          banners_mobile:
-            safeBannersMobile && safeBannersMobile.length
-              ? safeBannersMobile
-              : currentBannersMobile && currentBannersMobile.length
-                ? currentBannersMobile
-                : null,
-          top_benefit_image_url:
-            safeTopBenefitImage ?? topBenefitImagePreview ?? null,
-          top_benefit_image_fit: topBenefitImageFit ?? 'cover',
-          top_benefit_image_scale: topBenefitImageScale ?? 100,
-          top_benefit_height: topBenefitHeight ?? 36,
-          top_benefit_text_size: topBenefitTextSize ?? 11,
-          top_benefit_bg_color: topBenefitBgColor ?? '#f3f4f6',
-          top_benefit_text_color: topBenefitTextColor ?? '#b9722e',
-          top_benefit_text: catalogSettings.top_benefit_text || null,
-          show_top_benefit_bar: catalogSettings.show_top_benefit_bar ?? false,
-          show_top_info_bar: catalogSettings.show_top_info_bar ?? true,
-          show_installments: catalogSettings.show_installments ?? false,
-          max_installments: Number(catalogSettings.max_installments || 1),
-          show_sale_price: catalogSettings.show_sale_price ?? true,
-          show_cost_price: catalogSettings.show_cost_price ?? false,
-          enable_stock_management: catalogSettings.manage_stock ?? false,
-          show_cash_discount: catalogSettings.show_discount_tag ?? false,
-          cash_price_discount_percent: Number(
-            catalogSettings.cash_price_discount_percent || 5
-          ),
-          price_password_hash: pricePasswordHash,
-        };
-
-        try {
-          const res = await fetch('/api/public_catalogs/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          const json = await res.json();
-          if (!res.ok)
-            throw new Error(json?.error || 'Erro ao sincronizar catálogo');
-          publicAction = json?.message ? 'updated' : 'updated';
-        } catch (e: any) {
-          throw e;
-        }
+        const res = await fetch('/api/settings/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(serverPayload),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok)
+          throw new Error(
+            json?.error || 'Falha ao salvar configurações no servidor'
+          );
+        publicAction = json?.success ? 'updated' : null;
       }
 
       const baseMsg = 'Configurações aplicadas com sucesso!';

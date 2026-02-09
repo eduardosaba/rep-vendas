@@ -32,6 +32,7 @@ export default function ImportHistoryPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const [typedConfirm, setTypedConfirm] = useState<string>('');
 
   const supabase = createClient();
 
@@ -296,6 +297,17 @@ export default function ImportHistoryPage() {
               Isso apagará <strong>TODOS os produtos</strong> criados nesta
               importação e suas respectivas fotos do storage.
             </p>
+            <div className="mb-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                Para confirmar, digite o ID desta importação:
+              </p>
+              <input
+                value={typedConfirm}
+                onChange={(e) => setTypedConfirm(e.target.value)}
+                placeholder="Digite o ID da importação"
+                className="w-full p-2 border rounded bg-white dark:bg-slate-800 text-sm"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => {
@@ -308,9 +320,12 @@ export default function ImportHistoryPage() {
               </button>
               <button
                 onClick={() =>
-                  selectedImportId && handleUndoImport(selectedImportId)
+                  selectedImportId &&
+                  typedConfirm === selectedImportId &&
+                  handleUndoImport(selectedImportId)
                 }
-                className="py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 active:scale-95 transition-all"
+                disabled={typedConfirm !== selectedImportId}
+                className="py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50"
               >
                 Sim, Reverter
               </button>

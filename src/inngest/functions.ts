@@ -259,9 +259,9 @@ export const cloneCatalog = inngest.createFunction(
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       const { data, error } = await supabase.rpc('clone_catalog_smart', {
-        p_source_user_id: source_user_id,
-        p_target_user_id: target_user_id,
-        p_brands_to_copy: brands || null,
+        source_user_id: source_user_id,
+        target_user_id: target_user_id,
+        brands_to_copy: brands || null,
       });
       if (error) throw error;
       try {

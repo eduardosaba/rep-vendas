@@ -9,7 +9,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 export interface SyncCatalogData {
   slug: string;
   is_active?: boolean; // ADICIONADO: Para resolver o erro de compilação
-  store_name: string;
+  store_name: string | null;
   logo_url?: string;
   primary_color?: string;
   secondary_color?: string;
@@ -18,14 +18,14 @@ export interface SyncCatalogData {
   price_password_hash?: string | null;
   footer_background_color?: string;
   footer_message?: string;
-  show_sale_price?: boolean;
-  show_cost_price?: boolean;
+  show_sale_price?: boolean | null;
+  show_cost_price?: boolean | null;
   header_background_color?: string | null;
   enable_stock_management?: boolean;
   show_installments?: boolean;
-  max_installments?: number;
+  max_installments?: number | null;
   show_cash_discount?: boolean;
-  cash_price_discount_percent?: number;
+  cash_price_discount_percent?: number | null;
   // Top benefit visual metadata
   top_benefit_image_url?: string;
   top_benefit_image_fit?: 'cover' | 'contain';
@@ -540,6 +540,15 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
             .maybeSingle();
           if (bData?.logo_url) {
             insertPayload.single_brand_logo_url = bData.logo_url;
+          } else if (
+            mergedData.single_brand_logo_url ??
+            data.single_brand_logo_url
+          ) {
+            insertPayload.single_brand_logo_url =
+              mergedData.single_brand_logo_url ?? data.single_brand_logo_url;
+          } else if (insertPayload.logo_url) {
+            // Fallback: se não houver logo da marca, use o logo do catálogo (branding)
+            insertPayload.single_brand_logo_url = insertPayload.logo_url;
           } else {
             insertPayload.single_brand_logo_url = null;
           }
@@ -586,17 +595,23 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       );
 
       if (colNames.includes('banners')) {
-        insertPayload.banners = incomingBanners;
+        // Garantir que sempre gravamos um array (vazio quando não houver banners),
+        // isso facilita a renderização no frontend (diferença entre null e []).
+        insertPayload.banners = incomingBanners ?? [];
       } else if (colNames.includes('banner')) {
-        insertPayload.banner = incomingBanners ? incomingBanners[0] : null;
+        insertPayload.banner =
+          incomingBanners && incomingBanners.length > 0
+            ? incomingBanners[0]
+            : null;
       }
 
       if (colNames.includes('banners_mobile')) {
-        insertPayload.banners_mobile = incomingBannersMobile;
+        insertPayload.banners_mobile = incomingBannersMobile ?? [];
       } else if (colNames.includes('banner_mobile')) {
-        insertPayload.banner_mobile = incomingBannersMobile
-          ? incomingBannersMobile[0]
-          : null;
+        insertPayload.banner_mobile =
+          incomingBannersMobile && incomingBannersMobile.length > 0
+            ? incomingBannersMobile[0]
+            : null;
       }
     } catch (e) {
       // best-effort

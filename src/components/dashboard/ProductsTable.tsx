@@ -350,6 +350,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   }>({ field: '', value: '', label: '' });
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [preferSoftDelete, setPreferSoftDelete] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<'mine' | 'all'>('mine');
+  const [typedConfirm, setTypedConfirm] = useState('');
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [priceConfig, setPriceConfig] = useState<{
     mode: 'fixed' | 'percentage';
     value: string;
@@ -357,6 +360,13 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [viewIndex, setViewIndex] = useState(0);
   const [viewImageFailed, setViewImageFailed] = useState(false);
+  useEffect(() => {
+    // Reset image failure and index when changing viewed product or index
+    setViewImageFailed(false);
+    if (viewProduct) {
+      setViewIndex(0);
+    }
+  }, [viewProduct?.id, viewIndex]);
   const touchStartX = useRef<number | null>(null);
   const touchMoved = useRef<boolean>(false);
 
@@ -381,6 +391,27 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       setIsAuthReady(true);
     };
     getUserId();
+  }, [supabase]);
+
+  // Fetch user role for UI decisions (e.g. allow global delete)
+  useEffect(() => {
+    const getRole = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+        setUserRole(profile?.role || null);
+      } catch (e) {
+        // ignore
+      }
+    };
+    getRole();
   }, [supabase]);
 
   const persistRemoteRow = useCallback(
@@ -665,7 +696,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           <ListOrdered size={16} /> <span className="inline">Colunas</span>
         </Button>
         {isColumnDropdownOpen && (
-          <div className="absolute right-0 sm:right-0 left-0 sm:left-auto mt-2 w-full sm:w-72 mx-auto sm:mx-0 max-w-sm sm:max-w-none rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-slate-800 z-50 max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-800">
+          <div className="absolute mt-2 left-2 right-2 sm:left-auto sm:right-0 w-auto sm:w-72 mx-auto sm:mx-0 max-w-[calc(100vw-1rem)] sm:max-w-none rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-slate-800 z-50 max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-800">
             <div className="p-2">
               <div className="flex items-center justify-between px-2 mb-2">
                 <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold">
@@ -788,7 +819,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         </Button>
 
         {isSortDropdownOpen && (
-          <div className="absolute right-0 mt-2 w-56 rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 z-50 border border-gray-200 dark:border-slate-800">
+          <div className="absolute mt-2 left-2 right-2 sm:left-auto sm:right-0 w-auto sm:w-56 max-w-[calc(100vw-1rem)] rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 z-50 border border-gray-200 dark:border-slate-800">
             <div className="p-2">
               <div className="flex items-center justify-between px-2 mb-2">
                 <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold">
@@ -1122,6 +1153,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       const ids = deleteTargetId ? [deleteTargetId] : selectedIds;
       const res: any = await bulkDelete(ids, {
         preferSoft: forceSoft || preferSoftDelete,
+        scope: deleteScope,
       });
       setProducts((prev) =>
         prev
@@ -1607,7 +1639,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               onClick={() => setShowPdfModal(true)}
               variant="secondary"
               size="sm"
-              className={`hidden sm:flex items-center gap-2 px-3`}
+              className={`flex items-center gap-2 px-3`}
             >
               <FileText size={16} />{' '}
               <span className="hidden md:inline">PDF</span>
@@ -2483,14 +2515,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     ? [viewProduct.images]
                     : [];
 
-                // reset failure flag when product or index changes
-                useEffect(() => {
-                  setViewImageFailed(false);
-                }, [viewProduct?.id, viewIndex]);
-                // reset failure flag when product or index changes
-                useEffect(() => {
-                  setViewImageFailed(false);
-                }, [viewProduct?.id, viewIndex]);
+                // (viewImageFailed reset handled at component level)
 
                 const makeSafeUrl = (raw: string | undefined | null) => {
                   if (!raw) return null;
@@ -2787,7 +2812,9 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                     <button
                       key={t}
                       type="button"
-                      onClick={() => setPdfOptions({ ...pdfOptions, coverTemplate: t })}
+                      onClick={() =>
+                        setPdfOptions({ ...pdfOptions, coverTemplate: t })
+                      }
                       className={`px-3 py-1 rounded border ${pdfOptions.coverTemplate === t ? 'bg-[var(--primary)] text-white' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300'}`}
                     >
                       Modelo {t}
@@ -3025,27 +3052,102 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       {/* MODAL DELETE */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-sm w-full text-center border border-gray-200 dark:border-slate-800 shadow-xl">
-            <Trash2 size={40} className="mx-auto text-red-500 mb-4" />
-            <h3 className="text-lg font-bold mb-2 dark:text-white">
-              Tem certeza?
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-              Isso excluirá os itens selecionados.
-            </p>
-            <div className="flex gap-2">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-md w-full text-left border border-gray-200 dark:border-slate-800 shadow-xl">
+            <div className="flex items-center gap-4">
+              <Trash2 size={36} className="text-red-500" />
+              <div>
+                <h3 className="text-lg font-bold dark:text-white">
+                  Excluir itens
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  Escolha o escopo e confirme a ação.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-sm font-medium mb-2 block">
+                Escopo da exclusão
+              </label>
+              <div className="flex flex-col gap-2">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="deleteScope"
+                    value="mine"
+                    checked={deleteScope === 'mine'}
+                    onChange={() => setDeleteScope('mine')}
+                  />
+                  <span className="text-sm">
+                    Excluir apenas produtos do usuário autenticado
+                  </span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="deleteScope"
+                    value="all"
+                    checked={deleteScope === 'all'}
+                    onChange={() => setDeleteScope('all')}
+                    disabled={userRole !== 'master'}
+                  />
+                  <span className="text-sm">
+                    Excluir de todos os usuários (apenas admin/master)
+                  </span>
+                </label>
+                {userRole !== 'master' && (
+                  <div className="text-xs text-gray-500">
+                    Você não tem permissão para excluir globalmente.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-sm font-medium">Confirmação</label>
+              <p className="text-xs text-gray-500 mb-2">
+                Digite <strong>DELETE</strong> para habilitar o botão de
+                exclusão.
+              </p>
+              <input
+                value={typedConfirm}
+                onChange={(e) => setTypedConfirm(e.target.value)}
+                placeholder="Digite DELETE para confirmar"
+                className="w-full p-2 border rounded dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 mt-6">
               <button
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 p-2 border border-gray-200 dark:border-slate-700 rounded dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setTypedConfirm('');
+                }}
+                className="px-3 py-2 border rounded bg-gray-50 dark:bg-slate-800"
               >
                 Cancelar
               </button>
-              <button
-                onClick={() => executeDelete()}
-                className="flex-1 p-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Excluir
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={preferSoftDelete}
+                    onChange={() => setPreferSoftDelete((s) => !s)}
+                  />
+                  Preferir inativação (soft-delete)
+                </label>
+                <button
+                  onClick={() => executeDelete()}
+                  disabled={
+                    typedConfirm !== 'DELETE' ||
+                    (deleteScope === 'all' && userRole !== 'master') ||
+                    isProcessing
+                  }
+                  className={`px-4 py-2 rounded text-white ${typedConfirm === 'DELETE' && !(deleteScope === 'all' && userRole !== 'master') ? 'bg-red-600 hover:bg-red-700' : 'bg-red-300 cursor-not-allowed'}`}
+                >
+                  {isProcessing ? 'Processando...' : 'Excluir'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

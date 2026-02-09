@@ -142,26 +142,9 @@ export function StoreBanners() {
   }, []);
 
   const activeBanners = useMemo(() => {
-    // If a brand is selected, prefer its banner (full-width catalog banner)
-    const activeBrandName = Array.isArray(selectedBrand)
-      ? selectedBrand[0]
-      : selectedBrand;
-    if (activeBrandName && activeBrandName !== 'all') {
-      const brandObj = brandsWithLogos.find(
-        (b) =>
-          String(b.name).toLowerCase() === String(activeBrandName).toLowerCase()
-      );
-      if (brandObj) {
-        // Prefer mobile-specific banner when on mobile
-        if (isMobile && (brandObj as any).banner_mobile) {
-          return [(brandObj as any).banner_mobile];
-        }
-        if (brandObj.banner_url) {
-          return [brandObj.banner_url];
-        }
-      }
-    }
-
+    // Always prefer the global/store banners configured in Settings.
+    // Brand-specific banner is rendered by `BrandHeader` when a brand is
+    // selected to avoid duplicating the same banner twice on the page.
     const hasMobileBanners =
       store.banners_mobile && store.banners_mobile.length > 0;
     return isMobile && hasMobileBanners ? store.banners_mobile : store.banners;

@@ -30,6 +30,7 @@ export default function CuradoriaPage() {
   const [propagateModalOpen, setPropagateModalOpen] = useState(false);
   const [propagateProductId, setPropagateProductId] = useState('');
   const [propagateSubmitting, setPropagateSubmitting] = useState(false);
+  const [propagateTypedConfirm, setPropagateTypedConfirm] = useState('');
   const [callerRole, setCallerRole] = useState<string | null>(null);
   const router = useRouter();
 
@@ -196,6 +197,10 @@ export default function CuradoriaPage() {
   async function propagateConfirm() {
     if (!propagateProductId)
       return toast.error('Cole o ID do produto template');
+    if (propagateTypedConfirm !== propagateProductId)
+      return toast.error(
+        'Confirmação incorreta — digite o ID exato para confirmar'
+      );
     setPropagateSubmitting(true);
     try {
       const promise = (async () => {
@@ -274,6 +279,12 @@ export default function CuradoriaPage() {
                   placeholder="ID do produto template"
                   className="w-full p-2 border rounded mb-4 bg-gray-50 dark:bg-slate-800"
                 />
+                <input
+                  value={propagateTypedConfirm}
+                  onChange={(e) => setPropagateTypedConfirm(e.target.value)}
+                  placeholder="Digite o ID acima para confirmar"
+                  className="w-full p-2 border rounded mb-4 bg-white dark:bg-slate-800 text-sm"
+                />
                 <div className="flex justify-end gap-2">
                   <button
                     className="px-3 py-2 rounded bg-gray-100"
@@ -283,9 +294,12 @@ export default function CuradoriaPage() {
                     Cancelar
                   </button>
                   <button
-                    className="px-3 py-2 rounded bg-red-600 text-white"
+                    className="px-3 py-2 rounded bg-red-600 text-white disabled:opacity-50"
                     onClick={propagateConfirm}
-                    disabled={propagateSubmitting}
+                    disabled={
+                      propagateSubmitting ||
+                      propagateTypedConfirm !== propagateProductId
+                    }
                   >
                     {propagateSubmitting ? (
                       <span className="inline-flex items-center">

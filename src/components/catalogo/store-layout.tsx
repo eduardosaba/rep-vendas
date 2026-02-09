@@ -1115,10 +1115,10 @@ export function StoreFooter() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => router.push('/login')}
+                  onClick={() => router.push('/dashboard')}
                   className="!p-0 !h-auto text-white hover:text-[var(--primary)] hover:bg-transparent justify-start font-normal"
                 >
-                  Área do Vendedor
+                  Área do Representante
                 </Button>
               </li>
             </ul>
@@ -1344,8 +1344,8 @@ function CarouselBrands({
                     }
                   />
                 )}
-                {/* Mostrar nome quando em desktop OU quando não há logo no mobile */}
-                {(!isMobile || !brand.logo_url) && (
+                {/* Mostrar nome somente em desktop; no mobile mostrar apenas a logomarca */}
+                {!isMobile && (
                   <span
                     className={`text-xs font-bold whitespace-nowrap ${!active ? 'group-hover:text-[var(--primary)]' : ''}`}
                   >

@@ -59,7 +59,7 @@ export async function bulkUpdatePrice(
 // Exclusão em Massa
 export async function bulkDelete(
   ids: string[],
-  opts?: { preferSoft?: boolean }
+  opts?: { preferSoft?: boolean; scope?: 'mine' | 'all' }
 ) {
   const supabase = await createClient();
 
@@ -186,74 +186,178 @@ export async function bulkDelete(
       { global: { fetch } }
     );
 
-    if (opts?.preferSoft) {
-      // prefer soft-delete: update is_active = false in chunks
+    if (opts?.scope === 'mine') {
+      // Master requested to delete only their own items: use normal client and restrict by user_id
       for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
-        const { data: upData, error: upErr } = await supabaseAdmin
-          .from('products')
-          .update({ is_active: false })
-          .in('id', chunk)
-          .select('id');
-        if (upErr) throw upErr;
-        if (Array.isArray(upData))
-          (upData as any[]).forEach(
-            (r: any) => r?.id && softDeletedIds.push(r.id)
-          );
+        if (opts?.preferSoft) {
+          const { data: upData, error: upErr } = await supabase
+            .from('products')
+            .update({ is_active: false })
+            .in('id', chunk)
+            .eq('user_id', user.id)
+            .select('id');
+          if (upErr) throw upErr;
+          if (Array.isArray(upData))
+            (upData as any[]).forEach(
+              (r: any) => r?.id && softDeletedIds.push(r.id)
+            );
+        } else {
+          await runDeleteChunk(supabase, chunk, {
+            field: 'user_id',
+            value: user.id,
+          });
+        }
+      }
+    } else if (opts?.scope === 'all') {
+      // master deleting globally
+      if (opts?.preferSoft) {
+        // prefer soft-delete globally
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          const { data: upData, error: upErr } = await supabaseAdmin
+            .from('products')
+            .update({ is_active: false })
+            .in('id', chunk)
+            .select('id');
+          if (upErr) throw upErr;
+          if (Array.isArray(upData))
+            (upData as any[]).forEach(
+              (r: any) => r?.id && softDeletedIds.push(r.id)
+            );
+        }
+      } else {
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+
+          // Antes de deletar os registros, removemos arquivos do Storage
+          try {
+            const { data: imgs } = await supabaseAdmin
+              .from('products')
+              .select('id, image_path, images')
+              .in('id', chunk);
+
+            const pathsToDelete: string[] = [];
+            (imgs || []).forEach((p: any) => {
+              if (p?.image_path)
+                pathsToDelete.push(String(p.image_path).replace(/^\//, ''));
+              if (p?.images && Array.isArray(p.images)) {
+                p.images.forEach((img: any) => {
+                  if (!img) return;
+                  if (
+                    typeof img === 'string' &&
+                    img.includes('/product-images/')
+                  ) {
+                    pathsToDelete.push(img.split('/product-images/')[1]);
+                  } else if (
+                    typeof img === 'string' &&
+                    !img.startsWith('http')
+                  ) {
+                    pathsToDelete.push(String(img).replace(/^\//, ''));
+                  }
+                });
+              }
+            });
+
+            const uniquePaths = Array.from(new Set(pathsToDelete)).filter(
+              Boolean
+            );
+            if (uniquePaths.length > 0) {
+              const { error: rmErr } = await supabaseAdmin.storage
+                .from('product-images')
+                .remove(uniquePaths);
+              if (rmErr) {
+                console.error('[bulkDelete] storage remove error', rmErr);
+                // Abort deletion to avoid DB inconsistency when files couldn't be removed
+                throw new Error(
+                  rmErr?.message || 'storage_remove_failed_for_product_images'
+                );
+              }
+            }
+          } catch (e) {
+            console.error(
+              '[bulkDelete] failed to fetch image paths before delete',
+              e
+            );
+          }
+
+          await runDeleteChunk(supabaseAdmin, chunk);
+        }
       }
     } else {
-      for (let i = 0; i < ids.length; i += chunkSize) {
-        const chunk = ids.slice(i, i + chunkSize);
-
-        // Antes de deletar os registros, removemos arquivos do Storage
-        try {
-          const { data: imgs } = await supabaseAdmin
+      // default master behavior: global delete (backwards compatible)
+      if (opts?.preferSoft) {
+        // prefer soft-delete: update is_active = false in chunks
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          const { data: upData, error: upErr } = await supabaseAdmin
             .from('products')
-            .select('id, image_path, images')
-            .in('id', chunk);
-
-          const pathsToDelete: string[] = [];
-          (imgs || []).forEach((p: any) => {
-            if (p?.image_path)
-              pathsToDelete.push(String(p.image_path).replace(/^\//, ''));
-            if (p?.images && Array.isArray(p.images)) {
-              p.images.forEach((img: any) => {
-                if (!img) return;
-                if (
-                  typeof img === 'string' &&
-                  img.includes('/product-images/')
-                ) {
-                  pathsToDelete.push(img.split('/product-images/')[1]);
-                } else if (typeof img === 'string' && !img.startsWith('http')) {
-                  pathsToDelete.push(String(img).replace(/^\//, ''));
-                }
-              });
-            }
-          });
-
-          const uniquePaths = Array.from(new Set(pathsToDelete)).filter(
-            Boolean
-          );
-          if (uniquePaths.length > 0) {
-            const { error: rmErr } = await supabaseAdmin.storage
-              .from('product-images')
-              .remove(uniquePaths);
-            if (rmErr) {
-              console.error('[bulkDelete] storage remove error', rmErr);
-              // Abort deletion to avoid DB inconsistency when files couldn't be removed
-              throw new Error(
-                rmErr?.message || 'storage_remove_failed_for_product_images'
-              );
-            }
-          }
-        } catch (e) {
-          console.error(
-            '[bulkDelete] failed to fetch image paths before delete',
-            e
-          );
+            .update({ is_active: false })
+            .in('id', chunk)
+            .select('id');
+          if (upErr) throw upErr;
+          if (Array.isArray(upData))
+            (upData as any[]).forEach(
+              (r: any) => r?.id && softDeletedIds.push(r.id)
+            );
         }
+      } else {
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
 
-        await runDeleteChunk(supabaseAdmin, chunk);
+          // Antes de deletar os registros, removemos arquivos do Storage
+          try {
+            const { data: imgs } = await supabaseAdmin
+              .from('products')
+              .select('id, image_path, images')
+              .in('id', chunk);
+
+            const pathsToDelete: string[] = [];
+            (imgs || []).forEach((p: any) => {
+              if (p?.image_path)
+                pathsToDelete.push(String(p.image_path).replace(/^\//, ''));
+              if (p?.images && Array.isArray(p.images)) {
+                p.images.forEach((img: any) => {
+                  if (!img) return;
+                  if (
+                    typeof img === 'string' &&
+                    img.includes('/product-images/')
+                  ) {
+                    pathsToDelete.push(img.split('/product-images/')[1]);
+                  } else if (
+                    typeof img === 'string' &&
+                    !img.startsWith('http')
+                  ) {
+                    pathsToDelete.push(String(img).replace(/^\//, ''));
+                  }
+                });
+              }
+            });
+
+            const uniquePaths = Array.from(new Set(pathsToDelete)).filter(
+              Boolean
+            );
+            if (uniquePaths.length > 0) {
+              const { error: rmErr } = await supabaseAdmin.storage
+                .from('product-images')
+                .remove(uniquePaths);
+              if (rmErr) {
+                console.error('[bulkDelete] storage remove error', rmErr);
+                // Abort deletion to avoid DB inconsistency when files couldn't be removed
+                throw new Error(
+                  rmErr?.message || 'storage_remove_failed_for_product_images'
+                );
+              }
+            }
+          } catch (e) {
+            console.error(
+              '[bulkDelete] failed to fetch image paths before delete',
+              e
+            );
+          }
+
+          await runDeleteChunk(supabaseAdmin, chunk);
+        }
       }
     }
   } else {
