@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         typeof show_sale_price === 'boolean' ? show_sale_price : null,
       show_cost_price:
         typeof show_cost_price === 'boolean' ? show_cost_price : null,
-      manage_stock: !!manage_stock,
+      enable_stock_management: !!manage_stock,
       global_allow_backorder: !!global_allow_backorder,
       cash_price_discount_percent: cash_price_discount_percent
         ? Number(cash_price_discount_percent)
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
             typeof show_sale_price === 'boolean' ? show_sale_price : null,
           show_cost_price:
             typeof show_cost_price === 'boolean' ? show_cost_price : null,
-          manage_stock: !!manage_stock,
+          enable_stock_management: !!manage_stock,
           cash_price_discount_percent: cash_price_discount_percent
             ? Number(cash_price_discount_percent)
             : null,

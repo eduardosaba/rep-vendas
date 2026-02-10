@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { targetUserId, brands, properties } = body;
+    const { targetUserId, brands, properties, dryRun } = body;
 
     // Default properties if not specified
     const propsToSync = properties || [
@@ -26,7 +26,54 @@ export async function POST(req: Request) {
       'description',
     ];
 
-    // Call SQL function to sync properties
+    if (dryRun) {
+      // Compute affected clones without applying changes
+      // 1) fetch catalog_clones for this source user (and optional target filter)
+      const { data: clones, error: clonesErr } = await supabase
+        .from('catalog_clones')
+        .select('source_product_id, cloned_product_id, target_user_id')
+        .eq('source_user_id', user.id)
+        .maybeSingle();
+
+      // Note: .maybeSingle above returns single row when using maybeSingle; but we want array
+      // Adjust: redo select without maybeSingle
+      const { data: clonesArr, error: clonesErr2 } = await supabase
+        .from('catalog_clones')
+        .select('source_product_id, cloned_product_id, target_user_id')
+        .eq('source_user_id', user.id);
+
+      if (clonesErr2) throw clonesErr2;
+
+      let filtered = clonesArr || [];
+
+      if (targetUserId) {
+        filtered = filtered.filter((c: any) => String(c.target_user_id) === String(targetUserId));
+      }
+
+      // If brands filter present, fetch source products and filter by brand
+      if (brands && Array.isArray(brands) && brands.length > 0) {
+        const srcIds = Array.from(new Set(filtered.map((c: any) => c.source_product_id).filter(Boolean)));
+        if (srcIds.length > 0) {
+          const { data: srcProds } = await supabase.from('products').select('id,brand').in('id', srcIds);
+          const allowed = new Set((srcProds || []).filter((p: any) => brands.includes(p.brand)).map((p: any) => String(p.id)));
+          filtered = filtered.filter((c: any) => allowed.has(String(c.source_product_id)));
+        } else {
+          filtered = [];
+        }
+      }
+
+      const updatedProducts = filtered.length;
+      const affectedUsers = new Set((filtered || []).map((c: any) => String(c.target_user_id))).size;
+
+      return NextResponse.json({
+        success: true,
+        updatedProducts,
+        affectedUsers,
+        message: `${updatedProducts} produtos seriam atualizados em ${affectedUsers} usuário(s)`,
+      });
+    }
+
+    // Call SQL function to sync properties (apply)
     const { data, error } = await supabase.rpc(
       'sync_product_properties_to_clones',
       {

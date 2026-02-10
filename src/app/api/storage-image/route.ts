@@ -13,6 +13,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing path' }, { status: 400 });
   }
 
+  // Early validation: reject obviously-bad values fast to avoid cascading timeouts
+  const lower = filePath.toLowerCase?.() || '';
+  const invalidInputs = ['undefined', 'null', 'none', 'n/a', ''];
+  if (invalidInputs.includes(lower) || filePath.length < 5) {
+    console.warn('[storage-image] short-circuit invalid path:', filePath);
+    return returnPlaceholderSvg('INVALID PATH', 404, {
+      'Cache-Control': 'public, max-age=60',
+    });
+  }
+
   // 1. Configurações do Supabase (Server-side)
   const SUPA = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,13 +48,105 @@ export async function GET(request: Request) {
   try {
     const supabase = createClient(SUPA, SERVICE_KEY);
 
-    // 3. Download do arquivo do Storage
-    const { data: downloadData, error: dlError } = await supabase.storage
-      .from(effectiveBucket)
-      .download(effectivePath);
+    // 3. Download do arquivo do Storage (com tentativas de fallback mais robustas)
+    let downloadData: any = null;
+    let dlError: any = null;
+
+    // Timeout curto configurável (ms)
+    const DOWNLOAD_TIMEOUT =
+      Number(process.env.STORAGE_IMAGE_TIMEOUT_MS) || 4000;
+
+    // Use signed URL + fetch with AbortController so we can enforce a timeout
+    const attemptDownload = async (bucket: string, path: string) => {
+      try {
+        const { data: signed, error: signErr } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, 60);
+        if (signErr || !signed?.signedUrl) {
+          return { data: null, error: signErr || new Error('no signed url') };
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(
+          () => controller.abort(),
+          DOWNLOAD_TIMEOUT
+        );
+        try {
+          const fetchRes = await fetch(signed.signedUrl, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          if (!fetchRes.ok) {
+            return {
+              data: null,
+              error: new Error(`fetch failed ${fetchRes.status}`),
+            };
+          }
+          const arrayBuffer = await fetchRes.arrayBuffer();
+          // normalize shape to supabase.download-like return
+          return { data: { arrayBuffer: () => arrayBuffer }, error: null };
+        } catch (e) {
+          clearTimeout(timeoutId);
+          return { data: null, error: e };
+        }
+      } catch (e) {
+        return { data: null, error: e };
+      }
+    };
+
+    // Construir candidatos de buckets e paths para tentar cobrir formatos divergentes
+    const candidateBuckets = Array.from(
+      new Set([effectiveBucket, 'product-images'])
+    );
+    const candidatePaths = Array.from(
+      new Set([
+        effectivePath,
+        effectivePath.replace(/^public\//, ''),
+        effectivePath.replace(/^product-images\//, ''),
+        effectivePath.replace(/^product-images\/public\//, ''),
+        effectivePath.replace('/public/', '/'),
+        `public/${effectivePath}`,
+      ])
+    );
+
+    // try candidates but with early bailouts and diagnostic logging
+    console.debug('[storage-image] download candidates', {
+      requested: filePath,
+      effectiveBucket,
+      candidateBuckets,
+      candidatePaths,
+      timeoutMs: DOWNLOAD_TIMEOUT,
+    });
+
+    for (const b of candidateBuckets) {
+      for (const p of candidatePaths) {
+        const { data, error } = await attemptDownload(b, p);
+        if (data && !error) {
+          downloadData = data;
+          dlError = null;
+          effectiveBucket = b;
+          effectivePath = p;
+          break;
+        }
+        dlError = error || dlError;
+        // log short info for each failed candidate when debug=1
+        if (debug === '1') {
+          console.warn('[storage-image] candidate failed', {
+            bucket: b,
+            path: p,
+            error: String((error as any)?.message ?? error),
+          });
+        }
+      }
+      if (downloadData) break;
+    }
 
     if (dlError || !downloadData) {
-      console.error('[storage-image] 404 ou Erro:', dlError);
+      console.error('[storage-image] 404 ou Erro:', {
+        requested: filePath,
+        lastTried: { bucket: effectiveBucket, path: effectivePath },
+        error: dlError,
+      });
       if (debug === '1') {
         return NextResponse.json(
           {
@@ -56,7 +158,9 @@ export async function GET(request: Request) {
           { status: 404 }
         );
       }
-      return returnPlaceholderSvg(effectivePath, 404);
+      return returnPlaceholderSvg(effectivePath, 404, {
+        'Cache-Control': 'public, max-age=60',
+      });
     }
 
     // 4. Processamento do Buffer
@@ -102,15 +206,21 @@ export async function GET(request: Request) {
       },
     });
   } catch (err: any) {
-    console.error('[storage-image] Erro Crítico:', err?.message);
-    return returnPlaceholderSvg('Erro interno', 500);
+    console.error('[storage-image] Erro Crítico:', err?.message, err);
+    return returnPlaceholderSvg('Erro interno', 500, {
+      'Cache-Control': 'public, max-age=60',
+    });
   }
 }
 
 /**
  * Retorna um SVG amigável em caso de erro para não quebrar o layout da tabela.
  */
-function returnPlaceholderSvg(message: string, status: number) {
+function returnPlaceholderSvg(
+  message: string,
+  status: number,
+  extraHeaders?: Record<string, string>
+) {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
       <rect width="100%" height="100%" fill="#f8fafc" />
@@ -123,8 +233,17 @@ function returnPlaceholderSvg(message: string, status: number) {
     </svg>
   `.trim();
 
+  const headers: Record<string, string> = Object.assign(
+    {
+      'Content-Type': 'image/svg+xml',
+      // cache curto para placeholders: evita repetição de fetchs pesados
+      'Cache-Control': 'public, max-age=60',
+    },
+    extraHeaders || {}
+  );
+
   return new NextResponse(svg, {
     status,
-    headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-cache' },
+    headers,
   });
 }

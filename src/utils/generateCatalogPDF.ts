@@ -213,6 +213,16 @@ const detectImageFormat = (dataUrl: string) => {
   }
 };
 
+// --- FUNÇÃO AUXILIAR: HEX -> RGB ARRAY ---
+const hexToRgbArray = (hex: string): [number, number, number] => {
+  const h = hex.replace('#', '').padEnd(6, '0');
+  return [
+    parseInt(h.substring(0, 2), 16) || 0,
+    parseInt(h.substring(2, 4), 16) || 0,
+    parseInt(h.substring(4, 6), 16) || 0,
+  ];
+};
+
 const compositeOnWhite = async (
   img: ProcessedImage
 ): Promise<ProcessedImage> => {
@@ -429,172 +439,76 @@ export const generateCatalogPDF = async (
   }
 
   await Promise.all(promises);
+  await Promise.all(promises);
 
-  // --- RESTANTE DO CÓDIGO DE DESENHO DO PDF (MANTIDO) ---
-  // [O código da Capa e Miolo continua igual ao que você já tem...]
+  // --- RESTANTE DO CÓDIGO DE DESENHO DO PDF ---
+  const pageW = 210;
+  const pageH = 297;
 
-  // (Início do desenho da capa para garantir que o arquivo esteja fechado corretamente)
-  let secondaryColor = [13, 27, 44];
-  if (options.secondaryColor) {
-    const hex = options.secondaryColor.replace('#', '');
-    secondaryColor = [
-      parseInt(hex.substr(0, 2), 16),
-      parseInt(hex.substr(2, 2), 16),
-      parseInt(hex.substr(4, 2), 16),
-    ];
-  }
+  const primaryRGB = options.primaryColor
+    ? hexToRgbArray(options.primaryColor)
+    : [31, 111, 235];
+  const secondaryRGB = options.secondaryColor
+    ? hexToRgbArray(options.secondaryColor)
+    : [13, 27, 44];
 
-  // Use primaryColor for cover/background when provided, fallback to secondaryColor
-  let coverColor = secondaryColor;
-  if (options.primaryColor) {
-    try {
-      const ph = options.primaryColor.replace('#', '');
-      coverColor = [
-        parseInt(ph.substr(0, 2), 16),
-        parseInt(ph.substr(2, 2), 16),
-        parseInt(ph.substr(4, 2), 16),
-      ];
-    } catch {}
-  }
+  // 1) CAPA ESTILO REVISTA (PRIMÁRIA + BARRA LATERAL)
+  doc.setFillColor(secondaryRGB[0], secondaryRGB[1], secondaryRGB[2]);
+  doc.rect(0, 0, pageW, pageH, 'F');
 
-  // Desenho da capa: suporta múltiplos templates (1,2,3)
-  // Prepara cor primária em RGB
-  let primaryRgb = coverColor;
-  if (options.primaryColor) {
-    try {
-      const ph = options.primaryColor.replace('#', '');
-      primaryRgb = [
-        parseInt(ph.substr(0, 2), 16),
-        parseInt(ph.substr(2, 2), 16),
-        parseInt(ph.substr(4, 2), 16),
-      ];
-    } catch {}
-  }
+  // Barra lateral fina com cor primária
+  doc.setFillColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
+  doc.rect(0, 0, 6, pageH, 'F');
 
-  const tpl = options.coverTemplate || 1;
+  let currentY = 50;
 
-  if (tpl === 1) {
-    // Template 1: fundo colorido (primary/cover) com logo centralizada e título
-    doc.setFillColor(coverColor[0], coverColor[1], coverColor[2]);
-    doc.rect(0, 0, 210, 297, 'F');
-    doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(0.5);
-    doc.rect(10, 10, 190, 277);
+  // Logo centralizada (prefere brandCoverData, fallback storeLogoData)
+  if (brandCoverData || storeLogoData) {
+    const logo = (brandCoverData || storeLogoData) as unknown as ProcessedImage;       
+    const maxW = 80;
+    const drawW = Math.min(maxW, logo.width);
+    const drawH = drawW / logo.ratio;
+    const x = (pageW - drawW) / 2;
 
-    let yPos = 80;
-    if (brandCoverData) {
-      const coverData = brandCoverData as ProcessedImage;
-      const maxW = 100;
-      const maxH = 60;
-      let w = maxW;
-      let h = w / coverData.ratio;
-      if (h > maxH) {
-        h = maxH;
-        w = h * coverData.ratio;
-      }
-      const x = (210 - w) / 2;
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(x - 10, yPos - 10, w + 20, h + 20, 2, 2, 'F');
-      doc.addImage(
-        coverData.base64,
-        detectImageFormat(coverData.base64),
-        x,
-        yPos,
-        w,
-        h
-      );
-      yPos += h + 40;
-    }
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(32);
-    doc.setFont('helvetica', 'bold');
-    doc.text(options.title.toUpperCase(), 105, yPos, { align: 'center' });
-
-    yPos += 15;
-    if (options.storeName) {
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(200, 200, 200);
-      doc.text(`Representante: ${options.storeName}`, 105, yPos, {
-        align: 'center',
-      });
-    }
-  } else if (tpl === 2) {
-    // Template 2: layout dividido - esquerda para título, direita para imagem
+    // Moldura sutil
     doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, 210, 297, 'F');
-
-    // faixa primária esquerda
-    doc.setFillColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
-    doc.rect(10, 30, 100, 237, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(28);
-    doc.setFont('helvetica', 'bold');
-    doc.text(options.title.toUpperCase(), 20, 80, { maxWidth: 90 });
-
-    if (brandCoverData) {
-      const coverData = brandCoverData as ProcessedImage;
-      const maxW = 90;
-      const maxH = 250;
-      let w = maxW;
-      let h = w / coverData.ratio;
-      if (h > maxH) {
-        h = maxH;
-        w = h * coverData.ratio;
-      }
-      const x = 210 - 10 - w;
-      const y = (297 - h) / 2;
-      doc.addImage(
-        coverData.base64,
-        detectImageFormat(coverData.base64),
-        x,
-        y,
-        w,
-        h
-      );
-    }
-  } else {
-    // Template 3: banda diagonal ou retângulo primário com título destacado
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, 210, 297, 'F');
-
-    // retângulo central em primary
-    doc.setFillColor(primaryRgb[0], primaryRgb[1], primaryRgb[2]);
-    const bandH = 80;
-    const bandY = 297 / 2 - bandH / 2;
-    doc.roundedRect(10, bandY, 190, bandH, 4, 4, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(30);
-    doc.setFont('helvetica', 'bold');
-    doc.text(options.title.toUpperCase(), 105, bandY + bandH / 2 + 8, { align: 'center' });
-
-    if (brandCoverData) {
-      const coverData = brandCoverData as ProcessedImage;
-      const maxW = 60;
-      const maxH = 60;
-      let w = maxW;
-      let h = w / coverData.ratio;
-      if (h > maxH) {
-        h = maxH;
-        w = h * coverData.ratio;
-      }
-      const x = 20;
-      const y = 20;
-      doc.addImage(
-        coverData.base64,
-        detectImageFormat(coverData.base64),
-        x,
-        y,
-        w,
-        h
-      );
-    }
+    doc.setGState && doc.setGState({ opacity: 0.05 } as any);
+    try {
+      doc.roundedRect(x - 5, currentY - 5, drawW + 10, drawH + 10, 3, 3, 'F');
+    } catch {}
+    // reset opacity not strictly necessary
+    doc.addImage(logo.base64, detectImageFormat(logo.base64), x, currentY, drawW, drawH);
+    currentY += drawH + 30;
   }
 
-  // MIOLO E TABELA
+  // Título
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(42);
+  const splitTitle = doc.splitTextToSize(options.title.toUpperCase(), 160);
+  doc.text(splitTitle, pageW / 2, currentY, { align: 'center' });
+
+  // Linha decorativa
+  currentY += 20;
+  doc.setDrawColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
+  doc.setLineWidth(1.5);
+  doc.line(pageW / 2 - 15, currentY, pageW / 2 + 15, currentY);
+
+  // Rodapé da capa com informações do representante
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(200, 200, 200);
+  doc.text('REPRESENTANTE OFICIAL', pageW / 2, pageH - 45, { align: 'center' });
+
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.text(options.storeName || '', pageW / 2, pageH - 35, { align: 'center' });
+
+  doc.setFontSize(10);
+  doc.setTextColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
+  doc.text('EDIÇÃO DIGITAL 2026', pageW / 2, pageH - 20, { align: 'center', charSpace: 2 });
+
+  // Avança para o miolo
   doc.addPage();
   const tableHead = [['FOTO', 'DETALHES']];
   if (options.showPrices) tableHead[0].push('PREÇO');
@@ -618,20 +532,31 @@ export const generateCatalogPDF = async (
     return row;
   });
 
+  // Cabeçalho das páginas internas
+  const drawHeader = (data: any) => {
+    doc.setFillColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
+    doc.rect(0, 0, pageW, 15, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text(options.title.toUpperCase(), 10, 10);
+    doc.text(options.storeName || '', pageW - 10, 10, { align: 'right' });
+  };
+
   autoTable(doc as jsPDF & { autoTable?: unknown }, {
-    startY: 15,
-    margin: { top: 15, bottom: 20 },
+    startY: 20,
+    margin: { top: 25, bottom: 20 },
     rowPageBreak: 'avoid',
     head: tableHead,
     body: tableBody,
     theme: 'grid',
-    headStyles: { fillColor: [13, 27, 44], textColor: 255, fontStyle: 'bold' },
+    headStyles: { fillColor: [secondaryRGB[0], secondaryRGB[1], secondaryRGB[2]], textColor: 255, fontStyle: 'bold' },
     bodyStyles: { minCellHeight: cellHeight, valign: 'middle' },
     columnStyles: {
       0: { cellWidth: cellWidth },
       1: { cellWidth: 'auto' },
       2: { halign: 'right', fontStyle: 'bold', textColor: [0, 100, 0] },
     },
+    didDrawPage: drawHeader,
     didDrawCell: (data: {
       section: string;
       column: { index: number };
@@ -699,6 +624,19 @@ export const generateCatalogPDF = async (
       }
     },
   });
+
+  // Paginação automática (exceto capa, que é a página 1)
+  try {
+    const totalPages = (doc as any).getNumberOfPages();
+    for (let i = 2; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${totalPages}`, pageW / 2, pageH - 10, { align: 'center' });
+    }
+  } catch (e) {
+    // ignorar se a API do jsPDF variar
+  }
 
   doc.save(`Catalogo_${options.title.replace(/\s+/g, '_')}.pdf`);
   options.onProgress?.(100, 'PDF gerado com sucesso!');

@@ -17,36 +17,25 @@ import {
   Star,
   Heart,
   Check,
+  Home,
   ChevronLeft,
   ChevronRight,
-  Home,
-  FileText,
-  SlidersHorizontal,
 } from 'lucide-react';
-import Image from 'next/image';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SmartImage } from './SmartImage';
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import Image from 'next/image';
 import { create } from 'zustand';
 
-// --- STORE DE LAYOUT ---
-interface LayoutStore {
-  isSidebarOpen: boolean;
-  toggleSidebar: () => void;
-  setIsFilterOpen: (isOpen: boolean) => void;
-  closeSidebar: () => void;
-}
-
-export const useLayoutStore = create<LayoutStore>((set) => ({
+// --- Small layout store (used by other components) ---
+export const useLayoutStore = create((set: any) => ({
   isSidebarOpen: false,
-  toggleSidebar: () =>
-    set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
-  setIsFilterOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+  toggleSidebar: () => set((s: any) => ({ isSidebarOpen: !s.isSidebarOpen })),
+  setIsFilterOpen: (isOpen: boolean) => set({ isSidebarOpen: isOpen }),
   closeSidebar: () => set({ isSidebarOpen: false }),
 }));
 
-// --- HELPERS ---
+// --- HELPERS (phone formatting) ---
 function normalizePhoneDigits(phone?: string | null) {
   let digits = String(phone || '').replace(/\D/g, '');
   if (!digits) return '';
@@ -73,521 +62,283 @@ function formatPhoneDisplay(phone?: string | null) {
   return `+${digits}`;
 }
 
-// --- TOP BAR ---
-export function StoreTopBar() {
-  const { store } = useStore();
-  // respeita flag de visibilidade configurada no catálogo
-  if (store.show_top_benefit_bar === false) return null;
-  const bgColor = store.top_benefit_bg_color || '#f3f4f6';
-  const textColor = store.top_benefit_text_color || 'var(--primary)';
-  const height = store.top_benefit_height || 36;
-  const fontSize = store.top_benefit_text_size || 11;
+// --- Helper: contraste de texto para uma cor de fundo ---
+function getContrastColor(hexColor?: string): string {
+  if (!hexColor) return '#ffffff';
+  try {
+    if (hexColor.startsWith('var(')) return '#ffffff';
+    const hex = hexColor.replace('#', '');
+    const fullHex =
+      hex.length === 3
+        ? hex
+            .split('')
+            .map((c) => c + c)
+            .join('')
+        : hex;
+    const r = parseInt(fullHex.substring(0, 2), 16);
+    const g = parseInt(fullHex.substring(2, 4), 16);
+    const b = parseInt(fullHex.substring(4, 6), 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 128 ? '#0f172a' : '#ffffff';
+  } catch (e) {
+    return '#ffffff';
+  }
+}
 
-  const [hidden, setHidden] = useState(false);
-  const lastY = useRef(typeof window !== 'undefined' ? window.scrollY : 0);
-  const lastDir = useRef(0);
+// Logo helper with fallback — defined early to avoid HMR reference issues
+function LogoImage({ src, alt }: { src: string; alt?: string }) {
+  const [errored, setErrored] = useState(false);
 
-  useEffect(() => {
-    const threshold = 15;
-    const onScroll = () => {
-      const y = window.scrollY || window.pageYOffset;
-      const delta = y - lastY.current;
-      let dir = 0;
-      if (delta > threshold && y > 50) dir = 1;
-      else if (delta < -threshold) dir = -1;
+  if (!src || errored) {
+    const initials = String(alt || '')
+      .trim()
+      .split(' ')
+      .map((s) => s[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
 
-      if (dir === 1 && lastDir.current !== 1) {
-        setHidden(true);
-        lastDir.current = 1;
-      } else if (dir === -1 && lastDir.current !== -1) {
-        setHidden(false);
-        lastDir.current = -1;
-      }
-
-      lastY.current = y;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    return (
+      <div className="h-10 w-36 flex items-center justify-center rounded bg-white/20 text-white font-bold text-lg">
+        {initials || 'LOJA'}
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`border-b relative z-50 transition-transform duration-300 ${hidden ? '-translate-y-full' : 'translate-y-0'}`}
-      style={{ backgroundColor: bgColor, borderColor: 'transparent' }}
-    >
-      <div
-        className="max-w-[1920px] mx-auto px-4 lg:px-8 flex justify-between items-center overflow-x-auto whitespace-nowrap gap-6 scrollbar-hide"
-        style={{ height, color: textColor, fontSize }}
-      >
-        {store.top_benefit_image_url ? (
-          store.top_benefit_text ? (
-            <div
-              className="w-full flex flex-col md:flex-row items-center"
-              style={{ height }}
-            >
-              <div
-                className="w-full md:w-2/5 flex-shrink-0 overflow-hidden rounded"
-                style={{ maxHeight: height }}
-              >
-                <div
-                  style={{
-                    transform: `scale(${(Number(store.top_benefit_image_scale) || 100) / 100})`,
-                    transition: 'transform 150ms ease-out',
-                    height: '100%',
-                  }}
-                >
-                  <SmartImage
-                    product={{
-                      image_url: store.top_benefit_image_url,
-                      name: store.name,
-                    }}
-                    initialSrc={store.top_benefit_image_url}
-                    className="h-full w-full"
-                    imgClassName={`h-full w-full ${(store.top_benefit_image_fit as any) === 'contain' ? 'object-contain' : 'object-cover'}`}
-                  />
-                </div>
-              </div>
-              <div className="w-full md:flex-1 md:pl-4 px-3 py-2">
-                <span className="font-bold block">
-                  {store.top_benefit_text}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 w-full">
-              <div style={{ maxHeight: height, height: '100%' }}>
-                <SmartImage
-                  product={{
-                    image_url: store.top_benefit_image_url,
-                    name: store.name,
-                  }}
-                  initialSrc={store.top_benefit_image_url}
-                  className="h-full w-full"
-                  imgClassName={`h-full w-full ${(store.top_benefit_image_fit as any) === 'contain' ? 'object-contain' : 'object-cover'}`}
-                />
-              </div>
-            </div>
-          )
-        ) : store.top_benefit_text ? (
-          <span className="flex items-center gap-1.5 font-bold">
-            <Star size={14} /> {store.top_benefit_text}
-          </span>
-        ) : null}
-
-        {/* contact phone: mostra número com link para WhatsApp quando configurado */}
-        {store.phone ? (
-          normalizePhoneDigits(store.phone) ? (
-            <a
-              href={whatsappHref(store.phone)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-medium hover:text-[var(--primary)]"
-              style={{ color: textColor }}
-            >
-              <Phone size={14} />
-              <span>{formatPhoneDisplay(store.phone)}</span>
-            </a>
-          ) : (
-            <div
-              className="inline-flex items-center gap-2 text-sm font-medium"
-              style={{ color: textColor }}
-            >
-              <Phone size={14} />
-              <span>{String(store.phone)}</span>
-            </div>
-          )
-        ) : null}
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt || 'Logo'}
+      className="h-10 w-auto max-w-[150px] object-contain"
+      onError={() => setErrored(true)}
+    />
   );
 }
 
-// --- HEADER ---
+// --- Top bar (minimal) ---
+export function StoreTopBar() {
+  const { store } = useStore();
+  if (!store) return null as any;
+
+  // 1) Barra de benefícios configurável pelo admin
+  if (store.show_top_benefit_bar) {
+    const bg = store.top_benefit_bg_color || 'var(--primary)';
+    const textColor =
+      store.top_benefit_text_color || getContrastColor(String(bg));
+    const height = store.top_benefit_height || 36;
+
+    return (
+      <div className="w-full" style={{ backgroundColor: bg, color: textColor }}>
+        <div
+          className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-4"
+          style={{ height }}
+        >
+          {store.top_benefit_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={store.top_benefit_image_url}
+              alt={store.top_benefit_text || 'benefit'}
+              className="h-full mr-3 object-contain"
+              style={{ maxHeight: height }}
+            />
+          ) : null}
+
+          <div
+            className="flex-1 text-sm font-bold overflow-hidden"
+            style={{
+              fontSize: store.top_benefit_text_size
+                ? `${store.top_benefit_text_size}px`
+                : undefined,
+            }}
+          >
+            {store.top_benefit_text || ''}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Apenas renderiza a faixa de benefícios aqui — a barra de contatos é fixa e
+  // renderizada pelo `Storefront` para permanecer visível mesmo quando a
+  // faixa promocional estiver ativa.
+  if (!store.show_top_benefit_bar) return null as any;
+
+  return null as any;
+}
+
+// --- Header (simplified, uses existing CarouselBrands component) ---
 export function StoreHeader() {
   const {
     store,
-    categories,
-    selectedCategory,
-    setSelectedCategory,
     searchTerm,
     setSearchTerm,
+    selectedBrand,
+    setSelectedBrand,
+    setSelectedCategory,
     isPricesVisible,
     setIsPricesVisible,
     cart,
-    setModal,
     favorites,
     showFavorites,
     setShowFavorites,
     brandsWithLogos,
-    selectedBrand,
-    setSelectedBrand,
-    initialProducts,
+    selectedCategory,
+    setModal,
   } = useStore();
 
+  const { toggleSidebar } = useLayoutStore();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Compute categories relevant to the currently selected brand
-  const visibleCategories = (() => {
-    try {
-      if (!initialProducts || !selectedBrand || selectedBrand === 'all')
-        return categories || [];
-      const active = Array.isArray(selectedBrand)
-        ? (selectedBrand[0] as string)
-        : (selectedBrand as string);
-      const setCats = new Set<string>();
-      initialProducts.forEach((p: any) => {
-        if (!p) return;
-        if (!p.brand) return;
-        if (
-          String(p.brand).trim().toLowerCase() ===
-          String(active).trim().toLowerCase()
-        ) {
-          if (p.category) setCats.add(p.category);
-        }
-      });
-      return Array.from(setCats);
-    } catch (e) {
-      return categories || [];
-    }
-  })();
+  const handleSearchInputChange = (v: string) => setSearchTerm(v);
 
-  // Intelligent search: detect "brand <reference>" prefix and auto-select brand
-  const handleSearchInputChange = (value: string) => {
-    // Keep raw value (do NOT trim) so we preserve user spaces while typing
-    const v = String(value || '');
-    if (v === '') {
-      setSelectedBrand('all');
-      setSearchTerm('');
-      return;
-    }
-
-    // Build list of candidate brand names (from brandsWithLogos)
-    const brandNames = Array.from(
-      new Set(
-        (brandsWithLogos || [])
-          .map((b: any) => String(b.name || '').trim())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => b.length - a.length); // prefer longer matches
-
-    const lower = v.toLowerCase();
-    let matched: string | null = null;
-    let remaining = '';
-    for (const name of brandNames) {
-      const nl = name.toLowerCase();
-      if (lower === nl) {
-        matched = name;
-        remaining = '';
-        break;
-      }
-      if (lower.startsWith(nl + ' ')) {
-        matched = name;
-        // preserve what user typed after the brand (may include spaces)
-        remaining = v.substring(name.length + 1);
-        break;
-      }
-    }
-
-    if (matched) {
-      setSelectedBrand(matched);
-      setSearchTerm(remaining);
-    } else {
-      // No brand prefix detected — clear brand selection and set raw term
-      setSelectedBrand('all');
-      setSearchTerm(v);
-    }
-  };
-
-  const { toggleSidebar } = useLayoutStore();
   const getCartCount = (c: any) => {
     if (!c) return 0;
     if (Array.isArray(c))
       return c.reduce((acc, item) => acc + (item?.quantity || 0), 0);
-    if (typeof c === 'object') {
-      return Object.values(c).reduce((acc: number, v: any) => {
-        if (typeof v === 'number') return acc + v;
-        if (v && typeof v === 'object') return acc + (v.quantity || v.qty || 0);
-        return acc;
-      }, 0);
-    }
+    if (typeof c === 'object')
+      return Object.values(c).reduce(
+        (acc: number, v: any) => acc + (v?.quantity || 0),
+        0
+      );
     return 0;
   };
   const cartCount = getCartCount(cart);
 
-  const isHeaderWhite =
-    !store.header_background_color ||
-    store.header_background_color === '#ffffff';
-  const textColorClass = isHeaderWhite ? 'text-gray-600' : 'text-white';
-  const hoverClass = isHeaderWhite
-    ? 'hover:text-[var(--primary)]'
-    : 'hover:opacity-80';
+  // Determine header text color based on configured header background to avoid
+  // invisible white-on-white icons when header has no dark background.
+  const headerBg = (store as any)?.header_background_color || null;
+  const computedTextColor = getContrastColor(headerBg);
+  const isHeaderWhite = computedTextColor === '#0f172a';
+  const hoverClass = 'hover:text-[var(--primary)]';
 
-  const toggleBrand = (brandName: string) => {
-    if (brandName === 'all') {
-      setSelectedBrand('all');
-      return;
-    }
-    const normalized = (s: unknown) =>
-      String(s || '')
-        .trim()
-        .toLowerCase();
-    const currentlySelected = Array.isArray(selectedBrand)
-      ? (selectedBrand[0] as string)
-      : (selectedBrand as string);
-
-    if (
-      currentlySelected &&
-      normalized(currentlySelected) === normalized(brandName)
-    ) {
-      setSelectedBrand('all');
-    } else {
-      setSelectedBrand(brandName);
-    }
-  };
-
-  const isBrandSelected = (brandName: string) => {
-    const normalized = (s: unknown) =>
-      String(s || '')
-        .trim()
-        .toLowerCase();
-    if (brandName === 'all')
-      return (
-        selectedBrand === 'all' ||
-        (Array.isArray(selectedBrand) && selectedBrand.length === 0)
-      );
-    if (selectedBrand === 'all') return false;
-    if (Array.isArray(selectedBrand))
-      return selectedBrand.some((b) => normalized(b) === normalized(brandName));
-    return normalized(selectedBrand) === normalized(brandName);
-  };
+  // Branding: expose primary/secondary as CSS variables for Tailwind usage
+  const primaryColor = (store as any)?.primary_color || '#2563eb';
+  const secondaryColor = (store as any)?.secondary_color || '#06b6d4';
+  const cssVars = {
+    ['--primary' as any]: primaryColor,
+    ['--secondary' as any]: secondaryColor,
+  } as React.CSSProperties;
 
   return (
-    <header
-      className="sticky top-0 z-40 shadow-md transition-all duration-300"
-      style={{ backgroundColor: store.header_background_color || 'white' }}
-    >
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-4">
-        <div className="flex flex-col lg:flex-row items-center gap-4">
-          <div className="flex items-center justify-between w-full lg:w-auto lg:mr-8 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="lg:hidden">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleSidebar}
-                  className={`!p-2 ${textColorClass}`}
-                >
-                  <Menu size={24} />
-                </Button>
-              </div>
-
-              {store.logo_url ? (
-                <a
-                  href={
-                    store.catalog_slug
-                      ? `/catalogo/${store.catalog_slug}`
-                      : `/catalogo/${store.user_id}`
-                  }
-                  aria-label={`Ir para ${store.name || 'catálogo'}`}
-                  className="relative h-14 min-w-[120px] flex items-center"
-                >
-                  <SmartImage
-                    product={{ image_url: store.logo_url, name: store.name }}
-                    initialSrc={store.logo_url}
-                    className="h-full"
-                    imgClassName="h-full w-auto object-contain max-w-[200px]"
-                  />
-                </a>
-              ) : (
-                <div
-                  className={`h-14 px-4 rounded flex items-center justify-center font-bold text-xl ${isHeaderWhite ? 'bg-gray-100 text-gray-900' : 'bg-white/20 text-white'}`}
-                >
-                  {store.name?.substring(0, 10) || 'Loja'}
-                </div>
-              )}
+    <header style={cssVars}>
+      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-3 flex items-center gap-4">
+        <div className="flex items-center gap-4">
+          {store.logo_url ? (
+            <a
+              href={
+                store.catalog_slug
+                  ? `/catalogo/${store.catalog_slug}`
+                  : `/catalogo/${store.user_id}`
+              }
+              className="relative h-10 w-auto flex items-center"
+            >
+              <LogoImage src={store.logo_url} alt={store.name} />
+            </a>
+          ) : (
+            <div
+              className={`h-14 px-4 rounded flex items-center justify-center font-bold text-xl ${isHeaderWhite ? 'bg-gray-100 text-gray-900' : 'bg-white/20 text-white'}`}
+            >
+              {store.name?.substring(0, 10) || 'Loja'}
             </div>
+          )}
+        </div>
 
-            <div className="lg:hidden" />
-          </div>
-
-          <div className="flex-1 w-full relative">
+        <div className="flex-1">
+          <div className="relative">
             <input
-              ref={(el) => {
-                /* keep a stable ref for focusing from the icon */
-                (inputRef as any).current = el;
-              }}
+              ref={inputRef}
               type="text"
               placeholder="Buscar produtos... (ex: filtrar por marca + referência)"
-              value={
-                // When a brand is selected, show "Brand [space] searchTerm" so user can type after brand.
-                selectedBrand && selectedBrand !== 'all'
-                  ? `${Array.isArray(selectedBrand) ? (selectedBrand[0] as string) : (selectedBrand as string)}${searchTerm ? ' ' + searchTerm : ' '}`
-                  : searchTerm
-              }
+              value={searchTerm || ''}
               onChange={(e) => handleSearchInputChange(e.target.value)}
               className="w-full h-10 lg:h-12 pl-4 pr-12 rounded-lg border-0 shadow-sm outline-none focus:ring-2 focus:ring-[var(--primary)] text-gray-900 transition-all"
-              style={{
-                backgroundColor: isHeaderWhite
-                  ? '#f9fafb'
-                  : 'rgba(255,255,255,0.95)',
-              }}
             />
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
-                try {
-                  (inputRef as any).current?.focus();
-                } catch (e) {}
-              }}
+              onClick={() => inputRef.current?.focus()}
               className="absolute right-1 top-1/2 -translate-y-1/2 !h-8 !w-10 !p-0 rounded-md"
             >
               <Search size={18} />
             </Button>
           </div>
+        </div>
 
-          <div
-            className={`hidden lg:flex items-center gap-6 text-xs font-medium ${textColorClass}`}
+        <div
+          className={`hidden md:flex items-center gap-6 text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] ${hoverClass}`}
+        >
+          {/* Favoritos */}
+          <button
+            onClick={() => setShowFavorites(!showFavorites)}
+            className={`flex flex-col items-center gap-1.5 transition-all hover:scale-110 ${showFavorites ? 'text-red-500' : ''}`}
+            aria-label="Favoritos"
           >
-            <button
-              onClick={() => setShowFavorites(!showFavorites)}
-              className={`flex flex-col items-center gap-1 transition-colors ${hoverClass} ${showFavorites ? 'text-red-500' : ''}`}
-            >
-              <div className="relative">
-                <Heart
-                  size={24}
-                  className={showFavorites ? 'fill-current' : ''}
-                />
-                {favorites.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-3.5 w-3.5 flex items-center justify-center rounded-full">
-                    {favorites.length}
-                  </span>
-                )}
-              </div>
-              <span>Favoritos</span>
-            </button>
-
-            {/* Botão "Ver Preços" aparece apenas quando o catálogo está em modo 'custo' */}
-            {store.show_cost_price === true &&
-              store.show_sale_price !== true && (
-                <button
-                  onClick={() =>
-                    isPricesVisible
-                      ? setIsPricesVisible(false)
-                      : setModal('password', true)
-                  }
-                  className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
-                >
-                  {isPricesVisible ? <Unlock size={24} /> : <Lock size={24} />}
-                  <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
-                </button>
+            <div className="relative">
+              <Heart
+                size={22}
+                className={showFavorites ? 'fill-current' : ''}
+              />
+              {Array.isArray(favorites) && favorites.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] h-4 w-4 flex items-center justify-center rounded-full border-2 border-white">
+                  {favorites.length}
+                </span>
               )}
+            </div>
+            <span>Favoritos</span>
+          </button>
 
+          {/* Ver preços (condicional) */}
+          {store.show_cost_price === true && store.show_sale_price !== true && (
             <button
-              onClick={() => setModal('load', true)}
-              className={`flex flex-col items-center gap-1 transition-colors ${hoverClass}`}
+              onClick={() =>
+                isPricesVisible
+                  ? setIsPricesVisible(false)
+                  : setModal('password', true)
+              }
+              className="flex flex-col items-center gap-1.5 transition-all hover:scale-110"
+              aria-label="Ver preços"
             >
-              <Download size={24} />
-              <span>Pedidos</span>
+              {isPricesVisible ? (
+                <Unlock size={22} className="text-green-500" />
+              ) : (
+                <Lock size={22} />
+              )}
+              <span>{isPricesVisible ? 'Preços ON' : 'Ver Preços'}</span>
             </button>
+          )}
 
-            <button
-              onClick={() => setModal('cart', true)}
-              className={`flex flex-col items-center gap-1 transition-colors group ${hoverClass}`}
-            >
-              <div className="relative">
-                <ShoppingCart size={24} />
-                {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">
-                    {cartCount}
-                  </span>
-                )}
-              </div>
-              <span>Carrinho</span>
-            </button>
-          </div>
+          {/* Pedidos */}
+          <button
+            onClick={() => setModal('load', true)}
+            className="flex flex-col items-center gap-1.5 transition-all hover:scale-110"
+            aria-label="Pedidos"
+          >
+            <Download size={22} />
+            <span>Pedidos</span>
+          </button>
+
+          {/* Carrinho */}
+          <button
+            onClick={() => setModal('cart', true)}
+            className="flex flex-col items-center gap-1.5 transition-all hover:scale-110"
+            aria-label="Carrinho"
+          >
+            <div className="relative">
+              <ShoppingCart size={22} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[var(--primary)] text-white text-[9px] h-4 w-4 flex items-center justify-center rounded-full border-2 border-white">
+                  {cartCount}
+                </span>
+              )}
+            </div>
+            <span>Carrinho</span>
+          </button>
         </div>
       </div>
 
-      {brandsWithLogos.length > 0 && (
-        <div
-          className={`border-t ${isHeaderWhite ? 'border-gray-100 bg-gray-50' : 'border-white/10 bg-black/10'} py-3 overflow-hidden`}
-        >
-          <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center">
-            <span
-              className={`font-bold uppercase tracking-wide text-xs mr-2 flex-shrink-0 ${isHeaderWhite ? 'text-gray-500' : 'text-white/80'}`}
-            >
-              Marcas:
-            </span>
-            <div className="relative flex-1">
-              <CarouselBrands
-                brands={brandsWithLogos}
-                isBrandSelected={isBrandSelected}
-                toggleBrand={toggleBrand}
-                isHeaderWhite={isHeaderWhite}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {visibleCategories.length > 0 && (
-        <div
-          className={`border-t ${isHeaderWhite ? 'border-gray-100 bg-white' : 'border-white/10 bg-black/5'} block lg:hidden`}
-        >
-          <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex gap-4 py-3 overflow-x-auto text-sm items-center scrollbar-hide">
-            <span
-              className={`font-bold uppercase tracking-wide text-xs mr-2 flex-shrink-0 ${isHeaderWhite ? 'text-gray-500' : 'text-white/80'}`}
-            >
-              Categorias:
-            </span>
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`whitespace-nowrap ${selectedCategory === 'all' ? 'font-bold underline decoration-2 underline-offset-4 decoration-[var(--primary)]' : 'opacity-70 hover:opacity-100'} ${textColorClass} hover:text-[var(--primary)] transition-colors`}
-            >
-              Todas
-            </button>
-            {visibleCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`whitespace-nowrap ${selectedCategory === cat ? 'font-bold underline decoration-2 underline-offset-4 decoration-[var(--primary)]' : 'opacity-70 hover:opacity-100'} ${textColorClass} hover:text-[var(--primary)] transition-colors`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {/* Desktop categories (restored): visible on lg and up, hidden on mobile */}
-      {visibleCategories.length > 0 && (
-        <div
-          className={`border-t ${isHeaderWhite ? 'border-gray-100 bg-white' : 'border-white/10 bg-black/5'} hidden lg:block`}
-        >
-          <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex gap-4 py-3 overflow-x-auto text-sm items-center scrollbar-hide">
-            <span
-              className={`font-bold uppercase tracking-wide text-xs mr-2 flex-shrink-0 ${isHeaderWhite ? 'text-gray-500' : 'text-white/80'}`}
-            >
-              Categorias:
-            </span>
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`whitespace-nowrap ${selectedCategory === 'all' ? 'font-bold underline decoration-2 underline-offset-4 decoration-[var(--primary)]' : 'opacity-70 hover:opacity-100'} ${textColorClass} hover:text-[var(--primary)] transition-colors`}
-            >
-              Todas
-            </button>
-            {visibleCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`whitespace-nowrap ${selectedCategory === cat ? 'font-bold underline decoration-2 underline-offset-4 decoration-[var(--primary)]' : 'opacity-70 hover:opacity-100'} ${textColorClass} hover:text-[var(--primary)] transition-colors`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Marcas moved to storefront to preserve visual hierarchy */}
     </header>
   );
 }
@@ -850,9 +601,9 @@ export function StoreSidebar() {
                     )}
                   </label>
 
-                  {categories.map((cat) => (
+                  {categories.map((cat, idx) => (
                     <label
-                      key={cat}
+                      key={`sidebar-cat-${String(cat ?? idx)}`}
                       className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50 w-full`}
                     >
                       <div
@@ -1034,7 +785,11 @@ export function StoreMobileActionBar() {
 // --- FOOTER ---
 export function StoreFooter() {
   const { store } = useStore();
-  const router = useRouter();
+  const router = {
+    push: (p: string) => {
+      if (typeof window !== 'undefined') window.location.href = p;
+    },
+  } as any;
   const footerBg = store.footer_background_color || 'var(--secondary)';
   let footerTextColor = 'white';
   if (
@@ -1134,23 +889,13 @@ export function StoreFooter() {
   );
 }
 
-// --- CARROSSEL DE MARCAS (CORRIGIDO: PAUSA AO TOCAR/CLICAR) ---
-function CarouselBrands({
-  brands,
-  isBrandSelected,
-  toggleBrand,
-  isHeaderWhite,
-}: any) {
-  const [isPaused, setIsPaused] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const innerRef = useRef<HTMLDivElement>(null);
-  const [shouldAnimate, setShouldAnimate] = useState(false);
+// --- CARROSSEL DE MARCAS (Pílula Premium) ---
+export function CarouselBrands() {
+  const { brandsWithLogos, selectedBrand, setSelectedBrand } = useStore();
   const [isMobile, setIsMobile] = useState(false);
-  const [hasOverflow, setHasOverflow] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const rafRef = useRef<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Detecta se é mobile
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -1158,220 +903,150 @@ function CarouselBrands({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Verifica se precisa animar / se há overflow
-  // Ajuste: no mobile, quando houver mais de 3 marcas, usamos animação tipo "marquee"
-  // ao invés de setas, conforme solicitado (animação contínua girando as marcas).
-  useEffect(() => {
-    const check = () => {
-      if (!containerRef.current || !innerRef.current) return;
-      const contentWidth = innerRef.current.scrollWidth;
-      const containerWidth = containerRef.current.clientWidth;
-      const overflow = contentWidth > containerWidth;
+  // If we don't have logos from the `brands` table, fall back to rendering
+  // the simple list of brand names from products so the UI remains usable.
+  const { brands } = useStore();
+  const effectiveBrands =
+    brandsWithLogos && brandsWithLogos.length > 0
+      ? brandsWithLogos
+      : (brands || []).map((b: any) => ({ name: b, logo_url: null }));
+  if (!effectiveBrands || effectiveBrands.length === 0) return null;
 
-      // Força hasOverflow no mobile quando houver > 3 marcas
-      const mobileForced = isMobile && brands.length > 3;
-      setHasOverflow(overflow || mobileForced);
-
-      // REGRAS DE ANIMAÇÃO:
-      // No mobile: animar se houver mobileForced (>=4 marcas)
-      // No desktop: anima se houver overflow
-      if (isMobile) {
-        setShouldAnimate(mobileForced);
-      } else {
-        setShouldAnimate(overflow);
-      }
-    };
-
-    const timeout = setTimeout(check, 100);
-    window.addEventListener('resize', check);
-    return () => {
-      window.removeEventListener('resize', check);
-      clearTimeout(timeout);
-    };
-  }, [brands, isMobile]);
-
-  // Scroll-snapping and active index tracking for mobile
-  useEffect(() => {
-    if (shouldAnimate) return; // não rastrear quando animando
-    const onScroll = () => {
-      if (!innerRef.current || !containerRef.current) return;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const children = Array.from(
-          innerRef.current!.children
-        ) as HTMLElement[];
-        if (!children.length) return;
-        const containerRect = containerRef.current!.getBoundingClientRect();
-        const containerCenter = containerRect.left + containerRect.width / 2;
-        let closest = 0;
-        let closestDist = Infinity;
-        children.forEach((ch, idx) => {
-          const rect = ch.getBoundingClientRect();
-          const chCenter = rect.left + rect.width / 2;
-          const dist = Math.abs(chCenter - containerCenter);
-          if (dist < closestDist) {
-            closestDist = dist;
-            closest = idx;
-          }
-        });
-        // Normaliza para o tamanho real da lista de marcas
-        setActiveIndex(Math.min(closest, Math.max(0, brands.length - 1)));
-      });
-    };
-
-    const node = innerRef.current;
-    node?.addEventListener('scroll', onScroll, { passive: true });
-    // trigger initial
-    onScroll();
-    return () => {
-      node?.removeEventListener('scroll', onScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [shouldAnimate, brands]);
-
-  const scrollToIndex = (idx: number) => {
-    if (!innerRef.current) return;
-    const children = Array.from(innerRef.current.children) as HTMLElement[];
-    const target = children[idx];
-    if (target) {
-      target.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest',
-      });
-      setActiveIndex(idx);
-    }
+  const toggleBrand = (name: string) => {
+    if (!name) return;
+    // support multi/select single behavior: toggle to 'all' if already selected
+    if (selectedBrand === name) setSelectedBrand('all');
+    else setSelectedBrand(name);
   };
 
-  // Duplica/Triplica itens para garantir o loop infinito sem buracos
-  const loopBrands = shouldAnimate
-    ? brands.length < 4
-      ? [...brands, ...brands, ...brands, ...brands]
-      : [...brands, ...brands]
-    : brands;
+  const normalizeLogoSrc = (raw: string | null | undefined) => {
+    if (!raw) return null;
+    const s = String(raw);
+    if (s.includes('/storage/v1/object/public/')) {
+      const path = s.split('/storage/v1/object/public/')[1];
+      // Preserve the 'public/' segment so the API can correctly detect bucket/path
+      return `/api/storage-image?path=${encodeURIComponent(path)}`;
+    }
+    if (
+      s.startsWith('/api/storage-image') ||
+      s.includes('/api/storage-image?path=')
+    )
+      return s;
+    if (/^https?:\/\//.test(s)) return s;
+    return s;
+  };
 
-  const duration = isMobile
-    ? Math.max(28, loopBrands.length * 3.2)
-    : Math.max(20, loopBrands.length * 2.5);
+  // Autoplay smooth scroll on mobile when we have many brands.
+  // We duplicate the items (render twice) to allow a seamless loop and
+  // avoid visual trembling when resetting scrollLeft.
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!scrollRef.current) return;
+    if (effectiveBrands.length <= 3) return;
+
+    let rafId: number | null = null;
+    let last = performance.now();
+    const speedPxPerMs = 0.04; // slightly slower, tuning: pixels per ms
+
+    const step = (now: number) => {
+      const dt = Math.min(40, now - last); // cap dt for stability
+      last = now;
+      const el = scrollRef.current;
+      if (!el) return;
+      if (!isPaused) {
+        try {
+          el.scrollLeft += dt * speedPxPerMs;
+          // when we've scrolled past half the scrollWidth (the duplicated set),
+          // jump back by half to create a seamless loop without snapping to 0.
+          const half = el.scrollWidth / 2;
+          if (el.scrollLeft >= half) {
+            el.scrollLeft -= half;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+      rafId = requestAnimationFrame(step);
+    };
+
+    rafId = requestAnimationFrame(step);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [isMobile, isPaused, effectiveBrands.length]);
 
   return (
-    <div
-      className="w-full overflow-hidden relative select-none"
-      ref={containerRef}
-    >
-      <style>{`
-        @keyframes marquee { 
-          0% { transform: translateX(0); } 
-          100% { transform: translateX(-50%); } 
-        }
-        .animate-marquee {
-          display: flex;
-          width: max-content;
-          animation: marquee ${duration}s linear infinite;
-        }
-      `}</style>
-
-      {/* Gradientes laterais (apenas visuais, sem bloquear cliques) */}
-      {shouldAnimate && (
-        <>
-          <div
-            className={`absolute left-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-r ${isHeaderWhite ? 'from-white to-transparent' : 'from-black/20 to-transparent'} pointer-events-none`}
-          />
-          <div
-            className={`absolute right-0 top-0 bottom-0 w-8 z-10 bg-gradient-to-l ${isHeaderWhite ? 'from-white to-transparent' : 'from-black/20 to-transparent'} pointer-events-none`}
-          />
-        </>
-      )}
-
-      <div
-        // EVENTOS DE PAUSA ROBUSTOS
-        // Desktop: Mouse Enter/Leave
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-        // Mobile: Touch Start (toque) e Touch End (soltar)
-        onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setIsPaused(false)}
-        // Segurança: Se arrastar o dedo, mantém pausado
-        onTouchMove={() => setIsPaused(true)}
-        className="w-full py-1"
-      >
+    <div className="w-full border-t py-2">
+      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center">
+        <span className="font-bold uppercase tracking-wide text-xs mr-3 flex-shrink-0">
+          Marcas:
+        </span>
         <div
-          ref={innerRef}
-          className={`flex items-center gap-x-4 ${shouldAnimate ? 'animate-marquee' : 'justify-start overflow-x-auto scrollbar-hide px-2 snap-x snap-mandatory'}`}
-          // APLICA A PAUSA DIRETAMENTE NO ESTILO (Mais forte que classe CSS)
-          style={{
-            animationPlayState: isPaused ? 'paused' : 'running',
-            WebkitAnimationPlayState: isPaused ? 'paused' : 'running',
-            WebkitOverflowScrolling: 'touch',
-            scrollBehavior: 'smooth',
-          }}
+          className="flex-1 overflow-x-auto scrollbar-hide"
+          ref={scrollRef}
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={() => setIsPaused(true)}
+          onTouchEnd={() => setIsPaused(false)}
+          onDoubleClick={() => setIsPaused((s) => !s)}
+          title={isMobile ? undefined : 'Duplo clique para pausar/retomar'}
         >
-          {loopBrands.map((brand: any, i: number) => {
-            const active = isBrandSelected(brand.name);
-            const isClone = shouldAnimate && i >= loopBrands.length / 2;
+          <div className="flex items-center gap-3">
+            {(isMobile && effectiveBrands.length > 3
+              ? [...effectiveBrands, ...effectiveBrands]
+              : effectiveBrands
+            ).map((brand: any, i: number) => {
+              const active = Array.isArray(selectedBrand)
+                ? selectedBrand.includes(brand.name)
+                : selectedBrand === brand.name;
+              const src = brand.logo_url || normalizeLogoSrc(brand.logo_url);
+              const initials = String(brand.name || '')
+                .trim()
+                .split(' ')
+                .map((s: string) => s[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
 
-            return (
-              <button
-                key={`${brand.name}-${i}`}
-                onClick={() => toggleBrand(brand.name)}
-                // Adicionado onTouchEnd aqui também para garantir o clique
-                onTouchEnd={(e) => {
-                  // Permite o clique passar, mas garante que o estado de pausa seja limpo eventualmente
-                }}
-                className={`
-                  relative group flex items-center gap-2 px-4 py-1.5 rounded-full border 
-                  transform transition-all duration-200 flex-shrink-0 touch-manipulation
-                  ${!isMobile && 'hover:scale-105'} 
-                  ${
+              return (
+                <button
+                  key={`${brand.name}-${i}`}
+                  onClick={() => toggleBrand(brand.name)}
+                  title={brand.name}
+                  className={`relative flex items-center gap-3 px-4 py-2 rounded-full border transition-all duration-200 shrink-0 ${
                     active
-                      ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md'
-                      : isHeaderWhite
-                        ? 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                        : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
-                  }
-                `}
-                style={{ scrollSnapAlign: 'center' }}
-              >
-                {brand.logo_url && (
-                  <SmartImage
-                    product={{ image_url: brand.logo_url, name: brand.name }}
-                    initialSrc={brand.logo_url}
-                    className={`${isMobile ? 'h-8 w-auto inline-block' : 'h-5 w-auto inline-block'}`}
-                    imgClassName={
-                      isMobile
-                        ? 'object-contain h-full w-auto max-w-[64px]'
-                        : 'object-contain h-full w-auto max-w-[50px]'
-                    }
-                  />
-                )}
-                {/* Mostrar nome somente em desktop; no mobile mostrar apenas a logomarca */}
-                {!isMobile && (
-                  <span
-                    className={`text-xs font-bold whitespace-nowrap ${!active ? 'group-hover:text-[var(--primary)]' : ''}`}
-                  >
-                    {brand.name}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                      ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md scale-100'
+                      : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 shadow-sm'
+                  }`}
+                >
+                  <div className="w-6 h-6 flex items-center justify-center bg-white rounded-full overflow-hidden shrink-0 border border-gray-100">
+                    {src ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={src}
+                        alt={brand.name}
+                        loading="lazy"
+                        draggable={false}
+                        className="max-w-[90%] max-h-[90%] object-contain"
+                      />
+                    ) : (
+                      <span className="text-[10px] font-bold text-gray-400">
+                        {initials}
+                      </span>
+                    )}
+                  </div>
+                  {!isMobile && (
+                    <span className="text-[11px] font-extrabold uppercase tracking-tight whitespace-nowrap">
+                      {brand.name}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
-
-      {/* Setas removidas no mobile por solicitação (apenas indicador e animação mantidos) */}
-
-      {/* Dots indicator mobile quando houver overflow */}
-      {isMobile && hasOverflow && (
-        <div className="mt-2 flex justify-center gap-2">
-          {brands.map((_: unknown, idx: number) => (
-            <button
-              key={`dot-${idx}`}
-              onClick={() => scrollToIndex(idx)}
-              className={`w-2 h-2 rounded-full ${idx === activeIndex ? 'bg-[var(--primary)]' : 'bg-white/40'}`}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

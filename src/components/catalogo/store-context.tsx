@@ -297,8 +297,33 @@ export function StoreProvider({
 
   const refreshPendingImages = async () => {
     try {
-      const res = await fetch('/api/products/image-diagnostics');
-      if (!res.ok) return;
+      // Try to include auth token if available (endpoint may be protected)
+      // Only call diagnostics if we have a session token (avoid 401 noise on public storefront)
+      let session: any = null;
+      try {
+        session = await supabase.auth.getSession();
+      } catch (e) {
+        session = null;
+      }
+
+      const token = session?.data?.session?.access_token;
+      if (!token) {
+        // No authenticated session available — skip diagnostics on public storefront
+        setPendingImagesCount(0);
+        return;
+      }
+
+      const headers: any = {
+        'content-type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      const res = await fetch('/api/products/image-diagnostics', { headers });
+      if (!res.ok) {
+        // ignore other errors but don't leave stale counts
+        setPendingImagesCount(0);
+        return;
+      }
       const j = await res.json();
       setPendingImagesCount(Number(j.total_external || 0));
     } catch (e) {
@@ -434,11 +459,17 @@ export function StoreProvider({
             description: d.description || null,
           } as any;
         };
-
         setBrandsWithLogos(
           brands.map((b) => {
             const found = data.find((d: any) => d.name === b);
-            return found ? normalize(found) : { name: b, logo_url: null };
+            return found
+              ? normalize(found)
+              : {
+                  name: b,
+                  logo_url: null,
+                  banner_url: null,
+                  description: null,
+                };
           })
         );
       }
@@ -885,10 +916,63 @@ export function StoreProvider({
     sortOrder,
   ]);
 
+  // ✅ NORMALIZAÇÃO COMPLETA DA STORE (BANNERS, LOGOS E BARRA DE BENEFÍCIOS)
+  const normalizedStore = useMemo(() => {
+    // Criamos uma cópia para preservar todas as propriedades originais
+    const s: any = { ...store };
+
+    const resolveUrl = (u: string | null | undefined) => {
+      if (!u) return '';
+      const str = String(u || '');
+
+      // Keep external full URLs that are not Supabase storage
+      if (/^https?:\/\//i.test(str) && !str.includes('supabase.co/storage'))
+        return str;
+
+      // Normalize Supabase storage paths and remove duplicated 'public/' segments
+      let path = str;
+      if (str.includes('/storage/v1/object/public/')) {
+        path = str.split('/storage/v1/object/public/')[1];
+      }
+      const cleanPath = path.replace(
+        'product-images/public/',
+        'product-images/'
+      );
+      return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+    };
+
+    // 1. Normaliza banners desktop
+    if (Array.isArray(s.banners)) {
+      s.banners = s.banners.map((b: any) => resolveUrl(b));
+    }
+
+    // 2. Normaliza banners mobile
+    if (Array.isArray((s as any).banners_mobile)) {
+      (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) =>
+        resolveUrl(b)
+      );
+    }
+
+    // 3. Normaliza logo da loja
+    if (s.logo_url) {
+      s.logo_url = resolveUrl(s.logo_url);
+    }
+
+    // 4. ✅ FIX: Normaliza imagem da barra de benefícios (se houver)
+    if (s.top_benefit_image_url) {
+      s.top_benefit_image_url = resolveUrl(s.top_benefit_image_url);
+    }
+
+    // Garantir flags booleanas existam
+    s.show_top_benefit_bar = s.show_top_benefit_bar ?? false;
+
+    return s;
+  }, [store]);
+
   return (
     <StoreContext.Provider
       value={{
-        store,
+        store: normalizedStore,
         initialProducts,
         pendingImagesCount,
         refreshPendingImages,

@@ -69,13 +69,38 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data, error } = await supabase.rpc('clone_catalog_smart', {
+    // Try calling the RPC. Newer DB migrations use parameter names prefixed with 'p_'.
+    // Attempt with the common names first, then retry with prefixed params if needed.
+    let rpcResult: any = null;
+    let rpcError: any = null;
+
+    const tryRpc = async (params: Record<string, any>) => {
+      try {
+        const r = await supabase.rpc('clone_catalog_smart', params as any);
+        return r;
+      } catch (e) {
+        return { data: null, error: e };
+      }
+    };
+
+    // First attempt (legacy/common param names)
+    ({ data: rpcResult, error: rpcError } = await tryRpc({
       source_user_id: sourceId,
       target_user_id: body.targetUserId,
       brands_to_copy: body.brands,
-    });
+    }));
 
-    if (error) throw error;
+    // If error mentions ambiguous or parameter not found, retry with p_ prefixed names
+    if (rpcError && /source_user_id|ambiguous|parameter/i.test(String(rpcError?.message || rpcError))) {
+      ({ data: rpcResult, error: rpcError } = await tryRpc({
+        p_source_user_id: sourceId,
+        p_target_user_id: body.targetUserId,
+        p_brands_to_copy: body.brands,
+      }));
+    }
+
+    if (rpcError) throw rpcError;
+    const data = rpcResult;
 
     try {
       const cookieStore = await cookies();

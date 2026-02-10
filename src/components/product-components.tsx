@@ -16,7 +16,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ProductCard } from '@/components/catalogo/ProductCard';
 import ProductCardSkeleton from '@/components/catalogo/ProductCardSkeleton';
@@ -30,6 +30,56 @@ interface SlideData {
   imageUrl: string;
   linkUrl: string;
   altText: string;
+}
+
+export function CategoryBar() {
+  const { categories = [], selectedCategory, setSelectedCategory, initialProducts = [] } = useStore();
+  const displayCategories = useMemo(() => {
+    if (categories && categories.length > 0) {
+      return categories.map((c: any) => (typeof c === 'string' ? c : c?.name || String(c)));
+    }
+    const fromProducts = Array.from(
+      new Set(initialProducts.map((p: Product) => p.category).filter(Boolean))
+    );
+    return fromProducts;
+  }, [categories, initialProducts]);
+
+  if (!displayCategories || displayCategories.length === 0) return null;
+
+  return (
+    <div className="w-full bg-white border-b border-gray-100 py-3">
+      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-3 overflow-x-auto scrollbar-hide">
+        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 shrink-0 border-r border-gray-200 pr-3">
+          Filtrar Por
+        </span>
+
+        <button
+          onClick={() => setSelectedCategory('all')}
+          className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${
+            selectedCategory === 'all'
+              ? 'bg-gray-900 text-white border-gray-900 shadow-md'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+          }`}
+        >
+          Ver Tudo
+        </button>
+
+        {displayCategories.map((cat: string) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${
+              selectedCategory === cat
+                ? 'bg-gray-900 text-white border-gray-900 shadow-md'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 interface CarouselProps {
@@ -138,12 +188,38 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
 
 // --- Container de Banners ---
 export function StoreBanners() {
-  const { store } = useStore();
-  if (!store.banners || store.banners.length === 0) return null;
+  const { store, selectedBrand } = useStore();
 
-  const slides: SlideData[] = store.banners.map((url, index) => ({
+  // Verifica se existem banners (comuns ou mobile)
+  const hasBanners = store.banners && store.banners.length > 0;
+  const hasMobileBanners = store.banners_mobile && store.banners_mobile.length > 0;
+
+  if (!hasBanners && !hasMobileBanners) return null;
+  // Only show store-wide banners when no brand is selected
+  if (selectedBrand && selectedBrand !== 'all') return null;
+
+  // Função auxiliar para normalizar as URLs dos banners
+  const normalizeBannerUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http') && !url.includes('supabase.co/storage')) return url;
+
+    // Extrai o path se for do Supabase ou limpa caminhos problemáticos
+    let path = url;
+    if (url.includes('/storage/v1/object/public/')) {
+      path = url.split('/storage/v1/object/public/')[1];
+    }
+
+    // Remove o "public/" duplicado se existir
+    const cleanPath = path.replace('product-images/public/', 'product-images/');
+
+    return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+  };
+
+  // Prepara os slides (usa banners_mobile se disponível e o usuário estiver no mobile,
+  // mas aqui simplificamos integrando ambos no mapeamento inicial)
+  const slides: SlideData[] = (store.banners || []).map((url, index) => ({
     id: index,
-    imageUrl: url,
+    imageUrl: normalizeBannerUrl(url),
     linkUrl: '#',
     altText: `Banner Promocional ${index + 1}`,
   }));

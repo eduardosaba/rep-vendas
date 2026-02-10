@@ -346,7 +346,60 @@ export default function CloneUserPage() {
         return next;
       });
     } catch (e) {
-      console.error('[CloneUserPage] Erro ao buscar stats por marca:', e);
+      console.warn(
+        '[CloneUserPage] RPC get_brand_clone_stats failed, falling back to client aggregation',
+        e
+      );
+
+      try {
+        // Fallback: aggregate from catalog_clones + products
+        const { data: clones } = await supabase
+          .from('catalog_clones')
+          .select('cloned_product_id, created_at')
+          .eq('target_user_id', selectedUser);
+
+        const prodIds = (clones || [])
+          .map((c: any) => c.cloned_product_id)
+          .filter(Boolean);
+
+        const { data: prods } = prodIds.length
+          ? await supabase.from('products').select('id,brand').in('id', prodIds)
+          : { data: [] };
+
+        const brandAgg: Record<
+          string,
+          { clonedCount: number; latestCloneAt: string | null }
+        > = {};
+        (clones || []).forEach((c: any) => {
+          const p = (prods || []).find(
+            (x: any) => String(x.id) === String(c.cloned_product_id)
+          );
+          const brand = (p && p.brand) || 'N/A';
+          if (!brandAgg[brand])
+            brandAgg[brand] = { clonedCount: 0, latestCloneAt: null };
+          brandAgg[brand].clonedCount += 1;
+          const created = c.created_at;
+          if (
+            created &&
+            (!brandAgg[brand].latestCloneAt ||
+              new Date(created) > new Date(brandAgg[brand].latestCloneAt))
+          ) {
+            brandAgg[brand].latestCloneAt = created;
+          }
+        });
+
+        setBrandsData((prev) => {
+          const next = { ...prev };
+          Object.keys(brandAgg).forEach((b) => {
+            if (!next[b]) next[b] = { count: 0, latestUpdatedAt: null };
+            next[b].clonedCount = brandAgg[b].clonedCount;
+            next[b].latestCloneAt = brandAgg[b].latestCloneAt;
+          });
+          return next;
+        });
+      } catch (e2) {
+        console.error('[CloneUserPage] fallback fetchBrandStats failed:', e2);
+      }
     }
   };
 
@@ -357,27 +410,101 @@ export default function CloneUserPage() {
       setLoadingHistory(true);
       setShowHistory(true);
 
-      const { data, error, count } = await supabase
-        .from('v_history_clones')
-        .select('*', { count: 'exact' })
-        .eq('target_user_id', selectedUser)
-        .order('cloned_at', { ascending: false })
-        .range(offset, offset + 49);
+      // Try view first (if exists). If it fails, fallback to aggregating from catalog_clones + products + profiles
+      let useData: any[] = [];
+      let totalCount: number | null = null;
 
-      if (error) throw error;
+      try {
+        const { data, error, count } = await supabase
+          .from('v_history_clones')
+          .select('*', { count: 'exact' })
+          .eq('target_user_id', selectedUser)
+          .order('cloned_at', { ascending: false })
+          .range(offset, offset + 49);
+
+        if (!error && data) {
+          useData = data;
+          totalCount = typeof count === 'number' ? count : null;
+        } else if (error) {
+          throw error;
+        }
+      } catch (viewErr) {
+        console.warn(
+          '[CloneUserPage] view v_history_clones unavailable, using fallback',
+          viewErr
+        );
+
+        const { data: clones } = await supabase
+          .from('catalog_clones')
+          .select(
+            'id, source_product_id, cloned_product_id, source_user_id, target_user_id, created_at'
+          )
+          .eq('target_user_id', selectedUser)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + 49);
+
+        const prodIds = (clones || [])
+          .map((c: any) => c.cloned_product_id)
+          .filter(Boolean);
+        const srcUserIds = Array.from(
+          new Set(
+            (clones || []).map((c: any) => c.source_user_id).filter(Boolean)
+          )
+        );
+
+        const { data: prods } = prodIds.length
+          ? await supabase
+              .from('products')
+              .select('id,name,brand,reference_code')
+              .in('id', prodIds)
+          : { data: [] };
+
+        const { data: profiles } = srcUserIds.length
+          ? await supabase
+              .from('profiles')
+              .select('id,email')
+              .in('id', srcUserIds)
+          : { data: [] };
+
+        useData = (clones || []).map((c: any) => {
+          const p =
+            (prods || []).find(
+              (x: any) => String(x.id) === String(c.cloned_product_id)
+            ) || ({} as any);
+          const pr =
+            (profiles || []).find(
+              (x: any) => String(x.id) === String(c.source_user_id)
+            ) || ({} as any);
+          return {
+            clone_id: c.id,
+            product_name: (p as any).name || null,
+            brand: (p as any).brand || null,
+            reference_code: (p as any).reference_code || null,
+            cloned_at: c.created_at,
+            source_user_email: (pr as any).email || null,
+          };
+        });
+
+        // Attempt to fetch total count for pagination
+        try {
+          const { count } = await supabase
+            .from('catalog_clones')
+            .select('id', { count: 'exact', head: true })
+            .eq('target_user_id', selectedUser);
+          totalCount = typeof count === 'number' ? count : null;
+        } catch (_) {
+          totalCount = null;
+        }
+      }
 
       setCloneHistory(
-        offset === 0 ? data || [] : [...cloneHistory, ...(data || [])]
+        offset === 0 ? useData || [] : [...cloneHistory, ...(useData || [])]
       );
 
-      if (count !== null) {
+      if (totalCount !== null) {
         setCloneStats({
-          total_clones: count,
-          // Simple approach: we don't have brands_summary from the view easily without aggregation
-          // If the user wants specific stats, we might need another RPC or just use what we have.
-          // For now, I'll pass basic stats.
-          total_brands: 0, // Placeholder, calculating distinct brands from paged view is hard.
-          // However, we have brandsData from the main RPC! We can use that.
+          total_clones: totalCount,
+          total_brands: 0,
         });
       }
     } catch (e: any) {
@@ -439,23 +566,13 @@ export default function CloneUserPage() {
     if (!selectedUser) return toast.error('Selecione um usuário primeiro');
     if (selectedProperties.length === 0)
       return toast.error('Selecione pelo menos uma propriedade');
-
-    const confirmed = await askConfirm(
-      `Sincronizar as seguintes propriedades para os produtos clonados?\n\n` +
-        `Propriedades: ${selectedProperties.join(', ')}\n` +
-        `Usuário: ${users.find((u) => u.id === selectedUser)?.full_name || selectedUser}\n` +
-        `Marcas: ${selectedBrands.length > 0 ? selectedBrands.join(', ') : 'TODAS'}`,
-      'Sincronizar Propriedades'
-    );
-
-    if (!confirmed) return;
-
     try {
       setSyncingProps(true);
       const session = await supabase.auth.getSession();
       const token = session?.data?.session?.access_token;
 
-      const res = await fetch('/api/admin/sync-properties', {
+      // First: dry-run to show impact
+      const dryRes = await fetch('/api/admin/sync-properties', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -465,15 +582,45 @@ export default function CloneUserPage() {
           targetUserId: selectedUser,
           brands: selectedBrands.length > 0 ? selectedBrands : null,
           properties: selectedProperties,
+          dryRun: true,
         }),
       });
 
-      const result = await res.json();
-      if (!res.ok)
-        throw new Error(result.error || 'Erro ao sincronizar propriedades');
+      const dryJson = await dryRes.json();
+      if (!dryRes.ok) throw new Error(dryJson.error || 'Erro no dry-run');
 
-      toast.success(`Propriedades sincronizadas!`, {
-        description: result.message,
+      const summary = dryJson.message || `${dryJson.updatedProducts || 0} produtos afetados em ${dryJson.affectedUsers || 0} usuários.`;
+
+      const confirmed = await askConfirm(
+        `Dry-run: ${summary}\n\nDeseja aplicar as alterações agora?`,
+        'Confirmar Sincronização'
+      );
+
+      if (!confirmed) {
+        toast('Sincronização cancelada');
+        return;
+      }
+
+      // Apply
+      const applyRes = await fetch('/api/admin/sync-properties', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          targetUserId: selectedUser,
+          brands: selectedBrands.length > 0 ? selectedBrands : null,
+          properties: selectedProperties,
+          dryRun: false,
+        }),
+      });
+
+      const applyJson = await applyRes.json();
+      if (!applyRes.ok) throw new Error(applyJson.error || 'Erro ao aplicar sincronização');
+
+      toast.success('Propriedades sincronizadas!', {
+        description: applyJson.message,
       });
 
       loadClones(0, false);

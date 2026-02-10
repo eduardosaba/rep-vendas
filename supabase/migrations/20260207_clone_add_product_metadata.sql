@@ -46,7 +46,7 @@ BEGIN
     -- Clean up image fields logic:
     -- If image_path or images exist, clear external_image_url and image_url
     -- to avoid duplicates in gallery (image_path takes priority)
-    IF src.image_path IS NOT NULL OR (src.images IS NOT NULL AND array_length(src.images, 1) > 0) THEN
+    IF src.image_path IS NOT NULL OR (src.images IS NOT NULL AND jsonb_typeof(src.images) = 'array' AND jsonb_array_length(src.images) > 0) THEN
       final_image_url := NULL;
       final_external_image_url := NULL;
     ELSE

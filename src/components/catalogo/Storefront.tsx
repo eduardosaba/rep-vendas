@@ -9,8 +9,9 @@ import {
   StoreSidebar,
   StoreMobileActionBar,
   StoreFooter,
+  CarouselBrands,
 } from './store-layout';
-import { StoreBanners, ProductGrid } from './product-components';
+import { StoreBanners, ProductGrid, CategoryBar } from './product-components';
 import { StoreModals } from './store-modals-container';
 import { InstallPrompt } from './InstallPrompt';
 import { FloatingCart } from './FloatingCart';
@@ -87,57 +88,8 @@ export function Storefront({
   // share_banner_url may exist on the public_catalogs row (not part of Settings type)
   const shareBanner = (c['share_banner_url'] as string) || undefined;
 
-  // Normalize image URLs to absolute when they are relative paths
-  const PUBLIC_BASE =
-    typeof window !== 'undefined'
-      ? process.env.NEXT_PUBLIC_APP_URL || ''
-      : process.env.NEXT_PUBLIC_APP_URL || '';
-  const resolveUrl = (u?: string | null) => {
-    if (!u) return u ?? null;
-
-    // Se é URL do Supabase Storage, roteia pelo proxy
-    if (u.includes('supabase.co/storage') || u.includes('/storage/v1/object')) {
-      // Extrai o path após '/storage/v1/object/public/'
-      const match = u.match(/\/storage\/v1\/object\/public\/(.+)$/);
-      if (match && match[1]) {
-        return `/api/storage-image?path=${encodeURIComponent(match[1])}`;
-      }
-      // Fallback: passa URL completa pro proxy
-      return `/api/storage-image?path=${encodeURIComponent(u)}`;
-    }
-
-    // URLs externas (HTTP/HTTPS não-storage)
-    if (u.startsWith('http') || u.startsWith('//')) return u;
-
-    // Paths relativos
-    if (u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
-
-    return u;
-  };
-
-  // If a single share banner exists but banners is empty, prefer showing it
-  if (!store.banners || store.banners.length === 0) {
-    if (shareBanner) {
-      (store.banners as any) = [resolveUrl(shareBanner) as any];
-    }
-  } else {
-    (store.banners as any) = (store.banners || []).map((s: any) =>
-      resolveUrl(s as string)
-    );
-  }
-
-  if (store.banners_mobile && store.banners_mobile.length > 0) {
-    (store.banners_mobile as any) = store.banners_mobile.map((s: any) =>
-      resolveUrl(s as string)
-    );
-  }
-
-  if (store.logo_url)
-    (store.logo_url as any) = resolveUrl(store.logo_url) as any;
-  if (store.top_benefit_image_url)
-    (store.top_benefit_image_url as any) = resolveUrl(
-      store.top_benefit_image_url
-    ) as any;
+  // NOTE: Normalização de URLs (banners/logo) foi movida para o StoreProvider
+  // para evitar double-encoding e centralizar a lógica de proxy (/api/storage-image).
 
   /**
    * 2. GESTÃO DE CORES DINÂMICAS
@@ -253,45 +205,49 @@ export function Storefront({
         style={{ ...cssVars, fontFamily: finalFamily }}
         className="min-h-screen bg-gray-50 flex flex-col selection:bg-primary/20 selection:text-primary"
       >
-        {/* Barra de Informações do Topo */}
-        {(store.name || store.phone) && (
-          <div className="w-full bg-secondary border-b border-white/10">
-            <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-2 text-[11px] sm:text-xs flex items-center justify-between gap-4 text-white/80">
-              <div className="flex items-center gap-4">
-                <span className="font-bold uppercase tracking-wider hidden sm:inline">
-                  {store.name}
-                </span>
-                {store.email && (
-                  <a
-                    href={`mailto:${store.email}`}
-                    className="hover:text-white transition-colors"
-                  >
-                    {store.email}
-                  </a>
-                )}
-              </div>
-
-              <div className="flex items-center gap-4 ml-auto">
-                {store.phone && (
-                  <a
-                    href={formatWhatsappUrl(store.phone)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 hover:text-white transition-all font-bold"
-                  >
-                    <Phone size={12} className="text-primary" />
-                    <span>WhatsApp Suporte</span>
-                  </a>
-                )}
-              </div>
+        {/* Barra de contatos fixa (sempre visível se houver dados) */}
+        {(store.email || store.phone) && (
+          <div className="w-full" style={{ backgroundColor: store.secondary_color }}>
+            <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-1 sm:py-2 flex justify-between items-center text-white/90 text-xs sm:text-sm border-b border-white/5">
+              <span className="inline-flex items-center gap-2 min-w-0">
+                {store.email ? (
+                  <>
+                    <svg className="w-4 h-4 text-white flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8.5L12 13L21 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <a href={`mailto:${store.email}`} className="hover:underline font-medium truncate">
+                      {store.email}
+                    </a>
+                  </>
+                ) : null}
+              </span>
+              <span className="inline-flex items-center gap-2 min-w-0">
+                {store.phone ? (
+                  <>
+                    <svg className="w-4 h-4 text-white flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 16.92V21a1 1 0 0 1-1.11 1A19 19 0 0 1 3 5.11 1 1 0 0 1 4 4h4.09a1 1 0 0 1 1 .75c.12.62.36 1.9-.35 3.43a1 1 0 0 1-.22.31l-1.2 1.2a15 15 0 0 0 6.36 6.36l1.2-1.2a1 1 0 0 1 .31-.22c1.53-.71 2.81-.47 3.43-.35a1 1 0 0 1 .75 1V21z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <a
+                      href={formatWhatsappUrl(store.phone)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline font-medium truncate"
+                    >
+                      {store.phone}
+                    </a>
+                  </>
+                ) : null}
+              </span>
             </div>
           </div>
         )}
 
-        {/* Componentes de Layout do Catálogo */}
+        {/* 2. BARRA DE BENEFÍCIOS (configurada no painel) */}
         <StoreTopBar />
+
+        {/* 3. HEADER PRINCIPAL (Logo e Busca) */}
         <StoreHeader />
-        <StoreBanners />
+        <CarouselBrands />
+        <CategoryBar />
+        <div className="max-w-[1920px] mx-auto px-4 lg:px-8">
+          <StoreBanners />
+        </div>
 
         {/* Grid Principal com Sidebar de Filtros */}
         <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12 flex flex-col md:flex-row gap-8 flex-1 relative">
