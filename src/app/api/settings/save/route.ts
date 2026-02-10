@@ -118,6 +118,14 @@ export async function POST(req: Request) {
     // Call syncPublicCatalog to guarantee public_catalogs is updated server-side
     try {
       if (slug) {
+        console.log('[settings/save] Chamando syncPublicCatalog com:', {
+          slug,
+          banners: settingsPayload.banners,
+          banners_mobile: settingsPayload.banners_mobile,
+          banners_length: settingsPayload.banners?.length,
+          mobile_length: settingsPayload.banners_mobile?.length,
+        });
+        
         await syncPublicCatalog(userId, {
           slug,
           store_name: name || null,
@@ -157,6 +165,8 @@ export async function POST(req: Request) {
             : null,
           is_active: typeof is_active === 'boolean' ? is_active : true,
         });
+        
+        console.log('[settings/save] syncPublicCatalog concluído com sucesso');
       }
     } catch (e) {
       // Log but don't fail the entire request if sync fails

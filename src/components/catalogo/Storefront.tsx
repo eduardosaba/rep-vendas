@@ -207,13 +207,32 @@ export function Storefront({
       >
         {/* Barra de contatos fixa (sempre visível se houver dados) */}
         {(store.email || store.phone) && (
-          <div className="w-full" style={{ backgroundColor: store.secondary_color }}>
+          <div
+            className="w-full"
+            style={{ backgroundColor: store.secondary_color }}
+          >
             <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-1 sm:py-2 flex justify-between items-center text-white/90 text-xs sm:text-sm border-b border-white/5">
               <span className="inline-flex items-center gap-2 min-w-0">
                 {store.email ? (
                   <>
-                    <svg className="w-4 h-4 text-white flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8.5L12 13L21 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    <a href={`mailto:${store.email}`} className="hover:underline font-medium truncate">
+                    <svg
+                      className="w-4 h-4 text-white flex-shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M3 8.5L12 13L21 8.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <a
+                      href={`mailto:${store.email}`}
+                      className="hover:underline font-medium truncate"
+                    >
                       {store.email}
                     </a>
                   </>
@@ -222,7 +241,20 @@ export function Storefront({
               <span className="inline-flex items-center gap-2 min-w-0">
                 {store.phone ? (
                   <>
-                    <svg className="w-4 h-4 text-white flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 16.92V21a1 1 0 0 1-1.11 1A19 19 0 0 1 3 5.11 1 1 0 0 1 4 4h4.09a1 1 0 0 1 1 .75c.12.62.36 1.9-.35 3.43a1 1 0 0 1-.22.31l-1.2 1.2a15 15 0 0 0 6.36 6.36l1.2-1.2a1 1 0 0 1 .31-.22c1.53-.71 2.81-.47 3.43-.35a1 1 0 0 1 .75 1V21z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <svg
+                      className="w-4 h-4 text-white flex-shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M22 16.92V21a1 1 0 0 1-1.11 1A19 19 0 0 1 3 5.11 1 1 0 0 1 4 4h4.09a1 1 0 0 1 1 .75c.12.62.36 1.9-.35 3.43a1 1 0 0 1-.22.31l-1.2 1.2a15 15 0 0 0 6.36 6.36l1.2-1.2a1 1 0 0 1 .31-.22c1.53-.71 2.81-.47 3.43-.35a1 1 0 0 1 .75 1V21z"
+                        stroke="currentColor"
+                        strokeWidth="1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                     <a
                       href={formatWhatsappUrl(store.phone)}
                       target="_blank"
@@ -245,9 +277,7 @@ export function Storefront({
         <StoreHeader />
         <CarouselBrands />
         <CategoryBar />
-        <div className="max-w-[1920px] mx-auto px-4 lg:px-8">
-          <StoreBanners />
-        </div>
+        <StoreBanners />
 
         {/* Grid Principal com Sidebar de Filtros */}
         <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12 flex flex-col md:flex-row gap-8 flex-1 relative">

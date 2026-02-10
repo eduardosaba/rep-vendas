@@ -324,10 +324,10 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
           const clean = v
             .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
             .filter(Boolean);
-          return clean.length > 0 ? clean : null;
+          return clean; // Sempre retorna array (vazio ou com valores)
         }
         if (typeof v === 'string' && v.trim()) return [v.trim()];
-        return null;
+        return []; // Retorna array vazio ao invés de null
       };
 
       const incomingBanners = sanitize(
@@ -345,21 +345,40 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
           null
       );
 
+      console.log('[syncPublicCatalog] UPDATE - Banners a sincronizar:', {
+        slug,
+        incomingBanners,
+        incomingBannersMobile,
+        colNames: colNames.filter((c: string) => c.includes('banner')),
+      });
+
       if (colNames.includes('banners')) {
         updatePayload.banners = incomingBanners;
       } else if (colNames.includes('banner')) {
-        updatePayload.banner = incomingBanners ? incomingBanners[0] : null;
+        updatePayload.banner =
+          incomingBanners.length > 0 ? incomingBanners[0] : null;
       }
 
       if (colNames.includes('banners_mobile')) {
         updatePayload.banners_mobile = incomingBannersMobile;
       } else if (colNames.includes('banner_mobile')) {
-        updatePayload.banner_mobile = incomingBannersMobile
-          ? incomingBannersMobile[0]
-          : null;
+        updatePayload.banner_mobile =
+          incomingBannersMobile.length > 0 ? incomingBannersMobile[0] : null;
       }
     } catch (e) {
-      // best-effort: ignore if we can't detect columns
+      console.error(
+        '[syncPublicCatalog] Erro ao detectar/atribuir banners:',
+        e
+      );
+      // Se falhar a detecção, tenta forçar gravação direta (fallback)
+      if (data.banners)
+        updatePayload.banners = Array.isArray(data.banners)
+          ? data.banners
+          : [data.banners];
+      if (data.banners_mobile)
+        updatePayload.banners_mobile = Array.isArray(data.banners_mobile)
+          ? data.banners_mobile
+          : [data.banners_mobile];
     }
 
     // Atualiza apenas o registro correspondente ao `slug` (escopo por catálogo)
@@ -573,10 +592,10 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
           const clean = v
             .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
             .filter(Boolean);
-          return clean.length > 0 ? clean : null;
+          return clean; // Sempre retorna array (vazio ou com valores)
         }
         if (typeof v === 'string' && v.trim()) return [v.trim()];
-        return null;
+        return []; // Retorna array vazio ao invés de null
       };
 
       const incomingBanners = sanitize(
@@ -594,27 +613,42 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
           null
       );
 
+      console.log('[syncPublicCatalog] INSERT - Banners a sincronizar:', {
+        slug,
+        incomingBanners,
+        incomingBannersMobile,
+        colNames: colNames.filter((c: string) => c.includes('banner')),
+      });
+
       if (colNames.includes('banners')) {
         // Garantir que sempre gravamos um array (vazio quando não houver banners),
         // isso facilita a renderização no frontend (diferença entre null e []).
-        insertPayload.banners = incomingBanners ?? [];
+        insertPayload.banners = incomingBanners;
       } else if (colNames.includes('banner')) {
         insertPayload.banner =
-          incomingBanners && incomingBanners.length > 0
-            ? incomingBanners[0]
-            : null;
+          incomingBanners.length > 0 ? incomingBanners[0] : null;
       }
 
       if (colNames.includes('banners_mobile')) {
-        insertPayload.banners_mobile = incomingBannersMobile ?? [];
+        insertPayload.banners_mobile = incomingBannersMobile;
       } else if (colNames.includes('banner_mobile')) {
         insertPayload.banner_mobile =
-          incomingBannersMobile && incomingBannersMobile.length > 0
-            ? incomingBannersMobile[0]
-            : null;
+          incomingBannersMobile.length > 0 ? incomingBannersMobile[0] : null;
       }
     } catch (e) {
-      // best-effort
+      console.error(
+        '[syncPublicCatalog] Erro ao detectar/atribuir banners (INSERT):',
+        e
+      );
+      // Se falhar a detecção, tenta forçar gravação direta (fallback)
+      if (data.banners)
+        insertPayload.banners = Array.isArray(data.banners)
+          ? data.banners
+          : [data.banners];
+      if (data.banners_mobile)
+        insertPayload.banners_mobile = Array.isArray(data.banners_mobile)
+          ? data.banners_mobile
+          : [data.banners_mobile];
     }
 
     const { error } = await supabase

@@ -69,38 +69,30 @@ export async function POST(req: Request) {
       );
     }
 
-    // Try calling the RPC. Newer DB migrations use parameter names prefixed with 'p_'.
-    // Attempt with the common names first, then retry with prefixed params if needed.
-    let rpcResult: any = null;
-    let rpcError: any = null;
-
-    const tryRpc = async (params: Record<string, any>) => {
-      try {
-        const r = await supabase.rpc('clone_catalog_smart', params as any);
-        return r;
-      } catch (e) {
-        return { data: null, error: e };
-      }
-    };
-
-    // First attempt (legacy/common param names)
-    ({ data: rpcResult, error: rpcError } = await tryRpc({
+    // Call the RPC. Function signature from migration: clone_catalog_smart(source_user_id uuid, target_user_id uuid, brands_to_copy text[])
+    console.log('[setup-new-user] Calling clone_catalog_smart with:', {
       source_user_id: sourceId,
       target_user_id: body.targetUserId,
       brands_to_copy: body.brands,
-    }));
+    });
 
-    // If error mentions ambiguous or parameter not found, retry with p_ prefixed names
-    if (rpcError && /source_user_id|ambiguous|parameter/i.test(String(rpcError?.message || rpcError))) {
-      ({ data: rpcResult, error: rpcError } = await tryRpc({
-        p_source_user_id: sourceId,
-        p_target_user_id: body.targetUserId,
-        p_brands_to_copy: body.brands,
-      }));
+    const { data, error } = await supabase.rpc('clone_catalog_smart', {
+      source_user_id: sourceId,
+      target_user_id: body.targetUserId,
+      brands_to_copy: body.brands,
+    });
+
+    if (error) {
+      console.error('[setup-new-user] RPC clone_catalog_smart failed:', error);
+      return NextResponse.json(
+        {
+          error: 'Falha ao executar clone_catalog_smart. Verifique se a migration foi aplicada no banco de dados.',
+          detail: error.message || String(error),
+          hint: 'Execute: SELECT proname, proargnames FROM pg_proc WHERE proname = \'clone_catalog_smart\'; para verificar a função.',
+        },
+        { status: 500 }
+      );
     }
-
-    if (rpcError) throw rpcError;
-    const data = rpcResult;
 
     try {
       const cookieStore = await cookies();

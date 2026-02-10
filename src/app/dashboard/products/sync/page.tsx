@@ -70,7 +70,7 @@ export default function ProductSyncPage() {
       if (!user) return;
       const { data } = await supabase
         .from('products')
-        .select('id, name, reference_code, barcode, price, stock_quantity')
+        .select('id, name, reference_code, barcode, price, sale_price, cost, stock_quantity, description, category, color, technical_specs')
         .eq('user_id', user.id);
       if (data) setProducts(data);
     }
@@ -115,6 +115,13 @@ export default function ProductSyncPage() {
           status: 'not_found',
         };
       const currentDbValue = dbProduct[dbTargetCol] || 0;
+      
+      // Truncar textos longos para display (description, technical_specs)
+      let displayVal = excelValue;
+      if (['description', 'technical_specs'].includes(dbTargetCol) && typeof excelValue === 'string' && excelValue.length > 50) {
+        displayVal = excelValue.substring(0, 50) + '...';
+      }
+      
       // If target is image_url, prepare a friendly preview (first URL + gallery hint)
       if (dbTargetCol === 'image_url' && typeof excelValue === 'string') {
         const firstUrl = excelValue.split(';')[0].trim();
@@ -135,7 +142,7 @@ export default function ProductSyncPage() {
         id: dbProduct.id, // Guardamos o ID real do banco
         key: excelKey,
         newValue: excelValue,
-        displayValue: excelValue,
+        displayValue: displayVal,
         currentValue: currentDbValue,
         productName: dbProduct.name,
         status:
@@ -180,9 +187,10 @@ export default function ProductSyncPage() {
         // Preparamos os dados para um ÚNICO comando UPSERT por lote
         const batchData = chunk.map((item) => {
           let val = item.newValue;
-          if (dbTargetCol === 'price' || dbTargetCol === 'stock_quantity') {
-            val =
-              parseFloat(String(item.newValue).replace(/[^\d.-]/g, '')) || 0;
+          
+          // Tratamento numérico para campos de valor monetário e quantidade
+          if (['price', 'sale_price', 'cost', 'stock_quantity'].includes(dbTargetCol)) {
+            val = parseFloat(String(item.newValue).replace(/[^\d.-]/g, '')) || 0;
           }
 
           // Lógica especial para imagens: suporta múltiplas URLs separadas por ';'
@@ -210,11 +218,18 @@ export default function ProductSyncPage() {
             }
           }
 
+          // Buscar produto atual para preservar campos NOT NULL
+          const prodAtual = products.find((p) => p.id === item.id);
+
           return {
             id: item.id,
             name: item.productName, // OBRIGATÓRIO: Incluímos o nome para satisfazer a constraint NOT NULL
             [dbTargetCol]: val,
             ...imageProps, // Injeta sync_status e campos de imagem se for imagem
+            // Preservar campos NOT NULL quando não estão sendo atualizados diretamente
+            ...(dbTargetCol !== 'price' && {
+              price: prodAtual?.price ?? item.currentValue ?? 0,
+            }),
             updated_at: new Date().toISOString(),
             user_id: user.id,
           };
@@ -457,11 +472,16 @@ export default function ProductSyncPage() {
                   onChange={(e) => setDbTargetCol(e.target.value)}
                   className="w-full p-4 bg-gray-50 rounded-2xl font-bold text-sm text-primary"
                 >
-                  <option value="price">Atualizar Preços (R$)</option>
-                  <option value="stock_quantity">
-                    Atualizar Estoque (Un.)
-                  </option>
-                  <option value="image_url">Atualizar URL Imagens</option>
+                  <option value="price">💰 Preços (Custo)</option>
+                  <option value="sale_price">🏷️ Preços de Venda</option>
+                  <option value="cost">📊 Custo Real</option>
+                  <option value="stock_quantity">📦 Estoque (Quantidade)</option>
+                  <option value="image_url">🖼️ URL Imagens</option>
+                  <option value="barcode">🔢 Código de Barras (EAN)</option>
+                  <option value="description">📝 Descrição</option>
+                  <option value="category">🏪 Categoria</option>
+                  <option value="color">🎨 Cor</option>
+                  <option value="technical_specs">📋 Ficha Técnica</option>
                 </select>
                 <select
                   value={valueCol}
@@ -530,10 +550,14 @@ export default function ProductSyncPage() {
                         </div>
                       </td>
                       <td className="p-6 text-right text-gray-400">
-                        {item.currentValue ?? '--'}
+                        {typeof item.currentValue === 'string' && item.currentValue.length > 40 
+                          ? item.currentValue.substring(0, 40) + '...' 
+                          : item.currentValue ?? '--'}
                       </td>
                       <td className="p-6 text-right font-black text-primary">
-                        {item.newValue}
+                        {typeof item.displayValue === 'string' && item.displayValue.length > 40
+                          ? item.displayValue.substring(0, 40) + '...'
+                          : item.displayValue}
                       </td>
                       <td className="p-6 text-center">
                         <span

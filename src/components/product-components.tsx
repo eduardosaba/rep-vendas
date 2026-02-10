@@ -33,10 +33,17 @@ interface SlideData {
 }
 
 export function CategoryBar() {
-  const { categories = [], selectedCategory, setSelectedCategory, initialProducts = [] } = useStore();
+  const {
+    categories = [],
+    selectedCategory,
+    setSelectedCategory,
+    initialProducts = [],
+  } = useStore();
   const displayCategories = useMemo(() => {
     if (categories && categories.length > 0) {
-      return categories.map((c: any) => (typeof c === 'string' ? c : c?.name || String(c)));
+      return categories.map((c: any) =>
+        typeof c === 'string' ? c : c?.name || String(c)
+      );
     }
     const fromProducts = Array.from(
       new Set(initialProducts.map((p: Product) => p.category).filter(Boolean))
@@ -138,7 +145,7 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
                 src={slide.imageUrl}
                 alt={slide.altText}
                 fill
-                sizes="100vw"
+                sizes="(max-width: 768px) 100vw, (max-width: 1920px) 90vw, 1920px"
                 className="object-cover"
                 priority={slide.id === 0}
                 unoptimized={String(slide.imageUrl).includes(
@@ -189,44 +196,48 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
 // --- Container de Banners ---
 export function StoreBanners() {
   const { store, selectedBrand } = useStore();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detectar mobile no client-side
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Verifica se existem banners (comuns ou mobile)
   const hasBanners = store.banners && store.banners.length > 0;
-  const hasMobileBanners = store.banners_mobile && store.banners_mobile.length > 0;
+  const hasMobileBanners =
+    store.banners_mobile && store.banners_mobile.length > 0;
 
+  // Se não houver nenhum banner, não renderiza
   if (!hasBanners && !hasMobileBanners) return null;
   // Only show store-wide banners when no brand is selected
   if (selectedBrand && selectedBrand !== 'all') return null;
 
-  // Função auxiliar para normalizar as URLs dos banners
-  const normalizeBannerUrl = (url: string) => {
-    if (!url) return '';
-    if (url.startsWith('http') && !url.includes('supabase.co/storage')) return url;
+  // 📱 Lógica de seleção de banners:
+  // - Mobile E tem banners_mobile configurados → usa banners_mobile
+  // - Caso contrário (desktop OU mobile sem banners específicos) → usa banners desktop
+  // - Se não houver banner mobile, o desktop é automaticamente usado no mobile (fallback)
+  const activeBanners =
+    isMobile && hasMobileBanners ? store.banners_mobile : store.banners || [];
 
-    // Extrai o path se for do Supabase ou limpa caminhos problemáticos
-    let path = url;
-    if (url.includes('/storage/v1/object/public/')) {
-      path = url.split('/storage/v1/object/public/')[1];
-    }
-
-    // Remove o "public/" duplicado se existir
-    const cleanPath = path.replace('product-images/public/', 'product-images/');
-
-    return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
-  };
-
-  // Prepara os slides (usa banners_mobile se disponível e o usuário estiver no mobile,
-  // mas aqui simplificamos integrando ambos no mapeamento inicial)
-  const slides: SlideData[] = (store.banners || []).map((url, index) => ({
+  // Mapeia apenas os banners que foram feitos upload (1, 2, 3... N banners)
+  // Não é obrigatório ter 5 banners - renderiza quantos existirem
+  const slides: SlideData[] = (activeBanners || []).map((url, index) => ({
     id: index,
-    imageUrl: normalizeBannerUrl(url),
+    imageUrl: url, // URL já normalizada pelo store-context
     linkUrl: '#',
     altText: `Banner Promocional ${index + 1}`,
   }));
 
+  // Se não houver slides após o mapeamento, não renderiza
+  if (slides.length === 0) return null;
+
   return (
-    <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-      <div className="w-full aspect-[21/9] md:aspect-[3/1] lg:aspect-[4/1] relative overflow-hidden rounded-2xl shadow-sm bg-gray-100">
+    <div className="w-full">
+      <div className="w-full aspect-[3/1] md:aspect-[4/1] lg:aspect-[5/1] min-h-[180px] md:min-h-[220px] relative overflow-hidden bg-gray-100">
         <Carousel slides={slides} interval={5000} />
       </div>
     </div>
@@ -323,6 +334,9 @@ export function ProductGrid() {
               <option value="name">Nome (A-Z)</option>
               <option value="price_asc">Menor Preço</option>
               <option value="price_desc">Maior Preço</option>
+              <option value="ref_asc">Referência (A-Z)</option>
+              <option value="ref_desc">Referência (Z-A)</option>
+              <option value="created_desc">Lançamentos</option>
             </select>
           </div>
         </div>

@@ -41,6 +41,12 @@ export default function CloneUserPage() {
     'sale_price',
     'is_active',
   ]);
+  const [cloneProgress, setCloneProgress] = useState<{
+    active: boolean;
+    count: number;
+    startTime: number | null;
+  }>({ active: false, count: 0, startTime: null });
+  const [lastInsertTime, setLastInsertTime] = useState<number | null>(null);
   const PROPERTY_OPTIONS: { key: string; label: string }[] = [
     { key: 'price', label: 'Preço Custo' },
     { key: 'sale_price', label: 'Preço de Vendas' },
@@ -696,6 +702,7 @@ export default function CloneUserPage() {
       toast.success('Clone iniciado');
       // start polling for clone status
       setPolling(true);
+      setCloneProgress({ active: true, count: 0, startTime: Date.now() });
     } catch (e: any) {
       console.error(e);
       // Prefer human-friendly message, fallback to generic
@@ -740,6 +747,13 @@ export default function CloneUserPage() {
             setCloneEntries((prev) => [payload.new, ...prev]);
             // Refresh stats efficiently
             fetchBrandStats();
+            // Update progress counter
+            setCloneProgress((prev) => ({
+              ...prev,
+              count: prev.count + 1,
+            }));
+            // Mark last insert time for completion detection
+            setLastInsertTime(Date.now());
           }
         )
         .subscribe();
@@ -749,6 +763,25 @@ export default function CloneUserPage() {
       if (channel) supabase.removeChannel(channel);
     };
   }, [selectedUser, polling]);
+
+  // Detect clone completion (no new inserts for 5 seconds)
+  useEffect(() => {
+    if (!cloneProgress.active || !lastInsertTime) return;
+
+    const timer = setTimeout(() => {
+      const now = Date.now();
+      if (now - lastInsertTime >= 5000) {
+        // 5 seconds of inactivity
+        setCloneProgress((prev) => ({ ...prev, active: false }));
+        setPolling(false);
+        toast.success('Clone concluído com sucesso! 🎉', {
+          description: `${cloneProgress.count} produtos clonados`,
+        });
+      }
+    }, 5500);
+
+    return () => clearTimeout(timer);
+  }, [lastInsertTime, cloneProgress.active, cloneProgress.count]);
 
   return (
     <div className="p-6">
@@ -861,13 +894,42 @@ export default function CloneUserPage() {
         </div>
       </div>
 
+      {/* Clone Progress Banner */}
+      {cloneProgress.active && (
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin text-2xl">🔄</div>
+              <div>
+                <p className="font-semibold text-blue-900 dark:text-blue-100">
+                  Clonagem em andamento...
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  {cloneProgress.count} produtos clonados até agora
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setCloneProgress({ active: false, count: 0, startTime: null });
+                setPolling(false);
+                toast('Monitoramento interrompido (clone continua em segundo plano)');
+              }}
+              className="px-3 py-1 bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 rounded text-sm hover:bg-blue-300 dark:hover:bg-blue-700"
+            >
+              Parar Monitoramento
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 grid md:grid-cols-2 gap-6">
         <div>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={loading || cloneProgress.active}
                 className="px-4 py-2 bg-[var(--primary)] text-white rounded disabled:opacity-50"
               >
                 {loading ? 'Iniciando...' : 'Clonar catálogo'}

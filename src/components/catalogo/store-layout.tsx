@@ -976,7 +976,7 @@ export function CarouselBrands() {
   }, [isMobile, isPaused, effectiveBrands.length]);
 
   return (
-    <div className="w-full border-t py-2">
+    <div className="w-full border-t py-2 pb-10">
       <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center">
         <span className="font-bold uppercase tracking-wide text-xs mr-3 flex-shrink-0">
           Marcas:
@@ -1013,31 +1013,30 @@ export function CarouselBrands() {
                 <button
                   key={`${brand.name}-${i}`}
                   onClick={() => toggleBrand(brand.name)}
-                  title={brand.name}
-                  className={`relative flex items-center gap-3 px-4 py-2 rounded-full border transition-all duration-200 shrink-0 ${
+                  className={`group relative flex items-center justify-center p-2 rounded-full border transition-all duration-300 shrink-0 hover:scale-110 hover:shadow-lg ${
                     active
-                      ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-md scale-100'
-                      : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 shadow-sm'
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] shadow-md animate-pulse'
+                      : 'bg-white border-gray-200 hover:border-[var(--primary)]/50 shadow-sm'
                   }`}
                 >
-                  <div className="w-6 h-6 flex items-center justify-center bg-white rounded-full overflow-hidden shrink-0 border border-gray-100">
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
+                  {src ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={src}
                         alt={brand.name}
                         loading="lazy"
                         draggable={false}
-                        className="max-w-[90%] max-h-[90%] object-contain"
+                        className="w-10 h-10 md:w-12 md:h-12 object-contain shrink-0"
                       />
-                    ) : (
-                      <span className="text-[10px] font-bold text-gray-400">
-                        {initials}
+                      {/* Tooltip com nome da marca (aparece no hover) */}
+                      <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-[10px] font-semibold rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                        {brand.name}
                       </span>
-                    )}
-                  </div>
-                  {!isMobile && (
-                    <span className="text-[11px] font-extrabold uppercase tracking-tight whitespace-nowrap">
+                    </>
+                  ) : (
+                    // Fallback: mostra o nome da marca diretamente quando não há logo
+                    <span className={`px-3 text-xs font-bold whitespace-nowrap ${active ? 'text-[var(--primary)]' : 'text-gray-700'}`}>
                       {brand.name}
                     </span>
                   )}
