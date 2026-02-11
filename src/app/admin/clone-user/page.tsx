@@ -595,7 +595,9 @@ export default function CloneUserPage() {
       const dryJson = await dryRes.json();
       if (!dryRes.ok) throw new Error(dryJson.error || 'Erro no dry-run');
 
-      const summary = dryJson.message || `${dryJson.updatedProducts || 0} produtos afetados em ${dryJson.affectedUsers || 0} usuários.`;
+      const summary =
+        dryJson.message ||
+        `${dryJson.updatedProducts || 0} produtos afetados em ${dryJson.affectedUsers || 0} usuários.`;
 
       const confirmed = await askConfirm(
         `Dry-run: ${summary}\n\nDeseja aplicar as alterações agora?`,
@@ -623,7 +625,8 @@ export default function CloneUserPage() {
       });
 
       const applyJson = await applyRes.json();
-      if (!applyRes.ok) throw new Error(applyJson.error || 'Erro ao aplicar sincronização');
+      if (!applyRes.ok)
+        throw new Error(applyJson.error || 'Erro ao aplicar sincronização');
 
       toast.success('Propriedades sincronizadas!', {
         description: applyJson.message,
@@ -646,7 +649,7 @@ export default function CloneUserPage() {
     try {
       const session = await supabase.auth.getSession();
       const token = session?.data?.session?.access_token;
-      // Removed snake_case fields as API route handles camelCase
+      // Align with NewUserSetup: simple JSON request/response handling
       const payload = {
         targetUserId: selectedUser,
         brands: selectedBrands,
@@ -655,51 +658,19 @@ export default function CloneUserPage() {
       const res = await fetch('/api/admin/setup-new-user', {
         method: 'POST',
         headers: {
-          'content-type': 'application/json',
+          'Content-Type': 'application/json',
           Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify(payload),
       });
 
-      // Try to read response as text first (safe), then parse JSON if possible
-      let textBody: string | null = null;
-      let jsonBody: any = null;
-      try {
-        textBody = await res.text();
-        try {
-          jsonBody = textBody ? JSON.parse(textBody) : null;
-        } catch (e) {
-          jsonBody = null; // not JSON
-        }
-      } catch (e) {
-        console.error('[CloneUserPage] failed to read response body', e);
-      }
-
-      if (!res.ok) {
-        console.error('[CloneUserPage] setup-new-user failed', {
-          status: res.status,
-          statusText: res.statusText,
-          body: textBody,
-        });
-        const errMsg =
-          jsonBody?.error ||
-          jsonBody?.message ||
-          `Erro: ${res.status} ${res.statusText}`;
-        throw new Error(String(errMsg));
-      }
-
-      // If API returned an error shape inside 200, respect it
-      if (jsonBody && (jsonBody.error || jsonBody.success === false)) {
-        console.error(
-          '[CloneUserPage] setup-new-user returned error payload',
-          jsonBody
+      const json = await res.json().catch(() => null);
+      if (!res.ok)
+        throw new Error(
+          json?.error || json?.message || 'Erro ao iniciar clone'
         );
-        const errMsg =
-          jsonBody.error || jsonBody.message || 'Erro ao iniciar clone';
-        throw new Error(String(errMsg));
-      }
 
-      toast.success('Clone iniciado');
+      toast.success(json?.message || 'Clone iniciado');
       // start polling for clone status
       setPolling(true);
       setCloneProgress({ active: true, count: 0, startTime: Date.now() });
@@ -913,7 +884,9 @@ export default function CloneUserPage() {
               onClick={() => {
                 setCloneProgress({ active: false, count: 0, startTime: null });
                 setPolling(false);
-                toast('Monitoramento interrompido (clone continua em segundo plano)');
+                toast(
+                  'Monitoramento interrompido (clone continua em segundo plano)'
+                );
               }}
               className="px-3 py-1 bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 rounded text-sm hover:bg-blue-300 dark:hover:bg-blue-700"
             >

@@ -128,6 +128,17 @@ export function StoreTopBar() {
     const textColor =
       store.top_benefit_text_color || getContrastColor(String(bg));
     const height = store.top_benefit_height || 36;
+    const [benefitImageErrored, setBenefitImageErrored] = React.useState(false);
+
+    React.useEffect(() => {
+      // reset errored state when URL changes
+      setBenefitImageErrored(false);
+    }, [store.top_benefit_image_url]);
+
+    // Only render the <img> when we have a non-empty URL and it successfully loads.
+    const hasImageUrl = Boolean(
+      store.top_benefit_image_url && String(store.top_benefit_image_url).trim()
+    );
 
     return (
       <div className="w-full" style={{ backgroundColor: bg, color: textColor }}>
@@ -135,13 +146,15 @@ export function StoreTopBar() {
           className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-4"
           style={{ height }}
         >
-          {store.top_benefit_image_url ? (
+          {hasImageUrl && !benefitImageErrored ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={store.top_benefit_image_url}
-              alt={store.top_benefit_text || 'benefit'}
+              src={store.top_benefit_image_url ?? undefined}
+              alt={store.top_benefit_text ?? undefined}
               className="h-full mr-3 object-contain"
               style={{ maxHeight: height }}
+              onError={() => setBenefitImageErrored(true)}
+              onLoad={() => setBenefitImageErrored(false)}
             />
           ) : null}
 
@@ -912,11 +925,22 @@ export function CarouselBrands() {
       : (brands || []).map((b: any) => ({ name: b, logo_url: null }));
   if (!effectiveBrands || effectiveBrands.length === 0) return null;
 
+  const { setSortOrder } = useStore();
+
   const toggleBrand = (name: string) => {
     if (!name) return;
     // support multi/select single behavior: toggle to 'all' if already selected
-    if (selectedBrand === name) setSelectedBrand('all');
-    else setSelectedBrand(name);
+    if (selectedBrand === name) {
+      setSelectedBrand('all');
+    } else {
+      setSelectedBrand(name);
+      // When a brand is selected from the carousel, default to reference Z-A
+      try {
+        setSortOrder('ref_desc');
+      } catch (e) {
+        // ignore if not available
+      }
+    }
   };
 
   const normalizeLogoSrc = (raw: string | null | undefined) => {
@@ -976,13 +1000,13 @@ export function CarouselBrands() {
   }, [isMobile, isPaused, effectiveBrands.length]);
 
   return (
-    <div className="w-full border-t py-2 pb-10">
+    <div className="w-full border-t py-2 overflow-y-hidden">
       <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center">
         <span className="font-bold uppercase tracking-wide text-xs mr-3 flex-shrink-0">
           Marcas:
         </span>
         <div
-          className="flex-1 overflow-x-auto scrollbar-hide"
+          className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-hide"
           ref={scrollRef}
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
@@ -1013,30 +1037,26 @@ export function CarouselBrands() {
                 <button
                   key={`${brand.name}-${i}`}
                   onClick={() => toggleBrand(brand.name)}
-                  className={`group relative flex items-center justify-center p-2 rounded-full border transition-all duration-300 shrink-0 hover:scale-110 hover:shadow-lg ${
+                  title={brand.name}
+                  className={`group relative flex items-center justify-center p-2 rounded-none transition-all duration-200 shrink-0 hover:scale-105 ${
                     active
-                      ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] shadow-md animate-pulse'
-                      : 'bg-white border-gray-200 hover:border-[var(--primary)]/50 shadow-sm'
+                      ? 'bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] animate-pulse'
+                      : ''
                   }`}
                 >
                   {src ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={src}
-                        alt={brand.name}
-                        loading="lazy"
-                        draggable={false}
-                        className="w-10 h-10 md:w-12 md:h-12 object-contain shrink-0"
-                      />
-                      {/* Tooltip com nome da marca (aparece no hover) */}
-                      <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-[10px] font-semibold rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                        {brand.name}
-                      </span>
-                    </>
+                    <img
+                      src={src}
+                      alt={brand.name}
+                      loading="lazy"
+                      draggable={false}
+                      className="w-24 h-12 object-contain shrink-0"
+                    />
                   ) : (
                     // Fallback: mostra o nome da marca diretamente quando não há logo
-                    <span className={`px-3 text-xs font-bold whitespace-nowrap ${active ? 'text-[var(--primary)]' : 'text-gray-700'}`}>
+                    <span
+                      className={`px-3 text-xs font-bold whitespace-nowrap ${active ? 'text-[var(--primary)]' : 'text-gray-700'}`}
+                    >
                       {brand.name}
                     </span>
                   )}

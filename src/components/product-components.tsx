@@ -197,6 +197,7 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
 export function StoreBanners() {
   const { store, selectedBrand } = useStore();
   const [isMobile, setIsMobile] = useState(false);
+  const { brandsWithLogos } = useStore();
 
   // Detectar mobile no client-side
   useEffect(() => {
@@ -213,8 +214,89 @@ export function StoreBanners() {
 
   // Se não houver nenhum banner, não renderiza
   if (!hasBanners && !hasMobileBanners) return null;
-  // Only show store-wide banners when no brand is selected
-  if (selectedBrand && selectedBrand !== 'all') return null;
+  // If a brand is selected, show the brand-specific banner/description instead
+  if (selectedBrand && selectedBrand !== 'all') {
+    const normalize = (s: unknown) =>
+      String(s || '')
+        .trim()
+        .toLowerCase();
+    const findName = Array.isArray(selectedBrand)
+      ? (selectedBrand[0] as string)
+      : (selectedBrand as string);
+    const brandObj = (brandsWithLogos || []).find(
+      (b: any) => normalize(b.name) === normalize(findName)
+    );
+    // If we don't have a brand object, fall back to the main store banners
+    // (do not hide the carousel). If we have a brand object, render its
+    // banner or a compact header as fallback.
+    if (!brandObj) {
+      // No metadata for this brand in `brandsWithLogos` — let the function
+      // continue and render the normal store banners below.
+    } else {
+      const bannerUrl = brandObj.banner_url;
+
+      if (bannerUrl) {
+        return (
+          <div className="w-full">
+            <div className="w-full aspect-[4/1] min-h-[160px] md:min-h-[200px] relative overflow-hidden bg-gray-100 rounded-md">
+              <Image
+                src={bannerUrl}
+                alt={brandObj.name || 'Banner da Marca'}
+                fill
+                sizes="100vw"
+                className="object-cover"
+                unoptimized={String(bannerUrl).includes('supabase.co/storage')}
+              />
+              {brandObj.description ? (
+                <div className="absolute left-6 bottom-6 bg-black/60 text-white px-4 py-2 rounded-md max-w-xl">
+                  <h3 className="font-bold text-sm">{brandObj.name}</h3>
+                  <p className="text-xs mt-1 line-clamp-2">
+                    {brandObj.description}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        );
+      }
+
+      // No banner image: render compact brand header with logo/initials and
+      // optional description. This will appear above the products but will not
+      // hide the main carousel area elsewhere.
+      return (
+        <div className="w-full">
+          <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-4 flex items-center gap-4 bg-white rounded-md shadow-sm">
+            <div className="flex-shrink-0">
+              {brandObj.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={brandObj.logo_url}
+                  alt={brandObj.name}
+                  className="w-40 h-20 object-contain"
+                />
+              ) : (
+                <div className="w-40 h-20 bg-gray-100 flex items-center justify-center font-bold text-lg text-gray-700">
+                  {brandObj.name
+                    ?.split(' ')
+                    .map((s: string) => s[0])
+                    .slice(0, 2)
+                    .join('')}
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg">{brandObj.name}</h3>
+              {brandObj.description && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {brandObj.description}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
 
   // 📱 Lógica de seleção de banners:
   // - Mobile E tem banners_mobile configurados → usa banners_mobile
