@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { deleteImageIfUnused } from '@/lib/storage';
 import { revalidatePath } from 'next/cache';
 
 // Atualiza campos simples (Tags, Status)
@@ -263,15 +264,23 @@ export async function bulkDelete(
               Boolean
             );
             if (uniquePaths.length > 0) {
-              const { error: rmErr } = await supabaseAdmin.storage
-                .from('product-images')
-                .remove(uniquePaths);
-              if (rmErr) {
-                console.error('[bulkDelete] storage remove error', rmErr);
-                // Abort deletion to avoid DB inconsistency when files couldn't be removed
-                throw new Error(
-                  rmErr?.message || 'storage_remove_failed_for_product_images'
+              // Remover arquivos de forma segura, verificando referências antes
+              for (const path of uniquePaths) {
+                const res = await deleteImageIfUnused(
+                  supabaseAdmin,
+                  'product-images',
+                  path
                 );
+                if (!res.success) {
+                  console.error(
+                    '[bulkDelete] safe remove failed',
+                    res.error,
+                    path
+                  );
+                  throw new Error(
+                    res.error || 'storage_remove_failed_for_product_images'
+                  );
+                }
               }
             }
           } catch (e) {
@@ -338,15 +347,23 @@ export async function bulkDelete(
               Boolean
             );
             if (uniquePaths.length > 0) {
-              const { error: rmErr } = await supabaseAdmin.storage
-                .from('product-images')
-                .remove(uniquePaths);
-              if (rmErr) {
-                console.error('[bulkDelete] storage remove error', rmErr);
-                // Abort deletion to avoid DB inconsistency when files couldn't be removed
-                throw new Error(
-                  rmErr?.message || 'storage_remove_failed_for_product_images'
+              // Remover arquivos de forma segura, verificando referências antes
+              for (const path of uniquePaths) {
+                const res = await deleteImageIfUnused(
+                  supabaseAdmin,
+                  'product-images',
+                  path
                 );
+                if (!res.success) {
+                  console.error(
+                    '[bulkDelete] safe remove failed',
+                    res.error,
+                    path
+                  );
+                  throw new Error(
+                    res.error || 'storage_remove_failed_for_product_images'
+                  );
+                }
               }
             }
           } catch (e) {

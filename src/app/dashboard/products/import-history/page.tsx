@@ -81,13 +81,28 @@ export default function ImportHistoryPage() {
         }
       });
 
-      // 2. Remover arquivos do Storage (se houver)
+      // 2. Remover arquivos do Storage (se houver) via endpoint server-side seguro
       if (pathsToDelete.length > 0) {
-        // Tenta remover, mas não falha se o arquivo já não existir
-        await supabase.storage.from('product-images').remove(pathsToDelete);
+        try {
+          await fetch('/api/storage/safe-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths: pathsToDelete }),
+          });
+        } catch (e) {
+          console.error('Erro ao solicitar remoção de arquivos:', e);
+        }
 
-        // Backup: tenta remover do bucket antigo 'products' se houver legado
-        await supabase.storage.from('products').remove(pathsToDelete);
+        // Tentativa de remover em bucket legado (não fatal)
+        try {
+          await fetch('/api/storage/safe-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths: pathsToDelete, bucket: 'products' }),
+          });
+        } catch (e) {
+          // ignore
+        }
       }
 
       // 3. Excluir Produtos do Banco (Cascade deve cuidar do resto, mas garantimos aqui)
@@ -299,12 +314,12 @@ export default function ImportHistoryPage() {
             </p>
             <div className="mb-4">
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                Para confirmar, digite o ID desta importação:
+                Para confirmar, digite <strong>DELETE</strong>:
               </p>
               <input
                 value={typedConfirm}
                 onChange={(e) => setTypedConfirm(e.target.value)}
-                placeholder="Digite o ID da importação"
+                placeholder="Digite DELETE para confirmar"
                 className="w-full p-2 border rounded bg-white dark:bg-slate-800 text-sm"
               />
             </div>
@@ -313,6 +328,7 @@ export default function ImportHistoryPage() {
                 onClick={() => {
                   setShowDeleteModal(false);
                   setSelectedImportId(null);
+                  setTypedConfirm('');
                 }}
                 className="py-3 rounded-lg border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
               >
@@ -321,10 +337,10 @@ export default function ImportHistoryPage() {
               <button
                 onClick={() =>
                   selectedImportId &&
-                  typedConfirm === selectedImportId &&
+                  typedConfirm.trim().toUpperCase() === 'DELETE' &&
                   handleUndoImport(selectedImportId)
                 }
-                disabled={typedConfirm !== selectedImportId}
+                disabled={typedConfirm.trim().toUpperCase() !== 'DELETE'}
                 className="py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50"
               >
                 Sim, Reverter

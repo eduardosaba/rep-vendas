@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import createClient from '@/lib/supabase/server';
+import { deleteImageIfUnused } from '@/lib/storage';
 
 export async function GET() {
   try {
@@ -175,12 +176,18 @@ export async function DELETE(req: Request) {
     if (!Array.isArray(paths) || paths.length === 0)
       return NextResponse.json({ error: 'No paths provided' }, { status: 400 });
 
-    const { data, error } = await supabase.storage
-      .from('product-images')
-      .remove(paths);
-    if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, deleted: data });
+    const deleted: string[] = [];
+    for (const p of paths) {
+      const res = await deleteImageIfUnused(supabase, 'product-images', p);
+      if (!res.success) {
+        return NextResponse.json(
+          { error: res.error || 'delete_failed', path: p },
+          { status: 500 }
+        );
+      }
+      deleted.push(p);
+    }
+    return NextResponse.json({ success: true, deleted });
   } catch (err: any) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

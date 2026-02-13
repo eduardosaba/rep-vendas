@@ -6,7 +6,7 @@ interface PriceDisplayProps {
   value: number;
   isPricesVisible?: boolean;
   className?: string;
-  size?: 'normal' | 'large';
+  size?: 'small' | 'normal' | 'large';
 }
 
 /**
@@ -56,11 +56,14 @@ export function PriceDisplay({
 
         // 2. Inteiros (1.234) - O foco principal, negrito e grande
         if (part.type === 'integer' || part.type === 'group') {
+          const integerClass =
+            size === 'large'
+              ? 'text-2xl sm:text-3xl font-black'
+              : size === 'small'
+                ? 'text-sm sm:text-base font-semibold'
+                : 'text-base sm:text-lg font-bold';
           return (
-            <span
-              key={index}
-              className={`${size === 'large' ? 'text-2xl sm:text-3xl font-black' : 'text-base sm:text-lg font-bold'} tracking-tight`}
-            >
+            <span key={index} className={`${integerClass} tracking-tight`}>
               {part.value}
             </span>
           );

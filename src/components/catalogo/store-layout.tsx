@@ -1038,7 +1038,7 @@ export function CarouselBrands() {
                   key={`${brand.name}-${i}`}
                   onClick={() => toggleBrand(brand.name)}
                   title={brand.name}
-                  className={`group relative flex items-center justify-center p-2 rounded-none transition-all duration-200 shrink-0 hover:scale-105 ${
+                  className={`group relative flex items-center justify-center p-1 rounded-none transition-all duration-200 shrink-0 hover:scale-105 ${
                     active
                       ? 'bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] animate-pulse'
                       : ''
@@ -1050,7 +1050,7 @@ export function CarouselBrands() {
                       alt={brand.name}
                       loading="lazy"
                       draggable={false}
-                      className="w-24 h-12 object-contain shrink-0"
+                      className="w-20 h-10 object-contain shrink-0"
                     />
                   ) : (
                     // Fallback: mostra o nome da marca diretamente quando não há logo

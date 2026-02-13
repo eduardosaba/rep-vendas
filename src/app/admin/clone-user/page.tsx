@@ -673,7 +673,30 @@ export default function CloneUserPage() {
       toast.success(json?.message || 'Clone iniciado');
       // start polling for clone status
       setPolling(true);
-      setCloneProgress({ active: true, count: 0, startTime: Date.now() });
+      // Try to extract returned copied count from RPC response to show progress
+      let copiedCount = 0;
+      try {
+        if (json) {
+          if (Array.isArray(json.data) && json.data.length > 0) {
+            copiedCount = Number(json.data[0]?.copied_count || 0);
+          } else if (typeof json.data === 'object' && json.data !== null) {
+            copiedCount = Number(
+              json.data.copied_count || json.data.copiedCount || 0
+            );
+          } else if (typeof json.data === 'number') {
+            copiedCount = Number(json.data || 0);
+          }
+        }
+      } catch (e) {
+        copiedCount = 0;
+      }
+
+      setCloneProgress({
+        active: true,
+        count: copiedCount,
+        startTime: Date.now(),
+      });
+      setLastInsertTime(Date.now());
     } catch (e: any) {
       console.error(e);
       // Prefer human-friendly message, fallback to generic

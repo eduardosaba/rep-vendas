@@ -37,6 +37,66 @@ import {
 } from '@/lib/imageHelpers';
 import { PasswordModal } from './modals/PasswordModal';
 
+// Image magnifier component (desktop hover zoom)
+function ImageMagnifier({
+  src,
+  className = '',
+  zoomLevel = 2.5,
+}: {
+  src: string;
+  className?: string;
+  zoomLevel?: number;
+}) {
+  const [xy, setXY] = React.useState<[number, number]>([0, 0]);
+  const [size, setSize] = React.useState<[number, number]>([0, 0]);
+  const [show, setShow] = React.useState(false);
+
+  return (
+    <div
+      className={`relative inline-block overflow-hidden ${className}`}
+      onMouseEnter={(e) => {
+        const elem = e.currentTarget as HTMLElement;
+        const rect = elem.getBoundingClientRect();
+        setSize([rect.width, rect.height]);
+        setShow(true);
+      }}
+      onMouseMove={(e) => {
+        const elem = e.currentTarget as HTMLElement;
+        const rect = elem.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        setXY([x, y]);
+      }}
+      onMouseLeave={() => setShow(false)}
+    >
+      <img src={src} className="w-full h-full object-contain" alt="Zoom" />
+
+      {show && (
+        <div
+          style={{
+            display: 'block',
+            position: 'absolute',
+            pointerEvents: 'none',
+            height: '200px',
+            width: '200px',
+            top: `${xy[1] - 100}px`,
+            left: `${xy[0] - 100}px`,
+            borderRadius: '50%',
+            backgroundColor: 'white',
+            backgroundImage: `url('${src}')`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: `${size[0] * zoomLevel}px ${size[1] * zoomLevel}px`,
+            backgroundPosition: `${-xy[0] * zoomLevel + 100}px ${-xy[1] * zoomLevel + 100}px`,
+            boxShadow: '0 0 20px rgba(0,0,0,0.2)',
+            border: '2px solid rgba(255,255,255,0.5)',
+            zIndex: 50,
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function StoreModals() {
   const {
     store,
@@ -89,175 +149,67 @@ export function StoreModals() {
   const getProductImages = (
     product: any
   ): { url480: string; url1200: string; path: string | null }[] => {
-    if (!product)
-      return [] as { url480: string; url1200: string; path: string | null }[];
+    if (!product) return [];
 
-    const out: { url: string; path: string | null }[] = [];
-    const seenPaths = new Set<string>();
-    const seenBaseKeys = new Set<string>();
+    const out: { url480: string; url1200: string; path: string | null }[] = [];
 
-    // Helper para evitar duplicatas baseado em path ou base key
-    const isDuplicate = (url: string, path: string | null) => {
-      if (path) {
-        if (seenPaths.has(path)) return true;
-        seenPaths.add(path);
-      }
-      const baseKey = getBaseKeyFromUrl(url);
-      if (baseKey && seenBaseKeys.has(baseKey)) return true;
-      if (baseKey) seenBaseKeys.add(baseKey);
-      return false;
-    };
+    // --- 1. IMAGEM PRINCIPAL (CAPA) ---
+    const mainVariants = product.image_variants;
+    if (Array.isArray(mainVariants) && mainVariants.length > 0) {
+      const v480 = mainVariants.find((v: any) => v.size === 480);
+      const v1200 = mainVariants.find((v: any) => v.size === 1200);
 
-    // Detecta se produto está migrado (tem gallery_images ou image_path)
-    const isMigratedProduct = Boolean(
-      product.image_path ||
-      (Array.isArray(product.gallery_images) &&
-        product.gallery_images.length > 0)
-    );
-
-    // 1) Priorizar variantes / image_path (otimizadas) - IMAGEM PRINCIPAL
-    if (
-      Array.isArray(product.image_variants) &&
-      product.image_variants.length > 0
-    ) {
-      const firstVar =
-        product.image_variants.find((v: any) =>
-          Boolean(v && (v.optimized_url || v.optimizedUrl || v.url || v.src))
-        ) || product.image_variants[0];
-
-      const varUrl =
-        firstVar?.optimized_url ||
-        firstVar?.optimizedUrl ||
-        firstVar?.url ||
-        firstVar?.src ||
-        null;
-      const varPath = firstVar?.path || firstVar?.storage_path || null;
-      if (varUrl && !isDuplicate(varUrl, varPath)) {
-        out.push({ url: varUrl, path: varPath });
-      }
-    } else if (product.image_path) {
-      // Quando image_path existe, use APENAS ele para a capa
-      let publicUrl: string | null = null;
-      try {
-        publicUrl = buildSupabaseImageUrl(product.image_path) || null;
-      } catch (e) {
-        publicUrl = null;
-      }
-      const finalUrl = publicUrl || product.image_path;
-      if (!isDuplicate(finalUrl, product.image_path)) {
+      if (v1200?.url) {
         out.push({
-          url: finalUrl,
-          path: product.image_path,
+          url480: v480?.url || v1200.url,
+          url1200: v1200.url,
+          path: v1200.path || product.image_path || null,
         });
       }
+    } else if (product.image_path) {
+      const path = String(product.image_path).replace(/^\/+/, '');
+      const baseUrl = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=80`;
+      out.push({
+        url480: `${baseUrl}&w=480`,
+        url1200: `${baseUrl}&w=1200`,
+        path: product.image_path,
+      });
     }
 
-    // 2) gallery_images (explode entries) - FONTE PRIORITÁRIA PARA GALERIA
+    // --- 2. GALERIA SECUNDÁRIA (gallery_images) ---
     if (
       Array.isArray(product.gallery_images) &&
       product.gallery_images.length > 0
     ) {
-      const galleryEntries = normalizeAndExplodeImageEntries(
-        product.gallery_images
-      );
-      galleryEntries.forEach((entry) => {
-        // Validação: URL deve ser válida e path deve estar OK
-        if (entry.url && entry.url.trim().length > 10) {
-          if (!isDuplicate(entry.url, entry.path)) {
-            out.push(entry);
-          }
-        }
-      });
-    }
-
-    // 3) product.images - APENAS se produto NÃO estiver migrado
-    // Evita poluir galeria com URLs antigas/quebradas em produtos migrados
-    if (
-      !isMigratedProduct &&
-      Array.isArray(product.images) &&
-      product.images.length > 0
-    ) {
-      const validImages = product.images.filter((img: any) => {
-        if (typeof img === 'string') {
-          // Rejeita URLs muito curtas ou inválidas
-          const trimmed = img.trim();
-          if (trimmed.length < 10) return false;
-          // Rejeita se contiver 'null', 'undefined', etc
-          if (/null|undefined|none/i.test(trimmed)) return false;
-          return true;
-        }
-        if (typeof img === 'object' && img) {
-          const url =
-            img.url || img.src || img.optimized_url || img.optimizedUrl;
-          if (!url || typeof url !== 'string') return false;
-          const trimmed = url.trim();
-          if (trimmed.length < 10) return false;
-          if (/null|undefined|none/i.test(trimmed)) return false;
-          return true;
-        }
-        return false;
-      });
-
-      if (validImages.length > 0) {
-        const imageEntries = normalizeAndExplodeImageEntries(validImages);
-        imageEntries.forEach((entry) => {
-          if (entry.url && entry.url.trim().length > 10) {
-            if (!isDuplicate(entry.url, entry.path)) {
-              out.push(entry);
-            }
-          }
-        });
-      }
-    }
-
-    // 4) Fallbacks: image_url / external_image_url
-    // APENAS se não houver image_path E não houver gallery_images (produto totalmente legado)
-    if (!product.image_path && !product.image_variants && !isMigratedProduct) {
-      if (product.image_url && product.image_url.trim().length > 10) {
-        if (!isDuplicate(product.image_url, null)) {
-          out.push({ url: product.image_url, path: null });
-        }
-      } else if (
-        product.external_image_url &&
-        product.external_image_url.trim().length > 10
-      ) {
-        if (!isDuplicate(product.external_image_url, null)) {
-          out.push({ url: product.external_image_url, path: null });
-        }
-      }
-    }
-
-    // Normalize urls and produce two variants per image: 480w (thumb) and 1200w (large)
-    const cleaned = out
-      .map((i) => ({ url: (i.url || '').trim(), path: i.path }))
-      .filter((i) => i.url && i.url.length > 10) // Mínimo 10 chars para URL válida
-      .filter((i) => !/null|undefined|none/i.test(i.url)) // Rejeita strings inválidas
-      .map((i) => {
-        const url1200 = upgradeTo1200w(i.url);
-        let url480 = i.url;
-        if (/[-_]480w(\.|$)/.test(i.url)) {
-          url480 = i.url;
-        } else if (/[-_]1200w(\.|$)/.test(url1200)) {
-          url480 = url1200.replace(/-1200w(\.[a-zA-Z0-9]+)?$/, '-480w$1');
+      product.gallery_images.forEach((img: any) => {
+        if (Array.isArray(img.variants)) {
+          const g480 = img.variants.find((v: any) => v.size === 480);
+          const g1200 = img.variants.find((v: any) => v.size === 1200);
+          out.push({
+            url480: g480?.url || img.url,
+            url1200: g1200?.url || img.url,
+            path: g1200?.path || img.path || null,
+          });
         } else {
-          // fallback: keep original as thumb if we can't derive a -480w variant
-          url480 = i.url;
+          out.push({
+            url480: img.url,
+            url1200: upgradeTo1200w(img.url),
+            path: img.path || null,
+          });
         }
-        return { url480, url1200, path: i.path };
       });
-
-    if (!cleaned || cleaned.length === 0) {
-      const placeholder = '/images/product-placeholder.svg';
-      return [{ url480: placeholder, url1200: placeholder, path: null }];
     }
 
-    // Final safety: remove duplicates based on the large variant url1200
-    const finalSet = new Set<string>();
-    return cleaned.filter((img) => {
-      if (!img.url1200 || finalSet.has(img.url1200)) return false;
-      finalSet.add(img.url1200);
-      return true;
-    });
+    // --- 3. FALLBACK DE SEGURANÇA (URL EXTERNA PENDENTE) ---
+    if (out.length === 0) {
+      const fallbackUrl =
+        product.image_url ||
+        product.external_image_url ||
+        '/images/product-placeholder.svg';
+      out.push({ url480: fallbackUrl, url1200: fallbackUrl, path: null });
+    }
+
+    return out;
   };
 
   const productImages = useMemo(
@@ -471,20 +423,31 @@ export function StoreModals() {
                     path: null,
                   };
                   return (
-                    <SmartImage
-                      product={{
-                        id: modals.product.id,
-                        name: modals.product.name,
-                        brand: modals.product.brand,
-                        image_url: current.url1200,
-                        image_path: current.path,
-                      }}
-                      preferredSize={1200}
-                      initialSrc={current.url480}
-                      className="absolute inset-0 w-full h-full p-8 transition-transform duration-700 group-hover:scale-105"
-                      imgClassName="object-contain w-full h-full"
-                      variant="full"
-                    />
+                    <>
+                      {/* Desktop: Lupa no Hover */}
+                      <div className="hidden md:block w-full h-full">
+                        <ImageMagnifier
+                          src={current.url1200}
+                          className="w-full h-full p-8"
+                          zoomLevel={2}
+                        />
+                      </div>
+
+                      {/* Mobile/Fallback: Imagem Normal */}
+                      <div className="md:hidden w-full h-full p-8">
+                        <SmartImage
+                          product={{
+                            ...modals.product,
+                            image_url: current.url1200,
+                            image_path: current.path,
+                          }}
+                          variant="full"
+                          preferredSize={1200}
+                          className="absolute inset-0 w-full h-full"
+                          imgClassName="object-contain w-full h-full"
+                        />
+                      </div>
+                    </>
                   );
                 })()}
                 <div className="absolute bottom-6 right-6 p-3 bg-white/80 backdrop-blur rounded-2xl shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
@@ -750,7 +713,7 @@ export function StoreModals() {
                           image_path: current.path,
                         }}
                         preferredSize={1200}
-                        initialSrc={current.url480}
+                        initialSrc={'/images/product-placeholder.svg'}
                         className="w-full h-full"
                         imgClassName="object-contain w-full h-full"
                         variant="full"

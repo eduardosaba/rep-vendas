@@ -216,34 +216,29 @@ export default function ImportVisualPage() {
       setTotalToProcess(items.length);
       setProcessedCount(0);
 
-      // 1) Remover arquivos do storage em batches concorrentes para não travar
-      const storageBatchSize = 8; // controla concorrência
-      for (let i = 0; i < items.length; i += storageBatchSize) {
-        const batch = items.slice(i, i + storageBatchSize);
-        await Promise.all(
-          batch.map(async (img) => {
-            try {
-              const { error } = await supabase.storage
-                .from('product-images')
-                .remove([img.storage_path]);
-              if (error) {
-                addLog(
-                  `Falha ao remover do storage: ${img.original_name} (${error.message})`,
-                  'error'
-                );
-              } else {
-                addLog(`Storage removido: ${img.original_name}`, 'info');
-              }
-            } catch (err: any) {
-              addLog(
-                `Erro storage ${img.original_name}: ${err.message}`,
-                'error'
-              );
-            } finally {
-              setProcessedCount((p) => p + 1);
-            }
-          })
-        );
+      // 1) Chamar endpoint server-side que faz remoção segura e limpa staging
+      try {
+        const paths = items.map((i) => i.storage_path);
+        const stagingIds = items.map((i) => i.id);
+        const resp = await fetch('/api/storage/safe-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths, stagingIds }),
+        });
+        const json = await resp.json();
+        if (!resp.ok) {
+          addLog(
+            `Falha ao remover do storage: ${json?.error || 'unknown'}`,
+            'error'
+          );
+        } else {
+          addLog(`Storage removido: ${items.length} itens`, 'info');
+        }
+      } catch (e: any) {
+        addLog(`Erro storage: ${e?.message || String(e)}`, 'error');
+      } finally {
+        // marcar progresso como concluído
+        setProcessedCount((_) => totalToProcess || items.length);
       }
 
       // 2) Deletar registros do DB em lote (chunks para evitar query muito grande)
@@ -630,16 +625,23 @@ export default function ImportVisualPage() {
 
       addLog(`Removendo imagem: ${image.original_name}...`);
 
-      // Remover do Storage
-      await supabase.storage
-        .from('product-images')
-        .remove([image.storage_path]);
-
-      // Remover do Banco
-      await supabase.from('staging_images').delete().eq('id', id);
-
-      setStagingImages((prev) => prev.filter((img) => img.id !== id));
-      toast.info('Imagem descartada.');
+      // Remover via endpoint server-side (remoção segura + cleanup)
+      try {
+        const resp = await fetch('/api/storage/safe-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paths: [image.storage_path],
+            stagingIds: [id],
+          }),
+        });
+        const json = await resp.json();
+        if (!resp.ok) throw new Error(json?.error || 'delete_failed');
+        setStagingImages((prev) => prev.filter((img) => img.id !== id));
+        toast.info('Imagem descartada.');
+      } catch (e: any) {
+        addLog(`Erro ao deletar: ${e.message}`, 'error');
+      }
     } catch (error: any) {
       console.error(error);
       addLog(`Erro ao deletar: ${error.message}`, 'error');

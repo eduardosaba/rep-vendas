@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import createRouteSupabase from '@/lib/supabase/server';
+import { deleteImageIfUnused } from '@/lib/storage';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 type Body = {
@@ -100,11 +101,17 @@ export async function POST(req: Request) {
       );
 
       if (pathsArray.length > 0) {
-        const { error } = await svc.storage
-          .from('product-images')
-          .remove(pathsArray);
-        if (error) deleteError = error.message;
-        else deleted = pathsArray;
+        const deletedArr: string[] = [];
+        for (const p of pathsArray) {
+          const res = await deleteImageIfUnused(svc, 'product-images', p);
+          if (!res.success) {
+            // record first error but continue trying others
+            deleteError = res.error || 'failed_to_delete_some_files';
+          } else {
+            deletedArr.push(p);
+          }
+        }
+        deleted = deletedArr;
       }
     }
 

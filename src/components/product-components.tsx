@@ -14,6 +14,7 @@ import {
   Archive,
   Heart,
   Image as ImageIcon,
+  ImageOff,
 } from 'lucide-react';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -345,6 +346,10 @@ export function ProductGrid() {
     store,
     viewMode,
     setViewMode,
+    hideImages,
+    setHideImages,
+    imagePriorityCount,
+    imageSizes,
     isPricesVisible,
     isLoadingSearch,
   } = useStore();
@@ -402,6 +407,23 @@ export function ProductGrid() {
             >
               <List size={20} />
             </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-gray-100 text-[var(--primary)]' : 'text-gray-400 hover:text-gray-600'}`}
+              title="Tabela Compacta"
+            >
+              <SlidersHorizontal size={20} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 pl-3">
+            <button
+              onClick={() => setHideImages(!hideImages)}
+              className={`p-2 rounded-lg transition-all ${hideImages ? 'bg-amber-100 text-[var(--primary)]' : 'text-gray-400 hover:text-gray-600'}`}
+              title={hideImages ? 'Mostrar Fotos' : 'Ocultar Fotos'}
+            >
+              {hideImages ? <ImageOff size={18} /> : <ImageIcon size={18} />}
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -456,6 +478,48 @@ export function ProductGrid() {
                       onViewDetails={(p) => setModal('product', p)}
                     />
                   ))}
+            </div>
+          ) : viewMode === 'table' ? (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    <th className="px-4 py-3">Referência</th>
+                    <th className="px-4 py-3">Produto / Marca</th>
+                    <th className="px-4 py-3 text-right">Preço</th>
+                    <th className="px-4 py-3 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {displayProducts.map((product) => {
+                    const outOfStock = isOutOfStock(product);
+                    return (
+                      <tr key={product.id} className="hover:bg-blue-50/30 transition-colors group cursor-pointer">
+                        <td className="px-4 py-2 align-middle font-mono text-xs text-gray-400">{product.reference_code || '-'}</td>
+                        <td className="px-4 py-2 align-middle">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-gray-900 group-hover:text-[var(--primary)]">{product.name}</span>
+                            <span className="text-[10px] uppercase font-medium text-gray-400">{product.brand}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 align-middle text-right">
+                          <PriceDisplay value={product.price} isPricesVisible={isPricesVisible} size="small" />
+                        </td>
+                        <td className="px-4 py-2 align-middle text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={(e) => { e.stopPropagation(); if (!outOfStock) addToCart(product); }} title="Adicionar" className="p-2 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white rounded-lg transition-all">
+                              <ShoppingCart size={16} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setModal('product', product); }} title="Ver detalhes" className="p-2 text-gray-400 hover:text-gray-600">
+                              <Search size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : (
             // --- MODO LISTA ---

@@ -42,8 +42,12 @@ interface StoreContextType {
   currentPage: number;
   totalPages: number;
   setCurrentPage: (p: number) => void;
-  viewMode: 'grid' | 'list';
-  setViewMode: (m: 'grid' | 'list') => void;
+  viewMode: 'grid' | 'list' | 'table';
+  setViewMode: (m: 'grid' | 'list' | 'table') => void;
+  hideImages: boolean;
+  setHideImages: (b: boolean) => void;
+  imagePriorityCount: number;
+  imageSizes: string;
   brands: string[];
   brandsWithLogos: BrandWithLogo[];
   categories: string[];
@@ -129,6 +133,9 @@ export function StoreProvider({
 }: StoreProviderProps) {
   const supabase = createClient();
   const ITEMS_PER_PAGE = 24;
+  // Image loading defaults
+  const IMAGE_PRIORITY_COUNT = 4; // first N images get priority
+  const IMAGE_SIZES = '(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw';
 
   // Estados
   // Determina o modo de preços: se o catálogo estiver em "preço de custo"
@@ -158,7 +165,8 @@ export function StoreProvider({
   const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid');
+  const [hideImages, setHideImages] = useState<boolean>(false);
   const [brandsWithLogos, setBrandsWithLogos] = useState<BrandWithLogo[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
@@ -189,8 +197,8 @@ export function StoreProvider({
       if (sort) setSortOrder(sort as any);
 
       const view = params.get('view');
-      if (view === 'list' || view === 'grid')
-        setViewMode(view as 'grid' | 'list');
+      if (view === 'list' || view === 'grid' || view === 'table')
+        setViewMode(view as 'grid' | 'list' | 'table');
 
       const page = params.get('page');
       if (page) setCurrentPage(Number(page) || 1);
@@ -198,6 +206,26 @@ export function StoreProvider({
       // ignore if window is not available or parsing fails
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-detect network conditions to choose a conservative initial UX
+  useEffect(() => {
+    try {
+      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      if (!connection) return;
+      const effective = String(connection.effectiveType || '').toLowerCase();
+      const saveData = !!connection.saveData;
+      if (saveData || ['2g', '3g'].includes(effective)) {
+        // Prefer table mode and hide images on slow/limited connections
+        setViewMode('table');
+        setHideImages(true);
+        try {
+          toast.info('Conexão detectada como lenta — modo compacto ativado.');
+        } catch (e) {}
+      }
+    } catch (e) {
+      // ignore
+    }
   }, []);
 
   // Sincroniza estado de filtros para a URL (debounced)
@@ -854,7 +882,7 @@ export function StoreProvider({
 
   const displayProducts = useMemo(() => {
     const base = searchResults || initialProducts;
-    return base
+    const filtered = base
       .filter((p) => {
         if (showFavorites && !favorites.includes(p.id)) return false;
         if (showOnlyNew && !p.is_launch) return false;
@@ -904,6 +932,10 @@ export function StoreProvider({
 
         return a.name.localeCompare(b.name);
       });
+
+    // Slice the filtered list so we only render the current page's items
+    const start = Math.max(0, (currentPage - 1) * ITEMS_PER_PAGE);
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
   }, [
     searchResults,
     initialProducts,
@@ -914,6 +946,7 @@ export function StoreProvider({
     selectedBrand,
     selectedCategory,
     sortOrder,
+    currentPage,
   ]);
 
   // ✅ NORMALIZAÇÃO COMPLETA DA STORE (BANNERS, LOGOS E BARRA DE BENEFÍCIOS)
@@ -921,7 +954,7 @@ export function StoreProvider({
     // Criamos uma cópia para preservar todas as propriedades originais
     const s: any = { ...store };
 
-    const resolveUrl = (u: string | null | undefined) => {
+    const resolveUrl = (u: string | null | undefined, isThumbnail = false) => {
       if (!u) return '';
       const str = String(u || '');
 
@@ -938,29 +971,32 @@ export function StoreProvider({
         'product-images/public/',
         'product-images/'
       );
-      return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+
+      // If requesting a thumbnail, ask the proxy to resize for smaller payloads
+      const resizeParam = isThumbnail ? '&width=300&quality=70' : '';
+      return `/api/storage-image?path=${encodeURIComponent(cleanPath)}${resizeParam}`;
     };
 
     // 1. Normaliza banners desktop
     if (Array.isArray(s.banners)) {
-      s.banners = s.banners.map((b: any) => resolveUrl(b));
+      s.banners = s.banners.map((b: any) => resolveUrl(b, false));
     }
 
     // 2. Normaliza banners mobile
     if (Array.isArray((s as any).banners_mobile)) {
       (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) =>
-        resolveUrl(b)
+        resolveUrl(b, false)
       );
     }
 
-    // 3. Normaliza logo da loja
+    // 3. Normaliza logo da loja (thumbnail)
     if (s.logo_url) {
-      s.logo_url = resolveUrl(s.logo_url);
+      s.logo_url = resolveUrl(s.logo_url, true);
     }
 
-    // 4. ✅ FIX: Normaliza imagem da barra de benefícios (se houver)
+    // 4. ✅ FIX: Normaliza imagem da barra de benefícios (se houver) - thumbnail
     if (s.top_benefit_image_url) {
-      s.top_benefit_image_url = resolveUrl(s.top_benefit_image_url);
+      s.top_benefit_image_url = resolveUrl(s.top_benefit_image_url, true);
     }
 
     // Garantir flags booleanas existam
@@ -989,6 +1025,10 @@ export function StoreProvider({
         setCurrentPage,
         viewMode,
         setViewMode,
+        hideImages,
+        setHideImages,
+        imagePriorityCount: IMAGE_PRIORITY_COUNT,
+        imageSizes: IMAGE_SIZES,
         brands,
         brandsWithLogos,
         categories,

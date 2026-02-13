@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { deleteImageIfUnused } from '@/lib/storage';
 
 export async function POST(req: Request) {
   try {
@@ -75,9 +76,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, mode: 'dryRun', orphans });
     }
 
-    // 4. DELEÇÃO REAL
+    // 4. DELEÇÃO REAL (remover de forma segura verificando referências)
     if (orphans.length > 0) {
-      await supabaseAdmin.storage.from('product-images').remove(orphans);
+      for (const o of orphans) {
+        const res = await deleteImageIfUnused(
+          supabaseAdmin,
+          'product-images',
+          o
+        );
+        if (!res.success) {
+          console.error('[cleanup-storage] failed to delete', o, res.error);
+          // continue attempting others but report failures
+        }
+      }
     }
 
     return NextResponse.json({
