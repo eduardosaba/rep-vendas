@@ -17,12 +17,14 @@ import {
   Tag,
   Info,
   Package,
+  Maximize2,
   Barcode as BarcodeIcon,
 } from 'lucide-react';
 import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
 import { PriceDisplay } from './PriceDisplay';
 import Image from 'next/image';
 import { SmartImage } from './SmartImage';
+// Quick pinch zoom removed — using simple fullscreen modal for zoom
 import { Button } from '@/components/ui/Button';
 import Barcode from '../ui/Barcode'; // Mantido conforme seu projeto
 import { toast } from 'sonner';
@@ -37,65 +39,7 @@ import {
 } from '@/lib/imageHelpers';
 import { PasswordModal } from './modals/PasswordModal';
 
-// Image magnifier component (desktop hover zoom)
-function ImageMagnifier({
-  src,
-  className = '',
-  zoomLevel = 2.5,
-}: {
-  src: string;
-  className?: string;
-  zoomLevel?: number;
-}) {
-  const [xy, setXY] = React.useState<[number, number]>([0, 0]);
-  const [size, setSize] = React.useState<[number, number]>([0, 0]);
-  const [show, setShow] = React.useState(false);
-
-  return (
-    <div
-      className={`relative inline-block overflow-hidden ${className}`}
-      onMouseEnter={(e) => {
-        const elem = e.currentTarget as HTMLElement;
-        const rect = elem.getBoundingClientRect();
-        setSize([rect.width, rect.height]);
-        setShow(true);
-      }}
-      onMouseMove={(e) => {
-        const elem = e.currentTarget as HTMLElement;
-        const rect = elem.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        setXY([x, y]);
-      }}
-      onMouseLeave={() => setShow(false)}
-    >
-      <img src={src} className="w-full h-full object-contain" alt="Zoom" />
-
-      {show && (
-        <div
-          style={{
-            display: 'block',
-            position: 'absolute',
-            pointerEvents: 'none',
-            height: '200px',
-            width: '200px',
-            top: `${xy[1] - 100}px`,
-            left: `${xy[0] - 100}px`,
-            borderRadius: '50%',
-            backgroundColor: 'white',
-            backgroundImage: `url('${src}')`,
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: `${size[0] * zoomLevel}px ${size[1] * zoomLevel}px`,
-            backgroundPosition: `${-xy[0] * zoomLevel + 100}px ${-xy[1] * zoomLevel + 100}px`,
-            boxShadow: '0 0 20px rgba(0,0,0,0.2)',
-            border: '2px solid rgba(255,255,255,0.5)',
-            zIndex: 50,
-          }}
-        />
-      )}
-    </div>
-  );
-}
+// Lupa/magnifier removida — simplificamos para modal fullscreen
 
 export function StoreModals() {
   const {
@@ -241,6 +185,28 @@ export function StoreModals() {
     setDetailQuantity(1);
   }, [modals.product]);
 
+  // Atalhos de Teclado para o Modal de Zoom
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isImageZoomOpen) return;
+
+      if (e.key === 'ArrowRight') {
+        setCurrentImageIndex((prev) =>
+          prev < productImages.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowLeft') {
+        setCurrentImageIndex((prev) =>
+          prev > 0 ? prev - 1 : productImages.length - 1
+        );
+      } else if (e.key === 'Escape') {
+        setIsImageZoomOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImageZoomOpen, productImages.length]);
+
   // Handlers
   const onFinalize = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,7 +248,6 @@ export function StoreModals() {
                     className="flex gap-4 rounded-2xl border border-gray-100 p-3 bg-white"
                   >
                     <div className="relative h-20 w-20 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
-                      {/* Usa SmartImage com variant="thumbnail" se internalizado */}
                       {item.image_variants && item.image_variants.length > 0 ? (
                         <SmartImage
                           product={{
@@ -295,12 +260,12 @@ export function StoreModals() {
                           className="h-full w-full"
                           imgClassName="object-contain p-2"
                           variant="thumbnail"
+                          preferredSize={480}
                         />
                       ) : (
                         <Image
                           src={
-                            item.image_url ||
-                            '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70'
+                            item.image_url || '/images/product-placeholder.svg'
                           }
                           alt={item.name}
                           fill
@@ -308,24 +273,23 @@ export function StoreModals() {
                           unoptimized={(item.image_url || '').includes(
                             'supabase.co/storage'
                           )}
-                          onError={(e) => {
-                            try {
-                              (e.currentTarget as HTMLImageElement).src =
-                                '/images/product-placeholder.svg';
-                            } catch (err) {}
-                          }}
                         />
                       )}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-black text-secondary line-clamp-1">
-                        {item.name}
-                      </p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <PriceDisplay
-                          value={item.price * item.quantity}
-                          isPricesVisible={isPricesVisible}
-                        />
+
+                    <div className="flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="text-sm font-bold text-gray-900">
+                          {item.name}
+                        </div>
+                        {item.brand && (
+                          <div className="text-xs text-gray-500">
+                            {item.brand}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
                           <button
                             onClick={() => updateQuantity(item.id, -1)}
@@ -343,14 +307,21 @@ export function StoreModals() {
                             <Plus size={14} />
                           </button>
                         </div>
+
+                        <div className="flex items-center gap-4">
+                          <PriceDisplay
+                            value={item.price * item.quantity}
+                            isPricesVisible={isPricesVisible}
+                          />
+                          <button
+                            onClick={() => removeFromCart(item.id)}
+                            className="text-gray-300 hover:text-red-500"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="text-gray-300 hover:text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
                 ))
               )}
@@ -410,10 +381,10 @@ export function StoreModals() {
               <X size={24} className="text-secondary" />
             </button>
 
-            {/* ESQUERDA: Showcase de Imagem */}
+            {/* ESQUERDA: Showcase de Imagem (clique abre modal fullscreen) */}
             <div className="w-full md:w-1/2 h-[45%] md:h-full bg-white flex flex-col relative border-b md:border-b-0 md:border-r border-gray-100">
               <div
-                className="flex-1 relative cursor-zoom-in group"
+                className="flex-1 relative cursor-pointer group flex items-center justify-center p-4 md:p-8"
                 onClick={() => setIsImageZoomOpen(true)}
               >
                 {(() => {
@@ -422,37 +393,22 @@ export function StoreModals() {
                     url1200: '/images/product-placeholder.svg',
                     path: null,
                   };
+
                   return (
                     <>
-                      {/* Desktop: Lupa no Hover */}
-                      <div className="hidden md:block w-full h-full">
-                        <ImageMagnifier
-                          src={current.url1200}
-                          className="w-full h-full p-8"
-                          zoomLevel={2}
-                        />
-                      </div>
+                      <img
+                        src={current.url1200 || current.url480}
+                        alt={modals.product?.name}
+                        className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                      />
 
-                      {/* Mobile/Fallback: Imagem Normal */}
-                      <div className="md:hidden w-full h-full p-8">
-                        <SmartImage
-                          product={{
-                            ...modals.product,
-                            image_url: current.url1200,
-                            image_path: current.path,
-                          }}
-                          variant="full"
-                          preferredSize={1200}
-                          className="absolute inset-0 w-full h-full"
-                          imgClassName="object-contain w-full h-full"
-                        />
+                      {/* Dica visual discreta */}
+                      <div className="absolute bottom-4 right-4 bg-black/20 p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Maximize2 size={20} />
                       </div>
                     </>
                   );
                 })()}
-                <div className="absolute bottom-6 right-6 p-3 bg-white/80 backdrop-blur rounded-2xl shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Search size={20} className="text-primary" />
-                </div>
               </div>
 
               {/* Thumbnails */}
@@ -647,101 +603,70 @@ export function StoreModals() {
             </div>
           </div>
 
-          {/* ZOOM OVERLAY INTEGRADO */}
+          {/* --- OVERLAY DE ZOOM FULLSCREEN (1200w) --- */}
           {isImageZoomOpen && (
             <div
-              className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
+              className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-sm flex items-center justify-center overflow-hidden animate-in fade-in duration-200"
               onClick={() => setIsImageZoomOpen(false)}
             >
-              {/* Botão Fechar - Mobile Otimizado */}
+              {/* Botão Fechar (Topo Direita) */}
               <button
-                className="absolute right-4 top-4 md:right-8 md:top-8 z-10 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-sm transition-all active:scale-95"
+                className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors z-[310]"
                 onClick={() => setIsImageZoomOpen(false)}
               >
-                <X size={24} className="md:hidden" />
-                <X size={32} className="hidden md:block" />
+                <X size={32} />
               </button>
 
-              {/* Setas de Navegação - Apenas Desktop */}
+              {/* Navegação Lateral - Desktop */}
               {productImages.length > 1 && (
                 <>
                   <button
+                    className="absolute left-4 md:left-10 p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] hidden md:flex"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCurrentImageIndex((i: number) =>
-                        i === 0 ? productImages.length - 1 : i - 1
+                      setCurrentImageIndex((prev) =>
+                        prev > 0 ? prev - 1 : productImages.length - 1
                       );
                     }}
-                    className="hidden md:block absolute left-6 p-4 text-white/20 hover:text-white transition-colors z-10"
                   >
-                    <ChevronLeft size={64} strokeWidth={1} />
+                    <ChevronLeft size={48} strokeWidth={1.5} />
                   </button>
 
                   <button
+                    className="absolute right-4 md:right-10 p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] hidden md:flex"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCurrentImageIndex((i: number) =>
-                        i === productImages.length - 1 ? 0 : i + 1
+                      setCurrentImageIndex((prev) =>
+                        prev < productImages.length - 1 ? prev + 1 : 0
                       );
                     }}
-                    className="hidden md:block absolute right-6 p-4 text-white/20 hover:text-white transition-colors z-10"
                   >
-                    <ChevronRight size={64} strokeWidth={1} />
+                    <ChevronRight size={48} strokeWidth={1.5} />
                   </button>
                 </>
               )}
 
-              {/* Container da Imagem - Responsivo */}
+              {/* Imagem em Alta Resolução (1200w) */}
               <div
-                className="relative w-full h-full max-w-5xl flex items-center justify-center p-4 md:p-8"
+                className="relative w-full h-full max-w-6xl flex items-center justify-center p-4 md:p-12"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="relative w-full h-full">
-                  {(() => {
-                    const current = productImages[currentImageIndex] || {
-                      url480: '/images/product-placeholder.svg',
-                      url1200: '/images/product-placeholder.svg',
-                      path: null,
-                    };
-                    return (
-                      <SmartImage
-                        product={{
-                          id: modals.product.id,
-                          name: modals.product.name,
-                          brand: modals.product.brand,
-                          image_url: current.url1200,
-                          image_path: current.path,
-                        }}
-                        preferredSize={1200}
-                        initialSrc={'/images/product-placeholder.svg'}
-                        className="w-full h-full"
-                        imgClassName="object-contain w-full h-full"
-                        variant="full"
-                      />
-                    );
-                  })()}
+                <img
+                  src={productImages[currentImageIndex]?.url1200}
+                  alt="Visualização em Alta Resolução"
+                  className="max-w-full max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none"
+                />
+
+                {/* Contador e Legenda */}
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+                  <span className="bg-white/10 backdrop-blur-md px-4 py-1 rounded-full text-white text-xs font-medium tracking-widest border border-white/10">
+                    {currentImageIndex + 1} / {productImages.length}
+                  </span>
+                  <p className="text-white/40 text-[10px] uppercase tracking-tighter hidden md:block">
+                    Use as setas ← → do teclado para navegar
+                  </p>
                 </div>
               </div>
-
-              {/* Indicador de Múltiplas Imagens - Mobile */}
-              {productImages.length > 1 && (
-                <div className="md:hidden absolute bottom-6 left-0 right-0 flex justify-center gap-2 z-10">
-                  {productImages.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentImageIndex(idx);
-                      }}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        idx === currentImageIndex
-                          ? 'bg-white w-6'
-                          : 'bg-white/30'
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>

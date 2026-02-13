@@ -48,6 +48,7 @@
     "react-dom": "18.3.1",
     "react-dropzone": "^14.3.8",
     "react-pageflip": "^2.0.3",
+    "react-quick-pinch-zoom": "^5.1.1",
     "react-window": "^2.2.5",
     "recharts": "^2.15.4",
     "sharp": "^0.34.5",

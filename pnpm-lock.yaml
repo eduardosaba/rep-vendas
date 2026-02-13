@@ -65,6 +65,9 @@ importers:
       react-pageflip:
         specifier: ^2.0.3
         version: 2.0.3
+      react-quick-pinch-zoom:
+        specifier: ^5.1.1
+        version: 5.1.1(prop-types@15.8.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-window:
         specifier: ^2.2.5
         version: 2.2.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -4009,6 +4012,20 @@ packages:
 
   react-pageflip@2.0.3:
     resolution: {integrity: sha512-k81mHhRvUM52y8jyzTCh5t4O0lepkLhp+XGSUzq2C3uD+iW99Cv0jfRlqFCjZbD5N3jKkIFr7/3giucoXKDP3Q==}
+
+  react-quick-pinch-zoom@5.1.1:
+    resolution: {integrity: sha512-x+uL7n0Y8OA+W3wvAEWDQlVkHcsD1BRYow3k3Z5Kki6CaQY92qxQbOrPvs2PC1ygzJpcqFwp+MzMyjlgyWsYCQ==}
+    peerDependencies:
+      prop-types: '>=15.0.0'
+      react: '>=16.4.0'
+      react-dom: '>=16.4.0'
+    peerDependenciesMeta:
+      prop-types:
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   react-smooth@4.0.4:
     resolution: {integrity: sha512-gnGKTpYwqL0Iii09gHobNolvX4Kiq4PKx6eWBCYYix+8cdw+cGo3do906l1NBPKkSWx1DghC1dlWG9L2uGd61Q==}
@@ -9472,6 +9489,14 @@ snapshots:
   react-pageflip@2.0.3:
     dependencies:
       page-flip: 2.0.7
+
+  react-quick-pinch-zoom@5.1.1(prop-types@15.8.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      tslib: 2.8.1
+    optionalDependencies:
+      prop-types: 15.8.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   react-smooth@4.0.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
