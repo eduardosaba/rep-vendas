@@ -189,7 +189,7 @@ export function ProductCard({
         </button>
       </div>
 
-      {/* --- INFO E PREÇOS --- */}
+      {/* --- INFO E PREÇOS AJUSTADOS --- */}
       <div className="flex flex-1 flex-col p-4">
         <div className="mb-3 flex-1">
           <p className="mb-1 font-mono text-[9px] tracking-widest text-gray-400">
@@ -206,79 +206,52 @@ export function ProductCard({
         </div>
 
         <div className="mt-auto border-t border-gray-50 pt-3">
-          <div className="flex items-end justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              {isPricesVisible ? (
-                <div className="space-y-0.5">
-                  {showCost && showSale && costPrice > 0 && (
-                    <div className="mb-2 flex items-center justify-between rounded-lg border border-yellow-100 bg-yellow-50/50 px-2 py-1">
-                      <span className="text-[9px] font-black uppercase text-yellow-700">
-                        Custo
-                      </span>
-                      <span className="text-[11px] font-bold text-yellow-800">
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(costPrice)}
-                      </span>
-                    </div>
-                  )}
-                  {showSale && (
-                    <div className="flex flex-col">
-                      {hasValidOriginalPrice && (
-                        <span className="text-[10px] text-gray-400 line-through">
-                          De:{' '}
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(product.original_price!)}
-                        </span>
-                      )}
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">
-                          Por
-                        </span>
-                        <PriceDisplay
-                          value={currentPrice}
-                          isPricesVisible={isPricesVisible}
-                          className="text-xl font-black text-red-600"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 rounded-lg bg-gray-50 py-3 text-center text-[10px] font-bold text-gray-400">
-                  <Lock size={12} className="ml-auto" />
-                  <span className="mr-auto uppercase">Preço Restrito</span>
-                </div>
-              )}
-            </div>
+          {/* Container Flex ajustado para alinhar Preço e Carrinho lado a lado */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            {isPricesVisible ? (
+              <div className="flex flex-col">
+                {showSale && (
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">
+                      Por
+                    </span>
+                    <PriceDisplay
+                      value={currentPrice}
+                      isPricesVisible={isPricesVisible}
+                      className="text-lg font-black text-red-600 leading-tight"
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 uppercase">
+                <Lock size={10} />
+                <span>Restrito</span>
+              </div>
+            )}
 
-            {/* BOTÃO DE ADICIONAR */}
-            <div className="flex flex-col items-center gap-2">
+            {/* BOTÃO DE ADICIONAR (Sempre à direita) */}
+            <div className="shrink-0">
               {qty > 0 ? (
-                <div className="flex items-center overflow-hidden rounded-xl border border-primary/20 bg-primary/5 p-1 shadow-sm">
+                <div className="flex items-center rounded-xl border border-primary/20 bg-primary/5 p-1">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       updateQuantity(product.id, -1);
                     }}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white text-primary"
+                    className="p-1 text-primary"
                   >
-                    <Minus size={14} />
+                    <Minus size={12} />
                   </button>
-                  <span className="w-8 text-center text-sm font-black text-secondary">
-                    {qty}
-                  </span>
+                  <span className="px-2 text-xs font-black">{qty}</span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onAddToCart(product, 1);
                     }}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white"
+                    className="p-1 bg-primary text-white rounded-md"
                   >
-                    <Plus size={14} />
+                    <Plus size={12} />
                   </button>
                 </div>
               ) : (
@@ -288,9 +261,9 @@ export function ProductCard({
                     if (!isOutOfStock) onAddToCart(product, 1);
                   }}
                   disabled={isOutOfStock}
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isOutOfStock ? 'bg-gray-400' : 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'} transition-all active:scale-90`}
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl ${isOutOfStock ? 'bg-gray-400' : 'bg-primary text-primary-foreground shadow-md'} transition-all`}
                 >
-                  <ShoppingCart size={22} />
+                  <ShoppingCart size={18} />
                 </button>
               )}
             </div>

@@ -61,6 +61,7 @@ export interface Product {
   technical_specs?: string | Record<string, any> | null;
   stock_quantity?: number;
   color?: string | null;
+  gender?: 'feminino' | 'masculino' | 'teen' | 'unisex' | null;
 
   created_at?: string;
   updated_at?: string;

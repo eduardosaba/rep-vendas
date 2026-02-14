@@ -346,9 +346,11 @@ export const generateCatalogPDF = async (
             key = rawPath;
           }
 
-          urlToLoad = `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(
+          const encodePathSegments = (s: string) =>
+            s.split('/').map((seg) => encodeURIComponent(seg)).join('/');
+          urlToLoad = `${supabaseUrl}/storage/v1/object/public/${encodePathSegments(
             bucket
-          )}/${encodeURIComponent(key)}`;
+          )}/${encodePathSegments(key)}`;
         } else if (product.external_image_url) {
           urlToLoad = product.external_image_url;
         } else if (product.image_url && product.image_url.startsWith('http')) {
@@ -386,9 +388,11 @@ export const generateCatalogPDF = async (
               }
             }
 
-            const logoUrl = `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(
+            const encodePathSegments = (s: string) =>
+              s.split('/').map((seg) => encodeURIComponent(seg)).join('/');
+            const logoUrl = `${supabaseUrl}/storage/v1/object/public/${encodePathSegments(
               bucket
-            )}/${encodeURIComponent(key)}`;
+            )}/${encodePathSegments(key)}`;
             const logoData = await getUrlData(logoUrl, false);
             if (logoData)
               productBrandLogos[product.id] = await compositeOnWhite(logoData);

@@ -173,21 +173,20 @@ export default function CloneUserPage() {
           }
         }
 
-        if (chosenUser) {
-          map[brand] = {
-            count: userCounts[chosenUser] || 0,
-            latestUpdatedAt: userLatest[chosenUser] || null,
-          };
-        } else {
-          // No owner (shouldn't happen) — fallback to total count and latest across users
-          const total = Object.values(userCounts).reduce((s, v) => s + v, 0);
-          const latest = Object.values(userLatest).reduce(
-            (best, v) =>
-              !best || (v && new Date(v) > new Date(best)) ? v : best,
-            null as string | null
-          );
-          map[brand] = { count: total, latestUpdatedAt: latest };
-        }
+        // Prefer showing total count across owners, but keep latestUpdatedAt from the chosen owner when available
+        const total = Object.values(userCounts).reduce((s, v) => s + v, 0);
+        const latest = chosenUser
+          ? userLatest[chosenUser] || null
+          : Object.values(userLatest).reduce(
+              (best, v) =>
+                !best || (v && new Date(v) > new Date(best)) ? v : best,
+              null as string | null
+            );
+
+        map[brand] = {
+          count: total,
+          latestUpdatedAt: latest,
+        };
       });
 
       setBrands(Object.keys(map).sort());
@@ -758,6 +757,39 @@ export default function CloneUserPage() {
     };
   }, [selectedUser, polling]);
 
+  // Fallback polling to update cloneProgress.count in case Realtime misses messages
+  useEffect(() => {
+    if (!selectedUser || !cloneProgress.active) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { count } = await supabase
+          .from('catalog_clones')
+          .select('id', { count: 'exact', head: true })
+          .eq('target_user_id', selectedUser);
+        const newCount = typeof count === 'number' ? count : 0;
+        setCloneProgress((prev) => {
+          if (newCount > prev.count) setLastInsertTime(Date.now());
+          return { ...prev, count: newCount };
+        });
+      } catch (e) {
+        // ignore polling errors
+      }
+    };
+
+    // initial immediate poll, then interval
+    poll();
+    const id = setInterval(() => {
+      if (cancelled) return;
+      poll();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [selectedUser, cloneProgress.active]);
+
   // Detect clone completion (no new inserts for 5 seconds)
   useEffect(() => {
     if (!cloneProgress.active || !lastInsertTime) return;
@@ -854,29 +886,29 @@ export default function CloneUserPage() {
                 return (
                   <label
                     key={b}
-                    className="flex items-center gap-2 justify-between w-full"
+                    className="flex items-center gap-2 justify-between w-full min-w-0"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <input
                         type="checkbox"
                         checked={selectedBrands.includes(b)}
                         onChange={() => toggleBrand(b)}
                       />
-                      <span className="text-sm truncate max-w-[220px]">
+                      <span className="text-sm truncate max-w-[220px] min-w-0">
                         {b}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
                         {meta.count} itens
                       </span>
                       {cloned > 0 && (
-                        <span className="text-xs text-green-600">
+                        <span className="text-xs text-green-600 whitespace-nowrap">
                           {cloned} clonados
                         </span>
                       )}
                       {needsUpdate && (
-                        <span className="text-xs text-amber-600 font-bold">
+                        <span className="text-xs text-amber-600 font-bold whitespace-nowrap">
                           Atualizações pendentes
                         </span>
                       )}

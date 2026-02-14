@@ -399,7 +399,7 @@ export function StoreModals() {
                       <img
                         src={current.url1200 || current.url480}
                         alt={modals.product?.name}
-                        className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                        className="w-full h-full max-h-[60vh] md:max-h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                       />
 
                       {/* Dica visual discreta */}
@@ -654,7 +654,7 @@ export function StoreModals() {
                 <img
                   src={productImages[currentImageIndex]?.url1200}
                   alt="Visualização em Alta Resolução"
-                  className="max-w-full max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none"
+                  className="max-w-full max-h-[70vh] md:max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none"
                 />
 
                 {/* Contador e Legenda */}

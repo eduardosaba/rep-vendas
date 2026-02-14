@@ -23,6 +23,7 @@ import { ProductCard } from '@/components/catalogo/ProductCard';
 import ProductCardSkeleton from '@/components/catalogo/ProductCardSkeleton';
 import { useLayoutStore } from '@/components/catalogo/store-layout';
 import { PriceDisplay } from '@/components/catalogo/PriceDisplay';
+import { PaginationControls } from '@/components/catalogo/PaginationControls';
 import { Product } from '@/lib/types'; // Importando tipo centralizado
 
 // --- Interfaces ---
@@ -335,6 +336,8 @@ export function ProductGrid() {
     currentPage,
     totalPages,
     setCurrentPage,
+    itemsPerPage,
+    setItemsPerPage,
     toggleFavorite,
     favorites,
     addToCart,
@@ -365,13 +368,6 @@ export function ProductGrid() {
 
   return (
     <div className="flex flex-col gap-6 w-full">
-      {isFilterOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsFilterOpen(false)}
-        />
-      )}
-
       {/* Barra de Controle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between w-full sm:w-auto">
@@ -379,11 +375,26 @@ export function ProductGrid() {
             Mostrando <strong>{displayProducts.length}</strong> de{' '}
             <strong>{totalProducts}</strong> produtos
           </p>
+          {/* ADICIONADO: seletor rápido de itens por página */}
+          <div className="hidden sm:block ml-4">
+            <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase">
+              Mostrar:
+              {[24, 48, 72].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => setItemsPerPage(num)}
+                  className={`ml-2 hover:text-primary transition-colors ${itemsPerPage === num ? 'text-primary' : ''}`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsFilterOpen(true)}
+            onClick={toggleSidebar}
             className="lg:hidden ml-4"
             leftIcon={<SlidersHorizontal size={16} />}
           >
@@ -462,32 +473,34 @@ export function ProductGrid() {
         <>
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
-              {isLoadingSearch
-                ? Array.from({ length: 8 }).map((_, i) => (
-                    <ProductCardSkeleton key={`skeleton-${i}`} />
-                  ))
-                : displayProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      storeSettings={store}
-                      isFavorite={favorites.includes(product.id)}
-                      isPricesVisible={isPricesVisible}
-                      onAddToCart={(p) => addToCart(p)}
-                      onToggleFavorite={(id) => toggleFavorite(id)}
-                      onViewDetails={(p) => setModal('product', p)}
-                    />
-                  ))}
+              {isLoadingSearch ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <ProductCardSkeleton key={`skeleton-${i}`} />
+                ))
+              ) : (
+                displayProducts.map((product) => (
+                  <ProductCard
+                    key={`${product.id}-${isPricesVisible ? 'show' : 'hide'}`}
+                    product={product}
+                    storeSettings={store}
+                    isFavorite={favorites.includes(product.id)}
+                    isPricesVisible={isPricesVisible}
+                    onAddToCart={(p) => addToCart(p)}
+                    onToggleFavorite={(id) => toggleFavorite(id)}
+                    onViewDetails={(p) => setModal('product', p)}
+                  />
+                ))
+              )}
             </div>
           ) : viewMode === 'table' ? (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <table className="w-full text-left border-collapse">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left border-collapse">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                    <th className="px-4 py-3">Referência</th>
-                    <th className="px-4 py-3">Produto / Marca</th>
-                    <th className="px-4 py-3 text-right">Preço</th>
-                    <th className="px-4 py-3 text-center">Ações</th>
+                    <th className="px-2 sm:px-4 py-3 min-w-[80px]">Referência</th>
+                    <th className="px-2 sm:px-4 py-3 min-w-[180px]">Produto / Marca</th>
+                    <th className="px-2 sm:px-4 py-3 text-right min-w-[100px]">Preço</th>
+                    <th className="px-2 sm:px-4 py-3 text-center min-w-[100px]">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -495,17 +508,17 @@ export function ProductGrid() {
                     const outOfStock = isOutOfStock(product);
                     return (
                       <tr key={product.id} className="hover:bg-blue-50/30 transition-colors group cursor-pointer">
-                        <td className="px-4 py-2 align-middle font-mono text-xs text-gray-400">{product.reference_code || '-'}</td>
-                        <td className="px-4 py-2 align-middle">
+                        <td className="px-2 sm:px-4 py-2 align-middle font-mono text-xs text-gray-400">{product.reference_code || '-'}</td>
+                        <td className="px-2 sm:px-4 py-2 align-middle">
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-gray-900 group-hover:text-[var(--primary)]">{product.name}</span>
                             <span className="text-[10px] uppercase font-medium text-gray-400">{product.brand}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-2 align-middle text-right">
+                        <td className="px-2 sm:px-4 py-2 align-middle text-right">
                           <PriceDisplay value={product.price} isPricesVisible={isPricesVisible} size="small" />
                         </td>
-                        <td className="px-4 py-2 align-middle text-center">
+                        <td className="px-2 sm:px-4 py-2 align-middle text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button onClick={(e) => { e.stopPropagation(); if (!outOfStock) addToCart(product); }} title="Adicionar" className="p-2 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white rounded-lg transition-all">
                               <ShoppingCart size={16} />
@@ -522,17 +535,18 @@ export function ProductGrid() {
               </table>
             </div>
           ) : (
-            // --- MODO LISTA ---
-            <div className="flex flex-col gap-4">
+            // --- MODO LISTA (Responsivo Mobile) ---
+            <div className="flex flex-col gap-3 sm:gap-4">
               {displayProducts.map((product) => {
                 const outOfStock = isOutOfStock(product);
                 return (
                   <div
                     key={product.id}
                     onClick={() => setModal('product', product)}
-                    className={`bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 flex overflow-hidden group cursor-pointer relative ${outOfStock ? 'opacity-80' : ''}`}
+                    className={`bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row overflow-hidden group cursor-pointer relative ${outOfStock ? 'opacity-80' : ''}`}
                   >
-                    <div className="w-32 sm:w-48 aspect-square sm:aspect-auto flex-shrink-0 bg-gray-50 relative border-r border-gray-100">
+                    {/* Imagem - Horizontal no mobile, Lateral no desktop */}
+                    <div className="w-full sm:w-32 md:w-48 aspect-[3/2] sm:aspect-square md:aspect-auto flex-shrink-0 bg-gray-50 relative sm:border-r border-gray-100">
                       {outOfStock && (
                         <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
                           <span className="bg-gray-800 text-white px-2 py-1 rounded text-[10px] font-bold shadow flex gap-1 items-center">
@@ -540,53 +554,62 @@ export function ProductGrid() {
                           </span>
                         </div>
                       )}
-                      {(() => {
-                        const { src, isExternal } = getProductImageUrl(
-                          product as any
-                        );
-                        if (src) {
-                          if (isExternal) {
+                      {hideImages ? (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 p-4">
+                          <div className="text-sm font-bold">
+                            {(product.reference_code || '').slice(0, 12) ||
+                              product.name?.slice(0, 12)}
+                          </div>
+                        </div>
+                      ) : (
+                        (() => {
+                          const { src, isExternal } = getProductImageUrl(
+                            product as any
+                          );
+                          if (src) {
+                            if (isExternal) {
+                              return (
+                                <div className="w-full h-full">
+                                  <LazyProductImage
+                                    src={src}
+                                    alt={product.name}
+                                    className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+                                    fallbackSrc="/images/default-logo.png"
+                                  />
+                                </div>
+                              );
+                            }
+
                             return (
-                              <div className="w-full h-full">
-                                <LazyProductImage
-                                  src={src}
-                                  alt={product.name}
-                                  className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
-                                  fallbackSrc="/images/default-logo.png"
-                                />
-                              </div>
+                              <Image
+                                src={src}
+                                alt={product.name}
+                                fill
+                                sizes="192px"
+                                className="object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+                              />
                             );
                           }
 
                           return (
-                            <Image
-                              src={src}
-                              alt={product.name}
-                              fill
-                              sizes="192px"
-                              className="object-contain p-4 group-hover:scale-105 transition-transform duration-500"
-                            />
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <img
+                                src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
+                                alt="Sem imagem"
+                                className="w-16 h-16 object-contain opacity-80"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src =
+                                    '/images/default-logo.png';
+                                }}
+                              />
+                            </div>
                           );
-                        }
-
-                        return (
-                          <div className="w-full h-full flex items-center justify-center text-gray-300">
-                            <img
-                              src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
-                              alt="Sem imagem"
-                              className="w-16 h-16 object-contain opacity-80"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src =
-                                  '/images/default-logo.png';
-                              }}
-                            />
-                          </div>
-                        );
-                      })()}
+                        })()
+                      )}
 
                       {product.is_launch && (
                         <span className="absolute top-2 left-2 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
-                          Novo
+                          Lançamento
                         </span>
                       )}
                     </div>
@@ -657,37 +680,18 @@ export function ProductGrid() {
             </div>
           )}
 
-          {totalPages > 1 && (
-            <div className="mt-10 flex justify-center items-center gap-4 py-6">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCurrentPage(currentPage - 1);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                disabled={currentPage === 1}
-                className="w-10 h-10 p-0 rounded-full"
-              >
-                <ChevronLeft size={20} />
-              </Button>
-              <span className="text-sm font-medium text-gray-600 bg-white px-4 py-2 rounded-lg border border-gray-100 shadow-sm">
-                Página{' '}
-                <span className="font-bold text-gray-900">{currentPage}</span>{' '}
-                de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCurrentPage(currentPage + 1);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                disabled={currentPage === totalPages}
-                className="w-10 h-10 p-0 rounded-full"
-              >
-                <ChevronRight size={20} />
-              </Button>
-            </div>
-          )}
+          {/* ✅ PAGINAÇÃO PREMIUM */}
+          <PaginationControls
+            totalProducts={totalProducts}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            loading={isLoadingSearch}
+            onPageChange={(page) => {
+              setCurrentPage(page);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onItemsPerPageChange={(items) => setItemsPerPage(items)}
+          />
         </>
       )}
     </div>

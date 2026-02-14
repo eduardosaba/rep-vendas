@@ -411,6 +411,7 @@ export function EditProductForm({ product }: { product: Product }) {
 
     brand: product.brand || '',
     category: product.category || '',
+    gender: (product as any).gender || null,
     description: product.description || '',
     technical_specs_mode: techSpecs.mode,
     technical_specs_text: techSpecs.text,
@@ -849,6 +850,7 @@ export function EditProductForm({ product }: { product: Product }) {
         original_price: finalOriginalPrice,
         brand: formData.brand || null,
         category: formData.category || null,
+        gender: (formData as any).gender || null,
         description: formData.description || null,
         track_stock: formData.track_stock,
         stock_quantity: formData.track_stock
@@ -1321,7 +1323,25 @@ export function EditProductForm({ product }: { product: Product }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Gênero
+              </label>
+              <select
+                value={(formData as any).gender || ''}
+                onChange={(e) =>
+                  updateField('gender' as any, e.target.value || null)
+                }
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer"
+              >
+                <option value="">Não especificado</option>
+                <option value="feminino">Feminino</option>
+                <option value="masculino">Masculino</option>
+                <option value="teen">Teen</option>
+                <option value="unisex">Unisex</option>
+              </select>
+            </div>
+            <div>
+              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 <Palette size={14} /> Cor
               </label>
               <input

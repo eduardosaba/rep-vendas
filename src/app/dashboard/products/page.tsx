@@ -32,58 +32,57 @@ export default async function ProductsPage() {
   }
 
   // 2. Busca de Produtos Otimizada
-  // Selecionamos apenas o necessário para a lista inicial para não pesar
-  // Busca limite do plano para retornar até esse número de produtos
-  let maxLimit = 5000; // fallback aumentado para 5000
-  try {
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('plan_id, plan_name')
-      .eq('user_id', activeUserId)
-      .maybeSingle();
+  let maxLimit = 5000; // fallback seguro para usuários comuns
 
-    if (sub?.plan_id) {
-      const { data: plan } = await supabase
-        .from('plans')
-        .select('product_limit, max_products')
-        .eq('id', sub.plan_id)
+  // 2.1 Verifica o cargo do usuário para definir o limite
+  const { data: { user } = {} } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .maybeSingle();
+
+  const isAdmin = profile?.role === 'master' || profile?.role === 'admin';
+
+  if (isAdmin) {
+    maxLimit = 20000;
+  } else {
+    // Busca limite do plano para usuários comuns
+    try {
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('plan_id, plan_name')
+        .eq('user_id', activeUserId)
         .maybeSingle();
 
-      if (plan) {
-        maxLimit = plan.product_limit || plan.max_products || maxLimit;
-        console.log(
-          '[ProductsPage] Limite do plano:',
-          maxLimit,
-          'Plano:',
-          sub.plan_id
-        );
-      }
-    } else if (sub?.plan_name) {
-      const { data: plan } = await supabase
-        .from('plans')
-        .select('product_limit, max_products')
-        .eq('name', sub.plan_name)
-        .maybeSingle();
+      if (sub?.plan_id) {
+        const { data: plan } = await supabase
+          .from('plans')
+          .select('product_limit, max_products')
+          .eq('id', sub.plan_id)
+          .maybeSingle();
 
-      if (plan) {
-        maxLimit = plan.product_limit || plan.max_products || maxLimit;
-        console.log(
-          '[ProductsPage] Limite do plano:',
-          maxLimit,
-          'Plano:',
-          sub.plan_name
-        );
+        if (plan) {
+          maxLimit = plan.product_limit || plan.max_products || 5000;
+        }
       }
+    } catch (e) {
+      console.error('Erro ao recuperar limite do plano:', e);
     }
-  } catch (e) {
-    console.error('Erro ao recuperar limite do plano:', e);
   }
 
+  // debug visibility
+  console.log(
+    `[DEBUG] Usuário é Admin: ${isAdmin} | Limite definido: ${maxLimit}`
+  );
+
+  // 3. Query de Produtos com Range Explícito
   const { data: products, error } = await supabase
     .from('products')
     .select('*')
     .eq('user_id', activeUserId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(0, maxLimit);
 
   if (error) {
     console.error('Erro ao carregar produtos:', error);
@@ -93,7 +92,6 @@ export default async function ProductsPage() {
   const safeProducts = products || [];
 
   // Mostrar painel de diagnóstico somente para usuários master/template
-  const { data: { user } = {} } = await supabase.auth.getUser();
   const allowedDiagnosticEmails = [
     'eduardopedro.fsa@gmail.com',
     'template-otica@repvendas.com.br',

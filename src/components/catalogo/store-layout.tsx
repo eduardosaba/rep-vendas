@@ -361,10 +361,13 @@ export function StoreSidebar() {
   const {
     brands,
     categories,
+    genders,
     selectedBrand,
     setSelectedBrand,
     selectedCategory,
     setSelectedCategory,
+    selectedGender,
+    setSelectedGender,
     favorites,
     showFavorites,
     setShowFavorites,
@@ -647,6 +650,72 @@ export function StoreSidebar() {
               </div>
             )}
           </div>
+
+          {/* FILTRO DE GÊNERO */}
+          {genders && genders.length > 0 && (
+            <div>
+              {!isCollapsed && (
+                <h3 className="font-bold text-sm uppercase tracking-wider mb-3 text-gray-900">
+                  Gênero
+                </h3>
+              )}
+              <div className={`space-y-2 ${isCollapsed ? 'text-center' : ''}`}>
+                <label
+                  className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedGender === 'all' ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-gray-300 bg-white'}`}
+                  >
+                    {selectedGender === 'all' && (
+                      <Check size={12} className="text-white" />
+                    )}
+                  </div>
+                  <input
+                    type="radio"
+                    name="gender"
+                    checked={selectedGender === 'all'}
+                    onChange={() => setSelectedGender('all')}
+                    className="hidden"
+                  />
+                  {!isCollapsed && (
+                    <span className="text-sm text-gray-600 group-hover:text-gray-900">
+                      Todos
+                    </span>
+                  )}
+                </label>
+
+                {genders.map((gen) => (
+                  <label
+                    key={gen}
+                    className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50 w-full`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedGender === gen ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-gray-300 bg-white'}`}
+                    >
+                      {selectedGender === gen && (
+                        <Check size={12} className="text-white" />
+                      )}
+                    </div>
+                    <input
+                      type="radio"
+                      name="gender"
+                      checked={selectedGender === gen}
+                      onChange={() => setSelectedGender(gen)}
+                      className="hidden"
+                    />
+                    {!isCollapsed && (
+                      <span
+                        className="text-sm text-gray-600 group-hover:text-gray-900 truncate flex-1 block text-left"
+                        title={gen.charAt(0).toUpperCase() + gen.slice(1)}
+                      >
+                        {gen.charAt(0).toUpperCase() + gen.slice(1)}
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>
@@ -696,14 +765,14 @@ export function StoreMobileActionBar() {
 
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 shadow-lg pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-5 h-16">
+      <div className="grid grid-cols-5 h-16 max-w-screen-sm mx-auto">
         {/* 1. Início */}
         <button
           onClick={goHome}
-          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+          className="flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors min-w-0 px-1"
         >
-          <Home size={20} className="text-gray-600 dark:text-gray-400" />
-          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+          <Home size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
+          <span className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate w-full text-center">
             Início
           </span>
         </button>
@@ -718,26 +787,25 @@ export function StoreMobileActionBar() {
                 setModal('password', true);
               }
             } else {
-              // Abre modal de busca ou foca no input de busca
               setModal('search', true);
             }
           }}
-          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+          className="flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors min-w-0 px-1"
         >
           {store.show_cost_price ? (
             isPricesVisible ? (
-              <Unlock size={20} className="text-green-600" />
+              <Unlock size={18} className="text-green-600 flex-shrink-0" />
             ) : (
-              <Lock size={20} className="text-gray-600 dark:text-gray-400" />
+              <Lock size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
             )
           ) : (
-            <Search size={20} className="text-gray-600 dark:text-gray-400" />
+            <Search size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
           )}
-          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate w-full text-center">
             {store.show_cost_price
               ? isPricesVisible
-                ? 'Preços ON'
-                : 'Ver Preços'
+                ? 'Preços'
+                : 'Preços'
               : 'Buscar'}
           </span>
         </button>
@@ -745,35 +813,24 @@ export function StoreMobileActionBar() {
         {/* 3. CARRINHO - DESTAQUE CENTRAL */}
         <button
           onClick={() => setModal('cart', true)}
-          className="flex flex-col items-center justify-center gap-1 relative -mt-4 bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 hover:from-[var(--primary)]/90 hover:to-[var(--primary)]/70 rounded-full h-14 w-14 mx-auto shadow-lg transition-all"
+          className="flex flex-col items-center justify-center gap-1 relative -mt-4 bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 hover:from-[var(--primary)]/90 hover:to-[var(--primary)]/70 rounded-full h-14 w-14 mx-auto shadow-lg transition-all flex-shrink-0"
         >
-          <ShoppingCart size={24} className="text-white" />
+          <ShoppingCart size={22} className="text-white" />
           {cartCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
-              {cartCount}
+              {cartCount > 99 ? '99+' : cartCount}
             </span>
           )}
         </button>
 
-        {/* 4. Pedidos (sempre visível) */}
-        <button
-          onClick={() => setModal('load', true)}
-          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
-        >
-          <Download size={20} className="text-gray-600 dark:text-gray-400" />
-          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
-            Pedidos
-          </span>
-        </button>
-
-        {/* 5. Favoritos (sempre visível) */}
+        {/* 4. Favoritos */}
         <button
           onClick={() => setShowFavorites(!showFavorites)}
-          className="flex flex-col items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors relative"
+          className="flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors relative min-w-0 px-1"
         >
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <Heart
-              size={20}
+              size={18}
               className={
                 showFavorites
                   ? 'fill-current text-red-500'
@@ -781,13 +838,24 @@ export function StoreMobileActionBar() {
               }
             />
             {favorites.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold h-4 w-4 flex items-center justify-center rounded-full">
-                {favorites.length}
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold h-3.5 w-3.5 flex items-center justify-center rounded-full">
+                {favorites.length > 9 ? '9+' : favorites.length}
               </span>
             )}
           </div>
-          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate w-full text-center">
             Favoritos
+          </span>
+        </button>
+
+        {/* 5. Pedidos */}
+        <button
+          onClick={() => setModal('load', true)}
+          className="flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors min-w-0 px-1"
+        >
+          <Download size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
+          <span className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate w-full text-center">
+            Pedidos
           </span>
         </button>
       </div>

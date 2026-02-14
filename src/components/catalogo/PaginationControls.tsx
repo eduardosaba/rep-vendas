@@ -11,7 +11,7 @@ interface PaginationControlsProps {
   onItemsPerPageChange: (items: number) => void;
 }
 
-const ITEMS_PER_PAGE_OPTIONS = [12, 20, 32, 48];
+const ITEMS_PER_PAGE_OPTIONS = [24, 48, 72, 999999];
 
 export const PaginationControls: React.FC<PaginationControlsProps> = ({
   totalProducts,
@@ -21,7 +21,9 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   onPageChange,
   onItemsPerPageChange,
 }) => {
-  if (totalProducts <= itemsPerPage) {
+  // Só oculta se o total real for muito pequeno (ex: menos de 10 produtos)
+  // Caso contrário, precisamos do seletor para mudar de 24 para "Todos"
+  if (totalProducts <= 10 && itemsPerPage < 999999) {
     return null;
   }
 
@@ -36,11 +38,11 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
             onItemsPerPageChange(newItemsPerPage);
             localStorage.setItem('itemsPerPage', newItemsPerPage.toString());
           }}
-          className="rounded border border-gray-300 bg-white px-3 py-1 text-sm"
+          className="rounded border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1 text-sm text-gray-900 dark:text-slate-100"
         >
           {ITEMS_PER_PAGE_OPTIONS.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {option >= 999999 ? 'Todos' : option}
             </option>
           ))}
         </select>

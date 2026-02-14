@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useConfirm } from '@/hooks/useConfirm';
 
 // --- TIPAGEM ---
 interface Category {
@@ -107,6 +108,12 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [typesList, setTypesList] = useState<
+    { value: string; count: number }[]
+  >([]);
+  const [gendersList, setGendersList] = useState<
+    { value: string; count: number }[]
+  >([]);
 
   // Estado para o Modal de Exclusão
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -168,6 +175,8 @@ export default function CategoriesPage() {
       });
 
       fetchCategories();
+      // Refresh types and genders after sync
+      fetchTypesAndGenders();
     } catch (error: any) {
       console.error(error);
       toast.error('Erro ao sincronizar', {
@@ -176,6 +185,175 @@ export default function CategoriesPage() {
       });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // Buscar tipos (class_core) e gêneros distintos na tabela products
+  const fetchTypesAndGenders = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch minimal set of products to compute distinct values client-side
+      const { data: prodData, error: pErr } = await supabase
+        .from('products')
+        .select('class_core,gender')
+        .eq('user_id', user.id)
+        .limit(5000);
+
+      if (pErr) throw pErr;
+
+      const typesMap: Record<string, number> = {};
+      const gendersMap: Record<string, number> = {};
+
+      (prodData || []).forEach((r: any) => {
+        const t = (r.class_core || '').trim();
+        const g = (r.gender || '').trim();
+        if (t) typesMap[t] = (typesMap[t] || 0) + 1;
+        if (g) gendersMap[g] = (gendersMap[g] || 0) + 1;
+      });
+
+      setTypesList(
+        Object.keys(typesMap)
+          .sort()
+          .map((k) => ({ value: k, count: typesMap[k] }))
+      );
+      setGendersList(
+        Object.keys(gendersMap)
+          .sort()
+          .map((k) => ({ value: k, count: gendersMap[k] }))
+      );
+    } catch (err) {
+      console.error('fetchTypesAndGenders', err);
+    }
+  };
+
+  useEffect(() => {
+    // initial fetch of types and genders
+    fetchTypesAndGenders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Renomear tipo/gênero (atualiza todos os produtos do usuário) usando modal custom
+  const { confirm } = useConfirm();
+
+  const promptRename = (
+    title: string,
+    initial = ''
+  ): Promise<string | null> => {
+    return new Promise((resolve) => {
+      let val = initial;
+      toast.custom(
+        (t) => (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-md w-full">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
+                {title}
+              </h3>
+              <input
+                autoFocus
+                defaultValue={initial}
+                onChange={(e) => (val = e.target.value)}
+                className="w-full p-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  toast.dismiss(t);
+                  resolve(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  toast.dismiss(t);
+                  resolve((val || '').trim() || null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: Infinity, position: 'top-center' }
+      );
+    });
+  };
+
+  const handleRenameValue = async (
+    kind: 'type' | 'gender',
+    oldValue: string
+  ) => {
+    const label = kind === 'type' ? 'tipo' : 'gênero';
+    const newValue = await promptRename(`Novo nome para ${label}:`, oldValue);
+    if (newValue === null) return; // cancelado
+    if (!newValue) return toast.error('Nome inválido');
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const updatePayload: any = {};
+      if (kind === 'type') updatePayload.class_core = newValue;
+      else updatePayload.gender = newValue;
+
+      const { error } = await supabase
+        .from('products')
+        .update(updatePayload)
+        .eq('user_id', user.id)
+        .eq(kind === 'type' ? 'class_core' : 'gender', oldValue);
+
+      if (error) throw error;
+      toast.success('Atualizado com sucesso');
+      fetchTypesAndGenders();
+      fetchCategories();
+    } catch (e: any) {
+      console.error(e);
+      toast.error('Falha ao renomear: ' + (e.message || ''));
+    }
+  };
+
+  // Excluir (nulificar) valor em produtos
+  const handleDeleteValue = async (kind: 'type' | 'gender', value: string) => {
+    const ok = await confirm({
+      title: `Remover ${kind === 'type' ? 'tipo' : 'gênero'}?`,
+      description: `Remover "${value}" de todos os produtos? Esta ação vai deixar os produtos sem esse campo.`,
+      confirmText: 'Remover',
+      cancelText: 'Cancelar',
+    });
+    if (!ok) return;
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const updatePayload: any = {};
+      if (kind === 'type') updatePayload.class_core = null;
+      else updatePayload.gender = null;
+
+      const { error } = await supabase
+        .from('products')
+        .update(updatePayload)
+        .eq('user_id', user.id)
+        .eq(kind === 'type' ? 'class_core' : 'gender', value);
+
+      if (error) throw error;
+      toast.success('Removido com sucesso');
+      fetchTypesAndGenders();
+      fetchCategories();
+    } catch (e: any) {
+      console.error(e);
+      toast.error('Falha ao remover: ' + (e.message || ''));
     }
   };
 
@@ -462,6 +640,116 @@ export default function CategoriesPage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* --- TIPOS E GÊNEROS DETECTADOS (Busca em produtos) --- */}
+      <div className="max-w-5xl mx-auto">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+          Tipos & Gêneros detectados
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-gray-800 dark:text-gray-100">
+                Tipos (Classe)
+              </h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={fetchTypesAndGenders}
+                leftIcon={<RefreshCw size={14} />}
+              >
+                Atualizar
+              </Button>
+            </div>
+            {typesList.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Nenhum tipo encontrado nos produtos.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {typesList.map((t) => (
+                  <li
+                    key={t.value}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="truncate">
+                      <span className="font-medium text-gray-800 mr-2">
+                        {t.value}
+                      </span>
+                      <span className="text-sm text-gray-500">({t.count})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleRenameValue('type', t.value)}
+                        className="text-gray-500 hover:text-primary p-1 rounded"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteValue('type', t.value)}
+                        className="text-gray-500 hover:text-red-600 p-1 rounded"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-gray-800 dark:text-gray-100">
+                Gêneros
+              </h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={fetchTypesAndGenders}
+                leftIcon={<RefreshCw size={14} />}
+              >
+                Atualizar
+              </Button>
+            </div>
+            {gendersList.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Nenhum gênero encontrado nos produtos.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {gendersList.map((g) => (
+                  <li
+                    key={g.value}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="truncate">
+                      <span className="font-medium text-gray-800 mr-2">
+                        {g.value}
+                      </span>
+                      <span className="text-sm text-gray-500">({g.count})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleRenameValue('gender', g.value)}
+                        className="text-gray-500 hover:text-primary p-1 rounded"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteValue('gender', g.value)}
+                        className="text-gray-500 hover:text-red-600 p-1 rounded"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
 

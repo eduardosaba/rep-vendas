@@ -71,12 +71,13 @@ export async function GET(req: Request) {
         .in('id', ids)
         .eq('user_id', userId);
     } else {
-      // If caller requested only IDs (for select-all across pages), don't apply range
-      // and select only the `id` column to reduce payload.
+      // If caller requested only IDs (for select-all across pages), increase range
+      // to cover large catalogs (admin scenarios) and reduce payload by selecting only `id`.
       if (!idsOnly) {
         query = query.select('*', { count: 'exact' }).range(from, to);
       } else {
-        query = query.select('id', { count: 'exact' });
+        // Force a large range so "select all IDs" for admins returns the full set
+        query = query.select('id', { count: 'exact' }).range(0, 20000);
       }
     }
 
@@ -109,6 +110,9 @@ export async function GET(req: Request) {
       data = res.data ?? res;
       // supabase-js returns .count when select was used with { count: 'exact' }
       count = res.count ?? null;
+
+      // If Supabase returned an error object, throw to be handled below
+      if (res.error) throw res.error;
     } catch (e: any) {
       console.error('[api/products] query failed', {
         message: e?.message,

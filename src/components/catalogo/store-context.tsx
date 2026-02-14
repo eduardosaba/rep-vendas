@@ -42,6 +42,8 @@ interface StoreContextType {
   currentPage: number;
   totalPages: number;
   setCurrentPage: (p: number) => void;
+  itemsPerPage: number;
+  setItemsPerPage: (items: number) => void;
   viewMode: 'grid' | 'list' | 'table';
   setViewMode: (m: 'grid' | 'list' | 'table') => void;
   hideImages: boolean;
@@ -51,6 +53,7 @@ interface StoreContextType {
   brands: string[];
   brandsWithLogos: BrandWithLogo[];
   categories: string[];
+  genders: string[];
   searchTerm: string;
   setSearchTerm: (s: string) => void;
   isLoadingSearch: boolean;
@@ -58,6 +61,8 @@ interface StoreContextType {
   setSelectedBrand: (s: string | string[]) => void;
   selectedCategory: string;
   setSelectedCategory: (s: string) => void;
+  selectedGender: string;
+  setSelectedGender: (s: string) => void;
   sortOrder:
     | 'name'
     | 'price_asc'
@@ -132,10 +137,18 @@ export function StoreProvider({
   startProductId,
 }: StoreProviderProps) {
   const supabase = createClient();
-  const ITEMS_PER_PAGE = 24;
   // Image loading defaults
   const IMAGE_PRIORITY_COUNT = 4; // first N images get priority
   const IMAGE_SIZES = '(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw';
+
+  // ✅ PAGINAÇÃO PREMIUM: Estado dinâmico (localStorage persistence)
+  const [itemsPerPage, setItemsPerPage] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('itemsPerPage');
+      if (saved) return parseInt(saved, 10) || 24;
+    }
+    return 24;
+  });
 
   // Estados
   // Determina o modo de preços: se o catálogo estiver em "preço de custo"
@@ -152,6 +165,7 @@ export function StoreProvider({
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<string | string[]>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedGender, setSelectedGender] = useState('all');
   const [sortOrder, setSortOrder] = useState<
     | 'name'
     | 'price_asc'
@@ -189,6 +203,9 @@ export function StoreProvider({
       const category = params.get('category');
       if (category) setSelectedCategory(category);
 
+      const gender = params.get('gender');
+      if (gender) setSelectedGender(gender);
+
       setShowOnlyNew(params.get('new') === '1');
       setShowOnlyBestsellers(params.get('bs') === '1');
       setShowFavorites(params.get('fav') === '1');
@@ -211,7 +228,10 @@ export function StoreProvider({
   // Auto-detect network conditions to choose a conservative initial UX
   useEffect(() => {
     try {
-      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      const connection =
+        (navigator as any).connection ||
+        (navigator as any).mozConnection ||
+        (navigator as any).webkitConnection;
       if (!connection) return;
       const effective = String(connection.effectiveType || '').toLowerCase();
       const saveData = !!connection.saveData;
@@ -246,6 +266,10 @@ export function StoreProvider({
         if (selectedCategory && selectedCategory !== 'all')
           params.set('category', selectedCategory);
         else params.delete('category');
+
+        if (selectedGender && selectedGender !== 'all')
+          params.set('gender', selectedGender);
+        else params.delete('gender');
 
         if (showOnlyNew) params.set('new', '1');
         else params.delete('new');
@@ -305,6 +329,31 @@ export function StoreProvider({
       ? initialProducts.find((p) => p.id === startProductId) || null
       : null,
   });
+
+  // Se existir uma liberação de preços persistida no localStorage, aplicar na inicialização
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return;
+      const access = localStorage.getItem('priceAccessGranted');
+      const expires = localStorage.getItem('priceAccessExpiresAt');
+      if (access === 'true') {
+        if (expires) {
+          const exp = new Date(expires);
+          if (exp.getTime() > Date.now()) {
+            setShowPrices(true);
+          } else {
+            // expirado
+            localStorage.removeItem('priceAccessGranted');
+            localStorage.removeItem('priceAccessExpiresAt');
+          }
+        } else {
+          setShowPrices(true);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   const [globalControls, setGlobalControls] = useState<{
     allow_trial_unlock?: boolean;
@@ -391,6 +440,17 @@ export function StoreProvider({
             .filter(Boolean) as string[]
         )
       ),
+    [initialProducts]
+  );
+  const genders = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts
+            .map((p) => (p as any).gender?.trim())
+            .filter(Boolean) as string[]
+        )
+      ).sort(),
     [initialProducts]
   );
 
@@ -880,9 +940,9 @@ export function StoreProvider({
     }
   };
 
-  const displayProducts = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     const base = searchResults || initialProducts;
-    const filtered = base
+    return base
       .filter((p) => {
         if (showFavorites && !favorites.includes(p.id)) return false;
         if (showOnlyNew && !p.is_launch) return false;
@@ -902,6 +962,13 @@ export function StoreProvider({
         }
         if (selectedCategory !== 'all' && p.category !== selectedCategory)
           return false;
+        if (selectedGender !== 'all') {
+          const normalize = (s: unknown) =>
+            String(s || '')
+              .trim()
+              .toLowerCase();
+          if (normalize(p.gender) !== normalize(selectedGender)) return false;
+        }
         return true;
       })
       .sort((a, b) => {
@@ -932,10 +999,6 @@ export function StoreProvider({
 
         return a.name.localeCompare(b.name);
       });
-
-    // Slice the filtered list so we only render the current page's items
-    const start = Math.max(0, (currentPage - 1) * ITEMS_PER_PAGE);
-    return filtered.slice(start, start + ITEMS_PER_PAGE);
   }, [
     searchResults,
     initialProducts,
@@ -945,8 +1008,29 @@ export function StoreProvider({
     showOnlyBestsellers,
     selectedBrand,
     selectedCategory,
+    selectedGender,
     sortOrder,
+  ]);
+
+  const displayProducts = useMemo(() => {
+    // Slice the filtered list so we only render the current page's items
+    const start = Math.max(0, (currentPage - 1) * itemsPerPage);
+    // Se itemsPerPage for 999999 (Todos), retorna tudo sem slice
+    if (itemsPerPage >= 999999) return filteredProducts;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
+  // DEBUG TEMPORÁRIO: loga contagens e estado quando mudam (remover após verificação)
+  useEffect(() => {
+    try {
+      // debug removed
+    } catch (e) {}
+  }, [
+    filteredProducts.length,
+    displayProducts.length,
     currentPage,
+    itemsPerPage,
+    showPrices,
   ]);
 
   // ✅ NORMALIZAÇÃO COMPLETA DA STORE (BANNERS, LOGOS E BARRA DE BENEFÍCIOS)
@@ -1019,10 +1103,21 @@ export function StoreProvider({
         setIsPricesVisible: setShowPrices,
         toggleShowPrices: () => setShowPrices(!showPrices),
         displayProducts,
-        totalProducts: displayProducts.length,
+        totalProducts: filteredProducts.length,
         currentPage,
-        totalPages: Math.ceil(displayProducts.length / ITEMS_PER_PAGE),
+        totalPages:
+          itemsPerPage >= 999999
+            ? 1
+            : Math.ceil(filteredProducts.length / itemsPerPage),
         setCurrentPage,
+        itemsPerPage,
+        setItemsPerPage: (items: number) => {
+          setItemsPerPage(items);
+          setCurrentPage(1); // Reset para primeira página ao mudar tamanho
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('itemsPerPage', items.toString());
+          }
+        },
         viewMode,
         setViewMode,
         hideImages,
@@ -1032,6 +1127,7 @@ export function StoreProvider({
         brands,
         brandsWithLogos,
         categories,
+        genders,
         searchTerm,
         setSearchTerm,
         isLoadingSearch,
@@ -1039,6 +1135,8 @@ export function StoreProvider({
         setSelectedBrand,
         selectedCategory,
         setSelectedCategory,
+        selectedGender,
+        setSelectedGender,
         sortOrder,
         setSortOrder,
         showOnlyNew,
@@ -1077,6 +1175,17 @@ export function StoreProvider({
             const hash = await sha256(plain);
             if (hash === (store as any).price_password_hash) {
               setShowPrices(true);
+              try {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('priceAccessGranted', 'true');
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  localStorage.setItem(
+                    'priceAccessExpiresAt',
+                    tomorrow.toISOString()
+                  );
+                }
+              } catch {}
               toast.success('Preços desbloqueados!');
               return true;
             }
@@ -1088,6 +1197,17 @@ export function StoreProvider({
             plain === (store as any).price_password
           ) {
             setShowPrices(true);
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('priceAccessGranted', 'true');
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                localStorage.setItem(
+                  'priceAccessExpiresAt',
+                  tomorrow.toISOString()
+                );
+              }
+            } catch {}
             toast.success('Preços desbloqueados!');
             return true;
           }
@@ -1109,6 +1229,17 @@ export function StoreProvider({
               const j = await res.json();
               if (j.ok) {
                 setShowPrices(true);
+                try {
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('priceAccessGranted', 'true');
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    localStorage.setItem(
+                      'priceAccessExpiresAt',
+                      tomorrow.toISOString()
+                    );
+                  }
+                } catch {}
                 toast.success('Preços desbloqueados!');
                 return true;
               }
@@ -1127,12 +1258,34 @@ export function StoreProvider({
           // If global control allows trial unlock bypass, allow it
           if (globalControls?.allow_trial_unlock) {
             setShowPrices(true);
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('priceAccessGranted', 'true');
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                localStorage.setItem(
+                  'priceAccessExpiresAt',
+                  tomorrow.toISOString()
+                );
+              }
+            } catch {}
             return true;
           }
 
           // Plan matrix override
           if (isFeatureAllowed('view_prices')) {
             setShowPrices(true);
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('priceAccessGranted', 'true');
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                localStorage.setItem(
+                  'priceAccessExpiresAt',
+                  tomorrow.toISOString()
+                );
+              }
+            } catch {}
             return true;
           }
 
