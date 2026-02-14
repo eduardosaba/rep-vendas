@@ -17,7 +17,7 @@ import {
   ImageOff,
 } from 'lucide-react';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ProductCard } from '@/components/catalogo/ProductCard';
 import ProductCardSkeleton from '@/components/catalogo/ProductCardSkeleton';
@@ -34,6 +34,45 @@ interface SlideData {
   altText: string;
 }
 
+function OutsideCloseEffect({
+  openType,
+  openGender,
+  onCloseAll,
+}: {
+  openType: boolean;
+  openGender: boolean;
+  onCloseAll: () => void;
+}) {
+  useEffect(() => {
+    if (!openType && !openGender) return;
+    const onDocDown = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return onCloseAll();
+      if (
+        target.closest('[data-menu]') ||
+        target.closest('[data-menu-trigger]')
+      )
+        return;
+      onCloseAll();
+    };
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseAll();
+    };
+
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('touchstart', onDocDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('touchstart', onDocDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [openType, openGender, onCloseAll]);
+
+  return null;
+}
+
 export function CategoryBar() {
   const {
     categories = [],
@@ -41,6 +80,7 @@ export function CategoryBar() {
     setSelectedCategory,
     initialProducts = [],
   } = useStore();
+  const { genders = [], selectedGender, setSelectedGender } = useStore();
   const displayCategories = useMemo(() => {
     if (categories && categories.length > 0) {
       return categories.map((c: any) =>
@@ -53,39 +93,235 @@ export function CategoryBar() {
     return fromProducts;
   }, [categories, initialProducts]);
 
+  const displayTypes = useMemo(() => {
+    const fromProducts = Array.from(
+      new Set(
+        initialProducts
+          .map((p: Product) => (p as any).class_core)
+          .filter(Boolean)
+      )
+    );
+    return fromProducts;
+  }, [initialProducts]);
+
+  // Remove qualquer item que também seja classificado como 'type' para evitar
+  // duplicação (mostramos tipos apenas no dropdown). Mantemos a ordem original.
+  const visibleCategories = useMemo(() => {
+    if (!displayCategories) return [];
+    const typesSet = new Set((displayTypes || []).map(String));
+    return displayCategories.filter((c: any) => !typesSet.has(String(c)));
+  }, [displayCategories, displayTypes]);
+
+  const [openTypeMenu, setOpenTypeMenu] = useState(false);
+  const [openGenderMenu, setOpenGenderMenu] = useState(false);
+  const typeBtnRef = useRef<HTMLButtonElement | null>(null);
+  const genderBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [typeMenuRect, setTypeMenuRect] = useState<null | {
+    left: number;
+    top: number;
+    width: number;
+  }>(null);
+  const [genderMenuRect, setGenderMenuRect] = useState<null | {
+    left: number;
+    top: number;
+    width: number;
+  }>(null);
+
   if (!displayCategories || displayCategories.length === 0) return null;
 
   return (
-    <div className="w-full bg-white border-b border-gray-100 py-3">
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-3 overflow-x-auto scrollbar-hide">
-        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 shrink-0 border-r border-gray-200 pr-3">
-          Filtrar Por
-        </span>
+    <div className="w-full bg-white border-b border-gray-100 py-3 sticky top-0 z-30 shadow-sm md:shadow-none">
+      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-2 overflow-x-auto scrollbar-hide select-none">
+        <div className="relative">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 shrink-0 pr-2">
+              Categoria:
+            </span>
 
-        <button
-          onClick={() => setSelectedCategory('all')}
-          className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${
-            selectedCategory === 'all'
-              ? 'bg-gray-900 text-white border-gray-900 shadow-md'
-              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-          }`}
-        >
-          Ver Tudo
-        </button>
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all border ${
+                selectedCategory === 'all'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'bg-white text-gray-600 border-gray-200'
+              }`}
+            >
+              Todos
+            </button>
 
-        {displayCategories.map((cat: string) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${
-              selectedCategory === cat
-                ? 'bg-gray-900 text-white border-gray-900 shadow-md'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+            {visibleCategories.slice(0, 6).map((cat: any) => (
+              <button
+                key={typeof cat === 'string' ? cat : cat?.name}
+                onClick={() =>
+                  setSelectedCategory(typeof cat === 'string' ? cat : cat?.name)
+                }
+                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border ${
+                  selectedCategory ===
+                  (typeof cat === 'string' ? cat : cat?.name)
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-white text-gray-600 border-gray-200'
+                }`}
+              >
+                {typeof cat === 'string' ? cat : cat?.name}
+              </button>
+            ))}
+
+            <button
+              ref={typeBtnRef}
+              data-menu-trigger="type"
+              onClick={() => {
+                const next = !openTypeMenu;
+                setOpenTypeMenu(next);
+                setOpenGenderMenu(false);
+                if (next && typeBtnRef.current) {
+                  const r = typeBtnRef.current.getBoundingClientRect();
+                  setTypeMenuRect({
+                    left: r.left,
+                    top: r.bottom + 8,
+                    width: Math.max(240, r.width * 2),
+                  });
+                }
+              }}
+              aria-expanded={openTypeMenu}
+              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+            >
+              Tipo ▾
+            </button>
+
+            <button
+              ref={genderBtnRef}
+              data-menu-trigger="gender"
+              onClick={() => {
+                const next = !openGenderMenu;
+                setOpenGenderMenu(next);
+                setOpenTypeMenu(false);
+                if (next && genderBtnRef.current) {
+                  const r = genderBtnRef.current.getBoundingClientRect();
+                  setGenderMenuRect({
+                    left: r.left,
+                    top: r.bottom + 8,
+                    width: Math.max(220, r.width * 2),
+                  });
+                }
+              }}
+              aria-expanded={openGenderMenu}
+              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+            >
+              Gênero ▾
+            </button>
+          </div>
+
+          {/* Fixed overlays for Tipo and Gênero - rendered as fixed so they overlay content */}
+          {openTypeMenu && typeMenuRect && (
+            <div
+              role="dialog"
+              aria-modal="false"
+              data-menu="type"
+              className="fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[60vh] overflow-auto"
+              style={{
+                left: typeMenuRect.left,
+                top: typeMenuRect.top,
+                width: Math.min(typeMenuRect.width, 600),
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div>
+                <div className="w-full flex items-center justify-between text-sm font-bold text-gray-700 mb-2">
+                  <span>Tipo</span>
+                  <button
+                    onClick={() => setOpenTypeMenu(false)}
+                    className="text-xs text-gray-400"
+                    aria-label="Fechar Tipo"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 pr-2">
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setOpenTypeMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    Todos os Tipos
+                  </button>
+                  {displayTypes.map((t: any) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        setSelectedCategory(t);
+                        setOpenTypeMenu(false);
+                      }}
+                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      {String(t)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {openGenderMenu && genderMenuRect && (
+            <div
+              role="dialog"
+              aria-modal="false"
+              data-menu="gender"
+              className="fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[60vh] overflow-auto"
+              style={{
+                left: genderMenuRect.left,
+                top: genderMenuRect.top,
+                width: Math.min(genderMenuRect.width, 420),
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div>
+                <div className="w-full flex items-center justify-between text-sm font-bold text-gray-700 mb-2">
+                  <span>Gênero</span>
+                  <button
+                    onClick={() => setOpenGenderMenu(false)}
+                    className="text-xs text-gray-400"
+                    aria-label="Fechar Gênero"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 pr-2">
+                  <button
+                    onClick={() => {
+                      setSelectedGender('all');
+                      setOpenGenderMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    Todos os Gêneros
+                  </button>
+                  {genders.map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => {
+                        setSelectedGender(g);
+                        setOpenGenderMenu(false);
+                      }}
+                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      {String(g)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <OutsideCloseEffect
+            openType={openTypeMenu}
+            openGender={openGenderMenu}
+            onCloseAll={() => {
+              setOpenTypeMenu(false);
+              setOpenGenderMenu(false);
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -203,10 +439,20 @@ export function StoreBanners() {
 
   // Detectar mobile no client-side
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    let tid: number | null = null;
+    const checkMobile = () => {
+      if (tid) window.clearTimeout(tid);
+      tid = window.setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+        tid = null;
+      }, 120);
+    };
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    return () => {
+      if (tid) window.clearTimeout(tid);
+      window.removeEventListener('resize', checkMobile);
+    };
   }, []);
 
   // Verifica se existem banners (comuns ou mobile)
@@ -398,12 +644,12 @@ export function ProductGrid() {
             className="lg:hidden ml-4"
             leftIcon={<SlidersHorizontal size={16} />}
           >
-            Filtros
+            <span className="max-[380px]:hidden">Filtros</span>
           </Button>
         </div>
 
-        <div className="flex items-center gap-4 self-end sm:self-auto">
-          <div className="flex gap-1 border-r border-gray-200 pr-4">
+        <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+          <div className="flex gap-1 sm:gap-1 border-r border-gray-200 pr-2 sm:pr-4">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-gray-100 text-[var(--primary)]' : 'text-gray-400 hover:text-gray-600'}`}
@@ -427,7 +673,7 @@ export function ProductGrid() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 pl-3">
+          <div className="flex items-center gap-2 pl-2 sm:pl-3">
             <button
               onClick={() => setHideImages(!hideImages)}
               className={`p-2 rounded-lg transition-all ${hideImages ? 'bg-amber-100 text-[var(--primary)]' : 'text-gray-400 hover:text-gray-600'}`}
@@ -437,7 +683,7 @@ export function ProductGrid() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <span className="text-sm text-gray-500 hidden xl:inline">
               Ordenar:
             </span>
@@ -473,57 +719,90 @@ export function ProductGrid() {
         <>
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
-              {isLoadingSearch ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <ProductCardSkeleton key={`skeleton-${i}`} />
-                ))
-              ) : (
-                displayProducts.map((product) => (
-                  <ProductCard
-                    key={`${product.id}-${isPricesVisible ? 'show' : 'hide'}`}
-                    product={product}
-                    storeSettings={store}
-                    isFavorite={favorites.includes(product.id)}
-                    isPricesVisible={isPricesVisible}
-                    onAddToCart={(p) => addToCart(p)}
-                    onToggleFavorite={(id) => toggleFavorite(id)}
-                    onViewDetails={(p) => setModal('product', p)}
-                  />
-                ))
-              )}
+              {isLoadingSearch
+                ? Array.from({ length: 8 }).map((_, i) => (
+                    <ProductCardSkeleton key={`skeleton-${i}`} />
+                  ))
+                : displayProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      storeSettings={store}
+                      isFavorite={favorites.includes(product.id)}
+                      isPricesVisible={isPricesVisible}
+                      onAddToCart={(p) => addToCart(p)}
+                      onToggleFavorite={(id) => toggleFavorite(id)}
+                      onViewDetails={(p) => setModal('product', p)}
+                    />
+                  ))}
             </div>
           ) : viewMode === 'table' ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
               <table className="w-full min-w-[640px] text-left border-collapse">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                    <th className="px-2 sm:px-4 py-3 min-w-[80px]">Referência</th>
-                    <th className="px-2 sm:px-4 py-3 min-w-[180px]">Produto / Marca</th>
-                    <th className="px-2 sm:px-4 py-3 text-right min-w-[100px]">Preço</th>
-                    <th className="px-2 sm:px-4 py-3 text-center min-w-[100px]">Ações</th>
+                    <th className="px-2 sm:px-4 py-3 min-w-[80px]">
+                      Referência
+                    </th>
+                    <th className="px-2 sm:px-4 py-3 min-w-[180px]">
+                      Produto / Marca
+                    </th>
+                    <th className="px-2 sm:px-4 py-3 text-right min-w-[100px]">
+                      Preço
+                    </th>
+                    <th className="px-2 sm:px-4 py-3 text-center min-w-[100px]">
+                      Ações
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {displayProducts.map((product) => {
                     const outOfStock = isOutOfStock(product);
                     return (
-                      <tr key={product.id} className="hover:bg-blue-50/30 transition-colors group cursor-pointer">
-                        <td className="px-2 sm:px-4 py-2 align-middle font-mono text-xs text-gray-400">{product.reference_code || '-'}</td>
+                      <tr
+                        key={product.id}
+                        className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
+                      >
+                        <td className="px-2 sm:px-4 py-2 align-middle font-mono text-xs text-gray-400">
+                          {product.reference_code || '-'}
+                        </td>
                         <td className="px-2 sm:px-4 py-2 align-middle">
                           <div className="flex flex-col">
-                            <span className="text-sm font-bold text-gray-900 group-hover:text-[var(--primary)]">{product.name}</span>
-                            <span className="text-[10px] uppercase font-medium text-gray-400">{product.brand}</span>
+                            <span className="text-sm font-bold text-gray-900 group-hover:text-[var(--primary)]">
+                              {product.name}
+                            </span>
+                            <span className="text-[10px] uppercase font-medium text-gray-400">
+                              {product.brand}
+                            </span>
                           </div>
                         </td>
                         <td className="px-2 sm:px-4 py-2 align-middle text-right">
-                          <PriceDisplay value={product.price} isPricesVisible={isPricesVisible} size="small" />
+                          <PriceDisplay
+                            value={product.price}
+                            isPricesVisible={isPricesVisible}
+                            size="small"
+                          />
                         </td>
                         <td className="px-2 sm:px-4 py-2 align-middle text-center">
                           <div className="flex items-center justify-center gap-2">
-                            <button onClick={(e) => { e.stopPropagation(); if (!outOfStock) addToCart(product); }} title="Adicionar" className="p-2 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white rounded-lg transition-all">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!outOfStock) addToCart(product);
+                              }}
+                              title="Adicionar"
+                              className="p-2 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white rounded-lg transition-all"
+                            >
                               <ShoppingCart size={16} />
                             </button>
-                            <button onClick={(e) => { e.stopPropagation(); setModal('product', product); }} title="Ver detalhes" className="p-2 text-gray-400 hover:text-gray-600">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setModal('product', product);
+                              }}
+                              title="Ver detalhes"
+                              className="p-2 text-gray-400 hover:text-gray-600"
+                            >
                               <Search size={16} />
                             </button>
                           </div>

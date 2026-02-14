@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Controle de visibilidade e animação do Dropdown */
+.dropdown-content {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.group:hover .dropdown-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Efeito visual nas logomarcas: P&B para Colorido */
+.brand-logo-container {
+  transition: all 0.3s ease;
+  filter: grayscale(100%);
+  opacity: 0.6;
+}
+
+.brand-logo-container:hover {
+  filter: grayscale(0%);
+  opacity: 1;
+  transform: translateY(-2px);
+  background-color: #f8fafc;
+}
+
+/* Indicador visual inferior nos links principais */
+.menu-link::after {
+  content: '';
+  position: absolute;
+  bottom: 25px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: var(--primary); /* Usa a cor primária dinâmica */
+  transition: all 0.3s ease;
+  transform: translateX(-50%);
+}
+
+.group:hover .menu-link::after {
+  width: 20px;
+}

@@ -62,6 +62,15 @@ export function PasswordModal({
             </p>
           </div>
           <form id="password-form" onSubmit={handleUnlockPrices}>
+            {/* Accessibility: include an (optionally hidden) username field
+                so browsers can associate the password correctly. */}
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              className="sr-only"
+              aria-hidden="true"
+            />
             <input
               type="password"
               autoComplete="current-password"

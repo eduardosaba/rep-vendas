@@ -281,7 +281,6 @@ export function Storefront({
 
         {/* Grid Principal com Sidebar de Filtros */}
         <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12 flex flex-col md:flex-row gap-8 flex-1 relative">
-          <StoreSidebar />
           <div className="flex-1 w-full min-w-0">
             <ProductGrid />
           </div>

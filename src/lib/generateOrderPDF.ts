@@ -17,6 +17,7 @@ interface OrderItem {
   price: number;
   reference_code?: string | null;
   brand?: string | null;
+  id?: string | number;
 }
 
 interface OrderData {
@@ -35,42 +36,111 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-const getBase64ImageFromURL = (
+const getBase64ImageFromURL = async (
   url: string
 ): Promise<{ base64: string | null; width: number; height: number } | null> => {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.src = url;
+  try {
+    if (!url) return null;
 
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        try {
-          const dataURL = canvas.toDataURL('image/png');
+    // If already a data URL, try to create image to get dimensions
+    if (url.startsWith('data:')) {
+      return await new Promise((resolve) => {
+        const img = new Image();
+        img.src = url;
+        img.onload = () =>
           resolve({
-            base64: dataURL,
-            width: canvas.width,
-            height: canvas.height,
+            base64: url,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
           });
-        } catch (e) {
-          console.warn('Erro de CORS ao exportar canvas:', e);
-          resolve(null);
-        }
-      } else {
-        resolve(null);
-      }
-    };
+        img.onerror = () => resolve(null);
+      });
+    }
 
-    img.onerror = () => {
-      console.warn('Erro ao carregar imagem:', url);
-      resolve(null);
-    };
-  });
+    // Fetch the resource and convert to a blob, then to a dataURL via canvas or FileReader
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+
+    // Try createImageBitmap for fast size extraction and drawing
+    let bitmap: ImageBitmap | null = null;
+    try {
+      // @ts-ignore - createImageBitmap exists in modern browsers
+      bitmap = await createImageBitmap(blob);
+    } catch (e) {
+      bitmap = null;
+    }
+
+    // Convert blob to dataURL
+    const dataURL: string = await new Promise((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('FileReader failed'));
+        reader.readAsDataURL(blob);
+      } catch (e) {
+        reject(e);
+      }
+    });
+
+    if (bitmap) {
+      return { base64: dataURL, width: bitmap.width, height: bitmap.height };
+    }
+
+    // Fallback: create an Image to read dimensions
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.src = dataURL;
+      img.onload = () =>
+        resolve({
+          base64: dataURL,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
+      img.onerror = () => resolve(null);
+    });
+  } catch (e) {
+    // Any error in fetch/convert should not break PDF generation
+    console.warn('getBase64ImageFromURL failed for', url, e);
+    return null;
+  }
+};
+
+const detectImageFormat = (dataUrlOrBase64: string | null) => {
+  if (!dataUrlOrBase64 || typeof dataUrlOrBase64 !== 'string') return 'PNG';
+  const m = dataUrlOrBase64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
+  if (m && m[1]) {
+    const mime = m[1].toLowerCase();
+    if (mime.includes('jpeg') || mime.includes('jpg')) return 'JPEG';
+    if (mime.includes('png')) return 'PNG';
+    if (mime.includes('webp')) return 'WEBP';
+    if (mime.includes('gif')) return 'GIF';
+  }
+  return 'PNG';
+};
+
+const normalizeImageUrlForFetch = (raw: string | null | undefined) => {
+  if (!raw) return null;
+  const s = String(raw).trim();
+
+  // If already a data URL or absolute same-origin path, return as-is
+  if (s.startsWith('data:')) return s;
+  if (s.startsWith('/')) return s; // relative to same origin (e.g., /api/storage-image?...)
+
+  // If it's a Supabase storage link or contains storage v1 public path, route through proxy
+  if (s.includes('supabase.co/storage') || s.includes('/storage/v1/object')) {
+    // try to extract the "public/" path part
+    const m = s.match(/\/storage\/v1\/object\/public\/(.+)$/);
+    if (m && m[1]) return `/api/storage-image?path=${encodeURIComponent(m[1])}`;
+    // fallback: pass full URL encoded to proxy
+    return `/api/storage-image?path=${encodeURIComponent(s)}`;
+  }
+
+  // If it's an http(s) URL to an external CDN, return it as-is (may be CORS-restricted)
+  if (/^https?:\/\//i.test(s)) return s;
+
+  // Otherwise treat as a storage relative path and route to proxy
+  return `/api/storage-image?path=${encodeURIComponent(s)}`;
 };
 
 // --- FUNÇÃO PRINCIPAL ---
@@ -99,7 +169,8 @@ export const generateOrderPDF = async (
   const logoUrl =
     store.logo_url ||
     'https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg';
-  const logoData = await getBase64ImageFromURL(logoUrl);
+  const normalizedLogoUrl = normalizeImageUrlForFetch(logoUrl) || logoUrl;
+  const logoData = await getBase64ImageFromURL(normalizedLogoUrl as string);
 
   if (logoData?.base64) {
     const targetHeight = 22;
@@ -165,17 +236,72 @@ export const generateOrderPDF = async (
   );
 
   // 3. TABELA DE ITENS (Customizada com a cor da marca)
-  const tableBody = items.map((item) => [
-    item.reference_code || '-',
-    item.brand ? `${item.name}\nMarca: ${item.brand}` : item.name,
-    item.quantity,
-    formatCurrency(item.price),
-    formatCurrency(item.price * item.quantity),
-  ]);
+  // Preparar imagens dos itens: prioriza image_variants size 480 se presente
+  const itemImages: Record<
+    number | string,
+    { base64: string | null; width: number; height: number } | null
+  > = {};
+  await Promise.all(
+    items.map(async (item) => {
+      try {
+        const variants =
+          (item as any).image_variants ||
+          (item as any).optimized_variants ||
+          null;
+        let chosenUrl: string | null = null;
+        if (Array.isArray(variants) && variants.length > 0) {
+          const v480 = variants.find(
+            (v: any) => Number(v.size) === 480 || String(v.size) === '480'
+          );
+          if (v480 && v480.url) chosenUrl = v480.url;
+          else if (variants[0].url) chosenUrl = variants[0].url;
+        }
+        if (
+          !chosenUrl &&
+          (item as any).image_url &&
+          String((item as any).image_url).startsWith('http')
+        )
+          chosenUrl = (item as any).image_url;
+        if (!chosenUrl && (item as any).external_image_url)
+          chosenUrl = (item as any).external_image_url;
+
+        if (chosenUrl) {
+          const normalized = normalizeImageUrlForFetch(chosenUrl);
+          const imgData = normalized
+            ? await getBase64ImageFromURL(normalized)
+            : await getBase64ImageFromURL(chosenUrl);
+          if (imgData && imgData.base64)
+            itemImages[item.reference_code || item.id || item.name] = imgData;
+          else itemImages[item.reference_code || item.id || item.name] = null;
+        } else {
+          itemImages[item.reference_code || item.id || item.name] = null;
+        }
+      } catch (e) {
+        itemImages[item.reference_code || item.id || item.name] = null;
+      }
+    })
+  );
+
+  const tableBody = items.map((item) => {
+    const details = item.brand
+      ? `${item.name}\nMarca: ${item.brand}`
+      : item.name;
+    const priceStr = formatCurrency(item.price);
+    const totalStr = formatCurrency(item.price * item.quantity);
+    // primeira coluna reservada para foto (renderizada em didDrawCell)
+    return [
+      '',
+      item.reference_code || '-',
+      details,
+      item.quantity,
+      priceStr,
+      totalStr,
+    ];
+  });
 
   autoTable(doc, {
     startY: boxY + 35,
-    head: [['REF', 'PRODUTO / MARCA', 'QTD', 'UNIT', 'TOTAL']],
+    head: [['FOTO', 'REF', 'PRODUTO / MARCA', 'QTD', 'UNIT', 'TOTAL']],
     body: tableBody,
     theme: 'grid',
     headStyles: {
@@ -191,13 +317,49 @@ export const generateOrderPDF = async (
       cellPadding: 3,
     },
     columnStyles: {
-      0: { cellWidth: 25, fontStyle: 'bold' },
-      2: { halign: 'center', cellWidth: 15 },
-      3: { halign: 'right', cellWidth: 30 },
-      4: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
+      0: { cellWidth: 30 },
+      1: { cellWidth: 25, fontStyle: 'bold' },
+      2: { cellWidth: 'auto' },
+      3: { halign: 'center', cellWidth: 15 },
+      4: { halign: 'right', cellWidth: 30 },
+      5: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
     },
     alternateRowStyles: {
       fillColor: [255, 255, 255],
+    },
+    didDrawCell: (data: any) => {
+      // Coluna FOTO (índice 0)
+      if (data.section === 'body' && data.column.index === 0) {
+        const item = items[data.row.index];
+        const key = item.reference_code || item.id || item.name;
+        const imgData = itemImages[key];
+        if (imgData && imgData.base64) {
+          const padding = 2;
+          const maxW = data.cell.width - padding * 2;
+          const maxH = data.cell.height - padding * 2;
+          let drawW = Math.min(maxW, imgData.width);
+          let drawH = drawW * (imgData.height / Math.max(imgData.width, 1));
+          if (drawH > maxH) {
+            drawH = maxH;
+            drawW = drawH * (imgData.width / Math.max(imgData.height, 1));
+          }
+          const offsetX = data.cell.x + (data.cell.width - drawW) / 2;
+          const offsetY = data.cell.y + (data.cell.height - drawH) / 2;
+          try {
+            const fmt = detectImageFormat(imgData.base64 as any);
+            doc.addImage(
+              imgData.base64 as any,
+              fmt,
+              offsetX,
+              offsetY,
+              drawW,
+              drawH
+            );
+          } catch (e) {
+            // ignore image draw errors
+          }
+        }
+      }
     },
   });
 

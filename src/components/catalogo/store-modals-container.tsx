@@ -382,9 +382,9 @@ export function StoreModals() {
             </button>
 
             {/* ESQUERDA: Showcase de Imagem (clique abre modal fullscreen) */}
-            <div className="w-full md:w-1/2 h-[45%] md:h-full bg-white flex flex-col relative border-b md:border-b-0 md:border-r border-gray-100">
+            <div className="w-full md:w-1/2 h-[45%] md:h-full bg-white flex flex-col relative border-b md:border-b-0 md:border-r border-gray-100 min-h-0">
               <div
-                className="flex-1 relative cursor-pointer group flex items-center justify-center p-4 md:p-8"
+                className="flex-1 relative cursor-pointer group flex items-center justify-center p-4 md:p-8 min-h-0 overflow-hidden"
                 onClick={() => setIsImageZoomOpen(true)}
               >
                 {(() => {
@@ -399,11 +399,11 @@ export function StoreModals() {
                       <img
                         src={current.url1200 || current.url480}
                         alt={modals.product?.name}
-                        className="w-full h-full max-h-[60vh] md:max-h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                        className="w-auto max-w-full max-h-[50vh] md:max-h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                       />
 
-                      {/* Dica visual discreta */}
-                      <div className="absolute bottom-4 right-4 bg-black/20 p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Dica visual: ícone sempre visível em mobile, discreto no desktop */}
+                      <div className="absolute bottom-4 right-4 bg-black/30 p-2 rounded-full text-white z-20 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Maximize2 size={20} />
                       </div>
                     </>
@@ -414,12 +414,12 @@ export function StoreModals() {
               {/* Thumbnails */}
               {modals.product && productImages.length > 1 && (
                 <div className="h-24 px-6 pb-6 overflow-x-auto no-scrollbar">
-                  <div className="flex gap-3 justify-center">
+                  <div className="flex gap-3 justify-center items-center">
                     {productImages.map((img, idx) => (
                       <button
                         key={idx}
                         onClick={() => setCurrentImageIndex(idx)}
-                        className={`relative w-16 h-16 rounded-xl border-2 transition-all overflow-hidden flex-shrink-0 ${currentImageIndex === idx ? 'border-primary ring-4 ring-primary/10' : 'border-gray-100 opacity-50'}`}
+                        className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 transition-all overflow-hidden flex-shrink-0 ${currentImageIndex === idx ? 'border-primary ring-4 ring-primary/10' : 'border-gray-100 opacity-50'}`}
                       >
                         <SmartImage
                           product={{
@@ -433,7 +433,7 @@ export function StoreModals() {
                           initialSrc={img.url480}
                           className="absolute inset-0 w-full h-full"
                           variant="thumbnail"
-                          imgClassName="object-cover p-1"
+                          imgClassName="w-full h-full object-cover"
                         />
                       </button>
                     ))}
@@ -444,7 +444,7 @@ export function StoreModals() {
 
             {/* DIREITA: Conteúdo e Checkout */}
             <div className="w-full md:w-1/2 h-[55%] md:h-full flex flex-col bg-slate-50/50">
-              <div className="flex-1 overflow-y-auto p-6 md:p-12 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-6 md:p-12 pb-28 md:pb-12 custom-scrollbar">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-full">
                     {modals.product.brand || 'Original'}
@@ -555,7 +555,7 @@ export function StoreModals() {
               </div>
 
               {/* FOOTER DE AÇÃO FIXO */}
-              <div className="p-6 md:p-10 bg-white border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+              <div className="fixed bottom-0 left-0 right-0 md:relative md:bottom-auto md:left-auto md:right-auto z-40 p-4 md:p-10 bg-white border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.03)] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
                 <div className="flex flex-col gap-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 bg-gray-100 p-2 rounded-2xl">
@@ -594,7 +594,7 @@ export function StoreModals() {
                       addToCart(modals.product!, detailQuantity);
                       setModal('product', null);
                     }}
-                    className="w-full py-8 text-xl font-black uppercase tracking-tighter shadow-2xl shadow-primary/30"
+                    className="w-full py-4 md:py-8 text-xl font-black uppercase tracking-tighter shadow-2xl shadow-primary/30 rounded-none md:rounded-2xl"
                   >
                     Adicionar ao Pedido
                   </Button>
@@ -621,7 +621,7 @@ export function StoreModals() {
               {productImages.length > 1 && (
                 <>
                   <button
-                    className="absolute left-4 md:left-10 p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] hidden md:flex"
+                    className="absolute left-4 md:left-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] flex"
                     onClick={(e) => {
                       e.stopPropagation();
                       setCurrentImageIndex((prev) =>
@@ -633,7 +633,7 @@ export function StoreModals() {
                   </button>
 
                   <button
-                    className="absolute right-4 md:right-10 p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] hidden md:flex"
+                    className="absolute right-4 md:right-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] flex"
                     onClick={(e) => {
                       e.stopPropagation();
                       setCurrentImageIndex((prev) =>

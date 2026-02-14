@@ -651,67 +651,54 @@ export function StoreSidebar() {
             )}
           </div>
 
-          {/* FILTRO DE GÊNERO */}
+          {/* --- SEÇÃO DE GÊNERO DINÂMICA (PILLS) --- */}
           {genders && genders.length > 0 && (
-            <div>
-              {!isCollapsed && (
-                <h3 className="font-bold text-sm uppercase tracking-wider mb-3 text-gray-900">
-                  Gênero
-                </h3>
-              )}
-              <div className={`space-y-2 ${isCollapsed ? 'text-center' : ''}`}>
-                <label
-                  className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedGender === 'all' ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-gray-300 bg-white'}`}
+            <div className="py-6 border-b border-gray-100">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                Gênero
+                {selectedGender !== 'all' && !isCollapsed && (
+                  <button
+                    onClick={() => setSelectedGender('all')}
+                    className="text-[10px] text-[var(--primary)] hover:underline lowercase font-bold"
                   >
-                    {selectedGender === 'all' && (
-                      <Check size={12} className="text-white" />
-                    )}
-                  </div>
-                  <input
-                    type="radio"
-                    name="gender"
-                    checked={selectedGender === 'all'}
-                    onChange={() => setSelectedGender('all')}
-                    className="hidden"
-                  />
-                  {!isCollapsed && (
-                    <span className="text-sm text-gray-600 group-hover:text-gray-900">
-                      Todos
-                    </span>
-                  )}
-                </label>
+                    limpar
+                  </button>
+                )}
+              </h3>
 
-                {genders.map((gen) => (
-                  <label
-                    key={gen}
-                    className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50 w-full`}
+              <div className="flex flex-col gap-2">
+                {/* Opção 'Ver Todos' */}
+                <button
+                  onClick={() => setSelectedGender('all')}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-all ${
+                    selectedGender === 'all'
+                      ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-bold'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Todos os gêneros</span>
+                  {selectedGender === 'all' && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
+                  )}
+                </button>
+
+                {genders.map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setSelectedGender(g)}
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-all ${
+                      selectedGender === g
+                        ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-bold'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
                   >
-                    <div
-                      className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedGender === gen ? 'bg-[var(--primary)] border-[var(--primary)]' : 'border-gray-300 bg-white'}`}
-                    >
-                      {selectedGender === gen && (
-                        <Check size={12} className="text-white" />
-                      )}
-                    </div>
-                    <input
-                      type="radio"
-                      name="gender"
-                      checked={selectedGender === gen}
-                      onChange={() => setSelectedGender(gen)}
-                      className="hidden"
-                    />
-                    {!isCollapsed && (
-                      <span
-                        className="text-sm text-gray-600 group-hover:text-gray-900 truncate flex-1 block text-left"
-                        title={gen.charAt(0).toUpperCase() + gen.slice(1)}
-                      >
-                        {gen.charAt(0).toUpperCase() + gen.slice(1)}
-                      </span>
+                    <span className="capitalize">
+                      {String(g).toLowerCase()}
+                    </span>
+                    {selectedGender === g && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
                     )}
-                  </label>
+                  </button>
                 ))}
               </div>
             </div>
@@ -771,7 +758,10 @@ export function StoreMobileActionBar() {
           onClick={goHome}
           className="flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors min-w-0 px-1"
         >
-          <Home size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
+          <Home
+            size={18}
+            className="text-gray-600 dark:text-gray-400 flex-shrink-0"
+          />
           <span className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate w-full text-center">
             Início
           </span>
@@ -796,10 +786,16 @@ export function StoreMobileActionBar() {
             isPricesVisible ? (
               <Unlock size={18} className="text-green-600 flex-shrink-0" />
             ) : (
-              <Lock size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
+              <Lock
+                size={18}
+                className="text-gray-600 dark:text-gray-400 flex-shrink-0"
+              />
             )
           ) : (
-            <Search size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
+            <Search
+              size={18}
+              className="text-gray-600 dark:text-gray-400 flex-shrink-0"
+            />
           )}
           <span className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate w-full text-center">
             {store.show_cost_price
@@ -853,7 +849,10 @@ export function StoreMobileActionBar() {
           onClick={() => setModal('load', true)}
           className="flex flex-col items-center justify-center gap-0.5 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors min-w-0 px-1"
         >
-          <Download size={18} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
+          <Download
+            size={18}
+            className="text-gray-600 dark:text-gray-400 flex-shrink-0"
+          />
           <span className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate w-full text-center">
             Pedidos
           </span>

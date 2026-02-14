@@ -12,7 +12,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { SmartImage } from './SmartImage';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/components/catalogo/store-context';
 import {
   PriceDisplay,
@@ -45,6 +45,9 @@ export function ProductCard({
   onViewDetails,
 }: ProductCardProps) {
   const { cart, updateQuantity, hideImages } = useStore();
+
+  // NOTE: removed verbose debug logs to avoid flooding console and causing
+  // performance issues when many cards re-render.
 
   const isStockManaged = Boolean(storeSettings.enable_stock_management);
   const stockQty = (product.stock_quantity ?? 0) as number;
@@ -210,23 +213,68 @@ export function ProductCard({
           <div className="flex items-center justify-between gap-2 w-full">
             {isPricesVisible ? (
               <div className="flex flex-col">
-                {showSale && (
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">
-                      Por
-                    </span>
+                {/* Exibe o preço principal (valor de venda ou preço de custo) */}
+                <PriceDisplay
+                  value={currentPrice}
+                  isPricesVisible={isPricesVisible}
+                  className="text-lg font-black text-gray-900 leading-tight"
+                />
+
+                {/* Preço original (riscado) quando há desconto válido */}
+                {hasValidOriginalPrice && (
+                  <div className="mt-1 text-xs text-gray-500 line-through">
                     <PriceDisplay
-                      value={currentPrice}
+                      value={product.original_price!}
                       isPricesVisible={isPricesVisible}
-                      className="text-lg font-black text-red-600 leading-tight"
+                      className="text-sm font-medium"
+                      size="small"
                     />
                   </div>
                 )}
+
+                {/* Parcelamento e desconto à vista (helpers) */}
+                <div className="mt-1">
+                  {(() => {
+                    const isUsingSalePrice = salePrice > 0;
+                    // Mostrar parcelamento sempre para preço de venda (salePrice>0).
+                    // Para preço de custo, só mostrar se a flag `show_installments` estiver
+                    // explicitamente true e `max_installments` for maior que 1.
+                    if (!isPricesVisible) return null;
+
+                    if (isUsingSalePrice) {
+                      return getInstallmentText(
+                        currentPrice,
+                        (storeSettings as any).max_installments || 1,
+                        isPricesVisible
+                      );
+                    }
+
+                    // estamos exibindo o preço de custo (salePrice === 0)
+                    const showInstallmentsSetting =
+                      (storeSettings as any).show_installments === true;
+                    const maxInst = Number(
+                      (storeSettings as any).max_installments || 0
+                    );
+                    if (showCost && showInstallmentsSetting && maxInst > 1) {
+                      return getInstallmentText(
+                        currentPrice,
+                        maxInst,
+                        isPricesVisible
+                      );
+                    }
+                    return null;
+                  })()}
+                  {getCashDiscountText(
+                    currentPrice,
+                    discountPercent,
+                    isPricesVisible
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 uppercase">
                 <Lock size={10} />
-                <span>Restrito</span>
+                <span>Sob consulta</span>
               </div>
             )}
 

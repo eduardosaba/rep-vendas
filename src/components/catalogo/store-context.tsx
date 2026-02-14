@@ -53,7 +53,9 @@ interface StoreContextType {
   brands: string[];
   brandsWithLogos: BrandWithLogo[];
   categories: string[];
+  categoriesWithData: { name: string; image_url: string | null }[];
   genders: string[];
+  gendersWithData: { name: string; image_url: string | null }[];
   searchTerm: string;
   setSearchTerm: (s: string) => void;
   isLoadingSearch: boolean;
@@ -182,6 +184,12 @@ export function StoreProvider({
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid');
   const [hideImages, setHideImages] = useState<boolean>(false);
   const [brandsWithLogos, setBrandsWithLogos] = useState<BrandWithLogo[]>([]);
+  const [categoriesWithData, setCategoriesWithData] = useState<
+    { name: string; image_url: string | null }[]
+  >([]);
+  const [gendersWithData, setGendersWithData] = useState<
+    { name: string; image_url: string | null }[]
+  >([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
   const router = useRouter();
@@ -395,7 +403,8 @@ export function StoreProvider({
         Authorization: `Bearer ${token}`,
       };
 
-      const res = await fetch('/api/products/image-diagnostics', { headers });
+      // `/api/pending-external-images` já fornece a lista de imagens externas pendentes
+      const res = await fetch('/api/pending-external-images', { headers });
       if (!res.ok) {
         // ignore other errors but don't leave stale counts
         setPendingImagesCount(0);
@@ -564,6 +573,103 @@ export function StoreProvider({
     };
     if (brands.length > 0) fetchLogos();
   }, [brands, store.user_id]);
+
+  // Fetch categories (with optional image_url) for this store to power
+  // image-backed CategoryBar. Falls back to empty list if not available.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('name, image_url')
+          .eq('user_id', store.user_id)
+          .order('name');
+        if (!mounted) return;
+        if (error) {
+          setCategoriesWithData([]);
+          return;
+        }
+
+        const normalizeUrl = (raw: any) => {
+          if (!raw) return null;
+          try {
+            const s = String(raw || '').trim();
+            if (!s) return null;
+            if (s.includes('/storage/v1/object/public/')) {
+              const path = s.split('/storage/v1/object/public/')[1];
+              return `/api/storage-image?path=${encodeURIComponent(path)}`;
+            }
+            if (/^https?:\/\//i.test(s)) return s;
+            return s;
+          } catch (e) {
+            return null;
+          }
+        };
+
+        setCategoriesWithData(
+          (data || []).map((d: any) => ({
+            name: d.name,
+            image_url: normalizeUrl(d.image_url),
+          }))
+        );
+      } catch (e) {
+        setCategoriesWithData([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [supabase, store.user_id]);
+
+  // Genders: attempt to fetch a dedicated genders table; otherwise derive
+  // from initial products as simple name-only entries (no images).
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('genders')
+          .select('name, image_url')
+          .eq('user_id', store.user_id)
+          .order('name');
+        if (!mounted) return;
+        if (error || !data) {
+          // fallback: build from derived `genders` list
+          setGendersWithData(
+            genders.map((g) => ({ name: g, image_url: null }))
+          );
+          return;
+        }
+        const normalizeUrl = (raw: any) => {
+          if (!raw) return null;
+          try {
+            const s = String(raw || '').trim();
+            if (!s) return null;
+            if (s.includes('/storage/v1/object/public/')) {
+              const path = s.split('/storage/v1/object/public/')[1];
+              return `/api/storage-image?path=${encodeURIComponent(path)}`;
+            }
+            if (/^https?:\/\//i.test(s)) return s;
+            return s;
+          } catch (e) {
+            return null;
+          }
+        };
+        setGendersWithData(
+          (data || []).map((d: any) => ({
+            name: d.name,
+            image_url: normalizeUrl(d.image_url),
+          }))
+        );
+      } catch (e) {
+        setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [supabase, store.user_id, genders]);
 
   useEffect(() => {
     const savedCart = localStorage.getItem(`cart-${store.name}`);
@@ -1127,7 +1233,9 @@ export function StoreProvider({
         brands,
         brandsWithLogos,
         categories,
+        categoriesWithData,
         genders,
+        gendersWithData,
         searchTerm,
         setSearchTerm,
         isLoadingSearch,

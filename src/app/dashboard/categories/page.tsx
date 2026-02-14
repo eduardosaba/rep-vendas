@@ -13,783 +13,304 @@ import {
   X,
   RefreshCw,
   AlertTriangle,
+  Users,
+  Tag,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useConfirm } from '@/hooks/useConfirm';
 
-// --- TIPAGEM ---
-interface Category {
+// --- TIPAGEM UNIFICADA ---
+interface MetadataItem {
   id: string;
   name: string;
   image_url: string | null;
+  type: 'category' | 'gender';
 }
 
-interface CategoryFormData {
-  name: string;
-  iconFile: File | null;
-  iconPreview: string | null;
-}
-
-const INITIAL_FORM_DATA: CategoryFormData = {
-  name: '',
-  iconFile: null,
-  iconPreview: null,
-};
-
-// --- COMPONENTE DE CARD (UI Isolada) ---
-const CategoryCard = ({
-  category,
-  isEditing,
-  onEdit,
-  onRequestDelete, // Mudamos o nome para deixar claro que solicita a exclusão
-}: {
-  category: Category;
-  isEditing: boolean;
-  onEdit: (c: Category) => void;
-  onRequestDelete: (id: string) => void;
-}) => {
-  return (
-    <div
-      className={`bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm flex flex-col items-center relative group transition-all hover:shadow-md ${
-        isEditing
-          ? 'border-primary ring-1 ring-primary'
-          : 'border-gray-200 dark:border-slate-800 hover:border-primary/50'
-      }`}
-    >
-      {/* Ações (Hover) */}
-      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-gray-100 dark:border-slate-700 z-10">
-        <button
-          onClick={() => onEdit(category)}
-          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-          title="Editar"
-        >
-          <Edit2 size={14} />
-        </button>
-        <button
-          onClick={() => onRequestDelete(category.id)}
-          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-          title="Excluir"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
-
-      {/* Ícone / Imagem */}
-      <div className="h-16 w-16 flex items-center justify-center mb-3 bg-gray-50 dark:bg-slate-800 rounded-full text-gray-400 dark:text-slate-600 overflow-hidden border border-gray-200 dark:border-slate-700 group-hover:border-primary/30 transition-colors">
-        {category.image_url ? (
-          <img
-            src={category.image_url}
-            className="w-full h-full object-cover"
-            alt={category.name}
-          />
-        ) : (
-          <Layers size={24} />
-        )}
-      </div>
-
-      {/* Nome */}
-      <h4
-        className="font-bold text-center text-gray-800 dark:text-gray-200 text-sm truncate w-full px-1"
-        title={category.name}
-      >
-        {category.name}
-      </h4>
-    </div>
-  );
-};
-
-// --- PÁGINA PRINCIPAL ---
-export default function CategoriesPage() {
+export default function CategoriesAndGendersPage() {
   const supabase = createClient();
   const formRef = useRef<HTMLDivElement>(null);
 
   // Estados
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [activeTab, setActiveTab] = useState<'category' | 'gender'>('category');
+  const [items, setItems] = useState<MetadataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [typesList, setTypesList] = useState<
-    { value: string; count: number }[]
-  >([]);
-  const [gendersList, setGendersList] = useState<
-    { value: string; count: number }[]
-  >([]);
 
-  // Estado para o Modal de Exclusão
+  // Formulário e Modal
+  const [editingItem, setEditingItem] = useState<MetadataItem | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    iconFile: null as File | null,
+    iconPreview: null as string | null,
+  });
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Formulário
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState<CategoryFormData>(INITIAL_FORM_DATA);
-
-  // --- AÇÕES ---
-
-  const fetchCategories = useCallback(async () => {
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      const table = activeTab === 'category' ? 'categories' : 'product_genders';
       const { data, error } = await supabase
-        .from('categories')
+        .from(table)
         .select('*')
         .eq('user_id', user.id)
         .order('name');
 
       if (error) throw error;
-      setCategories(data || []);
+      setItems(data.map((i: any) => ({ ...i, type: activeTab })));
     } catch (error) {
-      console.error(error);
-      toast.error('Erro ao carregar categorias');
+      toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, activeTab]);
 
   useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
+    fetchItems();
+  }, [fetchItems]);
 
-  // Sincronização OTIMIZADA com RPC
-  const handleSyncFromProducts = async () => {
+  const handleSync = async () => {
     setSyncing(true);
-    const toastId = toast.loading('Analisando produtos...');
-
+    const toastId = toast.loading('Sincronizando com produtos...');
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase.rpc('sync_categories', {
-        p_user_id: user.id,
-      });
+      // Chama a nova função RPC unificada
+      await supabase.rpc('sync_product_metadata', { p_user_id: user.id });
 
-      if (error) throw error;
-
-      toast.success('Sincronização concluída!', {
-        id: toastId,
-        description: 'Categorias novas foram importadas.',
-      });
-
-      fetchCategories();
-      // Refresh types and genders after sync
-      fetchTypesAndGenders();
-    } catch (error: any) {
-      console.error(error);
-      toast.error('Erro ao sincronizar', {
-        id: toastId,
-        description: error.message,
-      });
+      toast.success('Sincronização concluída!', { id: toastId });
+      fetchItems();
+    } catch (error) {
+      toast.error('Erro na sincronização', { id: toastId });
     } finally {
       setSyncing(false);
     }
   };
 
-  // Buscar tipos (class_core) e gêneros distintos na tabela products
-  const fetchTypesAndGenders = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Fetch minimal set of products to compute distinct values client-side
-      const { data: prodData, error: pErr } = await supabase
-        .from('products')
-        .select('class_core,gender')
-        .eq('user_id', user.id)
-        .limit(5000);
-
-      if (pErr) throw pErr;
-
-      const typesMap: Record<string, number> = {};
-      const gendersMap: Record<string, number> = {};
-
-      (prodData || []).forEach((r: any) => {
-        const t = (r.class_core || '').trim();
-        const g = (r.gender || '').trim();
-        if (t) typesMap[t] = (typesMap[t] || 0) + 1;
-        if (g) gendersMap[g] = (gendersMap[g] || 0) + 1;
-      });
-
-      setTypesList(
-        Object.keys(typesMap)
-          .sort()
-          .map((k) => ({ value: k, count: typesMap[k] }))
-      );
-      setGendersList(
-        Object.keys(gendersMap)
-          .sort()
-          .map((k) => ({ value: k, count: gendersMap[k] }))
-      );
-    } catch (err) {
-      console.error('fetchTypesAndGenders', err);
-    }
-  };
-
-  useEffect(() => {
-    // initial fetch of types and genders
-    fetchTypesAndGenders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Renomear tipo/gênero (atualiza todos os produtos do usuário) usando modal custom
-  const { confirm } = useConfirm();
-
-  const promptRename = (
-    title: string,
-    initial = ''
-  ): Promise<string | null> => {
-    return new Promise((resolve) => {
-      let val = initial;
-      toast.custom(
-        (t) => (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl max-w-md w-full">
-            <div className="mb-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
-                {title}
-              </h3>
-              <input
-                autoFocus
-                defaultValue={initial}
-                onChange={(e) => (val = e.target.value)}
-                className="w-full p-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  toast.dismiss(t);
-                  resolve(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  toast.dismiss(t);
-                  resolve((val || '').trim() || null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors"
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        ),
-        { duration: Infinity, position: 'top-center' }
-      );
-    });
-  };
-
-  const handleRenameValue = async (
-    kind: 'type' | 'gender',
-    oldValue: string
-  ) => {
-    const label = kind === 'type' ? 'tipo' : 'gênero';
-    const newValue = await promptRename(`Novo nome para ${label}:`, oldValue);
-    if (newValue === null) return; // cancelado
-    if (!newValue) return toast.error('Nome inválido');
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const updatePayload: any = {};
-      if (kind === 'type') updatePayload.class_core = newValue;
-      else updatePayload.gender = newValue;
-
-      const { error } = await supabase
-        .from('products')
-        .update(updatePayload)
-        .eq('user_id', user.id)
-        .eq(kind === 'type' ? 'class_core' : 'gender', oldValue);
-
-      if (error) throw error;
-      toast.success('Atualizado com sucesso');
-      fetchTypesAndGenders();
-      fetchCategories();
-    } catch (e: any) {
-      console.error(e);
-      toast.error('Falha ao renomear: ' + (e.message || ''));
-    }
-  };
-
-  // Excluir (nulificar) valor em produtos
-  const handleDeleteValue = async (kind: 'type' | 'gender', value: string) => {
-    const ok = await confirm({
-      title: `Remover ${kind === 'type' ? 'tipo' : 'gênero'}?`,
-      description: `Remover "${value}" de todos os produtos? Esta ação vai deixar os produtos sem esse campo.`,
-      confirmText: 'Remover',
-      cancelText: 'Cancelar',
-    });
-    if (!ok) return;
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const updatePayload: any = {};
-      if (kind === 'type') updatePayload.class_core = null;
-      else updatePayload.gender = null;
-
-      const { error } = await supabase
-        .from('products')
-        .update(updatePayload)
-        .eq('user_id', user.id)
-        .eq(kind === 'type' ? 'class_core' : 'gender', value);
-
-      if (error) throw error;
-      toast.success('Removido com sucesso');
-      fetchTypesAndGenders();
-      fetchCategories();
-    } catch (e: any) {
-      console.error(e);
-      toast.error('Falha ao remover: ' + (e.message || ''));
-    }
-  };
-
-  const resetForm = () => {
-    setEditingCategory(null);
-    setFormData(INITIAL_FORM_DATA);
-  };
-
-  const handleEdit = (category: Category) => {
-    setEditingCategory(category);
-    setFormData({
-      name: category.name,
-      iconFile: null,
-      iconPreview: category.image_url,
-    });
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const file = e.target.files[0];
-      setFormData((prev) => ({
-        ...prev,
-        iconFile: file,
-        iconPreview: URL.createObjectURL(file),
-      }));
-    }
-  };
-
-  const uploadImage = async (userId: string, file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const filePath = `public/${userId}/categories/category-${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('product-images')
-      .upload(filePath, file);
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage
-      .from('product-images')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) return;
-
     setSubmitting(true);
-    const toastId = toast.loading(
-      formData.iconFile ? 'Enviando imagem...' : 'Salvando categoria...'
-    );
-
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('Sessão inválida');
+      if (!user) return;
 
-      let finalImageUrl = editingCategory?.image_url ?? null;
-
+      let finalUrl = editingItem?.image_url || null;
       if (formData.iconFile) {
-        finalImageUrl = await uploadImage(user.id, formData.iconFile);
+        const fileExt = formData.iconFile.name.split('.').pop();
+        const path = `metadata/${user.id}/${activeTab}-${Date.now()}.${fileExt}`;
+        await supabase.storage
+          .from('product-images')
+          .upload(path, formData.iconFile);
+        const { data } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(path);
+        finalUrl = data.publicUrl;
       }
 
+      const table = activeTab === 'category' ? 'categories' : 'product_genders';
       const payload = {
         name: formData.name,
-        image_url: finalImageUrl,
+        image_url: finalUrl,
         user_id: user.id,
       };
 
-      if (editingCategory) {
-        const { error } = await supabase
-          .from('categories')
-          .update({ name: payload.name, image_url: payload.image_url })
-          .eq('id', editingCategory.id);
-
-        if (error) throw error;
-        toast.success('Categoria atualizada!', { id: toastId });
+      if (editingItem) {
+        await supabase.from(table).update(payload).eq('id', editingItem.id);
+        toast.success('Atualizado!');
       } else {
-        const { error } = await supabase.from('categories').insert(payload);
-        if (error) throw error;
-        toast.success('Categoria criada!', { id: toastId });
+        await supabase.from(table).insert(payload);
+        toast.success('Criado!');
       }
-
-      resetForm();
-      fetchCategories();
-    } catch (error: any) {
-      console.error(error);
-      toast.error('Erro ao salvar', {
-        id: toastId,
-        description: error.message,
-      });
+      setEditingItem(null);
+      setFormData({ name: '', iconFile: null, iconPreview: null });
+      fetchItems();
+    } catch (e) {
+      toast.error('Erro ao salvar');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // 1. Solicita exclusão (Abre o modal)
-  const handleDeleteRequest = (id: string) => {
-    setDeleteId(id);
-  };
-
-  // 2. Confirma exclusão (Executa a ação)
-  const confirmDelete = async () => {
-    if (!deleteId) return;
-    setIsDeleting(true);
-
-    try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', deleteId);
-      if (error) throw error;
-
-      setCategories((prev) => prev.filter((c) => c.id !== deleteId));
-      if (editingCategory?.id === deleteId) resetForm();
-
-      toast.success('Categoria removida com sucesso.');
-    } catch (error: any) {
-      toast.error('Não foi possível excluir', { description: error.message });
-    } finally {
-      setIsDeleting(false);
-      setDeleteId(null); // Fecha o modal
-    }
-  };
-
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 dark:border-slate-800 pb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-primary/10 rounded-xl text-primary shadow-sm">
-            <Layers size={24} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Categorias
+    <div className="max-w-6xl mx-auto space-y-6 pb-20">
+      {/* HEADER COM TABS */}
+      <div className="flex flex-col md:flex-row justify-between items-end border-b border-gray-200 dark:border-slate-800 pb-4 gap-4">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-600">
+              <Layers size={24} />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white text-balance">
+              Organização do Catálogo
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Organize os departamentos do seu catálogo.
-            </p>
+          </div>
+
+          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
+            <button
+              onClick={() => setActiveTab('category')}
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'category' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500'}`}
+            >
+              <Tag size={16} /> Categorias
+            </button>
+            <button
+              onClick={() => setActiveTab('gender')}
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'gender' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500'}`}
+            >
+              <Users size={16} /> Gêneros
+            </button>
           </div>
         </div>
 
         <Button
           variant="outline"
-          onClick={handleSyncFromProducts}
+          onClick={handleSync}
           disabled={syncing}
-          className="active:scale-95 transition-transform"
           leftIcon={
             <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
           }
         >
-          {syncing ? 'Buscando...' : 'Buscar dos Produtos'}
+          Buscar dos Produtos
         </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* FORMULÁRIO (Sticky Sidebar) */}
+        {/* FORMULÁRIO */}
         <div className="lg:col-span-1" ref={formRef}>
-          <div
-            className={`p-6 rounded-xl border shadow-sm sticky top-6 transition-all duration-300 ${
-              editingCategory
-                ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/20 dark:bg-primary/10 dark:border-primary/20'
-                : 'bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-800'
-            }`}
-          >
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              {editingCategory ? (
-                <Edit2 size={18} className="text-primary" />
-              ) : (
-                <Plus size={18} className="text-primary" />
-              )}
-              {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
+          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm sticky top-6">
+            <h3 className="font-bold text-slate-900 dark:text-white mb-4">
+              {editingItem
+                ? `Editar ${activeTab === 'category' ? 'Categoria' : 'Gênero'}`
+                : `Novo ${activeTab === 'category' ? 'Categoria' : 'Gênero'}`}
             </h3>
-
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1 block">
-                  Nome
-                </label>
-                <input
-                  className="w-full p-2.5 border border-gray-300 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all bg-white dark:bg-slate-950 dark:text-white"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder="Ex: Solar, Receituário..."
-                  required
-                />
-              </div>
+              <input
+                className="w-full p-3 rounded-xl border dark:bg-slate-950 dark:border-slate-700 outline-none focus:ring-2 focus:ring-primary/20"
+                value={formData.name}
+                placeholder="Nome ex: Masculino, Solar..."
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, name: e.target.value }))
+                }
+                required
+              />
 
-              <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 block">
-                  Ícone / Capa (Opcional)
-                </label>
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors border-gray-300 dark:border-slate-700 overflow-hidden relative group bg-white dark:bg-slate-950">
-                  {formData.iconPreview ? (
-                    <img
-                      src={formData.iconPreview}
-                      className="h-full w-full object-contain p-2 z-10"
-                      alt="Preview"
-                    />
-                  ) : (
-                    <div className="text-center text-gray-400 dark:text-gray-500 z-10">
-                      <Upload className="mx-auto mb-2 h-8 w-8 opacity-50" />
-                      <span className="text-xs font-medium">
-                        Clique para enviar
-                      </span>
-                    </div>
-                  )}
-                  {formData.iconPreview && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                      <span className="text-white text-xs font-bold">
-                        Trocar
-                      </span>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
+              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border-slate-300 dark:border-slate-700 overflow-hidden relative group bg-slate-50/50">
+                {formData.iconPreview ? (
+                  <img
+                    src={formData.iconPreview}
+                    className="h-full w-full object-contain p-4"
+                    alt="Preview"
                   />
-                </label>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                {editingCategory && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-4 py-2.5 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center justify-center transition-colors"
-                    title="Cancelar"
-                  >
-                    <X size={20} />
-                  </button>
+                ) : (
+                  <div className="text-center text-slate-400">
+                    <Upload className="mx-auto mb-2 opacity-50" />
+                    <span className="text-xs font-bold uppercase tracking-widest">
+                      Subir Ícone
+                    </span>
+                  </div>
                 )}
-                <Button
-                  type="submit"
-                  isLoading={submitting}
-                  disabled={!formData.name}
-                  className="flex-1 shadow-md"
-                  leftIcon={submitting ? undefined : <Plus size={18} />}
-                >
-                  {editingCategory ? 'Salvar Alterações' : 'Criar Categoria'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file)
+                      setFormData((p) => ({
+                        ...p,
+                        iconFile: file,
+                        iconPreview: URL.createObjectURL(file),
+                      }));
+                  }}
+                />
+              </label>
+
+              <div className="flex gap-2">
+                {editingItem && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingItem(null);
+                      setFormData({
+                        name: '',
+                        iconFile: null,
+                        iconPreview: null,
+                      });
+                    }}
+                  >
+                    <X />
+                  </Button>
+                )}
+                <Button type="submit" isLoading={submitting} className="flex-1">
+                  Salvar
                 </Button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* LISTA (Grid) */}
+        {/* LISTAGEM EM CARDS */}
         <div className="lg:col-span-2">
           {loading ? (
-            <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 min-h-[300px]">
-              <Loader2 className="animate-spin text-primary h-8 w-8 mb-2" />
-              <p className="text-gray-400 mt-2 text-sm">Carregando...</p>
-            </div>
-          ) : categories.length === 0 ? (
-            <div className="text-center p-12 border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl bg-gray-50/50 dark:bg-slate-900/50 flex flex-col items-center justify-center min-h-[300px]">
-              <Layers className="mx-auto h-12 w-12 text-gray-300 dark:text-slate-600 mb-3" />
-              <h3 className="text-gray-900 dark:text-white font-medium text-lg">
-                Nenhuma categoria
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-xs mx-auto">
-                Cadastre manualmente ou clique em "Buscar dos Produtos" para
-                importar automaticamente.
-              </p>
+            <div className="flex justify-center p-20">
+              <Loader2 className="animate-spin text-primary" size={40} />
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {categories.map((cat) => (
-                <CategoryCard
-                  key={cat.id}
-                  category={cat}
-                  isEditing={editingCategory?.id === cat.id}
-                  onEdit={handleEdit}
-                  onRequestDelete={handleDeleteRequest}
-                />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center relative hover:shadow-xl hover:-translate-y-1 transition-all"
+                >
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button
+                      onClick={() => {
+                        setEditingItem(item);
+                        setFormData({
+                          name: item.name,
+                          iconFile: null,
+                          iconPreview: item.image_url,
+                        });
+                        formRef.current?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="p-2 bg-white dark:bg-slate-800 shadow-md rounded-lg text-slate-600 hover:text-primary"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
+
+                  <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 overflow-hidden border border-slate-100 dark:border-slate-700">
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        className="w-full h-full object-cover"
+                        alt={item.name}
+                      />
+                    ) : item.type === 'category' ? (
+                      <Tag className="text-slate-300" size={30} />
+                    ) : (
+                      <Users className="text-slate-300" size={30} />
+                    )}
+                  </div>
+                  <h4 className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-widest">
+                    {item.name}
+                  </h4>
+                </div>
               ))}
             </div>
           )}
         </div>
       </div>
-
-      {/* --- TIPOS E GÊNEROS DETECTADOS (Busca em produtos) --- */}
-      <div className="max-w-5xl mx-auto">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
-          Tipos & Gêneros detectados
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-gray-800 dark:text-gray-100">
-                Tipos (Classe)
-              </h3>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={fetchTypesAndGenders}
-                leftIcon={<RefreshCw size={14} />}
-              >
-                Atualizar
-              </Button>
-            </div>
-            {typesList.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                Nenhum tipo encontrado nos produtos.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {typesList.map((t) => (
-                  <li
-                    key={t.value}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="truncate">
-                      <span className="font-medium text-gray-800 mr-2">
-                        {t.value}
-                      </span>
-                      <span className="text-sm text-gray-500">({t.count})</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleRenameValue('type', t.value)}
-                        className="text-gray-500 hover:text-primary p-1 rounded"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteValue('type', t.value)}
-                        className="text-gray-500 hover:text-red-600 p-1 rounded"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-gray-800 dark:text-gray-100">
-                Gêneros
-              </h3>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={fetchTypesAndGenders}
-                leftIcon={<RefreshCw size={14} />}
-              >
-                Atualizar
-              </Button>
-            </div>
-            {gendersList.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                Nenhum gênero encontrado nos produtos.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {gendersList.map((g) => (
-                  <li
-                    key={g.value}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="truncate">
-                      <span className="font-medium text-gray-800 mr-2">
-                        {g.value}
-                      </span>
-                      <span className="text-sm text-gray-500">({g.count})</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleRenameValue('gender', g.value)}
-                        className="text-gray-500 hover:text-primary p-1 rounded"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteValue('gender', g.value)}
-                        className="text-gray-500 hover:text-red-600 p-1 rounded"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* --- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO --- */}
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200 border border-gray-100 dark:border-slate-800">
-            <div className="flex flex-col items-center text-center">
-              <div className="h-12 w-12 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Excluir Categoria?
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                Esta ação é irreversível. Produtos associados a esta categoria
-                ficarão "Sem Categoria".
-              </p>
-
-              <div className="flex gap-3 w-full">
-                <button
-                  onClick={() => setDeleteId(null)}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
-                  disabled={isDeleting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  disabled={isDeleting}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  {isDeleting && <Loader2 size={16} className="animate-spin" />}
-                  {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
