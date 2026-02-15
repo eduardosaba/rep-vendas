@@ -53,6 +53,12 @@ export interface SyncCatalogData {
   og_image_url?: string | null;
   // Logo da marca única (calculado se não fornecido)
   single_brand_logo_url?: string | null;
+  // Grid columns for storefront layout (optional)
+  grid_cols_default?: number | null;
+  grid_cols_sm?: number | null;
+  grid_cols_md?: number | null;
+  grid_cols_lg?: number | null;
+  grid_cols_xl?: number | null;
 }
 
 /**
@@ -515,6 +521,13 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       show_top_info_bar:
         mergedData.show_top_info_bar ?? data.show_top_info_bar ?? false,
       font_family: finalFontInsert,
+      // grid columns
+      grid_cols_default:
+        mergedData.grid_cols_default ?? data.grid_cols_default ?? null,
+      grid_cols_sm: mergedData.grid_cols_sm ?? data.grid_cols_sm ?? null,
+      grid_cols_md: mergedData.grid_cols_md ?? data.grid_cols_md ?? null,
+      grid_cols_lg: mergedData.grid_cols_lg ?? data.grid_cols_lg ?? null,
+      grid_cols_xl: mergedData.grid_cols_xl ?? data.grid_cols_xl ?? null,
       font_url: mergedData.font_url ?? data.font_url ?? null,
       og_image_url: mergedData.og_image_url ?? data.og_image_url ?? null,
       // placeholders; we'll decide which column to write after detecting schema

@@ -123,6 +123,12 @@ export default function SettingsPage() {
     global_allow_backorder: false,
     show_cost_price: false,
     show_sale_price: true,
+    // Grid columns para catálogo (padrões utilizados pelo frontend)
+    grid_cols_default: '2',
+    grid_cols_sm: '3',
+    grid_cols_md: '4',
+    grid_cols_lg: '5',
+    grid_cols_xl: '6',
   });
 
   // ESTADOS DE MÍDIA
@@ -280,6 +286,11 @@ export default function SettingsPage() {
             global_allow_backorder: settings.global_allow_backorder ?? false,
             show_cost_price: settings.show_cost_price ?? false,
             show_sale_price: settings.show_sale_price ?? true,
+            grid_cols_default: String(settings.grid_cols_default || 2),
+            grid_cols_sm: String(settings.grid_cols_sm || 3),
+            grid_cols_md: String(settings.grid_cols_md || 4),
+            grid_cols_lg: String(settings.grid_cols_lg || 5),
+            grid_cols_xl: String(settings.grid_cols_xl || 6),
           });
 
           // Normalize logo and banners to be strings (public URLs) to avoid rendering errors
@@ -557,6 +568,12 @@ export default function SettingsPage() {
         cash_price_discount_percent: Number(
           catalogSettings.cash_price_discount_percent || 5
         ),
+        // Grid columns (colunas do catálogo por breakpoint)
+        grid_cols_default: Number(catalogSettings.grid_cols_default || 2),
+        grid_cols_sm: Number(catalogSettings.grid_cols_sm || 3),
+        grid_cols_md: Number(catalogSettings.grid_cols_md || 4),
+        grid_cols_lg: Number(catalogSettings.grid_cols_lg || 5),
+        grid_cols_xl: Number(catalogSettings.grid_cols_xl || 6),
         is_active: isActive,
         font_family: formData.font_family || null,
         font_url: formData.font_url ?? null,
@@ -974,6 +991,112 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* LAYOUT DO CATÁLOGO: Colunas por breakpoint */}
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-gray-200 shadow-sm space-y-6">
+            <h3 className="font-black text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2">
+              <Layout size={18} /> Layout do Catálogo
+            </h3>
+
+            <p className="text-sm text-gray-500">
+              Defina a quantidade de colunas exibidas no catálogo para
+              diferentes tamanhos de tela. Essas configurações controlam a
+              classe utilizada no grid (ex:{' '}
+              <span className="font-mono">grid-cols-{'{n}'}</span>).
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  Padrão (mobile)
+                </label>
+                <select
+                  name="grid_cols_default"
+                  value={catalogSettings.grid_cols_default}
+                  onChange={handleCatalogSettingsChange}
+                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n} coluna{n > 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  sm (≥640px)
+                </label>
+                <select
+                  name="grid_cols_sm"
+                  value={catalogSettings.grid_cols_sm}
+                  onChange={handleCatalogSettingsChange}
+                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n} coluna{n > 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  md (≥768px)
+                </label>
+                <select
+                  name="grid_cols_md"
+                  value={catalogSettings.grid_cols_md}
+                  onChange={handleCatalogSettingsChange}
+                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n} coluna{n > 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  lg (≥1024px)
+                </label>
+                <select
+                  name="grid_cols_lg"
+                  value={catalogSettings.grid_cols_lg}
+                  onChange={handleCatalogSettingsChange}
+                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n} coluna{n > 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400">
+                  2xl (≥1536px)
+                </label>
+                <select
+                  name="grid_cols_xl"
+                  value={catalogSettings.grid_cols_xl}
+                  onChange={handleCatalogSettingsChange}
+                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none"
+                >
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n} coluna{n > 1 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

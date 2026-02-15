@@ -140,6 +140,12 @@ export interface Settings extends BaseStoreSettings {
   top_benefit_text?: string;
   top_benefit_bg_color?: string;
   top_benefit_text_color?: string;
+  // Grid columns for storefront responsive layout
+  grid_cols_default?: number | null;
+  grid_cols_sm?: number | null;
+  grid_cols_md?: number | null;
+  grid_cols_lg?: number | null;
+  grid_cols_xl?: number | null;
 
   // Configurações de Checkout
   show_delivery_address_checkout?: boolean;

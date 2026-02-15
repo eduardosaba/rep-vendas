@@ -33,6 +33,11 @@ export async function POST(req: Request) {
       top_benefit_text,
       show_top_benefit_bar,
       show_top_info_bar,
+      grid_cols_default,
+      grid_cols_sm,
+      grid_cols_md,
+      grid_cols_lg,
+      grid_cols_xl,
       show_installments,
       max_installments,
       show_sale_price,
@@ -96,6 +101,12 @@ export async function POST(req: Request) {
       font_family: font_family || null,
       font_url: font_url || null,
       price_password_hash: price_password_hash ?? null,
+      // grid columns
+      grid_cols_default: grid_cols_default ? Number(grid_cols_default) : null,
+      grid_cols_sm: grid_cols_sm ? Number(grid_cols_sm) : null,
+      grid_cols_md: grid_cols_md ? Number(grid_cols_md) : null,
+      grid_cols_lg: grid_cols_lg ? Number(grid_cols_lg) : null,
+      grid_cols_xl: grid_cols_xl ? Number(grid_cols_xl) : null,
       updated_at: new Date().toISOString(),
     };
 
@@ -106,13 +117,11 @@ export async function POST(req: Request) {
     if (settingsError) throw settingsError;
 
     // Upsert profile whatsapp fallback
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: userId,
-        whatsapp: phone || null,
-        updated_at: new Date().toISOString(),
-      });
+    const { error: profileError } = await supabase.from('profiles').upsert({
+      id: userId,
+      whatsapp: phone || null,
+      updated_at: new Date().toISOString(),
+    });
     if (profileError) throw profileError;
 
     // Call syncPublicCatalog to guarantee public_catalogs is updated server-side
@@ -125,7 +134,7 @@ export async function POST(req: Request) {
           banners_length: settingsPayload.banners?.length,
           mobile_length: settingsPayload.banners_mobile?.length,
         });
-        
+
         await syncPublicCatalog(userId, {
           slug,
           store_name: name || null,
@@ -153,6 +162,14 @@ export async function POST(req: Request) {
           top_benefit_text: top_benefit_text || null,
           show_top_benefit_bar: !!show_top_benefit_bar,
           show_top_info_bar: !!show_top_info_bar,
+          // grid columns
+          grid_cols_default: grid_cols_default
+            ? Number(grid_cols_default)
+            : null,
+          grid_cols_sm: grid_cols_sm ? Number(grid_cols_sm) : null,
+          grid_cols_md: grid_cols_md ? Number(grid_cols_md) : null,
+          grid_cols_lg: grid_cols_lg ? Number(grid_cols_lg) : null,
+          grid_cols_xl: grid_cols_xl ? Number(grid_cols_xl) : null,
           show_installments: !!show_installments,
           max_installments: max_installments ? Number(max_installments) : null,
           show_sale_price:
@@ -165,7 +182,7 @@ export async function POST(req: Request) {
             : null,
           is_active: typeof is_active === 'boolean' ? is_active : true,
         });
-        
+
         console.log('[settings/save] syncPublicCatalog concluído com sucesso');
       }
     } catch (e) {

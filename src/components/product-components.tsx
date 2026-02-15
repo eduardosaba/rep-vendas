@@ -15,9 +15,12 @@ import {
   Heart,
   Image as ImageIcon,
   ImageOff,
+  Zap,
+  Star,
 } from 'lucide-react';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ProductCard } from '@/components/catalogo/ProductCard';
 import ProductCardSkeleton from '@/components/catalogo/ProductCardSkeleton';
@@ -79,6 +82,10 @@ export function CategoryBar() {
     selectedCategory,
     setSelectedCategory,
     initialProducts = [],
+    showOnlyNew,
+    setShowOnlyNew,
+    showOnlyBestsellers,
+    setShowOnlyBestsellers,
   } = useStore();
   const { genders = [], selectedGender, setSelectedGender } = useStore();
   const displayCategories = useMemo(() => {
@@ -126,6 +133,7 @@ export function CategoryBar() {
     top: number;
     width: number;
   }>(null);
+  const router = useRouter();
 
   if (!displayCategories || displayCategories.length === 0) return null;
 
@@ -208,6 +216,62 @@ export function CategoryBar() {
               className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
             >
               Gênero ▾
+            </button>
+
+            <button
+              onClick={() => {
+                const next = !showOnlyNew;
+                setShowOnlyNew && setShowOnlyNew(next);
+                try {
+                  const params = new URLSearchParams(window.location.search);
+                  if (next) params.set('new', '1');
+                  else params.delete('new');
+                  const url = params.toString()
+                    ? `${window.location.pathname}?${params.toString()}`
+                    : window.location.pathname;
+                  router.replace(url);
+                } catch (e) {
+                  // ignore
+                }
+              }}
+              aria-pressed={!!showOnlyNew}
+              className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                showOnlyNew
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Zap size={14} /> Lançamentos
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                const next = !showOnlyBestsellers;
+                setShowOnlyBestsellers && setShowOnlyBestsellers(next);
+                try {
+                  const params = new URLSearchParams(window.location.search);
+                  if (next) params.set('bs', '1');
+                  else params.delete('bs');
+                  const url = params.toString()
+                    ? `${window.location.pathname}?${params.toString()}`
+                    : window.location.pathname;
+                  router.replace(url);
+                } catch (e) {
+                  // ignore
+                }
+              }}
+              aria-pressed={!!showOnlyBestsellers}
+              className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                showOnlyBestsellers
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Star size={14} /> Best Sellers
+              </span>
             </button>
           </div>
 
@@ -718,24 +782,49 @@ export function ProductGrid() {
       ) : (
         <>
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
-              {isLoadingSearch
-                ? Array.from({ length: 8 }).map((_, i) => (
-                    <ProductCardSkeleton key={`skeleton-${i}`} />
-                  ))
-                : displayProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      storeSettings={store}
-                      isFavorite={favorites.includes(product.id)}
-                      isPricesVisible={isPricesVisible}
-                      onAddToCart={(p) => addToCart(p)}
-                      onToggleFavorite={(id) => toggleFavorite(id)}
-                      onViewDetails={(p) => setModal('product', p)}
-                    />
-                  ))}
-            </div>
+            (() => {
+              const parse = (v: any, fallback: number) => {
+                if (v == null) return fallback;
+                const n = Number(v);
+                if (Number.isNaN(n) || n < 1) return fallback;
+                return Math.max(1, Math.min(6, Math.floor(n)));
+              };
+
+              const cDefault = parse((store as any).grid_cols_default, 2);
+              const cSm = parse((store as any).grid_cols_sm, 3);
+              const cMd = parse((store as any).grid_cols_md, 4);
+              const cLg = parse((store as any).grid_cols_lg, 5);
+              const cXl = parse((store as any).grid_cols_xl, 6);
+
+              const gridClass = [
+                `grid-cols-${cDefault}`,
+                `sm:grid-cols-${cSm}`,
+                `md:grid-cols-${cMd}`,
+                `lg:grid-cols-${cLg}`,
+                `2xl:grid-cols-${cXl}`,
+              ].join(' ');
+
+              return (
+                <div className={`grid ${gridClass} gap-4 sm:gap-6`}>
+                  {isLoadingSearch
+                    ? Array.from({ length: 8 }).map((_, i) => (
+                        <ProductCardSkeleton key={`skeleton-${i}`} />
+                      ))
+                    : displayProducts.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          storeSettings={store}
+                          isFavorite={favorites.includes(product.id)}
+                          isPricesVisible={isPricesVisible}
+                          onAddToCart={(p) => addToCart(p)}
+                          onToggleFavorite={(id) => toggleFavorite(id)}
+                          onViewDetails={(p) => setModal('product', p)}
+                        />
+                      ))}
+                </div>
+              );
+            })()
           ) : viewMode === 'table' ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
               <table className="w-full min-w-[640px] text-left border-collapse">
