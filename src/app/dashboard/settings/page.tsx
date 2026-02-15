@@ -84,9 +84,15 @@ import { usePlan } from '@/hooks/use-plan';
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const slugRef = useRef<HTMLInputElement | null>(null);
+  const previousSlugRef = useRef<string | null>(null);
+  const slugCheckTimeout = useRef<number | null>(null);
   const [showPricePassword, setShowPricePassword] = useState(false);
+  const [showSlugConflictModal, setShowSlugConflictModal] = useState(false);
+  const [pendingCandidateSlug, setPendingCandidateSlug] = useState<string | null>(null);
+  const [pendingSlugOwner, setPendingSlugOwner] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
     'general' | 'appearance' | 'display' | 'marketing' | 'stock' | 'sync'
   >('general');
@@ -170,6 +176,7 @@ export default function SettingsPage() {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user) return setLoading(false);
+        setCurrentUserId(user.id);
 
         // Verifica papel do usuário para habilitar abas/links administrativos
         try {
@@ -266,6 +273,9 @@ export default function SettingsPage() {
             representative_name: settings.representative_name || '',
             whatsapp_message_template: settings.whatsapp_message_template || '',
           });
+
+          // initialize previousSlugRef to existing stored slug
+          previousSlugRef.current = settings.catalog_slug || null;
 
           setCatalogSettings({
             show_top_benefit_bar: settings.show_top_benefit_bar ?? false,
@@ -573,10 +583,16 @@ export default function SettingsPage() {
           body: JSON.stringify(serverPayload),
         });
         const json = await res.json().catch(() => ({}));
-        if (!res.ok)
-          throw new Error(
-            json?.error || 'Falha ao salvar configurações no servidor'
-          );
+        if (!res.ok) {
+          if (res.status === 409) {
+            // slug conflict reported by server — surface modal
+            setPendingCandidateSlug(formData.catalog_slug || null);
+            setPendingSlugOwner(null);
+            setShowSlugConflictModal(true);
+            throw new Error(json?.error || 'Slug em uso por outra loja');
+          }
+          throw new Error(json?.error || 'Falha ao salvar configurações no servidor');
+        }
         publicAction = json?.success ? 'updated' : null;
       }
 
@@ -586,19 +602,10 @@ export default function SettingsPage() {
     } catch (err: any) {
       const msg = err?.message || String(err);
       if (msg.includes('slug') || msg.includes('Slug')) {
-        toast.error(
-          'O slug informado já está em uso por outra loja. Escolha outro slug.',
-          { id: toastId }
-        );
-        try {
-          // foca e seleciona o valor do slug para facilitar a correção pelo usuário
-          if (slugRef && slugRef.current) {
-            slugRef.current.focus();
-            slugRef.current.select();
-          }
-        } catch (e) {
-          // ignore
-        }
+        toast.error('O slug informado já está em uso por outra loja.', {
+          id: toastId,
+        });
+        setShowSlugConflictModal(true);
       } else {
         toast.error(msg, { id: toastId });
       }
@@ -682,15 +689,98 @@ export default function SettingsPage() {
         <TabGeneral
           formData={formData}
           handleChange={handleChange}
-          handleSlugChange={(e: any) =>
-            setFormData({ ...formData, catalog_slug: e.target.value })
-          }
+          handleSlugChange={async (e: any) => {
+            const val = String(e.target.value || '');
+            setFormData({ ...formData, catalog_slug: val });
+            // debounce check
+            if (slugCheckTimeout.current)
+              window.clearTimeout(slugCheckTimeout.current);
+            slugCheckTimeout.current = window.setTimeout(async () => {
+              const candidate = (val || '').trim().toLowerCase();
+              if (!candidate) return;
+              try {
+                const res = await fetch(
+                  `/api/public_catalogs/check-slug?slug=${encodeURIComponent(candidate)}`
+                );
+                const json = await res.json();
+                if (json?.exists) {
+                  if (json.owner && json.owner !== currentUserId) {
+                    // open a nicer modal offering revert or edit
+                    setPendingCandidateSlug(candidate);
+                    setPendingSlugOwner(json.owner);
+                    setShowSlugConflictModal(true);
+                  } else {
+                    // belongs to same user — accept and update previous
+                    previousSlugRef.current = candidate;
+                  }
+                } else {
+                  // free slug — accept and update previous
+                  previousSlugRef.current = candidate;
+                }
+              } catch (err) {
+                console.warn('slug check failed', err);
+              }
+            }, 700) as unknown as number;
+          }}
           slugRef={slugRef}
           showPassword={showPricePassword}
           onToggleShowPassword={() => setShowPricePassword(!showPricePassword)}
           isActive={isActive}
           onToggleActive={() => setIsActive(!isActive)}
         />
+      )}
+
+      {/* Slug conflict modal */}
+      {showSlugConflictModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-slate-800 p-6">
+            <h3 className="text-lg font-bold">Slug em uso</h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              O slug <strong>{pendingCandidateSlug}</strong> já pertence a outra loja.
+            </p>
+            <div className="mt-4 text-sm text-gray-600">
+              <p>Escolha uma ação:</p>
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>
+                  <button
+                    onClick={() => {
+                      // Reverter para o slug anterior
+                      setFormData((p) => ({
+                        ...p,
+                        catalog_slug: previousSlugRef.current || '',
+                      }));
+                      setShowSlugConflictModal(false);
+                      if (slugRef?.current) slugRef.current.focus();
+                    }}
+                    className="text-sm font-bold text-primary mr-2"
+                  >
+                    Reverter para meu slug anterior
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => {
+                      // Focar para editar
+                      setShowSlugConflictModal(false);
+                      if (slugRef?.current) {
+                        slugRef.current.focus();
+                        slugRef.current.select();
+                      }
+                    }}
+                    className="text-sm font-bold text-amber-600"
+                  >
+                    Editar slug agora
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button onClick={() => setShowSlugConflictModal(false)}>
+                Fechar
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {activeTab === 'appearance' && (

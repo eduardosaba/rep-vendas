@@ -46,7 +46,7 @@ export function Storefront({
       name: (c['store_name'] as string) || '',
       logo_url: (c['logo_url'] as string) || null,
       // catalog slug from public_catalogs (used to build home links)
-      catalog_slug: (c['slug'] as string) || undefined,
+      catalog_slug: (c['catalog_slug'] as string) || undefined,
       primary_color: (c['primary_color'] as string) || '#b9722e',
       secondary_color: (c['secondary_color'] as string) || '#0d1b2c',
       phone: (c['phone'] as string) || undefined,

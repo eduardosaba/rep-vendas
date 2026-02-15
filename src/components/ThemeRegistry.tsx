@@ -201,7 +201,7 @@ export default function ThemeRegistry() {
             .select(
               'primary_color, secondary_color, header_background_color, font_family, font_url'
             )
-            .eq('slug', catalogSlug)
+            .eq('catalog_slug', catalogSlug)
             .maybeSingle();
 
           if (publicCatalog) {

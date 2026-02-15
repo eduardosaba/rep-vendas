@@ -71,11 +71,11 @@ export async function POST(request: Request) {
           );
           const { data: existing } = await svc
             .from('public_catalogs')
-            .select('slug')
+            .select('catalog_slug')
             .eq('user_id', user_id)
             .maybeSingle();
-          if (existing && existing.slug) {
-            finalSlug = existing.slug;
+          if (existing && existing.catalog_slug) {
+            finalSlug = existing.catalog_slug;
             console.log(
               `✅ Slug encontrado automaticamente para user_id=${user_id}: ${finalSlug}`
             );

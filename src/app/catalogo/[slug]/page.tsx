@@ -25,7 +25,7 @@ export async function generateMetadata(
     .select(
       'store_name, logo_url, footer_message, user_id, og_image_url, single_brand_logo_url, share_banner_url, updated_at'
     )
-    .eq('slug', slug)
+    .eq('catalog_slug', slug)
     .eq('is_active', true)
     .maybeSingle();
 
@@ -128,7 +128,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
   const { data: catalog, error: catalogError } = await supabase
     .from('public_catalogs')
     .select('*, price_password_hash')
-    .eq('slug', slug)
+    .eq('catalog_slug', slug)
     .maybeSingle();
 
   if (catalogError || !catalog) return notFound();

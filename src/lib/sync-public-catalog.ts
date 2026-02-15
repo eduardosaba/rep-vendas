@@ -91,8 +91,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
   // Verifica existência pelo `slug` — mais seguro para evitar alterações cruzadas
   const { data: existing } = await supabase
     .from('public_catalogs')
-    .select('id, user_id, slug')
-    .eq('slug', slug)
+    .select('id, user_id, catalog_slug')
+    .eq('catalog_slug', slug)
     .maybeSingle();
 
   // helper: tentar registrar auditoria (se tabela existir), não bloquear fluxo
@@ -193,7 +193,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     const finalPhone = normalizePhone(mergedData.phone ?? null);
 
     const updatePayload: Record<string, any> = {
-      slug: slug,
+      catalog_slug: slug,
       store_name: mergedData.store_name || data.store_name,
       logo_url: mergedData.logo_url ?? data.logo_url ?? null,
       phone: finalPhone,
@@ -387,11 +387,11 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
           : [data.banners_mobile];
     }
 
-    // Atualiza apenas o registro correspondente ao `slug` (escopo por catálogo)
+    // Atualiza apenas o registro correspondente ao `catalog_slug` (escopo por catálogo)
     const { error } = await supabase
       .from('public_catalogs')
       .update(updatePayload)
-      .eq('slug', slug);
+      .eq('catalog_slug', slug);
     if (error) throw error;
   } else {
     // INSERT new public_catalogs entry
@@ -456,7 +456,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
 
     const insertPayload: Record<string, any> = {
       user_id: userId,
-      slug: slug,
+      catalog_slug: slug,
       store_name: mergedData.store_name || data.store_name,
       phone: finalPhoneInsert,
       email: mergedData.email ?? null,

@@ -24,8 +24,8 @@ export async function POST(req: Request) {
 
     const { data: pc } = await supabase
       .from('public_catalogs')
-      .select('slug, user_id')
-      .eq('slug', slug)
+      .select('catalog_slug, user_id')
+      .eq('catalog_slug', slug)
       .maybeSingle();
 
     if (!pc || pc.user_id !== user.id) {

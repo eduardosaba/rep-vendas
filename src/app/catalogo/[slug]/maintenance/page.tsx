@@ -14,7 +14,7 @@ export default async function MaintenancePage({ params }: Props) {
   const { data: catalog } = await supabase
     .from('public_catalogs')
     .select('store_name, logo_url, primary_color, secondary_color')
-    .eq('slug', slug)
+    .eq('catalog_slug', slug)
     .maybeSingle();
 
   if (!catalog) return notFound();

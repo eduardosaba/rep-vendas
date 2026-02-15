@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
+import { inngest } from '@/inngest/client';
 
 export async function POST(req: Request) {
   try {
@@ -103,6 +104,7 @@ export async function POST(req: Request) {
 
     const settingsPayload: any = {
       user_id: userId,
+      catalog_slug: slug || catalog_slug || payload.catalogSlug || null,
       name: name || null,
       phone: phone || null,
       email: email || null,
@@ -171,12 +173,91 @@ export async function POST(req: Request) {
     });
     if (profileError) throw profileError;
 
+    // Enfileira processamento de imagens de branding via Inngest (se houver uma marca)
+    try {
+      const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+        const { createClient: createSvcClient } =
+          await import('@supabase/supabase-js');
+        const svc = createSvcClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+        // tenta descobrir uma brand associada ao usuário (usa a primeira encontrada)
+        const { data: brands } = await svc
+          .from('brands')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+        const brandId =
+          brands && brands.length > 0 ? (brands[0] as any).id : null;
+
+        if (brandId) {
+          const collectAssets = async () => {
+            const out: Array<{ url: string; asset: 'logo' | 'banner' }> = [];
+            if (logo_url) out.push({ url: logo_url, asset: 'logo' });
+            if (share_banner_url)
+              out.push({ url: share_banner_url, asset: 'banner' });
+            if (top_benefit_image_url)
+              out.push({ url: top_benefit_image_url, asset: 'banner' });
+            // banners arrays
+            try {
+              if (Array.isArray(banners)) {
+                for (const b of banners)
+                  if (b) out.push({ url: b, asset: 'banner' });
+              }
+            } catch (e) {
+              // ignore
+            }
+            try {
+              if (Array.isArray(banners_mobile)) {
+                for (const b of banners_mobile)
+                  if (b) out.push({ url: b, asset: 'banner' });
+              }
+            } catch (e) {
+              // ignore
+            }
+            return out;
+          };
+
+          const assets = await collectAssets();
+          for (const a of assets) {
+            try {
+              // derive storage path from public URL if possible
+              let sourcePath = a.url;
+              try {
+                const u = new URL(a.url);
+                const seg = u.pathname.split('/');
+                const idx = seg.indexOf('public');
+                if (idx >= 0) sourcePath = seg.slice(idx + 1).join('/');
+              } catch (e) {
+                // leave as-is
+              }
+
+              await inngest.send({
+                name: 'image/copy_brand.requested',
+                data: {
+                  sourcePath,
+                  targetUserId: userId,
+                  brandId,
+                  asset: a.asset,
+                },
+              });
+            } catch (e) {
+              console.warn('Failed to enqueue brand image copy', e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('settings/save: brand image enqueue failed', e);
+    }
+
     // Build publicCatalogPayload mapping to mirror settings -> public_catalogs
     const finalSlug = slug || catalog_slug || payload.catalogSlug || null;
 
     const publicCatalogPayload: any = {
       user_id: userId,
-      slug: finalSlug,
+      catalog_slug: finalSlug,
       store_name: name || null,
       logo_url: logo_url || null,
       primary_color: primary_color || null,
@@ -228,7 +309,7 @@ export async function POST(req: Request) {
     };
 
     // If no slug provided, try to discover existing slug for this user
-    let finalSlugToUse = publicCatalogPayload.slug;
+    let finalSlugToUse = publicCatalogPayload.catalog_slug;
     if (!finalSlugToUse) {
       try {
         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -239,10 +320,10 @@ export async function POST(req: Request) {
           const svc = createSvcClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
           const { data: existing } = await svc
             .from('public_catalogs')
-            .select('slug')
+            .select('catalog_slug')
             .eq('user_id', userId)
             .maybeSingle();
-          if (existing && existing.slug) finalSlugToUse = existing.slug;
+          if (existing && existing.catalog_slug) finalSlugToUse = existing.catalog_slug;
         }
       } catch (e) {
         console.warn('/api/settings/save: failed to lookup slug by user_id', e);
@@ -250,13 +331,59 @@ export async function POST(req: Request) {
     }
 
     if (!finalSlugToUse) {
-      // If still no slug, we still upsert settings but skip public_catalogs sync
-      console.log(
-        '[settings/save] Nenhum slug encontrado; pulando syncPublicCatalog'
+      // If still no slug, try to derive one from name or userId so public_catalogs can be created
+      const makeSlug = (s: any) => {
+        if (!s) return null;
+        try {
+          const raw = String(s)
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          const truncated = raw.slice(0, 50);
+          if (/^[a-z0-9-]{3,50}$/.test(truncated)) return truncated;
+          if (truncated.length >= 3) return truncated;
+          return null;
+        } catch (e) {
+          return null;
+        }
+      };
+
+      const candidateFromName = makeSlug(
+        name || payload.name || payload.store_name || payload.catalog_title
       );
-    } else {
+      if (candidateFromName) finalSlugToUse = candidateFromName;
+      else {
+        // fallback to user id derived slug
+        const uidPart = String(userId)
+          .slice(0, 8)
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
+        finalSlugToUse = `u-${uidPart}`;
+      }
+
+      console.log('[settings/save] Gerando slug fallback:', finalSlugToUse);
+    }
+
+    if (finalSlugToUse) {
       // Ensure slug is set on payload
-      publicCatalogPayload.slug = finalSlugToUse;
+      // keep public_catalogs using catalog_slug; don't set a separate `slug` field
+
+      // Also persist the catalog_slug into `settings` table so both tables stay in sync
+      try {
+        const { error: settingsSlugError } = await supabase
+          .from('settings')
+          .update({ catalog_slug: finalSlugToUse, updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+        if (settingsSlugError) {
+          console.warn('[settings/save] failed to update settings.catalog_slug', settingsSlugError);
+        } else {
+          console.log('[settings/save] updated settings.catalog_slug for user', userId);
+        }
+      } catch (e) {
+        console.warn('[settings/save] exception updating settings.catalog_slug', e);
+      }
 
       // Remove user_id/updated_at from payload when upserting by user_id conflict
       const { user_id, updated_at, ...upsertBody } = publicCatalogPayload;
@@ -265,24 +392,110 @@ export async function POST(req: Request) {
       try {
         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+        console.log(
+          '[settings/save] Tentando upsert direto em public_catalogs para slug',
+          finalSlugToUse
+        );
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+          console.warn(
+            '[settings/save] Service role ausente; não foi possível atualizar public_catalogs diretamente'
+          );
+        } else {
           const { createClient: createSvcClient } =
             await import('@supabase/supabase-js');
           const svc = createSvcClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-          const { error: syncError } = await svc
+
+          // helper: validate slug ownership (catalog_slug column)
+          const ensureSlugOwnership = async (desired: string) => {
+            const { data: conflict } = await svc
+              .from('public_catalogs')
+              .select('user_id')
+              .eq('catalog_slug', desired)
+              .maybeSingle();
+            if (!conflict) return true; // slug free
+            if (conflict.user_id === userId) return true; // slug belongs to same user
+            return false; // slug in use by another user
+          };
+
+          // Decide insert vs update based on existing row for this user
+          const { data: existingRow } = await svc
             .from('public_catalogs')
-            .upsert(upsertBody, { onConflict: 'user_id' });
-          if (syncError) {
-            console.error('❌ Erro na sincronização atômica:', syncError);
-          } else {
-            console.log('[settings/save] public_catalogs upsert concluído');
+            .select('id, catalog_slug')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          // Validate slug: if in use by another user, abort with 409
+          const slugOk = await ensureSlugOwnership(finalSlugToUse);
+          if (!slugOk) {
+            console.error(
+              '[settings/save] slug em uso por outro usuário:',
+              finalSlugToUse
+            );
+            return NextResponse.json(
+              { error: 'Slug já em uso por outra loja' },
+              { status: 409 }
+            );
           }
-        } else {
-          // Fallback: call internal helper if available
-          await syncPublicCatalog(userId, publicCatalogPayload);
+          publicCatalogPayload.catalog_slug = finalSlugToUse;
+          upsertBody.catalog_slug = finalSlugToUse;
+
+          if (existingRow) {
+            // update existing by user_id
+            const { data: updated, error: updateErr } = await svc
+              .from('public_catalogs')
+              .update(upsertBody)
+              .eq('user_id', userId)
+              .select('id, catalog_slug');
+            if (updateErr) {
+              console.error(
+                '[settings/save] public_catalogs update failed',
+                updateErr
+              );
+            } else {
+              console.log(
+                '[settings/save] public_catalogs update concluído',
+                updated
+              );
+            }
+          } else {
+            // insert new row
+            const { data: inserted, error: insertErr } = await svc
+              .from('public_catalogs')
+              .insert({ user_id: userId, ...upsertBody })
+              .select('id, catalog_slug');
+            if (insertErr) {
+              console.error(
+                '[settings/save] public_catalogs insert failed',
+                insertErr
+              );
+              // If insert failed due to slug conflict, return 409
+              const ierr = (insertErr?.message || '').toString();
+              if (
+                /slug/i.test(ierr) ||
+                (insertErr?.code || '').toString().includes('23505')
+              ) {
+                return NextResponse.json(
+                  { error: 'Slug já em uso por outra loja' },
+                  { status: 409 }
+                );
+              }
+            } else {
+              console.log(
+                '[settings/save] public_catalogs insert concluído',
+                inserted
+              );
+            }
+          }
         }
-      } catch (e) {
-        console.error('settings/save: syncPublicCatalog failed', e);
+      } catch (e: any) {
+        console.error(
+          'settings/save: upsert direto em public_catalogs falhou',
+          e
+        );
+        return NextResponse.json(
+          { error: e?.message || String(e) },
+          { status: 500 }
+        );
       }
     }
 

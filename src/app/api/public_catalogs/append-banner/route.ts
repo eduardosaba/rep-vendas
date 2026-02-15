@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const { data: existing, error: selErr } = await supabase
       .from('public_catalogs')
       .select('id, banners, banners_mobile')
-      .eq('slug', String(slug))
+      .eq('catalog_slug', String(slug))
       .maybeSingle();
 
     if (selErr) throw selErr;
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     const { error: upErr } = await supabase
       .from('public_catalogs')
       .update(updatePayload)
-      .eq('slug', String(slug));
+      .eq('catalog_slug', String(slug));
 
     if (upErr) throw upErr;
 
