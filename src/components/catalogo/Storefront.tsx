@@ -61,6 +61,9 @@ export function Storefront({
       show_cash_discount: catalog.show_cash_discount,
       cash_price_discount_percent: catalog.cash_price_discount_percent,
       enable_stock_management: catalog.enable_stock_management,
+      // Grid columns read from public_catalogs (mobile/default and desktop/md)
+      grid_cols_default: (c['grid_cols_default'] as number) || undefined,
+      grid_cols_md: (c['grid_cols_md'] as number) || undefined,
       price_password_hash: catalog.price_password_hash,
       // Top benefit / banner
       top_benefit_image_url:

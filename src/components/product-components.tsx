@@ -86,30 +86,81 @@ export function CategoryBar() {
     setShowOnlyNew,
     showOnlyBestsellers,
     setShowOnlyBestsellers,
+    selectedBrand,
   } = useStore();
   const { genders = [], selectedGender, setSelectedGender } = useStore();
+
+  const displayGenders = useMemo(() => {
+    const activeBrand = Array.isArray(selectedBrand)
+      ? (selectedBrand[0] as string)
+      : (selectedBrand as string | undefined);
+
+    const productsForBrand =
+      activeBrand && activeBrand !== 'all'
+        ? initialProducts.filter(
+            (p: Product) =>
+              (p.brand || '').toString().trim().toLowerCase() ===
+              (activeBrand || '').toString().trim().toLowerCase()
+          )
+        : initialProducts;
+
+    const fromProducts = Array.from(
+      new Set(
+        productsForBrand.map((p: Product) => (p as any).gender).filter(Boolean)
+      )
+    );
+    return fromProducts;
+  }, [initialProducts, selectedBrand]);
   const displayCategories = useMemo(() => {
-    if (categories && categories.length > 0) {
+    // If a brand is selected, derive categories only from that brand's products
+    const activeBrand = Array.isArray(selectedBrand)
+      ? (selectedBrand[0] as string)
+      : (selectedBrand as string | undefined);
+
+    const productsForBrand =
+      activeBrand && activeBrand !== 'all'
+        ? initialProducts.filter(
+            (p: Product) =>
+              (p.brand || '').toString().trim().toLowerCase() ===
+              (activeBrand || '').toString().trim().toLowerCase()
+          )
+        : initialProducts;
+
+    if (categories && categories.length > 0 && !activeBrand) {
       return categories.map((c: any) =>
         typeof c === 'string' ? c : c?.name || String(c)
       );
     }
+
     const fromProducts = Array.from(
-      new Set(initialProducts.map((p: Product) => p.category).filter(Boolean))
+      new Set(productsForBrand.map((p: Product) => p.category).filter(Boolean))
     );
     return fromProducts;
-  }, [categories, initialProducts]);
+  }, [categories, initialProducts, selectedBrand]);
 
   const displayTypes = useMemo(() => {
+    const activeBrand = Array.isArray(selectedBrand)
+      ? (selectedBrand[0] as string)
+      : (selectedBrand as string | undefined);
+
+    const productsForBrand =
+      activeBrand && activeBrand !== 'all'
+        ? initialProducts.filter(
+            (p: Product) =>
+              (p.brand || '').toString().trim().toLowerCase() ===
+              (activeBrand || '').toString().trim().toLowerCase()
+          )
+        : initialProducts;
+
     const fromProducts = Array.from(
       new Set(
-        initialProducts
+        productsForBrand
           .map((p: Product) => (p as any).class_core)
           .filter(Boolean)
       )
     );
     return fromProducts;
-  }, [initialProducts]);
+  }, [initialProducts, selectedBrand]);
 
   // Remove qualquer item que também seja classificado como 'type' para evitar
   // duplicação (mostramos tipos apenas no dropdown). Mantemos a ordem original.
@@ -361,7 +412,10 @@ export function CategoryBar() {
                   >
                     Todos os Gêneros
                   </button>
-                  {genders.map((g) => (
+                  {(displayGenders && displayGenders.length
+                    ? displayGenders
+                    : genders
+                  ).map((g) => (
                     <button
                       key={g}
                       onClick={() => {
@@ -790,18 +844,74 @@ export function ProductGrid() {
                 return Math.max(1, Math.min(6, Math.floor(n)));
               };
 
+              // Apenas `grid_cols_default` (mobile/base) e `grid_cols_md` (desktop)
+              // são editáveis nas configurações. Os outros breakpoints usam
+              // valores padrão fixos para consistência.
               const cDefault = parse((store as any).grid_cols_default, 2);
-              const cSm = parse((store as any).grid_cols_sm, 3);
               const cMd = parse((store as any).grid_cols_md, 4);
-              const cLg = parse((store as any).grid_cols_lg, 5);
-              const cXl = parse((store as any).grid_cols_xl, 6);
 
+              // Padrões fixos solicitados: sm=3, lg=4, xl=4 (notebooks menores)
+              const cSm = 3;
+              const cLg = 4;
+              const cXl = 4;
+
+              // Use explicit class mappings to ensure Tailwind includes all
+              // possible `grid-cols-*` variants in the generated CSS. Avoid
+              // computed template strings that Tailwind can't detect.
+              const COLS = [
+                'grid-cols-0',
+                'grid-cols-1',
+                'grid-cols-2',
+                'grid-cols-3',
+                'grid-cols-4',
+                'grid-cols-5',
+                'grid-cols-6',
+              ];
+              const SM = [
+                'sm:grid-cols-0',
+                'sm:grid-cols-1',
+                'sm:grid-cols-2',
+                'sm:grid-cols-3',
+                'sm:grid-cols-4',
+                'sm:grid-cols-5',
+                'sm:grid-cols-6',
+              ];
+              const MD = [
+                'md:grid-cols-0',
+                'md:grid-cols-1',
+                'md:grid-cols-2',
+                'md:grid-cols-3',
+                'md:grid-cols-4',
+                'md:grid-cols-5',
+                'md:grid-cols-6',
+              ];
+              const LG = [
+                'lg:grid-cols-0',
+                'lg:grid-cols-1',
+                'lg:grid-cols-2',
+                'lg:grid-cols-3',
+                'lg:grid-cols-4',
+                'lg:grid-cols-5',
+                'lg:grid-cols-6',
+              ];
+              const XL = [
+                'xl:grid-cols-0',
+                'xl:grid-cols-1',
+                'xl:grid-cols-2',
+                'xl:grid-cols-3',
+                'xl:grid-cols-4',
+                'xl:grid-cols-5',
+                'xl:grid-cols-6',
+              ];
+
+              const safeIndex = (n: number) =>
+                Math.max(0, Math.min(6, Math.floor(Number(n) || 0)));
               const gridClass = [
-                `grid-cols-${cDefault}`,
-                `sm:grid-cols-${cSm}`,
-                `md:grid-cols-${cMd}`,
-                `lg:grid-cols-${cLg}`,
-                `2xl:grid-cols-${cXl}`,
+                COLS[safeIndex(cDefault)],
+                SM[safeIndex(cSm)],
+                MD[safeIndex(cMd)],
+                LG[safeIndex(cLg)],
+                XL[safeIndex(cXl)],
               ].join(' ');
 
               return (

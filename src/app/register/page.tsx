@@ -137,7 +137,7 @@ export default function RegisterPage() {
               <ul className="space-y-2 text-sm text-gray-700">
                 <li className="flex items-center">
                   <CheckCircle2 className="text-[#b9722e] w-4 h-4 mr-2" />
-                  Catálogo Ilimitado
+                  Catálogo e-commerce
                 </li>
                 <li className="flex items-center">
                   <CheckCircle2 className="text-[#b9722e] w-4 h-4 mr-2" />
@@ -146,6 +146,10 @@ export default function RegisterPage() {
                 <li className="flex items-center">
                   <CheckCircle2 className="text-[#b9722e] w-4 h-4 mr-2" />
                   Pedidos via WhatsApp
+                </li>
+                <li className="flex items-center">
+                  <CheckCircle2 className="text-[#b9722e] w-4 h-4 mr-2" />
+                  Dashboard completa
                 </li>
               </ul>
             </div>
@@ -258,7 +262,7 @@ export default function RegisterPage() {
 
               <div>
                 <label className="mb-1.5 block text-sm font-bold text-[#0d1b2c]">
-                  Estados que atua (opcional)
+                  Estados que atuam (opcional)
                 </label>
                 <select
                   name="estados"
@@ -294,7 +298,9 @@ export default function RegisterPage() {
                   <option value="SE">SE - Sergipe</option>
                   <option value="TO">TO - Tocantins</option>
                 </select>
-                <p className="mt-2 text-xs text-gray-500">Selecione um ou mais estados onde sua operação atua. Opcional.</p>
+                <p className="mt-2 text-xs text-gray-500">
+                  Selecione um ou mais estados onde sua operação atua. Opcional.
+                </p>
               </div>
 
               <Button type="submit" loading={loading} variant="primary">

@@ -174,7 +174,7 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
-                Estados que atua (opcional)
+                Estados que atuam (opcional)
               </label>
               <select
                 name="estados"

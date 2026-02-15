@@ -319,6 +319,27 @@ export function StoreProvider({
     currentPage,
     router,
   ]);
+  // Quando a marca selecionada mudar (após a montagem inicial), resetar
+  // categoria/gênero para evitar filtros persistentes entre marcas.
+  const _brandMounted = (globalThis as any).__repv_brand_mounted || {
+    value: false,
+  };
+  useEffect(() => {
+    // Evitar override durante a inicialização via query string
+    if (!_brandMounted.value) {
+      _brandMounted.value = true;
+      (globalThis as any).__repv_brand_mounted = _brandMounted;
+      return;
+    }
+    try {
+      setSelectedCategory('all');
+      setSelectedGender('all');
+      setCurrentPage(1);
+    } catch (e) {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBrand]);
   const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
   const [loadingStates, setLoadingStates] = useState({
     submitting: false,
@@ -1335,6 +1356,7 @@ export function StoreProvider({
             });
             if (res.ok) {
               const j = await res.json();
+              // If server validated the password, unlock
               if (j.ok) {
                 setShowPrices(true);
                 try {
@@ -1350,6 +1372,14 @@ export function StoreProvider({
                 } catch {}
                 toast.success('Preços desbloqueados!');
                 return true;
+              }
+
+              // If server indicates a password is configured remotely, treat
+              // this as an incorrect password attempt and do NOT fall back to
+              // trial bypasses.
+              if (j.configured) {
+                toast.error('Senha incorreta');
+                return false;
               }
             }
           } catch (e) {

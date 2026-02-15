@@ -131,9 +131,9 @@ export default async function LandingPage() {
           </h1>
 
           <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-12 leading-relaxed font-light">
-            O sistema completo para representantes comerciais. Crie seu catálogo
-            digital em minutos, receba pedidos automáticos no WhatsApp e
-            gerencie sua carteira de clientes em um único lugar.
+            O sistema completo para representantes comerciais. Transforme sua
+            lista de preços em um catálogo digital em minutos, receba pedidos
+            prontos no WhatsApp e organize sua carteira sem burocracia
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -239,12 +239,18 @@ export default async function LandingPage() {
                         ></div>
                       </div>
                     </div>
-                    {/* Overlay CTA */}
+                    {/* Overlay CTA: vídeo demonstrativo autoplay loop */}
                     <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-gray-50 via-transparent to-transparent">
-                      <DemoCredentialsClient
-                        href="/demo/dashboard"
-                        label="Interagir com a Demo"
-                        className="bg-[#0d1b2c] text-white px-8 py-3 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-2"
+                      <video
+                        src={
+                          process.env.NEXT_PUBLIC_CLOUDINARY_VIDEO_URL ||
+                          '/dashboardRepvendas.mp4'
+                        }
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full max-w-4xl rounded-2xl shadow-2xl object-cover"
                       />
                     </div>
                   </div>
@@ -305,8 +311,8 @@ export default async function LandingPage() {
             />
             <FeatureCard
               icon={Smartphone}
-              title="Importação Visual"
-              description="Esqueça o Excel. Cadastre produtos apenas arrastando as fotos do seu celular ou computador. O sistema organiza tudo."
+              title="Montagem de Catálogo Visual"
+              description="Importe sua planilha e todas as fotos de uma vez. Depois, em uma única tela, basta arrastar a imagem para o produto correspondente. Muito mais rápido que editar um por um."
             />
             <FeatureCard
               icon={ShieldCheck}
@@ -326,7 +332,7 @@ export default async function LandingPage() {
             <FeatureCard
               icon={Zap}
               title="Venda no WhatsApp"
-              description="Receba pedidos prontos e formatados direto no seu WhatsApp. Menos conversa fiada, mais fechamento."
+              description="Receba pedidos prontos e formatados com um clique. Elimine a digitação manual e transforme conversas em fechamentos instantâneos."
             />
           </div>
         </div>
@@ -352,23 +358,28 @@ export default async function LandingPage() {
               <div className="space-y-12">
                 <Step
                   number="01"
-                  title="Crie sua conta"
-                  desc="Cadastro rápido, sem burocracia. Você ganha 14 dias de acesso total gratuito."
+                  title="Crie sua conta num piscar de olhos"
+                  desc="Cadastro simples, sem cartão de crédito. Comece a testar todas as funcionalidades grátis por 14 dias agora mesmo."
                 />
                 <Step
                   number="02"
-                  title="Personalize sua Loja"
-                  desc="Faça upload do seu logo, escolha a cor da sua marca e defina a senha de acesso."
+                  title="Deixe com a sua marca"
+                  desc="Transmita profissionalismo: suba sua logo, defina suas cores e configure a senha de acesso para proteger seus preços."
                 />
                 <Step
                   number="03"
-                  title="Cadastre Produtos"
-                  desc="Arraste as fotos dos seus produtos. O nosso sistema cria os cartões automaticamente."
+                  title="Cadastre Produtos - Importação e Vínculo Rápido"
+                  desc="Importe sua planilha Excel e suba todas as fotos de uma vez. Use nosso vinculador visual para conectar as imagens aos produtos de forma simples e intuitiva."
                 />
                 <Step
                   number="04"
-                  title="Compartilhe e Venda"
-                  desc="Envie o link para seus clientes. Receba os pedidos organizados no seu painel."
+                  title="Experiência de Loja Virtual (E-commerce)"
+                  desc="Seu cliente já sabe como usar. Ele navega pelo catálogo, adiciona produtos ao carrinho e finaliza a compra sozinho. Você recebe o pedido pronto no seu Painel Administrativo e o cliente pode enviar cópia do pedido pelo WhatsApp."
+                />
+                <Step
+                  number="05"
+                  title="Venda pelo WhatsApp"
+                  desc="Envie seu catálogo digital atualizado. O cliente escolhe, e você recebe o pedido pronto e organizado no seu painel."
                 />
               </div>
             </div>

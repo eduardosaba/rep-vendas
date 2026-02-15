@@ -52,10 +52,18 @@ export async function POST(req: Request) {
       .eq('user_id', userId)
       .maybeSingle();
 
+    // Determine whether a password is configured on the server for this user
+    const configured = !!(
+      (settings &&
+        ((settings as any).price_password ||
+          (settings as any).price_password_hash)) ||
+      ((publicCatalog as any) && (publicCatalog as any).price_password_hash)
+    );
+
     // 1) check plain password (settings)
     if (settings && (settings as any).price_password) {
       if (plain === (settings as any).price_password)
-        return NextResponse.json({ ok: true });
+        return NextResponse.json({ ok: true, configured: true });
     }
 
     // 2) check hash (settings or public_catalogs)
@@ -64,10 +72,14 @@ export async function POST(req: Request) {
       (publicCatalog as any)?.price_password_hash;
     if (hashToCheck) {
       const hash = crypto.createHash('sha256').update(plain).digest('hex');
-      if (hash === hashToCheck) return NextResponse.json({ ok: true });
+      if (hash === hashToCheck)
+        return NextResponse.json({ ok: true, configured: true });
     }
 
-    return NextResponse.json({ ok: false });
+    // If we reach here, password is incorrect. Inform caller whether a
+    // password is configured on the server so the client can avoid trial
+    // bypasses when a password actually exists remotely.
+    return NextResponse.json({ ok: false, configured });
   } catch (err) {
     console.error('verify-password error', err);
     return NextResponse.json({ ok: false, error: 'internal' }, { status: 500 });
