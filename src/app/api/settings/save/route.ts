@@ -323,7 +323,8 @@ export async function POST(req: Request) {
             .select('catalog_slug')
             .eq('user_id', userId)
             .maybeSingle();
-          if (existing && existing.catalog_slug) finalSlugToUse = existing.catalog_slug;
+          if (existing && existing.catalog_slug)
+            finalSlugToUse = existing.catalog_slug;
         }
       } catch (e) {
         console.warn('/api/settings/save: failed to lookup slug by user_id', e);
@@ -374,15 +375,27 @@ export async function POST(req: Request) {
       try {
         const { error: settingsSlugError } = await supabase
           .from('settings')
-          .update({ catalog_slug: finalSlugToUse, updated_at: new Date().toISOString() })
+          .update({
+            catalog_slug: finalSlugToUse,
+            updated_at: new Date().toISOString(),
+          })
           .eq('user_id', userId);
         if (settingsSlugError) {
-          console.warn('[settings/save] failed to update settings.catalog_slug', settingsSlugError);
+          console.warn(
+            '[settings/save] failed to update settings.catalog_slug',
+            settingsSlugError
+          );
         } else {
-          console.log('[settings/save] updated settings.catalog_slug for user', userId);
+          console.log(
+            '[settings/save] updated settings.catalog_slug for user',
+            userId
+          );
         }
       } catch (e) {
-        console.warn('[settings/save] exception updating settings.catalog_slug', e);
+        console.warn(
+          '[settings/save] exception updating settings.catalog_slug',
+          e
+        );
       }
 
       // Remove user_id/updated_at from payload when upserting by user_id conflict

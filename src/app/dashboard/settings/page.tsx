@@ -91,7 +91,9 @@ export default function SettingsPage() {
   const slugCheckTimeout = useRef<number | null>(null);
   const [showPricePassword, setShowPricePassword] = useState(false);
   const [showSlugConflictModal, setShowSlugConflictModal] = useState(false);
-  const [pendingCandidateSlug, setPendingCandidateSlug] = useState<string | null>(null);
+  const [pendingCandidateSlug, setPendingCandidateSlug] = useState<
+    string | null
+  >(null);
   const [pendingSlugOwner, setPendingSlugOwner] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
     'general' | 'appearance' | 'display' | 'marketing' | 'stock' | 'sync'
@@ -591,7 +593,9 @@ export default function SettingsPage() {
             setShowSlugConflictModal(true);
             throw new Error(json?.error || 'Slug em uso por outra loja');
           }
-          throw new Error(json?.error || 'Falha ao salvar configurações no servidor');
+          throw new Error(
+            json?.error || 'Falha ao salvar configurações no servidor'
+          );
         }
         publicAction = json?.success ? 'updated' : null;
       }
@@ -736,7 +740,8 @@ export default function SettingsPage() {
           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-slate-800 p-6">
             <h3 className="text-lg font-bold">Slug em uso</h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-              O slug <strong>{pendingCandidateSlug}</strong> já pertence a outra loja.
+              O slug <strong>{pendingCandidateSlug}</strong> já pertence a outra
+              loja.
             </p>
             <div className="mt-4 text-sm text-gray-600">
               <p>Escolha uma ação:</p>
