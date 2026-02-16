@@ -241,7 +241,16 @@ export function ProductCard({
                     // explicitamente true e `max_installments` for maior que 1.
                     if (!isPricesVisible) return null;
 
+                    // Controle de exibição de parcelamento
+                    const showInstallmentsSetting =
+                      (storeSettings as any).show_installments === true;
+                    const maxInst = Number(
+                      (storeSettings as any).max_installments || 0
+                    );
+
+                    // Para preço de venda, respeitar a flag `show_installments`
                     if (isUsingSalePrice) {
+                      if (!showInstallmentsSetting) return null;
                       return getInstallmentText(
                         currentPrice,
                         (storeSettings as any).max_installments || 1,
@@ -250,11 +259,6 @@ export function ProductCard({
                     }
 
                     // estamos exibindo o preço de custo (salePrice === 0)
-                    const showInstallmentsSetting =
-                      (storeSettings as any).show_installments === true;
-                    const maxInst = Number(
-                      (storeSettings as any).max_installments || 0
-                    );
                     if (showCost && showInstallmentsSetting && maxInst > 1) {
                       return getInstallmentText(
                         currentPrice,
