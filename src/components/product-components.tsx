@@ -40,14 +40,16 @@ interface SlideData {
 function OutsideCloseEffect({
   openType,
   openGender,
+  openMore,
   onCloseAll,
 }: {
   openType: boolean;
   openGender: boolean;
+  openMore: boolean;
   onCloseAll: () => void;
 }) {
   useEffect(() => {
-    if (!openType && !openGender) return;
+    if (!openType && !openGender && !openMore) return;
     const onDocDown = (e: Event) => {
       const target = e.target as HTMLElement | null;
       if (!target) return onCloseAll();
@@ -71,7 +73,7 @@ function OutsideCloseEffect({
       document.removeEventListener('touchstart', onDocDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [openType, openGender, onCloseAll]);
+  }, [openType, openGender, openMore, onCloseAll]);
 
   return null;
 }
@@ -172,8 +174,11 @@ export function CategoryBar() {
 
   const [openTypeMenu, setOpenTypeMenu] = useState(false);
   const [openGenderMenu, setOpenGenderMenu] = useState(false);
+  const [openMoreMenu, setOpenMoreMenu] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const typeBtnRef = useRef<HTMLButtonElement | null>(null);
   const genderBtnRef = useRef<HTMLButtonElement | null>(null);
+  const moreBtnRef = useRef<HTMLButtonElement | null>(null);
   const [typeMenuRect, setTypeMenuRect] = useState<null | {
     left: number;
     top: number;
@@ -184,9 +189,181 @@ export function CategoryBar() {
     top: number;
     width: number;
   }>(null);
+  const [moreMenuRect, setMoreMenuRect] = useState<null | {
+    left: number;
+    top: number;
+    width: number;
+  }>(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const router = useRouter();
 
   if (!displayCategories || displayCategories.length === 0) return null;
+
+  // Mobile: render compact bar without horizontal scroll
+  if (isMobile) {
+    return (
+      <div className="w-full bg-white border-b border-gray-100 py-3 sticky top-0 z-30">
+        <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all border ${
+                selectedCategory === 'all'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'bg-white text-gray-600 border-gray-200'
+              }`}
+            >
+              Todos
+            </button>
+
+            <button
+              ref={moreBtnRef}
+              data-menu-trigger="more"
+              onClick={() => {
+                const next = !openMoreMenu;
+                setOpenMoreMenu(next);
+                setOpenTypeMenu(false);
+                setOpenGenderMenu(false);
+                if (next && moreBtnRef.current) {
+                  const r = moreBtnRef.current.getBoundingClientRect();
+                  setMoreMenuRect({
+                    left: r.left,
+                    top: r.bottom + 8,
+                    width: Math.max(220, r.width * 2),
+                  });
+                }
+              }}
+              aria-expanded={openMoreMenu}
+              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+            >
+              Mais ▾
+            </button>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            {selectedCategory && selectedCategory !== 'all'
+              ? `Categoria: ${selectedCategory}`
+              : 'Todas as categorias'}
+          </div>
+        </div>
+
+        {openMoreMenu && moreMenuRect && (
+          <div className="px-4 pt-3 pb-4 bg-white border-t">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <h4 className="text-xs font-bold text-gray-700 mb-2">Tipo</h4>
+                <div className="flex flex-col space-y-1">
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setOpenMoreMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    Todos os Tipos
+                  </button>
+                  {displayTypes.map((t: any) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        setSelectedCategory(t);
+                        setOpenMoreMenu(false);
+                      }}
+                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      {String(t)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-gray-700 mb-2">Gênero</h4>
+                <div className="flex flex-col space-y-1">
+                  <button
+                    onClick={() => {
+                      setSelectedGender('all');
+                      setOpenMoreMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    Todos os Gêneros
+                  </button>
+                  {(displayGenders && displayGenders.length
+                    ? displayGenders
+                    : genders
+                  ).map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => {
+                        setSelectedGender(g);
+                        setOpenMoreMenu(false);
+                      }}
+                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      {String(g)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t pt-3">
+              <button
+                onClick={() => {
+                  const next = !showOnlyBestsellers;
+                  setShowOnlyBestsellers && setShowOnlyBestsellers(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('bs', '1');
+                    else params.delete('bs');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                  setOpenMoreMenu(false);
+                }}
+                className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Star size={14} /> Best Sellers
+              </button>
+
+              <button
+                onClick={() => {
+                  const next = !showOnlyNew;
+                  setShowOnlyNew && setShowOnlyNew(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('new', '1');
+                    else params.delete('new');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                  setOpenMoreMenu(false);
+                }}
+                className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
+              >
+                <Zap size={14} /> Lançamentos
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-white border-b border-gray-100 py-3 sticky top-0 z-30 shadow-sm md:shadow-none">
@@ -267,6 +444,29 @@ export function CategoryBar() {
               className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
             >
               Gênero ▾
+            </button>
+
+            <button
+              ref={moreBtnRef}
+              data-menu-trigger="more"
+              onClick={() => {
+                const next = !openMoreMenu;
+                setOpenMoreMenu(next);
+                setOpenTypeMenu(false);
+                setOpenGenderMenu(false);
+                if (next && moreBtnRef.current) {
+                  const r = moreBtnRef.current.getBoundingClientRect();
+                  setMoreMenuRect({
+                    left: r.left,
+                    top: r.bottom + 8,
+                    width: Math.max(180, r.width * 2),
+                  });
+                }
+              }}
+              aria-expanded={openMoreMenu}
+              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+            >
+              Mais ▾
             </button>
 
             <button
@@ -431,12 +631,91 @@ export function CategoryBar() {
               </div>
             </div>
           )}
+
+          {openMoreMenu && moreMenuRect && (
+            <div
+              role="dialog"
+              aria-modal="false"
+              data-menu="more"
+              className="fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[40vh] overflow-auto"
+              style={{
+                left: moreMenuRect.left,
+                top: moreMenuRect.top,
+                width: Math.min(moreMenuRect.width, 320),
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div>
+                <div className="w-full flex items-center justify-between text-sm font-bold text-gray-700 mb-2">
+                  <span>Mais</span>
+                  <button
+                    onClick={() => setOpenMoreMenu(false)}
+                    className="text-xs text-gray-400"
+                    aria-label="Fechar Mais"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 pr-2">
+                  <button
+                    onClick={() => {
+                      const next = !showOnlyBestsellers;
+                      setShowOnlyBestsellers && setShowOnlyBestsellers(next);
+                      try {
+                        const params = new URLSearchParams(
+                          window.location.search
+                        );
+                        if (next) params.set('bs', '1');
+                        else params.delete('bs');
+                        const url = params.toString()
+                          ? `${window.location.pathname}?${params.toString()}`
+                          : window.location.pathname;
+                        router.replace(url);
+                      } catch (e) {
+                        // ignore
+                      }
+                      setOpenMoreMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Star size={14} /> Best Sellers
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const next = !showOnlyNew;
+                      setShowOnlyNew && setShowOnlyNew(next);
+                      try {
+                        const params = new URLSearchParams(
+                          window.location.search
+                        );
+                        if (next) params.set('new', '1');
+                        else params.delete('new');
+                        const url = params.toString()
+                          ? `${window.location.pathname}?${params.toString()}`
+                          : window.location.pathname;
+                        router.replace(url);
+                      } catch (e) {
+                        // ignore
+                      }
+                      setOpenMoreMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Zap size={14} /> Lançamentos
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <OutsideCloseEffect
             openType={openTypeMenu}
             openGender={openGenderMenu}
+            openMore={openMoreMenu}
             onCloseAll={() => {
               setOpenTypeMenu(false);
               setOpenGenderMenu(false);
+              setOpenMoreMenu(false);
             }}
           />
         </div>
@@ -721,7 +1000,7 @@ export function ProductGrid() {
     isLoadingSearch,
   } = useStore();
 
-  const { toggleSidebar } = useLayoutStore();
+  const toggleSidebar = useLayoutStore((s: any) => s.toggleSidebar);
 
   // Tipagem corrigida de 'any' para 'Product'
   const isOutOfStock = (product: Product) => {

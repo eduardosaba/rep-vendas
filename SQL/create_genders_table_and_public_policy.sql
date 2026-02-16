@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS public.genders (
 ALTER TABLE public.genders ENABLE ROW LEVEL SECURITY;
 
 -- Policy: permite leitura para todos (public). Ajuste conforme necessidade de segurança.
-CREATE POLICY IF NOT EXISTS "Allow select for public" ON public.genders
+-- Use DROP+CREATE to keep compatibility with older Postgres versions
+DROP POLICY IF EXISTS "Allow select for public" ON public.genders;
+CREATE POLICY "Allow select for public" ON public.genders
   FOR SELECT TO public USING (true);
 
 COMMIT;

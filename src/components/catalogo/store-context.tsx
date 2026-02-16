@@ -649,19 +649,49 @@ export function StoreProvider({
     let mounted = true;
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('genders')
-          .select('name, image_url')
-          .eq('user_id', store.user_id)
-          .order('name');
+        // Tentativa 1: tabela `genders` (antiga/nova)
+        let data: any[] | null = null;
+        let error: any = null;
+        try {
+          const res = await supabase
+            .from('genders')
+            .select('name, image_url')
+            .eq('user_id', store.user_id)
+            .order('name');
+          // @ts-ignore
+          data = res.data;
+          // @ts-ignore
+          error = res.error;
+        } catch (err) {
+          data = null;
+          error = err;
+        }
+
+        // Se não temos dados válidos, tentar `product_genders` (admin UI usa esse nome)
+        if ((!data || data.length === 0) && !error) {
+          try {
+            const res2 = await supabase
+              .from('product_genders')
+              .select('name, image_url')
+              .eq('user_id', store.user_id)
+              .order('name');
+            // @ts-ignore
+            data = res2.data;
+            // @ts-ignore
+            error = res2.error;
+          } catch (err2) {
+            // manter error/data como está
+          }
+        }
+
         if (!mounted) return;
+
         if (error || !data) {
           // fallback: build from derived `genders` list
-          setGendersWithData(
-            genders.map((g) => ({ name: g, image_url: null }))
-          );
+          setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
           return;
         }
+
         const normalizeUrl = (raw: any) => {
           if (!raw) return null;
           try {
@@ -677,12 +707,8 @@ export function StoreProvider({
             return null;
           }
         };
-        setGendersWithData(
-          (data || []).map((d: any) => ({
-            name: d.name,
-            image_url: normalizeUrl(d.image_url),
-          }))
-        );
+
+        setGendersWithData((data || []).map((d: any) => ({ name: d.name, image_url: normalizeUrl(d.image_url) })));
       } catch (e) {
         setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
       }
