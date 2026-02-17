@@ -7,6 +7,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const filePath = searchParams.get('path');
   const debug = searchParams.get('debug');
+  const envDebug = process.env.STORAGE_IMAGE_DEBUG === '1';
+  const debugEnabled = debug === '1' || envDebug;
   const bucketParam = searchParams.get('bucket');
 
   if (!filePath) {
@@ -116,12 +118,27 @@ export async function GET(request: Request) {
       candidateBuckets,
       candidatePaths,
       timeoutMs: DOWNLOAD_TIMEOUT,
+      debugEnabled,
     });
+
+    const attemptLog: Array<{
+      bucket: string;
+      path: string;
+      ok: boolean;
+      error?: string | null;
+    }> = [];
 
     for (const b of candidateBuckets) {
       for (const p of candidatePaths) {
         const { data, error } = await attemptDownload(b, p);
-        if (data && !error) {
+        const ok = Boolean(data && !error);
+        attemptLog.push({
+          bucket: b,
+          path: p,
+          ok,
+          error: error ? String((error as any)?.message || error) : null,
+        });
+        if (ok) {
           downloadData = data;
           dlError = null;
           effectiveBucket = b;
@@ -129,8 +146,8 @@ export async function GET(request: Request) {
           break;
         }
         dlError = error || dlError;
-        // log short info for each failed candidate when debug=1
-        if (debug === '1') {
+        // log short info for each failed candidate when debug enabled
+        if (debugEnabled) {
           console.warn('[storage-image] candidate failed', {
             bucket: b,
             path: p,
@@ -146,14 +163,17 @@ export async function GET(request: Request) {
         requested: filePath,
         lastTried: { bucket: effectiveBucket, path: effectivePath },
         error: dlError,
+        attempts: attemptLog.length,
       });
-      if (debug === '1') {
+      if (debugEnabled) {
         return NextResponse.json(
           {
             ok: false,
+            requested: filePath,
             bucket: effectiveBucket,
             path: effectivePath,
             error: String(dlError?.message || dlError),
+            attempts: attemptLog,
           },
           { status: 404 }
         );

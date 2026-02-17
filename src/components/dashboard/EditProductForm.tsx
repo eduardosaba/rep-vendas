@@ -4,7 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { updateProductAction } from '@/app/actions/product-actions';
+import {
+  updateProductAction,
+  syncProductGallery,
+} from '@/app/actions/product-actions';
 import { toast } from 'sonner';
 import { Product } from '@/lib/types';
 import {
@@ -420,6 +423,8 @@ export function EditProductForm({ product }: { product: Product }) {
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
     is_best_seller: product.is_best_seller || product.bestseller || false,
+    // status: active/inactive
+    is_active: (product as any).is_active ?? (product as any).active ?? true,
     images: ensureOptimizedFirst(
       dedupePreferOptimized(
         normalizeAndExplodeImageEntries(
@@ -637,8 +642,57 @@ export function EditProductForm({ product }: { product: Product }) {
     // Coloca o item normalizado no início
     newImages.unshift(normalizedSelected as any);
     updateField('images', newImages);
-    toast.success('Capa atualizada (Salve para confirmar)');
     setNeedsDetach(true);
+
+    // If product already exists on DB, persist cover change immediately
+    if (product && product.id) {
+      (async () => {
+        try {
+          // Prepare minimal payload to update product main image fields
+          const payload: any = {
+            images: newImages,
+            gallery_images: newImages,
+            image_url: normalizedSelected.url || null,
+            image_path: normalizedSelected.path || null,
+            sync_status: (newImages || []).some(
+              (img: any) => !(img && img.path)
+            )
+              ? 'pending'
+              : 'synced',
+            image_optimized: (newImages || []).every(
+              (img: any) => !!(img && img.path)
+            ),
+          };
+
+          // Update product row (server action)
+          try {
+            await updateProductAction(product.id, payload);
+          } catch (e) {
+            console.warn(
+              'Failed to update product image fields immediately',
+              e
+            );
+          }
+
+          // Sync product_images table order/primary flag
+          try {
+            await syncProductGallery(
+              product.id,
+              newImages.map((it: any) => (it && it.url ? it.url : it))
+            );
+          } catch (e) {
+            console.warn('Failed to sync product_images after cover change', e);
+          }
+
+          toast.success('Capa atualizada');
+        } catch (e) {
+          console.error('setAsCover immediate update failed', e);
+          toast.error('Falha ao atualizar capa');
+        }
+      })();
+    } else {
+      toast.success('Capa atualizada (Salve para confirmar)');
+    }
   };
 
   const generateDescription = () => {
@@ -884,6 +938,8 @@ export function EditProductForm({ product }: { product: Product }) {
             ? formData.images[0].path || (product as any).image_path
             : (product as any).image_path,
         class_core: formData.class_core || null,
+        // status
+        is_active: formData.is_active,
       };
 
       const result: any = await updateProductAction(product.id, payload);
@@ -894,6 +950,19 @@ export function EditProductForm({ product }: { product: Product }) {
         toast.error('Erro ao atualizar', { description: msg });
         setLoading(false);
         return;
+      }
+
+      // Sincroniza a tabela `product_images` com a ordem atual do formulário
+      try {
+        const syncRes: any = await syncProductGallery(
+          product.id,
+          mergedImages.map((it: any) => (it && it.url ? it.url : it))
+        );
+        if (!syncRes || !syncRes.success) {
+          console.warn('Falha ao sincronizar product_images:', syncRes?.error);
+        }
+      } catch (e) {
+        console.error('syncProductGallery call failed', e);
       }
 
       // Após persistir, se era compartilhado e o usuário personalizou,
@@ -1393,6 +1462,11 @@ export function EditProductForm({ product }: { product: Product }) {
               Visibilidade
             </h3>
             {[
+              {
+                key: 'is_active',
+                label: 'Ativo',
+                color: 'text-green-600',
+              },
               {
                 key: 'is_launch',
                 label: 'Lançamento',

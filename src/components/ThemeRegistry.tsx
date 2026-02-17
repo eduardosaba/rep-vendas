@@ -10,6 +10,7 @@ import {
   DEFAULT_PRIMARY_COLOR,
   DEFAULT_SECONDARY_COLOR,
 } from '@/lib/theme';
+import { setupNotifications } from '@/lib/setupNotifications';
 import { isNextRedirect } from '@/lib/isNextRedirect';
 
 export default function ThemeRegistry() {
@@ -18,24 +19,6 @@ export default function ThemeRegistry() {
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   useEffect(() => {
-    // Proteção global: filtrar logs client-side de NEXT_REDIRECT para reduzir ruído
-    const originalConsoleError = console.error;
-    const guardedConsoleError = (...args: any[]) => {
-      try {
-        const maybeErr = args && args.length > 0 ? args[0] : null;
-        if (isNextRedirect(maybeErr)) return;
-      } catch (e) {
-        // ignore
-      }
-      originalConsoleError.apply(console, args as any);
-    };
-
-    console.error = guardedConsoleError;
-
-    return () => {
-      console.error = originalConsoleError;
-    };
-
     // Aguarda o resolvedTheme do next-themes para evitar condições de corrida
     if (typeof resolvedTheme === 'undefined') {
       console.debug('[ThemeRegistry] aguardando resolvedTheme...');
@@ -139,9 +122,20 @@ export default function ThemeRegistry() {
         }
 
         // 1. Verifica se há usuário logado (Contexto Dashboard/Admin)
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        let user: any = null;
+        try {
+          const userPromise = supabase.auth.getUser();
+          const timeout = new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('supabase.getUser timeout')),
+              5000
+            )
+          );
+          const res: any = await Promise.race([userPromise, timeout]);
+          if (res && res.data && res.data.user) user = res.data.user;
+        } catch (e) {
+          console.debug('[ThemeRegistry] supabase.auth.getUser failed', e);
+        }
 
         if (user) {
           const { data: settings } = await supabase
@@ -186,6 +180,25 @@ export default function ThemeRegistry() {
                   e
                 );
               }
+            }
+
+            // Register service worker and configure push notifications for logged user
+            try {
+              if (typeof window !== 'undefined') {
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker
+                    .register('/firebase-messaging-sw.js')
+                    .then((reg) => console.debug('[SW] registered', reg.scope))
+                    .catch((err) => console.debug('[SW] register failed', err));
+                }
+                try {
+                  setupNotifications(user.id as string);
+                } catch (e) {
+                  console.debug('[ThemeRegistry] setupNotifications failed', e);
+                }
+              }
+            } catch (e) {
+              console.debug('[ThemeRegistry] notification setup error', e);
             }
 
             return;

@@ -15,6 +15,7 @@ import {
 import LoginOnboarding from '@/components/LoginOnboarding';
 import Logo from '@/components/Logo';
 import { login, loginWithGoogle } from './actions';
+import { setupNotifications } from '@/lib/setupNotifications';
 import { createClient } from '@/lib/supabase/client';
 
 type ViewState = 'login' | 'forgot_password';
@@ -85,6 +86,28 @@ export default function LoginPage() {
 
       if (result?.success) {
         toast.success('Entrando no sistema...');
+        // Tenta configurar notificações antes do redirecionamento (melhor esforço)
+        try {
+          if (typeof window !== 'undefined') {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker
+                .register('/firebase-messaging-sw.js')
+                .then((reg) => console.debug('[SW] registered', reg.scope))
+                .catch((err) => console.debug('[SW] SW register failed', err));
+            }
+            try {
+              const { data: { user } = {} } = await supabase.auth.getUser();
+              if (user && user.id) {
+                setupNotifications(user.id);
+              }
+            } catch (e) {
+              // ignore — not critical
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+
         window.location.href = result.redirectTo;
         return;
       }

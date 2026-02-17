@@ -79,6 +79,16 @@ export function StoreModals() {
   });
   const [savedCode, setSavedCode] = useState<string | null>(null);
 
+  const copyProductLink = () => {
+    try {
+      const url = window.location.href;
+      navigator.clipboard.writeText(url);
+      toast.success('Link do produto copiado!');
+    } catch (e) {
+      toast.error('Não foi possível copiar o link');
+    }
+  };
+
   useEffect(() => {
     if (customerSession) {
       setCustomerInfo({
@@ -184,6 +194,41 @@ export function StoreModals() {
     setCurrentImageIndex(0);
     setDetailQuantity(1);
   }, [modals.product]);
+
+  // Quando um pedido é finalizado (orderSuccessData), salvar automaticamente
+  // o pedido como código curto e abrir o modal de SaveCode.
+  useEffect(() => {
+    if (!orderSuccessData) {
+      setSavedCode(null);
+      return;
+    }
+
+    let mounted = true;
+    // Save the order in background but DO NOT open the Save modal (user shouldn't
+    // see the saved-code modal automatically after finalizing an order).
+    (async () => {
+      try {
+        console.log(
+          '[store-modals] orderSuccessData detected — saving order in background'
+        );
+        setSavedCode(null);
+        console.log('[store-modals] starting handleSaveOrder');
+        const code = await handleSaveOrder();
+        console.log('[store-modals] handleSaveOrder returned', code);
+        if (!mounted) return;
+        if (code) {
+          // store the code so user can access it if they open the Save modal manually
+          setSavedCode(code);
+        }
+      } catch (e) {
+        console.error('Erro ao salvar pedido automaticamente:', e);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [orderSuccessData]);
 
   // Atalhos de Teclado para o Modal de Zoom
   useEffect(() => {
@@ -460,19 +505,59 @@ export function StoreModals() {
                   <h2 className="text-3xl md:text-5xl font-black text-secondary leading-none tracking-tighter">
                     {modals.product.name}
                   </h2>
-                  <button
-                    onClick={() => toggleFavorite(modals.product!.id)}
-                    className="p-4 rounded-full bg-white shadow-sm hover:shadow-md transition-all"
-                  >
-                    <Heart
-                      size={24}
-                      className={
-                        favorites.includes(modals.product.id)
-                          ? 'fill-red-500 text-red-500'
-                          : 'text-gray-200'
-                      }
-                    />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={copyProductLink}
+                      title="Copiar link do produto"
+                      className="p-3 rounded-full bg-white shadow-sm hover:shadow-md transition-all text-gray-400 hover:text-primary"
+                    >
+                      {/* External link icon */}
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="text-current"
+                      >
+                        <path
+                          d="M14 3h7v7"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M10 14L21 3"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M21 21H3V3"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+
+                    <button
+                      onClick={() => toggleFavorite(modals.product!.id)}
+                      className="p-4 rounded-full bg-white shadow-sm hover:shadow-md transition-all"
+                    >
+                      <Heart
+                        size={24}
+                        className={
+                          favorites.includes(modals.product.id)
+                            ? 'fill-red-500 text-red-500'
+                            : 'text-gray-200'
+                        }
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-gray-500 text-base md:text-lg mb-8 leading-relaxed">
@@ -674,7 +759,7 @@ export function StoreModals() {
 
       {/* MODAIS DE APOIO (SAVE/LOAD/PASSWORD/SUCCESS) - Mantidos com sua lógica original */}
       <SaveCodeModal
-        isSaveModalOpen={!!modals.save && !!savedCode}
+        isSaveModalOpen={!!modals.save}
         setIsModalOpen={(v) => setModal('save', v)}
         savedCode={savedCode}
         copyToClipboard={() =>
@@ -748,6 +833,7 @@ export function StoreModals() {
               <Button
                 type="submit"
                 isLoading={loadingStates.submitting}
+                loadingText="Finalizando..."
                 className="w-full py-7 text-lg uppercase font-black"
               >
                 Confirmar e Enviar

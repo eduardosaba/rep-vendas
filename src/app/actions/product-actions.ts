@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
 import { createAuditLog } from '@/lib/audit-service';
 import { revalidatePath } from 'next/cache';
+import { prepareProductGallery } from '@/lib/utils/image-logic';
 
 export async function updateProductAction(productId: string, formData: any) {
   try {
@@ -83,6 +84,55 @@ export async function updateProductAction(productId: string, formData: any) {
     return { success: true };
   } catch (e: any) {
     console.error('updateProductAction error', e);
+    return { success: false, status: 500, error: e?.message || String(e) };
+  }
+}
+
+export async function syncProductGallery(
+  productId: string,
+  images: Array<string | { url?: string }>
+) {
+  try {
+    const supabase = await createClient();
+    const activeUserId = await getActiveUserId();
+    if (!activeUserId)
+      return { success: false, status: 401, error: 'Não autorizado' };
+
+    // Normalize images to array of URLs
+    const urls = (images || [])
+      .map((it: any) => (typeof it === 'string' ? it : it?.url || null))
+      .filter(Boolean);
+
+    // Prepare rows for product_images
+    const galleryItems = prepareProductGallery(productId, urls as string[]);
+
+    // Replace existing product_images for this product with the new set
+    const del = await supabase
+      .from('product_images')
+      .delete()
+      .eq('product_id', productId);
+    if (del.error) {
+      // continue even if delete fails, attempt insert
+      console.warn(
+        'syncProductGallery: failed to delete existing images',
+        del.error
+      );
+    }
+
+    if (galleryItems.length > 0) {
+      const ins = await supabase.from('product_images').insert(galleryItems);
+      if (ins.error) {
+        return {
+          success: false,
+          status: 500,
+          error: ins.error.message || String(ins.error),
+        };
+      }
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('syncProductGallery error', e);
     return { success: false, status: 500, error: e?.message || String(e) };
   }
 }

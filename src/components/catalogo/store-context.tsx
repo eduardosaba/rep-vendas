@@ -158,7 +158,8 @@ export function StoreProvider({
   const isCostMode =
     (store as any).show_cost_price === true &&
     (store as any).show_sale_price !== true;
-  const [showPrices, setShowPrices] = useState(!isCostMode);
+  // Por padrão: preços aparecem bloqueados (false). Usuário pode desbloquear via UI.
+  const [showPrices, setShowPrices] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -358,6 +359,56 @@ export function StoreProvider({
       ? initialProducts.find((p) => p.id === startProductId) || null
       : null,
   });
+
+  // Sincroniza o estado do modal de produto com a query string para deep-linking
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (modals.product) {
+        const val = (modals.product.slug || modals.product.id || '').toString();
+        if (val) {
+          params.set('productId', val);
+          params.set('p', val);
+        }
+      } else {
+        params.delete('productId');
+        params.delete('p');
+      }
+
+      const base = window.location.pathname;
+      const qs = params.toString();
+      const url = qs ? `${base}?${qs}` : base;
+      // atualizar sem scroll/recarregar
+      try {
+        router.replace(url, { scroll: false });
+      } catch {
+        // fallback sem options para compatibilidade
+        router.replace(url);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [modals.product, router]);
+
+  // Ao montar ou quando `initialProducts` ficar disponível, verificar se a URL
+  // contém um parâmetro `p` (deep-link) e abrir o modal do produto correspondente.
+  useEffect(() => {
+    try {
+      if (!initialProducts || initialProducts.length === 0) return;
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get('p') || params.get('productId');
+      if (!fromUrl) return;
+      // Se já temos modal aberto, não sobrescrever
+      if (modals.product) return;
+      const found = initialProducts.find(
+        (it: any) => it.slug === fromUrl || it.id === fromUrl
+      );
+      if (found) setModals((m) => ({ ...m, product: found }));
+    } catch (e) {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProducts]);
 
   // Se existir uma liberação de preços persistida no localStorage, aplicar na inicialização
   useEffect(() => {
@@ -688,7 +739,9 @@ export function StoreProvider({
 
         if (error || !data) {
           // fallback: build from derived `genders` list
-          setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
+          setGendersWithData(
+            genders.map((g) => ({ name: g, image_url: null }))
+          );
           return;
         }
 
@@ -708,7 +761,12 @@ export function StoreProvider({
           }
         };
 
-        setGendersWithData((data || []).map((d: any) => ({ name: d.name, image_url: normalizeUrl(d.image_url) })));
+        setGendersWithData(
+          (data || []).map((d: any) => ({
+            name: d.name,
+            image_url: normalizeUrl(d.image_url),
+          }))
+        );
       } catch (e) {
         setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
       }
@@ -1067,8 +1125,62 @@ export function StoreProvider({
       .maybeSingle();
     setLoadingStates((s) => ({ ...s, loadingCart: false }));
     if (data?.items) {
-      setCart(data.items as CartItem[]);
-      return true;
+      try {
+        const normalizeImage = (raw: any) => {
+          if (!raw) return null;
+          try {
+            const s = String(raw || '').trim();
+            if (!s) return null;
+            // If it's a Supabase storage public URL, convert to proxy path
+            if (s.includes('/storage/v1/object/public/')) {
+              const path = s.split('/storage/v1/object/public/')[1];
+              return `/api/storage-image?path=${encodeURIComponent(path)}`;
+            }
+            // If it's a full Supabase storage url
+            if (
+              s.includes('supabase.co/storage') ||
+              s.includes('/storage/v1/object')
+            ) {
+              return `/api/storage-image?path=${encodeURIComponent(s)}`;
+            }
+            // If it's already a proxy path (starts with /api/) or an absolute URL, keep as-is
+            if (s.startsWith('/api/') || /^https?:\/\//i.test(s)) return s;
+            // Else return as-is (relative path)
+            return s;
+          } catch (e) {
+            return null;
+          }
+        };
+
+        const normalized = (data.items || []).map((it: any, idx: number) => {
+          const id =
+            it.id ||
+            it.product_id ||
+            it.productId ||
+            it.reference_code ||
+            `loaded-${idx}`;
+          const imageFromPath = it.image_path || it.path || null;
+          const rawImage =
+            it.image_url ||
+            it.image ||
+            it.image_url_original ||
+            imageFromPath ||
+            null;
+          const resolvedImage = normalizeImage(rawImage);
+          // Produce a fresh object for each item to avoid shared references
+          return {
+            ...(it || {}),
+            id: String(id),
+            quantity: Number(it.quantity || 1),
+            image_url: resolvedImage,
+          } as CartItem;
+        });
+        setCart(normalized);
+        return true;
+      } catch (e) {
+        console.error('Erro ao normalizar itens carregados:', e);
+        return false;
+      }
     }
     return false;
   };
@@ -1079,13 +1191,41 @@ export function StoreProvider({
     try {
       const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const items = orderSuccessData.items || [];
-      const { error } = await supabase.from('saved_carts').insert({
+      const now = new Date();
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 dias
+
+      const payload = {
         short_id: shortId,
         items,
         meta: { order_id: orderSuccessData.id },
-      });
+        user_id_owner: store.user_id || null,
+        created_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+      } as any;
+
+      const res = await supabase
+        .from('saved_carts')
+        .insert(payload)
+        .select('short_id')
+        .maybeSingle();
+
+      // detailed logging for debugging
+      // @ts-ignore
+      console.log('[store] handleSaveOrder payload=', JSON.stringify(payload));
+      // @ts-ignore
+      console.log('[store] handleSaveOrder response=', res);
+      // @ts-ignore
+      const insertError = res?.error || null;
+      // @ts-ignore
+      const inserted = res?.data || null;
+      console.log(
+        '[store] handleSaveOrder inserted shortId=',
+        inserted?.short_id || shortId,
+        'error=',
+        insertError
+      );
       setLoadingStates((s) => ({ ...s, saving: false }));
-      return error ? null : shortId;
+      return insertError ? null : shortId;
     } catch (err) {
       console.error('Erro ao salvar pedido como código:', err);
       setLoadingStates((s) => ({ ...s, saving: false }));

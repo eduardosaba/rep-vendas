@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
+  loadingText?: string;
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   leftIcon?: React.ReactNode;
@@ -103,7 +104,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {isLoading ? (
           <span className="inline-flex items-center">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            <span className="opacity-90">Carregando...</span>
+            <span className="opacity-90">
+              {(props as any).loadingText || 'Carregando...'}
+            </span>
           </span>
         ) : (
           <span className="inline-flex items-center">

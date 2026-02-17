@@ -45,6 +45,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { generateCatalogPDF } from '@/utils/generateCatalogPDF';
 import { usePlanLimits } from '@/hooks/usePlanLimits';
+import { ExportModal } from '@/components/dashboard/ExportModal';
 
 // --- INTERFACES ---
 interface Product {
@@ -342,6 +343,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ progress: 0, message: '' });
+  const [storeSettings, setStoreSettings] = useState<any>(null);
 
   const [textConfig, setTextConfig] = useState<{
     field: 'brand' | 'category' | '';
@@ -393,6 +395,21 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     getUserId();
   }, [supabase]);
 
+  // Escuta evento global para abrir o modal de PDF (compatibilidade com triggers antigos)
+  useEffect(() => {
+    const handler = () => setShowPdfModal(true);
+    window.addEventListener(
+      'repvendas:openCatalogPdf',
+      handler as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        'repvendas:openCatalogPdf',
+        handler as EventListener
+      );
+    };
+  }, []);
+
   // Fetch user role for UI decisions (e.g. allow global delete)
   useEffect(() => {
     const getRole = async () => {
@@ -413,6 +430,27 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     };
     getRole();
   }, [supabase]);
+
+  // Fetch store settings for ExportModal defaults
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setStoreSettings(data || null);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchSettings();
+  }, [supabase, isAuthReady]);
 
   const persistRemoteRow = useCallback(
     async (r: SupabasePrefRow) => {
@@ -1249,7 +1287,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         coverTemplate: pdfOptions.coverTemplate,
         secondaryColor: secondaryColor,
         primaryColor: pdfOptions.primaryColor,
-        onProgress: (progress, message) => {
+        onProgress: (progress: number, message: string) => {
           setPdfProgress({ progress, message });
         },
       });
@@ -1566,7 +1604,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
               className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between text-left ${active ? 'border-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800'}`}
             >
               <span className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 flex items-center gap-2 mb-2">
-                <k.icon size={14} /> {k.label}
+                {(() => {
+                  const Icon: any = k.icon;
+                  return <Icon size={14} />;
+                })()}{' '}
+                {k.label}
               </span>
               <span className={`text-2xl font-bold ${k.color}`}>{k.val}</span>
             </button>
@@ -1636,7 +1678,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
 
             {/* BOTÃO PDF FIXO */}
             <Button
-              onClick={() => setShowPdfModal(true)}
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent('repvendas:openCatalogPdf')
+                )
+              }
               variant="secondary"
               size="sm"
               className={`flex items-center gap-2 px-3`}
@@ -1846,7 +1892,11 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
           {/* Botões de Ação com Scroll Horizontal */}
           <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 no-scrollbar">
             <button
-              onClick={() => setShowPdfModal(true)}
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent('repvendas:openCatalogPdf')
+                )
+              }
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
               <FileText size={18} className="text-orange-500" />{' '}
@@ -2653,321 +2703,24 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         </div>
       )}
 
-      {/* MODAL PDF (CORRIGIDO: FLEXBOX + FIXED COLORS) */}
-      {showPdfModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
-            {/* Header Fixo */}
-            <div className="p-6 border-b border-gray-100 dark:border-slate-800">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <FileText className="text-primary" /> Gerar Catálogo PDF
-              </h3>
-            </div>
-
-            {/* Corpo com Scroll */}
-            <div className="p-6 space-y-6 overflow-y-auto flex-1">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Título do Catálogo
-                </label>
-                <input
-                  type="text"
-                  value={pdfOptions.title}
-                  onChange={(e) =>
-                    setPdfOptions({ ...pdfOptions, title: e.target.value })
-                  }
-                  className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-primary outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Cor Primária do Catálogo
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={pdfOptions.primaryColor}
-                    onChange={(e) =>
-                      setPdfOptions({
-                        ...pdfOptions,
-                        primaryColor: e.target.value,
-                      })
-                    }
-                    className="w-12 h-8 p-0 border rounded"
-                    aria-label="Cor Primária"
-                  />
-                  <span className="text-sm text-gray-600 dark:text-slate-300">
-                    {pdfOptions.primaryColor}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Quantidade de opções de capa
-                </label>
-                <div className="flex items-center gap-2">
-                  {[1, 2, 3].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() =>
-                        setPdfOptions({
-                          ...pdfOptions,
-                          coverCount: n,
-                          selectedCoverIndex: 0,
-                        })
-                      }
-                      className={`px-3 py-1 rounded border ${pdfOptions.coverCount === n ? 'bg-[var(--primary)] text-white' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300'}`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Pré-visualizar capas
-                </label>
-                <div className="flex gap-3 items-start">
-                  {(() => {
-                    // candidates: use availableBrands logos as cover options
-                    const candidates = availableBrands
-                      .map((b) => b.logo_url)
-                      .filter(Boolean) as string[];
-                    // pad to coverCount with nulls
-                    while (candidates.length < pdfOptions.coverCount)
-                      candidates.push('');
-                    return (
-                      <div className="flex gap-2">
-                        {candidates
-                          .slice(0, pdfOptions.coverCount)
-                          .map((url, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() =>
-                                setPdfOptions({
-                                  ...pdfOptions,
-                                  selectedCoverIndex: idx,
-                                })
-                              }
-                              className={`w-20 h-12 rounded overflow-hidden border ${pdfOptions.selectedCoverIndex === idx ? 'ring-2 ring-[var(--primary)]' : 'border-gray-200 dark:border-slate-700'}`}
-                            >
-                              {url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={url}
-                                  alt={`capa-${idx}`}
-                                  className="object-cover w-full h-full"
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xs text-gray-500">
-                                  Sem imagem
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                      </div>
-                    );
-                  })()}
-
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-500 mb-1 block">
-                      Preview selecionado
-                    </label>
-                    <div className="w-full h-32 bg-gray-50 dark:bg-slate-900 rounded border border-gray-200 dark:border-slate-800 flex items-center justify-center overflow-hidden">
-                      {(() => {
-                        const candidates = availableBrands
-                          .map((b) => b.logo_url)
-                          .filter(Boolean) as string[];
-                        const url =
-                          candidates[pdfOptions.selectedCoverIndex] || '';
-                        return url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={url}
-                            alt="preview-capa"
-                            className="object-contain w-full h-full p-2"
-                          />
-                        ) : (
-                          <div className="text-sm text-gray-500 dark:text-slate-400">
-                            Nenhuma imagem disponível para pré-visualizar
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Modelo de Capa
-                </label>
-                <div className="flex items-center gap-2">
-                  {[1, 2, 3].map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() =>
-                        setPdfOptions({ ...pdfOptions, coverTemplate: t })
-                      }
-                      className={`px-3 py-1 rounded border ${pdfOptions.coverTemplate === t ? 'bg-[var(--primary)] text-white' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300'}`}
-                    >
-                      Modelo {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-800 rounded-lg">
-                  <label
-                    className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer flex-1"
-                    htmlFor="check-price"
-                  >
-                    Mostrar Preços
-                  </label>
-                  <input
-                    id="check-price"
-                    type="checkbox"
-                    checked={pdfOptions.showPrices}
-                    onChange={(e) =>
-                      setPdfOptions({
-                        ...pdfOptions,
-                        showPrices: e.target.checked,
-                      })
-                    }
-                    className="w-5 h-5 rounded text-primary focus:ring-primary cursor-pointer"
-                  />
-                </div>
-
-                {pdfOptions.showPrices && (
-                  <div className="p-3 border border-gray-100 dark:border-slate-800 rounded-lg bg-gray-50 dark:bg-slate-800/50">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Tipo de Preço
-                    </label>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          setPdfOptions({ ...pdfOptions, priceType: 'price' })
-                        }
-                        variant={
-                          pdfOptions.priceType === 'price'
-                            ? 'primary'
-                            : 'outline'
-                        }
-                        size="md"
-                        className="flex-1"
-                      >
-                        Preço Custo
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          setPdfOptions({
-                            ...pdfOptions,
-                            priceType: 'sale_price',
-                          })
-                        }
-                        variant={
-                          pdfOptions.priceType === 'sale_price'
-                            ? 'primary'
-                            : 'outline'
-                        }
-                        size="md"
-                        className="flex-1"
-                      >
-                        Preço Sugerido
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Tamanho das Imagens (Zoom)
-                </label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((z) => (
-                    <Button
-                      key={z}
-                      type="button"
-                      onClick={() =>
-                        setPdfOptions({ ...pdfOptions, imageZoom: z })
-                      }
-                      variant={
-                        pdfOptions.imageZoom === z ? 'primary' : 'outline'
-                      }
-                      size="sm"
-                      className="flex-1"
-                    >
-                      {z}x
-                    </Button>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                  {pdfOptions.imageZoom === 1 &&
-                    'Lista compacta (Muitos itens)'}
-                  {pdfOptions.imageZoom === 3 && 'Equilibrado (Recomendado)'}
-                  {pdfOptions.imageZoom === 5 && 'Imagens Grandes (Detalhes)'}
-                </p>
-              </div>
-            </div>
-
-            {/* Footer Fixo */}
-            <div className="p-6 pt-4 border-t border-gray-100 dark:border-slate-800 flex gap-3 bg-gray-50/50 dark:bg-slate-900/50 rounded-b-2xl">
-              <Button
-                onClick={() => setShowPdfModal(false)}
-                variant="outline"
-                size="md"
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleGeneratePdf}
-                disabled={isGeneratingPdf}
-                variant="primary"
-                size="md"
-                className="flex-1 justify-center"
-                leftIcon={
-                  isGeneratingPdf ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    <Download size={18} />
-                  )
-                }
-              >
-                Gerar PDF
-              </Button>
-            </div>
-
-            {/* Barra de Progresso */}
-            {isGeneratingPdf && (
-              <div className="px-6 pb-6 pt-0">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
-                    <span>{pdfProgress.message || 'Gerando PDF...'}</span>
-                    <span>{pdfProgress.progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
-                      style={{ width: pdfProgress.progress + '%' }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Use ExportModal component (replaces inline PDF modal) */}
+      <ExportModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        products={
+          selectedIds.length > 0
+            ? products.filter((p) => selectedIds.includes(p.id))
+            : processedProducts
+        }
+        storeSettings={storeSettings}
+        brandMapping={availableBrands.reduce(
+          (acc, b) => {
+            acc[b.name] = b.logo_url;
+            return acc;
+          },
+          {} as Record<string, string | null>
+        )}
+      />
 
       {/* MODAL TEXTO (MARCA/CAT) */}
       {showTextModal && (

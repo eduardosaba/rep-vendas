@@ -249,7 +249,7 @@ export function CategoryBar() {
           <div className="text-sm text-gray-600">
             {selectedCategory && selectedCategory !== 'all'
               ? `Categoria: ${selectedCategory}`
-              : 'Todas as categorias'}
+              : 'Filtros'}
           </div>
         </div>
 
@@ -1038,7 +1038,7 @@ export function ProductGrid() {
             variant="outline"
             size="sm"
             onClick={toggleSidebar}
-            className="lg:hidden ml-4"
+            className="hidden ml-4"
             leftIcon={<SlidersHorizontal size={16} />}
           >
             <span className="max-[380px]:hidden">Filtros</span>

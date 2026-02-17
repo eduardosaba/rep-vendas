@@ -37,6 +37,7 @@ export default function CategoriesAndGendersPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Formulário e Modal
   const [editingItem, setEditingItem] = useState<MetadataItem | null>(null);
@@ -139,6 +140,34 @@ export default function CategoriesAndGendersPage() {
       toast.error('Erro ao salvar');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    const toastId = toast.loading('Excluindo...');
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Login necessário');
+
+      const table = activeTab === 'category' ? 'categories' : 'product_genders';
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .eq('id', deleteId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      toast.success('Excluído!', { id: toastId });
+      setDeleteId(null);
+      fetchItems();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao excluir', { id: toastId });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -287,6 +316,13 @@ export default function CategoriesAndGendersPage() {
                     >
                       <Edit2 size={14} />
                     </button>
+                    <button
+                      onClick={() => setDeleteId(item.id)}
+                      className="p-2 bg-white dark:bg-slate-800 shadow-md rounded-lg text-red-600 hover:text-red-700"
+                      title="Excluir"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
 
                   <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 overflow-hidden border border-slate-100 dark:border-slate-700">
@@ -311,6 +347,38 @@ export default function CategoriesAndGendersPage() {
           )}
         </div>
       </div>
+
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in-95 border border-red-100 dark:border-red-900/30">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Excluir {activeTab === 'category' ? 'Categoria' : 'Gênero'}?
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+              Esta ação é permanente e removerá também referências nos produtos.
+              Deseja continuar?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setDeleteId(null)}
+                className="py-3 rounded-lg border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700"
+              >
+                {deleting ? 'Excluindo...' : 'Sim, Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

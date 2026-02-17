@@ -1,9 +1,11 @@
+'use client';
 // src/components/catalogo/modals/SaveLoadModals.tsx
 
-'use client';
-
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useStore } from '../store-context';
 import { Save, Download, Copy, Loader2, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 // --- Tipos de Props Comuns ---
 interface BaseModalProps {
@@ -24,6 +26,12 @@ export function SaveCodeModal({
   savedCode,
   copyToClipboard,
 }: SaveCodeModalProps) {
+  const { store } = useStore();
+
+  const primaryStyle = store?.primary_color
+    ? { backgroundColor: store.primary_color }
+    : undefined;
+
   // Body scroll-lock
   useEffect(() => {
     if (isSaveModalOpen) {
@@ -36,14 +44,12 @@ export function SaveCodeModal({
     };
   }, [isSaveModalOpen]);
 
-  if (!isSaveModalOpen || !savedCode) return null;
+  if (!isSaveModalOpen) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={() => setIsModalOpen(false)}
-      />
+  return createPortal(
+    <div className="fixed inset-0 z-[400] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       {/* Full Screen on mobile, centered on desktop */}
       <div className="relative bg-white w-full h-screen md:h-auto md:max-w-sm md:rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 flex flex-col">
         <button
@@ -63,15 +69,31 @@ export function SaveCodeModal({
             Orçamento Salvo!
           </h3>
           <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-xl mb-6 border border-gray-200">
-            <code className="flex-1 text-2xl font-mono font-bold text-gray-800 tracking-wider text-center">
-              {savedCode}
-            </code>
-            <button
-              onClick={copyToClipboard}
-              className="p-2 text-gray-500 rv-text-primary-hover"
-            >
-              <Copy size={20} />
-            </button>
+            {savedCode ? (
+              <>
+                <code className="flex-1 text-2xl font-mono font-bold text-gray-800 tracking-wider text-center">
+                  {savedCode}
+                </code>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(savedCode);
+                      toast.success('Código copiado');
+                    } catch (e) {
+                      console.error('Erro ao copiar código', e);
+                      toast.error('Erro ao copiar');
+                    }
+                  }}
+                  className="p-2 text-gray-500 rv-text-primary-hover"
+                >
+                  <Copy size={20} />
+                </button>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center gap-3 text-gray-500">
+                <span>Gerando código...</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -79,13 +101,16 @@ export function SaveCodeModal({
         <div className="sticky bottom-0 p-6 bg-white border-t pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <button
             onClick={() => setIsModalOpen(false)}
-            className="w-full py-3 min-h-[44px] bg-gray-900 text-white rounded-xl font-bold"
+            style={primaryStyle}
+            className="w-full py-3 min-h-[44px] text-white rounded-xl font-bold"
+            disabled={!savedCode}
           >
             Entendi
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -106,6 +131,12 @@ export function LoadCodeModal({
   handleLoadCart,
   isLoadingCart,
 }: LoadCodeModalProps) {
+  const { store } = useStore();
+
+  const primaryStyle = store?.primary_color
+    ? { backgroundColor: store.primary_color }
+    : undefined;
+
   // Body scroll-lock
   useEffect(() => {
     if (isLoadModalOpen) {
@@ -120,8 +151,10 @@ export function LoadCodeModal({
 
   if (!isLoadModalOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[400] flex items-center justify-center px-4">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={() => setIsModalOpen(false)}
@@ -163,7 +196,8 @@ export function LoadCodeModal({
             type="submit"
             form="load-cart-form"
             disabled={isLoadingCart}
-            className="w-full py-3 min-h-[44px] rounded-xl bg-primary text-white font-bold flex justify-center items-center gap-2"
+            style={primaryStyle}
+            className="w-full py-3 min-h-[44px] rounded-xl text-white font-bold flex justify-center items-center gap-2"
           >
             {isLoadingCart ? (
               <Loader2 className="animate-spin" />
@@ -175,6 +209,7 @@ export function LoadCodeModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

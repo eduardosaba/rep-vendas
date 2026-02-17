@@ -164,7 +164,11 @@ export default function ImportVisualPage() {
         const { data: urlData } = supabase.storage
           .from('product-images')
           .getPublicUrl(img.storage_path);
-        return { ...img, publicUrl: urlData.publicUrl };
+        const ts = img.created_at
+          ? new Date(img.created_at).getTime()
+          : Date.now();
+        const publicUrl = `${urlData.publicUrl}?t=${ts}`;
+        return { ...img, publicUrl };
       });
 
       setStagingImages(imagesWithUrls);
@@ -482,13 +486,17 @@ export default function ImportVisualPage() {
       await Promise.all(
         files.map(async (file) => {
           const processed = (await compressIfNeeded(file)) as File;
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+          // Force webp filename to ensure consistent public URL and optimization
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.webp`;
           const filePath = `public/${user.id}/staging/${fileName}`; // Isolamento por usuário (prefixo public)
 
-          // Upload Storage
+          // Upload Storage (ensure upsert and cacheControl)
           const { error: uploadError } = await supabase.storage
             .from('product-images')
-            .upload(filePath, processed);
+            .upload(filePath, processed, {
+              cacheControl: '3600',
+              upsert: true,
+            });
 
           if (uploadError) {
             addLog(
@@ -498,13 +506,20 @@ export default function ImportVisualPage() {
             throw uploadError;
           }
 
-          // Insert DB
+          // Get public URL after upload and include timestamp to avoid stale cache
+          const { data: urlData } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(filePath);
+          const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+          // Insert DB with url recorded so clients read canonical link
           const { error: dbError } = await supabase
             .from('staging_images')
             .insert({
               user_id: user.id,
               storage_path: filePath,
               original_name: file.name,
+              url: urlData.publicUrl,
             });
 
           if (!dbError) {

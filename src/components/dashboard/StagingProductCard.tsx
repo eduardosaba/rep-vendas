@@ -29,7 +29,8 @@ export function StagingProductCard({
   const [formData, setFormData] = useState({
     name: originalName.split('.').slice(0, -1).join('.'), // Remove extensão .jpg para sugestão
     price: '',
-    reference: '',
+    // Extrai a referência do nome do arquivo (ex: "RB3025.jpg" vira "RB3025")
+    reference: originalName.split('.').slice(0, -1).join('.').toUpperCase(),
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,26 +70,25 @@ export function StagingProductCard({
         <X size={16} />
       </button>
 
-      {/* Imagem (Preview) */}
-      <div className="h-40 md:h-48 w-full bg-gray-100 relative overflow-hidden">
-        <div className="relative w-full h-full">
-          {imageUrl ? (
-            <Image
-              src={imageUrl}
-              alt="Preview"
-              fill
-              sizes="(max-width: 768px) 100vw, 200px"
-              style={{ objectFit: 'cover', maxWidth: '100%' }}
-              className="transition-transform group-hover:scale-105"
-              loading="lazy"
-              quality={80}
-            />
-          ) : (
-            <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
-              Imagem indisponível
-            </div>
-          )}
-        </div>
+      {/* Imagem (Preview) - Ajustada para carregar sempre */}
+      <div className="h-40 md:h-48 w-full bg-slate-50 relative overflow-hidden flex items-center justify-center">
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt="Preview"
+            fill
+            unoptimized // evita processamento do Next.js para imagens recém-enviadas
+            sizes="(max-width: 768px) 100vw, 250px"
+            className="transition-transform group-hover:scale-105 p-2"
+            style={{ objectFit: 'contain' }} // mostra a imagem inteira
+            loading="eager"
+            priority
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
+            Imagem indisponível
+          </div>
+        )}
       </div>
 
       {/* Formulário */}
