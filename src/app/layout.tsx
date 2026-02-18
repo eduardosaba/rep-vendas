@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     description: 'Sistema de Catálogo e Pedidos',
   },
   icons: {
-    icon: '/favicon.ico',
+    icon: '/favicon.svg',
     shortcut: '/icon-192.png',
     apple: '/apple.webp',
   },
