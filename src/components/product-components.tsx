@@ -446,28 +446,30 @@ export function CategoryBar() {
               Gênero ▾
             </button>
 
-            <button
-              ref={moreBtnRef}
-              data-menu-trigger="more"
-              onClick={() => {
-                const next = !openMoreMenu;
-                setOpenMoreMenu(next);
-                setOpenTypeMenu(false);
-                setOpenGenderMenu(false);
-                if (next && moreBtnRef.current) {
-                  const r = moreBtnRef.current.getBoundingClientRect();
-                  setMoreMenuRect({
-                    left: r.left,
-                    top: r.bottom + 8,
-                    width: Math.max(180, r.width * 2),
-                  });
-                }
-              }}
-              aria-expanded={openMoreMenu}
-              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
-            >
-              Mais ▾
-            </button>
+            {isMobile && (
+              <button
+                ref={moreBtnRef}
+                data-menu-trigger="more"
+                onClick={() => {
+                  const next = !openMoreMenu;
+                  setOpenMoreMenu(next);
+                  setOpenTypeMenu(false);
+                  setOpenGenderMenu(false);
+                  if (next && moreBtnRef.current) {
+                    const r = moreBtnRef.current.getBoundingClientRect();
+                    setMoreMenuRect({
+                      left: r.left,
+                      top: r.bottom + 8,
+                      width: Math.max(180, r.width * 2),
+                    });
+                  }
+                }}
+                aria-expanded={openMoreMenu}
+                className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+              >
+                Mais ▾
+              </button>
+            )}
 
             <button
               onClick={() => {
