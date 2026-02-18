@@ -452,9 +452,9 @@ export function Sidebar({
                       (branding as any)?.is_template_account ||
                       (branding as any)?.template_user
                     );
-                    // hide sync settings page for non-master users
+                    // hide 'Saúde dos Dados' and sync settings page for non-master users
                     if (
-                      child.href === '/dashboard/settings/sync' &&
+                      (child.title === 'Saúde dos Dados' || child.href === '/dashboard/settings/sync') &&
                       !isMaster
                     ) {
                       return null;

@@ -115,16 +115,36 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
   try {
     const { data: settings } = await supabase
       .from('settings')
-      .select('phone, email, price_password_hash')
+      .select(
+        'phone, email, price_password_hash, primary_color, secondary_color, header_background_color, footer_background_color, footer_message, show_sale_price, show_cost_price, font_family, font_url'
+      )
       .eq('user_id', userId)
       .maybeSingle();
     if (settings) {
-      if (!mergedData.phone && settings.phone)
-        mergedData.phone = settings.phone;
-      if (!mergedData.email && settings.email)
-        mergedData.email = settings.email;
+      if (!mergedData.phone && settings.phone) mergedData.phone = settings.phone;
+      if (!mergedData.email && settings.email) mergedData.email = settings.email;
       if (!mergedData.price_password_hash && settings.price_password_hash)
         mergedData.price_password_hash = settings.price_password_hash;
+
+      // Merge visual settings so we don't create public catalogs with defaults
+      if (!mergedData.primary_color && settings.primary_color)
+        mergedData.primary_color = settings.primary_color;
+      if (!mergedData.secondary_color && settings.secondary_color)
+        mergedData.secondary_color = settings.secondary_color;
+      if (!mergedData.header_background_color && settings.header_background_color)
+        mergedData.header_background_color = settings.header_background_color;
+      if (!mergedData.footer_background_color && settings.footer_background_color)
+        mergedData.footer_background_color = settings.footer_background_color;
+      if (!mergedData.footer_message && settings.footer_message)
+        mergedData.footer_message = settings.footer_message;
+      if (mergedData.show_sale_price == null && settings.show_sale_price != null)
+        mergedData.show_sale_price = settings.show_sale_price;
+      if (mergedData.show_cost_price == null && settings.show_cost_price != null)
+        mergedData.show_cost_price = settings.show_cost_price;
+      if (!mergedData.font_family && settings.font_family)
+        mergedData.font_family = settings.font_family;
+      if (!mergedData.font_url && settings.font_url)
+        mergedData.font_url = settings.font_url;
     }
   } catch (e) {
     // ignore - best effort
@@ -192,85 +212,90 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     const { normalizePhone } = await import('./phone');
     const finalPhone = normalizePhone(mergedData.phone ?? null);
 
+    // Build update payload conservatively: only update fields explicitly
+    // provided in the incoming `data` object to avoid overwriting
+    // existing public_catalogs values with defaults when callers send
+    // partial payloads (this previously caused colors/passwords to be lost).
     const updatePayload: Record<string, any> = {
-      catalog_slug: slug,
-      store_name: mergedData.store_name || data.store_name,
-      logo_url: mergedData.logo_url ?? data.logo_url ?? null,
-      phone: finalPhone,
-      email: mergedData.email ?? null,
-      primary_color:
-        mergedData.primary_color || data.primary_color || '#2563eb',
-      header_background_color:
-        mergedData.header_background_color ||
-        data.header_background_color ||
-        '#ffffff',
-      secondary_color:
-        mergedData.secondary_color || data.secondary_color || '#3b82f6',
-      footer_message: mergedData.footer_message ?? data.footer_message ?? null,
-      footer_background_color:
-        mergedData.footer_background_color ??
-        data.footer_background_color ??
-        null,
-      enable_stock_management:
-        mergedData.enable_stock_management ??
-        data.enable_stock_management ??
-        false,
-      show_installments:
-        mergedData.show_installments ?? data.show_installments ?? false,
-      max_installments: Number(
-        mergedData.max_installments ?? data.max_installments ?? 1
-      ),
-      show_cash_discount:
-        mergedData.show_cash_discount ?? data.show_cash_discount ?? false,
-      cash_price_discount_percent: Number(
-        mergedData.cash_price_discount_percent ??
-          data.cash_price_discount_percent ??
-          0
-      ),
-      top_benefit_image_url:
-        mergedData.top_benefit_image_url ?? data.top_benefit_image_url ?? null,
-      top_benefit_image_fit:
-        mergedData.top_benefit_image_fit ??
-        data.top_benefit_image_fit ??
-        'cover',
-      top_benefit_image_scale:
-        mergedData.top_benefit_image_scale ??
-        data.top_benefit_image_scale ??
-        100,
-      top_benefit_height:
-        mergedData.top_benefit_height ?? data.top_benefit_height ?? 36,
-      top_benefit_text_size:
-        mergedData.top_benefit_text_size ?? data.top_benefit_text_size ?? 11,
-      top_benefit_bg_color:
-        mergedData.top_benefit_bg_color ??
-        data.top_benefit_bg_color ??
-        '#f3f4f6',
-      top_benefit_text_color:
-        mergedData.top_benefit_text_color ??
-        data.top_benefit_text_color ??
-        '#b9722e',
-      top_benefit_text:
-        mergedData.top_benefit_text ?? data.top_benefit_text ?? null,
-      show_top_benefit_bar:
-        mergedData.show_top_benefit_bar ?? data.show_top_benefit_bar ?? false,
-      show_top_info_bar:
-        mergedData.show_top_info_bar ?? data.show_top_info_bar ?? false,
-      font_family: finalFont,
-      font_url: mergedData.font_url ?? data.font_url ?? null,
-      og_image_url: mergedData.og_image_url ?? data.og_image_url ?? null,
-      // We'll sanitize banners/mobile values below and write to the
-      // appropriate column(s) depending on the DB schema (plural vs singular)
-      // placeholders for now; actual assignment happens after we detect columns
-      banners: null,
-      banners_mobile: null,
-      is_active: isActive,
-      show_sale_price:
-        mergedData.show_sale_price ?? data.show_sale_price ?? showSale,
-      show_cost_price:
-        mergedData.show_cost_price ?? data.show_cost_price ?? showCost,
-      price_password_hash: mergedData.price_password_hash ?? null,
       updated_at: new Date().toISOString(),
     };
+
+    const setIfPresent = (key: string, value: any) => {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        updatePayload[key] = value;
+      }
+    };
+
+    // Basic fields (use mergedData for values but gate writes on presence)
+    setIfPresent('store_name', mergedData.store_name ?? data.store_name ?? null);
+    setIfPresent('logo_url', mergedData.logo_url ?? data.logo_url ?? null);
+    setIfPresent('phone', finalPhone ?? null);
+    setIfPresent('email', mergedData.email ?? null);
+
+    // Colors and appearance: only write if caller provided them
+    if (Object.prototype.hasOwnProperty.call(data, 'primary_color'))
+      updatePayload.primary_color = mergedData.primary_color ?? data.primary_color;
+    if (Object.prototype.hasOwnProperty.call(data, 'secondary_color'))
+      updatePayload.secondary_color = mergedData.secondary_color ?? data.secondary_color;
+    if (Object.prototype.hasOwnProperty.call(data, 'header_background_color'))
+      updatePayload.header_background_color =
+        mergedData.header_background_color ?? data.header_background_color;
+    if (Object.prototype.hasOwnProperty.call(data, 'footer_background_color'))
+      updatePayload.footer_background_color =
+        mergedData.footer_background_color ?? data.footer_background_color;
+    if (Object.prototype.hasOwnProperty.call(data, 'footer_message'))
+      updatePayload.footer_message = mergedData.footer_message ?? data.footer_message;
+
+    // Feature flags and numeric fields
+    if (Object.prototype.hasOwnProperty.call(data, 'enable_stock_management'))
+      updatePayload.enable_stock_management =
+        mergedData.enable_stock_management ?? data.enable_stock_management;
+    if (Object.prototype.hasOwnProperty.call(data, 'show_installments'))
+      updatePayload.show_installments = mergedData.show_installments ?? data.show_installments;
+    if (Object.prototype.hasOwnProperty.call(data, 'max_installments'))
+      updatePayload.max_installments = Number(mergedData.max_installments ?? data.max_installments ?? 1);
+    if (Object.prototype.hasOwnProperty.call(data, 'show_cash_discount'))
+      updatePayload.show_cash_discount = mergedData.show_cash_discount ?? data.show_cash_discount;
+    if (Object.prototype.hasOwnProperty.call(data, 'cash_price_discount_percent'))
+      updatePayload.cash_price_discount_percent = Number(mergedData.cash_price_discount_percent ?? data.cash_price_discount_percent ?? 0);
+
+    // Top benefit visuals
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_image_url'))
+      updatePayload.top_benefit_image_url = mergedData.top_benefit_image_url ?? data.top_benefit_image_url ?? null;
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_image_fit'))
+      updatePayload.top_benefit_image_fit = mergedData.top_benefit_image_fit ?? data.top_benefit_image_fit ?? 'cover';
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_image_scale'))
+      updatePayload.top_benefit_image_scale = mergedData.top_benefit_image_scale ?? data.top_benefit_image_scale ?? 100;
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_height'))
+      updatePayload.top_benefit_height = mergedData.top_benefit_height ?? data.top_benefit_height ?? 36;
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_text_size'))
+      updatePayload.top_benefit_text_size = mergedData.top_benefit_text_size ?? data.top_benefit_text_size ?? 11;
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_bg_color'))
+      updatePayload.top_benefit_bg_color = mergedData.top_benefit_bg_color ?? data.top_benefit_bg_color ?? '#f3f4f6';
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_text_color'))
+      updatePayload.top_benefit_text_color = mergedData.top_benefit_text_color ?? data.top_benefit_text_color ?? '#b9722e';
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_text'))
+      updatePayload.top_benefit_text = mergedData.top_benefit_text ?? data.top_benefit_text ?? null;
+    if (Object.prototype.hasOwnProperty.call(data, 'show_top_benefit_bar'))
+      updatePayload.show_top_benefit_bar = mergedData.show_top_benefit_bar ?? data.show_top_benefit_bar ?? false;
+    if (Object.prototype.hasOwnProperty.call(data, 'show_top_info_bar'))
+      updatePayload.show_top_info_bar = mergedData.show_top_info_bar ?? data.show_top_info_bar ?? false;
+
+    // Fonts / OG / misc
+    if (Object.prototype.hasOwnProperty.call(data, 'font_family')) updatePayload.font_family = finalFont;
+    if (Object.prototype.hasOwnProperty.call(data, 'font_url')) updatePayload.font_url = mergedData.font_url ?? data.font_url ?? null;
+    if (Object.prototype.hasOwnProperty.call(data, 'og_image_url')) updatePayload.og_image_url = mergedData.og_image_url ?? data.og_image_url ?? null;
+
+    // Banners will be handled below (we may still want to update even if caller didn't send them)
+    updatePayload.banners = null;
+    updatePayload.banners_mobile = null;
+
+    // is_active explicitly controlled by caller
+    if (Object.prototype.hasOwnProperty.call(data, 'is_active')) updatePayload.is_active = isActive;
+
+    // Price password: only update if explicitly provided in payload
+    if (Object.prototype.hasOwnProperty.call(data, 'price_password_hash'))
+      updatePayload.price_password_hash = mergedData.price_password_hash ?? null;
 
     // Reconstruir lista de marcas com produtos do usuário (best-effort)
     try {

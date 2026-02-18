@@ -19,6 +19,7 @@ import {
   Loader2,
   Box,
   UserPlus,
+  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -60,6 +61,7 @@ export function NewOrderClient({
   const [activeTab, setActiveTab] = useState<'catalog' | 'manual'>('catalog');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   // Cliente
   const [customer, setCustomer] = useState({
@@ -72,6 +74,7 @@ export function NewOrderClient({
   // Filtros Catálogo
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedBrand, setSelectedBrand] = useState('all');
 
   // Item Manual (Simples)
   const [manualItem, setManualItem] = useState({
@@ -82,11 +85,35 @@ export function NewOrderClient({
   });
 
   // --- LÓGICA DO CATÁLOGO ---
+  // Helper para mapear URLs de storage Supabase para o proxy local
+  const getSafeUrl = (url: string | null | undefined) => {
+    if (!url) return null;
+    try {
+      if (url.includes('/storage/v1/object/public/') || url.includes('supabase.co/storage')) {
+        const parts = url.split('/storage/v1/object/public/');
+        const path = parts.length > 1 ? parts[1] : parts[0];
+        return `/api/storage-image?path=${encodeURIComponent(path)}`;
+      }
+    } catch (e) {
+      // fallback to raw url
+    }
+    return url;
+  };
   const categories = useMemo(
     () =>
       Array.from(
         new Set(
           initialProducts.map((p) => p.category).filter(Boolean) as string[]
+        )
+      ).sort(),
+    [initialProducts]
+  );
+
+  const brands = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts.map((p) => p.brand).filter(Boolean) as string[]
         )
       ).sort(),
     [initialProducts]
@@ -99,9 +126,10 @@ export function NewOrderClient({
         p.reference_code?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory =
         selectedCategory === 'all' || p.category === selectedCategory;
+      const matchesBrand = selectedBrand === 'all' || p.brand === selectedBrand;
       return matchesSearch && matchesCategory;
     });
-  }, [initialProducts, searchTerm, selectedCategory]);
+  }, [initialProducts, searchTerm, selectedCategory, selectedBrand]);
 
   // --- AÇÕES DO CARRINHO ---
 
@@ -255,7 +283,7 @@ export function NewOrderClient({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-1rem)] overflow-hidden bg-gray-50 -m-4 lg:-m-8 rounded-xl border border-gray-200 shadow-sm">
+    <div className="flex flex-col lg:flex-row flex-1 overflow-hidden bg-gray-50 rounded-xl border border-gray-200 shadow-sm">
       {/* --- COLUNA ESQUERDA: PRODUTOS E CLIENTE --- */}
       <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200 bg-white">
         {/* Header Esquerdo */}
@@ -400,6 +428,18 @@ export function NewOrderClient({
                     </option>
                   ))}
                 </select>
+                <select
+                  className="p-3 rounded-xl border border-gray-200 bg-white outline-none cursor-pointer shadow-sm max-w-[150px]"
+                  value={selectedBrand}
+                  onChange={(e) => setSelectedBrand(e.target.value)}
+                >
+                  <option value="all">Todas Marcas</option>
+                  {brands.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Grid */}
@@ -415,7 +455,7 @@ export function NewOrderClient({
                       {product.image_url ? (
                         <div className="relative w-full h-full">
                           <Image
-                            src={product.image_url}
+                            src={getSafeUrl(product.image_url) || product.image_url || ''}
                             alt={product.name}
                             fill
                             sizes="(max-width: 640px) 100vw, 33vw"
@@ -423,6 +463,7 @@ export function NewOrderClient({
                             className="group-hover:scale-105 transition-transform"
                             loading="lazy"
                             quality={75}
+                            unoptimized
                           />
                         </div>
                       ) : (
@@ -473,7 +514,7 @@ export function NewOrderClient({
                   <input
                     type="text"
                     className="w-full p-2 border rounded-lg"
-                    placeholder="Ex: Serviço de Instalação"
+                    placeholder="Ex: óculos de sol modelo X"
                     value={manualItem.description}
                     onChange={(e) =>
                       setManualItem({
@@ -544,8 +585,8 @@ export function NewOrderClient({
         </div>
       </div>
 
-      {/* --- COLUNA DIREITA: RESUMO DO PEDIDO (CARRINHO) --- */}
-      <div className="w-full lg:w-[400px] bg-white border-l border-gray-200 flex flex-col shadow-xl z-20 h-[40vh] lg:h-auto relative">
+      {/* --- COLUNA DIREITA: RESUMO DO PEDIDO (DESKTOP) --- */}
+      <div className="hidden lg:flex w-[400px] bg-white border-l border-gray-200 flex-col shadow-xl z-20 lg:h-auto relative lg:pb-0">
         <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
           <h2 className="font-bold text-lg flex items-center gap-2">
             <ShoppingCart size={20} className="text-primary" /> Carrinho
@@ -569,15 +610,15 @@ export function NewOrderClient({
                 className="flex gap-3 p-3 border rounded-xl bg-white shadow-sm group hover:border-primary/30 transition-colors"
               >
                 <div className="h-14 w-14 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden">
-                  {}
                   {item.image_url ? (
                     <div className="relative h-full w-full">
                       <Image
-                        src={item.image_url}
+                        src={getSafeUrl(item.image_url) || item.image_url || ''}
                         alt={item.name || ''}
                         width={56}
                         height={56}
                         className="object-cover"
+                        unoptimized
                       />
                     </div>
                   ) : (
@@ -639,8 +680,8 @@ export function NewOrderClient({
           )}
         </div>
 
-        {/* Footer do Carrinho */}
-        <div className="p-5 border-t border-gray-200 bg-gray-50">
+        {/* Footer do Carrinho (desktop) */}
+        <div className="p-5 border-t border-gray-200 bg-gray-50 lg:static rounded-none">
           <div className="flex justify-between items-end mb-4">
             <span className="text-gray-500 font-medium">Total Geral</span>
             <span className="text-2xl font-bold text-gray-900">
@@ -664,6 +705,164 @@ export function NewOrderClient({
           </button>
         </div>
       </div>
+
+      {/* --- MOBILE: Barra fixa + painel offcanvas --- */}
+      {/* Barra fixa móvel (sempre visível) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 p-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileCartOpen((s) => !s)}
+              className="flex items-center gap-3 bg-gray-50 px-3 py-2 rounded-lg border"
+              aria-label="Abrir carrinho"
+            >
+              <ShoppingCart size={18} />
+              <span className="text-sm font-bold">
+                {cart.reduce((a, b) => a + b.quantity, 0)}
+              </span>
+            </button>
+
+            <button
+              onClick={handleFinalize}
+              disabled={isSubmitting || cart.length === 0}
+              className="py-2 px-3 bg-green-600 text-white rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Finalizar
+            </button>
+          </div>
+
+          <div className="flex-1 text-right">
+            <div className="text-xs text-gray-500">Total</div>
+            <div className="font-bold">
+              {new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              }).format(cartTotal)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Painel móvel (offcanvas) */}
+      {/** Renderiza somente em mobile quando aberto para evitar espaço extra **/}
+      {mobileCartOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-white overflow-auto">
+          <div className="p-4 border-b flex items-center justify-between">
+            <h3 className="font-bold flex items-center gap-2">
+              <ShoppingCart size={18} /> Carrinho
+            </h3>
+            <button onClick={() => setMobileCartOpen(false)} className="p-2">
+              <X />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {cart.length === 0 ? (
+              <div className="h-56 flex flex-col items-center justify-center text-gray-400">
+                <Box size={48} className="mb-3 opacity-20" />
+                <p>O carrinho está vazio.</p>
+                <p className="text-xs mt-1">Adicione produtos à esquerda.</p>
+              </div>
+            ) : (
+              cart.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex gap-3 p-3 border rounded-xl bg-white shadow-sm group hover:border-primary/30 transition-colors"
+                >
+                  <div className="h-14 w-14 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden">
+                    {item.image_url ? (
+                      <div className="relative h-full w-full">
+                        <Image
+                          src={item.image_url}
+                          alt={item.name || ''}
+                          width={56}
+                          height={56}
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    ) : (
+                      <Package size={16} className="text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-bold text-sm text-gray-900 truncate">
+                        {item.name}
+                      </h4>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="text-gray-300 hover:text-red-500 p-1 flex items-center gap-1"
+                        title="Excluir item"
+                        aria-label="Excluir item"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-2">
+                      {item.brand}{' '}
+                      {item.is_manual && (
+                        <span className="bg-yellow-100 text-yellow-800 px-1 rounded text-[9px]">
+                          Manual
+                        </span>
+                      )}
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-bold text-primary">
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(item.price * item.quantity)}
+                      </div>
+                      <div className="flex items-center border rounded-lg bg-gray-50">
+                        <button
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="px-2 py-0.5 hover:bg-white rounded text-gray-600"
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <span className="text-xs font-bold w-6 text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="px-2 py-0.5 hover:bg-white rounded text-green-600"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="p-4 border-t bg-gray-50">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm text-gray-500">Total</span>
+              <span className="font-bold">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(cartTotal)}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setMobileCartOpen(false);
+                handleFinalize();
+              }}
+              disabled={isSubmitting || cart.length === 0}
+              className="w-full py-3.5 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isSubmitting ? <Loader2 className="animate-spin" /> : <CheckCircle size={18} />}
+              Finalizar Venda
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

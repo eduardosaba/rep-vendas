@@ -629,7 +629,6 @@ export default function SettingsPage() {
     { id: 'general', label: 'Geral', icon: Store },
     { id: 'appearance', label: 'Aparência', icon: Palette },
     { id: 'display', label: 'Exibição', icon: Layout },
-    { id: 'marketing', label: 'Marketing', icon: Share2 },
     { id: 'stock', label: 'Estoque', icon: Package },
     // A aba 'Sincronização' é visível apenas para administradores/master
     ...(isAdmin ? [{ id: 'sync', label: 'Sincronização', icon: Zap }] : []),
@@ -1080,11 +1079,11 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* --- ABA EXIBIÇÃO (RESTAURADA COM CONTROLE DE IMAGEM) --- */}
+      {/* --- ABA EXIBIÇÃO (MOBILE OPTIMIZED) --- */}
       {activeTab === 'display' && (
-        <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-          {/* BARRA DE BENEFÍCIOS ULTRA AVANÇADA */}
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-gray-200 shadow-sm space-y-6">
+        <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+          {/* BARRA DE BENEFÍCIOS */}
+          <div className="bg-white dark:bg-slate-900 p-5 md:p-8 rounded-[2rem] border border-gray-200 shadow-sm space-y-6">
             <ToggleSetting
               label="Ativar Barra de Benefícios"
               name="show_top_benefit_bar"
@@ -1093,9 +1092,11 @@ export default function SettingsPage() {
               onChange={handleCatalogSettingsChange}
               icon={Zap}
             >
-              <div className="space-y-8 pt-6 border-t mt-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                  {/* Coluna 1: Conteúdo e Estilo */}
+              <div className="space-y-6 pt-6 border-t mt-6">
+                {/* Grid responsiva: 1 coluna no mobile, 2 no desktop */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10">
+
+                  {/* Lado Esquerdo: Conteúdo e Cores */}
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
@@ -1106,255 +1107,115 @@ export default function SettingsPage() {
                         name="top_benefit_text"
                         value={catalogSettings.top_benefit_text}
                         onChange={handleCatalogSettingsChange}
-                        className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none font-bold text-sm"
+                        className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none font-bold text-sm focus:ring-2 focus:ring-primary"
                         placeholder="Ex: Frete Grátis para toda Bahia!"
                       />
                     </div>
 
-                    <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-800 rounded-[2rem]">
-                      <p className="text-[10px] font-black uppercase text-slate-400">
-                        Configuração de Imagem
-                      </p>
-
-                      <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-white overflow-hidden shrink-0">
-                          {topBenefitImagePreview ? (
-                            <img
-                              src={topBenefitImagePreview}
-                              className="w-full h-full object-contain"
-                            />
-                          ) : (
-                            <ImageIcon className="text-slate-200" size={24} />
-                          )}
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <label className="inline-block px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase cursor-pointer hover:bg-primary transition-all">
-                            Escolher Imagem
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f)
-                                  setTopBenefitImagePreview(
-                                    URL.createObjectURL(f)
-                                  );
-                              }}
-                            />
-                          </label>
-                          {topBenefitImagePreview && (
-                            <button
-                              onClick={() => setTopBenefitImagePreview(null)}
-                              className="block text-[10px] font-bold text-red-500 underline ml-1"
-                            >
-                              Remover
-                            </button>
-                          )}
+                    {/* Ajuste de Cores: Lado a lado no mobile também */}
+                    <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-slate-800 rounded-[2rem]">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Fundo</label>
+                        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200">
+                          <input
+                            type="color"
+                            value={topBenefitBgColor}
+                            onChange={(e) => setTopBenefitBgColor(e.target.value)}
+                            className="h-8 w-8 rounded-lg cursor-pointer border-none"
+                          />
+                          <span className="hidden sm:inline text-[10px] font-mono uppercase">{topBenefitBgColor}</span>
                         </div>
                       </div>
-
-                      {topBenefitImagePreview && (
-                        <div className="grid grid-cols-2 gap-4 pt-2">
-                          <div className="space-y-2">
-                            <label className="text-[9px] font-black uppercase text-slate-400">
-                              Escala da Imagem ({topBenefitImageScale}%)
-                            </label>
-                            <input
-                              type="range"
-                              min="10"
-                              max="200"
-                              value={topBenefitImageScale}
-                              onChange={(e) =>
-                                setTopBenefitImageScale(Number(e.target.value))
-                              }
-                              className="w-full"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-[9px] font-black uppercase text-slate-400">
-                              Ajuste (Fit)
-                            </label>
-                            <select
-                              value={topBenefitImageFit}
-                              onChange={(e) =>
-                                setTopBenefitImageFit(e.target.value as any)
-                              }
-                              className="w-full p-2 rounded-lg bg-white text-[10px] font-bold border-none shadow-sm"
-                            >
-                              <option value="cover">Preencher</option>
-                              <option value="contain">Conter</option>
-                            </select>
-                          </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Texto</label>
+                        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200">
+                          <input
+                            type="color"
+                            value={topBenefitTextColor}
+                            onChange={(e) => setTopBenefitTextColor(e.target.value)}
+                            className="h-8 w-8 rounded-lg cursor-pointer border-none"
+                          />
+                          <span className="hidden sm:inline text-[10px] font-mono uppercase">{topBenefitTextColor}</span>
                         </div>
-                      )}
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400">
-                          Alinhamento Texto
-                        </label>
-                        <select
-                          value={topBenefitTextAlign}
-                          onChange={(e) =>
-                            setTopBenefitTextAlign(e.target.value as any)
-                          }
-                          className="w-full p-3 rounded-xl bg-slate-50 font-bold text-xs border-none"
-                        >
-                          <option value="left">Esquerda</option>
-                          <option value="center">Centro</option>
-                          <option value="right">Direita</option>
-                        </select>
+                    {/* Imagem: Layout Vertical no Mobile */}
+                    <div className="p-5 bg-slate-50 dark:bg-slate-800 rounded-[2rem] flex flex-col sm:flex-row items-center gap-4">
+                      <div className="h-20 w-20 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-white overflow-hidden shrink-0 shadow-sm">
+                        {topBenefitImagePreview ? (
+                          <img src={topBenefitImagePreview} className="w-full h-full object-contain" />
+                        ) : (
+                          <ImageIcon className="text-slate-200" size={28} />
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400">
-                          Alinhamento Imagem
+                      <div className="flex flex-col gap-2 w-full sm:w-auto">
+                        <label className="text-center sm:text-left px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase cursor-pointer hover:bg-primary transition-all shadow-md">
+                          Escolher Ícone/Imagem
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) setTopBenefitImagePreview(URL.createObjectURL(f));
+                            }}
+                          />
                         </label>
-                        <select
-                          value={topBenefitImageAlign}
-                          onChange={(e) =>
-                            setTopBenefitImageAlign(e.target.value as any)
-                          }
-                          className="w-full p-3 rounded-xl bg-slate-50 font-bold text-xs border-none"
-                        >
-                          <option value="left">Esquerda</option>
-                          <option value="center">Centro</option>
-                          <option value="right">Direita</option>
-                        </select>
+                        {topBenefitImagePreview && (
+                          <button
+                            onClick={() => setTopBenefitImagePreview(null)}
+                            className="text-[10px] font-black text-red-500 uppercase tracking-tighter hover:underline"
+                          >
+                            Remover Imagem
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Coluna 2: Design e Preview */}
+                  {/* Lado Direito: Preview e Altura */}
                   <div className="space-y-6">
                     <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] space-y-6">
-                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                        Ajuste Visual da Barra
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500">
-                            Fundo
-                          </label>
-                          <div className="flex items-center gap-2 bg-white p-2 rounded-xl border">
-                            <input
-                              type="color"
-                              value={topBenefitBgColor}
-                              onChange={(e) =>
-                                setTopBenefitBgColor(e.target.value)
-                              }
-                              className="h-6 w-6 rounded cursor-pointer border-none"
-                            />
-                            <span className="text-[10px] font-mono uppercase">
-                              {topBenefitBgColor}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500">
-                            Texto
-                          </label>
-                          <div className="flex items-center gap-2 bg-white p-2 rounded-xl border">
-                            <input
-                              type="color"
-                              value={topBenefitTextColor}
-                              onChange={(e) =>
-                                setTopBenefitTextColor(e.target.value)
-                              }
-                              className="h-6 w-6 rounded cursor-pointer border-none"
-                            />
-                            <span className="text-[10px] font-mono uppercase">
-                              {topBenefitTextColor}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
+                      <div className="flex flex-col gap-4">
                         <div className="flex justify-between items-center">
                           <label className="text-[10px] font-black uppercase text-slate-400">
-                            Altura da Barra: {topBenefitHeight}px
+                            Altura da Barra
                           </label>
-                          <input
-                            type="range"
-                            min="20"
-                            max="100"
-                            value={topBenefitHeight}
-                            onChange={(e) =>
-                              setTopBenefitHeight(Number(e.target.value))
-                            }
-                            className="w-32"
-                          />
+                          <span className="text-xs font-bold text-primary">{topBenefitHeight}px</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <label className="text-[10px] font-black uppercase text-slate-400">
-                            Tamanho da Fonte: {topBenefitTextSize}px
-                          </label>
-                          <input
-                            type="range"
-                            min="8"
-                            max="24"
-                            value={topBenefitTextSize}
-                            onChange={(e) =>
-                              setTopBenefitTextSize(Number(e.target.value))
-                            }
-                            className="w-32"
-                          />
-                        </div>
+                        <input
+                          type="range"
+                          min="24"
+                          max="80"
+                          value={topBenefitHeight}
+                          onChange={(e) => setTopBenefitHeight(Number(e.target.value))}
+                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
                       </div>
 
-                      {/* PREVIEW EM TEMPO REAL DENTRO DO CARD */}
-                      <div className="space-y-2 mt-4 pt-4 border-t border-slate-200">
-                        <p className="text-[9px] font-black uppercase text-slate-400 text-center">
-                          Preview do Topo
+                      {/* Preview em tempo real - Fixo para ser visível no mobile */}
+                      <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-[9px] font-black uppercase text-slate-400 text-center tracking-widest">
+                          Visualização ao vivo
                         </p>
                         <div
                           style={{
                             backgroundColor: topBenefitBgColor,
                             color: topBenefitTextColor,
                             height: topBenefitHeight,
-                            fontSize: topBenefitTextSize,
-                            justifyContent:
-                              topBenefitTextAlign === 'center'
-                                ? 'center'
-                                : topBenefitTextAlign === 'right'
-                                  ? 'flex-end'
-                                  : 'flex-start',
+                            fontSize: Math.min(topBenefitHeight * 0.4, 18), // Fonte proporcional à altura
                           }}
-                          className="w-full rounded-xl flex items-center px-4 shadow-inner relative overflow-hidden font-black"
+                          className="w-full rounded-2xl flex items-center justify-center px-4 shadow-inner relative overflow-hidden font-black transition-all"
                         >
                           {topBenefitImagePreview && (
-                            <div
-                              style={{
-                                position: 'absolute',
-                                inset: 0,
-                                display: 'flex',
-                                justifyContent:
-                                  topBenefitImageAlign === 'center'
-                                    ? 'center'
-                                    : topBenefitImageAlign === 'right'
-                                      ? 'flex-end'
-                                      : 'flex-start',
-                                alignItems: 'center',
-                                zIndex: 0,
-                              }}
-                            >
-                              <img
-                                src={topBenefitImagePreview}
-                                style={{
-                                  height: `${topBenefitImageScale}%`,
-                                  objectFit: topBenefitImageFit,
-                                  opacity: 0.8,
-                                }}
-                              />
-                            </div>
+                            <img
+                              src={topBenefitImagePreview}
+                              style={{ height: '70%', marginRight: '8px' }}
+                              className="object-contain"
+                            />
                           )}
-                          <span className="relative z-10">
-                            {catalogSettings.top_benefit_text ||
-                              'Sua Mensagem Aqui'}
-                          </span>
+                          <span className="truncate">{catalogSettings.top_benefit_text || 'Sua Mensagem Aqui'}</span>
                         </div>
                       </div>
                     </div>
@@ -1364,18 +1225,17 @@ export default function SettingsPage() {
             </ToggleSetting>
           </div>
 
-          {/* REGRAS DE PREÇO (MANTIDAS) */}
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-gray-200 shadow-sm space-y-8">
+          {/* REGRAS DE PREÇO (Lado a lado no Desktop, Empilhado no Mobile) */}
+          <div className="bg-white dark:bg-slate-900 p-5 md:p-8 rounded-[2.5rem] border border-gray-200 shadow-sm space-y-8">
             <h3 className="font-black text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <DollarSign size={18} /> Regras de Negócio e Preços
+              <DollarSign size={18} /> Preços e Negócio
             </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
                 <ToggleSetting
-                  label="Exibir Preço Sugerido"
+                  label="Preço Sugerido"
                   name="show_sale_price"
-                  description="Ativa o preço final de varejo no catálogo."
+                  description="Exibe o valor final para o consumidor."
                   checked={catalogSettings.show_sale_price}
                   onChange={(e: any) => {
                     setCatalogSettings((p) => ({
@@ -1386,11 +1246,12 @@ export default function SettingsPage() {
                   }}
                   icon={Tag}
                 />
-
+              </div>
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
                 <ToggleSetting
-                  label="Exibir Preço de Custo"
+                  label="Preço de Custo"
                   name="show_cost_price"
-                  description="Exibe o valor da sua tabela para o lojista."
+                  description="Exibe o valor para o lojista."
                   checked={catalogSettings.show_cost_price}
                   onChange={(e: any) => {
                     setCatalogSettings((p) => ({
@@ -1402,176 +1263,12 @@ export default function SettingsPage() {
                   icon={Package}
                 />
               </div>
-
-              {catalogSettings.show_sale_price && (
-                <div className="space-y-6 animate-in fade-in zoom-in duration-300">
-                  <div className="p-6 border-2 border-indigo-100 rounded-3xl space-y-6 bg-indigo-50/20">
-                    <ToggleSetting
-                      label="Habilitar Parcelamento"
-                      name="show_installments"
-                      description="Exibe 'Ou 10x de R$ X'."
-                      checked={catalogSettings.show_installments}
-                      onChange={handleCatalogSettingsChange}
-                      icon={CreditCard}
-                    >
-                      <div className="mt-4 flex items-center gap-3">
-                        <span className="text-xs font-bold text-indigo-900">
-                          Máximo de parcelas:
-                        </span>
-                        <input
-                          type="number"
-                          name="max_installments"
-                          value={catalogSettings.max_installments}
-                          onChange={handleCatalogSettingsChange}
-                          className="w-20 p-2 rounded-lg border-none font-black text-center text-indigo-600 bg-white shadow-sm"
-                        />
-                      </div>
-                    </ToggleSetting>
-
-                    <ToggleSetting
-                      label="Tag de Desconto à Vista"
-                      name="show_discount_tag"
-                      description="Mostra o selo de % OFF no produto."
-                      checked={catalogSettings.show_discount_tag}
-                      onChange={handleCatalogSettingsChange}
-                      icon={Zap}
-                    >
-                      <div className="mt-4 flex items-center gap-3">
-                        <span className="text-xs font-bold text-indigo-900">
-                          Percentual (%):
-                        </span>
-                        <input
-                          type="number"
-                          name="cash_price_discount_percent"
-                          value={catalogSettings.cash_price_discount_percent}
-                          onChange={handleCatalogSettingsChange}
-                          className="w-20 p-2 rounded-lg border-none font-black text-center text-indigo-600 bg-white shadow-sm"
-                        />
-                      </div>
-                    </ToggleSetting>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* --- ABA MARKETING (CONTEÚDO ISOLADO) --- */}
-      {activeTab === 'marketing' && (
-        <div className="space-y-8 animate-in slide-in-from-right-4">
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-gray-200 shadow-sm">
-            <h3 className="font-black text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2 mb-8">
-              <Share2 size={18} /> Estratégia Digital
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-8">
-                <WhatsAppLinkGenerator
-                  catalogUrl={`https://repvendas.com.br/catalogo/${formData.catalog_slug}`}
-                  catalogName={formData.name}
-                  imageUrl={shareBannerPreview || logoPreview || '/link.webp'}
-                />
-                <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
-                  <p className="text-xs font-black uppercase text-slate-400 mb-4">
-                    Banner de Compartilhamento
-                  </p>
-                  <SmartImageUpload
-                    onUploadReady={async (f) => {
-                      const file = f as File;
-                      setShareUploading(true);
-                      try {
-                        // Ler o arquivo local como blob (optimizado) e enviar como FormData
-                        const reader = new FileReader();
-                        const dataUrl: string = await new Promise(
-                          (res, rej) => {
-                            reader.onerror = rej;
-                            reader.onload = () =>
-                              res(String(reader.result || ''));
-                            reader.readAsDataURL(file);
-                          }
-                        );
-
-                        // Converte dataURL em Blob
-                        const blob = await (await fetch(dataUrl)).blob();
-
-                        // Obtém user id para metadata (safe fallback)
-                        const { data: { user } = {} } =
-                          await supabase.auth.getUser();
-                        const userId = user?.id || 'anon';
-
-                        const form = new FormData();
-                        // Nome do arquivo original preservado quando possível
-                        const fileObj = new File(
-                          [blob],
-                          file.name || `share-${Date.now()}.webp`,
-                          { type: blob.type || 'image/webp' }
-                        );
-                        form.append('file', fileObj);
-                        form.append('userId', String(userId));
-                        form.append(
-                          'brandSlug',
-                          formData.catalog_slug || 'share'
-                        );
-
-                        const resp = await fetch('/api/upload/share-banner', {
-                          method: 'POST',
-                          body: form,
-                        });
-
-                        const json = await resp.json().catch(() => ({}));
-                        if (!resp.ok || !json?.publicUrl) {
-                          throw new Error(
-                            json?.error ||
-                              json?.message ||
-                              'Upload server falhou'
-                          );
-                        }
-
-                        setShareBannerPreview(json.publicUrl);
-                        toast.success('Banner de compartilhamento carregado');
-                      } catch (err: any) {
-                        console.error('Erro upload share banner', err);
-                        toast.error(err?.message || 'Falha no upload');
-                      } finally {
-                        setShareUploading(false);
-                      }
-                    }}
-                  />
-                  {shareUploading && (
-                    <div className="text-sm text-slate-500 mt-2">
-                      Enviando banner...
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-4 md:sticky md:top-24">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">
-                  Preview WhatsApp
-                </label>
-                <SharePreview
-                  title={formData.name}
-                  description={formData.footer_message}
-                  imageUrl={shareBannerPreview || logoPreview || '/link.webp'}
-                  domain="repvendas.com.br"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-gray-200 shadow-sm overflow-hidden">
-            <h3 className="font-black text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2 mb-8">
-              <LinkIcon size={18} /> Meus Links Curtos e Performance
-            </h3>
-            <MyShortLinksTable />
-            <div className="mt-12 pt-12 border-t">
-              <h4 className="font-black text-sm text-slate-900 dark:text-white mb-6 uppercase tracking-widest">
-                Gráfico de Engajamento
-              </h4>
-              <AnalyticsChartClient />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Marketing tab removed — feature consolidated elsewhere */}
 
       {/* --- ABA ESTOQUE --- */}
       {activeTab === 'stock' && (

@@ -102,57 +102,27 @@ export default function MarketingClient({
       const baseUrl = pub?.data?.publicUrl;
       const publicUrl = `${baseUrl}?v=${Date.now()}`;
 
-      // 3. Atualizar o Perfil no Banco de Dados (salvando URL base sem query string)
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ share_banner_url: baseUrl })
-        .eq('id', userId);
-
-      if (updateError) throw updateError;
-
-      // 4. Se houver um catalogSlug, sincronizar também em public_catalogs
+      // 3. Chamada única para a API de sincronização (Profiles, Marketing, Public Catalogs)
       try {
-        if (catalogSlug) {
-          // append to banners array (prefer desktop banners) to make it visible
-          try {
-            const resp2 = await fetch('/api/public_catalogs/append-banner', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ slug: catalogSlug, publicUrl }),
-            });
-            if (!resp2.ok) {
-              const b = await resp2.json().catch(() => ({}));
-              toast.error(
-                `Não foi possível anexar banner ao catálogo: ${b?.error || b?.message || 'erro'}`
-              );
-            }
-          } catch (e) {
-            console.warn('append-banner failed', e);
-          }
+        const resp = await fetch('/api/marketing-links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_url: baseUrl, use_short_link: false }),
+        });
 
-          // also update share_banner_url via sync so previews use it
-          const resp = await fetch('/api/public_catalogs/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: userId,
-              slug: catalogSlug,
-              share_banner_url: publicUrl,
-            }),
-          });
-
-          if (!resp.ok) {
-            const body = await resp.json().catch(() => ({}));
-            const msg = body?.error || body?.message || 'Erro desconhecido';
-            toast.error(`Sincronização pública falhou: ${msg}`);
-          } else {
-            toast.success('Banner sincronizado no catálogo público');
-          }
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          throw new Error(body?.error || 'sync_failed');
         }
-      } catch (syncErr) {
-        console.warn('Falha ao sincronizar public_catalogs:', syncErr);
-        toast.error('Falha ao sincronizar banner no catálogo público');
+      } catch (e) {
+        console.warn('Failed to sync banner via API:', e);
+        toast.error('Banner enviado, mas falha ao sincronizar no servidor.');
+        setShareUploading(false);
+        return;
       }
+
+      // 4. append-banner está temporariamente desativado — não chamar o
+      // endpoint do cliente até decidirmos sobre a remoção/integração.
 
       setShareBannerPreview(publicUrl);
       toast.success('Banner de compartilhamento atualizado!');

@@ -120,6 +120,14 @@ export function ExportModal({
         ctx.fillText(line, 157, titleY + idx * 25 - (lines.length - 1) * 12);
       });
 
+      // NOME DO REPRESENTANTE CENTRALIZADO
+      const representativeName =
+        storeSettings?.representative_name || storeSettings?.representativeName || 'EDUARDO SABA';
+      const lastLineY = titleY + (lines.length * 12) + 20;
+      ctx.font = '500 12px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillText(`REPRESENTANTE: ${representativeName}`, 157, lastLineY);
+
       const coverB64 = canvas.toDataURL();
 
       // --- 2. GERAÇÃO DA GRADE ---
@@ -168,12 +176,14 @@ export function ExportModal({
       const catalogSlug =
         storeSettings?.catalog_slug || storeSettings?.slug || 'catalogo';
 
+      // Pegamos o nome do representante/loja dinamicamente
+      const representativeName = storeSettings?.name || storeSettings?.storeName || 'Representante';
+
       await generateCatalogPDF(products || [], {
-        showPrices: options.showPrices,
-        priceType: options.priceType,
+        ...options,
         title: options.title,
         itemsPerRow: options.itemsPerRow,
-        storeName: storeSettings?.name || '',
+        storeName: representativeName,
         storeLogo: storeSettings?.logo_url,
         imageZoom: 3,
         brandMapping: brandMapping || {},

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MessageCircle, Copy, Check, ExternalLink, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,17 +27,21 @@ export default function WhatsAppLinkGenerator({
     catalogUrl || ''
   );
   const [customCode, setCustomCode] = useState('');
+  const [codeAvailable, setCodeAvailable] = useState<boolean | null>(null);
+  const [checkingCode, setCheckingCode] = useState(false);
+  const [useShortLink, setUseShortLink] = useState(true);
   const [shortUrl, setShortUrl] = useState<string | null>(null);
   const [loadingShort, setLoadingShort] = useState(false);
 
   const [localMessage, setLocalMessage] = useState<string>(() => {
-    const name = catalogName || 'Meu Catálogo';
-    return `Olá! Tudo bem? 👋\n\nEstou enviando o nosso catálogo atualizado da *${name}*.\n\nConfira as novidades aqui: ${destinationUrl || catalogUrl}\n\nQualquer dúvida, estou à disposição!`;
+  return `Olá! Tudo bem? 👋\n\n Estou enviando o nosso catálogo virtual atualizado \n\n com as últimas novidades e tendências! 🚀\n\n 📲 Acesse aqui: ${destinationUrl || catalogUrl} \n\n ⚠️ *OBS:* Os preços estão bloqueados por segurança. \n\n Para visualizar os valores, basta me solicitar \n\n a **senha de acesso** por aqui mesmo. \n\n📦 Qualquer dúvida, estou à disposição!`;
   });
   const message = messageProp ?? localMessage;
 
   const encodedMessage = encodeURIComponent(message);
   const waLink = `https://wa.me/?text=${encodedMessage}`;
+  // clean image URL (remove cache-bust query) before sending to short-link
+  const cleanImageUrl = imageUrl ? String(imageUrl).split('?')[0] : undefined;
 
   const handleCopy = async (text?: string) => {
     try {
@@ -109,19 +113,49 @@ export default function WhatsAppLinkGenerator({
               className="w-full p-2 rounded-lg text-sm bg-white/10 placeholder-white/60"
               placeholder="slug personalizado (ex: meu-link)"
             />
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-white/80">Verificar disponibilidade:</div>
+                <div className="text-xs font-mono">{checkingCode ? 'Verificando...' : codeAvailable === null ? '—' : codeAvailable ? 'Disponível' : 'Indisponível'}</div>
+              </div>
 
-            <button
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-white/90">
+                <input type="checkbox" checked={useShortLink} onChange={(e) => setUseShortLink(e.target.checked)} className="w-4 h-4" />
+                Usar link curto no compartilhamento
+              </label>
+
+              <button
               onClick={async () => {
                 setLoadingShort(true);
                 try {
                   const final = destinationUrl || catalogUrl;
+
+                  // If there's an image provided, create a marketing entry
+                  // using the CLEAN URL (no ?v=) so crawlers pick a stable URL.
+                  let marketingImage: string | undefined = cleanImageUrl || undefined;
+                  if (cleanImageUrl) {
+                    try {
+                      const mk = await fetch('/api/marketing-links', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image_url: cleanImageUrl }),
+                      });
+                      const mkj = await mk.json();
+                      if (mk.ok && mkj?.data?.image_url) {
+                        marketingImage = mkj.data.image_url || marketingImage;
+                      }
+                    } catch (e) {
+                      console.warn('Failed to create marketing entry', e);
+                    }
+                  }
+
                   const res = await fetch('/api/short-links', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       destination_url: final,
                       code: customCode || undefined,
-                      image_url: imageUrl || undefined,
+                      image_url: marketingImage || cleanImageUrl || undefined,
                     }),
                   });
                   const json = await res.json();
@@ -131,13 +165,15 @@ export default function WhatsAppLinkGenerator({
                   } else if (json?.short_url) {
                     setShortUrl(json.short_url);
                     toast.success('Link curto criado!');
-                    // when created replace destination in message
-                    const updated = message.replace(
-                      destinationUrl || catalogUrl,
-                      json.short_url
-                    );
-                    if (onMessageChange) onMessageChange(updated);
-                    else setLocalMessage(updated);
+                    // when created replace destination in message only if user opted in
+                    if (useShortLink) {
+                      const updated = message.replace(
+                        destinationUrl || catalogUrl,
+                        json.short_url
+                      );
+                      if (onMessageChange) onMessageChange(updated);
+                      else setLocalMessage(updated);
+                    }
                     if (onCreated) onCreated(json.short_url);
                   }
                 } catch (err) {
@@ -151,7 +187,15 @@ export default function WhatsAppLinkGenerator({
             >
               {loadingShort ? 'Criando...' : 'Criar link curto'}
             </button>
+              </div>
           </div>
+
+          {/* availability check (debounced) */}
+          <CodeAvailabilityChecker
+            code={customCode}
+            onChecking={(v: boolean) => setCheckingCode(v)}
+            onResult={(avail: boolean | null) => setCodeAvailable(avail)}
+          />
 
           <div className="flex items-center gap-2">
             <button
@@ -199,4 +243,51 @@ export default function WhatsAppLinkGenerator({
       </div>
     </div>
   );
+}
+
+// Debounced availability checker as a small internal component
+function CodeAvailabilityChecker({
+  code,
+  onChecking,
+  onResult,
+}: {
+  code: string;
+  onChecking: (v: boolean) => void;
+  onResult: (v: boolean | null) => void;
+}) {
+  useEffect(() => {
+    let mounted = true;
+    let t: any = null;
+    const check = async (c: string) => {
+      if (!mounted) return;
+      onChecking(true);
+      try {
+        if (!c || c.trim() === '') {
+          onResult(null);
+          return;
+        }
+        const url = `/api/short-links?code=${encodeURIComponent(
+          c.trim()
+        )}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (!mounted) return;
+        onResult(json?.exists ? false : true);
+      } catch (e) {
+        console.warn('code check failed', e);
+        if (mounted) onResult(null);
+      } finally {
+        if (mounted) onChecking(false);
+      }
+    };
+
+    // debounce 500ms
+    t = setTimeout(() => void check(code), 500);
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+    };
+  }, [code, onChecking, onResult]);
+
+  return null;
 }

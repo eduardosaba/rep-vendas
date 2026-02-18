@@ -21,8 +21,6 @@ import {
 import Link from 'next/link';
 import QuickActionCard from '@/components/QuickActionCard';
 import UpdateNotificationModal from '@/components/dashboard/UpdateNotificationModal';
-import SyncControlClient from '@/components/dashboard/SyncControlClient';
-// SyncStatusCard removido — card não é mais exibido no Dashboard
 import { subDays, startOfDay, subMonths, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -243,15 +241,7 @@ export default async function DashboardPage({
           >
             Abrir Sincronizador
           </Link>
-          <div className="hidden sm:block">
-            <SyncControlClient
-              jobId={syncJob?.data?.id || null}
-              totals={{
-                total_count: syncJob?.data?.total_count,
-                completed_count: syncJob?.data?.completed_count,
-              }}
-            />
-          </div>
+          {/* SyncControlClient removido do Dashboard conforme solicitação */}
         </div>
 
         {/* ALERTA DE ESTOQUE: Agora condicional ao campo 'manage_stock' */}

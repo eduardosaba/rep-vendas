@@ -1056,23 +1056,34 @@ export function StoreProvider({
     if (!destPhone) destPhone = (store.phone || null) as string | null;
     const phone = (destPhone || '').replace(/\D/g, '');
 
-    let msg = `*📦 NOVO PEDIDO: #${display_id || id}*\n`;
-    msg += `--------------------------------\n\n`;
-    msg += `*CLIENTE:* ${customer.name}\n`;
-    msg += `*WHATSAPP:* ${customer.phone}\n\n`;
-    msg += `*ITENS:*\n`;
-    items
-      .slice(0, 10)
-      .forEach((i: any) => (msg += `▪️ ${i.quantity}x ${i.name}\n`));
-    if (items.length > 10) msg += `_...e outros ${items.length - 10} itens._\n`;
+    // Formatação de Moeda
+    const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-    msg += `\n*TOTAL: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}*\n`;
+    let msg = `🔔 *🅽🅾🆅🅾 🅿🅴🅳🅸🅳🅾 : #${display_id || id}* 🚀\n`;
+    msg += `👤 *CLIENTE:* ${customer.name}\n`;
+    msg += `📞 *WHATSAPP:* ${customer.phone}\n`;
+    msg += `✉️ *EMAIL:* ${customer.email || '—'}\n`;
+    msg += `------------------------------------------\n\n`;
 
-    if (pdf_url) {
-      msg += `\n*📄 COMPROVANTE PDF:*\n${pdf_url}\n`;
+    msg += ` 🛒*ITENS DO PEDIDO:📦*\n`;
+    items.slice(0, 15).forEach((i: any) => {
+      msg += `▪️ ${i.quantity}x ${i.name} (${fmt.format(i.price)})\n`;
+    });
+
+    if (items.length > 15) {
+      msg += `\n_...e outros ${items.length - 15} itens._\n`;
     }
 
-    msg += `\n_Gerado por RepVendas SaaS_`;
+    msg += `\n------------------------------------------\n`;
+    msg += `💰 *TOTAL: ${fmt.format(total)}*\n`;
+    msg += `------------------------------------------\n`;
+
+    if (pdf_url) {
+      msg += `\n📄 *VER COMPROVANTE (PDF):*\n${pdf_url}\n`;
+    }
+
+    msg += `\n_Gerado por 🆁🅴🅿🆅🅴🅽🅳🅰🆂 ⭐_`;
+
     window.open(
       `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,
       '_blank'

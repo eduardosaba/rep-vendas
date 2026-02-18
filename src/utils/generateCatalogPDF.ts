@@ -122,7 +122,7 @@ export const generateCatalogPDF = async (products: any[], options: any) => {
     );
   }
 
-  // --- CAPA ---
+  // --- CAPA DO PDF ---
   doc.setFillColor(secondaryRGB[0], secondaryRGB[1], secondaryRGB[2]);
   doc.rect(0, 0, pageW, pageH, 'F');
   doc.setFillColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
@@ -152,35 +152,32 @@ export const generateCatalogPDF = async (products: any[], options: any) => {
     const pad = 10;
 
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(
-      (pageW - targetW) / 2 + 6 - pad,
-      logoY - pad,
-      targetW + pad * 2,
-      targetH + pad * 2,
-      5,
-      5,
-      'F'
-    );
-    doc.addImage(
-      finalCoverLogo.b64,
-      'JPEG',
-      (pageW - targetW) / 2 + 6,
-      logoY,
-      targetW,
-      targetH
-    );
+    doc.roundedRect((pageW - targetW) / 2 + 6 - pad, logoY - pad, targetW + (pad * 2), targetH + (pad * 2), 5, 5, 'F');
+    try {
+      const fmt = 'JPEG';
+      doc.addImage(finalCoverLogo.b64, fmt, (pageW - targetW) / 2 + 6, logoY, targetW, targetH);
+    } catch (e) {
+      console.warn('generateCatalogPDF: failed adding cover image', e);
+    }
   }
 
   doc.setTextColor(255);
-  doc.setFontSize(32);
-  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(32); doc.setFont('helvetica', 'bold');
   const titleLines = doc.splitTextToSize(options.title.toUpperCase(), 150);
   const titleY = isCenter ? 85 : 160;
-  doc.text(titleLines, pageW / 2 + 6, titleY, { align: 'center' });
+  doc.text(titleLines, (pageW / 2) + 6, titleY, { align: 'center' });
 
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'normal');
-  doc.text(options.storeName || '', 30, 260);
+  // NOME DO REPRESENTANTE / USUÁRIO (DINÂMICO) - usa options.storeName
+  doc.setFontSize(14); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(255, 255, 255);
+  const storeDisplayName = options.storeName || options.representativeName || '';
+  const nameY = titleY + (titleLines.length * 15);
+  if (storeDisplayName) {
+    doc.text(`REPRESENTANTE: ${String(storeDisplayName).toUpperCase()}`, (pageW / 2) + 6, nameY, { align: 'center' });
+  }
+
+  // Nome da loja/rodapé (mantido)
+  doc.text(options.storeName || '', 30, 260); // Nome da loja no rodapé
 
   // --- GRADE ---
   const cols = options.itemsPerRow || 2;

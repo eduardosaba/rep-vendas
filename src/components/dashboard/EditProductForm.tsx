@@ -396,6 +396,8 @@ export function EditProductForm({ product }: { product: Product }) {
     console.groupEnd();
   }, []);
 
+  // Note: preserve `gender` exactly as stored in `products` table for edit form
+
   // Inicializa o formulário
   const [formData, setFormData] = useState({
     name: product.name || '',

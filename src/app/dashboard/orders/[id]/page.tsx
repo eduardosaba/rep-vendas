@@ -221,6 +221,17 @@ export default async function OrderDetailsPage({
             <div className="divide-y divide-gray-100 dark:divide-slate-800">
               {order.order_items?.map((item: any) => {
                 const finalImg = item.image_url || item.products?.image_url;
+                              const safeImg = (url: string | null | undefined) => {
+                                if (!url) return null;
+                                try {
+                                  if (url.includes('/storage/v1/object/public/')) {
+                                    const parts = url.split('/storage/v1/object/public/');
+                                    const path = parts.length > 1 ? parts[1] : parts[0];
+                                    return `/api/storage-image?path=${encodeURIComponent(path)}`;
+                                  }
+                                } catch (e) {}
+                                return url;
+                              };
                 const productName = item.products?.name || item.product_name;
                 const brand = item.products?.brand;
                 const barcode = item.products?.barcode;
@@ -240,7 +251,7 @@ export default async function OrderDetailsPage({
                       <div className="h-20 w-20 md:h-24 md:w-24 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 overflow-hidden border border-gray-200 dark:border-slate-700 shrink-0">
                         {finalImg ? (
                           <img
-                            src={finalImg}
+                            src={safeImg(finalImg) || ''}
                             alt=""
                             className="w-full h-full object-cover"
                           />

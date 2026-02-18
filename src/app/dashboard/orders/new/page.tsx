@@ -27,7 +27,7 @@ export default async function NewOrderPage() {
   const settings = settingsReq.data;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden">
       
       {/* Header Compacto */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 shrink-0">
@@ -51,7 +51,7 @@ export default async function NewOrderPage() {
       </div>
 
       {/* Área do Carrinho */}
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative">
+      <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative">
         <NewOrderClient
           initialProducts={products}
           userSettings={settings}
