@@ -1,12 +1,30 @@
 import { getFcmToken } from './firebase';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 // Chame setupNotifications(userId) após login do usuário
 export async function setupNotifications(userId: string) {
   try {
-    if (!('Notification' in window)) return;
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+    // Web Push requires a secure context (HTTPS) except for localhost.
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      console.warn(
+        '[setupNotifications] insecure origin — web push requires HTTPS or localhost'
+      );
+      toast.warning(
+        'Notificações só funcionam em HTTPS. Teste em localhost ou usando um túnel HTTPS (ex: ngrok).'
+      );
+      return;
+    }
+
+    console.debug('[setupNotifications] solicitando permissão de Notification');
     const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
+    console.debug('[setupNotifications] permission=', permission);
+    if (permission !== 'granted') {
+      toast.info('Permissão de notificações não concedida.');
+      return;
+    }
 
     const token = await getFcmToken();
     if (!token) return;
