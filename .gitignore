@@ -124,3 +124,5 @@ Desktop.ini
 # Allow specific public icons (added to track new PWA icons)
 !public/icon-192.png
 !public/icon-512.png
+!public/firebase-messaging-sw.js
+!public/images/google.svg
