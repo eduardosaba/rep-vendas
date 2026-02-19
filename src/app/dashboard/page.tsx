@@ -205,44 +205,7 @@ export default async function DashboardPage({
       {/* SyncStatusCard removido conforme solicitado */}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* WIDGET DE SINCRONIZAÇÃO REFORMULADO */}
-        <div
-          className={`col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-6 rounded-[2rem] border border-gray-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900`}
-        >
-          <div className="flex items-center gap-3 sm:gap-5">
-            <div
-              className={`p-3 sm:p-4 rounded-2xl shadow-lg flex-shrink-0 ${needsSyncAlert ? 'bg-amber-500 text-white' : 'bg-indigo-500 text-white'}`}
-            >
-              {needsSyncAlert ? (
-                <Activity size={24} className="sm:w-7 sm:h-7" />
-              ) : (
-                <RefreshCcw size={24} className="sm:w-7 sm:h-7" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                Status de Sincronização
-              </p>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
-                {needsSyncAlert
-                  ? 'Sincronização Recomendada'
-                  : 'Sistema em Dia'}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                {syncDate
-                  ? `Última atualização de dados há ${formatDistanceToNow(syncDate, { locale: ptBR })}.`
-                  : 'Nenhuma sincronização via planilha realizada recentemente.'}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/products/sync"
-            className="w-full sm:w-auto flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-all text-center"
-          >
-            Abrir Sincronizador
-          </Link>
-          {/* SyncControlClient removido do Dashboard conforme solicitação */}
-        </div>
+        {/* Widget de Sincronização removido */}
 
         {/* ALERTA DE ESTOQUE: Agora condicional ao campo 'manage_stock' */}
         {settings.data?.manage_stock ? (

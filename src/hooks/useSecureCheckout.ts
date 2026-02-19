@@ -114,18 +114,30 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
   // Função de inicialização
   const initializeSecureState = useCallback(async () => {
     try {
-      // Carregar dados do localStorage
-      const savedDraft = localStorage.getItem(DRAFT_ORDER_KEY);
-      const savedLogs = localStorage.getItem(SECURITY_LOGS_KEY);
+      // Carregar dados do localStorage (somente no cliente)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const savedDraft =
+            typeof window.localStorage.getItem === 'function'
+              ? window.localStorage.getItem(DRAFT_ORDER_KEY)
+              : null;
+          const savedLogs =
+            typeof window.localStorage.getItem === 'function'
+              ? window.localStorage.getItem(SECURITY_LOGS_KEY)
+              : null;
 
-      if (savedDraft) {
-        const draft = JSON.parse(savedDraft);
-        setState((prev) => ({ ...prev, draftOrder: draft }));
-      }
+          if (savedDraft) {
+            const draft = JSON.parse(savedDraft);
+            setState((prev) => ({ ...prev, draftOrder: draft }));
+          }
 
-      if (savedLogs) {
-        const logs = JSON.parse(savedLogs);
-        setState((prev) => ({ ...prev, securityLogs: logs }));
+          if (savedLogs) {
+            const logs = JSON.parse(savedLogs);
+            setState((prev) => ({ ...prev, securityLogs: logs }));
+          }
+        } catch (e) {
+          // ignore malformed localStorage entries
+        }
       }
 
       // Validar sessão atual
