@@ -27,7 +27,11 @@ export async function setupNotifications(userId: string) {
     }
 
     const token = await getFcmToken();
-    if (!token) return;
+    if (!token) {
+      // avoid spamming user with repeated warnings if VAPID/key invalid
+      console.warn('[setupNotifications] no FCM token obtained — notifications disabled for this session');
+      return;
+    }
 
     // salva no Supabase (ajuste conforme seu cliente Supabase)
     const supabase = createClient();

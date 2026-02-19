@@ -7,24 +7,43 @@ interface LinkGeneratorProps {
   catalogUrl: string;
   catalogName: string;
   imageUrl?: string | null;
+  message?: string;
+  onMessageChange?: (m: string) => void;
+  onCreated?: (shortUrl?: string) => void;
 }
 
 const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
   catalogUrl,
   catalogName,
   imageUrl,
+  message: messageProp,
+  onMessageChange,
+  onCreated,
 }) => {
-  const [message, setMessage] = useState(
-    `Olá! Tudo bem? 👓\n\nEstou enviando o nosso catálogo atualizado da *${catalogName}*.\n\nConfira as novidades aqui: ${catalogUrl}\n\nQualquer dúvida, estou à disposição!`
-  );
+  const [destinationUrl, setDestinationUrl] = useState<string>('');
+
+  const [localMessage, setLocalMessage] = useState<string>(() => {
+    return [
+      'Olá! Tudo bem? 👋',
+      '',
+      'Estou enviando o nosso catálogo virtual atualizado com as últimas novidades e tendências! 🚀',
+      '',
+      `📲 Acesse aqui: ${destinationUrl || catalogUrl}`,
+      '',
+      '⚠️ *OBS:* Os preços estão bloqueados por segurança. Para visualizar os valores, basta me solicitar a **senha de acesso** por aqui mesmo.',
+      '',
+      '📦 Qualquer dúvida, estou à disposição!'
+    ].join('\n');
+  });
   const [copied, setCopied] = useState(false);
   const [shortUrl, setShortUrl] = useState<string | null>(null);
   const [loadingShort, setLoadingShort] = useState(false);
   const [customCode, setCustomCode] = useState('');
-  const [destinationUrl, setDestinationUrl] = useState(catalogUrl || '');
   const availability = useSlugValidation(customCode);
 
-  const waLink = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  const message = messageProp ?? localMessage;
+  const encodedMessage = encodeURIComponent(message);
+  const waLink = `https://wa.me/?text=${encodedMessage}`;
 
   const copyToClipboard = () => {
     safeCopy(waLink).then((ok) => {
@@ -92,6 +111,7 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
       const json = await res.json();
       if (json?.short_url) {
         setShortUrl(json.short_url);
+        onCreated?.(json.short_url);
         return json.short_url;
       }
     } catch (e) {
@@ -167,7 +187,11 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
           </label>
           <textarea
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (onMessageChange) onMessageChange(v);
+              else setLocalMessage(v);
+            }}
             rows={6}
             className="w-full p-3 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-green-500 outline-none transition-all"
             placeholder="Digite a mensagem que o cliente receberá..."
@@ -198,6 +222,7 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
                   if (json?.short_url) {
                     s = json.short_url;
                     setShortUrl(s);
+                    onCreated?.(json.short_url);
                   } else if (json?.error === 'code_taken') {
                     toast.error('Nome já em uso. Escolha outro.');
                     return;
@@ -250,10 +275,11 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
                     }),
                   });
                   const json = await res.json();
-                  if (json?.short_url) {
-                    s = json.short_url;
-                    setShortUrl(s);
-                  } else if (json?.error === 'code_taken') {
+                    if (json?.short_url) {
+                      s = json.short_url;
+                      setShortUrl(s);
+                      onCreated?.(json.short_url);
+                    } else if (json?.error === 'code_taken') {
                     toast.error('Nome já em uso. Escolha outro.');
                     return;
                   }

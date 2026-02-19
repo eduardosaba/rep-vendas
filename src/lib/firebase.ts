@@ -69,19 +69,33 @@ export const getFcmToken = async () => {
   try {
     const m = await ensureMessaging();
     if (!m) return null;
-
-    const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
-    if (!vapidKey) {
+    const rawVapid = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+    if (!rawVapid) {
       console.warn('[firebase] NEXT_PUBLIC_FIREBASE_VAPID_KEY is missing');
       return null;
     }
 
-    const { getToken } = await import('firebase/messaging');
-    const token = await getToken(m, {
-      vapidKey,
-    });
+    // sanitize common mistakes: surrounding quotes, whitespace
+    const vapidKey = String(rawVapid).trim().replace(/^"|"$/g, '');
 
-    return token;
+    // basic validation: should be URL-safe base64-like string (letters, numbers, -, _)
+    const isLikelyVapid = /^[A-Za-z0-9\-_]+=*$/.test(vapidKey);
+    if (!isLikelyVapid || vapidKey.length < 10) {
+      console.warn(
+        '[firebase] NEXT_PUBLIC_FIREBASE_VAPID_KEY looks invalid — please provide the public VAPID key (URL-safe base64 string) in .env as NEXT_PUBLIC_FIREBASE_VAPID_KEY'
+      );
+      return null;
+    }
+
+    const { getToken } = await import('firebase/messaging');
+    try {
+      const token = await getToken(m, { vapidKey });
+      return token;
+    } catch (err: unknown) {
+      // More actionable log for the typical PushManager InvalidAccessError
+      console.error('Erro ao obter token FCM:', err);
+      return null;
+    }
   } catch (error) {
     console.error('Erro ao obter token FCM:', error);
     return null;

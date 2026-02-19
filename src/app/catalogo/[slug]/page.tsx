@@ -55,7 +55,7 @@ export async function generateMetadata(
         catalog.og_image_url ||
         catalog.single_brand_logo_url ||
         catalog.logo_url ||
-        `${process.env.NEXT_PUBLIC_APP_URL || ''}/link.webp`;
+        `${process.env.NEXT_PUBLIC_APP_URL || ''}/repvendas.png`;
       const ogImageUrl = ogImage ? `${ogImage}?v=${baseV}` : ogImage;
       return {
         title: `${product.name} | ${catalog.store_name}`,
@@ -81,7 +81,7 @@ export async function generateMetadata(
     }
   }
 
-  const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL || ''}/link.webp`;
+  const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL || ''}/repvendas.png`;
   const baseV = catalog?.updated_at
     ? new Date(catalog.updated_at).getTime()
     : Date.now();

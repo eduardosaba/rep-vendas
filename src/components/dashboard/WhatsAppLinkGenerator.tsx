@@ -33,9 +33,19 @@ export default function WhatsAppLinkGenerator({
   const [shortUrl, setShortUrl] = useState<string | null>(null);
   const [loadingShort, setLoadingShort] = useState(false);
 
-  const [localMessage, setLocalMessage] = useState<string>(() => {
-  return `Olá! Tudo bem? 👋\n\n Estou enviando o nosso catálogo virtual atualizado \n\n com as últimas novidades e tendências! 🚀\n\n 📲 Acesse aqui: ${destinationUrl || catalogUrl} \n\n ⚠️ *OBS:* Os preços estão bloqueados por segurança. \n\n Para visualizar os valores, basta me solicitar \n\n a **senha de acesso** por aqui mesmo. \n\n📦 Qualquer dúvida, estou à disposição!`;
-  });
+  const [localMessage, setLocalMessage] = useState<string>(() =>
+    [
+      'Olá! Tudo bem? 👋',
+      '',
+      'Estou enviando o nosso catálogo virtual atualizado com as últimas novidades e tendências! 🚀',
+      '',
+      `📲 Acesse aqui: ${destinationUrl || catalogUrl}`,
+      '',
+      '⚠️ *OBS:* Os preços estão bloqueados por segurança. Para visualizar os valores, basta me solicitar a **senha de acesso** por aqui mesmo.',
+      '',
+      '📦 Qualquer dúvida, estou à disposição!'
+    ].join('\n')
+  );
   const message = messageProp ?? localMessage;
 
   const encodedMessage = encodeURIComponent(message);

@@ -72,7 +72,17 @@ export default function MarketingClient({
 
   const [shareMessage, setShareMessage] = useState<string>(() => {
     const name = formData?.name || initialData?.name || 'Meu Catálogo';
-    return `Olá! Tudo bem? 👋\n\nEstou enviando o nosso catálogo atualizado da *${name}*.\n\nConfira as novidades aqui: ${defaultCatalogUrl}\n\nQualquer dúvida, estou à disposição!`;
+    return [
+      'Olá! Tudo bem? 👋',
+      '',
+      'Estou enviando o nosso catálogo virtual atualizado com as últimas novidades! 🚀',
+      '',
+      `📲 Confira aqui: ${defaultCatalogUrl}`,
+      '',
+      '⚠️ *OBS:* Os preços estão bloqueados por segurança. Para visualizar os valores, basta me solicitar a **senha de acesso** por aqui mesmo.',
+      '',
+      'Qualquer dúvida, estou à disposição!'
+    ].join('\n');
   });
 
   const [shareHref, setShareHref] = useState<string>(() => defaultCatalogUrl);
