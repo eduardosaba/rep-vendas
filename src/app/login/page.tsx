@@ -96,12 +96,19 @@ export default function LoginPage() {
                 .catch((err) => console.debug('[SW] SW register failed', err));
             }
             try {
-              const { data: { user } = {} } = await supabase.auth.getUser();
+              // Protege a chamada getUser com timeout para evitar bloquear o fluxo
+              const userPromise = supabase.auth.getUser();
+              const timeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('supabase.getUser timeout')), 3000)
+              );
+              const res: any = await Promise.race([userPromise, timeout]);
+              const user = res?.data?.user;
               if (user && user.id) {
-                setupNotifications(user.id);
+                // executar em background (não await) para não bloquear o redirecionamento
+                void setupNotifications(user.id);
               }
             } catch (e) {
-              // ignore — not critical
+              console.debug('[login] getUser for setupNotifications failed', e);
             }
           }
         } catch (e) {
