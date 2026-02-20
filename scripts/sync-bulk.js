@@ -11,14 +11,19 @@ dotenv.config({ path: '.env.local' });
 // 1. CONFIGURAÇÃO DE AMBIENTE (Igual ao seu teste que funcionou)
 if (dns.setDefaultResultOrder) dns.setDefaultResultOrder('ipv4first');
 // Apenas habilite TLS inseguro em execução local definindo ALLOW_INSECURE_TLS=1
+// e somente quando não estivermos em `production`.
 if (process.env.ALLOW_INSECURE_TLS === '1') {
-  console.warn(
-    'ALLOW_INSECURE_TLS=1 detected — enabling insecure TLS for local testing'
-  );
-  try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  } catch (e) {
-    // ignore
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      'ALLOW_INSECURE_TLS=1 detected — enabling insecure TLS for local testing'
+    );
+    try {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    } catch (e) {
+      // ignore
+    }
+  } else {
+    console.warn('ALLOW_INSECURE_TLS is set but ignored in production environment');
   }
 }
 

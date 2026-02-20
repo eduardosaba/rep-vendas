@@ -20,7 +20,18 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
   process.exit(1);
 }
 
-if (ALLOW_INSECURE) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+if (ALLOW_INSECURE) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('ALLOW_INSECURE_TLS active — enabling insecure TLS for local testing only');
+    try {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    } catch (e) {
+      // ignore
+    }
+  } else {
+    console.warn('ALLOW_INSECURE_TLS is set but will not be applied in production');
+  }
+}
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },

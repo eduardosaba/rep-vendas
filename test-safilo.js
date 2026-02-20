@@ -7,16 +7,20 @@ if (dns.setDefaultResultOrder) {
 }
 
 // Apenas habilite explicitamente em ambiente local definindo
-// ALLOW_INSECURE_TLS=1 e executando o script com
-// NODE_TLS_REJECT_UNAUTHORIZED=0 node test-safilo.js
+// `ALLOW_INSECURE_TLS=1`. Isso será aplicado somente quando
+// `NODE_ENV !== 'production'` para evitar mudanças inseguras em prod.
 if (process.env.ALLOW_INSECURE_TLS === '1') {
-  console.warn(
-    'ALLOW_INSECURE_TLS=1 detected — enabling insecure TLS for local testing only'
-  );
-  try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  } catch (e) {
-    // ignore
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      'ALLOW_INSECURE_TLS=1 detected — enabling insecure TLS for local testing only'
+    );
+    try {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    } catch (e) {
+      // ignore
+    }
+  } else {
+    console.warn('ALLOW_INSECURE_TLS is set but ignored in production environment');
   }
 }
 
