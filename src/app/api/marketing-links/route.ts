@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     }
 
     // 2. Atualiza Profile
-    const profileRes = await supabase.from('profiles').update({ share_banner_url: cleanUrl }, { returning: 'minimal' }).eq('id', userId);
+    const profileRes = await supabase.from('profiles').update({ share_banner_url: cleanUrl }, { returning: 'minimal' } as any).eq('id', userId);
 
     // 3. Atualiza public_catalogs - CORREÇÃO AQUI
     // Usamos head: true ou apenas não pedimos retorno para evitar o erro de tabela duplicada
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       .from('public_catalogs')
       .update({
         og_image_url: cleanUrl,
-      }, { returning: 'minimal' })
+      }, { returning: 'minimal' } as any)
       .eq('user_id', userId);
 
     if (catError) {

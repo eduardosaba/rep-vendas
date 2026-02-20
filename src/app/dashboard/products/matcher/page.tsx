@@ -180,7 +180,9 @@ export default function MatcherPage() {
 
       // Atualiza lista de marcas disponíveis (para select)
       try {
-        const brands = Array.from(new Set((productsData || []).map((p: any) => p.brand).filter(Boolean)));
+        const brands = Array.from(
+          new Set((productsData || []).map((p: any) => p.brand).filter(Boolean))
+        ) as string[];
         setAvailableBrands(brands);
       } catch (e) {
         // ignore
@@ -193,7 +195,7 @@ export default function MatcherPage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      const mapped =
+      const mapped: StagingImage[] =
         imagesData?.map((img: any) => ({
           id: img.id,
           storage_path: img.storage_path,
@@ -205,8 +207,8 @@ export default function MatcherPage() {
         })) || [];
 
       // dedupe by id to avoid duplicate keys during render
-      const deduped = Object.values(
-        mapped.reduce((acc: any, it: any) => {
+      const deduped: StagingImage[] = Object.values(
+        mapped.reduce((acc: Record<string, StagingImage>, it: StagingImage) => {
           acc[it.id] = it;
           return acc;
         }, {})

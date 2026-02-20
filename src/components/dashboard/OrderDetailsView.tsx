@@ -428,7 +428,7 @@ export function OrderDetailsView({ order }: { order: any }) {
               </button>
 
               <div className="w-[80vw] h-[80vh] md:w-[60vw] md:h-[60vh] flex items-center justify-center">
-                <SmartImage product={{ ...(lightbox.product || {}) }} initialSrc={lightbox.src} preferredSize={1200} variant="large" className="w-full h-full" imgClassName="object-contain" />
+                <SmartImage product={{ ...(lightbox.product || {}) }} initialSrc={lightbox.src} preferredSize={1200} variant="full" className="w-full h-full" imgClassName="object-contain" />
               </div>
             </div>
           </div>

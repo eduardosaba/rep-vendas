@@ -55,7 +55,7 @@ export default async function ClientsPage() {
   return (
     <div className="max-w-[1600px] mx-auto">
       {/* Passamos os pedidos brutos e a lista de clientes cadastrados manualmente */}
-      <ClientsTable initialOrders={orders || []} initialClients={clientsList || []} />
+      <ClientsTable initialOrders={(orders || []) as any} initialClients={(clientsList || []) as any} />
     </div>
   );
 }
