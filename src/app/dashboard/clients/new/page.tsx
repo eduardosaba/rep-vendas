@@ -1,8 +1,7 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -19,8 +18,6 @@ import Link from 'next/link';
 export default function NewClientPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -58,26 +55,33 @@ export default function NewClientPage() {
     setLoading(true);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('Sessão inválida');
-
       // Formatar endereço completo se tiver cidade/estado
       let fullAddress = formData.address;
       if (formData.city) fullAddress += ` - ${formData.city}`;
       if (formData.state) fullAddress += ` / ${formData.state}`;
 
-      const { error } = await supabase.from('clients').insert({
-        user_id: user.id,
+      const payload: any = {
         name: formData.name.trim(),
         email: formData.email.trim() || null,
-        phone: formData.phone.replace(/\D/g, '') || null, // Salva apenas números
-        document: formData.document.trim() || null,
+        phone: formData.phone.replace(/\D/g, '') || null,
         address: fullAddress.trim() || null,
+      };
+
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
       });
 
-      if (error) throw error;
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body?.error || 'Erro ao salvar cliente');
+      }
+
+      if (formData.document && formData.document.trim().length > 0) {
+        toast.info('CPF/CNPJ não foi salvo — adicione a coluna `document` na tabela clients.');
+      }
 
       toast.success('Cliente cadastrado com sucesso!');
       router.push('/dashboard/clients');

@@ -545,7 +545,8 @@ export default function ImportVisualPage() {
   // 4. Salvar Produto
   const handleSaveProduct = async (
     id: string,
-    data: { name: string; price: string; reference: string }
+    data: { name: string; price: string; reference: string },
+    productId?: string | null
   ) => {
     if (!canCreate) {
       toast.error('Limite Atingido', {
@@ -572,7 +573,27 @@ export default function ImportVisualPage() {
       addLog(`Salvando produto: ${data.name}...`);
       const historyId = await ensureHistorySession();
 
-      // Inserir Produto
+      // Tentar localizar produto existente: se `productId` vier (seletor), usar por id; senão tentar por reference
+      let existingProduct: any = null;
+      if (productId) {
+        const { data: ep } = await supabase
+          .from('products')
+          .select('id, image_variants, gallery_images, linked_images, image_url, image_path, user_id')
+          .eq('user_id', user.id)
+          .eq('id', productId)
+          .maybeSingle();
+        existingProduct = ep;
+      } else {
+        const { data: ep } = await supabase
+          .from('products')
+          .select('id, image_variants, gallery_images, linked_images, image_url, image_path, user_id')
+          .eq('user_id', user.id)
+          .eq('reference_code', data.reference)
+          .maybeSingle();
+        existingProduct = ep;
+      }
+
+      // gerar variantes 480/1200 a partir da url/storage_path
       const slugify = (s: string) =>
         s
           .toLowerCase()
@@ -583,20 +604,79 @@ export default function ImportVisualPage() {
 
       const slugBase = slugify(data.name || 'produto');
 
-      const { error: productError } = await supabase.from('products').insert({
-        user_id: user.id,
-        name: data.name,
-        reference_code: data.reference,
-        price: parseFloat(data.price.replace(/\./g, '').replace(',', '.')),
-        sale_price: parseFloat(data.price.replace(/\./g, '').replace(',', '.')), // Define igual inicialmente
-        image_url: image.publicUrl,
-        images: [image.publicUrl],
-        image_path: image.storage_path,
-        last_import_id: historyId,
-        slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
-      });
+      // gerar variantes 480/1200 a partir da url/storage_path
+      const ensure480 = (u: string) => {
+        if (!u) return u;
+        if (/-1200w(\.|$)/.test(u)) return u.replace(/-1200w(\.|$)/, '-480w$1');
+        return u.replace(/(\.[a-z0-9]+)(\?|$)/i, '-480w$1');
+      };
 
-      if (productError) throw productError;
+      const built = {
+        url: image.publicUrl,
+        path: image.storage_path || null,
+        variants: [
+          { url: ensure480(image.publicUrl || ''), path: image.storage_path ? ensure480(image.storage_path) : null, size: 480 },
+          { url: image.publicUrl, path: image.storage_path || null, size: 1200 },
+        ],
+      };
+
+      if (existingProduct && existingProduct.id) {
+        // Fazer append inteligente em gallery_images do produto existente
+        const currentGallery = Array.isArray(existingProduct.gallery_images)
+          ? existingProduct.gallery_images
+          : [];
+        const currentLinked = Array.isArray(existingProduct.linked_images)
+          ? existingProduct.linked_images
+          : [];
+
+        const exists = currentGallery.some((it: any) => (it.path && built.path && it.path === built.path) || it.url === built.url);
+        const newGallery = exists ? currentGallery : [...currentGallery, { url: built.url, path: built.path, variants: built.variants }];
+
+        const updates: any = {
+          gallery_images: newGallery,
+          linked_images: Array.from(new Set([...(currentLinked || []), built.url])),
+          sync_status: 'synced',
+          updated_at: new Date().toISOString(),
+        };
+
+        // Se o produto não tem capa, definir a nova imagem como capa
+        const hasCover = Array.isArray(existingProduct.image_variants) && existingProduct.image_variants.length > 0;
+        if (!hasCover) {
+          updates.image_variants = built.variants;
+          updates.image_url = built.url;
+          updates.image_path = built.path;
+        }
+
+        const { error: updateErr } = await supabase.from('products').update(updates).eq('id', existingProduct.id);
+        if (updateErr) throw updateErr;
+
+        // Compatibilidade: inserir em product_images
+        try {
+          await supabase.from('product_images').upsert({ product_id: existingProduct.id, url: built.url, is_primary: false, position: 999, created_at: new Date().toISOString() }, { onConflict: 'product_id,url' });
+        } catch (e) {
+          // ignore
+        }
+      } else {
+        // Inserir Produto novo com o formato correto
+        const { error: productError } = await supabase.from('products').insert({
+          user_id: user.id,
+          name: data.name,
+          reference_code: data.reference,
+          price: parseFloat(data.price.replace(/\./g, '').replace(',', '.')),
+          sale_price: parseFloat(data.price.replace(/\./g, '').replace(',', '.')), // Define igual inicialmente
+          image_url: built.url,
+          image_path: built.path,
+          images: [built.url],
+          linked_images: [built.url],
+          // novo schema: capa (image_variants) e galeria (gallery_images)
+          image_variants: built.variants,
+          gallery_images: [{ url: built.url, path: built.path, variants: built.variants }],
+          last_import_id: historyId,
+          slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
+        });
+
+        if (productError) throw productError;
+      }
 
       // Atualizar Histórico
       if (historyId) {

@@ -769,8 +769,8 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
             key={slide.id}
             className="min-w-full w-full h-full relative flex-shrink-0"
           >
-            {String(slide.imageUrl).startsWith('http') &&
-            !String(slide.imageUrl).includes('supabase.co/storage') ? (
+            {typeof slide.imageUrl === 'string' && slide.imageUrl.startsWith('http') &&
+            !(typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')) ? (
               <img
                 src={slide.imageUrl}
                 alt={slide.altText}
@@ -785,9 +785,7 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
                 sizes="(max-width: 768px) 100vw, (max-width: 1920px) 90vw, 1920px"
                 className="object-cover"
                 priority={slide.id === 0}
-                unoptimized={String(slide.imageUrl).includes(
-                  'supabase.co/storage'
-                )}
+                unoptimized={typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')}
               />
             )}
             <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none opacity-50" />
@@ -1353,7 +1351,7 @@ export function ProductGrid() {
                           return (
                             <div className="w-full h-full flex items-center justify-center text-gray-300">
                               <img
-                                src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
+                                src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fplaceholder.png&fmt=webp&q=70"
                                 alt="Sem imagem"
                                 className="w-16 h-16 object-contain opacity-80"
                                 onError={(e) => {

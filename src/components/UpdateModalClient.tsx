@@ -24,7 +24,10 @@ export default function UpdateModalClient({
   useEffect(() => {
     try {
       if (!update || !update.version) return;
-      const seen = localStorage.getItem('repvendas_last_seen_version');
+      const seen =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('repvendas_last_seen_version')
+          : null;
       if (!seen || seen !== String(update.version)) {
         setShow(true);
       }
@@ -40,10 +43,14 @@ export default function UpdateModalClient({
       // Persist only if the user opted to not show again
       if (dontShowAgain && update?.version) {
         // Persist client-side
-        localStorage.setItem(
-          'repvendas_last_seen_version',
-          String(update.version)
-        );
+        try {
+          if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
+            window.localStorage.setItem(
+              'repvendas_last_seen_version',
+              String(update.version)
+            );
+          }
+        } catch {}
 
         // Try to persist server-side as well (best-effort)
         try {

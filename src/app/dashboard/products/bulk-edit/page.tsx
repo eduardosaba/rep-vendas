@@ -85,7 +85,11 @@ export default async function BulkEditPage() {
 
       <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative">
         {products.length > 0 ? (
-          <BulkEditClient initialProducts={products} />
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[720px]">
+              <BulkEditClient initialProducts={products} />
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
             <Package size={48} className="mb-4 opacity-20" />

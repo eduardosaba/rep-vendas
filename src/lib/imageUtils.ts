@@ -28,7 +28,7 @@ export function buildSupabaseImageUrl(
   const trimmed = normalized.trim();
 
   // 2. Se já for uma URL completa (HTTP), retorna ela
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  if (typeof trimmed === 'string' && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
     return trimmed;
   }
 
@@ -119,7 +119,7 @@ export function getProductImageUrl(product: Partial<Product>) {
           };
         }
         // Senão, é externa
-        if (url.startsWith('http')) {
+        if (typeof url === 'string' && url.startsWith('http')) {
           return { src: url, isExternal: true, isStorage: false };
         }
       }
@@ -138,7 +138,7 @@ export function getProductImageUrl(product: Partial<Product>) {
           isStorage: true,
         };
       }
-      if (firstImg.startsWith('http')) {
+      if (typeof firstImg === 'string' && firstImg.startsWith('http')) {
         return { src: firstImg, isExternal: true, isStorage: false };
       }
     }
@@ -176,7 +176,7 @@ export function getProductImageUrl(product: Partial<Product>) {
           };
         }
         // Senão, é externa
-        if (url.startsWith('http')) {
+        if (typeof url === 'string' && url.startsWith('http')) {
           return { src: url, isExternal: true, isStorage: false };
         }
       }
@@ -195,7 +195,7 @@ export function getProductImageUrl(product: Partial<Product>) {
           isStorage: true,
         };
       }
-      if (firstImg.startsWith('http')) {
+      if (typeof firstImg === 'string' && firstImg.startsWith('http')) {
         return { src: firstImg, isExternal: true, isStorage: false };
       }
     }

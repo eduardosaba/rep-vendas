@@ -503,110 +503,92 @@ export default function BulkEditClient({
           </table>
         </div>
 
-        {/* Mobile: cards com campos editáveis */}
-        <div className="md:hidden p-4 grid grid-cols-1 gap-3">
+        {/* Mobile: tabela rolável com campos editáveis */}
+        <div className="md:hidden p-2">
           {filteredProducts.length === 0 ? (
-            <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
+            <div className="p-4 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
               Nenhum produto encontrado com os filtros atuais.
             </div>
           ) : (
-            filteredProducts.map((product) => (
-              <div
-                key={product.id}
-                className="p-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-xl shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-medium text-gray-900 dark:text-white truncate">
-                      {product.name}
-                    </div>
-                    {visibleColumns.reference_code && (
-                      <div className="text-xs text-gray-400">
-                        Ref: {product.reference_code || '-'}
-                      </div>
-                    )}
-                    {visibleColumns.brand && (
-                      <div className="text-xs text-gray-400">
-                        {product.brand || 'Sem marca'}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    {visibleColumns.stock_quantity && (
-                      <div className="text-sm font-bold">
-                        {product.stock_quantity}
-                      </div>
-                    )}
-                  </div>
-                </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[720px] w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 sticky top-0 z-10">
+                  <tr>
+                    {visibleColumns.reference_code && <th className="px-3 py-2 font-medium">Ref</th>}
+                    {visibleColumns.name && <th className="px-3 py-2 font-medium min-w-[160px]">Produto</th>}
+                    {visibleColumns.brand && <th className="px-3 py-2 font-medium">Marca</th>}
+                    {visibleColumns.stock_quantity && <th className="px-3 py-2 font-medium text-right">Estoque</th>}
+                    {visibleColumns.price && <th className="px-3 py-2 font-medium text-right">Preço</th>}
+                    {visibleColumns.sale_price && <th className="px-3 py-2 font-medium text-right">Venda</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id} className="bg-white dark:bg-slate-900">
+                      {visibleColumns.reference_code && (
+                        <td className="px-3 py-2 align-top">
+                          <input
+                            className="w-full p-2 border rounded text-sm bg-transparent"
+                            value={product.reference_code || ''}
+                            onChange={(e) =>
+                              handleInputChange(product.id, 'reference_code', e.target.value)
+                            }
+                            placeholder="Ref"
+                          />
+                        </td>
+                      )}
 
-                <div className="mt-3 space-y-2">
-                  {visibleColumns.reference_code && (
-                    <input
-                      className="w-full p-2 border rounded text-sm"
-                      value={product.reference_code || ''}
-                      onChange={(e) =>
-                        handleInputChange(
-                          product.id,
-                          'reference_code',
-                          e.target.value
-                        )
-                      }
-                      placeholder="Ref"
-                    />
-                  )}
-                  {visibleColumns.name && (
-                    <input
-                      className="w-full p-2 border rounded text-sm"
-                      value={product.name}
-                      onChange={(e) =>
-                        handleInputChange(product.id, 'name', e.target.value)
-                      }
-                    />
-                  )}
-                  {visibleColumns.stock_quantity && (
-                    <input
-                      type="number"
-                      className="w-full p-2 border rounded text-sm"
-                      value={product.stock_quantity}
-                      onChange={(e) =>
-                        handleInputChange(
-                          product.id,
-                          'stock_quantity',
-                          Number(e.target.value)
-                        )
-                      }
-                    />
-                  )}
-                  {visibleColumns.price && (
-                    <input
-                      className="w-full p-2 border rounded text-sm"
-                      value={formatCurrencyDisplay(product.price)}
-                      onChange={(e) =>
-                        handleCurrencyChange(
-                          product.id,
-                          'price',
-                          e.target.value
-                        )
-                      }
-                    />
-                  )}
-                  {visibleColumns.sale_price && (
-                    <input
-                      className="w-full p-2 border rounded text-sm"
-                      value={formatCurrencyDisplay(product.sale_price)}
-                      onChange={(e) =>
-                        handleCurrencyChange(
-                          product.id,
-                          'sale_price',
-                          e.target.value
-                        )
-                      }
-                    />
-                  )}
-                </div>
-              </div>
-            ))
+                      {visibleColumns.name && (
+                        <td className="px-3 py-2 align-top min-w-[160px]">
+                          <input
+                            className="w-full p-2 border rounded text-sm bg-transparent"
+                            value={product.name}
+                            onChange={(e) => handleInputChange(product.id, 'name', e.target.value)}
+                          />
+                        </td>
+                      )}
+
+                      {visibleColumns.brand && (
+                        <td className="px-3 py-2 align-top">
+                          <div className="text-sm text-gray-700 dark:text-gray-300">{product.brand || 'Sem marca'}</div>
+                        </td>
+                      )}
+
+                      {visibleColumns.stock_quantity && (
+                        <td className="px-3 py-2 align-top text-right">
+                          <input
+                            type="number"
+                            className="w-20 p-2 border rounded text-sm bg-transparent text-right"
+                            value={product.stock_quantity}
+                            onChange={(e) => handleInputChange(product.id, 'stock_quantity', Number(e.target.value))}
+                          />
+                        </td>
+                      )}
+
+                      {visibleColumns.price && (
+                        <td className="px-3 py-2 align-top text-right">
+                          <input
+                            className="w-28 p-2 border rounded text-sm bg-transparent text-right"
+                            value={formatCurrencyDisplay(product.price)}
+                            onChange={(e) => handleCurrencyChange(product.id, 'price', e.target.value)}
+                          />
+                        </td>
+                      )}
+
+                      {visibleColumns.sale_price && (
+                        <td className="px-3 py-2 align-top text-right">
+                          <input
+                            className="w-28 p-2 border rounded text-sm bg-transparent text-right"
+                            value={formatCurrencyDisplay(product.sale_price)}
+                            onChange={(e) => handleCurrencyChange(product.id, 'sale_price', e.target.value)}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

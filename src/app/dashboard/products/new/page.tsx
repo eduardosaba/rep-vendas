@@ -539,13 +539,16 @@ export default function NewProductPage() {
           newProduct.id,
           formData.images
         );
-        const { error: galleryError } = await supabase
-          .from('product_images')
-          .insert(galleryItems);
-
-        if (galleryError) {
-          console.error('Erro ao salvar galeria:', galleryError);
-          toast.error('Produto salvo, mas houve erro nas imagens.');
+        try {
+          const { error: galleryError } = await supabase
+            .from('product_images')
+            .upsert(galleryItems, { onConflict: 'product_id,url' });
+          if (galleryError) {
+            console.error('Erro ao salvar galeria:', galleryError);
+            toast.error('Produto salvo, mas houve erro nas imagens.');
+          }
+        } catch (e) {
+          console.error('Erro ao salvar galeria (upsert):', e);
         }
       }
 

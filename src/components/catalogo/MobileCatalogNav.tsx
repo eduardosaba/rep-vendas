@@ -29,7 +29,7 @@ export function MobileCatalogNav() {
   const formatWhatsappUrl = (phone?: string) => {
     if (!phone) return '#';
     const digits = String(phone).replace(/\D/g, '');
-    return `https://wa.me/${digits.startsWith('55') ? digits : `55${digits}`}`;
+    return `https://wa.me/${typeof digits === 'string' && digits.startsWith('55') ? digits : `55${digits}`}`;
   };
 
   // Lógica: Se preços de custo visíveis, mostra Ver Pedido ao invés de Favoritos

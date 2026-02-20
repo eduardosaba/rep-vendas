@@ -36,7 +36,6 @@ export default function PresenceProvider({
         );
       } catch (err) {
         // não bloqueia a UI
-        console.debug('presence upsert error', err);
       }
     }
 

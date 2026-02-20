@@ -16,10 +16,14 @@ export function useWelcomeManager() {
     const init = async () => {
       // Primeiro, checar localStorage (cliente) para evitar chamadas desnecessárias
       try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          const seen = window.localStorage.getItem(
-            'repvendas_last_seen_version'
-          );
+        if (
+          typeof window !== 'undefined' &&
+          window.localStorage &&
+          typeof window.localStorage.getItem === 'function'
+        ) {
+            const seen = window.localStorage.getItem(
+              'repvendas_last_seen_version'
+            );
           if (seen && String(seen) === String(APP_WELCOME_VERSION)) {
             if (mounted) {
               setLoading(false);

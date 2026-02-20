@@ -113,8 +113,9 @@ export function useCatalog(
           }
         } catch (err) {
           // Não crítico — continuar sem logos
-          if (!isNextRedirect(err))
-            console.debug('Não foi possível carregar logos de marcas', err);
+          if (!isNextRedirect(err)) {
+            // debug removed
+          }
         }
 
         // 4. Carregar hash público da senha (public_catalogs.price_password_hash)
@@ -129,14 +130,18 @@ export function useCatalog(
             setPricePasswordHash((publicCatalog as any).price_password_hash);
           }
         } catch (err) {
-          if (!isNextRedirect(err))
-            console.debug('Não foi possível carregar price_password_hash', err);
+          if (!isNextRedirect(err)) {
+            // debug removed
+          }
         }
 
         // 2. Carregar Dados do Cliente (LocalStorage)
         // Isso só roda no navegador
         if (typeof window !== 'undefined') {
-          const savedCart = localStorage.getItem('cart');
+          const savedCart =
+            typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+              ? window.localStorage.getItem('cart')
+              : null;
           if (savedCart) {
             try {
               setCart(JSON.parse(savedCart));
@@ -145,12 +150,18 @@ export function useCatalog(
                 'useCatalog: invalid cart in localStorage, clearing',
                 savedCart
               );
-              localStorage.removeItem('cart');
+              try {
+                if (typeof window !== 'undefined' && typeof window.localStorage?.removeItem === 'function')
+                  window.localStorage.removeItem('cart');
+              } catch {}
               setCart({});
             }
           }
 
-          const savedFavs = localStorage.getItem('favorites');
+          const savedFavs =
+            typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+              ? window.localStorage.getItem('favorites')
+              : null;
           if (savedFavs) {
             try {
               setFavorites(new Set(JSON.parse(savedFavs)));
@@ -159,12 +170,18 @@ export function useCatalog(
                 'useCatalog: invalid favorites in localStorage, clearing',
                 savedFavs
               );
-              localStorage.removeItem('favorites');
+              try {
+                if (typeof window !== 'undefined' && typeof window.localStorage?.removeItem === 'function')
+                  window.localStorage.removeItem('favorites');
+              } catch {}
               setFavorites(new Set());
             }
           }
 
-          const access = localStorage.getItem('priceAccessGranted');
+          const access =
+            typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+              ? window.localStorage.getItem('priceAccessGranted')
+              : null;
           if (access === 'true') setPriceAccessGranted(true);
         }
       } catch (error) {
@@ -402,7 +419,10 @@ export function useCatalog(
       }
 
       // Garantir guest_id no localStorage
-      let guestId = localStorage.getItem('guest_id');
+      let guestId =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('guest_id')
+          : null;
       if (!guestId) {
         guestId = crypto.randomUUID();
         localStorage.setItem('guest_id', guestId);
@@ -474,7 +494,10 @@ export function useCatalog(
         return false;
       }
 
-      const guestId = localStorage.getItem('guest_id');
+      const guestId =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('guest_id')
+          : null;
       if (!guestId) {
         toast.error('Guest ID não encontrado');
         return false;

@@ -20,23 +20,13 @@ export default function ThemeRegistry() {
 
   useEffect(() => {
     // Aguarda o resolvedTheme do next-themes para evitar condições de corrida
-    if (typeof resolvedTheme === 'undefined') {
-      console.debug('[ThemeRegistry] aguardando resolvedTheme...');
-      return;
-    }
+    if (typeof resolvedTheme === 'undefined') return;
 
     const loadAndApplyTheme = async () => {
       try {
         // Detect public catalog path (ex: /v/slug)
         const pathParts = pathname?.split('/') || [];
         const isPublicCatalog = pathParts[1] === 'v';
-
-        console.debug(
-          '[ThemeRegistry] pathname=',
-          pathname,
-          'isPublicCatalog=',
-          isPublicCatalog
-        );
 
         // Prefer using next-themes API to set theme instead of touching classList
         if (isPublicCatalog) {
@@ -61,63 +51,31 @@ export default function ThemeRegistry() {
                       document.head.appendChild(style);
                     }
                   }
-                  document.documentElement.style.setProperty(
-                    '--rv-font',
-                    platform.font_family
-                  );
+                  document.documentElement.style.setProperty('--rv-font', platform.font_family);
                 } catch (e) {
-                  console.debug(
-                    '[ThemeRegistry] failed to apply platform font',
-                    e
-                  );
+                  // ignore font injection errors
                 }
                 // If a platform font is set, treat it as highest priority for font only (do not return)
               }
             } catch (e) {
-              console.debug(
-                '[ThemeRegistry] could not load platform_settings',
-                e
-              );
+              // ignore platform settings load errors
             }
 
             const disableAuto =
               typeof window !== 'undefined' &&
-              localStorage.getItem('rv_disable_auto_theme') === '1';
-
-            console.debug(
-              '[ThemeRegistry] current theme=',
-              theme,
-              'resolvedTheme=',
-              resolvedTheme,
-              'localStorage.theme=',
-              typeof window !== 'undefined'
-                ? localStorage.getItem('theme')
-                : null,
-              'disableAuto=',
-              disableAuto
-            );
+              typeof window.localStorage?.getItem === 'function' &&
+              window.localStorage.getItem('rv_disable_auto_theme') === '1';
 
             // Aguarda resolvedTheme para evitar alternância imediata durante reidratação.
-            if (
-              typeof resolvedTheme === 'undefined' ||
-              resolvedTheme === null
-            ) {
-              console.debug(
-                '[ThemeRegistry] resolvedTheme não está pronto — pulando lógica de forçar tema'
-              );
+            if (typeof resolvedTheme === 'undefined' || resolvedTheme === null) {
+              // resolvedTheme ainda não disponível — não força tema
             } else if (!disableAuto && resolvedTheme !== 'light') {
-              console.debug(
-                '[ThemeRegistry] forcing light theme for public catalog (resolved)'
-              );
               setTheme('light'); // force light theme for public catalogs
             } else if (disableAuto) {
-              console.debug(
-                '[ThemeRegistry] auto-theme disabled by localStorage(rv_disable_auto_theme)'
-              );
+              // auto-theme disabled
             }
           } catch (e) {
             // ignore if next-themes not ready
-            console.debug('[ThemeRegistry] setTheme(light) failed', e);
           }
         }
 
@@ -126,31 +84,22 @@ export default function ThemeRegistry() {
         try {
           const userPromise = supabase.auth.getUser();
           const timeout = new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error('supabase.getUser timeout')),
-              5000
-            )
+            setTimeout(() => reject(new Error('supabase.getUser timeout')), 5000)
           );
           const res: any = await Promise.race([userPromise, timeout]);
           if (res && res.data && res.data.user) user = res.data.user;
         } catch (e) {
-          console.debug('[ThemeRegistry] supabase.auth.getUser failed', e);
+          // ignore getUser errors
         }
 
         if (user) {
           const { data: settings } = await supabase
             .from('settings')
-            .select(
-              'primary_color, secondary_color, header_background_color, font_family, font_url'
-            )
+            .select('primary_color, secondary_color, header_background_color, font_family, font_url')
             .eq('user_id', user.id)
             .maybeSingle();
 
           if (settings) {
-            console.debug(
-              '[ThemeRegistry] applying theme from settings',
-              settings
-            );
             applyThemeColors({
               primary: settings.primary_color || DEFAULT_PRIMARY_COLOR,
               secondary: settings.secondary_color || DEFAULT_SECONDARY_COLOR,
@@ -170,15 +119,9 @@ export default function ThemeRegistry() {
                     document.head.appendChild(style);
                   }
                 }
-                document.documentElement.style.setProperty(
-                  '--rv-font',
-                  settings.font_family
-                );
+                document.documentElement.style.setProperty('--rv-font', settings.font_family);
               } catch (e) {
-                console.debug(
-                  '[ThemeRegistry] failed to apply font from settings',
-                  e
-                );
+                // ignore font injection errors
               }
             }
 
@@ -186,19 +129,16 @@ export default function ThemeRegistry() {
             try {
               if (typeof window !== 'undefined') {
                 if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker
-                    .register('/firebase-messaging-sw.js')
-                    .then((reg) => console.debug('[SW] registered', reg.scope))
-                    .catch((err) => console.debug('[SW] register failed', err));
+                  navigator.serviceWorker.register('/firebase-messaging-sw.js').then(() => null).catch(() => null);
                 }
                 try {
                   setupNotifications(user.id as string);
                 } catch (e) {
-                  console.debug('[ThemeRegistry] setupNotifications failed', e);
+                  // ignore
                 }
               }
             } catch (e) {
-              console.debug('[ThemeRegistry] notification setup error', e);
+              // ignore
             }
 
             return;
@@ -211,17 +151,11 @@ export default function ThemeRegistry() {
         if (catalogSlug) {
           const { data: publicCatalog } = await supabase
             .from('public_catalogs')
-            .select(
-              'primary_color, secondary_color, header_background_color, font_family, font_url'
-            )
+            .select('primary_color, secondary_color, header_background_color, font_family, font_url')
             .eq('catalog_slug', catalogSlug)
             .maybeSingle();
 
           if (publicCatalog) {
-            console.debug(
-              '[ThemeRegistry] applying theme from publicCatalog',
-              publicCatalog
-            );
             applyThemeColors({
               primary: publicCatalog.primary_color,
               secondary: publicCatalog.secondary_color,
@@ -239,15 +173,9 @@ export default function ThemeRegistry() {
                     document.head.appendChild(style);
                   }
                 }
-                document.documentElement.style.setProperty(
-                  '--rv-font',
-                  publicCatalog.font_family
-                );
+                document.documentElement.style.setProperty('--rv-font', publicCatalog.font_family);
               } catch (e) {
-                console.debug(
-                  '[ThemeRegistry] failed to apply font from publicCatalog',
-                  e
-                );
+                // ignore
               }
             }
 
@@ -256,7 +184,6 @@ export default function ThemeRegistry() {
         }
 
         // 3. Fallback
-        console.debug('[ThemeRegistry] applying default theme');
         applyDefaultTheme();
       } catch (err: unknown) {
         const isNetworkError =
@@ -276,6 +203,3 @@ export default function ThemeRegistry() {
 
   return null;
 }
-
-// Note: moved `updateThemeColors` to `src/lib/theme.ts` to avoid exporting
-// values from a component file (which can trigger Fast Refresh full reloads).

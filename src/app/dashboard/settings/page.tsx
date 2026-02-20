@@ -498,8 +498,8 @@ export default function SettingsPage() {
       const ensureArrayPublic = async (arr: string[] | null) => {
         if (!arr || !Array.isArray(arr)) return arr;
         const out: string[] = [];
-        for (const item of arr) {
-          if (item && item.startsWith('blob:')) {
+          for (const item of arr) {
+          if (typeof item === 'string' && item.startsWith('blob:')) {
             const uploaded = await ensurePublicUrl(item);
             if (uploaded) out.push(uploaded);
           } else if (item) {

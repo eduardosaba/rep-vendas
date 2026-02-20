@@ -24,7 +24,10 @@ export function UpdateModal() {
       if (error || !data) return;
 
       // 2. Verifica se o usuário já viu ESTA versão específica
-      const seenVersion = localStorage.getItem('app_last_seen_version');
+      const seenVersion =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('app_last_seen_version')
+          : null;
 
       if (seenVersion !== data.version) {
         setUpdateData(data);
@@ -37,7 +40,10 @@ export function UpdateModal() {
 
   const handleClose = () => {
     if (updateData) {
-      localStorage.setItem('app_last_seen_version', updateData.version);
+      try {
+        if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function')
+          window.localStorage.setItem('app_last_seen_version', updateData.version);
+      } catch {}
     }
     setIsOpen(false);
   };

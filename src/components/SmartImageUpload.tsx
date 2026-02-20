@@ -26,7 +26,7 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
   React.useEffect(() => {
     try {
       const prev = prevPreviewRef.current;
-      if (prev && prev.startsWith('blob:')) {
+      if (typeof prev === 'string' && prev.startsWith('blob:')) {
         try {
           URL.revokeObjectURL(prev);
         } catch (e) {}
@@ -186,9 +186,9 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
             alt="preview"
           />
           <button
-            onClick={() => {
+              onClick={() => {
               try {
-                if (preview && preview.startsWith('blob:'))
+                if (typeof preview === 'string' && preview.startsWith('blob:'))
                   URL.revokeObjectURL(preview);
               } catch {}
               prevPreviewRef.current = null;

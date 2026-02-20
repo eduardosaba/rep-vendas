@@ -164,7 +164,7 @@ const ImageUploader = ({
           const entry = imgEntry as { url: string; path: string | null };
           const url = entry?.url || '';
           const path = entry?.path || null;
-          const external = url && url.startsWith('http') ? url : null;
+          const external = typeof url === 'string' && url.startsWith('http') ? url : null;
 
           return (
             <div
@@ -253,6 +253,32 @@ const ImageUploader = ({
 };
 
 // Helpers moved to `src/lib/imageHelpers.ts`
+
+// Constrói um item de galeria com variantes 480w/1200w a partir de uma URL simples
+const buildGalleryItem = (url: string, path: string | null) => {
+  const baseurl = String(url || '').replace(/-(480w|1200w)\.webp$/, '');
+  const basePath = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') : null;
+
+  const url1200 = url.includes('1200w') ? url : `${baseurl}-1200w.webp`;
+  const path1200 = path ? (path.includes('1200w') ? path : `${basePath}-1200w.webp`) : null;
+
+  return {
+    url: url1200,
+    path: path1200,
+    variants: [
+      {
+        url: `${baseurl}-480w.webp`,
+        path: basePath ? `${basePath}-480w.webp` : null,
+        size: 480,
+      },
+      {
+        url: `${baseurl}-1200w.webp`,
+        path: basePath ? `${basePath}-1200w.webp` : null,
+        size: 1200,
+      },
+    ],
+  };
+};
 
 // --- COMPONENTE PRINCIPAL ---
 export function EditProductForm({ product }: { product: Product }) {
@@ -439,16 +465,7 @@ export function EditProductForm({ product }: { product: Product }) {
     ),
   });
 
-  // DEBUG: log das imagens para diagnóstico rápido (remover depois)
-  useEffect(() => {
-    try {
-      // eslint-disable-next-line no-console
-      console.debug(
-        '[DEBUG] EditProductForm formData.images:',
-        formData.images
-      );
-    } catch (e) {}
-  }, [formData.images]);
+  // debug logging removed
 
   // Listener para confirmar saída
   useEffect(() => {
@@ -895,6 +912,12 @@ export function EditProductForm({ product }: { product: Product }) {
         );
       }
 
+      // Converte mergedImages para o formato complexo esperado pelo catálogo
+      const finalImages = (mergedImages || []).map((it: any) =>
+        buildGalleryItem(it.url || it, it.path || null)
+      );
+      const image_variants = finalImages.length > 0 ? finalImages[0].variants : null;
+
       const payload = {
         name: formData.name,
         reference_code: formData.reference_code,
@@ -916,28 +939,24 @@ export function EditProductForm({ product }: { product: Product }) {
         is_best_seller: formData.is_best_seller,
         // Persist images as objects {url, path} (merged/protected)
         images: mergedImages,
-        // New migrated field: keep gallery_images in sync
-        gallery_images: mergedImages,
-        image_url:
-          formData.images && formData.images.length > 0
-            ? formData.images[0].url || formData.images[0]
-            : null,
-        // image_path will be defined below with detach logic
-        sync_status: (formData.images || []).some(
-          (img: any) => !(img && img.path)
-        )
+        // Capa formatada para o catálogo
+        image_variants: image_variants,
+        // Galeria completa no formato esperado (variants)
+        gallery_images: finalImages,
+        // Fallbacks para compatibilidade (primeira imagem)
+        image_url: finalImages.length > 0 ? finalImages[0].url : null,
+        // image_path will be defined below with detach logic (use first final image path)
+        sync_status: (mergedImages || []).some((img: any) => !(img && img.path))
           ? 'pending'
           : 'synced',
-        image_optimized: (formData.images || []).every(
-          (img: any) => !!(img && img.path)
-        ),
+        image_optimized: (mergedImages || []).every((img: any) => !!(img && img.path)),
         technical_specs,
         image_is_shared: isShared && !needsDetach,
         // if user requested detach, clear image_path on product level
         image_path: needsDetach
           ? null
-          : formData.images && formData.images.length > 0
-            ? formData.images[0].path || (product as any).image_path
+          : finalImages.length > 0
+            ? finalImages[0].path || (product as any).image_path
             : (product as any).image_path,
         class_core: formData.class_core || null,
         // status

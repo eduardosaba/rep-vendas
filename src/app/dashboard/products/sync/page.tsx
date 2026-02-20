@@ -199,9 +199,9 @@ export default function ProductSyncPage() {
             const rawString = String(val || '').trim();
             const allUrls = rawString
               ? rawString
-                  .split(';')
-                  .map((u) => u.trim())
-                  .filter((u) => u.startsWith('http'))
+                .split(';')
+                .map((u) => u.trim())
+                .filter((u) => typeof u === 'string' && u.startsWith('http'))
               : [];
 
             if (allUrls.length > 0) {

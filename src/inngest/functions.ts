@@ -103,8 +103,8 @@ async function robustFetchImage(
   if (!url) throw new Error('URL vazia ou inválida');
 
   let targetUrl = url.trim();
-  if (targetUrl.startsWith('//')) targetUrl = 'https:' + targetUrl;
-  else if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
+  if (typeof targetUrl === 'string' && targetUrl.startsWith('//')) targetUrl = 'https:' + targetUrl;
+  else if (typeof targetUrl === 'string' && !targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
 
   const tryFetch = async (headers: Record<string, string>) => {
     const res = await fetch(targetUrl, {

@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   let effectiveBucket = bucketParam || 'product-images';
 
   // Lógica de Legado: Se o path vier como "product-images/diretorio/foto.jpg"
-  if (!bucketParam && effectivePath.startsWith('product-images/')) {
+  if (!bucketParam && typeof effectivePath === 'string' && effectivePath.startsWith('product-images/')) {
     effectiveBucket = 'product-images';
     effectivePath = effectivePath.replace(/^product-images\/?/, '');
   }
@@ -112,14 +112,6 @@ export async function GET(request: Request) {
     );
 
     // try candidates but with early bailouts and diagnostic logging
-    console.debug('[storage-image] download candidates', {
-      requested: filePath,
-      effectiveBucket,
-      candidateBuckets,
-      candidatePaths,
-      timeoutMs: DOWNLOAD_TIMEOUT,
-      debugEnabled,
-    });
 
     const attemptLog: Array<{
       bucket: string;

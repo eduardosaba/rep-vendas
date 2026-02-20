@@ -66,8 +66,11 @@ export default function FavoritesPage() {
         .maybeSingle();
       if (sets) setSettings(sets);
 
-      // Carregar Favoritos do LocalStorage
-      const savedFavorites = localStorage.getItem('favorites');
+      // Carregar Favoritos do LocalStorage (client-only)
+      const savedFavorites =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('favorites')
+          : null;
       if (savedFavorites) {
         const ids = new Set<string>(JSON.parse(savedFavorites));
         setFavoritesIds(ids);
@@ -108,18 +111,27 @@ export default function FavoritesPage() {
     const newSet = new Set(favoritesIds);
     newSet.delete(productId);
     setFavoritesIds(newSet);
-    localStorage.setItem('favorites', JSON.stringify(Array.from(newSet)));
+    try {
+      if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function')
+        window.localStorage.setItem('favorites', JSON.stringify(Array.from(newSet)));
+    } catch {}
     toast.success('Produto removido dos favoritos.');
   };
 
   const addToCart = (product: Product) => {
-    const savedCart = localStorage.getItem('cart');
+    const savedCart =
+      typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+        ? window.localStorage.getItem('cart')
+        : null;
     const cart = savedCart ? JSON.parse(savedCart) : {};
 
     // Incrementa ou cria
     cart[product.id] = (cart[product.id] || 0) + 1;
 
-    localStorage.setItem('cart', JSON.stringify(cart));
+    try {
+      if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function')
+        window.localStorage.setItem('cart', JSON.stringify(cart));
+    } catch {}
     toast.success(`${product.name} adicionado ao pedido!`, {
       icon: <ShoppingCart size={16} />,
     });
@@ -250,9 +262,9 @@ export default function FavoritesPage() {
                 >
                   {/* Imagem */}
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-white p-4">
-                    {imgUrl ? (
-                      String(imgUrl).startsWith('http') &&
-                      !String(imgUrl).includes('supabase.co/storage') ? (
+                      {imgUrl ? (
+                      typeof imgUrl === 'string' && imgUrl.startsWith('http') &&
+                      !(typeof imgUrl === 'string' && imgUrl.includes('supabase.co/storage')) ? (
                         <img
                           src={imgUrl}
                           alt={product.name}

@@ -36,10 +36,10 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isProtectedRoute =
-    path.startsWith('/dashboard') ||
+    typeof path === 'string' && (path.startsWith('/dashboard') ||
     path.startsWith('/admin') ||
-    path.startsWith('/onboarding');
-  const isAuthPage = path.startsWith('/login') || path.startsWith('/register');
+    path.startsWith('/onboarding'));
+  const isAuthPage = typeof path === 'string' && (path.startsWith('/login') || path.startsWith('/register'));
 
   let onboardingIncomplete = false;
 

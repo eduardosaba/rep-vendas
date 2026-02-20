@@ -177,10 +177,21 @@ export default function WhatsAppLinkGenerator({
                     toast.success('Link curto criado!');
                     // when created replace destination in message only if user opted in
                     if (useShortLink) {
-                      const updated = message.replace(
-                        destinationUrl || catalogUrl,
-                        json.short_url
-                      );
+                      // Replace the first full URL found in the message with the short URL.
+                      // This avoids partial replacements that leave the original slug appended.
+                      const urlRegex = /\bhttps?:\/\/[^\x20)]+/i;
+                      let updated = message;
+                      if (urlRegex.test(message)) {
+                        updated = message.replace(urlRegex, json.short_url);
+                      } else {
+                        // Fallback: try to replace the explicit destination/canonical URL (may omit trailing slug)
+                        const original = (destinationUrl || catalogUrl || '').trim();
+                        if (original) {
+                          const esc = original.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+                          const fuzzy = new RegExp(esc + '(\\/[^\\s]*)?');
+                          updated = message.replace(fuzzy, json.short_url);
+                        }
+                      }
                       if (onMessageChange) onMessageChange(updated);
                       else setLocalMessage(updated);
                     }

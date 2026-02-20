@@ -55,7 +55,25 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
         price: item.unit_price,
         // Referência e Marca (indispensáveis para o layout novo)
         reference_code: item.products?.reference_code || item.product_reference,
-        brand: item.products?.brand,
+          brand: item.products?.brand,
+          // Imagens: incluímos campos que o gerador de PDF espera
+          id: item.id,
+          image_url: item.image_url || item.products?.image_url || null,
+          external_image_url: item.external_image_url || item.products?.external_image_url || null,
+          // Variants/optimized_variants podem vir do próprio item, do produto ou da galeria
+          image_variants:
+            (item as any).image_variants ||
+            item.products?.image_variants ||
+            null,
+          optimized_variants:
+            (item as any).optimized_variants ||
+            item.products?.optimized_variants ||
+            // some syncs store variants inside product_images entries
+            (Array.isArray(item.products?.product_images) && item.products.product_images.length > 0
+              ? item.products.product_images[0].optimized_variants || null
+              : null),
+          // keep full gallery if available (useful for fallback)
+          product_images: item.products?.product_images || null,
       }));
 
       // 4. Montagem do Rodapé (Correção do "Teste")

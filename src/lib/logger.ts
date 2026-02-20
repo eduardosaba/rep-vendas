@@ -39,7 +39,7 @@ export const logger = {
   debug: (message: string, meta?: Record<string, unknown>) => {
     // Só exibe debug em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
-      console.debug(formatMessage('debug', message, meta));
+      console.log(formatMessage('debug', message, meta));
     }
   },
 };

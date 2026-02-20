@@ -49,11 +49,52 @@ export async function POST(req: Request) {
 
     const previousImage = productRow.image_url ?? null;
 
-    // 1) atualizar produto
-    const { error: updateErr } = await supabase
+    // 1) Atualizar produto: append inteligente em `gallery_images` e setar `image_variants` se faltar capa
+    const { data: currentProd } = await supabase
       .from('products')
-      .update({ image_url: publicUrl })
-      .eq('id', productId);
+      .select('image_variants, gallery_images, linked_images')
+      .eq('id', productId)
+      .maybeSingle();
+
+    const ensure480 = (u: string) => {
+      if (!u) return u;
+      if (/-1200w(\.|$)/.test(u)) return u.replace(/-1200w(\.|$)/, '-480w$1');
+      return u.replace(/(\.[a-z0-9]+)(\?|$)/i, '-480w$1');
+    };
+
+    const built = {
+      url: publicUrl,
+      path: imgRow.storage_path || null,
+      variants: [
+        { url: ensure480(publicUrl || ''), path: imgRow.storage_path ? ensure480(imgRow.storage_path) : null, size: 480 },
+        { url: publicUrl, path: imgRow.storage_path || null, size: 1200 },
+      ],
+    };
+
+    const currentCover = Array.isArray(currentProd?.image_variants)
+      ? currentProd!.image_variants
+      : [];
+    const currentGallery = Array.isArray(currentProd?.gallery_images)
+      ? currentProd!.gallery_images
+      : [];
+
+    const mergedGallery = [...currentGallery];
+    const exists = mergedGallery.some((it: any) => (it.path && built.path && it.path === built.path) || it.url === built.url);
+    if (!exists) mergedGallery.push({ url: built.url, path: built.path, variants: built.variants });
+
+    const updates: any = {
+      gallery_images: mergedGallery,
+      linked_images: Array.from(new Set([...(currentProd?.linked_images || []), built.url])),
+      sync_status: 'synced',
+      updated_at: new Date().toISOString(),
+    };
+
+    if (!currentCover || currentCover.length === 0) {
+      updates.image_variants = built.variants;
+      updates.image_url = built.url;
+    }
+
+    const { error: updateErr } = await supabase.from('products').update(updates).eq('id', productId);
 
     if (updateErr)
       return NextResponse.json(

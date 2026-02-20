@@ -122,7 +122,7 @@ export default function AdminPlansPage() {
           disabled={!!savingId}
           className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-sm shadow-indigo-200"
         >
-          {savingId && savingId.startsWith('temp') ? (
+          {typeof savingId === 'string' && savingId.startsWith('temp') ? (
             <Loader2 className="animate-spin" size={18} />
           ) : (
             <Plus size={18} />

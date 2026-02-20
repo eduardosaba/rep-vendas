@@ -5,7 +5,7 @@ export function normalizePhone(value?: string | null): string {
   if (!digits) return '';
 
   // If already has country code (starts with 55 and length reasonable), prefix with +
-  if (digits.length === 13 && digits.startsWith('55')) {
+  if (typeof digits === 'string' && digits.length === 13 && digits.startsWith('55')) {
     return `+${digits}`;
   }
 
@@ -21,7 +21,7 @@ export function normalizePhone(value?: string | null): string {
 
   // Fallback: if starts with country code without +, add +; otherwise try to return digits with +
   if (digits.length > 0) {
-    if (digits.startsWith('55')) return `+${digits}`;
+    if (typeof digits === 'string' && digits.startsWith('55')) return `+${digits}`;
     return `+${digits}`;
   }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { getErrorMessage } from '@/lib/errorUtils';
 import { toast } from 'sonner';
@@ -63,6 +64,8 @@ const BrandCard = ({
   onEdit: (b: Brand) => void;
   onRequestDelete: (id: string) => void;
 }) => {
+  const [logoFailed, setLogoFailed] = useState(false);
+
   return (
     <div
       className={`bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm relative group hover:shadow-md transition-all ${
@@ -89,25 +92,21 @@ const BrandCard = ({
       </div>
 
       <div className="h-20 w-full flex items-center justify-center mb-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 overflow-hidden group-hover:border-primary/20 transition-colors">
-        {brand.logo_url ? (
-          <img
+        {brand.logo_url && !logoFailed ? (
+          <Image
             src={brand.logo_url}
-            className="w-full h-full object-contain p-2"
             alt={brand.name}
-            onError={(e) => {
-              try {
-                // log for debugging and fallback to placeholder
-                // eslint-disable-next-line no-console
-                console.warn('Erro ao carregar logo da marca:', brand.logo_url);
-                (e.currentTarget as HTMLImageElement).src =
-                  '/images/product-placeholder.svg';
-              } catch (_) {}
-            }}
+            width={160}
+            height={80}
+            className="w-full h-full object-contain p-2"
+            onError={() => setLogoFailed(true)}
           />
         ) : (
-          <span className="text-2xl font-bold text-gray-300 dark:text-slate-600 uppercase select-none">
-            {brand.name.substring(0, 2)}
-          </span>
+          <div className="w-full h-full flex items-center justify-center bg-transparent">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 select-none">
+              {brand.name}
+            </span>
+          </div>
         )}
       </div>
 

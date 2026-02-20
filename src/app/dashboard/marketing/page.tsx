@@ -16,7 +16,7 @@ export default async function MarketingPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, name, slug, share_banner_url')
+    .select('id, share_banner_url')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -27,7 +27,7 @@ export default async function MarketingPage() {
     .maybeSingle();
 
   let fullImageUrl = profile?.share_banner_url || null;
-  if (fullImageUrl && !fullImageUrl.startsWith('http')) {
+  if (fullImageUrl && typeof fullImageUrl === 'string' && !fullImageUrl.startsWith('http')) {
     const { data: pub } = supabase.storage
       .from('product-images')
       .getPublicUrl(fullImageUrl.replace(/^\/+/, ''));

@@ -53,7 +53,7 @@ export default function MarketingClient({
         let fullUrl = profile.share_banner_url;
 
         // Se não for URL completa, busca a URL pública
-        if (!fullUrl.startsWith('http')) {
+        if (typeof fullUrl !== 'string' || !fullUrl.startsWith('http')) {
           const { data: pub } = supabase.storage
             .from('product-images')
             .getPublicUrl(fullUrl.replace(/^\/+/, ''));
@@ -113,6 +113,7 @@ export default function MarketingClient({
       const publicUrl = `${baseUrl}?v=${Date.now()}`;
 
       // 3. Chamada única para a API de sincronização (Profiles, Marketing, Public Catalogs)
+      let syncOk = false;
       try {
         const resp = await fetch('/api/marketing-links', {
           method: 'POST',
@@ -120,15 +121,44 @@ export default function MarketingClient({
           body: JSON.stringify({ image_url: baseUrl, use_short_link: false }),
         });
 
-        if (!resp.ok) {
+        if (resp.ok) {
+          syncOk = true;
+        } else {
           const body = await resp.json().catch(() => ({}));
-          throw new Error(body?.error || 'sync_failed');
+          console.warn('marketing-links responded with error', body);
         }
       } catch (e) {
-        console.warn('Failed to sync banner via API:', e);
-        toast.error('Banner enviado, mas falha ao sincronizar no servidor.');
-        setShareUploading(false);
-        return;
+        console.warn('Failed to call /api/marketing-links:', e);
+      }
+
+      // Fallback: se a API falhar, tenta aplicar updates diretamente via client-side Supabase
+      if (!syncOk) {
+        try {
+          const { data: profileUpdate, error: profileErr } = await supabase
+            .from('profiles')
+            .update({ share_banner_url: baseUrl })
+            .eq('id', userId);
+
+          const { data: catalogUpdate, error: catalogErr } = await supabase
+            .from('public_catalogs')
+            .update({ share_banner_url: baseUrl, og_image_url: baseUrl })
+            .eq('user_id', userId);
+
+          if (profileErr || catalogErr) {
+            console.warn('Fallback sync errors', { profileErr, catalogErr });
+            // não abortar — vamos notificar o usuário
+            toast.error('Banner enviado, mas houve falha ao sincronizar (tentativa fallback).');
+            setShareUploading(false);
+            return;
+          }
+
+          syncOk = true;
+        } catch (e) {
+          console.warn('Fallback sync exception', e);
+          toast.error('Banner enviado, mas falha ao sincronizar no servidor.');
+          setShareUploading(false);
+          return;
+        }
       }
 
       // 4. append-banner está temporariamente desativado — não chamar o

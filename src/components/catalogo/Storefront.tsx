@@ -116,7 +116,7 @@ export function Storefront({
   const formatWhatsappUrl = (phone?: string) => {
     if (!phone) return '#';
     const digits = phone.replace(/\D/g, '');
-    return `https://wa.me/${digits.startsWith('55') ? digits : `55${digits}`}`;
+    return `https://wa.me/${typeof digits === 'string' && digits.startsWith('55') ? digits : `55${digits}`}`;
   };
 
   // FONT OPTIONS centralizadas via src/lib/fonts

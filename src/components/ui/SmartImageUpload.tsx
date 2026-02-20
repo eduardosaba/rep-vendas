@@ -29,7 +29,7 @@ export default function SmartImageUpload({
     if (!file) return;
 
     // Validação de tipo
-    if (!file.type.startsWith('image/')) {
+    if (!(typeof file.type === 'string' && file.type.startsWith('image/'))) {
       toast.error('Apenas imagens são permitidas');
       return;
     }
@@ -37,14 +37,70 @@ export default function SmartImageUpload({
     // Validação de tamanho
     const maxBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxBytes) {
-      toast.error(`Imagem muito grande! Máximo: ${maxSizeMB}MB`, {
-        description: `Arquivo: ${Math.round(file.size / 1024 / 1024)}MB`,
-      });
+      const sizeMB = Math.round((file.size / 1024 / 1024) * 10) / 10;
+      const proceed = window.confirm(
+        `Arquivo muito grande (${sizeMB}MB). Deseja otimizar e converter para WebP automaticamente (qualidade balanceada) e enviar?`
+      );
+      if (!proceed) return;
+
+      // Tenta otimizar/convertendo para WebP em client-side
+      compressAndConvertToWebp(file, 1200, 0.82)
+        .then((blob) => {
+          try {
+            const optimizedFile = new File([blob], changeExtToWebp(file.name), { type: 'image/webp' });
+            setPreview(URL.createObjectURL(optimizedFile));
+            onUploadReady(optimizedFile);
+          } catch (e) {
+            toast.error('Falha ao preparar imagem otimizada');
+          }
+        })
+        .catch((err) => {
+          console.warn('SmartImageUpload: compress failed', err);
+          toast.error('Falha ao otimizar imagem. Tente um arquivo menor.');
+        });
+
       return;
     }
 
     setPreview(URL.createObjectURL(file));
     onUploadReady(file);
+  };
+
+  const changeExtToWebp = (name: string) => {
+    return name.replace(/\.[^/.]+$/, '') + '.webp';
+  };
+
+  const compressAndConvertToWebp = async (
+    file: File,
+    maxWidth = 1200,
+    quality = 0.8
+  ): Promise<Blob> => {
+    // Utiliza createImageBitmap / canvas para redimensionar e converter
+    const blob = file.slice(0, file.size, file.type);
+    const imageBitmap = await createImageBitmap(blob as Blob);
+    const ratio = imageBitmap.width / imageBitmap.height;
+    const width = Math.min(maxWidth, imageBitmap.width);
+    const height = Math.round(width / ratio);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+    ctx.drawImage(imageBitmap, 0, 0, width, height);
+
+    return await new Promise<Blob>((resolve, reject) => {
+      // toBlob com webp
+      // @ts-ignore
+      canvas.toBlob(
+        (b: Blob | null) => {
+          if (!b) return reject(new Error('toBlob_failed'));
+          resolve(b);
+        },
+        'image/webp',
+        quality
+      );
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

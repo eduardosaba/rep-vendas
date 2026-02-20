@@ -44,4 +44,27 @@ if (
   );
 }
 
+// Dev: some Node flags or environments can inject a non-standard `localStorage`
+// (e.g. --localstorage-file without a valid path). Ensure `localStorage` has
+// the expected API to avoid runtime errors during server rendering.
+try {
+  if (typeof globalThis.localStorage !== 'undefined') {
+    const ls = globalThis.localStorage;
+    if (typeof ls.getItem !== 'function') {
+      console.warn(
+        'Warning: detected non-standard global.localStorage — replacing with in-memory adapter for dev.'
+      );
+      const _store = Object.create(null);
+      globalThis.localStorage = {
+        getItem: (k) => (Object.prototype.hasOwnProperty.call(_store, k) ? _store[k] : null),
+        setItem: (k, v) => { _store[k] = String(v); },
+        removeItem: (k) => { delete _store[k]; },
+        clear: () => { Object.keys(_store).forEach((k) => delete _store[k]); },
+      };
+    }
+  }
+} catch (e) {
+  // ignore — don't fail startup for non-critical diagnostic
+}
+
 process.exit(0);

@@ -99,7 +99,6 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
         if (!mounted) return;
 
         if (error) {
-          console.debug('Slug check error', error);
           setSlugCheckError('Erro ao verificar disponibilidade');
           setSlugAvailable(null);
         } else if (

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/check-env.js && node scripts/check-assets.js && next dev",
+    "dev": "node scripts/dev-wrapper.mjs",
     "build": "node scripts/check-env.js && node scripts/check-assets.js && next build",
     "start": "next start",
     "e2e:internalize": "node scripts/e2e-internalize-test.mjs",

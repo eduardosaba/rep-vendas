@@ -459,9 +459,9 @@ export default function ImportMassaPage() {
         const imageMeta = prepareProductImage(coverUrl || null);
 
         const hasExternalImage = Boolean(
-          (coverUrl && coverUrl.startsWith('http')) ||
+          (typeof coverUrl === 'string' && coverUrl.startsWith('http')) ||
           (galleryUrls &&
-            galleryUrls.some((u) => !!u && String(u).startsWith('http')))
+            galleryUrls.some((u) => !!u && typeof u === 'string' && u.startsWith('http')))
         );
 
         // Monta array COMPLETO de imagens: capa + galeria

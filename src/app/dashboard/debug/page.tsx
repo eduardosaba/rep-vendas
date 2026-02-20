@@ -53,7 +53,7 @@ export default function SystemHealthPage() {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      if (url && key && url.startsWith('https://') && key.length > 20) {
+      if (typeof url === 'string' && url && key && url.startsWith('https://') && key.length > 20) {
         newResults.env = {
           status: 'success',
           message: 'Variáveis carregadas corretamente.',

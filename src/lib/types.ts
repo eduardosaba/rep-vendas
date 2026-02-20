@@ -43,6 +43,7 @@ export interface Product {
   image_path?: string | null; // Caminho no Supabase Storage
   external_image_url?: string | null;
   images?: string[]; // Galeria adicional
+  linked_images?: string[]; // URLs vinculadas/importadas (nova coluna)
   image_variants?: Array<{ size: number; path: string; url?: string }> | null; // Variantes responsivas (480w, 1200w)
   sync_status?: 'pending' | 'synced' | 'failed' | null;
   sync_error?: string | null;

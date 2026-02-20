@@ -45,7 +45,15 @@ interface ClientProfile {
   orders: Order[];
 }
 
-export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
+interface RawClientRow {
+  id: string;
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  created_at?: string | null;
+}
+
+export function ClientsTable({ initialOrders, initialClients }: { initialOrders: Order[]; initialClients?: RawClientRow[] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<
     'totalSpent' | 'lastOrderDate' | 'orderCount'
@@ -110,16 +118,43 @@ export function ClientsTable({ initialOrders }: { initialOrders: Order[] }) {
       client.orders.push(order);
     });
 
+    // Inserir clientes cadastrados manualmente (sem pedidos) — usamos chave reg_<id>
+    (initialClients || []).forEach((c) => {
+      const key = `reg_${c.id}`;
+      if (!map.has(key)) {
+        const created = c.created_at || new Date().toISOString();
+        map.set(key, {
+          id: key,
+          name: c.name || (c.email ? c.email : 'Cliente'),
+          phone: c.phone || '',
+          email: c.email || '',
+          rawId: String(c.id),
+          totalSpent: 0,
+          orderCount: 0,
+          lastOrderDate: created,
+          firstOrderDate: created,
+          isGuest: false,
+          orders: [],
+        } as any);
+      }
+    });
+
     let array = Array.from(map.values());
 
     if (searchTerm) {
       const lt = searchTerm.toLowerCase();
-      array = array.filter(
-        (c) =>
-          c.name.toLowerCase().includes(lt) ||
-          (c.phone || '').includes(lt) ||
-          (c.email || '').toLowerCase().includes(lt)
-      );
+      array = array.filter((c) => {
+        const name = (c.name || '').toLowerCase();
+        const email = (c.email || '').toLowerCase();
+        const phone = (c.phone || '');
+        const rawId = (c as any).rawId || '';
+        return (
+          name.includes(lt) ||
+          email.includes(lt) ||
+          phone.includes(lt) ||
+          rawId.toLowerCase().includes(lt)
+        );
+      });
     }
 
     array.sort((a, b) => {

@@ -42,7 +42,7 @@ interface OptimizedImageProps {
  */
 function generateSrcSet(src: string): string {
   // Se for URL externa ou não suportar otimização, retorna src original
-  if (src.startsWith('http') || src.startsWith('//')) {
+  if (typeof src !== 'string' || src.startsWith('http') || src.startsWith('//')) {
     return '';
   }
 
@@ -90,7 +90,7 @@ export function OptimizedImage({
     );
   }
   // Para URLs externas, usa Image do Next.js sem otimizações adicionais
-  const isExternal = src.startsWith('http') || src.startsWith('//');
+  const isExternal = typeof src === 'string' && (src.startsWith('http') || src.startsWith('//'));
   // Para URLs externas, usamos <img> nativo para evitar restrições do Next.js
   if (isExternal) {
     return (

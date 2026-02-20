@@ -52,7 +52,7 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
                 const rawFirst =
                   product.images?.[0] || product.external_image_url || '';
                 const resolvedFirst =
-                  rawFirst && !rawFirst.startsWith('http')
+                  typeof rawFirst === 'string' && rawFirst && !rawFirst.startsWith('http')
                     ? buildSupabaseImageUrl(rawFirst) || rawFirst
                     : rawFirst;
 
@@ -250,7 +250,7 @@ export const ProductCardGrid: React.FC<ProductCardGridProps> = ({
             {(() => {
               const imgUrl = product.images?.[0] || '';
               const resolved =
-                imgUrl && !imgUrl.startsWith('http')
+                typeof imgUrl === 'string' && !imgUrl.startsWith('http')
                   ? buildSupabaseImageUrl(imgUrl) || imgUrl
                   : imgUrl;
               const displayProduct =

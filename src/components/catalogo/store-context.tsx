@@ -145,8 +145,8 @@ export function StoreProvider({
 
   // ✅ PAGINAÇÃO PREMIUM: Estado dinâmico (localStorage persistence)
   const [itemsPerPage, setItemsPerPage] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('itemsPerPage');
+    if (typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function') {
+      const saved = window.localStorage.getItem('itemsPerPage');
       if (saved) return parseInt(saved, 10) || 24;
     }
     return 24;
@@ -414,8 +414,14 @@ export function StoreProvider({
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return;
-      const access = localStorage.getItem('priceAccessGranted');
-      const expires = localStorage.getItem('priceAccessExpiresAt');
+      const access =
+        typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('priceAccessGranted')
+          : null;
+      const expires =
+        typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('priceAccessExpiresAt')
+          : null;
       if (access === 'true') {
         if (expires) {
           const exp = new Date(expires);
@@ -423,8 +429,12 @@ export function StoreProvider({
             setShowPrices(true);
           } else {
             // expirado
-            localStorage.removeItem('priceAccessGranted');
-            localStorage.removeItem('priceAccessExpiresAt');
+            try {
+              if (typeof window.localStorage?.removeItem === 'function') {
+                window.localStorage.removeItem('priceAccessGranted');
+                window.localStorage.removeItem('priceAccessExpiresAt');
+              }
+            } catch {}
           }
         } else {
           setShowPrices(true);
@@ -614,10 +624,10 @@ export function StoreProvider({
             }
 
             // URLs externas (HTTP/HTTPS não-storage)
-            if (u.startsWith('http') || u.startsWith('//')) return u;
+            if (typeof u === 'string' && (u.startsWith('http') || u.startsWith('//'))) return u;
 
             // Paths relativos
-            if (u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
+            if (typeof u === 'string' && u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
 
             return u;
           };
@@ -777,19 +787,28 @@ export function StoreProvider({
   }, [supabase, store.user_id, genders]);
 
   useEffect(() => {
-    const savedCart = localStorage.getItem(`cart-${store.name}`);
-    if (savedCart)
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch {}
-
-    // LOGIN INVISÍVEL: carregar dados do cliente salvo para este user/store
     try {
-      const savedCustomer = localStorage.getItem(`customer-${store.user_id}`);
+      const savedCart =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem(`cart-${store.name}`)
+          : null;
+      if (savedCart) {
+        try {
+          setCart(JSON.parse(savedCart));
+        } catch {}
+      }
+
+      // LOGIN INVISÍVEL: carregar dados do cliente salvo para este user/store
+      const savedCustomer =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem(`customer-${store.user_id}`)
+          : null;
       if (savedCustomer) {
-        const parsed = JSON.parse(savedCustomer) as CustomerInfo;
-        setCustomerSession(parsed);
-        console.log('Cliente reconhecido:', parsed?.name);
+        try {
+          const parsed = JSON.parse(savedCustomer) as CustomerInfo;
+          setCustomerSession(parsed);
+          console.log('Cliente reconhecido:', parsed?.name);
+        } catch {}
       }
     } catch {}
   }, [store.name, store.user_id]);
@@ -1214,29 +1233,20 @@ export function StoreProvider({
         expires_at: expiresAt.toISOString(),
       } as any;
 
-      const res = await supabase
-        .from('saved_carts')
-        .insert(payload)
-        .select('short_id')
-        .maybeSingle();
+      // Use server API to save cart so insertion happens with server privileges
+      const apiRes = await fetch('/api/save-cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, userId: store.user_id }),
+      });
 
-      // detailed logging for debugging
-      // @ts-ignore
-      console.log('[store] handleSaveOrder payload=', JSON.stringify(payload));
-      // @ts-ignore
-      console.log('[store] handleSaveOrder response=', res);
-      // @ts-ignore
-      const insertError = res?.error || null;
-      // @ts-ignore
-      const inserted = res?.data || null;
-      console.log(
-        '[store] handleSaveOrder inserted shortId=',
-        inserted?.short_id || shortId,
-        'error=',
-        insertError
-      );
+      const apiJson = await apiRes.json().catch(() => null);
       setLoadingStates((s) => ({ ...s, saving: false }));
-      return insertError ? null : shortId;
+      if (!apiRes.ok || !apiJson || apiJson.error) {
+        console.error('save-cart API error', { status: apiRes.status, apiJson });
+        return null;
+      }
+      return apiJson.code || apiJson.short_id || shortId;
     } catch (err) {
       console.error('Erro ao salvar pedido como código:', err);
       setLoadingStates((s) => ({ ...s, saving: false }));

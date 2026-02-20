@@ -217,7 +217,6 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
 
   // 4. Fechar ao clicar fora
   useEffect(() => {
-    console.debug('[DashboardHeader] theme', theme);
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node))
         setIsMenuOpen(false);

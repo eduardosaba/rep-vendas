@@ -64,7 +64,10 @@ export default function UpdateNotificationModal() {
         setUpdateData(data);
 
         // Verificar se deve exibir o modal
-        const lastSeenVersion = localStorage.getItem(LAST_SEEN_VERSION_KEY);
+        const lastSeenVersion =
+          typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+            ? window.localStorage.getItem(LAST_SEEN_VERSION_KEY)
+            : null;
         const currentVersion = data.version;
 
         // Se a atualização tem uma flag administrativa para forçar exibição,
@@ -97,11 +100,13 @@ export default function UpdateNotificationModal() {
   const handleClose = () => {
     if (updateData) {
       // Persistir localmente sempre que o usuário fechar (marcar como visto)
-      try {
-        localStorage.setItem(LAST_SEEN_VERSION_KEY, updateData.version);
-      } catch {
-        // ignore (privacy mode)
-      }
+        try {
+          if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
+            window.localStorage.setItem(LAST_SEEN_VERSION_KEY, updateData.version);
+          }
+        } catch {
+          // ignore (privacy mode)
+        }
 
       // Persistir server-side (best-effort) para suportar múltiplos dispositivos
       try {

@@ -80,6 +80,8 @@ export default function LoginPage() {
     setIsSubmitting(true);
     setFormError(null);
 
+    // do not request Notification permission during login flow
+
     try {
       const formData = new FormData(e.currentTarget);
       const result = await login(null, formData);
@@ -92,8 +94,8 @@ export default function LoginPage() {
             if ('serviceWorker' in navigator) {
               navigator.serviceWorker
                 .register('/firebase-messaging-sw.js')
-                .then((reg) => console.debug('[SW] registered', reg.scope))
-                .catch((err) => console.debug('[SW] SW register failed', err));
+                .then(() => null)
+                .catch(() => null);
             }
             try {
               // Protege a chamada getUser com timeout para evitar bloquear o fluxo
@@ -103,12 +105,10 @@ export default function LoginPage() {
               );
               const res: any = await Promise.race([userPromise, timeout]);
               const user = res?.data?.user;
-              if (user && user.id) {
-                // executar em background (não await) para não bloquear o redirecionamento
-                void setupNotifications(user.id);
-              }
-            } catch (e) {
-              console.debug('[login] getUser for setupNotifications failed', e);
+              // do not trigger notification permission or setup during login;
+              // notifications are enabled via the Dashboard CTA instead
+              } catch (e) {
+              // debug removed
             }
           }
         } catch (e) {

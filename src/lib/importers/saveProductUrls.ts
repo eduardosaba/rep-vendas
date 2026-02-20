@@ -25,6 +25,7 @@ export async function saveProductsFromRows(
     sale_price: row.Preco || row.price || 0,
     description: row.Descricao || row.description || null,
     external_image_url: row.UrlDaImagem || row.external_image_url || null,
+    linked_images: row.UrlDaImagem || row.external_image_url ? [row.UrlDaImagem || row.external_image_url] : null,
     image_path: null,
     reference_code: row.Referencia || row.reference_code || null,
   }));

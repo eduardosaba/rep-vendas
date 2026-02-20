@@ -177,7 +177,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
 
   const { data: products, error: productsError } = await supabase
     .from('products')
-    .select('*, product_images(url, is_primary)')
+    .select('*, linked_images, product_images(url, is_primary)')
     .eq('user_id', catalog.user_id)
     .eq('is_active', true)
     .order('created_at', { ascending: false })

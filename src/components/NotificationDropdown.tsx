@@ -153,54 +153,108 @@ export default function NotificationDropdown({
                 </div>
               ) : (
                 <div className="divide-y divide-gray-50">
-                  {notifications.map((notif) => (
-                    <div
-                      key={notif.id}
-                      className={`flex gap-3 p-4 hover:bg-gray-50 transition-colors relative group ${!notif.read ? 'bg-primary/10' : ''}`}
-                    >
-                      <div className="mt-0.5">{getIcon(notif.type)}</div>
-                      <div className="flex-1 min-w-0">
-                        {notif.link ? (
-                          <Link
-                            href={notif.link}
-                            onClick={() => {
-                              setIsOpen(false);
-                              markAsRead(notif.id);
-                            }}
-                            className="block focus:outline-none"
+                  {notifications.map((notif) => {
+                    const rawLink = typeof notif.link === 'string' ? notif.link.trim() : '';
+                    const likelyExternal =
+                      rawLink && (rawLink.startsWith('http') || rawLink.startsWith('//') || rawLink.startsWith('mailto:') || rawLink.startsWith('tel:'));
+
+                    // Detect same-origin absolute URLs (e.g., http://localhost:4000/...) and
+                    // treat them as internal to avoid opening a new tab that may 404 when
+                    // the dev server/host differs. Falls back to external when true external.
+                    let isExternal = false;
+                    let internalHref = '';
+                    if (rawLink) {
+                      try {
+                        if (likelyExternal && typeof window !== 'undefined') {
+                          const urlObj = new URL(rawLink, window.location.href);
+                          // if origin matches current origin, use internal path
+                          if (urlObj.origin === window.location.origin) {
+                            internalHref = urlObj.pathname + (urlObj.search || '') + (urlObj.hash || '');
+                            isExternal = false;
+                          } else {
+                            isExternal = true;
+                          }
+                        } else {
+                          // not an absolute URL => internal
+                          internalHref = rawLink.startsWith('/') ? rawLink : '/' + rawLink;
+                          isExternal = false;
+                        }
+                      } catch (e) {
+                        // parsing failed: treat as internal path
+                        internalHref = rawLink.startsWith('/') ? rawLink : '/' + rawLink;
+                        isExternal = false;
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={notif.id}
+                        className={`flex gap-3 p-4 hover:bg-gray-50 transition-colors relative group ${!notif.read ? 'bg-primary/10' : ''}`}
+                      >
+                        <div className="mt-0.5">{getIcon(notif.type)}</div>
+                        <div className="flex-1 min-w-0">
+                          {rawLink ? (
+                            isExternal ? (
+                              <a
+                                href={rawLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => {
+                                  setIsOpen(false);
+                                  markAsRead(notif.id);
+                                }}
+                                className="block focus:outline-none"
+                              >
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {notif.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                                  {notif.message}
+                                </p>
+                              </a>
+                            ) : (
+                              <Link
+                                href={internalHref}
+                                onClick={() => {
+                                  setIsOpen(false);
+                                  markAsRead(notif.id);
+                                }}
+                                className="block focus:outline-none"
+                              >
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {notif.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                                  {notif.message}
+                                </p>
+                              </Link>
+                            )
+                          ) : (
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {notif.title}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {notif.message}
+                              </p>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-gray-400 mt-2">
+                            {new Date(notif.created_at).toLocaleString('pt-BR')}
+                          </p>
+                        </div>
+                        {!notif.read && (
+                          <button
+                            onClick={() => markAsRead(notif.id)}
+                            className="text-primary hover:text-primary/90 p-1 self-start opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Marcar como lida"
                           >
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {notif.title}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                              {notif.message}
-                            </p>
-                          </Link>
-                        ) : (
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {notif.title}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {notif.message}
-                            </p>
-                          </div>
+                            <Check size={14} />
+                          </button>
                         )}
-                        <p className="text-[10px] text-gray-400 mt-2">
-                          {new Date(notif.created_at).toLocaleString('pt-BR')}
-                        </p>
                       </div>
-                      {!notif.read && (
-                        <button
-                          onClick={() => markAsRead(notif.id)}
-                          className="text-primary hover:text-primary/90 p-1 self-start opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Marcar como lida"
-                        >
-                          <Check size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

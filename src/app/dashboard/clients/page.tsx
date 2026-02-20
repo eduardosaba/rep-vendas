@@ -36,8 +36,15 @@ export default async function ClientsPage() {
   const { data: orders, error } = await supabase
     .from('orders')
     .select(
-      'id, display_id, created_at, status, total_value, item_count, client_name_guest, client_phone_guest, client_email_guest'
+      'id, display_id, created_at, status, total_value, item_count, client_name_guest, client_phone_guest, client_email_guest, client_id, clients ( name, phone, email )'
     )
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  // Também buscar clientes cadastrados manualmente (tabela `clients`) e enviar para a tabela
+  const { data: clientsList, error: clientsError } = await supabase
+    .from('clients')
+    .select('id, name, phone, email, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -47,8 +54,8 @@ export default async function ClientsPage() {
 
   return (
     <div className="max-w-[1600px] mx-auto">
-      {/* Passamos os pedidos brutos; a mágica de agrupar por cliente acontece aqui dentro */}
-      <ClientsTable initialOrders={orders || []} />
+      {/* Passamos os pedidos brutos e a lista de clientes cadastrados manualmente */}
+      <ClientsTable initialOrders={orders || []} initialClients={clientsList || []} />
     </div>
   );
 }

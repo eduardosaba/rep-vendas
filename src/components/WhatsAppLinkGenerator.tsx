@@ -127,8 +127,8 @@ const WhatsAppLinkGenerator: React.FC<LinkGeneratorProps> = ({
     if (!input) return input;
     const trimmed = input.trim();
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    if (trimmed.startsWith('//')) return window.location.protocol + trimmed;
-    if (trimmed.startsWith('/'))
+    if (typeof trimmed === 'string' && trimmed.startsWith('//')) return window.location.protocol + trimmed;
+    if (typeof trimmed === 'string' && trimmed.startsWith('/'))
       return window.location.origin.replace(/\/$/, '') + trimmed;
     // caso seja um caminho relativo sem barra, prefixa com origin/
     return window.location.origin.replace(/\/$/, '') + '/' + trimmed;

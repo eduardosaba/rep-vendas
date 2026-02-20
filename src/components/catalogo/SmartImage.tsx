@@ -12,6 +12,7 @@ interface SmartImageProps {
   sizes?: string;
   variant?: 'thumbnail' | 'card' | 'full'; // Novo: controla qual variante usar
   preferredSize?: number; // solicita explicitamente a variante (ex: 480, 1200)
+  priority?: boolean;
 }
 
 export function SmartImage({
@@ -22,6 +23,7 @@ export function SmartImage({
   sizes,
   variant = 'card',
   preferredSize,
+  priority = false,
 }: SmartImageProps) {
   // Gera srcset a partir de image_variants se disponível
   const generateSrcSet = () => {
@@ -133,7 +135,7 @@ export function SmartImage({
     // 1) If we tried internal first and there's an external URL, use it.
     // 2) Else try local placeholder asset.
     // 3) If already tried placeholder, mark errored.
-    const placeholder = '/images/product-placeholder.svg';
+    const placeholder = '/placeholder.png';
     try {
       if (src && imageSrc && src === imageSrc && external) {
         setSrc(external);
@@ -151,35 +153,24 @@ export function SmartImage({
 
   const isPending = product?.sync_status === 'pending';
 
-  // Se tem srcset, usa img nativo para aproveitar responsive images
-  const useNativeImg = srcSet && variant !== 'thumbnail';
+  // Use elemento <img> nativo quando tivermos srcSet ou quando for miniatura (mais resiliente que next/Image para thumbs)
+  const useNativeImg = Boolean(srcSet) || variant === 'thumbnail';
 
   return (
     <div className={`relative w-full h-full ${className}`}>
       {src && !errored ? (
-        useNativeImg ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            srcSet={srcSet || undefined}
-            alt={product?.name || 'Produto'}
-            className={`w-full h-full object-contain ${imgClassName}`}
-            sizes={sizes || '(max-width: 768px) 100vw, 200px'}
-            loading="lazy"
-            decoding="async"
-            onError={handleError}
-          />
-        ) : (
-          <Image
-            src={src}
-            alt={product?.name || 'Produto'}
-            fill
-            sizes={sizes || '200px'}
-            className={`object-contain ${imgClassName}`}
-            onError={handleError}
-            unoptimized={true}
-          />
-        )
+        // Sempre preferimos <img> nativo para maior compatibilidade e fallback direto
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          srcSet={srcSet || undefined}
+          alt={product?.name || 'Produto'}
+          className={`w-full h-full object-contain ${imgClassName}`}
+          sizes={sizes || '(max-width: 768px) 100vw, 200px'}
+          loading="lazy"
+          decoding="async"
+          onError={handleError}
+        />
       ) : errored ? (
         <div className="flex h-full w-full flex-col items-center justify-center bg-slate-50 dark:bg-slate-900">
           <svg

@@ -143,7 +143,7 @@ export async function POST(request: Request) {
               product.images.forEach((img: any) => {
                 if (typeof img === 'string' && img.startsWith('http')) {
                   galleryUrls.push(img);
-                } else if (img?.url && img.url.startsWith('http')) {
+                } else if (img?.url && typeof img.url === 'string' && img.url.startsWith('http')) {
                   galleryUrls.push(img.url);
                 }
               });

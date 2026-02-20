@@ -18,11 +18,29 @@ export async function setupNotifications(userId: string) {
       return;
     }
 
-    console.debug('[setupNotifications] solicitando permissão de Notification');
     const permission = await Notification.requestPermission();
-    console.debug('[setupNotifications] permission=', permission);
     if (permission !== 'granted') {
-      toast.info('Permissão de notificações não concedida.');
+      // Only show the informational toast on mobile devices — desktop users
+      // commonly rely on system-level notification settings and the message
+      // can be noisy. Use a localStorage flag to avoid repeating the message.
+      try {
+        const ua = navigator.userAgent || '';
+        const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+        const key = 'rv_notifications_permission_seen';
+        const seen = typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem(key)
+          : null;
+        if (isMobile && !seen) {
+          toast.info('Permissão de notificações não concedida.');
+          if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
+            window.localStorage.setItem(key, '1');
+          }
+        } else {
+          // debug removed
+        }
+      } catch (e) {
+        // ignore errors reading/writing localStorage
+      }
       return;
     }
 

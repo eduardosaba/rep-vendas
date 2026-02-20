@@ -231,7 +231,7 @@ export default function ProductsClient({
                                 src={img}
                                 alt={product.name}
                                 className="h-full w-full object-cover"
-                                fallbackSrc="/placeholder-no-image.svg"
+                                fallbackSrc="/placeholder.png"
                               />
                             ) : (
                               <div className="flex items-center justify-center h-full w-full">
@@ -296,15 +296,11 @@ export default function ProductsClient({
           <div className="p-12 text-center text-gray-500 bg-white dark:bg-slate-900 rounded-xl border border-gray-200">
             <div className="flex flex-col items-center justify-center max-w-md mx-auto">
               <img
-                src="/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70"
+                src="/placeholder.png"
                 alt="Sem produtos"
                 className="h-12 w-12 mb-3 opacity-30"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src =
-                    '/api/proxy-image?url=https%3A%2F%2Faawghxjbipcqefmikwby.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fimages%2Fproduct-placeholder.svg&fmt=webp&q=70';
-                }}
               />
-              <p className="text-lg font-medium text-gray-900">
+                  <p className="text-lg font-medium text-gray-900">
                 Nenhum produto encontrado
               </p>
               <p className="text-sm text-gray-500 mb-4">
@@ -332,7 +328,7 @@ export default function ProductsClient({
                         src={img}
                         alt={product.name}
                         className="w-full h-full object-cover"
-                        fallbackSrc="/placeholder-no-image.svg"
+                        fallbackSrc="/placeholder.png"
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full w-full">

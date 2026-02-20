@@ -43,7 +43,7 @@ const getBase64ImageFromURL = async (
     if (!url) return null;
 
     // If already a data URL, try to create image to get dimensions
-    if (url.startsWith('data:')) {
+    if (typeof url === 'string' && url.startsWith('data:')) {
       return await new Promise((resolve) => {
         const img = new Image();
         img.src = url;
@@ -124,8 +124,8 @@ const normalizeImageUrlForFetch = (raw: string | null | undefined) => {
   const s = String(raw).trim();
 
   // If already a data URL or absolute same-origin path, return as-is
-  if (s.startsWith('data:')) return s;
-  if (s.startsWith('/')) return s; // relative to same origin (e.g., /api/storage-image?...)
+  if (typeof s === 'string' && s.startsWith('data:')) return s;
+  if (typeof s === 'string' && s.startsWith('/')) return s; // relative to same origin (e.g., /api/storage-image?...)
 
   // If it's a Supabase storage link or contains storage v1 public path, route through proxy
   if (s.includes('supabase.co/storage') || s.includes('/storage/v1/object')) {
@@ -224,11 +224,7 @@ export const generateOrderPDF = async (
   doc.setTextColor(60);
   doc.setFont('helvetica', 'normal');
   doc.text(`Nome: ${orderData.customer.name}`, margin + 5, boxY + 15);
-  doc.text(
-    `CPF/CNPJ: ${orderData.customer.cnpj || 'Não informado'}`,
-    margin + 100,
-    boxY + 15
-  );
+  // CPF/CNPJ intentionally omitted from PDF for privacy
   doc.text(
     `Tel: ${orderData.customer.phone || '-'}  |  Email: ${orderData.customer.email || '-'}`,
     margin + 5,
@@ -258,8 +254,8 @@ export const generateOrderPDF = async (
         }
         if (
           !chosenUrl &&
-          (item as any).image_url &&
-          String((item as any).image_url).startsWith('http')
+          typeof (item as any).image_url === 'string' &&
+          (typeof (item as any).image_url === 'string' && (item as any).image_url.startsWith('http'))
         )
           chosenUrl = (item as any).image_url;
         if (!chosenUrl && (item as any).external_image_url)

@@ -115,7 +115,7 @@ export async function GET(req: Request) {
 
     const contentType =
       res.headers.get('content-type') || 'application/octet-stream';
-    if (!contentType.startsWith('image/')) {
+    if (!(typeof contentType === 'string' && contentType.startsWith('image/'))) {
       return NextResponse.json(
         { error: 'Not an image', contentType },
         { status: 400 }

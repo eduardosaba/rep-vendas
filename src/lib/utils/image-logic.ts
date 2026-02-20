@@ -34,7 +34,7 @@ export function prepareProductImage(url: string | null | undefined) {
   }
 
   // Verifica se a URL é de um serviço externo (http/s) e não do nosso próprio storage.
-  const isExternal = trimmedUrl.startsWith('http');
+  const isExternal = typeof trimmedUrl === 'string' && trimmedUrl.startsWith('http');
   const isAlreadyInternal = trimmedUrl.includes(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'supabase.co'
   );
@@ -180,7 +180,7 @@ export function prepareProductGallery(
   );
 
   return urls.map((url, index) => {
-    const isExternal = url.startsWith('http');
+    const isExternal = typeof url === 'string' && url.startsWith('http');
     const isAlreadyInternal = url.includes(
       process.env.NEXT_PUBLIC_SUPABASE_URL || 'supabase.co'
     );

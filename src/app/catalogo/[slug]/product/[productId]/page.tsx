@@ -99,7 +99,7 @@ export default function ProductDetailPage() {
   const normalizeHex = (s?: string) => {
     if (!s) return null;
     const hex = s.trim();
-    if (hex.startsWith('#')) return hex.toLowerCase();
+    if (typeof hex === 'string' && hex.startsWith('#')) return hex.toLowerCase();
     return hex.toLowerCase();
   };
 
@@ -150,7 +150,7 @@ export default function ProductDetailPage() {
       // Agora buscar produto escopado pelo user_id da loja
       const { data, error } = await supabase
         .from('products')
-        .select('*, product_images(*), gallery_images')
+        .select('*, linked_images, product_images(*), gallery_images')
         .eq('id', productId)
         .eq('user_id', store.user_id)
         .order('position', { foreignTable: 'product_images', ascending: true }) // Ordena fotos

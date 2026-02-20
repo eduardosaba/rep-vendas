@@ -51,7 +51,7 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
                 {settings?.phone &&
                   (() => {
                     const raw = String(settings.phone || '').replace(/\D/g, '');
-                    const digits = raw.startsWith('55') ? raw : `55${raw}`;
+                    const digits = typeof raw === 'string' && raw.startsWith('55') ? raw : `55${raw}`;
                     const display = normalizePhone(settings.phone);
                     return (
                       <a

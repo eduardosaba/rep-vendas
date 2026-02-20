@@ -66,7 +66,7 @@ function formatPhoneDisplay(phone?: string | null) {
 function getContrastColor(hexColor?: string): string {
   if (!hexColor) return '#ffffff';
   try {
-    if (hexColor.startsWith('var(')) return '#ffffff';
+    if (typeof hexColor === 'string' && hexColor.startsWith('var(')) return '#ffffff';
     const hex = hexColor.replace('#', '');
     const fullHex =
       hex.length === 3

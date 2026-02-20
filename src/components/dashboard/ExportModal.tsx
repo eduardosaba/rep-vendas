@@ -200,7 +200,6 @@ export function ExportModal({
         },
         onLogoFallback: (info: any) => {
           // notificamos levemente para depuração, não interrompe geração
-          console.debug('Logo fallback', info);
         },
       });
 

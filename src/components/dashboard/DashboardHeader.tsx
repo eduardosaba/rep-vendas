@@ -34,15 +34,11 @@ export default function DashboardHeader({
 
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const getPageTitle = (path: string) => {
-    if (!path) return 'Painel';
-    if (path === '/dashboard') return 'Visão Geral';
-    if (path.startsWith('/dashboard/products')) return 'Produtos';
-    if (path.startsWith('/dashboard/orders')) return 'Pedidos';
-    if (path.startsWith('/dashboard/clients')) return 'Clientes';
-    if (path.startsWith('/dashboard/settings')) return 'Configurações';
-    return 'Painel';
-  };
+  // delegated to shared util for easier testing and configuration
+  // import dynamically to avoid top-level cycles in some test setups
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getPageTitle: _getPageTitle } = require('@/lib/routeTitles') as typeof import('@/lib/routeTitles');
+  const getPageTitle = _getPageTitle as (p: string) => string;
 
   async function getUser() {
     try {

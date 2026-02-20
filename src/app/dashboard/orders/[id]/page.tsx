@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import OrderStatusControls from '@/components/dashboard/OrderStatusControls';
 import { OrderPdfButton } from '@/components/dashboard/OrderPdfButton';
+import { OrderDetailsView } from '@/components/dashboard/OrderDetailsView';
 import { getUiStatusKey } from '@/lib/orderStatus';
 import { formatDocument } from '@/lib/formatDocument';
 
@@ -101,8 +102,23 @@ export default async function OrderDetailsPage({
       *,
       clients (*),
       order_items (
-        *,
-        products ( reference_code, image_url, brand, barcode, name ) 
+        id,
+        product_name,
+        product_reference,
+        quantity,
+        unit_price,
+        image_url,
+        external_image_url,
+        products (
+          reference_code,
+          image_url,
+          external_image_url,
+          brand,
+          barcode,
+          name,
+          image_variants,
+          product_images ( id, url, is_primary, optimized_variants )
+        )
       )
     `
     )
@@ -203,260 +219,141 @@ export default async function OrderDetailsPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* COLUNA ESQUERDA: ITENS */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 flex justify-between items-center">
-              <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Package size={18} /> Itens do Pedido
-              </h2>
-              <span className="text-xs font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300">
-                {order.order_items?.reduce(
-                  (acc: number, item: any) => acc + (item.quantity || 0),
-                  0
-                ) || 0}{' '}
-                un.
-              </span>
-            </div>
-
-            <div className="divide-y divide-gray-100 dark:divide-slate-800">
-              {order.order_items?.map((item: any) => {
-                const finalImg = item.image_url || item.products?.image_url;
-                              const safeImg = (url: string | null | undefined) => {
-                                if (!url) return null;
-                                try {
-                                  if (url.includes('/storage/v1/object/public/')) {
-                                    const parts = url.split('/storage/v1/object/public/');
-                                    const path = parts.length > 1 ? parts[1] : parts[0];
-                                    return `/api/storage-image?path=${encodeURIComponent(path)}`;
-                                  }
-                                } catch (e) {}
-                                return url;
-                              };
-                const productName = item.products?.name || item.product_name;
-                const brand = item.products?.brand;
-                const barcode = item.products?.barcode;
-                const refCode =
-                  item.products?.reference_code || item.product_reference;
-
-                const realTotal = (item.quantity || 0) * (item.unit_price || 0);
-
-                return (
-                  <div
-                    key={item.id}
-                    className="p-4 md:p-6 flex flex-col md:flex-row md:items-start justify-between hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors gap-4"
-                  >
-                    {/* ESQUERDA: FOTO E DETALHES */}
-                    <div className="flex items-start gap-4 flex-1">
-                      {/* 1. Imagem */}
-                      <div className="h-20 w-20 md:h-24 md:w-24 bg-gray-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 overflow-hidden border border-gray-200 dark:border-slate-700 shrink-0">
-                        {finalImg ? (
-                          <img
-                            src={safeImg(finalImg) || ''}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Package size={28} />
-                        )}
-                      </div>
-
-                      {/* 2. Dados do Produto */}
-                      <div className="flex-1 min-w-0 flex flex-col h-full pt-0.5 space-y-2">
-                        <div>
-                          <p className="font-bold text-gray-900 dark:text-white text-base leading-tight">
-                            {productName}
-                          </p>
-
-                          {brand && (
-                            <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 uppercase tracking-wide">
-                              <Tag size={10} /> {brand}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-4 mt-auto">
-                          {refCode && (
-                            <div className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                              <Hash
-                                size={14}
-                                className="text-[var(--primary)]"
-                              />
-                              <span>{refCode}</span>
-                            </div>
-                          )}
-
-                          {barcode && (
-                            <div
-                              className="bg-white p-1 rounded border border-gray-200 shadow-sm"
-                              title={`EAN: ${barcode}`}
-                            >
-                              <img
-                                src={`https://bwipjs-api.metafloor.com/?bcid=ean13&text=${barcode}&scale=2&height=8&includetext&guardwhitespace`}
-                                alt={barcode}
-                                className="h-8 md:h-10 object-contain max-w-[140px]"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* DIREITA: VALORES */}
-                    <div className="flex flex-row md:flex-col justify-between md:justify-start items-center md:items-end pl-0 md:pl-4 min-w-[120px] border-t md:border-0 border-gray-100 dark:border-slate-800 pt-3 md:pt-1 mt-2 md:mt-0">
-                      <div className="text-left md:text-right">
-                        <span className="text-[10px] text-gray-400 uppercase md:hidden block mb-1">
-                          Valor Total
-                        </span>
-                        <p className="font-bold text-gray-900 dark:text-white text-lg md:text-xl">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(realTotal)}
-                        </p>
-                      </div>
-
-                      <div className="text-right mt-0 md:mt-1">
-                        <span className="text-[10px] text-gray-400 uppercase md:hidden block mb-1">
-                          Qtd x Unit
-                        </span>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                          {item.quantity} un. x{' '}
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(item.unit_price)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="bg-gray-50 dark:bg-slate-900/50 px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex justify-between items-center">
-              <span className="font-medium text-gray-600 dark:text-gray-400">
-                Total do Pedido
-              </span>
-              <span className="text-2xl md:text-3xl font-bold text-indigo-600 dark:text-indigo-400">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(calculatedTotal)}
-              </span>
-            </div>
-          </div>
-        </div>
+        <OrderDetailsView order={order} />
 
         {/* COLUNA DIREITA: CLIENTE */}
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-800">
-              <User size={18} className="text-blue-600 dark:text-blue-400" />{' '}
-              Dados do Cliente
-            </h3>
+          {/* Desktop: mostrar direto */}
+          <div className="hidden md:block space-y-6">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-slate-800">
+                <User size={18} className="text-blue-600 dark:text-blue-400" />{' '}
+                Dados do Cliente
+              </h3>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                  Nome
-                </label>
-                <p className="text-gray-900 dark:text-white font-medium text-lg break-words">
-                  {clientName}
-                </p>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full ${order.client_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
-                >
-                  {order.client_id ? 'Cadastrado' : 'Visitante'}
-                </span>
-              </div>
-
-              {(clientPhone || clientEmail) && (
-                <div className="grid grid-cols-1 gap-3">
-                  {clientPhone && (
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                        Contato
-                      </label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <a
-                          href={`https://wa.me/55${clientPhone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg transition-colors w-full"
-                        >
-                          <Phone size={14} /> {clientPhone}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {clientEmail && (
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                        Email
-                      </label>
-                      <div className="flex items-center gap-2 mt-1 text-sm text-gray-700 dark:text-gray-300">
-                        <Mail size={14} />
-                        <span className="truncate">{clientEmail}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* CORREÇÃO NA EXIBIÇÃO: Mostra sempre se tiver dado, com rótulo explícito */}
-              {clientDoc ? (
-                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
-                  <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">
-                    CPF/CNPJ
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                    Nome
                   </label>
-                  <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <FileText size={14} />
-                    <span className="font-mono">
-                      {formatDocument(clientDoc) || clientDoc}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                // Opcional: Mostrar que não tem documento cadastrado (útil para debug)
-                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2 opacity-50">
-                  <span className="text-xs text-gray-400 italic">
-                    Documento não informado
+                  <p className="text-gray-900 dark:text-white font-medium text-lg break-words">
+                    {clientName}
+                  </p>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full ${order.client_id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
+                  >
+                    {order.client_id ? 'Cadastrado' : 'Visitante'}
                   </span>
                 </div>
-              )}
 
-              {clientAddress && (
-                <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
-                  <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">
-                    Endereço
-                  </label>
-                  <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <MapPin size={14} className="mt-0.5" />
-                    <span>{clientAddress}</span>
+                {(clientPhone || clientEmail) && (
+                  <div className="grid grid-cols-1 gap-3">
+                    {clientPhone && (
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                          Contato
+                        </label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <a
+                            href={`https://wa.me/55${clientPhone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg transition-colors w-full"
+                          >
+                            <Phone size={14} /> {clientPhone}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {clientEmail && (
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                          Email
+                        </label>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-gray-700 dark:text-gray-300">
+                          <Mail size={14} />
+                          <span className="truncate">{clientEmail}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
+
+                {clientDoc ? (
+                  <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
+                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">
+                      CPF/CNPJ
+                    </label>
+                    <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <FileText size={14} />
+                      <span className="font-mono">
+                        {formatDocument(clientDoc) || clientDoc}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2 opacity-50">
+                    <span className="text-xs text-gray-400 italic">Documento não informado</span>
+                  </div>
+                )}
+
+                {clientAddress && (
+                  <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
+                    <label className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider block mb-1">
+                      Endereço
+                    </label>
+                    <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <MapPin size={14} className="mt-0.5" />
+                      <span>{clientAddress}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {statusKey !== 'cancelled' && statusKey !== 'delivered' && (
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <CheckCircle size={18} className="text-green-600 dark:text-green-400" /> Ações do Pedido
+                </h3>
+                <OrderStatusControls orderId={order.id} statusKey={statusKey} />
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-3 border-t border-gray-100 dark:border-slate-800 mt-4">Ações de status atualizam o estoque e notificam (se configurado).</p>
+              </div>
+            )}
           </div>
 
-          {/* AÇÕES */}
-          {statusKey !== 'cancelled' && statusKey !== 'delivered' && (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <CheckCircle
-                  size={18}
-                  className="text-green-600 dark:text-green-400"
-                />{' '}
-                Ações do Pedido
-              </h3>
-              <OrderStatusControls orderId={order.id} statusKey={statusKey} />
-              <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-3 border-t border-gray-100 dark:border-slate-800 mt-4">
-                Ações de status atualizam o estoque e notificam (se
-                configurado).
-              </p>
-            </div>
-          )}
+          {/* Mobile: colapsável */}
+          <div className="md:hidden">
+            <details className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <summary className="px-4 py-3 flex items-center justify-between cursor-pointer">
+                <div className="flex items-center gap-2"><User size={16} /> Dados do Cliente</div>
+                <div className="text-sm text-slate-500">Toque para abrir</div>
+              </summary>
+              <div className="p-4 space-y-4">
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">{clientName}</div>
+                  <div className="text-xs text-gray-400">{order.client_id ? 'Cadastrado' : 'Visitante'}</div>
+                </div>
+
+                {(clientPhone || clientEmail) && (
+                  <div className="space-y-2">
+                    {clientPhone && (<a href={`https://wa.me/55${clientPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-sm text-green-600">{clientPhone}</a>)}
+                    {clientEmail && (<div className="text-sm text-gray-700">{clientEmail}</div>)}
+                  </div>
+                )}
+
+                {clientDoc && (<div className="text-sm font-mono">{formatDocument(clientDoc) || clientDoc}</div>)}
+                {clientAddress && (<div className="text-sm">{clientAddress}</div>)}
+
+                {statusKey !== 'cancelled' && statusKey !== 'delivered' && (
+                  <div>
+                    <OrderStatusControls orderId={order.id} statusKey={statusKey} />
+                  </div>
+                )}
+              </div>
+            </details>
+          </div>
         </div>
       </div>
     </div>

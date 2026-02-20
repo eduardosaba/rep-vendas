@@ -303,7 +303,9 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
           clientData: encryptSensitiveData(draft.clientData),
         };
 
-        localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(encryptedDraft));
+        if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
+          window.localStorage.setItem(DRAFT_ORDER_KEY, JSON.stringify(encryptedDraft));
+        }
         setState((prev) => ({ ...prev, draftOrder: draft }));
 
         logSecurityEvent('draft_saved', true, 'Rascunho de pedido salvo');
@@ -323,7 +325,10 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
   // Carregamento de rascunho
   const loadDraftOrder = useCallback((): DraftOrder | null => {
     try {
-      const saved = localStorage.getItem(DRAFT_ORDER_KEY);
+      const saved =
+        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem(DRAFT_ORDER_KEY)
+          : null;
       if (!saved) return null;
 
       const encryptedDraft = JSON.parse(saved);
@@ -351,7 +356,13 @@ export const useSecureCheckout = (): UseSecureCheckoutReturn => {
 
   // Limpar rascunho
   const clearDraftOrder = useCallback(() => {
-    localStorage.removeItem(DRAFT_ORDER_KEY);
+    try {
+      if (typeof window !== 'undefined' && typeof window.localStorage?.removeItem === 'function') {
+        window.localStorage.removeItem(DRAFT_ORDER_KEY);
+      }
+    } catch {
+      // ignore
+    }
     setState((prev) => ({ ...prev, draftOrder: null }));
     logSecurityEvent('draft_cleared', true, 'Rascunho de pedido removido');
   }, []);

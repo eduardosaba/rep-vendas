@@ -54,7 +54,7 @@ function normalizeImageSrc(raw?: string | null) {
   if (!s) return null;
 
   // Já é URL absoluta
-  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  if (typeof s === 'string' && (s.startsWith('http://') || s.startsWith('https://'))) return s;
 
   // Não é uma URL absoluta — preferimos servir via proxy para evitar 403
   // Tratamos cenários common: caminhos que já incluem '/storage/v1/object/public/...'

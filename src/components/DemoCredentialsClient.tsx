@@ -25,7 +25,7 @@ export default function DemoCredentialsClient({
   }, []);
 
   function go() {
-    if (href.startsWith('http')) {
+    if (typeof href === 'string' && href.startsWith('http')) {
       // abre em nova aba para manter a página atual visível
       window.open(href, '_blank', 'noopener,noreferrer');
     } else {
@@ -43,7 +43,7 @@ export default function DemoCredentialsClient({
       <button
         onClick={(e) => {
           // se for rota interna, navega direto sem abrir modal
-          if (href && href.startsWith('/')) {
+          if (typeof href === 'string' && href.startsWith('/')) {
             e.preventDefault();
             try {
               router.push(href);
