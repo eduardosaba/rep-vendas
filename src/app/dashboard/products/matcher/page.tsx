@@ -592,9 +592,9 @@ export default function MatcherPage() {
           <button
             onClick={() => setShowProductsPanel((s) => !s)}
             className="md:hidden p-2 rounded-lg hover:bg-slate-100"
-            aria-label="Toggle produtos"
+            aria-label={showProductsPanel ? 'Fechar produtos' : 'Abrir produtos'}
           >
-            <Menu size={18} />
+            {showProductsPanel ? <X size={18} /> : <Menu size={18} />}
           </button>
           <Link
             href="/dashboard/products"
@@ -660,10 +660,11 @@ export default function MatcherPage() {
             <div className="flex items-center justify-between md:hidden">
               <div />
               <button
-                onClick={() => setShowProductsPanel(false)}
+                onClick={() => setShowProductsPanel((s) => !s)}
                 className="text-xs font-black uppercase text-slate-500 p-1 hover:bg-slate-100 rounded"
+                aria-label={showProductsPanel ? 'Fechar produtos' : 'Abrir produtos'}
               >
-                Fechar
+                {showProductsPanel ? 'Fechar' : 'Abrir'}
               </button>
             </div>
             <div className="relative">
