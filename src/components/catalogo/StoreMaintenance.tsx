@@ -1,5 +1,5 @@
 import { Power, MessageCircle, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 interface StoreMaintenanceProps {
   storeName: string;

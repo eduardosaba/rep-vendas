@@ -19,7 +19,7 @@ import {
   Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 type Stats = {
   total: number;

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useStore } from './store-context';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 

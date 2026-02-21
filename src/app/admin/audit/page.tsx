@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import formatSyncStatus from '@/lib/utils/syncStatus';
 import Link from 'next/link';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { ReprocessButton } from '@/components/admin/ReprocessButton';
 import ReprocessRowButton from '@/components/admin/ReprocessRowButton';
 import { BrandFilter } from '@/components/admin/BrandFilter';

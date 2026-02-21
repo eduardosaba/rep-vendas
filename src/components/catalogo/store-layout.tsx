@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SmartImage } from './SmartImage';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { create } from 'zustand';
 

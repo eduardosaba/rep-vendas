@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { RefreshCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/hooks/useConfirm';
 
 export default function ReprocessRowButton({

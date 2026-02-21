@@ -68,6 +68,17 @@ export interface Product {
   updated_at?: string;
 }
 
+// --- IMAGENS / VARIANTES ---
+export interface ImageVariant {
+  size: number;
+  url: string;
+  path: string | null;
+}
+
+export interface ImageMetadata {
+  variants?: ImageVariant[];
+}
+
 // --- 3. CONFIGURAÇÕES E BRANDING (MULTI-TENANT) ---
 
 /**

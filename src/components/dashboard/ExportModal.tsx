@@ -12,7 +12,7 @@ import {
   Loader2,
   Maximize2,
 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { generateCatalogPDF } from '@/utils/generateCatalogPDF';
 import { toast } from 'sonner';
 

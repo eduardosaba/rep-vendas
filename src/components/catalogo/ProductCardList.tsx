@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Heart, X } from 'lucide-react';
 import { ProductCardProps } from '@/lib/types';
 import ProductImage from './ProductImage';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 interface ProductCardListProps extends ProductCardProps {
   hasPriceAccess: boolean;

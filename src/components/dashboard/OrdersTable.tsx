@@ -15,7 +15,7 @@ import {
   TrendingUp,
   DollarSign,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { getUiStatusKey } from "@/lib/orderStatus";
 
 export interface Order {

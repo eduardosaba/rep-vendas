@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { AlertTriangle, Lock, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 export default function SubscriptionGuard({
   children,

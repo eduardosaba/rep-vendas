@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Button } from './ui/Button';
+import { Button } from './ui/button';
 import { Bell, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { setupNotifications } from '@/lib/setupNotifications';

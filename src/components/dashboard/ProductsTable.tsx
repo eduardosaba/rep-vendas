@@ -31,7 +31,7 @@ import {
   ListOrdered,
   Rocket,
 } from 'lucide-react';
-import { Button } from '../ui/Button';
+import { Button } from '../ui/button';
 import ProductBarcode from '@/components/ui/Barcode';
 import Image from 'next/image';
 import { getProductImageUrl } from '@/lib/imageUtils';

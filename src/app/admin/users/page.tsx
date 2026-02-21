@@ -20,7 +20,7 @@ import {
   getUsersWithSubscriptions,
   getPlans,
 } from './actions';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 interface Plan {
   id: string;

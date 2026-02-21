@@ -78,6 +78,41 @@ const LogConsole = ({ logs }: { logs: LogMessage[] }) => {
   );
 };
 
+// Utility: generate variant via canvas (returns Blob)
+async function generateVariant(file: File, maxWidth: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ratio = Math.min(1, maxWidth / img.width);
+        const width = Math.round(img.width * ratio);
+        const height = Math.round(img.height * ratio);
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas context unavailable'));
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Canvas to Blob failed'));
+          },
+          'image/webp',
+          0.8
+        );
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
 // --- PÁGINA PRINCIPAL ---
 export default function ImportVisualPage() {
   const supabase = createClient();
@@ -341,6 +376,8 @@ export default function ImportVisualPage() {
       if (!user) throw new Error('Sessão inválida');
 
       // compress large images client-side before upload (uses canvas -> webp)
+      // NOTE: we'll now generate explicit 480/1200 variants and upload both,
+      // so compressIfNeeded remains available but primary flow uses generateVariant.
       const compressIfNeeded = async (file: File) => {
         try {
           // Only process images
@@ -483,50 +520,60 @@ export default function ImportVisualPage() {
         }
       };
 
+      // New flow: for each file, generate 480/1200, upload both and insert a single staging record
       await Promise.all(
         files.map(async (file) => {
-          const processed = (await compressIfNeeded(file)) as File;
-          // Force webp filename to ensure consistent public URL and optimization
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.webp`;
-          const filePath = `public/${user.id}/staging/${fileName}`; // Isolamento por usuário (prefixo public)
+          try {
+            const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-          // Upload Storage (ensure upsert and cacheControl)
-          const { error: uploadError } = await supabase.storage
-            .from('product-images')
-            .upload(filePath, processed, {
-              cacheControl: '3600',
-              upsert: true,
-            });
+            // 1) Geração paralela das variantes no cliente
+            const [blob480, blob1200] = await Promise.all([
+              generateVariant(file, 480).catch(() => null),
+              generateVariant(file, 1200).catch(() => null),
+            ]);
 
-          if (uploadError) {
-            addLog(
-              `Falha no upload de ${file.name}: ${uploadError.message}`,
-              'error'
-            );
-            throw uploadError;
-          }
+            // Fallbacks: se geração falhou, reutiliza compressIfNeeded para produzir um File
+            const final1200 = blob1200 ? blob1200 : (await compressIfNeeded(file));
+            const final480 = blob480 ? blob480 : final1200;
 
-          // Get public URL after upload and include timestamp to avoid stale cache
-          const { data: urlData } = supabase.storage
-            .from('product-images')
-            .getPublicUrl(filePath);
-          const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+            const path480 = `public/${user.id}/staging/${baseName}-480w.webp`;
+            const path1200 = `public/${user.id}/staging/${baseName}-1200w.webp`;
 
-          // Insert DB with url recorded so clients read canonical link
-          const { error: dbError } = await supabase
-            .from('staging_images')
-            .insert({
+            // 2) Upload simultâneo (fire both uploads)
+            await Promise.all([
+              supabase.storage
+                .from('product-images')
+                .upload(path480, final480 as Blob, { contentType: 'image/webp', upsert: true }),
+              supabase.storage
+                .from('product-images')
+                .upload(path1200, final1200 as Blob, { contentType: 'image/webp', upsert: true }),
+            ]);
+
+            const url480 = supabase.storage.from('product-images').getPublicUrl(path480).data.publicUrl;
+            const url1200 = supabase.storage.from('product-images').getPublicUrl(path1200).data.publicUrl;
+
+            // 3) Persistir na tabela de staging com metadata já estruturado
+            const { error: dbError } = await supabase.from('staging_images').insert({
               user_id: user.id,
-              storage_path: filePath,
+              storage_path: path1200,
               original_name: file.name,
-              url: urlData.publicUrl,
+              url: url1200,
+              metadata: {
+                variants: [
+                  { size: 480, url: url480, path: path480 },
+                  { size: 1200, url: url1200, path: path1200 },
+                ],
+              },
             });
 
-          if (!dbError) {
-            successCount++;
-            addLog(`Upload concluído: ${file.name}`, 'success');
-          } else {
-            addLog(`Erro ao salvar no banco: ${dbError.message}`, 'error');
+            if (!dbError) {
+              successCount++;
+              addLog(`✨ Otimizada e enviada: ${file.name}`, 'success');
+            } else {
+              addLog(`Erro ao salvar no banco: ${dbError.message}`, 'error');
+            }
+          } catch (err: any) {
+            addLog(`❌ Erro em ${file.name}: ${err?.message || String(err)}`, 'error');
           }
         })
       );

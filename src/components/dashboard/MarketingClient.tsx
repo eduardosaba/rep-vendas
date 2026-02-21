@@ -15,7 +15,7 @@ import SmartImageUpload from '@/components/ui/SmartImageUpload';
 import SharePreview from '@/components/SharePreview';
 import MyShortLinksTable from '@/components/dashboard/MyShortLinksTable';
 import AnalyticsChartClient from '@/components/dashboard/AnalyticsChartClient';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 interface MarketingClientProps {
   initialData: any | null;

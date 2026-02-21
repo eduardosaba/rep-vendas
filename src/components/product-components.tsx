@@ -1,5 +1,6 @@
-'use client';
+ 'use client';
 
+import React from 'react';
 import Image from 'next/image';
 import { getProductImageUrl } from '@/lib/imageUtils';
 import { useStore } from '@/components/catalogo/store-context';
@@ -21,7 +22,7 @@ import {
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { ProductCard } from '@/components/catalogo/ProductCard';
 import ProductCardSkeleton from '@/components/catalogo/ProductCardSkeleton';
 import { useLayoutStore } from '@/components/catalogo/store-layout';
@@ -1418,7 +1419,7 @@ export function ProductGrid() {
                           />
                         </div>
                         <Button
-                          onClick={(e) => {
+                          onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
                             if (!outOfStock) addToCart(product);
                           }}

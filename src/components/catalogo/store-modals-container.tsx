@@ -25,7 +25,7 @@ import { PriceDisplay } from './PriceDisplay';
 import Image from 'next/image';
 import { SmartImage } from './SmartImage';
 // Quick pinch zoom removed — using simple fullscreen modal for zoom
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import Barcode from '../ui/Barcode'; // Mantido conforme seu projeto
 import { toast } from 'sonner';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
@@ -108,8 +108,8 @@ export function StoreModals() {
     const out: { url480: string; url1200: string; path: string | null }[] = [];
     const addedPaths = new Set<string>();
 
-    // --- 1. IMAGEM DE CAPA (image_variants) ---
-    if (Array.isArray(product.image_variants) && product.image_variants.length > 0) {
+    // --- 1. IMAGEM DE CAPA ---
+    if (product.image_variants && Array.isArray(product.image_variants) && product.image_variants.length > 0) {
       const v480 = product.image_variants.find((v: any) => v.size === 480);
       const v1200 = product.image_variants.find((v: any) => v.size === 1200);
 
@@ -121,43 +121,42 @@ export function StoreModals() {
         });
         if (v1200.path) addedPaths.add(v1200.path);
       }
-    } else if (product.image_path) {
-      // Fallback para quando só tem o path da capa
-      const path = String(product.image_path).replace(/^\/+/, '');
-      const baseUrl = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=80`;
+    } else if (product.image_url) {
+      // Se não tem variantes mas tem URL, use ela como capa antes de processar a galeria
+      const url = product.image_url;
       out.push({
-        url480: `${baseUrl}&w=480`,
-        url1200: `${baseUrl}&w=1200`,
-        path: product.image_path,
+        url480: url,
+        url1200: upgradeTo1200w(url),
+        path: product.image_path || null,
       });
-      addedPaths.add(product.image_path);
+      if (product.image_path) addedPaths.add(product.image_path);
     }
 
     // --- 2. GALERIA DE IMAGENS (gallery_images - Onde o Matcher salva) ---
     if (Array.isArray(product.gallery_images) && product.gallery_images.length > 0) {
       product.gallery_images.forEach((img: any) => {
-        // Evita adicionar a capa de novo se ela estiver na galeria
+        if (!img) return;
+
+        // Evita duplicar a capa se ela estiver na galeria
         if (img.path && addedPaths.has(img.path)) return;
 
+        let v480 = '';
+        let v1200 = '';
+        const path = img.path || null;
+
         if (Array.isArray(img.variants)) {
-          const g480 = img.variants.find((v: any) => v.size === 480);
-          const g1200 = img.variants.find((v: any) => v.size === 1200);
-          
-          out.push({
-            url480: g480?.url || img.url,
-            url1200: g1200?.url || img.url,
-            path: g1200?.path || img.path || null,
-          });
-          if (img.path) addedPaths.add(img.path);
+          // Formato Profissional (Matcher/Import-Visual)
+          v480 = img.variants.find((v: any) => v.size === 480)?.url || img.url;
+          v1200 = img.variants.find((v: any) => v.size === 1200)?.url || img.url;
         } else {
-          // Caso a galeria venha sem variantes (upload manual simples)
-          const url = img.url || img; // suporta string ou objeto
-          out.push({
-            url480: url,
-            url1200: upgradeTo1200w(url),
-            path: img.path || null,
-          });
+          // Formato Legado ou Manual Simples
+          const baseUrl = typeof img === 'string' ? img : img.url;
+          v480 = baseUrl;
+          v1200 = upgradeTo1200w(baseUrl);
         }
+
+        out.push({ url480: v480, url1200: v1200, path });
+        if (path) addedPaths.add(path);
       });
     }
 
@@ -756,6 +755,12 @@ export function StoreModals() {
                 <img
                   src={productImages[currentImageIndex]?.url1200}
                   alt="Visualização em Alta Resolução"
+                  style={{
+                    backgroundImage: `url(${productImages[currentImageIndex]?.url480})`,
+                    backgroundSize: 'contain',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'center',
+                  }}
                   className="max-w-full max-h-[70vh] md:max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none"
                 />
 

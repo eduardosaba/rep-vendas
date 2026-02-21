@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { Trash2, AlertTriangle, Loader2, ShieldAlert, X } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 
 interface AdminUserResetProps {

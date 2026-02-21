@@ -227,6 +227,17 @@ export function OrderDetailsView({ order }: { order: any }) {
     return g;
   }, [order]);
 
+  // Inicializa todos os grupos como colapsados por padrão
+  React.useEffect(() => {
+    const keys = Object.keys(groups || {});
+    if (keys.length === 0) return;
+    const init: Record<string, boolean> = {};
+    keys.forEach((k) => {
+      init[k] = true; // true = collapsed
+    });
+    setCollapsed((prev) => ({ ...init }));
+  }, [groups]);
+
   // Identifica o primeiro item do pedido para marcar sua imagem como LCP/priority
   const lcpItemId = order?.order_items && order.order_items.length > 0 ? order.order_items[0].id : null;
 

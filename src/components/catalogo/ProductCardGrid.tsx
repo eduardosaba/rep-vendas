@@ -7,7 +7,7 @@ import { Heart, X } from 'lucide-react';
 import { ProductCardProps } from '@/lib/types';
 import ProductImage from './ProductImage';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 interface ProductCardGridProps extends ProductCardProps {
   hasPriceAccess: boolean;

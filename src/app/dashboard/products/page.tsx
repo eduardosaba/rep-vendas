@@ -11,7 +11,7 @@ import {
   Plus,
   Box,
 } from 'lucide-react';
-import { Button } from '@/components/ui/Button'; // Usando nosso componente padronizado
+import { Button } from '@/components/ui/button'; // Usando nosso componente padronizado
 // SyncProgressBanner removido — banner não exibido nesta página
 
 // 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA

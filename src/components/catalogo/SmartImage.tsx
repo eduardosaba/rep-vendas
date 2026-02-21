@@ -25,10 +25,14 @@ export function SmartImage({
   preferredSize,
   priority = false,
 }: SmartImageProps) {
-  // Gera srcset a partir de image_variants se disponível
+  // Coleta variantes (suporta optimized_variants, image_variants e variants em objetos de galeria)
+  const getRawVariants = () => {
+    return product?.optimized_variants || product?.image_variants || product?.variants || [];
+  };
+
+  // Gera srcset a partir das variantes
   const generateSrcSet = () => {
-    // Prefer `optimized_variants` (per-image) then fallback to `image_variants` (product-level)
-    const raw = product?.optimized_variants || product?.image_variants;
+    const raw = getRawVariants();
     if (!raw || !Array.isArray(raw) || raw.length === 0) return null;
 
     const variants = raw
@@ -47,8 +51,7 @@ export function SmartImage({
         const cleanPath = String(v.path || '').startsWith('/')
           ? String(v.path).substring(1)
           : String(v.path || '');
-        const path = encodeURIComponent(cleanPath);
-        return `/api/storage-image?path=${path} ${v.size}w`;
+        return `/api/storage-image?path=${encodeURIComponent(cleanPath)} ${v.size}w`;
       })
       .join(', ');
   };
@@ -57,10 +60,10 @@ export function SmartImage({
   const getImageSrc = () => {
     if (initialSrc) return initialSrc;
 
-    // Collect variants from optimized_variants (image row) or image_variants (product)
-    const raw = product?.optimized_variants || product?.image_variants;
-    const variants = Array.isArray(raw)
-      ? raw
+    // Collect variants from optimized_variants, image_variants or item.variants
+    const rawVariants = getRawVariants();
+    const variants = Array.isArray(rawVariants)
+      ? rawVariants
           .map((v: any) => ({
             size: Number(v.size || v.width || 0),
             url: v.url,
@@ -73,14 +76,10 @@ export function SmartImage({
       // Try preferredSize -> if not present pick the largest
       let chosen = null as any;
       if (typeof preferredSize === 'number') {
-        chosen = variants.find(
-          (v: any) => Number(v.size) === Number(preferredSize)
-        );
+        chosen = variants.find((v: any) => Number(v.size) === Number(preferredSize));
       }
       if (!chosen) {
-        chosen = variants.reduce((a: any, b: any) =>
-          a.size >= b.size ? a : b
-        );
+        chosen = variants.reduce((a: any, b: any) => (a.size >= b.size ? a : b));
       }
       if (chosen) {
         if (chosen.url) return chosen.url;
@@ -116,10 +115,14 @@ export function SmartImage({
 
   const [src, setSrc] = useState<string | null>(imageSrc);
   const [errored, setErrored] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const triedStripped = React.useRef(false);
 
   useEffect(() => {
     setSrc(imageSrc);
     setErrored(false);
+    setLoaded(false);
+    triedStripped.current = false;
   }, [
     imageSrc,
     product?.image_path,
@@ -127,6 +130,7 @@ export function SmartImage({
     product?.external_image_url,
     product?.image_variants,
     product?.optimized_variants,
+    product?.variants,
     preferredSize,
   ]);
 
@@ -137,10 +141,19 @@ export function SmartImage({
     // 3) If already tried placeholder, mark errored.
     const placeholder = '/placeholder.png';
     try {
+      // 0) If the URL ends with -480w.webp or -1200w.webp, try stripping suffix and retry once
+      if (!triedStripped.current && src && /(\-(480w|1200w)\.webp)$/.test(src)) {
+        triedStripped.current = true;
+        const stripped = src.replace(/(\-(480w|1200w)\.webp)$/, '');
+        setSrc(stripped);
+        return;
+      }
+
       if (src && imageSrc && src === imageSrc && external) {
         setSrc(external);
         return;
       }
+
       if (src !== placeholder) {
         setSrc(placeholder);
         return;
@@ -165,11 +178,15 @@ export function SmartImage({
           src={src}
           srcSet={srcSet || undefined}
           alt={product?.name || 'Produto'}
-          className={`w-full h-full object-contain ${imgClassName}`}
-          sizes={sizes || '(max-width: 768px) 100vw, 200px'}
-          loading="lazy"
+          className={`w-full h-full object-contain ${imgClassName} transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          sizes={
+            sizes ||
+            (variant === 'thumbnail' ? '100px' : '(max-width: 768px) 100vw, 400px')
+          }
+          {...(variant === 'full' ? { fetchPriority: 'high', loading: 'eager' as 'eager' } : { loading: 'lazy' as 'lazy' })}
           decoding="async"
           onError={handleError}
+          onLoad={() => setLoaded(true)}
         />
       ) : errored ? (
         <div className="flex h-full w-full flex-col items-center justify-center bg-slate-50 dark:bg-slate-900">

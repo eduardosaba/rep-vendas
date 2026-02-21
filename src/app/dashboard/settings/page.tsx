@@ -35,7 +35,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 // Conjunto de temas prontos usados na UI
 const THEME_PRESETS = [

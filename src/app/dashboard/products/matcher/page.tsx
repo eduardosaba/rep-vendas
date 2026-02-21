@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import type { ImageMetadata } from '@/lib/types';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import {
@@ -14,11 +15,10 @@ import {
   Image as ImageIcon,
   AlertCircle,
   Trash2,
-  Terminal,
   X,
   Loader2,
 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 // Tipos mínimos usados neste componente
 interface Product {
@@ -38,6 +38,7 @@ interface StagingImage {
   publicUrl: string;
   url?: string;
   imported_from_csv?: boolean;
+  metadata?: ImageMetadata | null;
 }
 
 // Debounce hook
@@ -204,6 +205,7 @@ export default function MatcherPage() {
             img.url || supabase.storage.from('product-images').getPublicUrl(img.storage_path).data.publicUrl,
           url: img.url,
           imported_from_csv: !!img.imported_from_csv,
+          metadata: img.metadata || null,
         })) || [];
 
       // dedupe by id to avoid duplicate keys during render
@@ -341,18 +343,19 @@ export default function MatcherPage() {
 
         const currentGallery = Array.isArray(currentProd?.gallery_images) ? currentProd!.gallery_images : [];
 
-        // 2. Prepara a nova imagem com variantes
-        const baseurl = img.publicUrl.replace(/-(480w|1200w)\.webp$/, '');
-        const basePath = img.storage_path ? img.storage_path.replace(/-(480w|1200w)\.webp$/, '') : null;
-
-        const variants = [
-          { url: `${baseurl}-480w.webp`, path: basePath ? `${basePath}-480w.webp` : null, size: 480 },
-          { url: `${baseurl}-1200w.webp`, path: basePath ? `${basePath}-1200w.webp` : null, size: 1200 },
+        // 2. Prepara a nova imagem com variantes — usa metadata se disponível
+        const rawVariants = img.metadata?.variants || [
+          { size: 480, url: img.publicUrl, path: img.storage_path || null },
+          { size: 1200, url: img.publicUrl, path: img.storage_path || null },
+        ];
+        const variants = Array.isArray(rawVariants) && rawVariants.length > 0 ? rawVariants : [
+          { size: 480, url: img.publicUrl, path: img.storage_path || null },
+          { size: 1200, url: img.publicUrl, path: img.storage_path || null },
         ];
 
         const newGalleryItem = {
-          url: `${baseurl}-1200w.webp`,
-          path: basePath ? `${basePath}-1200w.webp` : null,
+          url: img.publicUrl,
+          path: img.storage_path || null,
           variants,
         };
 
@@ -436,7 +439,17 @@ export default function MatcherPage() {
 
       const builtItems = images
         .filter((i) => iids.includes(i.id))
-        .map((i) => makeVariants(i.publicUrl, i.storage_path || null));
+        .map((i) => {
+          const raw = i.metadata?.variants || [
+            { size: 480, url: i.publicUrl, path: i.storage_path || null },
+            { size: 1200, url: i.publicUrl, path: i.storage_path || null },
+          ];
+          const variants = Array.isArray(raw) && raw.length > 0 ? raw : [
+            { size: 480, url: i.publicUrl, path: i.storage_path || null },
+            { size: 1200, url: i.publicUrl, path: i.storage_path || null },
+          ];
+          return { url: i.publicUrl, path: i.storage_path || null, variants };
+        });
 
       const updates: any = { sync_status: 'synced', updated_at: new Date().toISOString() };
 
@@ -444,7 +457,7 @@ export default function MatcherPage() {
       if (!currentCover || currentCover.length === 0) {
         const first = builtItems[0];
         if (first) {
-          updates.image_variants = first.coverVariants;
+          updates.image_variants = first.variants;
           updates.image_url = first.url;
         }
       }
@@ -550,6 +563,22 @@ export default function MatcherPage() {
     });
   }, [products, productImageFilter]);
 
+  // Mobile: grouped products by brand for picker modal (collapsible)
+  const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
+  const groupedByBrand = useMemo(() => {
+    const map: Record<string, Product[]> = {};
+    filteredProducts.forEach((p) => {
+      const b = p.brand || 'Sem Marca';
+      if (!map[b]) map[b] = [];
+      map[b].push(p);
+    });
+    return map;
+  }, [filteredProducts]);
+
+  const selectedProduct = useMemo(() => {
+    return products.find((p) => p.id === selectedProductId) || null;
+  }, [products, selectedProductId]);
+
   // Desvincular imagem da galeria
   const handleUnlinkImage = async (productId: string, imageUrl: string) => {
     try {
@@ -587,8 +616,26 @@ export default function MatcherPage() {
 
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-slate-950 overflow-hidden">
+      {/* Mobile collapsed handle: mostra botão fixo para reabrir painel mantendo seleção */}
+      {!showProductsPanel && (
+        <div className="md:hidden fixed left-60 top-16 z-50">
+          <button
+            onClick={() => setShowProductsPanel(true)}
+            className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-full px-3 py-2 shadow-lg"
+            aria-label="Abrir painel de produtos"
+          >
+            {selectedProduct ? (
+              <span className="text-xs font-black uppercase text-slate-800 dark:text-white truncate max-w-[140px]">
+                {selectedProduct.reference_code || selectedProduct.name}
+              </span>
+            ) : (
+              <span className="text-xs font-black uppercase text-slate-800 dark:text-white">Produtos</span>
+            )}
+          </button>
+        </div>
+      )}
       {/* HEADER BAR */}
-      <header className="h-16 px-6 bg-white dark:bg-slate-900 border-b flex items-center justify-between shrink-0 z-50">
+      <header className="h-16 px-6 bg-white dark:bg-slate-900 border-b flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-4">
           {/* Mobile toggle: mostra painel de produtos */}
           <button
@@ -914,39 +961,7 @@ export default function MatcherPage() {
         </main>
       </div>
 
-      {/* FOOTER LOGS (COMPACTO) */}
-      <footer className="h-32 bg-slate-900 border-t border-slate-800 flex flex-col z-0 relative">
-        <div className="px-4 py-1.5 bg-slate-800/50 flex items-center justify-between border-b border-slate-700">
-          <span className="text-[9px] font-black text-emerald-500 uppercase flex items-center gap-2">
-            <Terminal size={10} /> Console do Sistema
-          </span>
-          <button
-            onClick={() => setLogs([])}
-            className="text-[9px] text-slate-500 uppercase font-bold hover:text-white"
-          >
-            Limpar
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1">
-          {logs.map((log, i) => (
-            <div
-              key={i}
-              className={
-                log.type === 'error'
-                  ? 'text-red-400'
-                  : log.type === 'success'
-                    ? 'text-emerald-400'
-                    : 'text-slate-500'
-              }
-            >
-              <span className="opacity-30 mr-2">
-                [{new Date().toLocaleTimeString()}]
-              </span>{' '}
-              {log.msg}
-            </div>
-          ))}
-        </div>
-      </footer>
+      {/* Console removido conforme solicitado (desktop + mobile) */}
 
       {/* MODAL INTELIGENTE (REVISADO) */}
       {showSmartModal && (
@@ -1015,22 +1030,44 @@ export default function MatcherPage() {
               </button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
-              {filteredProducts.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={async () => {
-                    await handleLink(p.id, selectedImageIds);
-                    setShowMobileProductPicker(false);
-                  }}
-                  className="w-full text-left p-3 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-black text-sm truncate uppercase">{p.reference_code}</div>
-                    <div className="text-xs text-slate-500 truncate">{p.name}</div>
+              {Object.entries(groupedByBrand).length > 0 ? (
+                Object.entries(groupedByBrand).map(([brand, prods]) => (
+                  <div key={brand} className="space-y-2">
+                    <button
+                      onClick={() => setExpandedBrand((s) => (s === brand ? null : brand))}
+                      className="w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-between font-black uppercase"
+                    >
+                      <div className="truncate text-sm">{brand}</div>
+                      <div className="text-xs text-slate-500">{prods.length}</div>
+                    </button>
+
+                    {expandedBrand === brand && (
+                      <div className="space-y-2 pl-3">
+                        {prods.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={async () => {
+                              await handleLink(p.id, selectedImageIds);
+                              setShowMobileProductPicker(false);
+                              setExpandedBrand(null);
+                            }}
+                            className="w-full text-left p-3 rounded-lg bg-white hover:bg-slate-50 flex items-center justify-between"
+                          >
+                            <div>
+                              <div className="font-black text-sm truncate uppercase">{p.reference_code}</div>
+                              <div className="text-xs text-slate-500 truncate">{p.name}</div>
+                            </div>
+                            {p.image_url && <Check size={16} className="text-emerald-500" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {p.image_url && <Check size={16} className="text-emerald-500" />}
-                </button>
-              ))}
+                ))
+              ) : (
+                <div className="p-6 text-center text-slate-400">Nenhum produto encontrado</div>
+              )}
+
               {hasMore && (
                 <div className="pt-4">
                   <button
@@ -1040,9 +1077,6 @@ export default function MatcherPage() {
                     Carregar mais
                   </button>
                 </div>
-              )}
-              {filteredProducts.length === 0 && (
-                <div className="p-6 text-center text-slate-400">Nenhum produto encontrado</div>
               )}
             </div>
           </div>

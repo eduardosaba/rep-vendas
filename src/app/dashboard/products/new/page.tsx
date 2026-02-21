@@ -263,6 +263,39 @@ export default function NewProductPage() {
     const files = Array.from(e.target.files);
     const newUrls: string[] = [];
 
+    // small helper: generate webp variant via canvas
+    const generateVariant = async (file: File, maxWidth: number): Promise<Blob | null> => {
+      try {
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = (ev) => {
+            const img = new Image();
+            img.src = ev.target?.result as string;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ratio = Math.min(1, maxWidth / img.width);
+              const width = Math.round(img.width * ratio);
+              const height = Math.round(img.height * ratio);
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return reject(new Error('Canvas unavailable'));
+              ctx.drawImage(img, 0, 0, width, height);
+              canvas.toBlob((b) => {
+                if (b) resolve(b);
+                else reject(new Error('toBlob failed'));
+              }, 'image/webp', 0.8);
+            };
+            img.onerror = (err) => reject(err);
+          };
+          reader.onerror = (err) => reject(err);
+        });
+      } catch (err) {
+        return null;
+      }
+    };
+
     try {
       const {
         data: { user },
@@ -270,27 +303,42 @@ export default function NewProductPage() {
       if (!user) throw new Error('Login necessário');
 
       for (const file of files) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        try {
+          const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(`public/${fileName}`, file);
+          const blob480 = await generateVariant(file, 480).catch(() => null);
+          const blob1200 = await generateVariant(file, 1200).catch(() => null);
 
-        if (uploadError) throw uploadError;
+          const final1200 = blob1200 ? new File([blob1200], `${baseName}-1200w.webp`, { type: 'image/webp' }) : file;
+          const final480 = blob480 ? new File([blob480], `${baseName}-480w.webp`, { type: 'image/webp' }) : final1200;
 
-        const { data } = supabase.storage
-          .from('product-images')
-          .getPublicUrl(`public/${fileName}`);
+          const path480 = `public/${user.id}/products/${baseName}-480w.webp`;
+          const path1200 = `public/${user.id}/products/${baseName}-1200w.webp`;
 
-        newUrls.push(data.publicUrl);
+          // upload 480 first to reduce chance of transient missing thumb
+          const { error: err480 } = await supabase.storage
+            .from('product-images')
+            .upload(path480, final480, { cacheControl: '3600', upsert: true });
+          if (err480) throw err480;
+
+          const { error: err1200 } = await supabase.storage
+            .from('product-images')
+            .upload(path1200, final1200, { cacheControl: '3600', upsert: true });
+          if (err1200) throw err1200;
+
+          const { data: url1200Data } = supabase.storage.from('product-images').getPublicUrl(path1200);
+
+          newUrls.push(url1200Data.publicUrl);
+        } catch (err) {
+          console.error('upload item failed', err);
+        }
       }
 
       setFormData((prev) => ({
         ...prev,
         images: [...prev.images, ...newUrls],
       }));
-      toast.success('Imagens enviadas!');
+      if (newUrls.length > 0) toast.success('Imagens enviadas!');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao enviar imagem');
@@ -328,6 +376,20 @@ export default function NewProductPage() {
 
     (async () => {
       try {
+        // Se a URL já for interna (storage do Supabase / proxy), não enfileirar
+        const internalHost = process.env.NEXT_PUBLIC_SUPABASE_URL || 'supabase.co';
+        const isInternal =
+          typeof selected === 'string' && (
+            selected.includes(internalHost) ||
+            selected.includes('/storage/v1/object') ||
+            selected.startsWith('/api/storage-image?path=')
+          );
+
+        if (isInternal) {
+          toast.success('Capa atualizada (arquivo interno).');
+          return;
+        }
+
         const res = await fetch('/api/admin/mark-image-pending', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

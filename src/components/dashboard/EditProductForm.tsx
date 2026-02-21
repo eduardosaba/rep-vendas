@@ -35,6 +35,41 @@ import {
   ensureOptimizedFirst,
 } from '@/lib/imageHelpers';
 
+// Utility: generate variant via canvas (returns Blob)
+async function generateVariant(file: File, maxWidth: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ratio = Math.min(1, maxWidth / img.width);
+        const width = Math.round(img.width * ratio);
+        const height = Math.round(img.height * ratio);
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas context unavailable'));
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Canvas to Blob failed'));
+          },
+          'image/webp',
+          0.8
+        );
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
 // --- SUB-COMPONENTE: UPLOAD ---
 const ImageUploader = ({
   images,
@@ -537,48 +572,59 @@ export function EditProductForm({ product }: { product: Product }) {
         ...tempEntries.map((t) => ({ url: t.tempUrl, path: null })),
       ]);
 
-      // 2) Upload each file and replace its temp preview with the final publicUrl + storage path
-      for (const entry of tempEntries) {
-        const file = entry.file;
-        const fileExt = file.name.split('.').pop();
-        const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const fullPath = `${user.id}/products/${baseName}`;
+        // 2) For each file, generate 480/1200 variants client-side and upload both
+        for (const entry of tempEntries) {
+          const file = entry.file;
+          const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-        let simulated = 0;
-        progressInterval = setInterval(() => {
-          simulated = Math.min(95, simulated + Math.random() * 12 + 5);
-          setUploadProgress(Math.round(simulated));
-        }, 300);
+          let simulated = 0;
+          progressInterval = setInterval(() => {
+            simulated = Math.min(95, simulated + Math.random() * 12 + 5);
+            setUploadProgress(Math.round(simulated));
+          }, 300);
 
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(fullPath, file);
-
-        if (uploadError) throw uploadError;
-
-        if (progressInterval) clearInterval(progressInterval);
-
-        const { data } = supabase.storage
-          .from('product-images')
-          .getPublicUrl(fullPath);
-
-        // Replace the tempUrl object in formData.images with the real object {url, path}
-        setFormData((prev) => {
-          const imgs = [...(prev.images || [])];
-          const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);
-          const newObj = { url: data.publicUrl, path: fullPath };
-          if (idx !== -1) imgs[idx] = newObj;
-          else imgs.push(newObj as any);
-          return { ...prev, images: imgs } as any;
-        });
-
-        // Revoke the object URL after a short delay to avoid breaking image rendering
-        setTimeout(() => {
           try {
-            URL.revokeObjectURL(entry.tempUrl);
-          } catch {}
-        }, 2000);
-      }
+            const blob480 = await generateVariant(file, 480).catch(() => null);
+            const blob1200 = await generateVariant(file, 1200).catch(() => null);
+
+            const final1200 = blob1200
+              ? new File([blob1200], `${baseName}-1200w.webp`, { type: 'image/webp' })
+              : file;
+            const final480 = blob480
+              ? new File([blob480], `${baseName}-480w.webp`, { type: 'image/webp' })
+              : final1200;
+
+            const fullPath480 = `${user.id}/products/${baseName}-480w.webp`;
+            const fullPath1200 = `${user.id}/products/${baseName}-1200w.webp`;
+
+            // upload 480 then 1200
+            const { error: e480 } = await supabase.storage.from('product-images').upload(fullPath480, final480, { cacheControl: '3600', upsert: true });
+            if (e480) throw e480;
+            const { error: e1200 } = await supabase.storage.from('product-images').upload(fullPath1200, final1200, { cacheControl: '3600', upsert: true });
+            if (e1200) throw e1200;
+
+            const { data: d1200 } = supabase.storage.from('product-images').getPublicUrl(fullPath1200);
+
+            // Replace the tempUrl object in formData.images with the real object {url, path}
+            setFormData((prev) => {
+              const imgs = [...(prev.images || [])];
+              const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);
+              const newObj = { url: d1200.publicUrl, path: fullPath1200 };
+              if (idx !== -1) imgs[idx] = newObj;
+              else imgs.push(newObj as any);
+              return { ...prev, images: imgs } as any;
+            });
+
+            setNeedsDetach(true);
+          } catch (err: any) {
+            console.error('Upload failed', err);
+            toast.error('Erro ao enviar imagem: ' + (err?.message || String(err)));
+          } finally {
+            if (progressInterval) clearInterval(progressInterval);
+            setUploadProgress(null);
+            setUploadingImage(false);
+          }
+        }
       // If the product was using a shared image (master/shared copy),
       // request a copy-on-write so the product gets its own copy before
       // we persist the user's new upload. This runs async in background.
@@ -619,98 +665,33 @@ export function EditProductForm({ product }: { product: Product }) {
 
   const setAsCover = (index: number) => {
     const newImages = [...formData.images];
-    const selectedRaw = newImages.splice(index, 1)[0];
+    // 1. Pega a imagem selecionada (que já é um objeto completo {url, path, variants})
+    const selected: any = newImages.splice(index, 1)[0];
 
-    // Normalizar entrada selecionada para garantir que `url` seja string
-    let normalizedSelected: { url: string; path: string | null };
-    if (typeof selectedRaw === 'string') {
-      normalizedSelected = { url: selectedRaw, path: null };
-    } else if (selectedRaw && typeof selectedRaw === 'object') {
-      normalizedSelected = {
-        url:
-          (selectedRaw as any).url ||
-          (selectedRaw as any).tempUrl ||
-          (selectedRaw as any).path ||
-          '',
-        path: (selectedRaw as any).path || null,
+    // 2. Move para a primeira posição
+    newImages.unshift(selected);
+
+    // 3. Atualiza o estado local para refletir na tela na hora
+    setFormData((prev) => ({ ...prev, images: newImages } as any));
+    setHasChanges(true);
+
+    // 4. Persiste no banco imediatamente (opcional, mas recomendado para UX)
+    if (product?.id) {
+      const payload: any = {
+        image_url: selected?.url || null,
+        image_path: selected?.path || null,
+        image_variants: selected?.variants || null,
+        gallery_images: newImages,
+        updated_at: new Date().toISOString(),
       };
-    } else {
-      normalizedSelected = { url: String(selectedRaw || ''), path: null };
-    }
 
-    // Se existe uma versão otimizada (com path) para a mesma imagem, preferi-la
-    const selectedBase = getBaseKeyFromUrl(normalizedSelected.url || '');
-    if (!normalizedSelected.path && selectedBase) {
-      const optimizedCandidate = (formData.images || []).find((it: any) =>
-        Boolean(
-          it?.path &&
-          getBaseKeyFromUrl(it.url || it.path || '') === selectedBase
-        )
-      );
-      if (optimizedCandidate) {
-        normalizedSelected = {
-          url:
-            optimizedCandidate.url ||
-            optimizedCandidate.path ||
-            normalizedSelected.url,
-          path: optimizedCandidate.path || normalizedSelected.path,
-        };
-      }
-    }
-
-    // Coloca o item normalizado no início
-    newImages.unshift(normalizedSelected as any);
-    updateField('images', newImages);
-    setNeedsDetach(true);
-
-    // If product already exists on DB, persist cover change immediately
-    if (product && product.id) {
-      (async () => {
-        try {
-          // Prepare minimal payload to update product main image fields
-          const payload: any = {
-            images: newImages,
-            gallery_images: newImages,
-            image_url: normalizedSelected.url || null,
-            image_path: normalizedSelected.path || null,
-            sync_status: (newImages || []).some(
-              (img: any) => !(img && img.path)
-            )
-              ? 'pending'
-              : 'synced',
-            image_optimized: (newImages || []).every(
-              (img: any) => !!(img && img.path)
-            ),
-          };
-
-          // Update product row (server action)
-          try {
-            await updateProductAction(product.id, payload);
-          } catch (e) {
-            console.warn(
-              'Failed to update product image fields immediately',
-              e
-            );
-          }
-
-          // Sync product_images table order/primary flag
-          try {
-            await syncProductGallery(
-              product.id,
-              newImages.map((it: any) => (it && it.url ? it.url : it))
-            );
-          } catch (e) {
-            console.warn('Failed to sync product_images after cover change', e);
-          }
-
-          toast.success('Capa atualizada');
-        } catch (e) {
-          console.error('setAsCover immediate update failed', e);
-          toast.error('Falha ao atualizar capa');
-        }
-      })();
-    } else {
-      toast.success('Capa atualizada (Salve para confirmar)');
+      // Chamamos a ação do servidor, mas sem mostrar mensagens de "enfileiramento"
+      updateProductAction(product.id, payload)
+        .then(() => toast.success('Capa atualizada com sucesso!'))
+        .catch((err) => {
+          console.error('Erro ao trocar capa:', err);
+          toast.error('Erro ao salvar nova capa.');
+        });
     }
   };
 

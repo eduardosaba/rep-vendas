@@ -19,7 +19,7 @@ import {
   getInstallmentText,
   getCashDiscountText,
 } from './PriceDisplay';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import type {
   Product as LibProduct,
   Settings as StoreSettings,

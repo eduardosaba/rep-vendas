@@ -15,7 +15,7 @@ import {
   Zap,
   FileSearch,
 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import EcosystemHealthCards from '@/components/admin/EcosystemHealthCards';
