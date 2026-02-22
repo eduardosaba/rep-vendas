@@ -15,13 +15,8 @@ if (dns.setDefaultResultOrder) dns.setDefaultResultOrder('ipv4first');
 if (process.env.ALLOW_INSECURE_TLS === '1') {
   if (process.env.NODE_ENV !== 'production') {
     console.warn(
-      'ALLOW_INSECURE_TLS=1 detected — enabling insecure TLS for local testing'
+      'ALLOW_INSECURE_TLS=1 detected — insecure TLS bypass is disabled in source.\nTo run with insecure TLS for local testing, start the process with NODE_TLS_REJECT_UNAUTHORIZED=0 in your shell. Do NOT enable this in production.'
     );
-    try {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    } catch (e) {
-      // ignore
-    }
   } else {
     console.warn('ALLOW_INSECURE_TLS is set but ignored in production environment');
   }

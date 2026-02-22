@@ -22,12 +22,9 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 
 if (ALLOW_INSECURE) {
   if (process.env.NODE_ENV !== 'production') {
-    console.warn('ALLOW_INSECURE_TLS active — enabling insecure TLS for local testing only');
-    try {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    } catch (e) {
-      // ignore
-    }
+    console.warn(
+      'ALLOW_INSECURE_TLS active — insecure TLS bypass is disabled in source.\nTo run with insecure TLS for local testing, start the process with NODE_TLS_REJECT_UNAUTHORIZED=0 in your shell. Do NOT enable this in production.'
+    );
   } else {
     console.warn('ALLOW_INSECURE_TLS is set but will not be applied in production');
   }
