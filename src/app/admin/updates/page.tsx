@@ -14,7 +14,9 @@ import {
   LayoutDashboard,
   Trash2,
   Plus,
+  Clock,
 } from 'lucide-react';
+import PopupViewStats from '@/components/admin/PopupViewStats';
 
 // Tipagem correta baseada no Banco de Dados
 interface UpdateItem {
@@ -27,6 +29,7 @@ interface UpdateItem {
   color_to: string;
   created_at: string;
   force_show?: boolean;
+  active?: boolean;
 }
 
 // TEMPLATES PRÉ-DEFINIDOS PARA AGILIDADE
@@ -95,6 +98,7 @@ export default function AdminUpdatesPage() {
     PRESET_TEMPLATES.welcome.colorTo
   );
   const [editorForceShow, setEditorForceShow] = useState(false);
+  const [editorPublish, setEditorPublish] = useState(true);
   const [newHighlight, setNewHighlight] = useState('');
 
   useEffect(() => {
@@ -144,6 +148,7 @@ export default function AdminUpdatesPage() {
           colorFrom: editorColorFrom,
           colorTo: editorColorTo,
           forceShow: editorForceShow,
+          publish: editorPublish,
         }),
       });
 
@@ -163,6 +168,23 @@ export default function AdminUpdatesPage() {
       setSaveError(error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUnpublish = async (version: string) => {
+    if (!confirm(`Despublicar a versão ${version}? Isso a removerá do fluxo ativo.`)) return;
+    try {
+      const res = await fetch('/api/admin/update-version', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version, publish: false }),
+      });
+      if (!res.ok) throw new Error('Falha ao despublicar');
+      toast.success('Versão despublicada');
+      fetchHistory();
+    } catch (e: any) {
+      console.error('unpublish error', e);
+      toast.error(e?.message || 'Erro ao despublicar');
     }
   };
 
@@ -375,18 +397,18 @@ export default function AdminUpdatesPage() {
                 key={u.id}
                 className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm"
               >
-                <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                        {u.title}
-                      </h3>
-                      {u.force_show && (
-                        <span className="text-xs font-black uppercase tracking-widest bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 px-2 py-1 rounded-full">
-                          FORÇAR
-                        </span>
-                      )}
-                    </div>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                          {u.title}
+                        </h3>
+                        {u.force_show && (
+                          <span className="text-xs font-black uppercase tracking-widest bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 px-2 py-1 rounded-full">
+                            FORÇAR
+                          </span>
+                        )}
+                      </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                       v{u.version} •{' '}
                       {new Date(u.date).toLocaleDateString('pt-BR')}
@@ -408,7 +430,30 @@ export default function AdminUpdatesPage() {
                       )}
                     </div>
                   </div>
-                  <CheckCircle2 className="text-green-500" />
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="text-green-500" />
+                    {u.active && (
+                      <button
+                        onClick={() => handleUnpublish(u.version)}
+                        className="text-sm text-rose-600 font-semibold"
+                      >
+                        Despublicar
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        // toggle a detail panel by adding a data attribute to the element
+                        const el = document.getElementById(`popup-stats-${u.id}`);
+                        if (el) el.classList.toggle('hidden');
+                      }}
+                      className="text-sm text-slate-600 underline"
+                    >
+                      Ver Rastreio
+                    </button>
+                  </div>
+                  <div id={`popup-stats-${u.id}`} className="mt-4 hidden">
+                    <PopupViewStats popupId={u.id} />
+                  </div>
                 </div>
               </div>
             ))

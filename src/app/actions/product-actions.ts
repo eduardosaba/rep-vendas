@@ -1,4 +1,4 @@
-'use server';
+"use server";
 
 import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
@@ -6,6 +6,55 @@ import { createAuditLog } from '@/lib/audit-service';
 import { revalidatePath } from 'next/cache';
 import { prepareProductGallery } from '@/lib/utils/image-logic';
 
+export async function duplicateProductAction(productId: string) {
+  try {
+    const supabase = await createClient();
+    const activeUserId = await getActiveUserId();
+    if (!activeUserId) return { success: false, error: 'Não autorizado' };
+
+    const { data: original, error: fetchError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', productId)
+      .single();
+
+    if (fetchError || !original) return { success: false, error: 'Produto original não encontrado' };
+
+    // Limpar campos únicos e timestamps
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id, created_at, updated_at, slug, reference_code, ...rest } = original as any;
+
+    const copyPayload = {
+      ...rest,
+      name: `${original.name} (Cópia)`,
+      reference_code: original.reference_code ? `${original.reference_code}-COPY` : null,
+      slug: original.slug ? `${original.slug}-copy-${Math.random().toString(36).substring(7)}` : null,
+      user_id: activeUserId,
+      image_is_shared: true,
+      sync_status: 'synced',
+    };
+
+    const { data: newProduct, error: insertError } = await supabase
+      .from('products')
+      .insert(copyPayload)
+      .select()
+      .single();
+
+    if (insertError) return { success: false, error: insertError.message || String(insertError) };
+
+    // Revalida lista de produtos e cache relacionado
+    try {
+      revalidatePath('/dashboard/products');
+    } catch (e) {
+      // noop
+    }
+
+    return { success: true, newId: (newProduct as any).id };
+  } catch (e: any) {
+    console.error('Erro ao duplicar produto:', e);
+    return { success: false, error: e?.message || String(e) };
+  }
+}
 export async function updateProductAction(productId: string, formData: any) {
   try {
     const supabase = await createClient();

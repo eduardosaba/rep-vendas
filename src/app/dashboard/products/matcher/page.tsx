@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { normalizeImageForDB } from '@/lib/imageHelpers';
-import { formatImageUrl } from '@/lib/imageUtils';
+import { formatImageUrl, buildGalleryItem, prepareProductGallery } from '@/lib/imageUtils';
 
 // Tipos mínimos usados neste componente
 interface Product {
@@ -364,24 +364,28 @@ export default function MatcherPage() {
         const currentGallery = Array.isArray(currentProd?.gallery_images) ? currentProd!.gallery_images : [];
 
         const candidate = img.metadata?.variants
-          ? { url: img.publicUrl || img.url, path: img.storage_path || null, variants: img.metadata.variants }
-          : { url: img.publicUrl || img.url, path: img.storage_path || null };
+            ? { url: img.publicUrl || img.url, path: img.storage_path || null, variants: img.metadata.variants }
+            : { url: img.publicUrl || img.url, path: img.storage_path || null };
 
-        const newGalleryItem = normalizeImageForDB(candidate);
+        // Normalize both candidate and current gallery via shared helpers
+        const newItem = buildGalleryItem(candidate) || normalizeImageForDB(candidate);
 
         const normalizedCurrent = Array.isArray(currentGallery)
           ? currentGallery.map((g: any) => normalizeImageForDB(g))
           : [];
 
-        const isDuplicate = normalizedCurrent.some((g: any) => (g.path && newGalleryItem.path && g.path === newGalleryItem.path) || g.url === newGalleryItem.url);
-        const updatedGallery = isDuplicate ? normalizedCurrent : [...normalizedCurrent, newGalleryItem];
-        const mainImage = updatedGallery[0] || newGalleryItem;
+        const isDuplicate = normalizedCurrent.some((g: any) => (g.path && newItem.path && g.path === newItem.path) || g.url === newItem.url);
+        const merged = isDuplicate ? normalizedCurrent : [...normalizedCurrent, newItem];
+
+        // Prepare final gallery payload using shared prepareProductGallery
+        const { gallery: finalGallery } = prepareProductGallery(merged);
+        const mainImage = finalGallery[0] || null;
 
         const updates: any = {
-          gallery_images: updatedGallery,
-          image_url: mainImage.url,
-          image_path: mainImage.path,
-          image_variants: mainImage.variants,
+          gallery_images: finalGallery,
+          image_url: mainImage?.url || null,
+          image_path: mainImage?.path || null,
+          image_variants: mainImage?.variants || null,
           image_optimized: true,
           updated_at: new Date().toISOString(),
         };

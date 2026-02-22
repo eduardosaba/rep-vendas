@@ -17,11 +17,21 @@ export default function NotificationsCTA({ userId }: { userId: string }) {
     setLoading(true);
 
     try {
+      // Do not re-prompt if the user has already denied permission
+      if (typeof window !== 'undefined') {
+        const perm = Notification.permission;
+        if (perm === 'denied') {
+          toast.info('Permissão de notificações está bloqueada. Habilite nas configurações da página.');
+          setLoading(false);
+          return;
+        }
+      }
+
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         await navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {});
       }
 
-      const permission = await Notification.requestPermission();
+      const permission = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
       if (permission !== 'granted') {
         toast.info('Permissão de notificações não concedida.');
         setDisabled(true);
@@ -61,6 +71,19 @@ export default function NotificationsCTA({ userId }: { userId: string }) {
         if (typeof window.localStorage?.getItem === 'function') {
           const dismissed = window.localStorage.getItem('rv_notifications_cta_dismissed');
           if (dismissed === '1') setVisible(false);
+        }
+        // If permission already granted, mark as activated
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          try {
+            if (Notification.permission === 'granted') {
+              setDisabled(true);
+              setVisible(false);
+            }
+            if (Notification.permission === 'denied') {
+              // keep CTA visible on mobile but disabled so user can read instructions
+              setDisabled(true);
+            }
+          } catch (e) {}
         }
       }
     } catch (e) {}

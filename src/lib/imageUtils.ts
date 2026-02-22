@@ -3,6 +3,33 @@ import { Product } from './types';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
 /**
+ * Heurística para detectar se uma URL/path provavelmente aponta para
+ * um recurso interno (Supabase Storage) em vez de uma URL externa.
+ */
+const isLikelyInternal = (input?: string | null): boolean => {
+  if (!input) return false;
+  try {
+    const s = String(input);
+    if (s.includes('/storage/v1/object') || s.includes('supabase.co/storage')) return true;
+    // If it's not an absolute http(s) URL, treat as internal path
+    if (!s.startsWith('http://') && !s.startsWith('https://')) return true;
+    // If SUPABASE_URL is present and hostname matches, consider internal
+    if (SUPABASE_URL) {
+      try {
+        const supaHost = new URL(SUPABASE_URL).hostname;
+        const inHost = new URL(s).hostname;
+        if (inHost && supaHost && inHost.includes(supaHost)) return true;
+      } catch (e) {
+        // ignore URL parsing errors
+      }
+    }
+  } catch (e) {
+    // fallback false
+  }
+  return false;
+};
+
+/**
  * Normaliza um storage path vindo do banco ou de uma URL pública.
  * - Decodifica se necessário
  * - Remove prefixos como `/storage/v1/object/public/` e `public/`
@@ -40,6 +67,87 @@ export function formatImageUrl(path?: string | null) {
   if (!normalized) return '/placeholder.png';
   return `/api/storage-image?path=${encodeURIComponent(normalized)}`;
 }
+
+/**
+ * Normaliza/Reconstrói um item de galeria garantindo variantes 480w/1200w
+ */
+export const buildGalleryItem = (img: any) => {
+  let url = (typeof img === 'string' ? img : img?.url || '').trim();
+  let path = img?.path || null;
+  if (!url) return null;
+
+  // Função robusta para limpar quaisquer sufixos previamente aplicados
+  const cleanBase = (s?: string | null) => {
+    if (!s) return null;
+    let r = String(s).trim();
+    // remove query string
+    r = r.split('?')[0];
+    // remove múltiplos sufixos como -1200w.webp-480w.webp repetidamente
+    while (/(?:-(480w|1200w)\.webp)$/i.test(r)) {
+      r = r.replace(/-(480w|1200w)\.webp$/i, '');
+    }
+    // remove extensão final (.webp, .jpg, etc.)
+    r = r.replace(/\.[a-zA-Z0-9]+$/, '');
+    return r;
+  };
+
+  // Se já vier com variantes explícitas, preservamos, mas normalizamos cada variant
+  if (img && Array.isArray(img.variants) && img.variants.length > 0) {
+    const normalizedVariants = img.variants
+      .map((v: any) => {
+        const rawUrl = v && (v.url || v.src || v.publicUrl) ? String(v.url || v.src || v.publicUrl).trim() : null;
+        const rawPath = v && (v.path || v.storage_path) ? String(v.path || v.storage_path).trim() : null;
+        if (!rawUrl && !rawPath) return null;
+        const baseU = cleanBase(rawUrl || rawPath) || null;
+        const size = v.size || null;
+        if (!baseU) return null;
+        const suf = (size === 1200) ? '1200w' : '480w';
+        return {
+          size: size || (suf === '1200w' ? 1200 : 480),
+          url: rawUrl ? `${baseU}-${suf}.webp` : null,
+          path: rawPath ? `${cleanBase(rawPath)}-${suf}.webp` : null,
+        };
+      })
+      .filter(Boolean) as any[];
+
+    const baseUrl = cleanBase(url) || '';
+    const basePath = cleanBase(path) || null;
+    return { url: `${baseUrl}-1200w.webp`, path: basePath ? `${basePath}-1200w.webp` : null, variants: normalizedVariants };
+  }
+
+  // Caso contrário, construímos variantes garantidas quando for interno
+  const baseUrlClean = cleanBase(url) || '';
+  const basePathClean = cleanBase(path) || null;
+  const internal = isLikelyInternal(url) || isLikelyInternal(path);
+
+  const variants = internal && basePathClean
+    ? [
+        { size: 480, url: `${baseUrlClean}-480w.webp`, path: `${basePathClean}-480w.webp` },
+        { size: 1200, url: `${baseUrlClean}-1200w.webp`, path: `${basePathClean}-1200w.webp` },
+      ]
+    : [
+        { size: 480, url: url, path: path },
+        { size: 1200, url: url, path: path },
+      ];
+
+  return { url: internal ? `${baseUrlClean}-1200w.webp` : url, path: internal && basePathClean ? `${basePathClean}-1200w.webp` : path, variants };
+};
+
+/**
+ * Prepara e limpa uma lista de itens de galeria para persistência.
+ * Retorna { gallery, imagesField } onde `gallery` contém itens com `variants`
+ * e `imagesField` é um array simples {url,path} usado em campo legacy `images`.
+ */
+export const prepareProductGallery = (items: any[]) => {
+  const raw = Array.isArray(items) ? items : [];
+  const cleaned = raw
+    .map((it: any) => (typeof it === 'string' ? { url: it, path: null } : it || { url: '', path: null }))
+    .map((it: any) => buildGalleryItem(it))
+    .filter(Boolean) as any[];
+
+  const imagesField = cleaned.map((g: any) => ({ url: g.url || '', path: g.path || null }));
+  return { gallery: cleaned, imagesField };
+};
 
 /**
  * Constrói uma URL pública do Supabase Storage ou retorna a URL absoluta.

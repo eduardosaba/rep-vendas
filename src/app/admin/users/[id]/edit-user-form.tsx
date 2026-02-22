@@ -95,6 +95,7 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
   );
 
   const passFormRef = useRef<HTMLFormElement>(null);
+  const licenseFormRef = useRef<HTMLFormElement>(null);
 
   // Feedbacks
   useEffect(() => {
@@ -241,7 +242,7 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
             Plano & Licença
           </h2>
         </div>
-        <form action={licenseAction} className="p-6 grid gap-6">
+        <form id="license-form" ref={licenseFormRef} action={licenseAction} className="p-6 grid gap-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
@@ -295,18 +296,31 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
           <div className="flex justify-end pt-2">
             <div className="flex items-center gap-2">
               <SubmitButton label="Salvar Assinatura" />
-              <form action={licenseAction} className="inline">
-                <input type="hidden" name="plan" value={initialData.plan} />
-                <input type="hidden" name="status" value="active" />
-                <input type="hidden" name="ends_at" value="" />
-                <button
-                  type="submit"
-                  disabled={initialData.status === 'active'}
-                  className="px-4 py-2.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Ativar Conta
-                </button>
-              </form>
+              <button
+                type="button"
+                disabled={initialData.status === 'active'}
+                className="px-4 py-2.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => {
+                  try {
+                    const form = licenseFormRef.current as HTMLFormElement | null;
+                    if (!form) return;
+                    // set fields to activation defaults
+                    const planEl = form.querySelector('[name="plan"]') as HTMLSelectElement | null;
+                    const statusEl = form.querySelector('[name="status"]') as HTMLSelectElement | null;
+                    const endsAtEl = form.querySelector('[name="ends_at"]') as HTMLInputElement | null;
+                    if (planEl) planEl.value = initialData.plan || planEl.value;
+                    if (statusEl) statusEl.value = 'active';
+                    if (endsAtEl) endsAtEl.value = '';
+                    // submit the form programmatically
+                    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                    else form.submit();
+                  } catch (e) {
+                    console.error('Erro ao ativar conta:', e);
+                  }
+                }}
+              >
+                Ativar Conta
+              </button>
             </div>
           </div>
         </form>

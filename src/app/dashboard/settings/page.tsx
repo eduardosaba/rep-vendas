@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { SYSTEM_FONTS } from '@/lib/fonts';
 
 // Conjunto de temas prontos usados na UI
 const THEME_PRESETS = [
@@ -71,6 +72,7 @@ const THEME_PRESETS = [
   },
 ];
 
+// Use SYSTEM_FONTS presets defined in src/lib/fonts
 // Componentes extraídos
 import { ToggleSetting } from './components/ToggleSetting';
 import SmartImageUpload from '@/components/SmartImageUpload';
@@ -885,6 +887,84 @@ export default function SettingsPage() {
                       }}
                     />
                   </label>
+                </div>
+              </div>
+
+              {/* Fonte do Sistema */}
+              <div className="col-span-full md:col-span-2 p-6 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 shadow-sm">
+                <h4 className="text-sm font-black uppercase text-slate-400 mb-3">Fonte do Sistema</h4>
+                <p className="text-xs text-gray-500 mb-3">Escolha a fonte principal usada na sidebar e no catálogo público. Você pode pré-visualizar antes de salvar.</p>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <select
+                    value={formData.font_family || ''}
+                    onChange={async (e) => {
+                      const selectedName = e.target.value || null;
+                      const preset = SYSTEM_FONTS.find((p) => p.name === selectedName) || null;
+                      setFormData((p) => ({ ...p, font_family: selectedName, font_url: preset ? preset.import : null }));
+                      // Apply preview immediately
+                      try {
+                        if (preset && typeof window !== 'undefined') {
+                          applyDashboardFont(preset.name);
+                        } else if (!selectedName) {
+                          applyDashboardFont(null);
+                        }
+                      } catch (err) {
+                        console.warn('applyDashboardFont failed', err);
+                      }
+                    }}
+                    className="p-3 rounded-lg border bg-white dark:bg-slate-950 dark:border-slate-700 text-sm w-full sm:w-72"
+                  >
+                    <option value="">Inter (Padrão)</option>
+                    {SYSTEM_FONTS.map((f) => (
+                      <option key={f.name} value={f.name}>{f.name}</option>
+                    ))}
+                  </select>
+
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500">URL da fonte (opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="URL para carregar fonte (ex: Google Fonts)"
+                      value={formData.font_url || ''}
+                      onChange={(e) => {
+                        const url = e.target.value || null;
+                        setFormData((p) => ({ ...p, font_url: url }));
+                        // If user provided a custom url and a font_family, try to load it for preview
+                        try {
+                          if (url && typeof window !== 'undefined') {
+                            const linkId = `custom-font-${(formData.font_family || 'custom').replace(/\s+/g, '-')}`;
+                            if (!document.getElementById(linkId)) {
+                              const link = document.createElement('link');
+                              link.id = linkId;
+                              link.rel = 'stylesheet';
+                              link.crossOrigin = 'anonymous';
+                              link.href = url;
+                              link.onload = () => {
+                                try {
+                                  if (formData.font_family) {
+                                    document.body.style.fontFamily = formData.font_family as string;
+                                  }
+                                } catch (e) {}
+                              };
+                              link.onerror = () => {
+                                console.warn('Failed to load custom font URL', url);
+                                try { link.remove(); } catch (e) {}
+                              };
+                              document.head.appendChild(link);
+                            } else {
+                              if (formData.font_family) {
+                                document.body.style.fontFamily = formData.font_family as string;
+                              }
+                            }
+                          }
+                        } catch (err) {
+                          console.warn('Failed to apply custom font url', err);
+                        }
+                      }}
+                      className="w-full p-3 rounded-lg border bg-white dark:bg-slate-950 dark:border-slate-700 text-sm"
+                    />
+                    <div className="text-xs text-gray-400 mt-2">Se você fornecer uma URL, ela será usada ao salvar e sobrescreverá o preset selecionado.</div>
+                  </div>
                 </div>
               </div>
               <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl space-y-4">

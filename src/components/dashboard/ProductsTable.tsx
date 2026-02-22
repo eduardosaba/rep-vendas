@@ -13,6 +13,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Copy,
   CheckSquare,
   Square,
   Zap,
@@ -80,6 +81,8 @@ interface Product {
 
 interface ProductsTableProps {
   initialProducts: Product[];
+  serverModeDefault?: boolean;
+  initialTotalCount?: number;
 }
 
 interface BrandOption {
@@ -213,7 +216,7 @@ const DEFAULT_SORT_DIRECTION: Partial<Record<DataKey, 'asc' | 'desc'>> = {
   stock_quantity: 'desc',
 };
 
-export function ProductsTable({ initialProducts }: ProductsTableProps) {
+export function ProductsTable({ initialProducts, serverModeDefault, initialTotalCount }: ProductsTableProps) {
   // Component implementation
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -256,13 +259,19 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   });
 
   // Server-side filtering mode
-  const [serverMode, setServerMode] = useState(false);
+  const [serverMode, setServerMode] = useState<boolean>(Boolean(serverModeDefault) || false);
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [serverMeta, setServerMeta] = useState<{
     totalCount?: number;
     totalPages?: number;
     page?: number;
-  }>({});
+  }>({ page: 1, totalCount: initialTotalCount });
+  const [kpisState, setKpisState] = useState<{
+    total: number;
+    brands: number;
+    launch: number;
+    best: number;
+  } | null>(null);
   const [serverLoading, setServerLoading] = useState(false);
   const fetchTimerRef = useRef<number | null>(null);
 
@@ -321,6 +330,35 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       window.removeEventListener('mouseup', onUp);
     };
   }, []);
+
+  // Fetch aggregate KPIs when in serverMode (shows totals across all products)
+  useEffect(() => {
+    if (!serverMode) {
+      setKpisState(null);
+      return;
+    }
+    if (!userId || userId === 'guest') return;
+
+    let mounted = true;
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        params.set('userId', userId);
+        params.set('aggregate', 'true');
+        const res = await fetch(`/api/products?${params.toString()}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (mounted && json.aggregate) setKpisState(json.aggregate);
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+    // only run when serverMode/userId changes
+  }, [serverMode, userId]);
 
   // Seleção e Modais
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -621,7 +659,20 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         }
 
         const res = await fetch(`/api/products?${params.toString()}`);
-        if (!res.ok) throw new Error('Erro ao buscar produtos');
+        if (!res.ok) {
+          let body = null;
+          try {
+            body = await res.json();
+          } catch (_err) {
+            try {
+              body = await res.text();
+            } catch (_e) {
+              body = null;
+            }
+          }
+          console.error('[api/products] response error', res.status, body);
+          throw new Error('Erro ao buscar produtos');
+        }
         const json = await res.json();
         let serverData = json.data || [];
         // se o filtro de otimização de imagem estiver ativo, aplique uma filtragem adicional
@@ -680,6 +731,52 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
     filters.imageOptimization,
     sortConfig,
   ]);
+
+  // Manual refresh helper (usado pelo botão 'Tentar novamente' na UI caso a página não carregue)
+  const refreshServerPage = async (page = currentPage) => {
+    if (!userId || userId === 'guest') return;
+    setServerLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('userId', userId);
+      params.set('page', String(page));
+      params.set('limit', String(itemsPerPage));
+      if (searchTerm) params.set('search', searchTerm);
+      if (filters.minPrice) params.set('minPrice', String(filters.minPrice));
+      if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
+      if (filters.brand && filters.brand.length > 0)
+        params.set('brand', String(filters.brand[0]));
+      if (filters.imageOptimization && filters.imageOptimization !== 'all')
+        params.set('imageOptimization', String(filters.imageOptimization));
+      if (sortConfig) {
+        params.set('sortKey', String(sortConfig.key));
+        params.set('sortDir', sortConfig.direction);
+      }
+
+      const res = await fetch(`/api/products?${params.toString()}`);
+      if (!res.ok) {
+        let body = null;
+        try {
+          body = await res.json();
+        } catch (_err) {
+          try {
+            body = await res.text();
+          } catch (_e) {
+            body = null;
+          }
+        }
+        console.error('[api/products] refresh response error', res.status, body);
+        throw new Error('Erro ao buscar produtos');
+      }
+      const json = await res.json();
+      setServerProducts(json.data || []);
+      setServerMeta(json.meta || {});
+    } catch (e) {
+      console.error('refreshServerPage error', e);
+    } finally {
+      setServerLoading(false);
+    }
+  };
 
   // --- MANIPULAÇÃO DE COLUNAS ---
   const toggleColumn = (key: DataKey) => {
@@ -1037,14 +1134,38 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       );
 
   const kpis = useMemo(() => {
-    const active = products.filter((p) => p.is_active !== false);
+    // If we fetched aggregate KPIs from the server, prefer them (they represent
+    // totals across the whole catalog). Otherwise compute from the best available
+    // client-side dataset.
+    if (serverMode && kpisState) {
+      return {
+        total: kpisState.total,
+        brands: kpisState.brands,
+        launch: kpisState.launch,
+        best: kpisState.best,
+      };
+    }
+
+    const sourceForCounts = serverMode
+      ? products && products.length > 0
+        ? products
+        : serverProducts && serverProducts.length > 0
+        ? serverProducts
+        : []
+      : products;
+
+    const active = sourceForCounts.filter((p) => p.is_active !== false);
+    const totalCount = serverMode
+      ? initialTotalCount ?? serverMeta?.totalCount ?? sourceForCounts.length
+      : products.length;
+
     return {
-      total: products.length,
+      total: totalCount,
       brands: new Set(active.map((p) => p.brand).filter(Boolean)).size,
       launch: active.filter((p) => p.is_launch).length,
       best: active.filter((p) => p.is_best_seller).length,
     };
-  }, [products]);
+  }, [products, serverMode, serverProducts, serverMeta, initialTotalCount, kpisState]);
 
   // --- AÇÕES ---
   const toggleSelectOne = (id: string) => {
@@ -1103,6 +1224,35 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
   const [visibleTooltips, setVisibleTooltips] = useState<
     Record<string, boolean>
   >({});
+  const [duplicatingIds, setDuplicatingIds] = useState<string[]>([]);
+  const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(null);
+
+  const isDuplicating = (id: string) => duplicatingIds.includes(id);
+
+  const handleDuplicate = async (productId: string) => {
+    if (isDuplicating(productId)) return;
+    setDuplicatingIds((s) => [...s, productId]);
+    try {
+      const res = await fetch('/api/products/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(json?.error || 'Erro ao duplicar produto');
+        return;
+      }
+      toast.success('Produto duplicado');
+      // redirect to editor for new product
+      router.push(`/dashboard/products/${encodeURIComponent(json.newId)}`);
+    } catch (e: any) {
+      console.error('duplicate error', e);
+      toast.error(e?.message || 'Erro ao duplicar produto');
+    } finally {
+      setDuplicatingIds((s) => s.filter((i) => i !== productId));
+    }
+  };
   const showTooltip = (key: string) => {
     setVisibleTooltips((prev) => ({ ...prev, [key]: true }));
     setTimeout(() => {
@@ -1275,6 +1425,15 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
       const chosenCover =
         brandCandidates[pdfOptions.selectedCoverIndex] || undefined;
 
+      // Determine primary brand name from selected products (most frequent)
+      const brandCounts: Record<string, number> = {};
+      productsToPrint.forEach((p: any) => {
+        if (p.brand) brandCounts[p.brand] = (brandCounts[p.brand] || 0) + 1;
+      });
+      const primaryBrandName = Object.keys(brandCounts).length
+        ? Object.entries(brandCounts).sort((a, b) => b[1] - a[1])[0][0]
+        : undefined;
+
       await generateCatalogPDF(productsToPrint, {
         showPrices: pdfOptions.showPrices,
         priceType: pdfOptions.priceType,
@@ -1283,6 +1442,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         storeLogo: settings?.logo_url,
         imageZoom: pdfOptions.imageZoom,
         brandMapping: brandMap,
+        primaryBrandName,
         coverImageUrl: chosenCover,
         coverTemplate: pdfOptions.coverTemplate,
         secondaryColor: secondaryColor,
@@ -2142,7 +2302,7 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             className="w-20 p-1 text-sm border rounded bg-white dark:bg-slate-800"
           />
           <Button
-            onClick={(e) => {
+            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
               const parent = (e.target as HTMLElement)
                 .previousElementSibling as HTMLInputElement | null;
               const v = parent ? Number(parent.value || 1) : 1;
@@ -2214,14 +2374,35 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
               {paginatedProducts.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={100}
-                    className="p-12 text-center text-gray-500 dark:text-slate-400"
-                  >
-                    Nenhum produto encontrado.
-                  </td>
-                </tr>
+                serverMode && (serverMeta?.totalCount || 0) > 0 ? (
+                  <tr>
+                    <td colSpan={100} className="p-12 text-center text-gray-500 dark:text-slate-400">
+                      {serverLoading ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="animate-spin" /> Carregando produtos...
+                        </div>
+                      ) : (
+                        <div>
+                          <p>Catálogo grande detectado ({serverMeta?.totalCount} itens) — nenhuma página carregada.</p>
+                          <div className="mt-3 flex justify-center">
+                            <Button size="sm" variant="outline" onClick={() => refreshServerPage(1)}>
+                              Tentar novamente
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={100}
+                      className="p-12 text-center text-gray-500 dark:text-slate-400"
+                    >
+                      Nenhum produto encontrado.
+                    </td>
+                  </tr>
+                )
               ) : (
                 paginatedProducts.map((product) => (
                   <tr
@@ -2269,6 +2450,18 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                           <Edit2 size={16} />
                         </Link>
                         <button
+                          onClick={() => setDuplicateTargetId(product.id)}
+                          disabled={isDuplicating(product.id)}
+                          className="p-1.5 text-gray-400 hover:text-[var(--primary)] rounded-md transition-colors"
+                          title="Duplicar"
+                        >
+                          {isDuplicating(product.id) ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Copy size={16} />
+                          )}
+                        </button>
+                        <button
                           onClick={() => setViewProduct(product)}
                           className="p-1.5 text-gray-400 hover:text-primary rounded-md transition-colors"
                         >
@@ -2295,9 +2488,28 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         {/* Mobile: cards */}
         <div className="md:hidden p-4 grid grid-cols-1 gap-4">
           {paginatedProducts.length === 0 ? (
-            <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
-              Nenhum produto encontrado.
-            </div>
+            serverMode && (serverMeta?.totalCount || 0) > 0 ? (
+              <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
+                {serverLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="animate-spin" /> Carregando produtos...
+                  </div>
+                ) : (
+                  <div>
+                    <p>Catálogo grande detectado ({serverMeta?.totalCount} itens) — nenhuma página carregada.</p>
+                    <div className="mt-3 flex justify-center">
+                      <Button size="sm" variant="outline" onClick={() => refreshServerPage(1)}>
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800">
+                Nenhum produto encontrado.
+              </div>
+            )
           ) : (
             paginatedProducts.map((product) => (
               <div
@@ -2428,6 +2640,33 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                           }`}
                         >
                           Editar
+                        </span>
+                      </div>
+
+                      <div
+                        className="relative group"
+                        onTouchStart={() => showTooltip(`${product.id}-dup`)}
+                      >
+                        <button
+                          onClick={() => setDuplicateTargetId(product.id)}
+                          disabled={isDuplicating(product.id)}
+                          className="p-2 border rounded text-sm flex items-center justify-center"
+                          aria-label="Duplicar"
+                        >
+                          {isDuplicating(product.id) ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Copy size={16} />
+                          )}
+                        </button>
+                        <span
+                          className={`pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 text-white text-xs px-2 py-1 transition-opacity ${
+                            visibleTooltips[`${product.id}-dup`]
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100'
+                          }`}
+                        >
+                          Duplicar
                         </span>
                       </div>
 
@@ -2902,6 +3141,41 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
                   {isProcessing ? 'Processando...' : 'Excluir'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DUPLICAR */}
+      {duplicateTargetId && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-md w-full text-center border border-gray-200 dark:border-slate-800 shadow-xl">
+            <div className="flex items-center gap-4 justify-center mb-4">
+              <Copy size={36} className="text-blue-600" />
+            </div>
+            <h3 className="text-lg font-bold dark:text-white">Duplicar Produto?</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-2 mb-4">
+              Será criada uma cópia deste produto. As imagens da cópia serão marcadas como compartilhadas.
+            </p>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <button
+                onClick={() => setDuplicateTargetId(null)}
+                className="py-3 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  const id = duplicateTargetId;
+                  setDuplicateTargetId(null);
+                  if (id) await handleDuplicate(id);
+                }}
+                className="py-3 rounded-lg bg-blue-600 text-white font-bold hover:!bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed border border-blue-600 hover:border-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm dark:bg-blue-600 dark:hover:!bg-blue-700"
+                disabled={isDuplicating(duplicateTargetId || '')}
+                type="button"
+              >
+                Duplicar
+              </button>
             </div>
           </div>
         </div>

@@ -100,7 +100,19 @@ export function ProductCard({
   // --- LÓGICA DE PREÇOS ---
   const costPrice = product.price || 0;
   const salePrice = (product as any).sale_price || 0;
-  const currentPrice = salePrice > 0 ? salePrice : costPrice;
+
+  // Respeitar configurações da loja: se `show_cost_price` está ativo, mostrar preço de custo.
+  // Caso contrário, mostrar preço de venda quando disponível, senão preço de custo.
+  const showSale = isPricesVisible && storeSettings.show_sale_price !== false;
+  const showCost = isPricesVisible && storeSettings.show_cost_price === true;
+  let currentPrice = costPrice;
+  if (showCost) {
+    currentPrice = costPrice;
+  } else if (showSale && salePrice > 0) {
+    currentPrice = salePrice;
+  } else {
+    currentPrice = costPrice;
+  }
 
   const hasValidOriginalPrice =
     product.original_price && product.original_price > currentPrice;
@@ -111,8 +123,7 @@ export function ProductCard({
       )
     : 0;
 
-  const showSale = isPricesVisible && storeSettings.show_sale_price !== false;
-  const showCost = isPricesVisible && storeSettings.show_cost_price === true;
+  // showSale/showCost já definidos acima and used to control badges/visibility
 
   const inCart = cart.find((it) => it.id === product.id);
   const qty = inCart ? inCart.quantity : 0;
@@ -235,7 +246,7 @@ export function ProductCard({
                 {/* Parcelamento e desconto à vista (helpers) */}
                 <div className="mt-1">
                   {(() => {
-                    const isUsingSalePrice = salePrice > 0;
+                    const isUsingSalePrice = currentPrice === salePrice && salePrice > 0;
                     // Mostrar parcelamento sempre para preço de venda (salePrice>0).
                     // Para preço de custo, só mostrar se a flag `show_installments` estiver
                     // explicitamente true e `max_installments` for maior que 1.

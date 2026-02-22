@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     }
 
     // 2. Recebe os dados do formulário
-    const body = await request.json();
-    const { version, title, date, highlights, colorFrom, colorTo, forceShow } =
-      body;
+      const { body } = await request.json();
+      const { version, title, date, highlights, colorFrom, colorTo, forceShow, publish } =
+        body;
 
     // 3. Validação Básica
     if (!version || !title) {
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       highlights, // O Supabase aceita array de strings direto se a coluna for text[]
       color_from: colorFrom,
       color_to: colorTo,
+        active: typeof publish !== 'undefined' ? !!publish : undefined,
     };
 
     // opcional: incluir flag administrativa se fornecida

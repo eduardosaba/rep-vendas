@@ -368,25 +368,21 @@ export async function updateUserLicense(
       if (insertError) throw insertError;
     }
 
-    // Sincronizar plan_id em profiles
-    if (updateData.plan_id) {
-      await supabaseAdmin
-        .from('profiles')
-        .update({
-          plan_id: updateData.plan_id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-    }
-
-    // Sincronizar plan_type em settings
-    if (planName) {
-      await supabaseAdmin.from('settings').upsert({
-        user_id: userId,
-        plan_type: planName,
+    // Sincronizar plan_id em profiles (limpa quando não houver plano ou plano gratuito)
+    await supabaseAdmin
+      .from('profiles')
+      .update({
+        plan_id: updateData.plan_id ?? null,
         updated_at: new Date().toISOString(),
-      });
-    }
+      })
+      .eq('id', userId);
+
+    // Sincronizar plan_type em settings (armazena o tipo do plano mesmo que seja 'Free' ou vazio)
+    await supabaseAdmin.from('settings').upsert({
+      user_id: userId,
+      plan_type: planName || null,
+      updated_at: new Date().toISOString(),
+    });
 
     revalidatePath(`/admin/users/${userId}`);
     revalidatePath('/admin/users');

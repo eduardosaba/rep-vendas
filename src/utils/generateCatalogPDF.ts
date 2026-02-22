@@ -141,7 +141,8 @@ export const generateCatalogPDF = async (products: any[], options: any) => {
   }
 
   const fallbackLogo = await getSafeImage('/link.webp');
-  const finalCoverLogo = brandLogo || storeLogoRes || fallbackLogo;
+  const finalCoverLogo = brandLogo || storeLogoRes;
+  const wantTextCover = !finalCoverLogo && options.primaryBrandName;
   const isCenter = options.logoPosition === 'center';
 
   if (finalCoverLogo) {
@@ -159,6 +160,17 @@ export const generateCatalogPDF = async (products: any[], options: any) => {
     } catch (e) {
       console.warn('generateCatalogPDF: failed adding cover image', e);
     }
+  }
+
+  // If there's no cover image but a primary brand name, render the brand name prominently
+  if (!finalCoverLogo && wantTextCover) {
+    doc.setTextColor(255);
+    doc.setFontSize(48);
+    doc.setFont('helvetica', 'bold');
+    const brandText = String(options.primaryBrandName).toUpperCase();
+    const lines = doc.splitTextToSize(brandText, 160);
+    const y = isCenter ? 140 : 100;
+    doc.text(lines, (pageW / 2) + 6, y, { align: 'center' });
   }
 
   doc.setTextColor(255);

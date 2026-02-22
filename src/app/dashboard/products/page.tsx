@@ -35,14 +35,23 @@ export default async function ProductsPage() {
   let maxLimit = 5000; // fallback seguro para usuários comuns
 
   // 2.1 Verifica o cargo do usuário para definir o limite
-  const { data: { user } = {} } = await supabase.auth.getUser();
+  // Use activeUserId (impersonation-aware) to fetch the profile server-side
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
-    .eq('id', user?.id)
+    .select('role, email')
+    .eq('id', activeUserId)
     .maybeSingle();
 
-  const isAdmin = profile?.role === 'master' || profile?.role === 'admin';
+  const roleStr = (profile?.role || '').toString().toLowerCase();
+  const isAdmin = roleStr.includes('master') || roleStr.includes('admin');
+
+  // DEBUG TEMPORÁRIO: imprimir informações de autorização para diagnosticar limites
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG_PRODUCTS_PAGE] activeUserId=', activeUserId, 'profileRole=', profile?.role, 'roleStr=', roleStr, 'isAdmin=', isAdmin);
+  } catch (e) {
+    // noop
+  }
 
   if (isAdmin) {
     maxLimit = 20000;
@@ -76,13 +85,24 @@ export default async function ProductsPage() {
     `[DEBUG] Usuário é Admin: ${isAdmin} | Limite definido: ${maxLimit}`
   );
 
-  // 3. Query de Produtos com Range Explícito
-  const { data: products, error } = await supabase
+  // 3. Query de Produtos (usar range sempre para honrar maxLimit)
+  let query = supabase
     .from('products')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('user_id', activeUserId)
     .order('created_at', { ascending: false })
     .range(0, maxLimit);
+
+  const { data: products, error, count } = await query;
+
+  if (products && products.length >= maxLimit) {
+    try {
+      // eslint-disable-next-line no-console
+      console.warn('[DEBUG_PRODUCTS_PAGE] produtos retornados (' + products.length + ") >= maxLimit (" + maxLimit + "). Considere paginar.");
+    } catch (e) {
+      // noop
+    }
+  }
 
   if (error) {
     console.error('Erro ao carregar produtos:', error);
@@ -90,6 +110,7 @@ export default async function ProductsPage() {
 
   // Fallback seguro se der erro
   const safeProducts = products || [];
+  const totalCount = typeof count === 'number' ? count : safeProducts.length;
 
   // Gera thumbnail 480w para listagem administrativa (evita carregar 1200w)
   const ensure480 = (u: string | null | undefined) => {
@@ -141,11 +162,11 @@ export default async function ProductsPage() {
     'template-otica@repvendas.com.br',
   ];
   const showDiagnosticPanel = Boolean(
-    user && allowedDiagnosticEmails.includes(user.email || '')
+    profile && allowedDiagnosticEmails.includes(profile.email || '')
   );
 
   // Estatísticas de otimização de imagens
-  const totalProducts = safeProducts.length;
+  const totalProducts = totalCount;
   const productsWithInternalImages = safeProducts.filter(
     (p) => p.image_path
   ).length;
@@ -168,8 +189,8 @@ export default async function ProductsPage() {
             Produtos
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gerencie seu catálogo completo ({safeProducts.length} itens)
-          </p>
+              Gerencie seu catálogo completo ({totalProducts} itens)
+            </p>
         </div>
 
         {/* Barra de Ferramentas */}
@@ -248,9 +269,13 @@ export default async function ProductsPage() {
 
       {/* Tabela de Dados */}
       {/* Envolvemos em um container com borda e fundo para o tema */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
-        {/* Passamos os dados para o Client Component que vai cuidar da responsividade da tabela */}
-        <ProductsTable initialProducts={withThumbnails} />
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
+        {/* Se o catálogo for grande, ativamos paginação server-side para não carregar milhares de linhas */}
+        <ProductsTable
+          initialProducts={totalProducts > 1000 ? [] : withThumbnails}
+          serverModeDefault={totalProducts > 1000}
+          initialTotalCount={totalProducts}
+        />
       </div>
     </div>
   );

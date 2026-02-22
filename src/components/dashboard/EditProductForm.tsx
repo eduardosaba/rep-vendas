@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Product } from '@/lib/types';
 import {
   ArrowLeft,
+  ArrowRight,
   Loader2,
   Save,
   Image as ImageIcon,
@@ -34,7 +35,7 @@ import {
   dedupePreferOptimized,
   ensureOptimizedFirst,
 } from '@/lib/imageHelpers';
-import { formatImageUrl } from '@/lib/imageUtils';
+import { formatImageUrl, buildGalleryItem } from '@/lib/imageUtils';
 
 // Remove arquivos de storage associados a uma imagem (inclui variantes)
 const deleteImageFromStorage = async (supabaseClient: any, imagePath: string | null) => {
@@ -301,31 +302,7 @@ const ImageUploader = ({
 
 // Helpers moved to `src/lib/imageHelpers.ts`
 
-// Constrói um item de galeria com variantes 480w/1200w a partir de uma URL simples
-const buildGalleryItem = (url: string, path: string | null) => {
-  const baseurl = String(url || '').replace(/-(480w|1200w)\.webp$/, '');
-  const basePath = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') : null;
-
-  const url1200 = url.includes('1200w') ? url : `${baseurl}-1200w.webp`;
-  const path1200 = path ? (path.includes('1200w') ? path : `${basePath}-1200w.webp`) : null;
-
-  return {
-    url: url1200,
-    path: path1200,
-    variants: [
-      {
-        url: `${baseurl}-480w.webp`,
-        path: basePath ? `${basePath}-480w.webp` : null,
-        size: 480,
-      },
-      {
-        url: `${baseurl}-1200w.webp`,
-        path: basePath ? `${basePath}-1200w.webp` : null,
-        size: 1200,
-      },
-    ],
-  };
-};
+// buildGalleryItem moved to src/lib/imageUtils.ts
 
 // --- COMPONENTE PRINCIPAL ---
 export function EditProductForm({ product }: { product: Product }) {
@@ -341,6 +318,7 @@ export function EditProductForm({ product }: { product: Product }) {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [needsDetach, setNeedsDetach] = useState(false);
 
   // Listas Auxiliares
@@ -459,6 +437,18 @@ export function EditProductForm({ product }: { product: Product }) {
 
   const techSpecs = parseTechnicalSpecs(product.technical_specs);
 
+  // Prepara e limpa a galeria do produto antes de persistir
+  const prepareProductGallery = (items: any[]) => {
+    const raw = Array.isArray(items) ? items : [];
+    const cleaned = raw
+      .map((it: any) => (typeof it === 'string' ? { url: it, path: null } : it || { url: '', path: null }))
+      .map((it: any) => buildGalleryItem(it))
+      .filter(Boolean) as any[];
+
+    const imagesField = cleaned.map((g: any) => ({ url: g.url || '', path: g.path || null }));
+    return { gallery: cleaned, imagesField };
+  };
+
   // DEBUG: diagnóstico de imagens recebidas do banco
   useEffect(() => {
     console.group('[EditProductForm] Diagnóstico de Imagens do Produto');
@@ -468,6 +458,25 @@ export function EditProductForm({ product }: { product: Product }) {
     console.log('product.image_path:', (product as any).image_path);
     console.groupEnd();
   }, []);
+
+  // Normaliza a galeria recebida do banco ao carregar o produto
+  useEffect(() => {
+    try {
+      if (!product) return;
+      const rawGallery = Array.isArray((product as any).gallery_images)
+        ? (product as any).gallery_images
+        : [];
+
+      const normalizedImages = rawGallery.map(buildGalleryItem).filter(Boolean as any);
+
+      if (normalizedImages && normalizedImages.length > 0) {
+        setFormData((prev) => ({ ...prev, images: normalizedImages } as any));
+      }
+    } catch (e) {
+      console.warn('Normalization of gallery failed', e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product]);
 
   // Note: preserve `gender` exactly as stored in `products` table for edit form
 
@@ -625,12 +634,14 @@ export function EditProductForm({ product }: { product: Product }) {
             const { data: d1200 } = supabase.storage.from('product-images').getPublicUrl(fullPath1200);
 
             // Replace the tempUrl object in formData.images with the full structured gallery item (with variants)
-            const galleryItem = buildGalleryItem(d1200.publicUrl, fullPath1200);
+            const galleryItem = buildGalleryItem({ url: d1200.publicUrl, path: fullPath1200 });
             setFormData((prev) => {
               const imgs = [...(prev.images || [])];
               const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);
-              if (idx !== -1) imgs[idx] = galleryItem;
-              else imgs.push(galleryItem as any);
+              if (galleryItem) {
+                if (idx !== -1) imgs[idx] = galleryItem as any;
+                else imgs.push(galleryItem as any);
+              }
               return { ...prev, images: imgs } as any;
             });
 
@@ -675,26 +686,20 @@ export function EditProductForm({ product }: { product: Product }) {
   };
 
   const removeImage = async (index: number) => {
-    // Remove apenas o item selecionado: limpa storage e atualiza produto parcialmente
+    // Remoção segura: não apaga arquivos físicos do Master/Clone.
     try {
-      const target = (formData.images || [])[index];
-      const path = target?.path || null;
-
-      // 1) Tenta remover arquivos físicos (variantes incluídas)
-      if (path) await deleteImageFromStorage(supabase, path);
-
-      // 2) Atualiza estado local removendo o item
+      // 1) Atualiza estado local removendo o item
       const newImages = (formData.images || []).filter((_, i) => i !== index);
       updateField('images', newImages);
 
-      // 3) Prepara payload parcial para persistir a remoção sem tocar em outras imagens
+      // 2) Normaliza para o formato a ser persistido
       const normalized = (newImages || []).map((it: any) =>
         typeof it === 'string' ? { url: it, path: null } : it
       );
 
-      const gallery = (normalized || []).map((it: any) =>
-        buildGalleryItem(it.url || it, it.path || null)
-      );
+      const gallery = (normalized || [])
+        .map((it: any) => buildGalleryItem(typeof it === 'string' ? { url: it, path: null } : it))
+        .filter(Boolean) as any[];
 
       const updateData: any = {
         images: normalized,
@@ -704,7 +709,7 @@ export function EditProductForm({ product }: { product: Product }) {
         image_path: gallery.length > 0 ? gallery[0].path : null,
       };
 
-      // 4) Persiste alteração parcial via action server
+      // 3) Persiste alteração (somente campos no produto)
       const res: any = await updateProductAction(product.id, updateData);
       if (!res || !res.success) {
         console.warn('removeImage: updateProductAction failed', res);
@@ -712,7 +717,7 @@ export function EditProductForm({ product }: { product: Product }) {
         return;
       }
 
-      toast.success('Imagem removida com sucesso');
+      toast.success('Imagem removida da galeria (sem deletar arquivos)');
       setNeedsDetach(true);
       try {
         router.refresh();
@@ -725,17 +730,162 @@ export function EditProductForm({ product }: { product: Product }) {
     }
   };
 
-  const setAsCover = (index: number) => {
-    setFormData((prev) => {
-      const newImages = [...prev.images];
-      if (index === 0) return prev;
-      const [selectedItem] = newImages.splice(index, 1);
-      newImages.unshift(selectedItem);
-      setHasChanges(true);
-      return { ...prev, images: newImages } as any;
-    });
+  const setAsCover = async (index: number) => {
+    const selectedImage = (formData.images || [])[index];
+    if (!selectedImage) return;
 
-    toast.info('Capa atualizada. Lembre-se de salvar as alterações.');
+    // Reordena mantendo objetos completos
+    const updated = [selectedImage, ...(formData.images || []).filter((_, i) => i !== index)];
+
+    // Normaliza cada item com variantes garantidas
+    const gallery = (updated || []).map((it: any) => buildGalleryItem(it)).filter(Boolean) as any[];
+
+    const imageVariants = gallery.length > 0 ? gallery[0].variants || null : null;
+    const imageUrl = gallery.length > 0 ? gallery[0].url : null;
+    const imagePath = gallery.length > 0 ? gallery[0].path : null;
+
+    try {
+      const res: any = await updateProductAction(product.id, {
+        gallery_images: gallery,
+        image_variants: imageVariants,
+        image_url: imageUrl,
+        image_path: imagePath,
+      });
+
+      if (!res || !res.success) {
+        console.warn('setAsCover: updateProductAction failed', res);
+        toast.error('Falha ao definir capa');
+        return;
+      }
+
+      setFormData((prev) => ({ ...prev, images: updated } as any));
+      setHasChanges(false);
+      toast.success('Nova capa definida!');
+      try {
+        router.refresh();
+      } catch (e) {
+        // ignore
+      }
+    } catch (e) {
+      console.error('Erro ao definir capa:', e);
+      toast.error('Erro ao atualizar a capa.');
+    }
+  };
+
+  // Mini galeria horizontal para navegar rapidamente entre produtos do mesmo usuário
+  const MiniProductGallery = ({ currentId }: { currentId: string }) => {
+    const [items, setItems] = useState<any[]>([]);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(false);
+    const pageSize = 8;
+
+    useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const start = page * pageSize;
+          const end = start + pageSize; // fetch one extra to detect "hasMore"
+
+          const { data } = await supabase
+            .from('products')
+            .select('id, reference_code, name, image_url, image_path, gallery_images')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .order('updated_at', { ascending: false })
+            .range(start, end);
+
+          if (!mounted) return;
+          const arr = data || [];
+          setHasMore(arr.length > pageSize);
+          setItems(arr.slice(0, pageSize));
+        } catch (e) {
+          console.warn('MiniProductGallery fetch error', e);
+        }
+      })();
+      return () => {
+        mounted = false;
+      };
+    }, [supabase, page]);
+
+    return (
+      <div className="mb-2">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Outros produtos</h4>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 hidden sm:inline">Editar rapidamente</span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className={`p-1 rounded-md border bg-white dark:bg-slate-800 ${page === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+              aria-label="Anterior"
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!hasMore}
+              className={`p-1 rounded-md border bg-white dark:bg-slate-800 ${!hasMore ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+              aria-label="Próximo"
+            >
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {items.map((it: any) => {
+            const id = it.id as string;
+            const ref = it.reference_code || it.name || 'S/Ref';
+
+            // Prefer path (via proxy) when available, fallback to gallery variants or external URL
+            let thumb: string | null = null;
+            try {
+              if (it.image_path) {
+                thumb = formatImageUrl(it.image_path as string) as string;
+              }
+
+              if (!thumb && Array.isArray(it.gallery_images) && it.gallery_images.length > 0) {
+                const first = it.gallery_images[0];
+                const v = Array.isArray(first?.variants)
+                  ? first.variants.find((x: any) => x.size === 480)
+                  : null;
+                thumb = thumb || v?.url || first?.url || null;
+              }
+            } catch (e) {
+              // ignore
+            }
+            if (!thumb && it.image_url) thumb = it.image_url;
+
+            return (
+              <Link
+                href={`/dashboard/products/${encodeURIComponent(id)}`}
+                key={id}
+                className="w-20 flex-none"
+              >
+                <div
+                  className={`w-20 h-20 rounded-md overflow-hidden border ${
+                    id === product.id ? 'border-blue-500 ring-1 ring-blue-200' : 'border-gray-200'
+                  }`}
+                >
+                  <img
+                    src={thumb || '/images/product-placeholder.svg'}
+                    className="w-full h-full object-cover"
+                    alt={String(ref)}
+                  />
+                </div>
+                <div className="text-[11px] text-center mt-1 text-gray-600 dark:text-gray-300 truncate">
+                  {ref}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   const generateDescription = () => {
@@ -832,17 +982,17 @@ export function EditProductForm({ product }: { product: Product }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // 1. DECLARAÇÃO DE ESCOPO (Correção do Bug Crítico)
+    let mergedImages: any[] = [];
+    let syncUrls: string[] = [];
+    let current: any = null;
+
     try {
-      const finalPrice =
-        parseFloat(formData.price.replace(/\./g, '').replace(',', '.')) || 0;
-      const finalSalePrice = formData.sale_price
-        ? parseFloat(formData.sale_price.replace(/\./g, '').replace(',', '.'))
-        : null;
-      const finalOriginalPrice = formData.original_price
-        ? parseFloat(
-            formData.original_price.replace(/\./g, '').replace(',', '.')
-          )
-        : null;
+      // 2. CONVERSÕES DE PREÇO E SPECS
+      const finalPrice = parseFloat(formData.price.replace(/\./g, '').replace(',', '.')) || 0;
+      const finalSalePrice = formData.sale_price ? parseFloat(formData.sale_price.replace(/\./g, '').replace(',', '.')) : null;
+      const finalOriginalPrice = formData.original_price ? parseFloat(formData.original_price.replace(/\./g, '').replace(',', '.')) : null;
 
       let technical_specs: any = null;
       if (formData.technical_specs_mode === 'table') {
@@ -852,97 +1002,43 @@ export function EditProductForm({ product }: { product: Product }) {
         });
         technical_specs = Object.keys(obj).length > 0 ? obj : null;
       } else {
-        technical_specs = formData.technical_specs_text
-          ? String(formData.technical_specs_text)
-          : null;
+        technical_specs = formData.technical_specs_text || null;
       }
 
+      // 3. RECUPERAÇÃO DE DADOS ATUAIS (Guardrail)
+      const { data: resData } = await supabase
+        .from('products')
+        .select('images, gallery_images, image_url, image_path, image_variants, image_is_shared, sync_status, image_optimized')
+        .eq('id', product.id)
+        .maybeSingle();
+      current = resData;
+
+      // 4. LÓGICA DE IMAGENS (Normalização de Sufixos)
       const isShared = (product as any).image_is_shared;
+      const hasFormImages = formData.images && formData.images.length > 0;
 
-      // Proteção: mesclar imagens do form com as imagens existentes no banco
-      // para evitar sobrescrever a galeria quando o form estiver incompleto.
-      const normalizePayloadEntry = (it: any) =>
-        typeof it === 'string'
-          ? { url: it, path: null }
-          : it || { url: '', path: null };
+      if (hasFormImages) {
+        // Limpeza de sufixos antes de preparar a galeria
+        const cleanedForm = (formData.images || []).map((img: any) => {
+          const item = typeof img === 'string' ? { url: img, path: null } : { ...img };
+          // regex robusta para remover sufixos repetidos mantendo a extensão
+          if (item.url) item.url = String(item.url).replace(/(?:-(?:480w|1200w)\.webp)+$/g, '');
+          if (item.path) item.path = String(item.path).replace(/(?:-(?:480w|1200w)\.webp)+$/g, '');
+          return item;
+        });
 
-      let mergedImages: { url: string; path: string | null }[] = (
-        formData.images || []
-      ).map((it: any) => normalizePayloadEntry(it));
-
-      try {
-        // Se o usuário não forneceu imagens no form (ou está vazio), preserve as existentes
-        const { data: current } = await supabase
-          .from('products')
-          .select('images, gallery_images, reference_code, image_path')
-          .eq('id', product.id)
-          .maybeSingle();
-
-        // Prefer migrated `gallery_images` when present, otherwise fallback to `images`.
-        const existingRaw: any = current
-          ? (current.gallery_images ?? current.images ?? [])
-          : [];
-        const existing: any[] = Array.isArray(existingRaw) ? existingRaw : [];
-
-        // Função auxiliar para gerar uma chave âncora (usa filename base e reference_code quando disponível)
-        const anchorKey = (it: any) => {
-          if (!it) return '';
-          const candidate = (it.path || it.url || '') as string;
-          const filename = candidate.split('/').pop() || '';
-          const base = filename
-            .replace(/-\d+w(\.[a-zA-Z0-9]+)?$/, '')
-            .replace(/\.[a-zA-Z0-9]+$/, '');
-          if (
-            current?.reference_code &&
-            base.includes(current.reference_code)
-          ) {
-            return `${current.reference_code}::${base}`;
-          }
-          return base || it.url || it.path || '';
-        };
-
-        if (!mergedImages || mergedImages.length === 0) {
-          mergedImages = existing.map((it: any) => normalizePayloadEntry(it));
-        } else {
-          // Merge preservando ordem do form e adicionando itens existentes que não foram sobrescritos
-          const seen = new Set<string>();
-          const out: any[] = [];
-
-          // Primeiro, insere os itens enviados pelo form (eles têm prioridade)
-          for (const it of mergedImages) {
-            const key = anchorKey(it);
-            if (!seen.has(key)) {
-              seen.add(key);
-              out.push(normalizePayloadEntry(it));
-            }
-          }
-
-          // Depois, anexa itens existentes que não estão presentes no form
-          for (const it of existing) {
-            const key = anchorKey(it);
-            if (!seen.has(key)) {
-              seen.add(key);
-              out.push(normalizePayloadEntry(it));
-            }
-          }
-
-          mergedImages = out;
-        }
-      } catch (e) {
-        console.warn('Failed merging images in handleSubmit', e);
-        // fallback: use form images as-is
-        mergedImages = (formData.images || []).map((it: any) =>
-          typeof it === 'string' ? { url: it, path: null } : it
-        );
+        const prep = prepareProductGallery(cleanedForm);
+        const gallery = prep.gallery || [];
+        mergedImages = gallery;
+        syncUrls = gallery.map((f: any) => f.url).filter(Boolean);
+      } else {
+        // Preserva existentes se o form vier vazio
+        mergedImages = current?.gallery_images || current?.images || [];
+        syncUrls = (mergedImages || []).map((img: any) => (typeof img === 'string' ? img : img.url)).filter(Boolean);
       }
 
-      // Converte mergedImages para o formato complexo esperado pelo catálogo
-      const finalImages = (mergedImages || []).map((it: any) =>
-        buildGalleryItem(it.url || it, it.path || null)
-      );
-      const image_variants = finalImages.length > 0 ? finalImages[0].variants : null;
-
-      const payload = {
+      // 5. MONTAGEM DO PAYLOAD
+      const payload: any = {
         name: formData.name,
         reference_code: formData.reference_code,
         sku: formData.sku || null,
@@ -956,88 +1052,86 @@ export function EditProductForm({ product }: { product: Product }) {
         gender: (formData as any).gender || null,
         description: formData.description || null,
         track_stock: formData.track_stock,
-        stock_quantity: formData.track_stock
-          ? Number(formData.stock_quantity)
-          : 0,
+        stock_quantity: formData.track_stock ? Number(formData.stock_quantity) : 0,
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
-        // Persist images as objects {url, path} (merged/protected)
-        images: mergedImages,
-        // Capa formatada para o catálogo
-        image_variants: image_variants,
-        // Galeria completa no formato esperado (variants)
-        gallery_images: finalImages,
-        // Fallbacks para compatibilidade (primeira imagem)
-        image_url: finalImages.length > 0 ? finalImages[0].url : null,
-        // image_path will be defined below with detach logic (use first final image path)
-        sync_status: (mergedImages || []).some((img: any) => !(img && img.path))
-          ? 'pending'
-          : 'synced',
-        image_optimized: (mergedImages || []).every((img: any) => !!(img && img.path)),
         technical_specs,
-        image_is_shared: isShared && !needsDetach,
-        // if user requested detach, clear image_path on product level
-        image_path: needsDetach
-          ? null
-          : finalImages.length > 0
-            ? finalImages[0].path || (product as any).image_path
-            : (product as any).image_path,
         class_core: formData.class_core || null,
-        // status
         is_active: formData.is_active,
+        updated_at: new Date().toISOString(),
       };
 
+      // 6. ATUALIZAÇÃO DOS CAMPOS DE IMAGEM (Proteção)
+      if (mergedImages && mergedImages.length > 0) {
+        const finalGallery = mergedImages.map((img: any) => buildGalleryItem(img)).filter(Boolean);
+
+        payload.gallery_images = finalGallery;
+        payload.images = finalGallery.map((g: any) => ({ url: g.url || '', path: g.path || null }));
+        payload.image_url = finalGallery[0]?.url || null;
+        payload.image_path = needsDetach ? null : finalGallery[0]?.path || null;
+        payload.image_variants = finalGallery[0]?.variants || null;
+        payload.sync_status = finalGallery.some((img: any) => !img.path) ? 'pending' : 'synced';
+        payload.image_optimized = finalGallery.every((img: any) => !!img.path);
+        payload.image_is_shared = isShared && !needsDetach;
+      } else if (needsDetach) {
+        payload.image_path = null;
+        payload.image_is_shared = false;
+      }
+
+      // 7. PERSISTÊNCIA
       const result: any = await updateProductAction(product.id, payload);
+      if (!result || !result.success) throw new Error(result?.error || 'Erro no update');
 
-      if (!result || !result.success) {
-        const msg =
-          result?.error || 'Falha desconhecida ao atualizar o produto.';
-        toast.error('Erro ao atualizar', { description: msg });
-        setLoading(false);
-        return;
+      // 8. SINCRONIZAÇÃO AUXILIAR (Protegida)
+      if (syncUrls && syncUrls.length > 0) {
+        await syncProductGallery(product.id, syncUrls);
       }
 
-      // Sincroniza a tabela `product_images` com a ordem atual do formulário
-      try {
-        const syncRes: any = await syncProductGallery(
-          product.id,
-          mergedImages.map((it: any) => (it && it.url ? it.url : it))
-        );
-        if (!syncRes || !syncRes.success) {
-          console.warn('Falha ao sincronizar product_images:', syncRes?.error);
-        }
-      } catch (e) {
-        console.error('syncProductGallery call failed', e);
-      }
-
-      // Após persistir, se era compartilhado e o usuário personalizou,
-      // solicitamos ao worker que realize a cópia (copy-on-write).
+      // 9. COPY-ON-WRITE
       if (isShared && needsDetach) {
-        try {
-          await fetch('/api/inngest', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: 'image/copy_on_write.requested',
-              data: {
-                productId: product.id,
-                sourcePath: (product as any).original_image_path,
-                targetUserId: product.user_id,
-              },
-            }),
-          });
-        } catch (e) {
-          console.error('Failed to enqueue copy-on-write', e);
-        }
+        fetch('/api/image/copy-on-write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourcePath: (product as any).image_path, productId: product.id }),
+        }).catch(console.error);
       }
 
       setHasChanges(false);
-      toast.success('Produto atualizado!');
+      toast.success('Produto atualizado com sucesso!');
       router.push('/dashboard/products');
       router.refresh();
+
     } catch (error: any) {
-      console.error(error);
-      toast.error('Erro ao atualizar', { description: error.message });
+      console.error('Erro no Submit:', error);
+      toast.error('Erro ao salvar', { description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Duplicate handler: asks confirmation, calls API and redirects to new product editor
+  const handleDuplicate = async () => {
+    // close modal if open and proceed
+    try {
+      setIsDuplicateModalOpen(false);
+    } catch (e) {}
+    setLoading(true);
+    try {
+      const res = await fetch('/api/products/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error('Erro ao duplicar: ' + (json?.error || 'erro desconhecido'));
+        return;
+      }
+      toast.success('Produto duplicado! Redirecionando...');
+      router.push(`/dashboard/products/${encodeURIComponent(json.newId)}`);
+    } catch (e: any) {
+      console.error('duplicate error', e);
+      toast.error('Erro inesperado ao duplicar');
     } finally {
       setLoading(false);
     }
@@ -1050,6 +1144,7 @@ export function EditProductForm({ product }: { product: Product }) {
         progress={uploadProgress}
         message="Enviando imagens..."
       />
+      <MiniProductGallery currentId={product.id} />
       {/* HEADER FIXO */}
       <div className="flex items-center justify-between sticky top-0 z-30 bg-gray-50/90 dark:bg-slate-950/90 backdrop-blur-md py-4 -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-gray-200 dark:border-slate-800">
         <div className="flex items-center gap-4">
@@ -1083,6 +1178,16 @@ export function EditProductForm({ product }: { product: Product }) {
           >
             <Trash2 size={16} />{' '}
             <span className="hidden sm:inline">Excluir</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsDuplicateModalOpen(true)}
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+            title="Duplicar produto"
+          >
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
+            <span className="hidden sm:inline">Duplicar</span>
           </button>
           <button
             onClick={handleSubmit}
@@ -1575,6 +1680,37 @@ export function EditProductForm({ product }: { product: Product }) {
                 className="py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700"
               >
                 Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDuplicateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in-95 border border-slate-200 dark:border-slate-800">
+            <div className="w-16 h-16 bg-blue-50 text-blue-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Copy size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Duplicar Produto?</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+              Isso criará uma cópia deste produto. Imagens serão marcadas como compartilhadas na cópia.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setIsDuplicateModalOpen(false)}
+                className="py-3 rounded-lg border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDuplicate}
+                disabled={loading}
+                className="py-3 rounded-lg bg-blue-600 text-white font-bold hover:!bg-blue-900 disabled:opacity-60 disabled:cursor-not-allowed border border-blue-600 hover:border-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm dark:bg-blue-700 dark:hover:!bg-blue-900"
+                type="button"
+              >
+                {loading ? <Loader2 size={16} className="animate-spin inline-block mr-2" /> : null}
+                Sim, Duplicar
               </button>
             </div>
           </div>

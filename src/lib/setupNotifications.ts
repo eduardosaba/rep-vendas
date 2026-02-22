@@ -18,7 +18,29 @@ export async function setupNotifications(userId: string) {
       return;
     }
 
-    const permission = await Notification.requestPermission();
+    // Respect existing permission state: do not re-prompt if denied.
+    const current = Notification.permission;
+    if (current === 'denied') {
+      // Avoid spamming the console and UI: show informational toast only once per browser
+      const key = 'rv_notifications_denied_seen';
+      try {
+        const seen = typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem(key)
+          : null;
+        if (!seen) {
+          console.debug('[setupNotifications] notifications permission previously denied');
+          toast.info('Permissão de notificações bloqueada pelo navegador. Habilite nas configurações da página.');
+          if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
+            window.localStorage.setItem(key, '1');
+          }
+        }
+      } catch (e) {
+        // ignore localStorage errors
+      }
+      return;
+    }
+
+    const permission = current === 'default' ? await Notification.requestPermission() : current;
     if (permission !== 'granted') {
       // Only show the informational toast on mobile devices — desktop users
       // commonly rely on system-level notification settings and the message

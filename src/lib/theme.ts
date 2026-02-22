@@ -74,18 +74,56 @@ export function applyDashboardFont(fontName: string | null) {
     return;
   }
 
-  // Carrega a fonte via Google Fonts se ainda não foi carregada
+  // Carrega a fonte via Google Fonts se ainda não foi carregada.
+  // Aplicamos `fontFamily` somente após o carregamento bem-sucedido.
   const linkId = `font-${fontName.replace(/\s+/g, '-')}`;
   if (!document.getElementById(linkId)) {
+    // Add preconnects to improve reliability and avoid CORS issues
+    try {
+      if (!document.querySelector('link[rel="preconnect"][href="https://fonts.gstatic.com"]')) {
+        const pc = document.createElement('link');
+        pc.rel = 'preconnect';
+        pc.href = 'https://fonts.gstatic.com';
+        pc.crossOrigin = 'anonymous';
+        document.head.appendChild(pc);
+      }
+      if (!document.querySelector('link[rel="preconnect"][href="https://fonts.googleapis.com"]')) {
+        const pc2 = document.createElement('link');
+        pc2.rel = 'preconnect';
+        pc2.href = 'https://fonts.googleapis.com';
+        document.head.appendChild(pc2);
+      }
+    } catch (e) {
+      // non-fatal
+    }
+
     const link = document.createElement('link');
     link.id = linkId;
     link.rel = 'stylesheet';
+    link.crossOrigin = 'anonymous';
     link.href = selectedFont.import;
+    link.onload = () => {
+      try {
+        body.style.fontFamily = selectedFont.family;
+      } catch (e) {
+        console.warn('applyDashboardFont: failed to apply font-family', e);
+      }
+    };
+    link.onerror = () => {
+      console.warn(`applyDashboardFont: failed to load font ${fontName} from ${selectedFont.import}`);
+      try {
+        link.remove();
+      } catch (e) {}
+    };
     document.head.appendChild(link);
+  } else {
+    // Already present — apply immediately (likely loaded)
+    try {
+      body.style.fontFamily = selectedFont.family;
+    } catch (e) {
+      console.warn('applyDashboardFont: apply fallback failed', e);
+    }
   }
-
-  // Aplica a font-family ao body
-  body.style.fontFamily = selectedFont.family;
 }
 
 /**

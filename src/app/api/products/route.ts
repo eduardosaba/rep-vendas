@@ -27,10 +27,20 @@ export async function GET(req: Request) {
     const idsOnly = url.searchParams.get('idsOnly') === 'true';
     const imageOptimization = url.searchParams.get('imageOptimization');
     const idsParam = url.searchParams.get('ids');
+    const aggregateOnly = url.searchParams.get('aggregate') === 'true';
 
     const supabase = await createRouteSupabase(() => nextCookies());
 
-    let query: any = (supabase.from('products') as any).eq('user_id', userId);
+    if (!supabase || typeof supabase.from !== 'function') {
+      console.error('[api/products] supabase client invalid', { supabase });
+      return NextResponse.json(
+        { error: 'Supabase client unavailable' },
+        { status: 500 }
+      );
+    }
+
+    // Comece sempre com um `select` antes de encadear filtros (compatibilidade com Postgrest)
+    let query: any = supabase.from('products').select('*', { count: 'exact' }).eq('user_id', userId);
     // Aplicar ordenação apenas se for uma chave permitida
     const allowedSortKeys = [
       'name',
@@ -55,6 +65,49 @@ export async function GET(req: Request) {
     } else {
       // default order
       query = query.order('created_at', { ascending: false });
+    }
+
+    // If caller only requested aggregates, compute and return them
+    if (aggregateOnly) {
+      try {
+        const { data: totalData, count: totalCount } = await supabase
+          .from('products')
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId);
+
+        const { data: launchData, count: launchCount } = await supabase
+          .from('products')
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId)
+          .eq('is_launch', true);
+
+        const { data: bestData, count: bestCount } = await supabase
+          .from('products')
+          .select('id', { count: 'exact' })
+          .eq('user_id', userId)
+          .eq('is_best_seller', true);
+
+        const { data: brandsData } = await supabase
+          .from('products')
+          .select('brand')
+          .eq('user_id', userId);
+
+        const brandsCount = new Set(
+          (brandsData || []).map((r: any) => r.brand).filter(Boolean)
+        ).size;
+
+        return NextResponse.json({
+          aggregate: {
+            total: totalCount ?? (brandsData?.length || 0),
+            brands: brandsCount,
+            launch: launchCount ?? 0,
+            best: bestCount ?? 0,
+          },
+        });
+      } catch (e: any) {
+        console.error('[api/products] aggregate failed', e);
+        return NextResponse.json({ error: e?.message || String(e) }, { status: 500 });
+      }
     }
 
     // Special-case: fetch by explicit ids list (comma-separated)
