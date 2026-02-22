@@ -17,7 +17,7 @@ import {
   Tag,
   ChevronRight,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import Button from '@/components/ui/button';
 
 // --- TIPAGEM UNIFICADA ---
 interface MetadataItem {
