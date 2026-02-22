@@ -121,13 +121,13 @@ export async function POST(request: Request) {
       if (prod && prod.user_id) {
         const { data: pc } = await supabaseAdmin
           .from('public_catalogs')
-          .select('slug')
+          .select('catalog_slug')
           .eq('user_id', prod.user_id)
           .maybeSingle();
 
-        if (pc && pc.slug) {
+        if ((pc as any) && (pc as any).catalog_slug) {
           try {
-            await fetch(`/api/revalidate?slug=${encodeURIComponent(pc.slug)}`, {
+            await fetch(`/api/revalidate?slug=${encodeURIComponent((pc as any).catalog_slug)}`, {
               method: 'POST',
             });
           } catch (e) {

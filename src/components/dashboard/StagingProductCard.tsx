@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Save, Trash2, X, Search } from 'lucide-react';
+import { Save, Trash2, X, Search, Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
@@ -13,7 +13,7 @@ interface StagingProductCardProps {
   originalName: string;
   onSave: (
     id: string,
-    data: { name: string; price: string; reference: string },
+    data: { name: string; reference: string },
     productId?: string | null
   ) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -127,34 +127,73 @@ export function StagingProductCard({
   // Estado local do formulário
   const [formData, setFormData] = useState({
     name: originalName.split('.').slice(0, -1).join('.'), // Remove extensão .jpg para sugestão
-    price: '',
     // Extrai a referência do nome do arquivo (ex: "RB3025.jpg" vira "RB3025")
     reference: originalName.split('.').slice(0, -1).join('.').toUpperCase(),
   });
+  const [validating, setValidating] = useState(false);
+
+  // marca local de validação (usado para UI)
+  const [isValidated, setIsValidated] = useState<boolean | null>(null);
+
+  const validateReference = async (idx?: number, reference?: string) => {
+    const ref = reference || formData.reference;
+    if (!ref || ref.trim().length < 2) return;
+
+    setValidating(true);
+    try {
+      const q = ref.trim();
+      const { data, error } = await supabase
+        .from('products')
+        .select('name, reference_code')
+        .ilike('reference_code', q)
+        .maybeSingle();
+
+      if (error) return;
+
+      if (data && data.name) {
+        setFormData((prev) => ({ ...prev, name: data.name }));
+        setIsValidated(true);
+        toast.success(`Referência validada: ${data.name}`);
+      } else {
+        setIsValidated(false);
+        toast.error('Referência não encontrada no cadastro atual.', {
+          description: 'A imagem será enviada ao Staging sem vínculo automático.',
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao validar referência:', err);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  // Debounce: validar 600ms após parar de digitar
+  useEffect(() => {
+    const ref = formData.reference;
+    if (!ref || ref.trim().length < 2) return;
+    const t = setTimeout(() => {
+      validateReference(undefined, ref);
+    }, 600);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.reference]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-
-    // Máscara simples para preço (permite apenas números e vírgula/ponto)
-    if (name === 'price') {
-      const cleanValue = value.replace(/[^0-9.,]/g, '');
-      setFormData((prev) => ({ ...prev, [name]: cleanValue }));
-      return;
-    }
-
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSaveClick = async () => {
-    if (!formData.name || !formData.price || !formData.reference) {
+    if (!formData.name || !formData.reference) {
       toast.error('Campos obrigatórios', {
-        description: 'Preencha todos os campos obrigatórios antes de salvar.',
+        description: 'Preencha Nome e Referência antes de salvar.',
       });
       return;
     }
 
     setSaving(true);
-    await onSave(id, formData, selectedProductId ?? undefined);
+    // garantir que tipagem corresponde a onSave
+    await onSave(id, { name: formData.name, reference: formData.reference }, selectedProductId ?? undefined);
     setSaving(false);
   };
 
@@ -201,38 +240,36 @@ export function StagingProductCard({
             type="text"
             name="name"
             value={formData.name}
-            onChange={handleChange}
-            placeholder="Ex: Tênis Runner"
-            className="w-full mt-1 border-b border-gray-200 py-1 text-sm font-medium focus:border-primary focus:outline-none transition-colors"
+            readOnly
+            placeholder="Aguardando referência..."
+            className="w-full mt-1 border-b border-gray-200 py-1 text-sm font-medium text-slate-500 bg-slate-50 cursor-not-allowed"
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase">
               Referência
             </label>
-            <input
-              type="text"
-              name="reference"
-              value={formData.reference}
-              onChange={handleChange}
-              placeholder="SKU-123"
-              className="w-full mt-1 border-b border-gray-200 py-1 text-sm focus:border-primary focus:outline-none transition-colors"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase">
-              Preço (R$)
-            </label>
-            <input
-              type="text"
-              name="price"
-              value={formData.price}
-              onChange={handleChange}
-              placeholder="0,00"
-              className="w-full mt-1 border-b border-gray-200 py-1 text-sm focus:border-primary focus:outline-none transition-colors"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                name="reference"
+                value={formData.reference}
+                onChange={handleChange}
+                onBlur={(e) => validateReference(undefined, e.target.value)}
+                placeholder="SKU-123"
+                className={`w-full mt-1 py-1 text-sm focus:border-primary focus:outline-none transition-all pr-10 ${isValidated ? 'border-green-500 bg-green-50' : 'border-transparent'}`}
+              />
+
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                {validating ? (
+                  <Loader2 size={16} className="animate-spin text-slate-400" />
+                ) : isValidated ? (
+                  <CheckCircle2 size={18} className="text-green-500 fill-green-50" />
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
 

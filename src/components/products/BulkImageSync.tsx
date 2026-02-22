@@ -39,8 +39,9 @@ export function BulkImageSync() {
         const product = list[i];
         try {
           // Use internal proxy to fetch problematic hosts
-          const proxyBase = (
-            process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+          const proxyBase = (typeof window !== 'undefined'
+            ? window.location.origin
+            : (process.env.NEXT_PUBLIC_APP_URL || '')
           ).replace(/\/$/, '');
           const proxiedUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(product.external_image_url)}`;
 

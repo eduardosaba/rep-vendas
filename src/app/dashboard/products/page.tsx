@@ -91,6 +91,50 @@ export default async function ProductsPage() {
   // Fallback seguro se der erro
   const safeProducts = products || [];
 
+  // Gera thumbnail 480w para listagem administrativa (evita carregar 1200w)
+  const ensure480 = (u: string | null | undefined) => {
+    if (!u) return '/placeholder.png';
+    try {
+      if (/-1200w(\.|$)/.test(u)) return u.replace(/-1200w(\.|$)/, '-480w$1');
+      return u.replace(/(\.[a-z0-9]+)(\?|$)/i, '-480w$1');
+    } catch (e) {
+      return u;
+    }
+  };
+
+  const withThumbnails = (safeProducts || []).map((p: any) => {
+    try {
+      // 1. Prioriza image_variants
+      if (Array.isArray(p.image_variants) && p.image_variants.length > 0) {
+        const v480 = p.image_variants.find((v: any) => v.size === 480);
+        if (v480?.url) return { ...p, thumbnail: v480.url };
+        const vAny = p.image_variants[0];
+        if (vAny?.url) return { ...p, thumbnail: ensure480(vAny.url) };
+      }
+
+      // 2. Usa primeira imagem da galeria
+      if (Array.isArray(p.gallery_images) && p.gallery_images.length > 0) {
+        const first = p.gallery_images[0];
+        if (first?.variants && Array.isArray(first.variants)) {
+          const vv = first.variants.find((v: any) => v.size === 480);
+          if (vv?.url) return { ...p, thumbnail: vv.url };
+          if (first.variants[0]?.url) return { ...p, thumbnail: ensure480(first.variants[0].url) };
+        }
+        if (first?.url) return { ...p, thumbnail: ensure480(first.url) };
+      }
+
+      // 3. Fallback para image_url
+      if (typeof p.image_url === 'string' && p.image_url) {
+        return { ...p, thumbnail: ensure480(p.image_url) };
+      }
+
+      // 4. fallback final
+      return { ...p, thumbnail: '/placeholder.png' };
+    } catch (e) {
+      return { ...p, thumbnail: '/placeholder.png' };
+    }
+  });
+
   // Mostrar painel de diagnóstico somente para usuários master/template
   const allowedDiagnosticEmails = [
     'eduardopedro.fsa@gmail.com',
@@ -206,7 +250,7 @@ export default async function ProductsPage() {
       {/* Envolvemos em um container com borda e fundo para o tema */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
         {/* Passamos os dados para o Client Component que vai cuidar da responsividade da tabela */}
-        <ProductsTable initialProducts={safeProducts} />
+        <ProductsTable initialProducts={withThumbnails} />
       </div>
     </div>
   );

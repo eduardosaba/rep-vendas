@@ -34,6 +34,34 @@ import {
   dedupePreferOptimized,
   ensureOptimizedFirst,
 } from '@/lib/imageHelpers';
+import { formatImageUrl } from '@/lib/imageUtils';
+
+// Remove arquivos de storage associados a uma imagem (inclui variantes)
+const deleteImageFromStorage = async (supabaseClient: any, imagePath: string | null) => {
+  if (!imagePath) return { success: true };
+  try {
+    // Normalize base (remove -480w/-1200w suffixes)
+    const base = String(imagePath).replace(/-(480w|1200w)\.webp$/, '');
+    const candidates = [
+      imagePath,
+      `${base}-480w.webp`,
+      `${base}-1200w.webp`,
+    ].map((p) => (p ? String(p).replace(/^\//, '') : p));
+
+    const unique = Array.from(new Set(candidates)).filter(Boolean) as string[];
+    if (unique.length === 0) return { success: true };
+
+    const { error } = await supabaseClient.storage.from('product-images').remove(unique);
+    if (error) {
+      console.error('deleteImageFromStorage error', error);
+      return { success: false, error };
+    }
+    return { success: true };
+  } catch (e) {
+    console.error('deleteImageFromStorage exception', e);
+    return { success: false, error: e };
+  }
+};
 
 // Utility: generate variant via canvas (returns Blob)
 async function generateVariant(file: File, maxWidth: number): Promise<Blob> {
@@ -102,16 +130,7 @@ const ImageUploader = ({
     const [src, setSrc] = React.useState<string>(() => {
       // 1. Try storage path first (most reliable)
       if (storagePath && typeof storagePath === 'string') {
-        const pathClean = storagePath.startsWith('/')
-          ? storagePath.slice(1)
-          : storagePath;
-        // If path looks like a full storage URL, extract the path part
-        if (pathClean.includes('/storage/v1/object/public/')) {
-          const parts = pathClean.split('/storage/v1/object/public/');
-          const objectPath = parts[parts.length - 1];
-          return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
-        }
-        return `/api/storage-image?path=${encodeURIComponent(pathClean)}`;
+        return formatImageUrl(storagePath);
       }
 
       // 2. Try external URL second
@@ -121,11 +140,7 @@ const ImageUploader = ({
           externalUrl.includes('supabase.co/storage') ||
           externalUrl.includes('/storage/v1/object')
         ) {
-          const parts = externalUrl.split('/storage/v1/object/public/');
-          if (parts.length > 1) {
-            const objectPath = parts[parts.length - 1];
-            return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
-          }
+          return formatImageUrl(externalUrl);
         }
         return externalUrl;
       }
@@ -149,10 +164,7 @@ const ImageUploader = ({
           // Strategy 1: If showing external and have storage path, try storage
           if (!triedStorage.current && storagePath && src === externalUrl) {
             triedStorage.current = true;
-            const pathClean = storagePath.startsWith('/')
-              ? storagePath.slice(1)
-              : storagePath;
-            setSrc(`/api/storage-image?path=${encodeURIComponent(pathClean)}`);
+            setSrc(formatImageUrl(storagePath) as string);
             return;
           }
 
@@ -203,7 +215,7 @@ const ImageUploader = ({
 
           return (
             <div
-              key={index}
+              key={path || url || index}
               className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${
                 index === 0
                   ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900'
@@ -566,10 +578,17 @@ export function EditProductForm({ product }: { product: Product }) {
         tempUrl: URL.createObjectURL(file),
       }));
 
-      // Append temp previews as objects so UI shows them at once
+      // Append temp previews as objects with placeholder variants so UI shows them at once
       updateField('images', [
         ...(formData.images || []),
-        ...tempEntries.map((t) => ({ url: t.tempUrl, path: null })),
+        ...tempEntries.map((t) => ({
+          url: t.tempUrl,
+          path: null,
+          variants: [
+            { size: 480, url: t.tempUrl, path: null },
+            { size: 1200, url: t.tempUrl, path: null },
+          ],
+        })),
       ]);
 
         // 2) For each file, generate 480/1200 variants client-side and upload both
@@ -605,13 +624,13 @@ export function EditProductForm({ product }: { product: Product }) {
 
             const { data: d1200 } = supabase.storage.from('product-images').getPublicUrl(fullPath1200);
 
-            // Replace the tempUrl object in formData.images with the real object {url, path}
+            // Replace the tempUrl object in formData.images with the full structured gallery item (with variants)
+            const galleryItem = buildGalleryItem(d1200.publicUrl, fullPath1200);
             setFormData((prev) => {
               const imgs = [...(prev.images || [])];
               const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);
-              const newObj = { url: d1200.publicUrl, path: fullPath1200 };
-              if (idx !== -1) imgs[idx] = newObj;
-              else imgs.push(newObj as any);
+              if (idx !== -1) imgs[idx] = galleryItem;
+              else imgs.push(galleryItem as any);
               return { ...prev, images: imgs } as any;
             });
 
@@ -655,44 +674,68 @@ export function EditProductForm({ product }: { product: Product }) {
     }
   };
 
-  const removeImage = (index: number) => {
-    updateField(
-      'images',
-      formData.images.filter((_, i) => i !== index)
-    );
-    setNeedsDetach(true);
+  const removeImage = async (index: number) => {
+    // Remove apenas o item selecionado: limpa storage e atualiza produto parcialmente
+    try {
+      const target = (formData.images || [])[index];
+      const path = target?.path || null;
+
+      // 1) Tenta remover arquivos físicos (variantes incluídas)
+      if (path) await deleteImageFromStorage(supabase, path);
+
+      // 2) Atualiza estado local removendo o item
+      const newImages = (formData.images || []).filter((_, i) => i !== index);
+      updateField('images', newImages);
+
+      // 3) Prepara payload parcial para persistir a remoção sem tocar em outras imagens
+      const normalized = (newImages || []).map((it: any) =>
+        typeof it === 'string' ? { url: it, path: null } : it
+      );
+
+      const gallery = (normalized || []).map((it: any) =>
+        buildGalleryItem(it.url || it, it.path || null)
+      );
+
+      const updateData: any = {
+        images: normalized,
+        gallery_images: gallery,
+        image_variants: gallery.length > 0 ? gallery[0].variants : null,
+        image_url: gallery.length > 0 ? gallery[0].url : null,
+        image_path: gallery.length > 0 ? gallery[0].path : null,
+      };
+
+      // 4) Persiste alteração parcial via action server
+      const res: any = await updateProductAction(product.id, updateData);
+      if (!res || !res.success) {
+        console.warn('removeImage: updateProductAction failed', res);
+        toast.error('Falha ao persistir remoção da imagem');
+        return;
+      }
+
+      toast.success('Imagem removida com sucesso');
+      setNeedsDetach(true);
+      try {
+        router.refresh();
+      } catch (err) {
+        // ignore
+      }
+    } catch (e) {
+      console.error('removeImage error', e);
+      toast.error('Erro ao remover imagem');
+    }
   };
 
   const setAsCover = (index: number) => {
-    const newImages = [...formData.images];
-    // 1. Pega a imagem selecionada (que já é um objeto completo {url, path, variants})
-    const selected: any = newImages.splice(index, 1)[0];
+    setFormData((prev) => {
+      const newImages = [...prev.images];
+      if (index === 0) return prev;
+      const [selectedItem] = newImages.splice(index, 1);
+      newImages.unshift(selectedItem);
+      setHasChanges(true);
+      return { ...prev, images: newImages } as any;
+    });
 
-    // 2. Move para a primeira posição
-    newImages.unshift(selected);
-
-    // 3. Atualiza o estado local para refletir na tela na hora
-    setFormData((prev) => ({ ...prev, images: newImages } as any));
-    setHasChanges(true);
-
-    // 4. Persiste no banco imediatamente (opcional, mas recomendado para UX)
-    if (product?.id) {
-      const payload: any = {
-        image_url: selected?.url || null,
-        image_path: selected?.path || null,
-        image_variants: selected?.variants || null,
-        gallery_images: newImages,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Chamamos a ação do servidor, mas sem mostrar mensagens de "enfileiramento"
-      updateProductAction(product.id, payload)
-        .then(() => toast.success('Capa atualizada com sucesso!'))
-        .catch((err) => {
-          console.error('Erro ao trocar capa:', err);
-          toast.error('Erro ao salvar nova capa.');
-        });
-    }
+    toast.info('Capa atualizada. Lembre-se de salvar as alterações.');
   };
 
   const generateDescription = () => {

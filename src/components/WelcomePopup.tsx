@@ -1,55 +1,57 @@
-import React, { useState } from 'react';
-import { APP_WELCOME_VERSION } from '@/hooks/useWelcomeManager';
-import { Rocket, Check } from 'lucide-react';
+"use client";
 
-export default function WelcomePopup({
-  onConfirm,
-  version,
-}: {
+import React from 'react';
+import { Rocket, Sparkles, X } from 'lucide-react';
+
+interface WelcomePopupProps {
+  version: any;
   onConfirm: () => Promise<void> | void;
-  version?: string;
-}) {
-  const ver = version || APP_WELCOME_VERSION;
+}
 
-  const handleClick = async () => {
-    try {
-      await onConfirm();
-    } catch (e) {
-      // ignore
-    }
-  };
+export default function WelcomePopup({ version, onConfirm }: WelcomePopupProps) {
+  if (!version) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-xl w-full border border-gray-200 dark:border-slate-800 shadow-2xl">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-[var(--primary)]/10 rounded-lg">
-            <Rocket className="text-[var(--primary)]" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-              Bem-vindo ao RepVendas 🎉
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-slate-300 mt-2">
-              Você está na versão <strong>{ver}</strong>. Veja as novidades e
-              atalhos rápidos para começar.
-            </p>
+    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
 
-            <ul className="mt-4 text-sm text-gray-700 dark:text-slate-300 space-y-2">
-              <li>• Gerenciamento de produtos melhorado</li>
-              <li>• Uploads e otimizações de imagens</li>
-              <li>• Geração de PDF no painel</li>
-            </ul>
+        <button
+          onClick={onConfirm}
+          className="absolute top-6 right-6 p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors z-10"
+        >
+          <X size={20} className="text-slate-400" />
+        </button>
 
-            <div className="mt-5 flex items-center justify-end">
-              <button
-                onClick={handleClick}
-                className="inline-flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2 rounded-lg font-semibold"
-              >
-                <Check size={16} /> Fechar e não mostrar novamente
-              </button>
-            </div>
-          </div>
+        <div
+          className="p-10 text-center text-white"
+          style={{
+            background: `linear-gradient(135deg, ${version.color_from || '#0f172a'}, ${version.color_to || '#334155'})`,
+          }}
+        >
+          <Rocket size={48} className="mx-auto mb-6 animate-bounce" />
+          <h2 className="text-3xl font-black leading-tight mb-2">{version.title}</h2>
+          <span className="px-4 py-1 bg-white/20 rounded-full text-xs font-black uppercase tracking-widest">
+            Versão {version.version}
+          </span>
+        </div>
+
+        <div className="p-10">
+          <ul className="space-y-4 mb-10">
+            {version.highlights?.map((h: string, i: number) => (
+              <li key={i} className="flex items-start gap-4">
+                <div className="w-2 h-2 mt-2 rounded-full bg-primary flex-shrink-0" />
+                <span className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed">{h}</span>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            onClick={onConfirm}
+            className="w-full py-4 rounded-2xl text-white font-black uppercase tracking-widest shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+            style={{ background: version.color_from || '#0f172a' }}
+          >
+            Explorar Novidades
+          </button>
         </div>
       </div>
     </div>

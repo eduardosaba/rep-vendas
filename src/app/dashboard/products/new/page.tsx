@@ -25,6 +25,11 @@ import {
   prepareProductImage,
   prepareProductGallery,
 } from '@/lib/utils/image-logic';
+import {
+  normalizeImageEntry,
+  normalizeAndExplodeImageEntries,
+  getBaseKeyFromUrl,
+} from '@/lib/imageHelpers';
 
 // --- TIPAGEM ---
 interface Brand {
@@ -42,7 +47,7 @@ const ImageUploader = ({
   onSetCover,
   isShared,
 }: {
-  images: string[];
+  images: any[];
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (index: number) => void;
   onSetCover: (index: number) => void;
@@ -67,60 +72,53 @@ const ImageUploader = ({
       )}
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-        {images.map((url, index) => (
-          <div
-            key={index}
-            className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${index === 0 ? '' : 'border-gray-200 dark:border-slate-700'}`}
-            style={
-              index === 0
-                ? ({
-                    borderColor: 'var(--primary)',
-                    boxShadow: '0 0 0 3px rgba(var(--primary-rgb), 0.12)',
-                  } as React.CSSProperties)
-                : undefined
-            }
-          >
-            {}
-            {url ? (
+        {images.map((imgEntry, index) => {
+          const entry = typeof imgEntry === 'string' ? { url: imgEntry, path: null, variants: [] } : imgEntry || {};
+          const url = entry?.url || '';
+          const path = entry?.path || null;
+          const external = typeof url === 'string' && url.startsWith('http') ? url : null;
+
+          return (
+            <div
+              key={index}
+              className={`relative aspect-square rounded-lg overflow-hidden border group transition-all ${
+                index === 0 ? '' : 'border-gray-200 dark:border-slate-700'
+              }`}
+            >
               <img
-                src={url}
+                src={external || url || '/images/product-placeholder.svg'}
                 className="w-full h-full object-cover cursor-zoom-in"
                 alt={`Product ${index}`}
-                onClick={() => setZoomImage(url)}
+                onClick={() => setZoomImage(external || url)}
               />
-            ) : (
-              <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">
-                Imagem indisponível
-              </div>
-            )}
 
-            <button
-              type="button"
-              onClick={() => onRemove(index)}
-              className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
-            >
-              <X size={14} />
-            </button>
-
-            {index === 0 ? (
-              <div
-                className="absolute bottom-0 inset-x-0 text-white text-[10px] text-center py-1 font-bold"
-                style={{ backgroundColor: 'var(--primary)' }}
-              >
-                CAPA
-              </div>
-            ) : (
               <button
                 type="button"
-                onClick={() => onSetCover(index)}
-                className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 transition-colors"
-                // hover color intentionally kept subtle; primary applied to cover badge only
+                onClick={() => onRemove(index)}
+                className="absolute top-1 right-1 bg-white/90 text-red-500 p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
               >
-                Definir Capa
+                <X size={14} />
               </button>
-            )}
-          </div>
-        ))}
+
+              {index === 0 ? (
+                <div
+                  className="absolute bottom-0 inset-x-0 text-white text-[10px] text-center py-1 font-bold"
+                  style={{ backgroundColor: 'var(--primary)' }}
+                >
+                  CAPA
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSetCover(index)}
+                  className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] py-1 opacity-0 group-hover:opacity-100 transition-colors"
+                >
+                  Definir Capa
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         <label className="cursor-pointer flex flex-col items-center justify-center aspect-square border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-[var(--primary)] transition-all group relative">
           <div
@@ -174,6 +172,32 @@ const ImageUploader = ({
   );
 };
 
+// Constrói um item de galeria com variantes 480w/1200w a partir de uma URL simples
+const buildGalleryItem = (url: string, path: string | null) => {
+  const baseurl = String(url || '').replace(/-(480w|1200w)\.webp$/, '');
+  const basePath = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') : null;
+
+  const url1200 = url.includes('1200w') ? url : `${baseurl}-1200w.webp`;
+  const path1200 = path ? (path.includes('1200w') ? path : `${basePath}-1200w.webp`) : null;
+
+  return {
+    url: url1200,
+    path: path1200,
+    variants: [
+      {
+        url: `${baseurl}-480w.webp`,
+        path: basePath ? `${basePath}-480w.webp` : null,
+        size: 480,
+      },
+      {
+        url: `${baseurl}-1200w.webp`,
+        path: basePath ? `${basePath}-1200w.webp` : null,
+        size: 1200,
+      },
+    ],
+  };
+};
+
 // --- PÁGINA PRINCIPAL ---
 export default function NewProductPage() {
   const router = useRouter();
@@ -209,7 +233,7 @@ export default function NewProductPage() {
     is_launch: false,
     is_best_seller: false,
     is_active: true,
-    images: [] as string[],
+    images: [] as any[],
     technical_specs_mode: 'text',
     technical_specs_text: '',
     technical_specs_table: [{ key: '', value: '' }],
@@ -261,7 +285,6 @@ export default function NewProductPage() {
 
     setUploadingImage(true);
     const files = Array.from(e.target.files);
-    const newUrls: string[] = [];
 
     // small helper: generate webp variant via canvas
     const generateVariant = async (file: File, maxWidth: number): Promise<Blob | null> => {
@@ -302,6 +325,7 @@ export default function NewProductPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Login necessário');
 
+      const newEntries: any[] = [];
       for (const file of files) {
         try {
           const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -326,19 +350,23 @@ export default function NewProductPage() {
             .upload(path1200, final1200, { cacheControl: '3600', upsert: true });
           if (err1200) throw err1200;
 
-          const { data: url1200Data } = supabase.storage.from('product-images').getPublicUrl(path1200);
+            const { data: url1200Data } = supabase.storage.from('product-images').getPublicUrl(path1200);
 
-          newUrls.push(url1200Data.publicUrl);
+            // Build structured gallery item with variants so UI and catalog always have same shape
+            const galleryItem = buildGalleryItem(url1200Data.publicUrl, path1200);
+            newEntries.push(galleryItem);
         } catch (err) {
           console.error('upload item failed', err);
         }
       }
 
-      setFormData((prev) => ({
-        ...prev,
-        images: [...prev.images, ...newUrls],
-      }));
-      if (newUrls.length > 0) toast.success('Imagens enviadas!');
+      if (newEntries.length > 0) {
+        setFormData((prev) => ({
+          ...prev,
+          images: [...prev.images, ...newEntries],
+        }));
+      }
+      if (newEntries.length > 0) toast.success('Imagens enviadas!');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao enviar imagem');
@@ -362,52 +390,7 @@ export default function NewProductPage() {
       newImages.unshift(sel);
       return { ...prev, images: newImages };
     });
-    // If product not created yet, remember the URL to enqueue after save
-    const productId = (formData as any).id;
-    if (!productId) {
-      setPendingEnqueueUrls((prev) =>
-        prev.includes(selected) ? prev : [...prev, selected]
-      );
-      toast.info(
-        'Imagem marcada para vinculação; será enfileirada após salvar o produto.'
-      );
-      return;
-    }
-
-    (async () => {
-      try {
-        // Se a URL já for interna (storage do Supabase / proxy), não enfileirar
-        const internalHost = process.env.NEXT_PUBLIC_SUPABASE_URL || 'supabase.co';
-        const isInternal =
-          typeof selected === 'string' && (
-            selected.includes(internalHost) ||
-            selected.includes('/storage/v1/object') ||
-            selected.startsWith('/api/storage-image?path=')
-          );
-
-        if (isInternal) {
-          toast.success('Capa atualizada (arquivo interno).');
-          return;
-        }
-
-        const res = await fetch('/api/admin/mark-image-pending', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId, url: selected }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          console.error('mark-image-pending failed', json);
-          toast.error('Falha ao enfileirar sincronização da imagem.');
-        } else if (json.alreadySynced) {
-          toast.success('Imagem já sincronizada.');
-        } else {
-          toast.info('Imagem enfileirada para sincronização.');
-        }
-      } catch (err) {
-        console.error('mark-image-pending error', err);
-      }
-    })();
+    toast.success('Esta imagem agora é a capa do produto.');
   };
 
   const formatCurrency = (value: string) => {
@@ -557,6 +540,17 @@ export default function NewProductPage() {
 
       const imageMeta = prepareProductImage(formData.images[0] || null);
 
+      // Normalize images from the form into objects {url, path}
+      const mergedImages = normalizeAndExplodeImageEntries(formData.images || []);
+
+      // Converte para o formato complexo esperado pelo catálogo (gallery_images)
+      const finalImages = (mergedImages || []).map((it: any) =>
+        buildGalleryItem(it.url || it, it.path || null)
+      );
+
+      const image_variants = finalImages.length > 0 ? finalImages[0].variants : null;
+      const firstImagePath = finalImages.length > 0 ? finalImages[0].path || null : null;
+
       const payload = {
         user_id: user.id,
         name: formData.name,
@@ -579,11 +573,15 @@ export default function NewProductPage() {
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
         is_active: formData.is_active,
+        // Preserve raw images array (legacy) but also persist structured gallery
         images: formData.images,
         image_url: imageMeta.image_url || null,
+        image_variants: image_variants,
+        gallery_images: finalImages,
         sync_status: imageMeta.sync_status,
         sync_error: imageMeta.sync_error,
         slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
+        image_path: firstImagePath,
         technical_specs,
       };
 
@@ -639,11 +637,11 @@ export default function NewProductPage() {
       try {
         const { data: pc } = await supabase
           .from('public_catalogs')
-          .select('slug')
+          .select('catalog_slug')
           .eq('user_id', user.id)
           .maybeSingle();
-        if (pc?.slug) {
-          await fetch(`/api/revalidate?slug=${encodeURIComponent(pc.slug)}`, {
+        if ((pc as any)?.catalog_slug) {
+          await fetch(`/api/revalidate?slug=${encodeURIComponent((pc as any).catalog_slug)}`, {
             method: 'POST',
           });
         }

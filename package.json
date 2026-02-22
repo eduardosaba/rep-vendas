@@ -27,6 +27,8 @@
     "approve-builds": "node scripts/approve-builds.mjs",
     "limpar-tudo": "pnpm cache:local && pnpm sincronizar:limpar",
     "reprocessar": "node scripts/reprocess-brand.mjs"
+    ,
+    "ts-fix": "node ./scripts/tsc-fixer/fix-tsc.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.4.0",

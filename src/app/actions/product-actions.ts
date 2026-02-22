@@ -70,10 +70,10 @@ export async function updateProductAction(productId: string, formData: any) {
       try {
         const { data: pc } = await supabase
           .from('public_catalogs')
-          .select('slug')
+          .select('catalog_slug')
           .eq('user_id', activeUserId)
           .maybeSingle();
-        if (pc?.slug) revalidatePath(`/catalogo/${pc.slug}`);
+        if ((pc as any)?.catalog_slug) revalidatePath(`/catalogo/${(pc as any).catalog_slug}`);
       } catch (e) {
         // ignore failures
       }

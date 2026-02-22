@@ -149,8 +149,13 @@ export default function AdminUpdatesPage() {
 
       if (!response.ok) throw new Error('Erro ao salvar no servidor');
 
+      const result = await response.json().catch(() => null);
+
       setSaveSuccess(true);
-      localStorage.removeItem('repvendas_last_seen_version');
+      // Limpar a chave que controla o último update visto para forçar o admin ver o preview
+      try {
+        localStorage.removeItem('repvendas_last_seen_update_id');
+      } catch {}
       setEditorForceShow(false);
       toast.success('Atualização publicada para todos!');
       setTimeout(() => setSaveSuccess(false), 3000);

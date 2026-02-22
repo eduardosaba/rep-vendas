@@ -34,7 +34,7 @@ import {
 import { Button } from '../ui/button';
 import ProductBarcode from '@/components/ui/Barcode';
 import Image from 'next/image';
-import { getProductImageUrl } from '@/lib/imageUtils';
+import { getProductImageUrl, formatImageUrl } from '@/lib/imageUtils';
 import { toast } from 'sonner';
 // imports removed: SyncSingleButton, getProductImage (not used)
 import {
@@ -1396,20 +1396,21 @@ export function ProductsTable({ initialProducts }: ProductsTableProps) {
         <div className="flex items-center gap-3 min-w-[200px]">
           <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-800 relative overflow-hidden flex-shrink-0 border border-gray-200 dark:border-slate-700">
             {(() => {
-              // Usa variante 480w para thumbnail (economia de banda)
+              // Usa `product.thumbnail` se disponível (preparado em server page),
+              // senão tenta `image_variants` e por último `getProductImageUrl`.
               let thumbnailSrc: string | undefined = undefined;
 
-              if (
+              if ((product as any).thumbnail) {
+                thumbnailSrc = (product as any).thumbnail;
+              } else if (
                 product.image_variants &&
                 Array.isArray(product.image_variants)
               ) {
                 const smallVariant =
                   product.image_variants.find((v: any) => v.size === 480) ||
                   product.image_variants[0];
-                const cleanPath = String(smallVariant.path).startsWith('/')
-                  ? String(smallVariant.path).substring(1)
-                  : String(smallVariant.path);
-                thumbnailSrc = `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+                const variantPath = smallVariant.path || (smallVariant as any).storage_path || null;
+                if (variantPath) thumbnailSrc = formatImageUrl(variantPath);
               } else {
                 const { src, isExternal } = getProductImageUrl(product as any);
                 thumbnailSrc = src || undefined;

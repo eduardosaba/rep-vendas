@@ -156,9 +156,12 @@ export async function POST(request: Request) {
     // inside this process. This prevents situations where the hosting platform
     // cannot route outgoing requests to its own domain.
     const origin = new URL(request.url).origin;
-    const proxyBase = process.env.NEXT_PUBLIC_APP_URL
-      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
-      : origin;
+    // Prefer using the current request origin for internal proxying to avoid
+    // calling an external host defined via NEXT_PUBLIC_APP_URL which may not
+    // expose our API routes (causes 404). If deploy topology requires a
+    // different proxy host, set it explicitly and ensure /api/proxy-image is
+    // reachable there.
+    const proxyBase = origin;
     const proxyUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(targetUrl)}`;
 
     let downloadResponse;

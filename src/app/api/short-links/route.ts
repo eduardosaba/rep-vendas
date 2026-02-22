@@ -49,10 +49,10 @@ export async function POST(req: Request) {
         try {
           const { data: pc } = await supabase
             .from('public_catalogs')
-            .select('slug')
+            .select('catalog_slug')
             .eq('id', catalog_id)
             .maybeSingle();
-          if (pc?.slug) finalDestination = `${appUrl}/catalogo/${pc.slug}`;
+          if ((pc as any)?.catalog_slug) finalDestination = `${appUrl}/catalogo/${(pc as any).catalog_slug}`;
         } catch (e) {
           // ignore resolution errors
         }

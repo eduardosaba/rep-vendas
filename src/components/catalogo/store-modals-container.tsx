@@ -100,80 +100,87 @@ export function StoreModals() {
     }
   }, [customerSession]);
 
-  const getProductImages = (
-    product: any
-  ): { url480: string; url1200: string; path: string | null }[] => {
-    if (!product) return [];
+  const getProductImages = (): { url480: string; url1200: string; path: string | null }[] => {
+    // Blindagem universal: garante thumb/full/path a partir de qualquer formato
+    const getImageData = (img: any): { thumb: string; full: string; path: string | null } => {
+      const placeholder = '/placeholder.png';
+      if (!img) return { thumb: placeholder, full: placeholder, path: null };
 
+      if (typeof img === 'string') {
+        return { thumb: img, full: img, path: null };
+      }
+
+      // Caso o argumento seja um array de variants (ex: image_variants directly)
+      if (Array.isArray(img)) {
+        const v480 = img.find((v: any) => v.size === 480);
+        const v1200 = img.find((v: any) => v.size === 1200);
+        const base = img[0]?.url || placeholder;
+        return {
+          thumb: v480?.url || v1200?.url || base,
+          full: v1200?.url || v480?.url || base,
+          path: v1200?.path || v480?.path || img[0]?.path || null,
+        };
+      }
+
+      // Novo objeto com .variants
+      if (img?.variants && Array.isArray(img.variants)) {
+        const v480 = img.variants.find((v: any) => v.size === 480);
+        const v1200 = img.variants.find((v: any) => v.size === 1200);
+        const base = img.url || '/placeholder.png';
+        return {
+          thumb: v480?.url || v1200?.url || base,
+          full: v1200?.url || v480?.url || base,
+          path: v1200?.path || v480?.path || img.path || null,
+        };
+      }
+
+      // Objeto simples com url
+      if (img?.url) {
+        return {
+          thumb: img.url,
+          full: upgradeTo1200w(img.url),
+          path: img.path || null,
+        };
+      }
+
+      return { thumb: placeholder, full: placeholder, path: null };
+    };
+
+    if (!modals.product) return [];
+
+    const product: any = modals.product;
     const out: { url480: string; url1200: string; path: string | null }[] = [];
     const addedPaths = new Set<string>();
 
-    // --- 1. IMAGEM DE CAPA ---
+    // 1) Capa prioritária: image_variants (array) ou image_url
     if (product.image_variants && Array.isArray(product.image_variants) && product.image_variants.length > 0) {
-      const v480 = product.image_variants.find((v: any) => v.size === 480);
-      const v1200 = product.image_variants.find((v: any) => v.size === 1200);
-
-      if (v1200?.url) {
-        out.push({
-          url480: v480?.url || v1200.url,
-          url1200: v1200.url,
-          path: v1200.path || null,
-        });
-        if (v1200.path) addedPaths.add(v1200.path);
-      }
+      const d = getImageData(product.image_variants);
+      out.push({ url480: d.thumb, url1200: d.full, path: d.path });
+      if (d.path) addedPaths.add(d.path);
     } else if (product.image_url) {
-      // Se não tem variantes mas tem URL, use ela como capa antes de processar a galeria
-      const url = product.image_url;
-      out.push({
-        url480: url,
-        url1200: upgradeTo1200w(url),
-        path: product.image_path || null,
-      });
-      if (product.image_path) addedPaths.add(product.image_path);
+      const d = getImageData(product.image_url);
+      out.push({ url480: d.thumb, url1200: d.full, path: d.path || product.image_path || null });
+      if (d.path) addedPaths.add(d.path || product.image_path || '');
     }
 
-    // --- 2. GALERIA DE IMAGENS (gallery_images - Onde o Matcher salva) ---
+    // 2) Galeria (gallery_images)
     if (Array.isArray(product.gallery_images) && product.gallery_images.length > 0) {
       product.gallery_images.forEach((img: any) => {
         if (!img) return;
-
-        // Evita duplicar a capa se ela estiver na galeria
-        if (img.path && addedPaths.has(img.path)) return;
-
-        let v480 = '';
-        let v1200 = '';
-        const path = img.path || null;
-
-        if (Array.isArray(img.variants)) {
-          // Formato Profissional (Matcher/Import-Visual)
-          v480 = img.variants.find((v: any) => v.size === 480)?.url || img.url;
-          v1200 = img.variants.find((v: any) => v.size === 1200)?.url || img.url;
-        } else {
-          // Formato Legado ou Manual Simples
-          const baseUrl = typeof img === 'string' ? img : img.url;
-          v480 = baseUrl;
-          v1200 = upgradeTo1200w(baseUrl);
-        }
-
-        out.push({ url480: v480, url1200: v1200, path });
-        if (path) addedPaths.add(path);
+        const d = getImageData(img);
+        if (d.path && addedPaths.has(d.path)) return;
+        out.push({ url480: d.thumb, url1200: d.full, path: d.path });
+        if (d.path) addedPaths.add(d.path);
       });
     }
 
-    // --- 3. FALLBACKS (Compatibilidade com planilhas e URLs externas) ---
-    // Se ainda não temos nada, ou para garantir que URLs de planilhas entrem
-    if (product.image_url && !Array.isArray(product.image_variants)) {
-       // Só adiciona se não for duplicado por URL
-       if (!out.some(o => o.url1200 === product.image_url)) {
-         out.push({
-           url480: product.image_url,
-           url1200: upgradeTo1200w(product.image_url),
-           path: null
-         });
-       }
+    // 3) Fallback: ainda não temos nada, tentar image_url bruto
+    if (out.length === 0 && product.image_url) {
+      const d = getImageData(product.image_url);
+      out.push({ url480: d.thumb, url1200: d.full, path: d.path });
     }
 
-    // --- 4. TRATAMENTO FINAL ---
+    // 4) Fallback final
     if (out.length === 0) {
       const fallback = '/placeholder.png';
       out.push({ url480: fallback, url1200: fallback, path: null });
@@ -183,7 +190,7 @@ export function StoreModals() {
   };
 
   const productImages = useMemo(
-    () => getProductImages(modals.product),
+    () => getProductImages(),
     [modals.product]
   );
 

@@ -23,13 +23,24 @@ export default function UpdateModalClient({
 
   useEffect(() => {
     try {
-      if (!update || !update.version) return;
-      const seen =
-        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-          ? window.localStorage.getItem('repvendas_last_seen_version')
-          : null;
-      if (!seen || seen !== String(update.version)) {
+      if (!update) return;
+      // Prefer ID-based check when available
+      const lsGet = typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
+        ? window.localStorage.getItem.bind(window.localStorage)
+        : () => null;
+
+      const seenById = update.id ? lsGet('repvendas_last_seen_update_id') : null;
+      if (update.id && (!seenById || String(seenById) !== String(update.id))) {
         setShow(true);
+        return;
+      }
+
+      // Fallback to version-based check for backward compatibility
+      if (update.version) {
+        const seenByVersion = lsGet('repvendas_last_seen_version');
+        if (!seenByVersion || String(seenByVersion) !== String(update.version)) {
+          setShow(true);
+        }
       }
     } catch (e) {
       // ignore
@@ -39,33 +50,35 @@ export default function UpdateModalClient({
   if (!update) return null;
 
   const handleClose = () => {
-    try {
-      // Persist only if the user opted to not show again
-      if (dontShowAgain && update?.version) {
-        // Persist client-side
-        try {
-          if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
-            window.localStorage.setItem(
-              'repvendas_last_seen_version',
-              String(update.version)
-            );
-          }
-        } catch {}
+      try {
+        // Persist only if the user opted to not show again
+        if (dontShowAgain && update) {
+          // Persist client-side by ID when possible
+          try {
+            if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
+              if (update.id) {
+                window.localStorage.setItem('repvendas_last_seen_update_id', String(update.id));
+              } else if (update.version) {
+                // fallback to version key for older records
+                window.localStorage.setItem('repvendas_last_seen_version', String(update.version));
+              }
+            }
+          } catch {}
 
-        // Try to persist server-side as well (best-effort)
-        try {
-          fetch('/api/me/seen-update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ version: update.version }),
-            credentials: 'same-origin',
-          }).catch(() => {
-            /* ignore network errors */
-          });
-        } catch {
-          // ignore
+          // Try to persist server-side as well (best-effort)
+          try {
+            fetch('/api/me/seen-update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: update.id, version: update.version }),
+              credentials: 'same-origin',
+            }).catch(() => {
+              /* ignore network errors */
+            });
+          } catch {
+            // ignore
+          }
         }
-      }
     } catch (e) {
       // ignore
     }

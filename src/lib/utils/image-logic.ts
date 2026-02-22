@@ -4,8 +4,10 @@
  * @param url A URL da imagem a ser processada.
  * @returns Um objeto com image_url, sync_status e sync_error.
  */
-export function prepareProductImage(url: string | null | undefined) {
-  if (!url || url.trim() === '') {
+export function prepareProductImage(url: any | null | undefined) {
+  // Normalizar entrada: aceitar objeto {url, path, variants}, array ou string
+  let candidate: any = url;
+  if (!candidate) {
     return {
       image_url: null, // Usar NULL para que o fallback seja aplicado na UI
       sync_status: 'synced',
@@ -13,7 +15,31 @@ export function prepareProductImage(url: string | null | undefined) {
     };
   }
 
-  const trimmedUrl = url.trim();
+  // Extrair string de URL de diferentes formatos
+  let strUrl: string | null = null;
+  try {
+    if (typeof candidate === 'string') strUrl = candidate;
+    else if (Array.isArray(candidate) && candidate.length > 0) {
+      const first = candidate[0];
+      strUrl = typeof first === 'string' ? first : first?.url || first?.path || null;
+    } else if (typeof candidate === 'object') {
+      strUrl = candidate.url || candidate.path || (candidate.variants && candidate.variants[0] && candidate.variants[0].url) || null;
+    } else {
+      strUrl = String(candidate || '');
+    }
+  } catch (e) {
+    strUrl = String(candidate || '');
+  }
+
+  if (!strUrl || String(strUrl).trim() === '') {
+    return {
+      image_url: null,
+      sync_status: 'synced',
+      sync_error: 'URL não fornecida',
+    };
+  }
+
+  const trimmedUrl = String(strUrl).trim();
 
   // Validação básica de URL: rejeita strings mal formatadas
   const isValidHttpUrl = (u: string) => {
@@ -125,79 +151,73 @@ export function processSafiloImages(rawString: string | null | undefined) {
  * @param urlsInput String contendo URLs separadas por vírgula, ponto-e-vírgula ou Array de strings.
  * @returns Array de objetos prontos para insert na tabela product_images.
  */
-export function prepareProductGallery(
-  productId: string,
-  urlsInput: string | string[] | null
-) {
-  if (!urlsInput) {
-    return [];
-  }
+export function prepareProductGallery(productId: string, urlsInput: any) {
+  if (!urlsInput) return [];
 
-  let urls: string[] = [];
+  // Normalize input into an array of objects { url, path, variants }
+  let images: { url: string; path?: string | null; variants?: any[] }[] = [];
 
   if (Array.isArray(urlsInput)) {
-    // Flattens arrays que podem conter strings com separadores internos
-    urls = urlsInput
-      .flatMap((u) => {
-        const str = typeof u === 'string' ? u : String(u || '');
-        // Se a string contém separadores (;, ou espaço), split
-        if (str.includes(';') || str.includes(',')) {
-          return str.split(/[;,]+/).map((s) => s.trim());
+    images = urlsInput
+      .flatMap((it) => {
+        if (!it) return [];
+        if (typeof it === 'string') {
+          // split if contains separators
+          if (it.includes(';') || it.includes(',')) {
+            return it.split(/[;,]+/).map((s) => ({ url: String(s || '').trim(), path: null }));
+          }
+          return [{ url: String(it).trim(), path: null }];
         }
-        return [str.trim()];
+        if (typeof it === 'object') {
+          const url = it.url || it.path || (it.variants && it.variants[0] && it.variants[0].url) || '';
+          return [{ url: String(url).trim(), path: it.path || null, variants: it.variants }];
+        }
+        return [];
       })
-      .filter((u) => u.length > 0);
-  } else if (typeof urlsInput === 'string' && urlsInput.trim() !== '') {
-    // Divide por vírgula OU ponto-e-vírgula, limpa espaços e remove vazios
-    urls = urlsInput
+      .filter((i) => i.url && i.url.length > 0);
+  } else if (typeof urlsInput === 'string') {
+    images = urlsInput
       .split(/[;,]+/)
-      .map((u) => u.trim())
-      .filter((u) => u.length > 0);
+      .map((s) => ({ url: String(s || '').trim(), path: null }))
+      .filter((i) => i.url.length > 0);
   }
 
-  if (urls.length === 0) return [];
+  if (images.length === 0) return [];
 
-  // Validamos URLs e removemos entradas mal formatadas
-  urls = urls.filter((u) => {
+  // Validate URLs and dedupe by URL
+  const seen = new Set<string>();
+  images = images.filter((it) => {
     try {
-      const p = new URL(u);
-      return p.protocol === 'http:' || p.protocol === 'https:';
+      const p = new URL(it.url);
+      if (p.protocol !== 'http:' && p.protocol !== 'https:') return false;
     } catch (_) {
       return false;
     }
+    if (seen.has(it.url)) return false;
+    seen.add(it.url);
+    return true;
   });
 
-  // Deduplicação: Remove URLs idênticas
-  urls = Array.from(new Set(urls));
+  if (images.length === 0) return [];
 
-  if (urls.length === 0) return [];
-
-  // Detecta se existe uma imagem Safilo P00 no conjunto (foto de capa oficial)
-  const safiloP00Index = urls.findIndex(
-    (url) =>
-      url.toLowerCase().includes('safilo.com') &&
-      url.toUpperCase().includes('_P00.')
+  // Detect Safilo P00
+  const safiloP00Index = images.findIndex((it) =>
+    it.url.toLowerCase().includes('safilo.com') && it.url.toUpperCase().includes('_P00.')
   );
 
-  return urls.map((url, index) => {
+  return images.map((it, index) => {
+    const url = it.url;
+    const path = it.path || null;
     const isExternal = typeof url === 'string' && url.startsWith('http');
-    const isAlreadyInternal = url.includes(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || 'supabase.co'
-    );
-
-    // Lógica para definir status
+    const isAlreadyInternal = url.includes(process.env.NEXT_PUBLIC_SUPABASE_URL || 'supabase.co');
     const shouldProcess = isExternal && !isAlreadyInternal;
 
-    // Lógica de capa: Se existe P00 da Safilo, ela é a primária. Caso contrário, a primeira.
     let isPrimary = false;
     let position = index;
-
     if (safiloP00Index !== -1) {
-      // Se encontrou uma Safilo P00, ela será a única primary
       isPrimary = index === safiloP00Index;
       position = isPrimary ? 0 : index + 1;
     } else {
-      // Se não é Safilo ou não tem P00, a primeira foto da lista é a capa
       isPrimary = index === 0;
       position = index;
     }

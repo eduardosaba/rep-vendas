@@ -102,6 +102,35 @@ export function upgradeTo1200w(url: string): string {
   return url.replace(/-480w(\.[a-zA-Z0-9]+)$/, '-1200w$1');
 }
 
+export function ensure480w(url: string): string {
+  if (!url) return url;
+  if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(url)) return url;
+  if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(url)) return url.replace(/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-480w$1$2');
+  return url.replace(/(\.[a-zA-Z0-9]+)(\?.*)?$/, '-480w$1$2');
+}
+
+export function normalizeImageForDB(img: any) {
+  if (!img) return null;
+  if (img.variants && Array.isArray(img.variants)) return img;
+  const url = (img && (img.url || img)) || '';
+  const path = img && (img.path || null);
+
+  const url1200 = upgradeTo1200w(String(url || ''));
+  const url480 = ensure480w(String(url || ''));
+
+  const path1200 = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') + '-1200w.webp' : null;
+  const path480 = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') + '-480w.webp' : null;
+
+  return {
+    url: url1200 || url,
+    path: path1200,
+    variants: [
+      { size: 480, url: url480 || url, path: path480 },
+      { size: 1200, url: url1200 || url, path: path1200 },
+    ],
+  };
+}
+
 export default {
   normalizeImageEntry,
   normalizeAndExplodeImageEntries,

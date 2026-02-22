@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-const LAST_SEEN_VERSION_KEY = 'repvendas_last_seen_version';
+import { LAST_SEEN_UPDATE_ID_KEY } from '@/config/updates-config';
 
 interface UpdateData {
   id: number;
@@ -64,11 +64,10 @@ export default function UpdateNotificationModal() {
         setUpdateData(data);
 
         // Verificar se deve exibir o modal
-        const lastSeenVersion =
+        const lastSeenId =
           typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-            ? window.localStorage.getItem(LAST_SEEN_VERSION_KEY)
+            ? window.localStorage.getItem(LAST_SEEN_UPDATE_ID_KEY)
             : null;
-        const currentVersion = data.version;
 
         // Se a atualização tem uma flag administrativa para forçar exibição,
         // obedecemos a isso (ex.: admin envia mensagem urgente)
@@ -82,11 +81,7 @@ export default function UpdateNotificationModal() {
         // Exibir quando:
         // - forçado pelo admin (forceShow)
         // - ou quando a versão atual é diferente da última vista
-        if (
-          forceShow ||
-          !lastSeenVersion ||
-          lastSeenVersion !== currentVersion
-        ) {
+        if (forceShow || !lastSeenId || String(lastSeenId) !== String(data.id)) {
           setIsOpen(true);
         }
       }
@@ -100,20 +95,20 @@ export default function UpdateNotificationModal() {
   const handleClose = () => {
     if (updateData) {
       // Persistir localmente sempre que o usuário fechar (marcar como visto)
-        try {
-          if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
-            window.localStorage.setItem(LAST_SEEN_VERSION_KEY, updateData.version);
-          }
-        } catch {
-          // ignore (privacy mode)
+      try {
+        if (typeof window !== 'undefined' && typeof window.localStorage?.setItem === 'function') {
+          window.localStorage.setItem(LAST_SEEN_UPDATE_ID_KEY, String(updateData.id));
         }
+      } catch {
+        // ignore (privacy mode)
+      }
 
       // Persistir server-side (best-effort) para suportar múltiplos dispositivos
       try {
         fetch('/api/me/seen-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ version: updateData.version }),
+          body: JSON.stringify({ id: updateData.id, version: updateData.version }),
           credentials: 'same-origin',
         }).catch(() => {});
       } catch {

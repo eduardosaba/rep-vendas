@@ -3,6 +3,45 @@ import { Product } from './types';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
 /**
+ * Normaliza um storage path vindo do banco ou de uma URL pública.
+ * - Decodifica se necessário
+ * - Remove prefixos como `/storage/v1/object/public/` e `public/`
+ * - Remove barras iniciais
+ */
+export function normalizeStoragePath(path?: string | null): string | null {
+  if (!path) return null;
+  let s = typeof path === 'string' ? path : String(path);
+  try {
+    // Se já vier encodeURIComponent, tentar decodificar para evitar double-encoding
+    s = decodeURIComponent(s);
+  } catch (e) {
+    // ignore se não for uma sequência codificada
+  }
+  s = s.trim();
+  const marker = '/storage/v1/object/public/';
+  if (s.includes(marker)) {
+    s = s.split(marker).pop() || s;
+  }
+  // remove barras iniciais
+  s = s.replace(/^\/+/, '');
+  // remover repetidos 'public/' no início
+  while (s.toLowerCase().startsWith('public/')) {
+    s = s.slice(7);
+  }
+  return s || null;
+}
+
+/**
+ * Formata uma URL usada pela UI para carregar imagens via proxy `/api/storage-image`.
+ * Aceita paths relativos, caminhos já contendo 'storage/v1/object/public' ou URLs completas.
+ */
+export function formatImageUrl(path?: string | null) {
+  const normalized = normalizeStoragePath(path);
+  if (!normalized) return '/placeholder.png';
+  return `/api/storage-image?path=${encodeURIComponent(normalized)}`;
+}
+
+/**
  * Constrói uma URL pública do Supabase Storage ou retorna a URL absoluta.
  * Suporta strings (paths) ou objetos (formato novo {url, path}).
  */
@@ -78,12 +117,14 @@ export function buildSupabaseImageUrl(
 export function getProductImageUrl(product: Partial<Product>) {
   // A. PRIORIDADE 1: Campo direto 'image_path' (Internalizado)
   if (product.image_path) {
-    const path = product.image_path.replace(/^\//, '');
-    return {
-      src: `/api/storage-image?path=${encodeURIComponent(path)}`,
-      isExternal: false,
-      isStorage: true,
-    };
+    const normalizedPath = normalizeStoragePath(product.image_path);
+    if (normalizedPath) {
+      return {
+        src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+        isExternal: false,
+        isStorage: true,
+      };
+    }
   }
 
   // B. PRIORIDADE 2: Galeria migrada 'gallery_images' (novo schema)
@@ -95,28 +136,29 @@ export function getProductImageUrl(product: Partial<Product>) {
     if (firstImg && typeof firstImg === 'object') {
       const path = firstImg.path || firstImg.storage_path;
       if (path && typeof path === 'string') {
-        const cleanPath = path.replace(/^\//, '');
-        return {
-          src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
-          isExternal: false,
-          isStorage: true,
-        };
+        const normalizedPath = normalizeStoragePath(path);
+        if (normalizedPath) {
+          return {
+            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            isExternal: false,
+            isStorage: true,
+          };
+        }
       }
 
       // B2. Se não tem path mas tem url, usa url
       const url = firstImg.url || firstImg.src;
       if (url && typeof url === 'string') {
         // Se URL é do storage, usa proxy
-        if (
-          url.includes('supabase.co/storage') ||
-          url.includes('/storage/v1/object')
-        ) {
-          const cleanPath = url.replace(/^\//, '');
-          return {
-            src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
-            isExternal: false,
-            isStorage: true,
-          };
+        if (url.includes('supabase.co/storage') || url.includes('/storage/v1/object')) {
+          const normalizedPath = normalizeStoragePath(url);
+          if (normalizedPath) {
+            return {
+              src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+              isExternal: false,
+              isStorage: true,
+            };
+          }
         }
         // Senão, é externa
         if (typeof url === 'string' && url.startsWith('http')) {
@@ -127,16 +169,15 @@ export function getProductImageUrl(product: Partial<Product>) {
 
     // B3. Se for string simples
     if (typeof firstImg === 'string') {
-      if (
-        firstImg.includes('supabase.co/storage') ||
-        firstImg.includes('/storage/v1/object')
-      ) {
-        const cleanPath = firstImg.replace(/^\//, '');
-        return {
-          src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
-          isExternal: false,
-          isStorage: true,
-        };
+      if (firstImg.includes('supabase.co/storage') || firstImg.includes('/storage/v1/object')) {
+        const normalizedPath = normalizeStoragePath(firstImg);
+        if (normalizedPath) {
+          return {
+            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            isExternal: false,
+            isStorage: true,
+          };
+        }
       }
       if (typeof firstImg === 'string' && firstImg.startsWith('http')) {
         return { src: firstImg, isExternal: true, isStorage: false };
@@ -152,28 +193,29 @@ export function getProductImageUrl(product: Partial<Product>) {
     if (firstImg && typeof firstImg === 'object') {
       const path = firstImg.path || firstImg.storage_path;
       if (path && typeof path === 'string') {
-        const cleanPath = path.replace(/^\//, '');
-        return {
-          src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
-          isExternal: false,
-          isStorage: true,
-        };
+        const normalizedPath = normalizeStoragePath(path);
+        if (normalizedPath) {
+          return {
+            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            isExternal: false,
+            isStorage: true,
+          };
+        }
       }
 
       // C2. Se não tem path mas tem url, usa url
       const url = firstImg.url || firstImg.src;
       if (url && typeof url === 'string') {
         // Se URL é do storage, usa proxy
-        if (
-          url.includes('supabase.co/storage') ||
-          url.includes('/storage/v1/object')
-        ) {
-          const cleanPath = url.replace(/^\//, '');
-          return {
-            src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
-            isExternal: false,
-            isStorage: true,
-          };
+        if (url.includes('supabase.co/storage') || url.includes('/storage/v1/object')) {
+          const normalizedPath = normalizeStoragePath(url);
+          if (normalizedPath) {
+            return {
+              src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+              isExternal: false,
+              isStorage: true,
+            };
+          }
         }
         // Senão, é externa
         if (typeof url === 'string' && url.startsWith('http')) {
@@ -184,16 +226,15 @@ export function getProductImageUrl(product: Partial<Product>) {
 
     // C3. Se for string simples
     if (typeof firstImg === 'string') {
-      if (
-        firstImg.includes('supabase.co/storage') ||
-        firstImg.includes('/storage/v1/object')
-      ) {
-        const cleanPath = firstImg.replace(/^\//, '');
-        return {
-          src: `/api/storage-image?path=${encodeURIComponent(cleanPath)}`,
-          isExternal: false,
-          isStorage: true,
-        };
+      if (firstImg.includes('supabase.co/storage') || firstImg.includes('/storage/v1/object')) {
+        const normalizedPath = normalizeStoragePath(firstImg);
+        if (normalizedPath) {
+          return {
+            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            isExternal: false,
+            isStorage: true,
+          };
+        }
       }
       if (typeof firstImg === 'string' && firstImg.startsWith('http')) {
         return { src: firstImg, isExternal: true, isStorage: false };

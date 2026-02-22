@@ -28,7 +28,7 @@ export default function DashboardLayout({
     shouldShow,
     loading: welcomeLoading,
     markAsSeen,
-    version,
+    updateData,
   } = useWelcomeManager();
 
   useEffect(() => {
@@ -114,7 +114,7 @@ export default function DashboardLayout({
               {children}
               {!welcomeLoading && shouldShow && (
                 <WelcomePopup
-                  version={version}
+                  version={updateData}
                   onConfirm={async () => {
                     await markAsSeen();
                   }}

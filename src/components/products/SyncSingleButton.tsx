@@ -17,8 +17,9 @@ export function SyncSingleButton({
     setIsSyncing(true);
     setStatus('idle');
     try {
-      const proxyBase = (
-        process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+      const proxyBase = (typeof window !== 'undefined'
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_APP_URL || '')
       ).replace(/\/$/, '');
       const proxiedUrl = `${proxyBase}/api/proxy-image?url=${encodeURIComponent(externalUrl)}`;
 

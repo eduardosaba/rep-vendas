@@ -592,7 +592,7 @@ export default function ImportVisualPage() {
   // 4. Salvar Produto
   const handleSaveProduct = async (
     id: string,
-    data: { name: string; price: string; reference: string },
+    data: { name: string; reference: string },
     productId?: string | null
   ) => {
     if (!canCreate) {
@@ -658,7 +658,9 @@ export default function ImportVisualPage() {
         return u.replace(/(\.[a-z0-9]+)(\?|$)/i, '-480w$1');
       };
 
-      const built = {
+      // Normalize image object to guarantee 480/1200 variants
+      const { normalizeImageForDB } = await import('@/lib/imageHelpers');
+      const built = normalizeImageForDB({ url: image.publicUrl, path: image.storage_path || null }) || {
         url: image.publicUrl,
         path: image.storage_path || null,
         variants: [
@@ -704,13 +706,11 @@ export default function ImportVisualPage() {
           // ignore
         }
       } else {
-        // Inserir Produto novo com o formato correto
+        // Inserir Produto novo com o formato correto (não definir preço aqui)
         const { error: productError } = await supabase.from('products').insert({
           user_id: user.id,
           name: data.name,
           reference_code: data.reference,
-          price: parseFloat(data.price.replace(/\./g, '').replace(',', '.')),
-          sale_price: parseFloat(data.price.replace(/\./g, '').replace(',', '.')), // Define igual inicialmente
           image_url: built.url,
           image_path: built.path,
           images: [built.url],

@@ -52,3 +52,6 @@ export const UPDATE_HISTORY: UpdateNotification[] = [
  * Não altere este valor ou todos os usuários verão o popup novamente
  */
 export const LAST_SEEN_VERSION_KEY = 'repvendas_last_seen_version';
+
+// Chave para armazenar o ID da atualização vista pelo usuário
+export const LAST_SEEN_UPDATE_ID_KEY = 'repvendas_last_seen_update_id';
