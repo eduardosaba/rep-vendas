@@ -900,7 +900,11 @@ export default function SettingsPage() {
                     onChange={async (e) => {
                       const selectedName = e.target.value || null;
                       const preset = SYSTEM_FONTS.find((p) => p.name === selectedName) || null;
-                      setFormData((p) => ({ ...p, font_family: selectedName, font_url: preset ? preset.import : null }));
+                      setFormData((p) => ({
+                        ...p,
+                        font_family: selectedName,
+                        font_url: preset?.import ?? null,
+                      }));
                       // Apply preview immediately
                       try {
                         if (preset && typeof window !== 'undefined') {

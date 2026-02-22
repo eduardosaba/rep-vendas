@@ -78,23 +78,19 @@ export function applyDashboardFont(fontName: string | null) {
   // Aplicamos `fontFamily` somente após o carregamento bem-sucedido.
   const linkId = `font-${fontName.replace(/\s+/g, '-')}`;
   if (!document.getElementById(linkId)) {
-    // Add preconnects to improve reliability and avoid CORS issues
-    try {
-      if (!document.querySelector('link[rel="preconnect"][href="https://fonts.gstatic.com"]')) {
-        const pc = document.createElement('link');
-        pc.rel = 'preconnect';
-        pc.href = 'https://fonts.gstatic.com';
-        pc.crossOrigin = 'anonymous';
-        document.head.appendChild(pc);
+    // When self-hosting fonts we intentionally avoid adding external
+    // preconnects to Google Fonts (fonts.googleapis.com / fonts.gstatic.com)
+    // to prevent accidental external requests in restricted networks.
+
+    // If there is no external import URL for this font (self-hosted),
+    // just apply the family immediately and skip injecting an external link.
+    if (!selectedFont.import) {
+      try {
+        body.style.fontFamily = selectedFont.family;
+      } catch (e) {
+        console.warn('applyDashboardFont: failed to apply self-hosted font-family', e);
       }
-      if (!document.querySelector('link[rel="preconnect"][href="https://fonts.googleapis.com"]')) {
-        const pc2 = document.createElement('link');
-        pc2.rel = 'preconnect';
-        pc2.href = 'https://fonts.googleapis.com';
-        document.head.appendChild(pc2);
-      }
-    } catch (e) {
-      // non-fatal
+      return;
     }
 
     const link = document.createElement('link');
@@ -102,11 +98,23 @@ export function applyDashboardFont(fontName: string | null) {
     link.rel = 'stylesheet';
     link.crossOrigin = 'anonymous';
     link.href = selectedFont.import;
-    link.onload = () => {
+    // Only apply the font-family after verifying the font actually loaded
+    link.onload = async () => {
       try {
-        body.style.fontFamily = selectedFont.family;
+        const loaded = await waitForFontLoad(selectedFont.family, 3000);
+        if (loaded) {
+          body.style.fontFamily = selectedFont.family;
+        } else {
+          console.warn(`applyDashboardFont: font ${selectedFont.family} failed to load within timeout`);
+          try {
+            link.remove();
+          } catch (e) {}
+        }
       } catch (e) {
-        console.warn('applyDashboardFont: failed to apply font-family', e);
+        console.warn('applyDashboardFont: failed while waiting for font load', e);
+        try {
+          link.remove();
+        } catch (er) {}
       }
     };
     link.onerror = () => {
@@ -123,6 +131,31 @@ export function applyDashboardFont(fontName: string | null) {
     } catch (e) {
       console.warn('applyDashboardFont: apply fallback failed', e);
     }
+  }
+}
+
+/**
+ * Waits for a font family to be available via the Font Loading API.
+ * Returns true if loaded within timeoutMs, false otherwise.
+ */
+async function waitForFontLoad(fontFamily: string, timeoutMs = 3000) {
+  if (typeof document === 'undefined' || !(document as any).fonts) return false;
+
+  const fontFaceSet = (document as any).fonts as FontFaceSet;
+
+  // Try a few common weights to increase chance of detecting availability
+  const weights = ['400', '700'];
+  const loadPromises = weights.map((w) => fontFaceSet.load(`${w} 16px "${fontFamily}"`));
+
+  try {
+    await Promise.race([
+      Promise.all(loadPromises),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
+    ]);
+    // Double-check with check()
+    return fontFaceSet.check(`16px "${fontFamily}"`);
+  } catch (e) {
+    return false;
   }
 }
 

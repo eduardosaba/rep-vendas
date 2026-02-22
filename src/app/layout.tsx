@@ -48,7 +48,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className="antialiased bg-gray-50 dark:bg-slate-950 font-sans">
+      <body className="antialiased bg-gray-50 dark:bg-slate-950">
         <ThemeProvider
           attribute="class"
           defaultTheme="light" // Inicia como claro

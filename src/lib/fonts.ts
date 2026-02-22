@@ -9,8 +9,6 @@ export const SYSTEM_FONTS = [
   {
     name: 'Roboto',
     family: 'Roboto, sans-serif',
-    import:
-      'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap',
   },
   {
     name: 'Open Sans',
@@ -33,8 +31,6 @@ export const SYSTEM_FONTS = [
   {
     name: 'Lato',
     family: 'Lato, sans-serif',
-    import:
-      'https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap',
   },
   {
     name: 'Raleway',
