@@ -127,3 +127,6 @@ Desktop.ini
 !public/firebase-messaging-sw.js
 !public/images/google.svg
 !public/favicon.ico
+# Allow committed static fonts
+!public/fonts/
+!public/fonts/**
