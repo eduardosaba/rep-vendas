@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     }
 
     // TLS handling: do NOT change global `NODE_TLS_REJECT_UNAUTHORIZED` here.
-    // For local debugging you may set `NODE_TLS_REJECT_UNAUTHORIZED=0` in
+    // For local debugging you may set `NODE_TLS_REJECT_UNAUTHORIZED=1` in
     // your development environment manually (not in source). If you need to
     // allow insecure TLS for specific requests, implement a per-request
     // https.Agent/axios httpsAgent instead of mutating process.env.

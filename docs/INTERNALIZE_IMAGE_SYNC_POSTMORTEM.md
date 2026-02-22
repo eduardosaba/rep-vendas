@@ -15,7 +15,7 @@
 **Ações tomadas (fix):**
 
 - Removida a chave `path` do payload do `upsert` em [src/app/api/admin/sync-images/route.ts](src/app/api/admin/sync-images/route.ts).
-- Adicionada opção dev-only `ALLOW_INSECURE_TLS` que, quando ativa, define `NODE_TLS_REJECT_UNAUTHORIZED=0` para permitir diagnóstico local (não recomendado em produção). Código correspondente em [src/app/api/admin/sync-images/route.ts](src/app/api/admin/sync-images/route.ts).
+- Adicionada opção dev-only `ALLOW_INSECURE_TLS` que, quando ativa, define `NODE_TLS_REJECT_UNAUTHORIZED=1` para permitir diagnóstico local (não recomendado em produção). Código correspondente em [src/app/api/admin/sync-images/route.ts](src/app/api/admin/sync-images/route.ts).
 - Adicionado modo de debug `?debug=1` e `product_id`/`force` no endpoint para reprocessar um produto específico e retornar stack traces apenas em dev.
 - Aplicado fix incremental e reprocessado o produto de teste; resultado: `sync_status = 'synced'` e arquivo WebP disponível em Storage.
 
