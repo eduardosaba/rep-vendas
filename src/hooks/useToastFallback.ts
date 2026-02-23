@@ -2,7 +2,7 @@
  * Hook de toast com fallback para quando ToastProvider não está disponível.
  * Útil para componentes que podem renderizar fora do contexto de ToastProvider.
  */
-import { useToast as useToastContext } from './useToast.tsx';
+import { useToast as useToastContext } from './useToast';
 
 type FallbackAddToastOpts = {
   title: string;

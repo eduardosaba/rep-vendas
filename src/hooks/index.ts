@@ -1,6 +1,6 @@
 // Normaliza e exporta um hook `useToast` que sempre fornece `addToast`.
 // Tenta, na ordem: ToastContext (provider), Sonner programmatic, fallback.
-import { useToast as useToastContext } from './useToast.tsx';
+import { useToast as useToastContext } from './useToast';
 import { useToastSonner } from './useToastSonner';
 import { useToastFallback } from './useToastFallback';
 import type { Toast } from '@/lib/types';
