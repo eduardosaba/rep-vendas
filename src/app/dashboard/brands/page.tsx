@@ -17,7 +17,7 @@ import {
   RefreshCw,
   AlertTriangle, // Novo ícone para o modal
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '../../../components/ui/button';
 import SmartImageUpload from '@/components/SmartImageUpload';
 
 // --- TIPAGEM ---

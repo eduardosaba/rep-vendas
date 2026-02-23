@@ -22,7 +22,7 @@ import {
   History,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { Button } from '../../../../components/ui/button';
 import {
   prepareProductImage,
   prepareProductGallery,
