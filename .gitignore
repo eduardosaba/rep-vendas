@@ -128,5 +128,9 @@ Desktop.ini
 !public/images/google.svg
 !public/favicon.ico
 # Allow committed static fonts
+!public/
+!public/fonts/
+!public/fonts/**
+# Allow committed static fonts
 !public/fonts/
 !public/fonts/**
