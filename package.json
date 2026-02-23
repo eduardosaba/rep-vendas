@@ -42,7 +42,7 @@
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.378.0",
     "nanoid": "^5.1.6",
-    "next": "15.3.8",
+    "next": "15.4.10",
     "next-themes": "^0.3.0",
     "node-notifier": "^10.0.1",
     "p-limit": "^7.2.0",
