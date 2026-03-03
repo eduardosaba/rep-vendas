@@ -1465,7 +1465,42 @@ export function StoreProvider({
         setIsFilterOpen,
         currentBanner,
         modals,
-        setModal: (n, v) => setModals((m) => ({ ...m, [n]: v })),
+        setModal: (n, v) => {
+          // Ao abrir modal de produto, buscar variantes do mesmo `reference_id`/`reference_code`
+          if (n === 'product') {
+            // fechamento rápido
+            if (!v) return setModals((m) => ({ ...m, product: null }));
+
+            // mostrar imediatamente o produto clicado
+            setModals((m) => ({ ...m, product: v }));
+
+            // buscar variantes em background (não bloquear UI)
+            (async () => {
+              try {
+                const supabase = createClient();
+                const ref = v.reference_id || v.reference_code || null;
+                if (!ref) return;
+
+                let query = supabase.from('products').select('*').eq('user_id', v.user_id);
+                if (v.reference_id) query = query.eq('reference_id', v.reference_id);
+                else query = query.eq('reference_code', v.reference_code);
+
+                const { data } = await query;
+                if (data && Array.isArray(data) && data.length > 0) {
+                  const variants = data as any[];
+                  const active = variants.find((p) => p.id === v.id) || v;
+                  setModals((m) => ({ ...m, product: { ...active, variants } }));
+                }
+              } catch (e) {
+                console.error('Erro ao carregar variantes do produto:', e);
+              }
+            })();
+
+            return;
+          }
+
+          setModals((m) => ({ ...m, [n]: v }));
+        },
         addToCart,
         removeFromCart: (id) => setCart((c) => c.filter((i) => i.id !== id)),
         updateQuantity,

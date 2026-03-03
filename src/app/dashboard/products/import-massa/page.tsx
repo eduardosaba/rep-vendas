@@ -137,6 +137,7 @@ export default function ImportMassaPage() {
     category?: string;
     color?: string;
     desc?: string;
+    model_code?: string;
     techSpecColumns?: string[];
   }>({});
 
@@ -252,6 +253,7 @@ export default function ImportMassaPage() {
     map.sale_price = findCol(/precovenda|preco.?venda|sale|sale_price/);
     map.brand = findCol(/marca|brand|fornecedor/);
     map.ref = findCol(/referencia|ref|reference/);
+    map.model_code = findCol(/model|model_code|modelcode|codigo.*modelo|reference_id/);
     map.ean = findCol(/ean|barcode|codigo de barras|gtin/);
     map.category = findCol(/categoria|category/);
     map.color = findCol(/cor|color/);
@@ -336,6 +338,7 @@ export default function ImportMassaPage() {
         const priceRaw = getField(row, mapping.price);
         const sku = getField(row, mapping.sku);
         const ref = getField(row, mapping.ref);
+        const modelCodeVal = getField(row, mapping.model_code);
         const ean = getField(row, mapping.ean);
         const brand = getField(row, mapping.brand)
           ? String(getField(row, mapping.brand))
@@ -446,13 +449,20 @@ export default function ImportMassaPage() {
             ? String(sku)
             : `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
+        // Slugify helper (to normalize reference_id/model_code)
         const slugify = (s: string) =>
           s
             .toLowerCase()
             .trim()
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
             .replace(/[^a-z0-9\s-]/g, '')
             .replace(/\s+/g, '-')
             .replace(/-+/g, '-');
+
+        // Determine grouping id (reference_id) — prefer explicit model_code, fallback to refCode
+        const referenceIdRaw = modelCodeVal ? String(modelCodeVal) : refCode;
+        const referenceId = slugify(referenceIdRaw);
 
         const slugBase = slugify(String(name) || 'produto');
 
@@ -486,6 +496,7 @@ export default function ImportMassaPage() {
           user_id: user.id,
           name: String(name),
           reference_code: refCode,
+          reference_id: referenceId,
           sku: sku ? String(sku) : null,
           barcode: ean ? String(ean) : null,
           price: isNaN(price) ? 0 : price,
@@ -532,8 +543,9 @@ export default function ImportMassaPage() {
       addLog(
         'Verificando produtos existentes no banco (chunks otimizados de 200)...'
       );
-      const allRefCodes = productsToInsert.map((p) => p.reference_code);
-      const existingRefCodes = new Set<string>();
+      // keys: use reference_id when available, otherwise reference_code
+      const allKeys = productsToInsert.map((p) => p.reference_id || p.reference_code);
+      const existingKeys = new Set<string>();
       const existingMap: Record<
         string,
         {
@@ -544,36 +556,35 @@ export default function ImportMassaPage() {
           external_image_url?: string;
         }
       > = {};
-
-      if (allRefCodes.length > 0) {
+      if (allKeys.length > 0) {
         const chunkSize = 200; // REDUZIDO de 1000 para 200 para evitar timeout
-        for (let j = 0; j < allRefCodes.length; j += chunkSize) {
-          const chunk = allRefCodes.slice(j, j + chunkSize);
+        for (let j = 0; j < allKeys.length; j += chunkSize) {
+          const chunk = allKeys.slice(j, j + chunkSize);
           const chunkIndex = Math.floor(j / chunkSize) + 1;
           addLog(
-            `Verificando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSize, allRefCodes.length)})...`
+            `Verificando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSize, allKeys.length)})...`
           );
-          const { data: existingChunk, error: searchError } = await supabase
-            .from('products')
-            .select(
-              'id,reference_code,slug,gallery_images,image_path,external_image_url'
-            )
-            .eq('user_id', user.id)
-            .in('reference_code', chunk as any[]);
 
-          if (searchError) {
+          // 1) tentar por reference_id
+          const { data: byRefId, error: errRefId } = await supabase
+            .from('products')
+            .select('id,reference_id,reference_code,slug,gallery_images,image_path,external_image_url')
+            .eq('user_id', user.id)
+            .in('reference_id', chunk as any[]);
+
+          if (errRefId) {
             addLog(
-              `Aviso: Erro ao consultar chunk ${chunkIndex}: ${searchError.message}`,
+              `Aviso: Erro ao consultar reference_id chunk ${chunkIndex}: ${errRefId.message}`,
               'error'
             );
-            continue;
           }
 
-          if (existingChunk && Array.isArray(existingChunk)) {
-            existingChunk.forEach((p: any) => {
-              if (p && p.reference_code) {
-                existingRefCodes.add(p.reference_code);
-                existingMap[p.reference_code] = {
+          if (Array.isArray(byRefId) && byRefId.length > 0) {
+            byRefId.forEach((p: any) => {
+              const key = p.reference_id || p.reference_code;
+              if (key) {
+                existingKeys.add(key);
+                existingMap[key] = {
                   id: p.id,
                   slug: p.slug,
                   gallery_images: p.gallery_images,
@@ -583,11 +594,44 @@ export default function ImportMassaPage() {
               }
             });
           }
+
+          // 2) localizar os keys do chunk que ainda faltam e consultar por reference_code (compatibilidade)
+          const missing = chunk.filter((k) => !existingMap[k]);
+          if (missing.length > 0) {
+            const { data: byRefCode, error: errRefCode } = await supabase
+              .from('products')
+              .select('id,reference_id,reference_code,slug,gallery_images,image_path,external_image_url')
+              .eq('user_id', user.id)
+              .in('reference_code', missing as any[]);
+
+            if (errRefCode) {
+              addLog(
+                `Aviso: Erro ao consultar reference_code chunk ${chunkIndex}: ${errRefCode.message}`,
+                'error'
+              );
+            }
+
+            if (Array.isArray(byRefCode) && byRefCode.length > 0) {
+              byRefCode.forEach((p: any) => {
+                const key = p.reference_id || p.reference_code;
+                if (key) {
+                  existingKeys.add(key);
+                  existingMap[key] = {
+                    id: p.id,
+                    slug: p.slug,
+                    gallery_images: p.gallery_images,
+                    image_path: p.image_path,
+                    external_image_url: p.external_image_url,
+                  };
+                }
+              });
+            }
+          }
         }
       }
 
       const newProductsCount = productsToInsert.filter(
-        (p) => !existingRefCodes.has(p.reference_code)
+        (p) => !existingKeys.has(p.reference_id || p.reference_code)
       ).length;
       const updateProductsCount = productsToInsert.length - newProductsCount;
 
@@ -630,50 +674,66 @@ export default function ImportMassaPage() {
       let totalUpdated = 0;
 
       // Busca produtos existentes para preservar o `slug` quando já existirem
-      const referenceCodesAll = finalBatch.map((p) => p.reference_code);
-      if (referenceCodesAll.length > 0) {
+      const allKeysFinal = finalBatch.map((p) => p.reference_id || p.reference_code);
+      if (allKeysFinal.length > 0) {
         addLog(
-          `Buscando ${referenceCodesAll.length} produtos já existentes (em chunks, consultando apenas refs faltantes)...`
+          `Buscando ${allKeysFinal.length} produtos já existentes (em chunks, consultando apenas refs faltantes)...`
         );
         const chunkSizeExisting = 500;
-        for (let j = 0; j < referenceCodesAll.length; j += chunkSizeExisting) {
-          const chunk = referenceCodesAll.slice(j, j + chunkSizeExisting);
-          // apenas buscar refs que ainda não temos em existingMap
-          const missingChunk = chunk.filter((rc) => !existingMap[rc]);
+        for (let j = 0; j < allKeysFinal.length; j += chunkSizeExisting) {
+          const chunk = allKeysFinal.slice(j, j + chunkSizeExisting);
+          // apenas buscar keys que ainda não temos em existingMap
+          const missingChunk = chunk.filter((k) => !existingMap[k]);
           if (missingChunk.length === 0) continue;
           const chunkIndex = Math.floor(j / chunkSizeExisting) + 1;
           addLog(
-            `Buscando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSizeExisting, referenceCodesAll.length)}) - ${missingChunk.length} faltantes...`
+            `Buscando chunk ${chunkIndex} (items ${j + 1}-${Math.min(j + chunkSizeExisting, allKeysFinal.length)}) - ${missingChunk.length} faltantes...`
           );
-          const { data: existingProducts, error: existingError } =
-            await supabase
-              .from('products')
-              .select('id,reference_code,slug')
-              .eq('user_id', user.id)
-              .in('reference_code', missingChunk as any[]);
 
-          if (existingError) {
-            addLog(
-              `Erro ao buscar produtos existentes (chunk ${chunkIndex}): ${existingError.message}`,
-              'error'
-            );
-            continue;
+          // 1) tentar por reference_id
+          const { data: existingByRefId, error: errByRefId } = await supabase
+            .from('products')
+            .select('id,reference_id,reference_code,slug')
+            .eq('user_id', user.id)
+            .in('reference_id', missingChunk as any[]);
+
+          if (errByRefId) {
+            addLog(`Aviso: erro buscando por reference_id: ${errByRefId.message}`, 'error');
           }
 
-          if (existingProducts && Array.isArray(existingProducts)) {
-            existingProducts.forEach((ep: any) => {
-              if (ep && ep.reference_code) {
-                existingMap[ep.reference_code] = {
-                  id: ep.id,
-                  slug: ep.slug,
-                } as any;
-              }
+          if (existingByRefId && Array.isArray(existingByRefId)) {
+            existingByRefId.forEach((ep: any) => {
+              const key = ep.reference_id || ep.reference_code;
+              if (key) existingMap[key] = { id: ep.id, slug: ep.slug } as any;
             });
           }
+
+          // 2) buscar pelos que continuam faltando por reference_code (compatibilidade)
+          const stillMissing = missingChunk.filter((k) => !existingMap[k]);
+          if (stillMissing.length > 0) {
+            const { data: existingByRefCode, error: existingError } = await supabase
+              .from('products')
+              .select('id,reference_id,reference_code,slug')
+              .eq('user_id', user.id)
+              .in('reference_code', stillMissing as any[]);
+
+            if (existingError) {
+              addLog(
+                `Erro ao buscar produtos existentes (chunk ${chunkIndex}): ${existingError.message}`,
+                'error'
+              );
+              continue;
+            }
+
+            if (existingByRefCode && Array.isArray(existingByRefCode)) {
+              existingByRefCode.forEach((ep: any) => {
+                const key = ep.reference_id || ep.reference_code;
+                if (key) existingMap[key] = { id: ep.id, slug: ep.slug } as any;
+              });
+            }
+          }
         }
-        addLog(
-          `Busca de produtos existentes concluída. Encontrados: ${Object.keys(existingMap).length}`
-        );
+        addLog(`Busca de produtos existentes concluída. Encontrados: ${Object.keys(existingMap).length}`);
       }
 
       const batchSize = 50; // REDUZIDO de 100 para 50 para garantir resposta rápida
@@ -693,7 +753,8 @@ export default function ImportMassaPage() {
 
         // Preserva slug existente quando houver
         batch.forEach((item) => {
-          const existing = existingMap[item.reference_code];
+          const key = item.reference_id || item.reference_code;
+          const existing = existingMap[key];
           if (existing && existing.slug) {
             item.slug = existing.slug;
           } else if (!item.slug) {
@@ -713,17 +774,21 @@ export default function ImportMassaPage() {
           const upsertMap: Record<string, any> = {};
 
           // split into inserts (new) and updates (existing)
-          const toInsert = batch.filter(
-            (it) => !existingMap[it.reference_code]
-          );
-          const toUpdate = batch.filter((it) => existingMap[it.reference_code]);
+          const toInsert = batch.filter((it) => {
+            const key = it.reference_id || it.reference_code;
+            return !existingMap[key];
+          });
+          const toUpdate = batch.filter((it) => {
+            const key = it.reference_id || it.reference_code;
+            return !!existingMap[key];
+          });
 
           // INSERT new products (retain last_import_id on insert)
           if (toInsert.length > 0) {
             const { data: inserted, error: insertErr } = await supabase
               .from('products')
               .insert(toInsert)
-              .select('id, external_image_url, reference_code');
+              .select('id, external_image_url, reference_id, reference_code');
             if (insertErr) {
               addLog(
                 `❌ Erro lote ${batchNum} (insert): ${insertErr.message}`,
@@ -732,7 +797,8 @@ export default function ImportMassaPage() {
               errorCount += toInsert.length;
             } else if (inserted && Array.isArray(inserted)) {
               inserted.forEach((p: any) => {
-                if (p && p.reference_code) upsertMap[p.reference_code] = p;
+                const key = p.reference_id || p.reference_code;
+                if (key) upsertMap[key] = p;
               });
               totalInserted += inserted.length;
             }
@@ -751,12 +817,11 @@ export default function ImportMassaPage() {
 
               // Ensure we don't overwrite last_import_id or image fields
               try {
-                const { data: updated, error: updErr } = await supabase
-                  .from('products')
-                  .update(safeFields)
-                  .eq('user_id', itm.user_id)
-                  .eq('reference_code', itm.reference_code)
-                  .select('id, external_image_url, reference_code');
+                // Prefer update by reference_id when available, fallback to reference_code
+                let query = supabase.from('products').update(safeFields).eq('user_id', itm.user_id);
+                if (itm.reference_id) query = query.eq('reference_id', itm.reference_id);
+                else query = query.eq('reference_code', itm.reference_code);
+                const { data: updated, error: updErr } = await query.select('id, external_image_url, reference_id, reference_code');
                 if (updErr) {
                   addLog(
                     `❌ Erro atualizando ${itm.reference_code}: ${updErr.message}`,
@@ -765,7 +830,8 @@ export default function ImportMassaPage() {
                   errorCount += 1;
                 } else if (updated && Array.isArray(updated)) {
                   updated.forEach((p: any) => {
-                    if (p && p.reference_code) upsertMap[p.reference_code] = p;
+                    const key = p.reference_id || p.reference_code;
+                    if (key) upsertMap[key] = p;
                   });
                   totalUpdated += updated.length;
                 }
@@ -780,22 +846,38 @@ export default function ImportMassaPage() {
           }
 
           // Some items may already exist in DB but were not part of the insert/update responses
-          const missingRefs = batch
-            .map((it) => it.reference_code)
-            .filter((rc) => rc && !upsertMap[rc]);
-          if (missingRefs.length > 0) {
-            const { data: fetchedMissing } = await supabase
+          const missingKeys = batch
+            .map((it) => it.reference_id || it.reference_code)
+            .filter((k) => k && !upsertMap[k]);
+          if (missingKeys.length > 0) {
+            // try by reference_id
+            const { data: fetchedByRefId } = await supabase
               .from('products')
-              .select(
-                'id,external_image_url,reference_code,gallery_images,image_path'
-              )
+              .select('id,external_image_url,reference_id,reference_code,gallery_images,image_path')
               .eq('user_id', user.id)
-              .in('reference_code', missingRefs);
+              .in('reference_id', missingKeys as any[]);
 
-            if (fetchedMissing && Array.isArray(fetchedMissing)) {
-              fetchedMissing.forEach((p: any) => {
-                if (p && p.reference_code) upsertMap[p.reference_code] = p;
+            if (fetchedByRefId && Array.isArray(fetchedByRefId)) {
+              fetchedByRefId.forEach((p: any) => {
+                const key = p.reference_id || p.reference_code;
+                if (key) upsertMap[key] = p;
               });
+            }
+
+            const stillMissing = missingKeys.filter((k) => !upsertMap[k]);
+            if (stillMissing.length > 0) {
+              const { data: fetchedMissing } = await supabase
+                .from('products')
+                .select('id,external_image_url,reference_code,gallery_images,image_path')
+                .eq('user_id', user.id)
+                .in('reference_code', stillMissing as any[]);
+
+              if (fetchedMissing && Array.isArray(fetchedMissing)) {
+                fetchedMissing.forEach((p: any) => {
+                  const key = p.reference_id || p.reference_code;
+                  if (key) upsertMap[key] = p;
+                });
+              }
             }
           }
 
@@ -805,9 +887,8 @@ export default function ImportMassaPage() {
           // --- PROCESSAMENTO DE GALERIA ---
           const allImagesToInsert: any[] = [];
           batch.forEach((originalItem) => {
-            const p =
-              upsertMap[originalItem.reference_code] ||
-              existingMap[originalItem.reference_code];
+            const key = originalItem.reference_id || originalItem.reference_code;
+            const p = upsertMap[key] || existingMap[key];
             const productId = p ? p.id : undefined;
             const externalUrl = p
               ? p.external_image_url

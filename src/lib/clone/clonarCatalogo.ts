@@ -25,6 +25,8 @@ export async function clonarCatalogo(
   // 2) Prepara payload removendo ids e timestamps para que o DB gere novos ids
   const productsToClone = originalProducts.map((product: any) => {
     const { id, created_at, updated_at, ...productData } = product;
+    // Garantir que reference_id exista no clone (fallback para reference_code)
+    productData.reference_id = productData.reference_id || productData.reference_code || null;
     return {
       ...productData,
       user_id: targetUserId,
@@ -34,23 +36,23 @@ export async function clonarCatalogo(
   // 3) Upsert em lotes (supabase aceita upsert em arrays grandes, mas cuidado com tamanho)
   const { error: upsertError } = await svc
     .from('products')
-    .upsert(productsToClone, { onConflict: 'user_id,reference_code' });
+    .upsert(productsToClone, { onConflict: 'user_id,reference_id' });
 
   if (upsertError) throw upsertError;
 
   // 4) Re-resgata produtos no target para obter os IDs gerados/atualizados
-  const referenceCodes = productsToClone
-    .map((p: any) => p.reference_code)
+  const referenceIds = productsToClone
+    .map((p: any) => p.reference_id)
     .filter(Boolean);
   const { data: targetProducts } = await svc
     .from('products')
-    .select('id,reference_code')
+    .select('id,reference_id')
     .eq('user_id', targetUserId)
-    .in('reference_code', referenceCodes);
+    .in('reference_id', referenceIds);
 
   const refToTargetId: Record<string, string> = {};
   (targetProducts || []).forEach((p: any) => {
-    if (p.reference_code) refToTargetId[p.reference_code] = p.id;
+    if (p.reference_id) refToTargetId[p.reference_id] = p.id;
   });
 
   // 5) Clonar product_images: busca as imagens dos produtos originais e insere para os novos IDs
@@ -64,11 +66,11 @@ export async function clonarCatalogo(
     if (images && images.length > 0) {
       const imagesToInsert: any[] = [];
       images.forEach((img: any) => {
-        // encontra reference_code do produto original
+        // encontra reference_id do produto original
         const originalProduct = originalProducts.find(
           (p: any) => p.id === img.product_id
         );
-        const ref = originalProduct?.reference_code;
+        const ref = originalProduct?.reference_id || originalProduct?.reference_code;
         const targetId = ref ? refToTargetId[ref] : null;
         if (targetId) {
           imagesToInsert.push({

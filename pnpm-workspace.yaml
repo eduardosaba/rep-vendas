@@ -1,5 +1,9 @@
 ignoredBuiltDependencies:
+  - '@firebase/util'
+  - core-js
   - protobufjs
+  - puppeteer
+  - unrs-resolver
 
 onlyBuiltDependencies:
   - sharp

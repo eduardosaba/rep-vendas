@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { useStore } from './store-context';
 import {
   X,
@@ -26,6 +27,7 @@ import Image from 'next/image';
 import { SmartImage } from './SmartImage';
 // Quick pinch zoom removed — using simple fullscreen modal for zoom
 import { Button } from '@/components/ui/button';
+import { ProductVariants } from '@/components/product/ProductVariants';
 import Barcode from '../ui/Barcode'; // Mantido conforme seu projeto
 import { toast } from 'sonner';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
@@ -100,7 +102,7 @@ export function StoreModals() {
     }
   }, [customerSession]);
 
-  const getProductImages = (): { url480: string; url1200: string; path: string | null }[] => {
+  const getProductImages = (productArg?: any): { url480: string; url1200: string; path: string | null }[] => {
     // Blindagem universal: garante thumb/full/path a partir de qualquer formato
     const getImageData = (img: any): { thumb: string; full: string; path: string | null } => {
       const placeholder = '/placeholder.png';
@@ -146,9 +148,9 @@ export function StoreModals() {
       return { thumb: placeholder, full: placeholder, path: null };
     };
 
-    if (!modals.product) return [];
+    if (!productArg && !activeProduct && !modals.product) return [];
 
-    const product: any = modals.product;
+    const product: any = productArg || activeProduct || modals.product;
     const out: { url480: string; url1200: string; path: string | null }[] = [];
     const addedPaths = new Set<string>();
 
@@ -189,10 +191,88 @@ export function StoreModals() {
     return out;
   };
 
-  const productImages = useMemo(
-    () => getProductImages(),
-    [modals.product]
+  const [activeProduct, setActiveProduct] = useState<any>(modals.product || null);
+  const [variantList, setVariantList] = useState<any[] | null>(
+    (modals.product as any)?.variants || null
   );
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    setActiveProduct(modals.product || null);
+    // If modal opened with a product that already has variants attached, use them
+    setVariantList((modals.product as any)?.variants || null);
+  }, [modals.product]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadVariants = async () => {
+      try {
+        const prod = activeProduct || modals.product;
+        if (!prod || !prod.reference_id) return;
+        const { data } = await supabase
+          .from('products')
+          .select('id, reference_code, image_url, image_path, color, name, brand, gallery_images, image_variants')
+          .eq('user_id', prod.user_id || store.user_id)
+          .eq('reference_id', prod.reference_id);
+        if (!mounted) return;
+        if (Array.isArray(data)) {
+          // helper: try multiple sources to build a usable thumbnail URL
+          const getThumb = (p: any) => {
+            // 1. explicit image_url
+            if (p.image_url) return p.image_url;
+            // 2. image_variants array (find size 480 or any url)
+            if (Array.isArray(p.image_variants) && p.image_variants.length > 0) {
+              const v480 = p.image_variants.find((v: any) => v && (v.size === 480 || v.size === '480'));
+              const candidate = v480 || p.image_variants[0];
+              if (candidate) {
+                if (candidate.url) return candidate.url;
+                if (candidate.path) return buildSupabaseImageUrl(candidate.path);
+                // nested variants
+                if (Array.isArray(candidate.variants) && candidate.variants.length) {
+                  const sub = candidate.variants.find((s: any) => s.size === 480) || candidate.variants[0];
+                  if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
+                }
+              }
+            }
+            // 3. gallery_images
+            if (Array.isArray(p.gallery_images) && p.gallery_images.length > 0) {
+              const first = p.gallery_images[0];
+              if (typeof first === 'string') return first;
+              if (first && first.url) return first.url;
+              if (first && first.path) return buildSupabaseImageUrl(first.path);
+              // nested variants
+              if (first && Array.isArray(first.variants) && first.variants.length) {
+                const sub = first.variants.find((s: any) => s.size === 480) || first.variants[0];
+                if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
+              }
+            }
+            // 4. image_path -> build public URL
+            if (p.image_path) return buildSupabaseImageUrl(p.image_path);
+            return null;
+          };
+
+          const normalized = data.map((p: any) => {
+            const thumb = getThumb(p);
+            return { ...p, image_url: thumb || p.image_url || null, image_path: p.image_path || null };
+          });
+          setVariantList(normalized as any[]);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    loadVariants();
+    return () => {
+      mounted = false;
+    };
+  }, [activeProduct?.reference_id, modals.product?.reference_id, store.user_id]);
+
+  const productImages = useMemo(() => getProductImages(activeProduct || modals.product), [activeProduct, modals.product]);
+
+  // Technical specs collapsible
+  const techRef = useRef<HTMLDivElement | null>(null);
+  const [techOpen, setTechOpen] = useState(false);
 
   const cartTotal = useMemo(
     () =>
@@ -525,7 +605,7 @@ export function StoreModals() {
                 </div>
 
                 <div className="flex justify-between items-start gap-4 mb-6">
-                  <h2 className="text-3xl md:text-5xl font-black text-secondary leading-none tracking-tighter">
+                  <h2 className="text-2xl md:text-3xl font-black text-secondary leading-none tracking-tighter">
                     {modals.product.name}
                   </h2>
                   <div className="flex items-center gap-3">
@@ -583,63 +663,130 @@ export function StoreModals() {
                   </div>
                 </div>
 
-                <p className="text-gray-500 text-base md:text-lg mb-8 leading-relaxed">
-                  {modals.product.description ||
+                <p className="text-gray-500 text-sm md:text-base mb-8 leading-relaxed">
+                  {(activeProduct || modals.product).description ||
                     'Produto de alta qualidade com acabamento impecável, ideal para quem busca estilo e durabilidade.'}
                 </p>
 
-                {/* Ficha Técnica */}
+                {/* Variantes / Miniaturas de Cores: componente dedicado */}
+                {(variantList && Array.isArray(variantList) && variantList.length > 0) && (
+                    <ProductVariants
+                      currentReferenceId={(activeProduct || modals.product).reference_id}
+                      variants={variantList}
+                      currentProductId={(activeProduct || modals.product).id}
+                      onVariantSelect={async (variant) => {
+                        try {
+                          const { data } = await supabase
+                            .from('products')
+                            .select('*, gallery_images, image_variants')
+                            .eq('id', variant.id)
+                            .maybeSingle();
+                          if (data) {
+                            // normalize thumbnail sources so getProductImages can find them
+                            const resolveThumb = (p: any) => {
+                              if (p.image_url) return p.image_url;
+                              if (Array.isArray(p.image_variants) && p.image_variants.length > 0) {
+                                const v480 = p.image_variants.find((v: any) => v && (v.size === 480 || v.size === '480')) || p.image_variants[0];
+                                if (v480) {
+                                  if (v480.url) return v480.url;
+                                  if (v480.path) return buildSupabaseImageUrl(v480.path);
+                                  if (Array.isArray(v480.variants) && v480.variants.length) {
+                                    const sub = v480.variants.find((s: any) => s.size === 480) || v480.variants[0];
+                                    if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
+                                  }
+                                }
+                              }
+                              if (Array.isArray(p.gallery_images) && p.gallery_images.length > 0) {
+                                const first = p.gallery_images[0];
+                                if (typeof first === 'string') return first;
+                                if (first && first.url) return first.url;
+                                if (first && first.path) return buildSupabaseImageUrl(first.path);
+                                if (first && Array.isArray(first.variants) && first.variants.length) {
+                                  const sub = first.variants.find((s: any) => s.size === 480) || first.variants[0];
+                                  if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
+                                }
+                              }
+                              if (p.image_path) return buildSupabaseImageUrl(p.image_path);
+                              return null;
+                            };
+
+                            const thumb = resolveThumb(data);
+                            const path = data.image_path || null;
+                            const normalized = { ...data, image_url: thumb || data.image_url || null, image_path: path };
+                            setActiveProduct(normalized);
+                            setModal('product', normalized);
+                            setCurrentImageIndex(0);
+                          }
+                        } catch (e) {
+                          console.error('Erro ao carregar variante:', e);
+                        }
+                      }}
+                    />
+                )}
+
+                {/* Ficha Técnica - Collapsible */}
                 {modals.product.technical_specs && (
                   <div className="mb-8">
-                    <div className="flex items-center gap-2 mb-4 text-secondary">
-                      <Info size={18} />
-                      <h3 className="font-black uppercase text-xs tracking-widest">
-                        Ficha Técnica
-                      </h3>
-                    </div>
-                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                      {/* Segurança: technical_specs pode ser um objeto ou uma string livre.
-                              Tentamos parsear JSON; se falhar, mostramos o texto em uma linha única. */}
-                      {(() => {
-                        const raw = modals.product.technical_specs as any;
-                        let specs: Record<string, any> = {};
-                        if (!raw)
-                          return (
-                            <p className="text-sm text-gray-500">
-                              Sem especificações técnicas.
-                            </p>
-                          );
-                        if (typeof raw === 'object') {
-                          specs = raw as Record<string, any>;
-                        } else if (typeof raw === 'string') {
-                          try {
-                            const parsed = JSON.parse(raw);
-                            if (parsed && typeof parsed === 'object')
-                              specs = parsed;
-                            else specs = { Descrição: String(raw) };
-                          } catch (e) {
-                            // Se não for JSON válido, exibir como uma única linha de texto
-                            specs = { Descrição: String(raw) };
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 text-secondary">
+                        <Info size={18} />
+                        <h3 className="font-black uppercase text-xs tracking-widest">
+                          Ficha Técnica
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const willOpen = !techOpen;
+                          setTechOpen(willOpen);
+                          if (willOpen) {
+                            // scroll to techRef after next paint
+                            setTimeout(() => {
+                              techRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 120);
                           }
-                        }
+                        }}
+                        className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+                        aria-expanded={techOpen}
+                      >
+                        {techOpen ? <Minus size={16} /> : <Plus size={16} />}
+                      </button>
+                    </div>
 
-                        return (
-                          <table className="w-full text-sm">
-                            <tbody className="divide-y divide-gray-50">
-                              {Object.entries(specs).map(([key, val], i) => (
-                                <tr key={i} className="group">
-                                  <td className="py-3 font-bold text-gray-400 group-hover:text-primary transition-colors">
-                                    {key}
-                                  </td>
-                                  <td className="py-3 text-right text-secondary font-medium">
-                                    {String(val)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        );
-                      })()}
+                    <div ref={techRef} className={`overflow-hidden transition-[max-height,opacity] duration-300 ${techOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                        {(() => {
+                          const raw = modals.product.technical_specs as any;
+                          let specs: Record<string, any> = {};
+                          if (!raw)
+                            return (
+                              <p className="text-sm text-gray-500">Sem especificações técnicas.</p>
+                            );
+                          if (typeof raw === 'object') {
+                            specs = raw as Record<string, any>;
+                          } else if (typeof raw === 'string') {
+                            try {
+                              const parsed = JSON.parse(raw);
+                              if (parsed && typeof parsed === 'object') specs = parsed;
+                              else specs = { Descrição: String(raw) };
+                            } catch (e) {
+                              specs = { Descrição: String(raw) };
+                            }
+                          }
+
+                          return (
+                            <table className="w-full text-xs">
+                              <tbody className="divide-y divide-gray-50">
+                                {Object.entries(specs).map(([key, val], i) => (
+                                  <tr key={i} className="group">
+                                    <td className="py-3 font-bold text-gray-400 group-hover:text-primary transition-colors">{key}</td>
+                                    <td className="py-3 text-right text-secondary font-medium">{String(val)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -693,7 +840,7 @@ export function StoreModals() {
                         value={modals.product.price * detailQuantity}
                         isPricesVisible={isPricesVisible}
                         size="large"
-                        className="text-3xl font-black"
+                        className="text-2xl font-black"
                       />
                     </div>
                   </div>

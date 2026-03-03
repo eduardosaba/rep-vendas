@@ -631,13 +631,23 @@ export default function ImportVisualPage() {
           .maybeSingle();
         existingProduct = ep;
       } else {
-        const { data: ep } = await supabase
+        // Primeiro tenta localizar por reference_id (model grouping), depois por reference_code (compatibilidade)
+        const { data: byRefId } = await supabase
           .from('products')
           .select('id, image_variants, gallery_images, linked_images, image_url, image_path, user_id')
           .eq('user_id', user.id)
-          .eq('reference_code', data.reference)
+          .eq('reference_id', data.reference)
           .maybeSingle();
-        existingProduct = ep;
+        existingProduct = byRefId;
+        if (!existingProduct) {
+          const { data: byRefCode } = await supabase
+            .from('products')
+            .select('id, image_variants, gallery_images, linked_images, image_url, image_path, user_id')
+            .eq('user_id', user.id)
+            .eq('reference_code', data.reference)
+            .maybeSingle();
+          existingProduct = byRefCode;
+        }
       }
 
       // gerar variantes 480/1200 a partir da url/storage_path
@@ -645,11 +655,17 @@ export default function ImportVisualPage() {
         s
           .toLowerCase()
           .trim()
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
           .replace(/[^a-z0-9\s-]/g, '')
           .replace(/\s+/g, '-')
           .replace(/-+/g, '-');
 
       const slugBase = slugify(data.name || 'produto');
+
+      // Normalize reference_id (use provided reference or fallback to reference_code/name)
+      const rawRef = (data as any).reference || (data as any).reference_code || data.name || '';
+      const normalizedReferenceId = slugify(String(rawRef));
 
       // gerar variantes 480/1200 a partir da url/storage_path
       const ensure480 = (u: string) => {
@@ -711,6 +727,7 @@ export default function ImportVisualPage() {
           user_id: user.id,
           name: data.name,
           reference_code: data.reference,
+          reference_id: normalizedReferenceId,
           image_url: built.url,
           image_path: built.path,
           images: [built.url],

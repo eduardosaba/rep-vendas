@@ -28,6 +28,7 @@ export interface Product {
   slug?: string;
   brand?: string | null;
   reference_code?: string | null;
+  reference_id?: string | null; // agrupamento de variantes / model_code
   sku?: string | null;
   barcode?: string | null;
   description?: string | null;

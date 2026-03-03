@@ -88,6 +88,30 @@ export async function updateProductAction(productId: string, formData: any) {
         };
       }
     }
+    // Prevent unique constraint violation on reference_id (grouping) if provided
+    if (formData?.reference_id) {
+      const qrid = await supabase
+        .from('products')
+        .select('id')
+        .eq('user_id', activeUserId)
+        .eq('reference_id', formData.reference_id)
+        .limit(1);
+      if (qrid.error) {
+        return {
+          success: false,
+          status: 500,
+          error: qrid.error.message || String(qrid.error),
+        };
+      }
+      const conflictId = qrid.data && qrid.data.length > 0 && qrid.data[0].id !== productId;
+      if (conflictId) {
+        return {
+          success: false,
+          status: 409,
+          error: 'Model code (reference_id) já existe para este usuário.',
+        };
+      }
+    }
 
     const { data, error } = await supabase
       .from('products')

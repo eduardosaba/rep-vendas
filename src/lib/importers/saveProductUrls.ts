@@ -11,6 +11,8 @@ type ProductRow = {
   external_image_url?: string;
   Referencia?: string;
   reference_code?: string;
+  reference_id?: string;
+  model_code?: string;
 };
 
 export async function saveProductsFromRows(
@@ -25,9 +27,10 @@ export async function saveProductsFromRows(
     sale_price: row.Preco || row.price || 0,
     description: row.Descricao || row.description || null,
     external_image_url: row.UrlDaImagem || row.external_image_url || null,
-    linked_images: row.UrlDaImagem || row.external_image_url ? [row.UrlDaImagem || row.external_image_url] : null,
+    linked_images: (row.UrlDaImagem || row.external_image_url) ? [row.UrlDaImagem || row.external_image_url] : null,
     image_path: null,
     reference_code: row.Referencia || row.reference_code || null,
+    reference_id: row.Referencia || row.reference_id || row.model_code || null,
   }));
 
   const { data, error } = await supabase

@@ -128,6 +128,9 @@ export function ProductCard({
   const inCart = cart.find((it) => it.id === product.id);
   const qty = inCart ? inCart.quantity : 0;
 
+  const variantCount = (product as any).variant_count || (product as any).variants?.length || 0;
+  const isPartOfGroup = !!product.reference_id && product.reference_id !== product.reference_code;
+
   return (
     <div
       onClick={() => onViewDetails(product)}
@@ -201,6 +204,13 @@ export function ProductCard({
             className={isFavorite ? 'fill-red-500 text-red-500' : ''}
           />
         </button>
+
+        {/* Variant indicator */}
+        {(variantCount > 1 || isPartOfGroup) && (
+          <div className="absolute right-12 top-3 z-10 bg-white/80 backdrop-blur-sm text-[10px] px-2 py-1 rounded-full text-gray-600 border border-gray-200">
+            {variantCount > 1 ? `+${variantCount} cores` : 'Variante'}
+          </div>
+        )}
       </div>
 
       {/* --- INFO E PREÇOS AJUSTADOS --- */}

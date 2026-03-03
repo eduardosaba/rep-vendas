@@ -245,12 +245,26 @@ export default function UpdatePricesPage() {
               updatePayload.sale_price = newSalePrice;
 
             // Captura do valor atual para rollback
-            const { data: existing } = await supabase
+            const lookupKey = String(refValue);
+            let existing: any = null;
+            // procurar por reference_id primeiro (grouping), depois por reference_code
+            const { data: byRefId } = await supabase
               .from('products')
-              .select('id, price, sale_price')
+              .select('id, price, sale_price, reference_id')
               .eq('user_id', user.id)
-              .eq('reference_code', String(refValue))
+              .eq('reference_id', lookupKey)
               .maybeSingle();
+            existing = byRefId;
+            if (!existing) {
+              const { data: byRefCode } = await supabase
+                .from('products')
+                .select('id, price, sale_price, reference_id')
+                .eq('user_id', user.id)
+                .eq('reference_code', lookupKey)
+                .maybeSingle();
+              existing = byRefCode;
+            }
+
             if (existing) {
               rollbackData.push({
                 id: existing.id,
@@ -261,12 +275,11 @@ export default function UpdatePricesPage() {
               });
             }
 
-            const { error, data } = await supabase
-              .from('products')
-              .update(updatePayload)
-              .eq('user_id', user.id)
-              .eq('reference_code', String(refValue))
-              .select('id');
+            // Atualizar preferindo reference_id quando disponível
+            let updateQuery: any = supabase.from('products').update(updatePayload).eq('user_id', user.id);
+            if (existing && existing.reference_id) updateQuery = updateQuery.eq('reference_id', existing.reference_id);
+            else updateQuery = updateQuery.eq('reference_code', lookupKey);
+            const { error, data } = await updateQuery.select('id');
 
             if (error) {
               const errorMsg = `Erro ao atualizar ${refValue}: ${error.message}`;
