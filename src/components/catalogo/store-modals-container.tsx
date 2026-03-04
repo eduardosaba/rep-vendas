@@ -19,6 +19,8 @@ import {
   Info,
   Package,
   Maximize2,
+  Star,
+  Zap,
   Barcode as BarcodeIcon,
 } from 'lucide-react';
 import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
@@ -46,6 +48,7 @@ import { PasswordModal } from './modals/PasswordModal';
 export function StoreModals() {
   const {
     store,
+    brandsWithLogos,
     modals,
     setModal,
     cart,
@@ -196,6 +199,9 @@ export function StoreModals() {
     (modals.product as any)?.variants || null
   );
 
+  // Display product is the source of truth for modal UI: prefer activeProduct (updated on variant select)
+  const displayProduct = activeProduct || modals.product || null;
+
   const supabase = createClient();
 
   useEffect(() => {
@@ -208,7 +214,7 @@ export function StoreModals() {
     let mounted = true;
     const loadVariants = async () => {
       try {
-        const prod = activeProduct || modals.product;
+        const prod = displayProduct;
         if (!prod || !prod.reference_id) return;
         const { data } = await supabase
           .from('products')
@@ -266,9 +272,9 @@ export function StoreModals() {
     return () => {
       mounted = false;
     };
-  }, [activeProduct?.reference_id, modals.product?.reference_id, store.user_id]);
+  }, [displayProduct?.reference_id, store.user_id]);
 
-  const productImages = useMemo(() => getProductImages(activeProduct || modals.product), [activeProduct, modals.product]);
+  const productImages = useMemo(() => getProductImages(displayProduct), [displayProduct]);
 
   // Technical specs collapsible
   const techRef = useRef<HTMLDivElement | null>(null);
@@ -290,13 +296,13 @@ export function StoreModals() {
       productImages[currentImageIndex]?.url1200.includes(
         'supabase.co/storage'
       )) ||
-    modals.product?.image_path
+    displayProduct?.image_path
   );
 
   useEffect(() => {
     setCurrentImageIndex(0);
     setDetailQuantity(1);
-  }, [modals.product]);
+  }, [displayProduct]);
 
   // Quando um pedido é finalizado (orderSuccessData), salvar automaticamente
   // o pedido como código curto e abrir o modal de SaveCode.
@@ -513,7 +519,7 @@ export function StoreModals() {
       )}
 
       {/* --- MODAL DETALHES DO PRODUTO (MODERNO/IMERSIVO) --- */}
-      {modals.product && (
+      {displayProduct && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 md:p-4">
           <div
             className="absolute inset-0 bg-[#0d1b2c]/95 backdrop-blur-xl animate-in fade-in"
@@ -546,7 +552,7 @@ export function StoreModals() {
                     <>
                       <img
                         src={current.url1200 || current.url480}
-                        alt={modals.product?.name}
+                        alt={displayProduct?.name}
                         className="w-auto max-w-full max-h-[50vh] md:max-h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                       />
 
@@ -560,7 +566,7 @@ export function StoreModals() {
               </div>
 
               {/* Thumbnails */}
-              {modals.product && productImages.length > 1 && (
+              {displayProduct && productImages.length > 1 && (
                 <div className="h-24 px-6 pb-6 overflow-x-auto no-scrollbar">
                   <div className="flex gap-3 justify-center items-center">
                     {productImages.map((img, idx) => (
@@ -571,12 +577,12 @@ export function StoreModals() {
                       >
                         <SmartImage
                           product={{
-                            id: modals.product!.id,
-                            name: modals.product!.name,
-                            brand: modals.product!.brand,
-                            image_url: img.url480,
-                            image_path: img.path,
-                          }}
+                              id: displayProduct!.id,
+                              name: displayProduct!.name,
+                              brand: displayProduct!.brand,
+                              image_url: img.url480,
+                              image_path: img.path,
+                            }}
                           preferredSize={480}
                           initialSrc={img.url480}
                           className="absolute inset-0 w-full h-full"
@@ -593,20 +599,65 @@ export function StoreModals() {
             {/* DIREITA: Conteúdo e Checkout */}
             <div className="w-full md:w-1/2 h-[55%] md:h-full flex flex-col bg-slate-50/50">
               <div className="flex-1 overflow-y-auto p-6 md:p-12 pb-28 md:pb-12 custom-scrollbar">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-full">
-                    {modals.product.brand || 'Original'}
-                  </span>
+                <div className="flex items-center gap-4 mb-4">
+                  {/* Prefer logo: product-level fields, brand mapping, then store logo; fallback to brand name text */}
+                  {(() => {
+                    const productBrand = displayProduct?.brand || null;
+                    const candidateLogo =
+                      displayProduct?.brand_logo_url ||
+                      displayProduct?.single_brand_logo_url ||
+                      displayProduct?.brand_logo ||
+                      // try brands mapping provided by StoreContext
+                      (brandsWithLogos && productBrand
+                        ? (brandsWithLogos.find((b: any) => b.name === productBrand) || {}).logo_url
+                        : null) ||
+                      null;
+
+                    if (candidateLogo) {
+                      return (
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={candidateLogo}
+                            alt={productBrand || 'Marca'}
+                            className="h-8 w-auto object-contain rounded-md bg-white p-1"
+                          />
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-full">
+                        {productBrand || 'Original'}
+                      </span>
+                    );
+                  })()}
+
                   <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
                     REF:{' '}
-                    {modals.product.reference_code ||
-                      modals.product.id.slice(0, 8)}
+                    {displayProduct?.reference_code ||
+                      displayProduct?.id?.slice(0, 8)}
                   </span>
+                </div>
+
+                {/* Badges (Lançamento / Best Seller) */}
+                <div className="flex items-center gap-2 mb-4">
+                  {displayProduct?.is_launch && (
+                    <span className="flex items-center gap-2 rounded-md bg-purple-600 px-2 py-1 text-[11px] font-black text-white shadow-sm">
+                      <Zap size={14} />
+                      <span>Lançamento</span>
+                    </span>
+                  )}
+                  {displayProduct?.is_best_seller && (
+                    <span className="flex items-center gap-2 rounded-md bg-yellow-400 px-2 py-1 text-[11px] font-black text-yellow-900 shadow-sm">
+                      <Star size={14} />
+                      <span>Best Seller</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex justify-between items-start gap-4 mb-6">
                   <h2 className="text-2xl md:text-3xl font-black text-secondary leading-none tracking-tighter">
-                    {modals.product.name}
+                    {displayProduct?.name}
                   </h2>
                   <div className="flex items-center gap-3">
                     <button
@@ -648,13 +699,13 @@ export function StoreModals() {
                     </button>
 
                     <button
-                      onClick={() => toggleFavorite(modals.product!.id)}
+                      onClick={() => displayProduct && toggleFavorite(displayProduct.id)}
                       className="p-4 rounded-full bg-white shadow-sm hover:shadow-md transition-all"
                     >
                       <Heart
                         size={24}
                         className={
-                          favorites.includes(modals.product.id)
+                          displayProduct && favorites.includes(displayProduct.id)
                             ? 'fill-red-500 text-red-500'
                             : 'text-gray-200'
                         }
@@ -664,16 +715,16 @@ export function StoreModals() {
                 </div>
 
                 <p className="text-gray-500 text-sm md:text-base mb-8 leading-relaxed">
-                  {(activeProduct || modals.product).description ||
+                  {displayProduct?.description ||
                     'Produto de alta qualidade com acabamento impecável, ideal para quem busca estilo e durabilidade.'}
                 </p>
 
                 {/* Variantes / Miniaturas de Cores: componente dedicado */}
                 {(variantList && Array.isArray(variantList) && variantList.length > 0) && (
                     <ProductVariants
-                      currentReferenceId={(activeProduct || modals.product).reference_id}
+                      currentReferenceId={displayProduct?.reference_id}
                       variants={variantList}
-                      currentProductId={(activeProduct || modals.product).id}
+                      currentProductId={displayProduct?.id}
                       onVariantSelect={async (variant) => {
                         try {
                           const { data } = await supabase
@@ -725,7 +776,7 @@ export function StoreModals() {
                 )}
 
                 {/* Ficha Técnica - Collapsible */}
-                {modals.product.technical_specs && (
+                {displayProduct?.technical_specs && (
                   <div className="mb-8">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 text-secondary">
@@ -755,7 +806,7 @@ export function StoreModals() {
                     <div ref={techRef} className={`overflow-hidden transition-[max-height,opacity] duration-300 ${techOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
                       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
                         {(() => {
-                          const raw = modals.product.technical_specs as any;
+                          const raw = displayProduct?.technical_specs as any;
                           let specs: Record<string, any> = {};
                           if (!raw)
                             return (
@@ -792,8 +843,8 @@ export function StoreModals() {
                 )}
 
                 {/* Código de Barras / SKU — só mostrar se barcode estiver cadastrado */}
-                {modals.product?.barcode &&
-                  String(modals.product.barcode).replace(/\D/g, '').length >
+                {displayProduct?.barcode &&
+                  String(displayProduct.barcode).replace(/\D/g, '').length >
                     0 && (
                     <div className="p-6 bg-secondary/5 rounded-3xl border border-dashed border-secondary/10 flex flex-col items-center justify-center gap-4 mb-8">
                       <div className="flex items-center gap-2 text-secondary/40">
@@ -803,7 +854,7 @@ export function StoreModals() {
                         </span>
                       </div>
                       <div className="bg-white p-4 rounded-xl">
-                        <Barcode value={String(modals.product.barcode)} />
+                          <Barcode value={String(displayProduct?.barcode)} />
                       </div>
                     </div>
                   )}
@@ -837,7 +888,7 @@ export function StoreModals() {
                         Subtotal
                       </span>
                       <PriceDisplay
-                        value={modals.product.price * detailQuantity}
+                        value={(displayProduct?.price || 0) * detailQuantity}
                         isPricesVisible={isPricesVisible}
                         size="large"
                         className="text-2xl font-black"
@@ -846,7 +897,7 @@ export function StoreModals() {
                   </div>
                   <Button
                     onClick={() => {
-                      addToCart(modals.product!, detailQuantity);
+                      if (displayProduct) addToCart(displayProduct, detailQuantity);
                       setModal('product', null);
                     }}
                     className="w-full py-4 md:py-8 text-xl font-black uppercase tracking-tighter shadow-2xl shadow-primary/30 rounded-none md:rounded-2xl"

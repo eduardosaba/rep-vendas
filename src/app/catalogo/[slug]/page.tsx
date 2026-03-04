@@ -183,16 +183,25 @@ export default async function CatalogPage({ params, searchParams }: Props) {
     .order('created_at', { ascending: false })
     .range(0, fetchLimit - 1);
 
-  // Injeta a imagem principal da galeria no campo image_url para o ProductCard usar
+  // Computa variant_count no cliente agrupando por reference_id/reference_code
+  const counts = new Map<string, number>();
+  products?.forEach((p: any) => {
+    const key = p.reference_id || p.reference_code || p.id;
+    const current = counts.get(key) || 0;
+    counts.set(key, current + 1);
+  });
+
+  // Injeta a imagem principal da galeria no campo image_url e adiciona variant_count
   const productsWithImages = products?.map((p: any) => {
     const gallery = p.product_images || [];
     const primary = gallery.find((i: any) => i.is_primary);
     const displayUrl = primary ? primary.url : gallery[0]?.url;
+    const variantCount = counts.get(p.reference_id || p.reference_code || p.id) || 1;
 
     if (displayUrl) {
-      return { ...p, image_url: displayUrl };
+      return { ...p, image_url: displayUrl, variant_count: variantCount };
     }
-    return p;
+    return { ...p, variant_count: variantCount };
   });
 
   return (

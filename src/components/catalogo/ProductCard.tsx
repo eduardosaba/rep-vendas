@@ -131,6 +131,23 @@ export function ProductCard({
   const variantCount = (product as any).variant_count || (product as any).variants?.length || 0;
   const isPartOfGroup = !!product.reference_id && product.reference_id !== product.reference_code;
 
+  // Build up to 3 color dots from variant color fields (fallback to neutral palette)
+  const colorDots = (() => {
+    try {
+      const v = (product as any).variants;
+      if (Array.isArray(v) && v.length > 0) {
+        const cols = v
+          .map((it: any) => it?.color || it?.color_hex || it?.color_code || it?.swatch_color || it?.color_name)
+          .filter(Boolean);
+        const uniq = Array.from(new Set(cols)).slice(0, 3);
+        if (uniq.length > 0) return uniq;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return ['#94A3B8', '#CBD5E1', '#475569'];
+  })();
+
   return (
     <div
       onClick={() => onViewDetails(product)}
@@ -205,10 +222,23 @@ export function ProductCard({
           />
         </button>
 
-        {/* Variant indicator */}
-        {(variantCount > 1 || isPartOfGroup) && (
-          <div className="absolute right-12 top-3 z-10 bg-white/80 backdrop-blur-sm text-[10px] px-2 py-1 rounded-full text-gray-600 border border-gray-200">
-            {variantCount > 1 ? `+${variantCount} cores` : 'Variante'}
+        {/* Variant indicator (modern badge) - moved to bottom-right to avoid overlap */}
+        {variantCount > 1 && (
+          <div className="absolute bottom-2 right-2 z-10">
+            <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-gray-100 px-2 py-1 rounded-md shadow-sm hover:scale-105 transition-transform cursor-default">
+              <div className="flex -space-x-1.5">
+                {colorDots.map((c, i) => (
+                  <div
+                    key={i}
+                    className={`w-2.5 h-2.5 rounded-full border border-white`}
+                    style={c ? { backgroundColor: c } : undefined}
+                  />
+                ))}
+              </div>
+              <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">
+                + {variantCount - 1} CORES
+              </span>
+            </div>
           </div>
         )}
       </div>

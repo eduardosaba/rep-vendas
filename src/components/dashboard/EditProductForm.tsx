@@ -1038,11 +1038,22 @@ export function EditProductForm({ product }: { product: Product }) {
         syncUrls = (mergedImages || []).map((img: any) => (typeof img === 'string' ? img : img.url)).filter(Boolean);
       }
 
+      // Normalize reference_id to avoid accidental splits between variants
+      const slugify = (str: string | null | undefined) =>
+        String(str || '')
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '');
+
+      const candidateRef = (formData as any).reference_id || (product as any).reference_id || formData.reference_code || product.reference_code || null;
+      const normalizedRefId = slugify(candidateRef);
+
       // 5. MONTAGEM DO PAYLOAD
       const payload: any = {
         name: formData.name,
         reference_code: formData.reference_code,
-        reference_id: (formData as any).reference_id || (product as any).reference_id || null,
+        reference_id: normalizedRefId || null,
         sku: formData.sku || null,
         barcode: formData.barcode || null,
         color: formData.color || null,
