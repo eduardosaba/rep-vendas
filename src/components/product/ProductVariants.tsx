@@ -1,6 +1,7 @@
 import React from 'react';
 import { SmartImage } from '@/components/catalogo/SmartImage';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
+import { ensure480w } from '@/lib/imageHelpers';
 
 interface ProductVariant {
   id: string;
@@ -24,37 +25,85 @@ export const ProductVariants: React.FC<ProductVariantsProps> = ({
   onVariantSelect,
 }) => {
   if (!variants || variants.length <= 1) return null;
+
+  // Resolve a miniatura de forma agressiva focando em 480w e retornando uma URL absoluta
+  const resolveThumb = (p: any) => {
+    if (!p) return null;
+
+    // 1) image_variants geradas pelo sync/otimização
+    if (Array.isArray((p as any).image_variants) && (p as any).image_variants.length > 0) {
+      const v480 = (p as any).image_variants.find((x: any) => x && Number(x.size) === 480);
+      const chosen = v480 || (p as any).image_variants[0];
+      if (chosen) {
+        if (chosen.url) {
+          const s = String(chosen.url);
+          if (s.startsWith('/api/storage-image') || s.includes('?path=')) return s;
+          return ensure480w(s);
+        }
+        if (chosen.path) {
+          // Prefer proxy for consistent caching/formatting
+          return `/api/storage-image?path=${encodeURIComponent(chosen.path)}&format=webp&q=80&w=480`;
+        }
+      }
+    }
+
+    // 2) image_path direto -> monta URL pública e força 480w
+    if (p.image_path) {
+      return `/api/storage-image?path=${encodeURIComponent(p.image_path)}&format=webp&q=80&w=480`;
+    }
+
+    // 3) image_url legado
+    if (p.image_url) {
+      const s = String(p.image_url);
+      if (s.startsWith('/api/storage-image') || s.includes('?path=')) return s;
+      return ensure480w(s);
+    }
+
+    return null;
+  };
+
   return (
-    <div className="mt-4">
-      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cores Disponíveis:</p>
-      <div className="flex flex-wrap gap-3">
+    <div className="mt-6">
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Cores Disponíveis</p>
+      <div className="flex flex-wrap gap-2">
         {variants.map((variant) => {
           const thumb = resolveThumb(variant);
           const isActive = variant.id === currentProductId;
+
           return (
             <button
               key={variant.id}
               onClick={() => onVariantSelect(variant)}
               aria-pressed={isActive}
-              className={`flex flex-col items-center w-20 text-center focus:outline-none ${isActive ? 'ring-2 ring-[var(--primary)] ring-opacity-30' : ''}`}
-              title={variant.reference_code}
+              className={`group relative flex flex-col items-center w-16 transition-all ${
+                isActive ? 'scale-110' : 'hover:scale-105 opacity-70 hover:opacity-100'
+              }`}
             >
-              <div className={`w-16 h-16 rounded-md overflow-hidden border ${isActive ? 'border-[var(--primary)]' : 'border-gray-200 dark:border-slate-700'} bg-white flex items-center justify-center`}>
+              <div className={`aspect-square w-full rounded-xl overflow-hidden border-2 transition-colors flex items-center justify-center bg-white ${
+                isActive ? 'border-primary shadow-lg shadow-primary/20' : 'border-slate-100 dark:border-slate-800'
+              }`}>
                 {thumb ? (
                   <SmartImage
-                    product={{ id: variant.id, name: variant.name, brand: '', image_url: thumb, image_path: variant.image_path }}
+                    product={{ ...variant, image_url: thumb }}
                     preferredSize={480}
-                    className="w-full h-full"
-                    imgClassName="object-cover"
                     variant="thumbnail"
+                    className="w-full h-full"
+                    imgClassName="object-contain p-1"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100 text-xs text-gray-600">{(variant.color && variant.color[0]) || variant.reference_code?.slice(0,1)}</div>
+                  <div className="w-full h-full flex items-center justify-center bg-slate-50 text-[10px] font-bold text-slate-400">
+                    {variant.color?.slice(0, 2).toUpperCase() || 'S/C'}
+                  </div>
                 )}
               </div>
-              <div className="mt-1 text-[11px] text-gray-600 dark:text-gray-300 truncate w-full px-1">
-                {variant.color || variant.reference_code || variant.name}
+
+              <div className={`mt-1.5 text-[9px] font-bold truncate w-full px-1 text-center transition-colors ${
+                isActive ? 'text-primary' : 'text-slate-500'
+              }`}>
+                {variant.color || variant.reference_code}
               </div>
+
+              {isActive && <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-white" />}
             </button>
           );
         })}
@@ -62,26 +111,6 @@ export const ProductVariants: React.FC<ProductVariantsProps> = ({
     </div>
   );
 };
- const resolveThumb = (p: ProductVariant) => {
-   if (!p) return null;
-   if (p.image_url) return p.image_url;
-   // image_variants may be array of variants with url/path
-   if ((p as any).image_variants && Array.isArray((p as any).image_variants) && (p as any).image_variants.length > 0) {
-     const v = (p as any).image_variants.find((x: any) => x && (x.size === 480 || x.size === '480')) || (p as any).image_variants[0];
-     if (v) {
-       if (v.url) return v.url;
-       if (v.path) return buildSupabaseImageUrl(v.path);
-     }
-   }
-   // gallery_images
-   if ((p as any).gallery_images && Array.isArray((p as any).gallery_images) && (p as any).gallery_images.length > 0) {
-     const first = (p as any).gallery_images[0];
-     if (typeof first === 'string') return first;
-     if (first && first.url) return first.url;
-     if (first && first.path) return buildSupabaseImageUrl(first.path);
-   }
-   if (p.image_path) return buildSupabaseImageUrl(p.image_path);
-   return null;
- };
+// note: resolveThumb is now internal to the component above
 
 export default ProductVariants;

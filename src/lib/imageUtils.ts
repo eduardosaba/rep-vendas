@@ -197,6 +197,11 @@ export function buildSupabaseImageUrl(
   // Remova barras iniciais e possíveis prefixos redundantes "public/"
   objectPath = objectPath.replace(/^\/+/, '').replace(/^public\//, '');
 
+  // NOVIDADE: se for solicitado width 480, force o sufixo -480w.webp quando ausente
+  if (opts && opts.width === 480 && !objectPath.includes('-480w.webp')) {
+    objectPath = objectPath.replace(/\.[a-zA-Z0-9]+$/, '') + '-480w.webp';
+  }
+
   // Agora construímos a URL pública usando o bucket/prefix que veio no próprio path
   // (não forçamos mais "product-images" como bucket estático)
   // Encode each path segment separately to avoid encoding slashes
@@ -361,3 +366,38 @@ export function getProductImageUrl(product: Partial<Product>) {
 }
 
 export default getProductImageUrl;
+
+/**
+ * Compatibilidade: expõe ensure480w e upgradeTo1200w para importadores
+ * que venham de `imageUtils` ao invés de `imageHelpers`.
+ */
+export function ensure480w(url: string | null | undefined): string {
+  if (!url) return '/placeholder.png';
+  const s = String(url);
+  // If not likely internal to Supabase, return as-is (don't rewrite external URLs)
+  if (!isLikelyInternal(s) && !s.includes('supabase.co')) return s;
+
+  // Already 480w
+  if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) return s;
+
+  // If it's 1200w, replace
+  if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) {
+    return s.replace(/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-480w$1$2');
+  }
+
+  // Remove query params and extension then add -480w.webp
+  const clean = s.split('?')[0].replace(/(\.[a-zA-Z0-9]+)$/, '');
+  return `${clean}-480w.webp`;
+}
+
+export function upgradeTo1200w(url: string | null | undefined): string {
+  if (!url) return '/placeholder.png';
+  const s = String(url);
+  if (!isLikelyInternal(s) && !s.includes('supabase.co')) return s;
+  if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) return s;
+  if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) {
+    return s.replace(/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-1200w$1$2');
+  }
+  const clean = s.split('?')[0].replace(/(\.[a-zA-Z0-9]+)$/, '');
+  return `${clean}-1200w.webp`;
+}

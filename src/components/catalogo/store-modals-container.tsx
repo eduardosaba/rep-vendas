@@ -40,6 +40,7 @@ import {
   dedupePreferOptimized,
   ensureOptimizedFirst,
   upgradeTo1200w,
+  ensure480w,
 } from '@/lib/imageHelpers';
 import { PasswordModal } from './modals/PasswordModal';
 
@@ -117,8 +118,8 @@ export function StoreModals() {
 
       // Caso o argumento seja um array de variants (ex: image_variants directly)
       if (Array.isArray(img)) {
-        const v480 = img.find((v: any) => v.size === 480);
-        const v1200 = img.find((v: any) => v.size === 1200);
+        const v480 = img.find((v: any) => Number(v?.size) === 480);
+        const v1200 = img.find((v: any) => Number(v?.size) === 1200);
         const base = img[0]?.url || placeholder;
         return {
           thumb: v480?.url || v1200?.url || base,
@@ -129,8 +130,8 @@ export function StoreModals() {
 
       // Novo objeto com .variants
       if (img?.variants && Array.isArray(img.variants)) {
-        const v480 = img.variants.find((v: any) => v.size === 480);
-        const v1200 = img.variants.find((v: any) => v.size === 1200);
+        const v480 = img.variants.find((v: any) => Number(v?.size) === 480);
+        const v1200 = img.variants.find((v: any) => Number(v?.size) === 1200);
         const base = img.url || '/placeholder.png';
         return {
           thumb: v480?.url || v1200?.url || base,
@@ -141,9 +142,11 @@ export function StoreModals() {
 
       // Objeto simples com url
       if (img?.url) {
+        // If we only have a single URL, prefer a 480w thumbnail and keep
+        // the 1200w variant for the full/zoom view.
         return {
-          thumb: img.url,
-          full: upgradeTo1200w(img.url),
+          thumb: ensure480w(String(img.url)),
+          full: upgradeTo1200w(String(img.url)),
           path: img.path || null,
         };
       }
@@ -195,8 +198,8 @@ export function StoreModals() {
   };
 
   const [activeProduct, setActiveProduct] = useState<any>(modals.product || null);
-  const [variantList, setVariantList] = useState<any[] | null>(
-    (modals.product as any)?.variants || null
+  const [variantList, setVariantList] = useState<any[]>(
+    (modals.product as any)?.variants || []
   );
 
   // Display product is the source of truth for modal UI: prefer activeProduct (updated on variant select)
@@ -205,76 +208,111 @@ export function StoreModals() {
   const supabase = createClient();
 
   useEffect(() => {
-    setActiveProduct(modals.product || null);
+    const prod = modals.product || null;
+    console.log('[store-modals] modals.product', prod);
+    setActiveProduct(prod);
     // If modal opened with a product that already has variants attached, use them
-    setVariantList((modals.product as any)?.variants || null);
+    if (prod && Array.isArray((prod as any).variants) && (prod as any).variants.length > 0) {
+      setVariantList((prod as any).variants);
+    } else {
+      // initialize as empty array so ProductVariants can render placeholder state
+      setVariantList([]);
+    }
+    setCurrentImageIndex(0);
+    setDetailQuantity(1);
   }, [modals.product]);
 
+  // If the opened product doesn't include image data, fetch the full product
+  // from Supabase so the modal can display the images immediately.
   useEffect(() => {
     let mounted = true;
-    const loadVariants = async () => {
+    const fetchFullProductIfNeeded = async () => {
+      const p = modals.product || null;
+      if (!p || !p.id) return;
+
+      const hasImages = Boolean(
+        p.image_url || p.image_path || (Array.isArray(p.image_variants) && p.image_variants.length > 0) || (Array.isArray(p.gallery_images) && p.gallery_images.length > 0)
+      );
+      if (hasImages) return;
+
       try {
-        const prod = displayProduct;
-        if (!prod || !prod.reference_id) return;
         const { data } = await supabase
           .from('products')
           .select('id, reference_code, image_url, image_path, color, name, brand, gallery_images, image_variants')
-          .eq('user_id', prod.user_id || store.user_id)
-          .eq('reference_id', prod.reference_id);
+          .eq('id', p.id)
+          .maybeSingle();
         if (!mounted) return;
-        if (Array.isArray(data)) {
-          // helper: try multiple sources to build a usable thumbnail URL
-          const getThumb = (p: any) => {
-            // 1. explicit image_url
-            if (p.image_url) return p.image_url;
-            // 2. image_variants array (find size 480 or any url)
-            if (Array.isArray(p.image_variants) && p.image_variants.length > 0) {
-              const v480 = p.image_variants.find((v: any) => v && (v.size === 480 || v.size === '480'));
-              const candidate = v480 || p.image_variants[0];
-              if (candidate) {
-                if (candidate.url) return candidate.url;
-                if (candidate.path) return buildSupabaseImageUrl(candidate.path);
-                // nested variants
-                if (Array.isArray(candidate.variants) && candidate.variants.length) {
-                  const sub = candidate.variants.find((s: any) => s.size === 480) || candidate.variants[0];
-                  if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
-                }
-              }
-            }
-            // 3. gallery_images
-            if (Array.isArray(p.gallery_images) && p.gallery_images.length > 0) {
-              const first = p.gallery_images[0];
-              if (typeof first === 'string') return first;
-              if (first && first.url) return first.url;
-              if (first && first.path) return buildSupabaseImageUrl(first.path);
-              // nested variants
-              if (first && Array.isArray(first.variants) && first.variants.length) {
-                const sub = first.variants.find((s: any) => s.size === 480) || first.variants[0];
-                if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
-              }
-            }
-            // 4. image_path -> build public URL
-            if (p.image_path) return buildSupabaseImageUrl(p.image_path);
-            return null;
-          };
-
-          const normalized = data.map((p: any) => {
-            const thumb = getThumb(p);
-            return { ...p, image_url: thumb || p.image_url || null, image_path: p.image_path || null };
-          });
-          setVariantList(normalized as any[]);
+        if (data) {
+          const normalized = { ...p, ...data };
+          setActiveProduct(normalized);
         }
       } catch (e) {
-        // ignore
+        console.error('Erro ao buscar produto completo para modal:', e);
       }
     };
+
+    fetchFullProductIfNeeded();
+    return () => {
+      mounted = false;
+    };
+  }, [modals.product?.id]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadVariants = async () => {
+      try {
+        const prod = modals.product || activeProduct;
+        if (!prod || !prod.reference_id) return;
+
+        // if we already have variants for this reference, skip fetching
+        if (variantList && variantList.length > 0 && variantList[0]?.reference_id === prod.reference_id) return;
+
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, reference_code, reference_id, image_url, image_path, color, name, brand, gallery_images, image_variants, user_id, active')
+          .eq('reference_id', prod.reference_id)
+          .eq('active', true)
+          .order('id', { ascending: true });
+
+        if (!mounted || error || !data) return;
+
+        const normalized = data.map((p: any) => {
+          // Prefer proxy when we have image_path, otherwise respect image_url.
+          let thumb: string | null = null;
+          if (p.image_path) {
+            thumb = `/api/storage-image?path=${encodeURIComponent(p.image_path)}&format=webp&q=80&w=480`;
+          } else if (p.image_url) {
+            const s = String(p.image_url);
+            if (s.startsWith('/api/storage-image') || s.includes('?path=')) {
+              thumb = s;
+            } else {
+              thumb = ensure480w(s);
+            }
+          }
+          return { ...p, image_url: thumb || p.image_url || null, image_path: p.image_path || null };
+        });
+
+        setVariantList(normalized as any[]);
+      } catch (e) {
+        console.error('[store-modals] loadVariants error', e);
+      }
+    };
+
     loadVariants();
     return () => {
       mounted = false;
     };
-  }, [displayProduct?.reference_id, store.user_id]);
+  }, [modals.product?.reference_id, activeProduct?.reference_id, store.user_id]);
 
   const productImages = useMemo(() => getProductImages(displayProduct), [displayProduct]);
+
+  // Diagnostic log: show resolved images whenever displayProduct or productImages change
+  useEffect(() => {
+    console.log('[store-modals] displayProduct', displayProduct);
+    console.log('[store-modals] productImages', productImages);
+    console.log('[store-modals] currentImageIndex', currentImageIndex, 'currentImage', productImages[currentImageIndex]);
+  }, [displayProduct, productImages, currentImageIndex]);
 
   // Technical specs collapsible
   const techRef = useRef<HTMLDivElement | null>(null);
@@ -551,8 +589,9 @@ export function StoreModals() {
                   return (
                     <>
                       <img
-                        src={current.url1200 || current.url480}
+                        src={current.url480 || current.url1200}
                         alt={displayProduct?.name}
+                        loading="eager"
                         className="w-auto max-w-full max-h-[50vh] md:max-h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                       />
 
@@ -732,38 +771,47 @@ export function StoreModals() {
                             .select('*, gallery_images, image_variants')
                             .eq('id', variant.id)
                             .maybeSingle();
+
                           if (data) {
-                            // normalize thumbnail sources so getProductImages can find them
                             const resolveThumb = (p: any) => {
-                              if (p.image_url) return p.image_url;
+                              // 1) Absolute priority: image_variants with size 480
                               if (Array.isArray(p.image_variants) && p.image_variants.length > 0) {
-                                const v480 = p.image_variants.find((v: any) => v && (v.size === 480 || v.size === '480')) || p.image_variants[0];
+                                const v480 = p.image_variants.find((v: any) => v && Number(v?.size) === 480);
                                 if (v480) {
                                   if (v480.url) return v480.url;
                                   if (v480.path) return buildSupabaseImageUrl(v480.path);
-                                  if (Array.isArray(v480.variants) && v480.variants.length) {
-                                    const sub = v480.variants.find((s: any) => s.size === 480) || v480.variants[0];
-                                    if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
-                                  }
+                                }
+
+                                // If the variants have nested variants, try them too
+                                const first = p.image_variants[0];
+                                if (Array.isArray(first?.variants) && first.variants.length) {
+                                  const sub480 = first.variants.find((s: any) => Number(s?.size) === 480);
+                                  if (sub480) return sub480.url || (sub480.path ? buildSupabaseImageUrl(sub480.path) : null);
                                 }
                               }
-                              if (Array.isArray(p.gallery_images) && p.gallery_images.length > 0) {
-                                const first = p.gallery_images[0];
-                                if (typeof first === 'string') return first;
-                                if (first && first.url) return first.url;
-                                if (first && first.path) return buildSupabaseImageUrl(first.path);
-                                if (first && Array.isArray(first.variants) && first.variants.length) {
-                                  const sub = first.variants.find((s: any) => s.size === 480) || first.variants[0];
-                                  if (sub && (sub.url || sub.path)) return sub.url || buildSupabaseImageUrl(sub.path);
+
+                              // 2) Fallback to image_url, try to coerce to 480w if it's a Supabase-style URL
+                              if (p.image_url) {
+                                try {
+                                  return String(p.image_url).replace('-1200w', '-480w');
+                                } catch (e) {
+                                  return p.image_url;
                                 }
                               }
+
+                              // 3) Fallback to image_path -> build public URL
                               if (p.image_path) return buildSupabaseImageUrl(p.image_path);
+
                               return null;
                             };
 
-                            const thumb = resolveThumb(data);
-                            const path = data.image_path || null;
-                            const normalized = { ...data, image_url: thumb || data.image_url || null, image_path: path };
+                            const thumb = ensure480w(resolveThumb(data));
+                            const normalized = {
+                              ...data,
+                              image_url: thumb || data.image_url || null,
+                              image_path: data.image_path || null,
+                            };
+
                             setActiveProduct(normalized);
                             setModal('product', normalized);
                             setCurrentImageIndex(0);
