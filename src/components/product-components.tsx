@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import { SmartImage } from '@/components/catalogo/SmartImage';
 import { getProductImageUrl } from '@/lib/imageUtils';
 import { useStore } from '@/components/catalogo/store-context';
 import {
@@ -884,24 +885,21 @@ export function StoreBanners() {
       if (bannerUrl) {
         return (
           <div className="w-full">
-            <div className="w-full aspect-[4/1] min-h-[160px] md:min-h-[200px] relative overflow-hidden bg-gray-100 rounded-md">
-              <Image
-                src={bannerUrl}
-                alt={brandObj.name || 'Banner da Marca'}
-                fill
-                sizes="100vw"
-                className="object-cover"
-                unoptimized={String(bannerUrl).includes('supabase.co/storage')}
-              />
-              {brandObj.description ? (
-                <div className="absolute left-6 bottom-6 bg-black/60 text-white px-4 py-2 rounded-md max-w-xl">
-                  <h3 className="font-bold text-sm">{brandObj.name}</h3>
-                  <p className="text-xs mt-1 line-clamp-2">
-                    {brandObj.description}
-                  </p>
-                </div>
-              ) : null}
-            </div>
+            <SmartImage
+              product={{ image_url: bannerUrl, name: brandObj.name }}
+              className="w-full aspect-[4/1] min-h-[160px] md:min-h-[200px] relative overflow-hidden bg-gray-100 rounded-md"
+              imgClassName="object-cover absolute inset-0 w-full h-full"
+              variant="hero"
+              priority={true}
+            />
+            {brandObj.description ? (
+              <div className="absolute left-6 bottom-6 bg-black/60 text-white px-4 py-2 rounded-md max-w-xl">
+                <h3 className="font-bold text-sm">{brandObj.name}</h3>
+                <p className="text-xs mt-1 line-clamp-2">
+                  {brandObj.description}
+                </p>
+              </div>
+            ) : null}
           </div>
         );
       }

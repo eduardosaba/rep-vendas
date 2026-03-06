@@ -111,22 +111,60 @@ export function ensure480w(url: string): string {
 
 export function normalizeImageForDB(img: any) {
   if (!img) return null;
-  if (img.variants && Array.isArray(img.variants)) return img;
-  const url = (img && (img.url || img)) || '';
-  const path = img && (img.path || null);
+
+  // If already normalized (has variants), assume it's fine but still sanitize paths
+  if (img.variants && Array.isArray(img.variants)) {
+    // sanitize variant paths
+    const variants = img.variants.map((v: any) => ({
+      ...v,
+      path: v.path ? String(v.path).replace(/^\/+/, '').replace(/^public\//i, '') : v.path || null,
+      url: v.url ? String(v.url) : v.url,
+    }));
+    return { ...img, variants };
+  }
+
+  // Accept strings or objects
+  let url: string = '';
+  let path: string | null = null;
+  if (typeof img === 'string') {
+    url = img;
+  } else if (typeof img === 'object') {
+    url = String(img.url || img.publicUrl || img.optimized_url || img.optimizedUrl || img.src || '');
+    path = img.path || img.storage_path || img.image_path || null;
+  }
+
+  // If URL is a Supabase public URL, try to extract storage path
+  try {
+    if (url && url.includes('/storage/v1/object/public/')) {
+      const extracted = url.split('/storage/v1/object/public/')[1] || '';
+      path = extracted || path;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Clean path: remove leading slashes and any leading "public/" duplicates
+  let cleanPath: string | null = null;
+  if (path) {
+    cleanPath = String(path).replace(/^\/+/, '').replace(/^public\//i, '');
+    // remove accidental repeated "public" segments
+    cleanPath = cleanPath.replace(/public/gi, '');
+    cleanPath = cleanPath.replace(/\\/g, '/');
+  }
 
   const url1200 = upgradeTo1200w(String(url || ''));
   const url480 = ensure480w(String(url || ''));
 
-  const path1200 = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') + '-1200w.webp' : null;
-  const path480 = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') + '-480w.webp' : null;
+  const basePath = cleanPath ? String(cleanPath).replace(/-(480w|1200w)\.webp$/i, '').replace(/\.[a-zA-Z0-9]+$/, '') : null;
+  const path1200 = basePath ? `${basePath}-1200w.webp` : null;
+  const path480 = basePath ? `${basePath}-480w.webp` : null;
 
   return {
-    url: url1200 || url,
+    url: url1200 || url || null,
     path: path1200,
     variants: [
-      { size: 480, url: url480 || url, path: path480 },
-      { size: 1200, url: url1200 || url, path: path1200 },
+      { size: 480, url: url480 || url || null, path: path480 },
+      { size: 1200, url: url1200 || url || null, path: path1200 },
     ],
   };
 }
@@ -138,4 +176,5 @@ export default {
   dedupePreferOptimized,
   ensureOptimizedFirst,
   upgradeTo1200w,
+  normalizeImageForDB,
 };

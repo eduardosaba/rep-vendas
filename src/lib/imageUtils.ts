@@ -387,7 +387,9 @@ export function ensure480w(url: string | null | undefined): string {
 
   // Remove query params and extension then add -480w.webp
   const clean = s.split('?')[0].replace(/(\.[a-zA-Z0-9]+)$/, '');
-  return `${clean}-480w.webp`;
+  const path480 = `${clean}-480w.webp`;
+  // Use proxy URL so browser requests go to /api/storage-image which handles buckets/encoding
+  return formatImageUrl(path480);
 }
 
 export function upgradeTo1200w(url: string | null | undefined): string {
@@ -396,8 +398,10 @@ export function upgradeTo1200w(url: string | null | undefined): string {
   if (!isLikelyInternal(s) && !s.includes('supabase.co')) return s;
   if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) return s;
   if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) {
-    return s.replace(/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-1200w$1$2');
+    const candidate = s.replace(/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-1200w$1$2');
+    return formatImageUrl(candidate);
   }
   const clean = s.split('?')[0].replace(/(\.[a-zA-Z0-9]+)$/, '');
-  return `${clean}-1200w.webp`;
+  const path1200 = `${clean}-1200w.webp`;
+  return formatImageUrl(path1200);
 }

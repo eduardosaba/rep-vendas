@@ -38,7 +38,7 @@ export async function copyImageToUser({
   if (dlError) throw dlError;
 
   // Convert stream/blob to Buffer
-  // @ts-ignore - data may be Blob or ReadableStream depending on runtime
+  // @ts-expect-error - data may be Blob or ReadableStream depending on runtime
   const arrayBuffer = await downloadData.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 

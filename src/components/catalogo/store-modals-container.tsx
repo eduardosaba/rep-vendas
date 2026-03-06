@@ -440,33 +440,22 @@ export function StoreModals() {
                     className="flex gap-4 rounded-2xl border border-gray-100 p-3 bg-white"
                   >
                     <div className="relative h-20 w-20 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
-                      {item.image_variants && item.image_variants.length > 0 ? (
-                        <SmartImage
-                          product={{
-                            id: item.id,
-                            name: item.name,
-                            brand: item.brand,
-                            image_url: item.image_url,
-                            image_path: item.image_path,
-                          }}
-                          className="h-full w-full"
-                          imgClassName="object-contain p-2"
-                          variant="thumbnail"
-                          preferredSize={480}
-                        />
-                      ) : (
-                        <Image
-                          src={
-                            item.image_url || '/images/product-placeholder.svg'
-                          }
-                          alt={item.name}
-                          fill
-                          className="object-contain p-2"
-                          unoptimized={(item.image_url || '').includes(
-                            'supabase.co/storage'
-                          )}
-                        />
-                      )}
+                      <SmartImage
+                        product={{
+                          id: item.id,
+                          name: item.name,
+                          brand: item.brand,
+                          image_url: item.image_url,
+                          image_path: item.image_path,
+                          image_variants: item.image_variants || item.variants || [],
+                          external_image_url: (item as any).external_image_url || null,
+                        }}
+                        initialSrc={item.image_url}
+                        variant="thumbnail"
+                        preferredSize={480}
+                        className="h-full w-full"
+                        imgClassName="object-contain p-2"
+                      />
                     </div>
 
                     <div className="flex-1 flex flex-col justify-between">

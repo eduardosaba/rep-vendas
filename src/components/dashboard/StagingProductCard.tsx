@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { SmartImage } from '@/components/catalogo/SmartImage';
 import { Save, Trash2, X, Search, Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -306,14 +307,17 @@ export function StagingProductCard({
                     className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm border-b last:border-0 flex items-center gap-3"
                   >
                     <div className="w-8 h-8 rounded bg-gray-100 overflow-hidden flex-shrink-0 relative">
-                      <img
-                        src={
-                          typeof p.image_url === 'string'
-                            ? p.image_url
-                            : p.image_url?.url || p.image_url?.publicUrl || '/placeholder.png'
-                        }
-                        className="w-full h-full object-cover"
-                        alt={p.name || ''}
+                      <SmartImage
+                        product={{
+                          id: p.id,
+                          name: p.name,
+                          image_url: typeof p.image_url === 'string' ? p.image_url : p.image_url?.url || p.image_url?.publicUrl,
+                          image_path: (p as any).image_path,
+                        }}
+                        variant="thumbnail"
+                        preferredSize={480}
+                        className="w-full h-full"
+                        imgClassName="object-cover"
                       />
                     </div>
                     <div className="min-w-0">
@@ -344,15 +348,15 @@ export function StagingProductCard({
           <button
             onClick={handleSaveClick}
             disabled={saving}
-            className="rv-btn-primary flex-1 flex items-center justify-center gap-2 text-white py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary/90 text-white shadow-sm`}
           >
             {saving ? (
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <Loader2 size={18} className="animate-spin" />
             ) : (
-              <span className="inline-flex items-center gap-2">
+              <>
                 <Save size={16} />
-                <span>Salvar Produto</span>
-              </span>
+                <span>{selectedProductId ? 'Confirmar Vínculo' : 'Salvar Produto'}</span>
+              </>
             )}
           </button>
         </div>

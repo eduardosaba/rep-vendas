@@ -238,6 +238,7 @@ export default function NewProductPage() {
     technical_specs_mode: 'text',
     technical_specs_text: '',
     technical_specs_table: [{ key: '', value: '' }],
+    is_destaque: false,
   });
 
   // Variant picker state (buscar grupos existentes para vincular)
@@ -626,6 +627,7 @@ export default function NewProductPage() {
           : 0,
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
+        is_destaque: (formData as any).is_destaque || false,
         is_active: formData.is_active,
         // Preserve raw images array (legacy) but also persist structured gallery
         images: formData.images,
@@ -1273,6 +1275,11 @@ export default function NewProductPage() {
                 label: 'Best Seller',
                 color: 'text-yellow-600',
                 icon: Star,
+              },
+              {
+                key: 'is_destaque',
+                label: 'Destaque',
+                color: 'text-amber-600',
               },
             ].map((item) => (
               <label

@@ -713,7 +713,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
 
     // debounce
     if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
-    // @ts-ignore - timer ref may be typed differently across environments
+    // @ts-expect-error - timer ref may be typed differently across environments
     fetchTimerRef.current = window.setTimeout(() => doFetch(currentPage), 350);
 
     return () => {

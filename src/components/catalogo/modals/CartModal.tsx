@@ -4,6 +4,7 @@
 
 import React, { useEffect } from 'react';
 import Image from 'next/image';
+import { SmartImage } from '@/components/catalogo/SmartImage';
 import { ShoppingCart, X, Plus, Minus, Trash2, Send, Star } from 'lucide-react';
 import { PriceDisplay } from '../PriceDisplay'; // Importação do utilitário PriceDisplay
 
@@ -123,22 +124,21 @@ export function CartModal({
                     key={item.id}
                     className="flex gap-3 bg-white border rounded-lg p-3 shadow-sm"
                   >
-                    {/* Imagem */}
+                    {/* Imagem via SmartImage (mais robusto) */}
                     <div className="h-16 w-16 bg-gray-100 rounded-md overflow-hidden flex-shrink-0">
-                      {item.image_url && (
-                        <Image
-                          src={item.image_url}
-                          alt={item.name}
-                          width={64}
-                          height={64}
-                          className="w-full h-full object-cover"
-                          style={{
-                            maxWidth: '100%',
-                            height: 'auto',
-                            objectFit: 'cover',
-                          }}
-                        />
-                      )}
+                      <SmartImage
+                        product={{
+                          id: item.id,
+                          name: item.name,
+                          image_url: item.image_url,
+                          image_path: (item as any).image_path,
+                          image_variants: (item as any).image_variants || (item as any).variants,
+                        }}
+                        variant="thumbnail"
+                        preferredSize={480}
+                        className="h-full w-full"
+                        imgClassName="object-contain p-1"
+                      />
                     </div>
 
                     <div className="flex-1 flex flex-col justify-between">
@@ -209,20 +209,19 @@ export function CartModal({
                         className="min-w-[120px] w-[120px] border rounded-lg p-2 flex flex-col bg-gray-50"
                       >
                         <div className="h-20 w-full bg-white rounded mb-2 overflow-hidden">
-                          {p.image_url && (
-                            <Image
-                              src={p.image_url}
-                              alt={p.name}
-                              width={120}
-                              height={80}
-                              className="w-full h-full object-cover"
-                              style={{
-                                maxWidth: '100%',
-                                height: 'auto',
-                                objectFit: 'cover',
-                              }}
-                            />
-                          )}
+                          <SmartImage
+                            product={{
+                              id: p.id,
+                              name: p.name,
+                              image_url: p.image_url,
+                              image_path: (p as any).image_path,
+                              image_variants: (p as any).image_variants || (p as any).variants,
+                            }}
+                            variant="thumbnail"
+                            preferredSize={480}
+                            className="h-full w-full"
+                            imgClassName="object-contain p-1"
+                          />
                         </div>
                         <p className="text-xs font-medium truncate mb-1">
                           {p.name}

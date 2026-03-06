@@ -77,8 +77,10 @@ function runScript(cmd, args = []) {
     // 4) Ensure no stray vars remain
     if (childEnv.LOCALSTORAGE_FILE) delete childEnv.LOCALSTORAGE_FILE;
 
-    // Start Next.js dev with a clean env
-    const childArgs = [nextBin, 'dev', '--port', port];
+    // Start Next.js dev with a clean env and preload the localStorage shim
+    // Preloading via `--require` ensures `globalThis.localStorage` is available
+    // during server-side rendering in dev mode.
+    const childArgs = ['--require', shimPath, nextBin, 'dev', '--port', port];
     const child = spawn(process.execPath, childArgs, {
       stdio: 'inherit',
       cwd,

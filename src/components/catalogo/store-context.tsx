@@ -623,9 +623,9 @@ export function StoreProvider({
             .select('name, image_url')
             .eq('user_id', store.user_id)
             .order('name');
-          // @ts-ignore - result typing may differ across supabase client versions
+          // @ts-expect-error - result typing may differ across supabase client versions
           data = res.data;
-          // @ts-ignore - result typing may differ across supabase client versions
+          // @ts-expect-error - result typing may differ across supabase client versions
           error = res.error;
         } catch (err) {
           data = null;
@@ -640,9 +640,9 @@ export function StoreProvider({
               .select('name, image_url')
               .eq('user_id', store.user_id)
               .order('name');
-            // @ts-ignore - result typing may differ across supabase client versions
+            // @ts-expect-error - result typing may differ across supabase client versions
             data = res2.data;
-            // @ts-ignore - result typing may differ across supabase client versions
+            // @ts-expect-error - result typing may differ across supabase client versions
             error = res2.error;
           } catch (err2) {
             // manter error/data como está
@@ -711,7 +711,6 @@ export function StoreProvider({
         try {
           const parsed = JSON.parse(savedCustomer) as CustomerInfo;
           setCustomerSession(parsed);
-          console.log('Cliente reconhecido:', parsed?.name);
         } catch {}
       }
     } catch {}
@@ -831,23 +830,87 @@ export function StoreProvider({
       return;
     }
 
+    const normalizeImageForCart = (raw: any) => {
+      // Accept full product objects or raw string values
+      try {
+        if (!raw && raw !== 0) return null;
+
+        // If caller passed a product-like object, try common fields in order
+        if (typeof raw === 'object') {
+          const p = raw as any;
+          const candidate = p.image_url || p.image || p.image_path || p.external_image_url || null;
+          if (!candidate) return null;
+          raw = candidate;
+        }
+
+        const s = String(raw || '').trim();
+        if (!s) return null;
+
+        // If it's already a full URL or an internal API proxy, keep it
+        if (s.startsWith('/api/') || /^https?:\/\//i.test(s)) return s;
+
+        // If it's a Supabase public URL, extract the storage path and use proxy
+        if (s.includes('/storage/v1/object/public/')) {
+          const path = s.split('/storage/v1/object/public/')[1];
+          const clean = String(path || '').replace(/^\/+/, '').replace(/^public\//, '');
+          return `/api/storage-image?path=${encodeURIComponent(clean)}`;
+        }
+
+        // If it looks like a storage path (starts with public/ or similar) normalize and proxy
+        if (/^public\//i.test(s) || s.includes('supabase.co/storage') || s.includes('/storage/v1/object')) {
+          const clean = s.replace(/^\/+/, '').replace(/^public\//, '');
+          return `/api/storage-image?path=${encodeURIComponent(clean)}`;
+        }
+
+        // If it's a relative path (no scheme and not starting with /), proxy it too
+        if (!s.startsWith('/')) {
+          const clean = s.replace(/^\/+/, '').replace(/^public\//, '');
+          return `/api/storage-image?path=${encodeURIComponent(clean)}`;
+        }
+
+        // Otherwise, return as-is (absolute path on site)
+        return s;
+      } catch (e) {
+        return null;
+      }
+    };
+
     setCart((prev) => {
-      const exists = prev.find((i) => i.id === productObj!.id);
-      if (exists)
-        return prev.map((i) =>
-          i.id === productObj!.id ? { ...i, quantity: i.quantity + qty } : i
-        );
-      return [...prev, { ...productObj!, quantity: qty }];
+      const existsIdx = prev.findIndex((i) => i.id === productObj!.id);
+
+      // Resolve a imagem correta ANTES de salvar
+      const correctImageUrl = normalizeImageForCart(productObj as any) || null;
+
+      if (existsIdx > -1) {
+        const next = [...prev];
+        next[existsIdx] = {
+          ...next[existsIdx],
+          quantity: Number(next[existsIdx].quantity || 0) + qty,
+          image_url: correctImageUrl || next[existsIdx].image_url,
+        };
+        return next;
+      }
+
+      const newItem = {
+        ...productObj!,
+        quantity: qty,
+        image_url: correctImageUrl,
+      } as CartItem;
+      return [...prev, newItem];
     });
     toast.success('Adicionado ao carrinho!');
   };
 
   const updateQuantity = (id: string, delta: number) => {
-    setCart((prev) =>
-      prev.map((i) =>
-        i.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i
-      )
-    );
+    setCart((prev) => {
+      const existing = prev.find((i) => i.id === id);
+      if (!existing) return prev;
+      const newQty = Number(existing.quantity || 0) + Number(delta || 0);
+      if (newQty <= 0) {
+        return prev.filter((i) => i.id !== id);
+      }
+      return prev.map((i) => (i.id === id ? { ...i, quantity: newQty } : i));
+    });
   };
 
   /**
@@ -985,7 +1048,7 @@ export function StoreProvider({
     // Formatação de Moeda
     const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-    let msg = `🔔 *🅽🅾🆅🅾 🅿🅴🅳🅸🅳🅾 : #${display_id || id}* 🚀\n`;
+    let msg = `🔔 *𝗡𝗢𝗩𝗢 𝗣𝗘𝗗𝗜𝗗𝗢 : #${display_id || id}* 🚀\n`;
     msg += `👤 *CLIENTE:* ${customer.name}\n`;
     msg += `📞 *WHATSAPP:* ${customer.phone}\n`;
     msg += `✉️ *EMAIL:* ${customer.email || '—'}\n`;
@@ -1008,7 +1071,7 @@ export function StoreProvider({
       msg += `\n📄 *VER COMPROVANTE (PDF):*\n${pdf_url}\n`;
     }
 
-    msg += `\n_Gerado por 🆁🅴🅿🆅🅴🅽🅳🅰🆂 ⭐_`;
+    msg += `\n_Gerado por R̳e̳p̳V̳e̳n̳d̳a̳s̳ ⭐_`;
 
     window.open(
       `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,

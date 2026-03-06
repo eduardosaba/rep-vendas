@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -75,6 +75,9 @@ export function NewOrderClient({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedBrand, setSelectedBrand] = useState('all');
+  const [itemsPerPage, setItemsPerPage] = useState<number>(24);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [showImages, setShowImages] = useState<boolean>(true);
 
   // Item Manual (Simples)
   const [manualItem, setManualItem] = useState({
@@ -99,37 +102,47 @@ export function NewOrderClient({
     }
     return url;
   };
-  const categories = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          initialProducts.map((p) => p.category).filter(Boolean) as string[]
-        )
-      ).sort(),
-    [initialProducts]
-  );
+  const categories = useMemo(() => {
+    const values = initialProducts
+      .map((p) => p.category || (p as any).category_name || (p as any).category_code)
+      .filter(Boolean)
+      .map((s) => String(s).trim());
+    return Array.from(new Set(values)).sort();
+  }, [initialProducts]);
 
-  const brands = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          initialProducts.map((p) => p.brand).filter(Boolean) as string[]
-        )
-      ).sort(),
-    [initialProducts]
-  );
+  const brands = useMemo(() => {
+    const values = initialProducts
+      .map((p) => p.brand || (p as any).brand_name || (p as any).manufacturer)
+      .filter(Boolean)
+      .map((s) => String(s).trim());
+    return Array.from(new Set(values)).sort();
+  }, [initialProducts]);
 
   const filteredProducts = useMemo(() => {
+    const q = String(searchTerm || '').toLowerCase().trim();
     return initialProducts.filter((p) => {
-      const matchesSearch =
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.reference_code?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory =
-        selectedCategory === 'all' || p.category === selectedCategory;
-      const matchesBrand = selectedBrand === 'all' || p.brand === selectedBrand;
-      return matchesSearch && matchesCategory;
+      const name = String(p.name || '').toLowerCase();
+      const ref = String(p.reference_code || '').toLowerCase();
+      const matchesSearch = !q || name.includes(q) || ref.includes(q);
+
+      const cat = (p.category || (p as any).category_name || '').toString();
+      const matchesCategory = selectedCategory === 'all' || cat === selectedCategory;
+
+      const br = (p.brand || (p as any).brand_name || (p as any).manufacturer || '').toString();
+      const matchesBrand = selectedBrand === 'all' || br === selectedBrand;
+
+      return matchesSearch && matchesCategory && matchesBrand;
     });
   }, [initialProducts, searchTerm, selectedCategory, selectedBrand]);
+
+  // Reset page when filters/search change
+  useEffect(() => setCurrentPage(1), [searchTerm, selectedCategory, selectedBrand, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
 
   // --- AÇÕES DO CARRINHO ---
 
@@ -288,7 +301,7 @@ export function NewOrderClient({
       <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200 bg-white">
         {/* Header Esquerdo */}
         <div className="bg-white p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 items-center justify-between shrink-0 z-10">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
             <Link
               href="/dashboard/orders"
               className="p-2 hover:bg-gray-100 rounded-full text-gray-500"
@@ -299,7 +312,7 @@ export function NewOrderClient({
           </div>
 
           {/* Toggle Tabs */}
-          <div className="flex bg-gray-100 p-1 rounded-lg w-full sm:w-auto">
+          <div className="flex bg-gray-100 p-1 rounded-lg w-full sm:w-auto items-center gap-2">
             <button
               onClick={() => setActiveTab('catalog')}
               className={`flex-1 sm:flex-none justify-center px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'catalog' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -313,6 +326,7 @@ export function NewOrderClient({
               <Zap size={16} /> Item Avulso
             </button>
           </div>
+          {/* Controls moved below filters (catalog) */}
         </div>
 
         {/* Área de Scroll */}
@@ -442,9 +456,31 @@ export function NewOrderClient({
                 </select>
               </div>
 
+              {/* Controls: items per page and show images toggle (moved below filtros/search) */}
+              <div className="flex items-center gap-3 py-2">
+                <label className="text-xs text-gray-500">Mostrar imagens</label>
+                <button
+                  onClick={() => setShowImages((s) => !s)}
+                  className={`px-2 py-1 rounded text-xs border ${showImages ? 'bg-white border-gray-200' : 'bg-gray-100 border-transparent'}`}
+                >
+                  {showImages ? 'Ativado' : 'Desativado'}
+                </button>
+
+                <label className="text-xs text-gray-500">Itens / página</label>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value) || 24)}
+                  className="p-1 rounded border bg-white text-xs"
+                >
+                  <option value={12}>12</option>
+                  <option value={24}>24</option>
+                  <option value={48}>48</option>
+                </select>
+              </div>
+
               {/* Grid */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {filteredProducts.map((product) => (
+                {paginatedProducts.map((product) => (
                   <div
                     key={product.id}
                     className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm hover:border-primary/30 transition-all cursor-pointer group"
@@ -452,7 +488,7 @@ export function NewOrderClient({
                   >
                     <div className="aspect-square bg-gray-50 rounded-lg mb-2 overflow-hidden flex items-center justify-center border border-gray-100">
                       {}
-                      {product.image_url ? (
+                      {showImages && product.image_url ? (
                         <div className="relative w-full h-full">
                           <Image
                             src={getSafeUrl(product.image_url) || product.image_url || ''}
@@ -494,6 +530,22 @@ export function NewOrderClient({
                   </div>
                 ))}
               </div>
+              {/* Pagination */}
+              {filteredProducts.length > itemsPerPage && (
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 rounded border bg-white"
+                  >Prev</button>
+                  <span className="text-sm">{currentPage} / {totalPages}</span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 rounded border bg-white"
+                  >Next</button>
+                </div>
+              )}
               {filteredProducts.length === 0 && (
                 <div className="text-center py-10 text-gray-500">
                   Nenhum produto encontrado.
@@ -773,7 +825,7 @@ export function NewOrderClient({
                     {item.image_url ? (
                       <div className="relative h-full w-full">
                         <Image
-                          src={item.image_url}
+                          src={getSafeUrl(item.image_url) || item.image_url || ''}
                           alt={item.name || ''}
                           width={56}
                           height={56}

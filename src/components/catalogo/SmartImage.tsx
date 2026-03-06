@@ -51,22 +51,52 @@ export function SmartImage({
   }, [product?.id, product?.image_url, variant]);
 
   const handleError = () => {
-    if (retryCount.current >= 2) {
+    const placeholder = '/placeholder.png';
+
+    // Prevent infinite loops
+    if (retryCount.current >= 4) {
       setStatus('error');
       return;
     }
 
     retryCount.current++;
 
-    // If it's a 480w attempt, strip suffix and retry original
-    if (src?.includes('-480w.webp')) {
-      const original = src.replace('-480w.webp', '');
-      setSrc(original);
+    const external = (product && (product.external_image_url || (product as any).external)) || null;
+
+    // 1) If we tried 480w, next try 1200w
+    if (src && src.includes('-480w.webp')) {
+      const nextTry = src.replace('-480w.webp', '-1200w.webp');
+      setSrc(nextTry);
+      setStatus('loading');
       return;
     }
 
-    // Fallback to placeholder
-    setSrc('/placeholder.png');
+    // 2) If we tried 1200w, try original (strip suffix)
+    if (src && src.includes('-1200w.webp')) {
+      const original = src.replace('-1200w.webp', '');
+      setSrc(original);
+      setStatus('loading');
+      return;
+    }
+
+    // 3) If the current src looks like an encoded proxy path (with ?path=...),
+    // try to decode to original path without suffixes (already covered above) — skip
+
+    // 4) If we have an external_image_url, try it
+    if (src && external && src !== external) {
+      setSrc(external);
+      setStatus('loading');
+      return;
+    }
+
+    // 5) Last resort: placeholder
+    if (src !== placeholder) {
+      setSrc(placeholder);
+      setStatus('loading');
+      return;
+    }
+
+    setStatus('error');
   };
 
   return (
