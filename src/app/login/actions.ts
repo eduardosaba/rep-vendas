@@ -58,7 +58,7 @@ export async function loginWithGoogle() {
     // signInWithOAuth retorna uma URL para redirecionamento em muitas versões
     // usamos o resultado para o client-side redirecionar o usuário.
     // Ajuste conforme a versão do SDK se necessário.
-    // @ts-expect-error allow any shape from supabase client
+    // NOTE: allow any shape from supabase client
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },

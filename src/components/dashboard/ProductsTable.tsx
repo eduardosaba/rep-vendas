@@ -65,6 +65,7 @@ interface Product {
   image_optimized?: boolean | null;
   is_launch: boolean;
   is_best_seller: boolean;
+  is_destaque?: boolean;
   is_active: boolean;
   stock_quantity?: number;
   track_stock?: boolean;
@@ -248,6 +249,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     minPrice: '',
     maxPrice: '',
     onlyLaunch: false,
+    onlyFeatured: false,
     onlyBestSeller: false,
     stockStatus: 'all',
     visibility: 'all',
@@ -713,7 +715,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
 
     // debounce
     if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
-    // @ts-expect-error - timer ref may be typed differently across environments
+    // NOTE: timer ref may be typed differently across environments
     fetchTimerRef.current = window.setTimeout(() => doFetch(currentPage), 350);
 
     return () => {
@@ -1055,6 +1057,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         if (!matchesSearch) return false;
       }
       if (filters.onlyLaunch && !p.is_launch) return false;
+      if (filters.onlyFeatured && !p.is_destaque) return false;
       if (filters.onlyBestSeller && !p.is_best_seller) return false;
       if (
         filters.category &&
@@ -1164,7 +1167,8 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       brands: new Set(active.map((p) => p.brand).filter(Boolean)).size,
       launch: active.filter((p) => p.is_launch).length,
       best: active.filter((p) => p.is_best_seller).length,
-    };
+      featured: active.filter((p) => p.is_destaque).length,
+    } as any;
   }, [products, serverMode, serverProducts, serverMeta, initialTotalCount, kpisState]);
 
   // --- AÇÕES ---
@@ -1264,11 +1268,15 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     setIsProcessing(true);
     try {
       await bulkUpdateFields(selectedIds, { [field]: value });
-      setProducts((prev) =>
-        prev.map((p) =>
-          selectedIds.includes(p.id) ? { ...p, [field]: value } : p
-        )
-      );
+      if (serverMode) {
+        await refreshServerPage(currentPage);
+      } else {
+        setProducts((prev) =>
+          prev.map((p) =>
+            selectedIds.includes(p.id) ? { ...p, [field]: value } : p
+          )
+        );
+      }
       toast.success('Atualizado!');
       setSelectedIds([]);
     } catch {
@@ -1284,13 +1292,17 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       await bulkUpdateFields(selectedIds, {
         [textConfig.field]: textConfig.value,
       });
-      setProducts((prev) =>
-        prev.map((p) =>
-          selectedIds.includes(p.id)
-            ? { ...p, [textConfig.field]: textConfig.value }
-            : p
-        )
-      );
+      if (serverMode) {
+        await refreshServerPage(currentPage);
+      } else {
+        setProducts((prev) =>
+          prev.map((p) =>
+            selectedIds.includes(p.id)
+              ? { ...p, [textConfig.field]: textConfig.value }
+              : p
+          )
+        );
+      }
       toast.success('Atualizado!');
       setShowTextModal(false);
       setSelectedIds([]);
@@ -1308,8 +1320,22 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         priceConfig.mode,
         Number(priceConfig.value)
       );
-      toast.success('Preços atualizados! Recarregando...');
-      window.location.reload();
+      toast.success('Preços atualizados!');
+      if (serverMode) {
+        await refreshServerPage(currentPage);
+      } else {
+        // best-effort: update local slice
+        setProducts((prev) =>
+          prev.map((p) =>
+            selectedIds.includes(p.id)
+              ? {
+                  ...p,
+                  price: priceConfig.mode === 'fixed' ? Number(priceConfig.value) : p.price,
+                }
+              : p
+          )
+        );
+      }
     } catch {
       toast.error('Erro');
       setIsProcessing(false);
@@ -1343,13 +1369,17 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         preferSoft: forceSoft || preferSoftDelete,
         scope: deleteScope,
       });
-      setProducts((prev) =>
-        prev
-          .map((p) =>
-            res?.softDeletedIds?.includes(p.id) ? { ...p, is_active: false } : p
-          )
-          .filter((p) => !res?.deletedIds?.includes(p.id))
-      );
+      if (serverMode) {
+        await refreshServerPage(currentPage);
+      } else {
+        setProducts((prev) =>
+          prev
+            .map((p) =>
+              res?.softDeletedIds?.includes(p.id) ? { ...p, is_active: false } : p
+            )
+            .filter((p) => !res?.deletedIds?.includes(p.id))
+        );
+      }
       toast.success(
         `${res?.deletedIds?.length || 0} excluídos, ${res?.softDeletedIds?.length || 0} inativados`
       );
@@ -1711,7 +1741,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
   return (
     <div className="space-y-6">
       {/* KPIS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           {
             label: 'Total',
@@ -1732,6 +1762,12 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
             color: 'text-purple-600 dark:text-purple-400',
           },
           {
+            label: 'Destaques',
+            val: kpis.featured,
+            icon: CheckSquare,
+            color: 'text-indigo-600 dark:text-indigo-400',
+          },
+          {
             label: 'Best Sellers',
             val: kpis.best,
             icon: Star,
@@ -1740,9 +1776,11 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         ].map((k, i) => {
           const isLaunch = k.label === 'Lançamentos';
           const isBest = k.label === 'Best Sellers';
+          const isFeatured = k.label === 'Destaques';
           const active =
             (isLaunch && filters.onlyLaunch) ||
-            (isBest && filters.onlyBestSeller);
+            (isBest && filters.onlyBestSeller) ||
+            (isFeatured && filters.onlyFeatured);
           return (
             <button
               key={i}
@@ -1752,6 +1790,11 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                   setFilters((prev) => ({
                     ...prev,
                     onlyLaunch: !prev.onlyLaunch,
+                  }));
+                } else if (isFeatured) {
+                  setFilters((prev) => ({
+                    ...prev,
+                    onlyFeatured: !prev.onlyFeatured,
                   }));
                 } else if (isBest) {
                   setFilters((prev) => ({
@@ -1983,6 +2026,17 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-slate-300">
                   <input
                     type="checkbox"
+                    checked={filters.onlyFeatured}
+                    onChange={(e) =>
+                      setFilters({ ...filters, onlyFeatured: e.target.checked })
+                    }
+                    className="rounded text-[var(--primary)]"
+                  />{' '}
+                  Destaques
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
                     checked={filters.onlyBestSeller}
                     onChange={(e) =>
                       setFilters({
@@ -2020,6 +2074,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                     minPrice: '',
                     maxPrice: '',
                     onlyLaunch: false,
+                    onlyFeatured: false,
                     onlyBestSeller: false,
                     brand: [],
                     category: '',

@@ -623,9 +623,9 @@ export function StoreProvider({
             .select('name, image_url')
             .eq('user_id', store.user_id)
             .order('name');
-          // @ts-expect-error - result typing may differ across supabase client versions
+          // NOTE: result typing may differ across supabase client versions
           data = res.data;
-          // @ts-expect-error - result typing may differ across supabase client versions
+          // NOTE: result typing may differ across supabase client versions
           error = res.error;
         } catch (err) {
           data = null;
@@ -640,9 +640,9 @@ export function StoreProvider({
               .select('name, image_url')
               .eq('user_id', store.user_id)
               .order('name');
-            // @ts-expect-error - result typing may differ across supabase client versions
+            // NOTE: result typing may differ across supabase client versions
             data = res2.data;
-            // @ts-expect-error - result typing may differ across supabase client versions
+            // NOTE: result typing may differ across supabase client versions
             error = res2.error;
           } catch (err2) {
             // manter error/data como está

@@ -392,7 +392,7 @@ export default function ImportVisualPage() {
               const blob = file;
               // createImageBitmap works well for large images in modern browsers
               // and prevents some decode issues that Image() has
-              // @ts-expect-error - lib DOM might not have exact typing in this env
+              // NOTE: lib DOM might not have exact typing in this env
               return await createImageBitmap(blob);
             } catch (err) {
               return null;

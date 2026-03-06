@@ -65,7 +65,7 @@ const getBase64ImageFromURL = async (
     // Try createImageBitmap for fast size extraction and drawing
     let bitmap: ImageBitmap | null = null;
     try {
-      // @ts-expect-error - createImageBitmap may be available only in certain runtimes
+      // NOTE: createImageBitmap may be available only in certain runtimes
       bitmap = await createImageBitmap(blob);
     } catch (e) {
       bitmap = null;

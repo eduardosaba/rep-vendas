@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     let userId: string | null = null;
     try {
       // supabase.auth.getUser may exist in this server client
-      // @ts-expect-error - supabase.auth.getUser may not be available in all client versions
+      // NOTE: supabase.auth.getUser may not be available in all client versions
       const userRes = await supabase.auth.getUser?.();
       // newer versions return { data: { user } }
       if (userRes && (userRes as any).data && (userRes as any).data.user) {

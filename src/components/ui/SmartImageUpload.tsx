@@ -91,7 +91,7 @@ export default function SmartImageUpload({
 
     return await new Promise<Blob>((resolve, reject) => {
       // toBlob com webp
-      // @ts-expect-error - DOM types for canvas.toBlob vary across environments
+      // NOTE: DOM types for canvas.toBlob vary across environments
       canvas.toBlob(
         (b: Blob | null) => {
           if (!b) return reject(new Error('toBlob_failed'));

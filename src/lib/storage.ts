@@ -92,7 +92,7 @@ export const deleteImageIfUnused = async (
     // Use the public SQL RPC if present (`sql` wrapper used in some deployments).
     let totalRefs = 0;
     try {
-      // @ts-expect-error - some Supabase instances expose a generic `sql` RPC
+      // NOTE: some Supabase instances expose a generic `sql` RPC
       const { data: countRes, error: countErr } = await supabase.rpc('sql', {
         query: countQuery,
         params: [cleanPath],

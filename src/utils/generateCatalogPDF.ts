@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { formatImageUrl, buildSupabaseImageUrl } from '@/lib/imageUtils';
 
 const hexToRgb = (hex: string): [number, number, number] => {
   const h = hex.replace('#', '').padEnd(6, '0');
@@ -81,11 +82,19 @@ export const generateCatalogPDF = async (products: any[], options: any) => {
 
   for (let i = 0; i < products.length; i++) {
     const p = products[i];
-    const url =
-      p.image_url ||
-      (p.image_path
-        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${p.image_path.replace('public/', '')}`
-        : null);
+    // Resolve image URL: prefer explicit image_url, otherwise route image_path via proxy
+    let url: string | null = null;
+    if (p.image_url && typeof p.image_url === 'string' && p.image_url.trim()) {
+      url = p.image_url;
+    } else if (p.image_path) {
+      // Use `formatImageUrl` to generate `/api/storage-image?path=...` proxy URL
+      url = formatImageUrl(p.image_path);
+      // fallback: if formatImageUrl returned placeholder, try building direct public URL
+      if (!url || url === '/placeholder.png') {
+        const direct = buildSupabaseImageUrl(p.image_path as any) as string | null;
+        url = direct || null;
+      }
+    }
 
     if (url) {
       const res = await getSafeImage(url);
