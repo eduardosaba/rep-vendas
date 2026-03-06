@@ -38,7 +38,7 @@ export async function copyBrandImageToUser({
   if (dlError) throw dlError;
 
   // convert to buffer
-  // @ts-ignore
+  // @ts-ignore - downloadData may be a Blob or a ReadableStream depending on runtime
   const arrayBuffer = await downloadData.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 

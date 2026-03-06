@@ -62,7 +62,7 @@ export async function GET(request: Request) {
         if ((w || h || q || fmt) && buffer.length > 0) {
           try {
             // dynamic import to avoid requiring sharp in environments where it's not available
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
+             
             const sharp = await import('sharp');
             let pipeline = (sharp.default || sharp)(buffer).rotate();
             if (w || h) {

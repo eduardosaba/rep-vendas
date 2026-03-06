@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { inngest } from '@/inngest/client';
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     let userId: string | null = null;
     try {
       // supabase.auth.getUser may exist in this server client
-      // @ts-ignore
+      // @ts-ignore - supabase.auth.getUser may not be available in all client versions
       const userRes = await supabase.auth.getUser?.();
       // newer versions return { data: { user } }
       if (userRes && (userRes as any).data && (userRes as any).data.user) {
@@ -155,9 +156,24 @@ export async function POST(req: Request) {
       is_active: typeof is_active === 'boolean' ? is_active : true,
       representative_name: representative_name || null,
       whatsapp_message_template: whatsapp_message_template || null,
-      price_password_hash: price_password_hash || price_password || null,
+      // price_password_hash: only update when a non-empty value was explicitly provided.
+      // Avoid overwriting existing hash with null when payload omitted other fields.
+      // We'll set the final hash further below conditionally.
       updated_at: new Date().toISOString(),
     };
+
+    // Determine final price password hash only if provided explicitly
+    let finalPricePasswordHash: string | undefined;
+    if (typeof price_password_hash === 'string' && price_password_hash.trim()) {
+      finalPricePasswordHash = price_password_hash.trim();
+    } else if (typeof price_password === 'string' && price_password.trim()) {
+      // server-side hash using sha256 to match client behaviour
+      finalPricePasswordHash = crypto.createHash('sha256').update(price_password).digest('hex');
+    }
+
+    if (typeof finalPricePasswordHash !== 'undefined') {
+      settingsPayload.price_password_hash = finalPricePasswordHash;
+    }
 
     // Upsert settings
     const { error: settingsError } = await supabase
@@ -284,7 +300,7 @@ export async function POST(req: Request) {
         typeof enable_stock_management === 'boolean'
           ? enable_stock_management
           : !!manage_stock,
-      price_password_hash: price_password_hash || price_password || null,
+      // same as settings above: do not force null overwrite; final value assigned below if provided
       // grid_cols removed from public_catalogs payload
       show_top_benefit_bar: !!show_top_benefit_bar,
       show_top_info_bar: !!show_top_info_bar,
@@ -307,6 +323,11 @@ export async function POST(req: Request) {
       is_active: typeof is_active === 'boolean' ? is_active : true,
       updated_at: new Date().toISOString(),
     };
+
+    // Set public catalog password hash only if provided explicitly
+    if (typeof finalPricePasswordHash !== 'undefined') {
+      publicCatalogPayload.price_password_hash = finalPricePasswordHash;
+    }
 
     // If no slug provided, try to discover existing slug for this user
     let finalSlugToUse = publicCatalogPayload.catalog_slug;

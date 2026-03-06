@@ -4,7 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 // Fallback hooks: algumas versões do Next/React expõem hooks de formulário em 'react-dom'.
 // Usamos esses exports legados quando as APIs novas (`React.useActionState`) não existem.
-// @ts-ignore
+// @ts-ignore - legacy exports may not exist in all React/DOM versions
 import {
   useFormState as useFormStateLegacy,
   useFormStatus as useFormStatusLegacy,

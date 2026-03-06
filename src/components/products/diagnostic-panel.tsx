@@ -25,7 +25,7 @@ export default function DiagnosticPanel() {
 
   useEffect(() => {
     loadDiagnostics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const handleRepair = async (isAuto = false) => {

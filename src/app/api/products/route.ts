@@ -156,7 +156,7 @@ export async function GET(req: Request) {
     }
 
     let data: any = null;
-    let error: any = null;
+    const error: any = null;
     let count: number | null = null;
     try {
       const res: any = await query;

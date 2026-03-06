@@ -127,7 +127,7 @@ export default function SyncStatusCard({
           // ignore
         }
       })();
-      let pollInterval = setInterval(() => {
+      const pollInterval = setInterval(() => {
         fetchLatestJobForUser();
       }, 3000);
 

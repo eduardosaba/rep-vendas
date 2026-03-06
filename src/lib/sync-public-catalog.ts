@@ -68,12 +68,10 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  let supabase: any;
-  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-    supabase = createServiceClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  } else {
-    supabase = await createAnonClient();
-  }
+  const supabase: any =
+    SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+      ? createServiceClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      : await createAnonClient();
 
   // Valida slug
   const slug = (data.slug || '').toLowerCase();
@@ -82,7 +80,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
   }
 
   // Normalização de flags
-  let showSale = data.show_sale_price ?? true;
+  const showSale = data.show_sale_price ?? true;
   let showCost = data.show_cost_price ?? false;
   if (showSale && showCost) showCost = false;
 
@@ -111,7 +109,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
 
   // Merge data with settings as best-effort so fields like phone/email/hash
   // are present when not provided by the caller.
-  let mergedData: SyncCatalogData = { ...data };
+  const mergedData: SyncCatalogData = { ...data };
   try {
     const { data: settings } = await supabase
       .from('settings')

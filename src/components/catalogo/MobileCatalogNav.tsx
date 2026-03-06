@@ -1,6 +1,7 @@
 'use client';
 
 import { useStore } from '@/components/catalogo/store-context';
+import type { CartItem } from '@/lib/types';
 import {
   Home,
   Eye,
@@ -24,7 +25,7 @@ export function MobileCatalogNav() {
     // Se não tiver, ajuste o link/ação conforme sua lógica
   } = useStore();
 
-  const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const cartCount = cart.reduce((acc: number, item: CartItem) => acc + (item.quantity || 0), 0);
 
   const formatWhatsappUrl = (phone?: string) => {
     if (!phone) return '#';

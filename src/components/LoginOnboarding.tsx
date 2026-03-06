@@ -41,7 +41,7 @@ const features: Feature[] = [
     id: 3,
     title: 'Pedidos em Segundos',
     description:
-      'Lance pedidos rapidamente no balcão ou em movimento. Otimizado para a agilidade do representante.',
+      'Lançe pedidos rapidamente no balcão ou em movimento. Otimizado para a agilidade do representante.',
     icon: Zap,
     color: 'bg-violet-500',
   },

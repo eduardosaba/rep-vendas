@@ -475,7 +475,7 @@ export function EditProductForm({ product }: { product: Product }) {
     } catch (e) {
       console.warn('Normalization of gallery failed', e);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [product]);
 
   // Note: preserve `gender` exactly as stored in `products` table for edit form
@@ -508,6 +508,7 @@ export function EditProductForm({ product }: { product: Product }) {
     stock_quantity: product.stock_quantity ?? 0,
     is_launch: product.is_launch ?? false,
     is_best_seller: product.is_best_seller || product.bestseller || false,
+    is_destaque: (product as any).is_destaque ?? false,
     // status: active/inactive
     is_active: (product as any).is_active ?? (product as any).active ?? true,
     images: ensureOptimizedFirst(
@@ -1068,6 +1069,7 @@ export function EditProductForm({ product }: { product: Product }) {
         stock_quantity: formData.track_stock ? Number(formData.stock_quantity) : 0,
         is_launch: formData.is_launch,
         is_best_seller: formData.is_best_seller,
+        is_destaque: formData.is_destaque || false,
         technical_specs,
         class_core: formData.class_core || null,
         is_active: formData.is_active,
@@ -1652,6 +1654,11 @@ export function EditProductForm({ product }: { product: Product }) {
                 label: 'Best Seller',
                 color: 'text-yellow-600',
               },
+                {
+                  key: 'is_destaque',
+                  label: 'Destaque',
+                  color: 'text-amber-600',
+                },
             ].map((item) => (
               <label
                 key={item.key}

@@ -42,7 +42,7 @@ export default async function AdminLicensesPage() {
     .order('created_at', { ascending: false });
 
   // 2.1 Buscar contagem de produtos por usuário (otimizado com RPC)
-  let productCounts: Record<string, number> = {};
+  const productCounts: Record<string, number> = {};
 
   try {
     // Tenta usar função RPC otimizada

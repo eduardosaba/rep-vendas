@@ -72,8 +72,8 @@ export function formatImageUrl(path?: string | null) {
  * Normaliza/Reconstrói um item de galeria garantindo variantes 480w/1200w
  */
 export const buildGalleryItem = (img: any) => {
-  let url = (typeof img === 'string' ? img : img?.url || '').trim();
-  let path = img?.path || null;
+  const url = (typeof img === 'string' ? img : img?.url || '').trim();
+  const path = img?.path || null;
   if (!url) return null;
 
   // Função robusta para limpar quaisquer sufixos previamente aplicados

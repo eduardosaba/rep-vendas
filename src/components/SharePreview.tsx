@@ -27,7 +27,7 @@ const SharePreview: React.FC<SharePreviewProps> = ({
       <div className="max-w-sm bg-[#e7f3ef] dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="aspect-[1.91/1] w-full bg-white relative overflow-hidden border-b border-slate-200 dark:border-slate-700">
           {href ? (
-            // eslint-disable-next-line @next/next/no-html-link-for-pages
+             
             <a href={href} target="_blank" rel="noopener noreferrer">
               <img
                 src={imageUrl || '/link.webp'}

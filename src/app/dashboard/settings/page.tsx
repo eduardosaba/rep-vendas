@@ -533,7 +533,10 @@ export default function SettingsPage() {
       // 1. Send entire settings payload to server-side endpoint which
       //    will upsert `settings` and `profiles` and perform the
       //    `syncPublicCatalog` on the server (atomic and uses service role).
-      const serverPayload = {
+      // Note: do NOT include `price_password_hash` when empty — include
+      // it only when a hash was actually computed to avoid accidental
+      // overwrite with null on the server/public_catalogs.
+      const serverPayload: any = {
         slug: formData.catalog_slug || null,
         name: formData.name || null,
         phone: normalizedPhone || null,
@@ -577,8 +580,12 @@ export default function SettingsPage() {
         is_active: isActive,
         font_family: formData.font_family || null,
         font_url: formData.font_url ?? null,
-        price_password_hash: pricePasswordHash ?? null,
       };
+
+      // include password hash only when provided (non-null)
+      if (pricePasswordHash) {
+        serverPayload.price_password_hash = pricePasswordHash;
+      }
 
       if (formData.catalog_slug) {
         const res = await fetch('/api/settings/save', {
@@ -600,6 +607,19 @@ export default function SettingsPage() {
           );
         }
         publicAction = json?.success ? 'updated' : null;
+
+        // If the settings include a price password hash, immediately invalidate
+        // any local price-access grants so the new password takes effect.
+        if (serverPayload.price_password_hash) {
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('priceAccessGranted');
+              localStorage.removeItem('priceAccessExpiresAt');
+              // notify other tabs
+              window.dispatchEvent(new Event('storage'));
+            }
+          } catch {}
+        }
       }
 
       const baseMsg = 'Configurações aplicadas com sucesso!';

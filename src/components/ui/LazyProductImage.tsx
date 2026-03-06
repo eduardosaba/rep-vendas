@@ -78,7 +78,7 @@ export function LazyProductImage({
         </div>
       )}
 
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+      { }
       {imageSrc ? (
         <img
           ref={imgRef}

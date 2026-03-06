@@ -5,7 +5,7 @@ import { createRouteSupabase } from '@/lib/supabase/server';
 // Agora persistimos no banco via Supabase server client. Mantemos um
 // fallback em memória caso a escrita ao banco falhe.
 
-let inMemoryNotifications: any[] = [];
+const inMemoryNotifications: any[] = [];
 
 export async function GET(request: NextRequest) {
   try {

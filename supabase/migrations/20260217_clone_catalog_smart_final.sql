@@ -47,25 +47,25 @@ BEGIN
     LOOP
       BEGIN
         INSERT INTO public.products (
-          reference_code, name, description, brand, category, category_id,
+          reference_code, reference_id, name, description, brand, category, category_id,
           slug,
           price, original_price, sale_price, cost, discount_percent,
           image_url, external_image_url, image_path, images, gallery_images,
           image_variants, image_optimized, image_is_shared,
           is_active, is_launch, is_best_seller, bestseller,
           technical_specs, stock_quantity, track_stock, manage_stock,
-          min_stock_level, sku, barcode, color, class_core, short_id,
+          min_stock_level, sku, barcode, color, gender, class_core, short_id,
           original_product_id, sync_status, user_id
         )
         VALUES (
-          s_row.reference_code, s_row.name, s_row.description, s_row.brand, s_row.category, s_row.category_id,
+          s_row.reference_code, s_row.reference_id, s_row.name, s_row.description, s_row.brand, s_row.category, s_row.category_id,
           candidate_slug,
           s_row.price, s_row.original_price, s_row.sale_price, s_row.cost, s_row.discount_percent,
           s_row.image_url, s_row.external_image_url, s_row.image_path, s_row.images, s_row.gallery_images,
           s_row.image_variants, s_row.image_optimized, TRUE,
           s_row.is_active, s_row.is_launch, s_row.is_best_seller, s_row.bestseller,
           s_row.technical_specs, s_row.stock_quantity, s_row.track_stock, s_row.manage_stock,
-          s_row.min_stock_level, s_row.sku, s_row.barcode, s_row.color, s_row.class_core, s_row.short_id,
+          s_row.min_stock_level, s_row.sku, s_row.barcode, s_row.color, s_row.gender, s_row.class_core, s_row.short_id,
           s_row.id, 'synced', target_user_id
         )
         RETURNING id INTO cloned_product_id;

@@ -113,6 +113,9 @@ export async function updateProductAction(productId: string, formData: any) {
       }
     }
 
+    // RLS is expected to allow the authenticated owner to update their product,
+    // including `is_destaque`. No service-role bypass needed when RLS is configured.
+
     const { data, error } = await supabase
       .from('products')
       .update({

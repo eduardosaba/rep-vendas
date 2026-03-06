@@ -6,7 +6,7 @@
  */
 export function prepareProductImage(url: any | null | undefined) {
   // Normalizar entrada: aceitar objeto {url, path, variants}, array ou string
-  let candidate: any = url;
+  const candidate: any = url;
   if (!candidate) {
     return {
       image_url: null, // Usar NULL para que o fallback seja aplicado na UI
@@ -121,7 +121,7 @@ export function processSafiloImages(rawString: string | null | undefined) {
   }
 
   // 3. Busca a Capa Ideal: Tenta encontrar o padrão P00.jpg
-  let coverIndex = allUrls.findIndex((url) =>
+  const coverIndex = allUrls.findIndex((url) =>
     url.toLowerCase().includes('p00.')
   );
 

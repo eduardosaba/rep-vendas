@@ -47,7 +47,7 @@ export default async function ProductsPage() {
 
   // DEBUG TEMPORÁRIO: imprimir informações de autorização para diagnosticar limites
   try {
-    // eslint-disable-next-line no-console
+     
     console.log('[DEBUG_PRODUCTS_PAGE] activeUserId=', activeUserId, 'profileRole=', profile?.role, 'roleStr=', roleStr, 'isAdmin=', isAdmin);
   } catch (e) {
     // noop
@@ -86,7 +86,7 @@ export default async function ProductsPage() {
   );
 
   // 3. Query de Produtos (usar range sempre para honrar maxLimit)
-  let query = supabase
+  const query = supabase
     .from('products')
     .select('*', { count: 'exact' })
     .eq('user_id', activeUserId)
@@ -97,7 +97,7 @@ export default async function ProductsPage() {
 
   if (products && products.length >= maxLimit) {
     try {
-      // eslint-disable-next-line no-console
+       
       console.warn('[DEBUG_PRODUCTS_PAGE] produtos retornados (' + products.length + ") >= maxLimit (" + maxLimit + "). Considere paginar.");
     } catch (e) {
       // noop

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
+import FeaturedSection from '@/components/catalog/FeaturedSection';
 import { Phone } from 'lucide-react';
 import { StoreProvider } from './store-context';
 import {
@@ -198,6 +199,8 @@ export function Storefront({
     }
   }, [catalogFontUrl, finalSelected, finalSelectedName]);
 
+  // FeaturedSection moved to separate client component to ensure stable hooks
+
   return (
     <StoreProvider
       store={store}
@@ -281,6 +284,9 @@ export function Storefront({
         <CarouselBrands />
         <CategoryBar />
         <StoreBanners />
+
+        {/* Featured editorial carousel (destaques) */}
+        <FeaturedSection userId={store.user_id} />
 
         {/* Grid Principal com Sidebar de Filtros */}
         <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12 flex flex-col md:flex-row gap-8 flex-1 relative">

@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -63,8 +63,29 @@ export async function middleware(request: NextRequest) {
 
     // Se for uma requisição do navegador (GET) para o painel admin, e não houver
     // o segredo no header, bloqueamos. APIs internas também exigem o segredo.
-    if (!secret || header !== secret) {
-      return new NextResponse('Forbidden', { status: 403 });
+    // If there's an authenticated user, allow if they are `master`.
+    if (user) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profile && profile.role === 'master') {
+          // allow
+        } else if (!secret || header !== secret) {
+          return new NextResponse('Forbidden', { status: 403 });
+        }
+      } catch (e) {
+        // If profile lookup fails, fall back to header secret check
+        if (!secret || header !== secret) {
+          return new NextResponse('Forbidden', { status: 403 });
+        }
+      }
+    } else {
+      if (!secret || header !== secret) {
+        return new NextResponse('Forbidden', { status: 403 });
+      }
     }
   }
 

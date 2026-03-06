@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import type {
   Product as LibProduct,
   Settings as StoreSettings,
+  CartItem,
 } from '@/lib/types';
 
 interface ProductCardProps {
@@ -125,10 +126,11 @@ export function ProductCard({
 
   // showSale/showCost já definidos acima and used to control badges/visibility
 
-  const inCart = cart.find((it) => it.id === product.id);
+  const inCart = cart.find((it: CartItem) => it.id === product.id);
   const qty = inCart ? inCart.quantity : 0;
 
-  const variantCount = (product as any).variant_count || (product as any).variants?.length || 0;
+  const rawVariantCount = (product as any).variant_count || (product as any).variants?.length || 0;
+  const variantCount = Number(rawVariantCount) || 0;
   const isPartOfGroup = !!product.reference_id && product.reference_id !== product.reference_code;
 
   // Build up to 3 color dots from variant color fields (fallback to neutral palette)
@@ -145,8 +147,10 @@ export function ProductCard({
     } catch (e) {
       // ignore
     }
-    return ['#94A3B8', '#CBD5E1', '#475569'];
+    return ['#ff7b00', '#b9722e', '#060029'];
   })();
+
+  const additionalColors = Math.max(0, variantCount - 1);
 
   return (
     <div
@@ -223,7 +227,7 @@ export function ProductCard({
         </button>
 
         {/* Variant indicator (modern badge) - moved to bottom-right to avoid overlap */}
-        {variantCount > 1 && (
+        {variantCount >= 1 && (
           <div className="absolute bottom-2 right-2 z-10">
             <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-gray-100 px-2 py-1 rounded-md shadow-sm hover:scale-105 transition-transform cursor-default">
               <div className="flex -space-x-1.5">
@@ -235,9 +239,19 @@ export function ProductCard({
                   />
                 ))}
               </div>
-              <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">
-                + {variantCount - 1} CORES
-              </span>
+              {additionalColors === 0 ? (
+                <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">
+                  COR
+                </span>
+              ) : additionalColors === 1 ? (
+                <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">
+                  +1 COR
+                </span>
+              ) : (
+                <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">
+                  + {additionalColors} CORES
+                </span>
+              )}
             </div>
           </div>
         )}

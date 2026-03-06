@@ -2,15 +2,15 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
-import { Lock, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Lock, X, Loader2 } from 'lucide-react';
 
 interface PasswordModalProps {
   isPasswordModalOpen: boolean;
   setIsPasswordModalOpen: (isOpen: boolean) => void;
   passwordInput: string;
   setPasswordInput: (password: string) => void;
-  handleUnlockPrices: (e: React.FormEvent) => void;
+  handleUnlockPrices: (e: React.FormEvent) => Promise<void>;
 }
 
 export function PasswordModal({
@@ -20,13 +20,11 @@ export function PasswordModal({
   setPasswordInput,
   handleUnlockPrices,
 }: PasswordModalProps) {
+  const [isLoading, setIsLoading] = useState(false);
+
   // Body scroll-lock
   useEffect(() => {
-    if (isPasswordModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    document.body.style.overflow = isPasswordModalOpen ? 'hidden' : 'unset';
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -61,7 +59,19 @@ export function PasswordModal({
               Digite a senha para ver os preços.
             </p>
           </div>
-          <form id="password-form" onSubmit={handleUnlockPrices}>
+          <form
+            id="password-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!passwordInput.trim() || isLoading) return;
+              setIsLoading(true);
+              try {
+                await handleUnlockPrices(e);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+          >
             {/* Accessibility: include an (optionally hidden) username field
                 so browsers can associate the password correctly. */}
             <input
@@ -76,9 +86,11 @@ export function PasswordModal({
               autoComplete="current-password"
               autoFocus
               placeholder="Senha"
-              className="w-full p-3 text-center text-lg border rounded-xl outline-none focus:ring-2 focus:ring-primary"
+              required
+              disabled={isLoading}
+              className="w-full p-3 text-center text-lg border rounded-xl outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
               value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
+              onChange={(e) => setPasswordInput(String(e.target.value).trimStart())}
             />
           </form>
         </div>
@@ -88,9 +100,17 @@ export function PasswordModal({
           <button
             type="submit"
             form="password-form"
-            className="w-full py-3 min-h-[44px] bg-primary text-white rounded-xl font-bold hover:bg-primary/90"
+            disabled={isLoading || !passwordInput.trim()}
+            className="w-full py-3 min-h-[44px] bg-primary text-white rounded-xl font-bold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Desbloquear
+            {isLoading ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                <span>Verificando...</span>
+              </>
+            ) : (
+              'Desbloquear'
+            )}
           </button>
         </div>
       </div>

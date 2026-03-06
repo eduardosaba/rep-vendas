@@ -1014,6 +1014,7 @@ export function StoreModals() {
           e.preventDefault();
           const ok = await unlockPrices(passwordInput);
           if (ok) setModal('password', false);
+          else setPasswordInput('');
         }}
       />
 

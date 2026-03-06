@@ -299,7 +299,7 @@ export function CategoryBar() {
                   {(displayGenders && displayGenders.length
                     ? displayGenders
                     : genders
-                  ).map((g) => (
+                  ).map((g: string) => (
                     <button
                       key={g}
                       onClick={() => {
@@ -618,7 +618,7 @@ export function CategoryBar() {
                   {(displayGenders && displayGenders.length
                     ? displayGenders
                     : genders
-                  ).map((g) => (
+                  ).map((g: string) => (
                     <button
                       key={g}
                       onClick={() => {
@@ -953,7 +953,7 @@ export function StoreBanners() {
 
   // Mapeia apenas os banners que foram feitos upload (1, 2, 3... N banners)
   // Não é obrigatório ter 5 banners - renderiza quantos existirem
-  const slides: SlideData[] = (activeBanners || []).map((url, index) => ({
+  const slides: SlideData[] = (activeBanners || []).map((url: string, index: number) => ({
     id: index,
     imageUrl: url, // URL já normalizada pelo store-context
     linkUrl: '#',
@@ -1200,7 +1200,7 @@ export function ProductGrid() {
                     ? Array.from({ length: 8 }).map((_, i) => (
                         <ProductCardSkeleton key={`skeleton-${i}`} />
                       ))
-                    : displayProducts.map((product) => (
+                        : displayProducts.map((product: any) => (
                         <ProductCard
                           key={product.id}
                           product={product}
@@ -1235,7 +1235,7 @@ export function ProductGrid() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {displayProducts.map((product) => {
+                  {displayProducts.map((product: any) => {
                     const outOfStock = isOutOfStock(product);
                     return (
                       <tr
@@ -1295,7 +1295,7 @@ export function ProductGrid() {
           ) : (
             // --- MODO LISTA (Responsivo Mobile) ---
             <div className="flex flex-col gap-3 sm:gap-4">
-              {displayProducts.map((product) => {
+              {displayProducts.map((product: any) => {
                 const outOfStock = isOutOfStock(product);
                 return (
                   <div

@@ -713,13 +713,13 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
 
     // debounce
     if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
-    // @ts-ignore
+    // @ts-ignore - timer ref may be typed differently across environments
     fetchTimerRef.current = window.setTimeout(() => doFetch(currentPage), 350);
 
     return () => {
       if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [
     serverMode,
     userId,
@@ -1567,9 +1567,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 Array.isArray(product.image_variants)
               ) {
                 const smallVariant =
-                  product.image_variants.find((v: any) => v.size === 480) ||
+                  product.image_variants.find((v: any) => v && (v.size === 480 || v.size === '480')) ||
                   product.image_variants[0];
-                const variantPath = smallVariant.path || (smallVariant as any).storage_path || null;
+                const variantPath = smallVariant?.path || (smallVariant as any)?.storage_path || null;
                 if (variantPath) thumbnailSrc = formatImageUrl(variantPath);
               } else {
                 const { src, isExternal } = getProductImageUrl(product as any);

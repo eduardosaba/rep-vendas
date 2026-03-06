@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   Calendar,
 } from 'lucide-react';
+import ClearUserProductsButton from '@/components/admin/ClearUserProductsButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -197,6 +198,9 @@ export default async function AdminImportDashboardPage() {
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Última Importação
                 </th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
@@ -291,6 +295,11 @@ export default async function AdminImportDashboardPage() {
                       ) : (
                         <span className="text-xs text-gray-400">Nunca</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center">
+                        <ClearUserProductsButton userId={row.user_id} />
+                      </div>
                     </td>
                   </tr>
                 );

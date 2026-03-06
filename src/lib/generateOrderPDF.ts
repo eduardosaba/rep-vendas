@@ -65,7 +65,7 @@ const getBase64ImageFromURL = async (
     // Try createImageBitmap for fast size extraction and drawing
     let bitmap: ImageBitmap | null = null;
     try {
-      // @ts-ignore - createImageBitmap exists in modern browsers
+      // @ts-ignore - createImageBitmap may be available only in certain runtimes
       bitmap = await createImageBitmap(blob);
     } catch (e) {
       bitmap = null;
@@ -165,7 +165,7 @@ export const generateOrderPDF = async (
   const primaryColor = store.primary_color || '#b9722e';
 
   // 1. CABEÇALHO & LOGO
-  let startY = 15;
+  const startY = 15;
   const logoUrl =
     store.logo_url ||
     'https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg';

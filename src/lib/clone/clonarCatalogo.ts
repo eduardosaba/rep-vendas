@@ -33,34 +33,40 @@ export async function clonarCatalogo(
     };
   });
 
-  // 3) Upsert em lotes (supabase aceita upsert em arrays grandes, mas cuidado com tamanho)
+  // 3) Upsert em lotes — usar `reference_code` como chave para preservar variantes
+  // Observação: usar `reference_id` aqui fazia agrupar/colapsar múltiplos SKUs
+  // com o mesmo `reference_id`, o que perde campos por-variant (ex: `gender`).
   const { error: upsertError } = await svc
     .from('products')
-    .upsert(productsToClone, { onConflict: 'user_id,reference_id' });
+    .upsert(productsToClone, { onConflict: 'user_id,reference_code' });
 
   if (upsertError) throw upsertError;
 
   // 4) Re-resgata produtos no target para obter os IDs gerados/atualizados
-  const referenceIds = productsToClone
-    .map((p: any) => p.reference_id)
+  // 4) Re-resgata produtos no target para obter os IDs gerados/atualizados
+  // Agora mapeamos por `reference_code` (chave usada no upsert) para garantir
+  // correspondência 1:1 entre o produto original e o clonado no target.
+  const referenceCodes = productsToClone
+    .map((p: any) => p.reference_code)
     .filter(Boolean);
   const { data: targetProducts } = await svc
     .from('products')
-    .select('id,reference_id')
+    .select('id,reference_code')
     .eq('user_id', targetUserId)
-    .in('reference_id', referenceIds);
+    .in('reference_code', referenceCodes);
 
-  const refToTargetId: Record<string, string> = {};
+  const refCodeToTargetId: Record<string, string> = {};
   (targetProducts || []).forEach((p: any) => {
-    if (p.reference_id) refToTargetId[p.reference_id] = p.id;
+    if (p.reference_code) refCodeToTargetId[p.reference_code] = p.id;
   });
 
   // 5) Clonar product_images: busca as imagens dos produtos originais e insere para os novos IDs
   const originalIds = originalProducts.map((p: any) => p.id).filter(Boolean);
   if (originalIds.length > 0) {
+    // Buscar todas as colunas de product_images para preservar metadados
     const { data: images } = await svc
       .from('product_images')
-      .select('id,product_id,url,is_primary,position,sync_status')
+      .select('*')
       .in('product_id', originalIds);
 
     if (images && images.length > 0) {
@@ -70,8 +76,9 @@ export async function clonarCatalogo(
         const originalProduct = originalProducts.find(
           (p: any) => p.id === img.product_id
         );
-        const ref = originalProduct?.reference_id || originalProduct?.reference_code;
-        const targetId = ref ? refToTargetId[ref] : null;
+        // Use reference_code (chave de upsert) para localizar o produto alvo
+        const refCode = originalProduct?.reference_code || null;
+        const targetId = refCode ? refCodeToTargetId[refCode] : null;
         if (targetId) {
           imagesToInsert.push({
             product_id: targetId,

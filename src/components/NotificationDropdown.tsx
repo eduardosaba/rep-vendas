@@ -25,6 +25,7 @@ export default function NotificationDropdown({
     useNotifications(userId);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const portalRef = useRef<HTMLDivElement | null>(null);
+  const portalNodeRef = useRef<HTMLDivElement | null>(null);
   const [stylePos, setStylePos] = useState<React.CSSProperties | null>(null);
 
   const displayUnread = unreadCount > 9 ? '9+' : unreadCount;
@@ -44,6 +45,24 @@ export default function NotificationDropdown({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Create a dedicated portal container to avoid manipulating document.body directly
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const node = document.createElement('div');
+    node.setAttribute('data-rv-notification-portal', 'true');
+    document.body.appendChild(node);
+    portalNodeRef.current = node;
+    return () => {
+      try {
+        if (portalNodeRef.current && portalNodeRef.current.parentNode)
+          portalNodeRef.current.parentNode.removeChild(portalNodeRef.current);
+      } catch (e) {
+        // ignore
+      }
+      portalNodeRef.current = null;
+    };
   }, []);
 
   // Calcula posição do dropdown quando abre e ao redimensionar/scroll
@@ -259,8 +278,9 @@ export default function NotificationDropdown({
               )}
             </div>
           </div>,
-          document.body
+          portalNodeRef.current || document.body
         )}
     </div>
   );
 }
+

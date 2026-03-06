@@ -120,25 +120,23 @@ function LogoImage({ src, alt }: { src: string; alt?: string }) {
 // --- Top bar (minimal) ---
 export function StoreTopBar() {
   const { store } = useStore();
+  // Hook state must be declared unconditionally to satisfy React rules
+  const [benefitImageErrored, setBenefitImageErrored] = useState(false);
+  useEffect(() => {
+    // reset errored state when URL changes
+    setBenefitImageErrored(false);
+  }, [store?.top_benefit_image_url]);
+
   if (!store) return null as any;
 
   // 1) Barra de benefícios configurável pelo admin
   if (store.show_top_benefit_bar) {
     const bg = store.top_benefit_bg_color || 'var(--primary)';
-    const textColor =
-      store.top_benefit_text_color || getContrastColor(String(bg));
+    const textColor = store.top_benefit_text_color || getContrastColor(String(bg));
     const height = store.top_benefit_height || 36;
-    const [benefitImageErrored, setBenefitImageErrored] = React.useState(false);
-
-    React.useEffect(() => {
-      // reset errored state when URL changes
-      setBenefitImageErrored(false);
-    }, [store.top_benefit_image_url]);
 
     // Only render the <img> when we have a non-empty URL and it successfully loads.
-    const hasImageUrl = Boolean(
-      store.top_benefit_image_url && String(store.top_benefit_image_url).trim()
-    );
+    const hasImageUrl = Boolean(store.top_benefit_image_url && String(store.top_benefit_image_url).trim());
 
     return (
       <div className="w-full" style={{ backgroundColor: bg, color: textColor }}>
@@ -551,7 +549,7 @@ export function StoreSidebar() {
                     )}
                   </label>
 
-                  {brands.map((brand) => (
+                  {brands.map((brand: string) => (
                     <label
                       key={brand}
                       className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50 w-full`}
@@ -617,7 +615,7 @@ export function StoreSidebar() {
                     )}
                   </label>
 
-                  {categories.map((cat, idx) => (
+                  {categories.map((cat: any, idx: number) => (
                     <label
                       key={`sidebar-cat-${String(cat ?? idx)}`}
                       className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} cursor-pointer group select-none p-1 rounded hover:bg-gray-50 w-full`}
@@ -682,7 +680,7 @@ export function StoreSidebar() {
                   )}
                 </button>
 
-                {genders.map((g) => (
+                {genders.map((g: string) => (
                   <button
                     key={g}
                     onClick={() => setSelectedGender(g)}
@@ -971,7 +969,7 @@ export function StoreFooter() {
 
 // --- CARROSSEL DE MARCAS (Pílula Premium) ---
 export function CarouselBrands() {
-  const { brandsWithLogos, selectedBrand, setSelectedBrand } = useStore();
+  const { brandsWithLogos, selectedBrand, setSelectedBrand, brands, setSortOrder } = useStore();
   const [isMobile, setIsMobile] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -985,14 +983,11 @@ export function CarouselBrands() {
 
   // If we don't have logos from the `brands` table, fall back to rendering
   // the simple list of brand names from products so the UI remains usable.
-  const { brands } = useStore();
   const effectiveBrands =
     brandsWithLogos && brandsWithLogos.length > 0
       ? brandsWithLogos
       : (brands || []).map((b: any) => ({ name: b, logo_url: null }));
   if (!effectiveBrands || effectiveBrands.length === 0) return null;
-
-  const { setSortOrder } = useStore();
 
   const toggleBrand = (name: string) => {
     if (!name) return;

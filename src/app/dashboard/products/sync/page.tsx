@@ -194,7 +194,7 @@ export default function ProductSyncPage() {
           }
 
           // Lógica especial para imagens: suporta múltiplas URLs separadas por ';'
-          let imageProps: any = {};
+          const imageProps: any = {};
           if (dbTargetCol === 'image_url') {
             const rawString = String(val || '').trim();
             const allUrls = rawString

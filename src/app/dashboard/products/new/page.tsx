@@ -216,6 +216,7 @@ export default function NewProductPage() {
   const [formData, setFormData] = useState({
     name: '',
     reference_code: '',
+    reference_id: '',
     sku: '',
     barcode: '',
     color: '',
@@ -238,6 +239,52 @@ export default function NewProductPage() {
     technical_specs_text: '',
     technical_specs_table: [{ key: '', value: '' }],
   });
+
+  // Variant picker state (buscar grupos existentes para vincular)
+  const [showRefPicker, setShowRefPicker] = useState(false);
+  const [variantGroups, setVariantGroups] = useState<any[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  const loadVariantGroups = async () => {
+    try {
+      setLoadingGroups(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: rows, error } = await supabase
+        .from('products')
+        .select('id, reference_id, reference_code, name, image_url, color')
+        .eq('user_id', user.id)
+        .not('reference_id', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(200);
+
+      if (error) {
+        console.error('loadVariantGroups error', error);
+        return;
+      }
+
+      const map = new Map<string, any>();
+      (rows || []).forEach((r: any) => {
+        const rid = r.reference_id || r.reference_code || null;
+        if (!rid) return;
+        if (!map.has(rid)) {
+          map.set(rid, { reference_id: rid, count: 0, example: r });
+        }
+        const item = map.get(rid);
+        item.count = (item.count || 0) + 1;
+      });
+
+      const list = Array.from(map.values()).slice(0, 50);
+      setVariantGroups(list);
+    } catch (e) {
+      console.error('loadVariantGroups exception', e);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
 
   // URLs marcadas para enfileirar após criação do produto (quando usuário faz matcher antes de criar)
   const [pendingEnqueueUrls, setPendingEnqueueUrls] = useState<string[]>([]);
@@ -551,11 +598,18 @@ export default function NewProductPage() {
       const image_variants = finalImages.length > 0 ? finalImages[0].variants : null;
       const firstImagePath = finalImages.length > 0 ? finalImages[0].path || null : null;
 
+      // Normalize reference_id to avoid accidental splits between variants
+      const candidateRef = (formData as any).reference_id?.trim() || (formData as any).reference_code?.trim() || (formData as any).name?.trim() || null;
+      const normalizedRefId = candidateRef
+        ? slugify(String(candidateRef))
+        : null;
+
       const payload = {
         user_id: user.id,
         name: formData.name,
         reference_code:
           formData.reference_code || `REF-${Date.now().toString().slice(-6)}`,
+        reference_id: normalizedRefId,
         sku: formData.sku || null,
         barcode: formData.barcode || null,
         color: formData.color || null,
@@ -738,6 +792,71 @@ export default function NewProductPage() {
                   className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm"
                   placeholder="Automático se vazio"
                 />
+
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mt-3 mb-1">
+                  Variação / Grupo (reference_id)
+                </label>
+                <input
+                  value={formData.reference_id}
+                  onChange={(e) =>
+                    setFormData({ ...formData, reference_id: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-[var(--primary)] dark:text-white text-sm"
+                  placeholder="Ex: modelo-xyz (usado para agrupar cores)"
+                />
+                <p className="text-xs text-gray-400 mt-1">Opcional — usado para agrupar variantes/cores pelo mesmo modelo. Se vazio, será gerado a partir do código de referência ou nome.</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowRefPicker((s) => !s);
+                      if (!showRefPicker && variantGroups.length === 0) await loadVariantGroups();
+                    }}
+                    className="text-sm px-2 py-1 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
+                  >
+                    {showRefPicker ? 'Fechar variantes' : 'Buscar variantes existentes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, reference_id: '' })}
+                    className="text-sm px-2 py-1 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
+                  >
+                    Limpar
+                  </button>
+                </div>
+
+                {showRefPicker && (
+                  <div className="mt-3 bg-white border border-gray-100 dark:bg-slate-900 dark:border-slate-800 rounded-lg p-3 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <strong className="text-sm">Grupos de Variação</strong>
+                      <span className="text-xs text-gray-400">{loadingGroups ? 'Carregando...' : `${variantGroups.length} encontrados`}</span>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto grid grid-cols-1 gap-2">
+                      {variantGroups.length === 0 && !loadingGroups && (
+                        <div className="text-xs text-gray-400">Nenhum grupo encontrado.</div>
+                      )}
+                      {variantGroups.map((g: any) => (
+                        <button
+                          key={g.reference_id}
+                          onClick={() => {
+                            setFormData({ ...formData, reference_id: g.reference_id });
+                            setShowRefPicker(false);
+                          }}
+                          className="text-left p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-800 border border-transparent hover:border-gray-100 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-600">{(g.example?.color && g.example.color[0]) || (g.reference_id && g.reference_id[0])}</div>
+                            <div>
+                              <div className="text-sm">{g.reference_id}</div>
+                              <div className="text-xs text-gray-400">{g.count} produto(s) — {g.example?.name}</div>
+                            </div>
+                          </div>
+                          <div className="text-xs text-primary">Selecionar</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -51,7 +51,7 @@ export default function ImageWithRetry({
   };
 
   return (
-    // eslint-disable-next-line jsx-a11y/alt-text
+     
     <img
       src={curSrc}
       alt={alt}

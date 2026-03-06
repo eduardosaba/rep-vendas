@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Users, Copy, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,8 +12,10 @@ export default function NewUserSetup() {
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const progressRef = useRef<number | null>(null);
 
-  const [availableBrands, setAvailableBrands] = useState<string[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<{ name: string; count: number }[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -24,27 +26,41 @@ export default function NewUserSetup() {
       } catch (e) {
         console.error(e);
       }
-      // fetch available brands from products table
-      try {
-        const { data: productsData, error } = await supabase
-          .from('products')
-          .select('brand')
-          .neq('brand', null);
-        if (error) throw error;
-        const set = new Set<string>();
-        (productsData || []).forEach((p: any) => {
-          if (p.brand) set.add(p.brand);
-        });
-        const list = Array.from(set).sort();
-        if (list.length > 0) setAvailableBrands(list);
-        else setAvailableBrands(['Boss', 'Tommy Hilfiger', 'Love Moschino']);
-      } catch (e) {
-        console.error('Erro ao buscar marcas:', e);
-        setAvailableBrands(['Boss', 'Tommy Hilfiger', 'Love Moschino']);
-      }
     }
     load();
   }, []);
+
+  // Efeito para carregar as marcas sempre que o usuário de origem mudar
+  useEffect(() => {
+    async function loadUserBrands() {
+      try {
+        const params = sourceUser ? `?sourceUser=${encodeURIComponent(sourceUser)}` : '';
+        const res = await fetch(`/api/admin/brand-counts${params}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || 'Erro ao buscar marcas');
+
+        const list = json?.brands || [];
+        if (list.length > 0) setAvailableBrands(list);
+        else
+          setAvailableBrands([
+            { name: 'Boss', count: 0 },
+            { name: 'Tommy Hilfiger', count: 0 },
+            { name: 'Love Moschino', count: 0 },
+          ]);
+
+        setSelectedBrands([]);
+      } catch (e) {
+        console.error('Erro ao buscar marcas do usuário:', e);
+        setAvailableBrands([
+          { name: 'Boss', count: 0 },
+          { name: 'Tommy Hilfiger', count: 0 },
+          { name: 'Love Moschino', count: 0 },
+        ]);
+      }
+    }
+
+    loadUserBrands();
+  }, [sourceUser]); // roda sempre que sourceUser mudar
 
   const toggleBrand = (brand: string) => {
     setSelectedBrands((prev) =>
@@ -53,12 +69,30 @@ export default function NewUserSetup() {
   };
 
   const handleClone = async () => {
+    // Exigir seleção de usuário de origem para evitar clonagem acidental do Master
+    if (!sourceUser) {
+      toast.error('Selecione o usuário de ORIGEM.');
+      return;
+    }
+
     if (!selectedUser || selectedBrands.length === 0) {
       toast.error('Selecione o destino e ao menos uma marca.');
       return;
     }
 
     setLoading(true);
+    // start fake progress animation until RPC returns
+    setProgress(5);
+    if (progressRef.current) {
+      window.clearInterval(progressRef.current);
+      progressRef.current = null;
+    }
+    progressRef.current = window.setInterval(() => {
+      setProgress((p) => {
+        const next = p + Math.floor(Math.random() * 3) + 1; // +1..3
+        return next >= 80 ? 80 : next;
+      });
+    }, 400) as unknown as number;
     try {
       const session = await supabase.auth.getSession();
       const token = session?.data?.session?.access_token;
@@ -70,7 +104,7 @@ export default function NewUserSetup() {
           Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify({
-          sourceUserId: sourceUser || undefined,
+          sourceUserId: sourceUser,
           targetUserId: selectedUser,
           brands: selectedBrands,
         }),
@@ -79,16 +113,42 @@ export default function NewUserSetup() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Erro');
       toast.success(json?.message || 'Clonagem iniciada');
-      setSelectedBrands([]);
-      setSelectedUser('');
-      setSourceUser('');
+
+      // complete progress
+      if (progressRef.current) {
+        window.clearInterval(progressRef.current);
+        progressRef.current = null;
+      }
+      setProgress(100);
+
+      // small delay so user sees completion
+      setTimeout(() => {
+        setSelectedBrands([]);
+        setSelectedUser('');
+        setSourceUser('');
+        setProgress(0);
+      }, 700);
     } catch (e: any) {
       console.error(e);
       toast.error('Falha na clonagem: ' + (e.message || 'erro'));
+      if (progressRef.current) {
+        window.clearInterval(progressRef.current);
+        progressRef.current = null;
+      }
+      setProgress(0);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (progressRef.current) {
+        window.clearInterval(progressRef.current);
+        progressRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-gray-100 dark:border-slate-800 shadow-sm space-y-6">
@@ -143,29 +203,42 @@ export default function NewUserSetup() {
             Marcas para Clonar
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
-            {availableBrands.map((brand) => (
+            {availableBrands.map((b) => (
               <button
-                key={brand}
-                onClick={() => toggleBrand(brand)}
-                className={`px-4 py-3 rounded-2xl text-sm font-bold transition-all border ${selectedBrands.includes(brand) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500'}`}
+                key={b.name}
+                onClick={() => toggleBrand(b.name)}
+                className={`px-4 py-3 rounded-2xl text-sm font-bold transition-all border ${selectedBrands.includes(b.name) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500'}`}
               >
-                {brand}
+                <span className="flex items-center justify-center gap-2">
+                  <span>{b.name}</span>
+                  <span className="ml-2 text-[11px] bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 px-2 rounded-full">{b.count}</span>
+                </span>
               </button>
             ))}
+          </div>
+          {/* Progress bar */}
+          <div className="mt-3">
+            <div className="w-full h-2 bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-2 bg-indigo-600 transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           </div>
         </div>
       </div>
 
       <button
         onClick={handleClone}
-        disabled={loading}
+        disabled={loading || !sourceUser}
         className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
       >
         {loading ? (
           <Loader2 className="animate-spin" />
         ) : (
           <>
-            <Copy size={18} /> Clonar Catálogo Master
+            <Copy size={18} />
+            {sourceUser ? ' Clonar Usuário Selecionado' : ' Selecione uma Origem'}
           </>
         )}
       </button>

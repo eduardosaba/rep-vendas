@@ -1,148 +1,52 @@
-'use client';
+ 'use client';
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useMemo,
-  ReactNode,
-} from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
+import { generateOrderPDF } from '@/lib/generateOrderPDF';
 import type {
   Product,
   Settings as StoreSettings,
   PublicCatalog,
   CartItem,
-  CustomerInfo,
   BrandWithLogo,
+  CustomerInfo,
 } from '@/lib/types';
-import { createClient } from '@/lib/supabase/client';
-import { generateOrderPDF } from '@/lib/generateOrderPDF';
+
+// Constantes de imagem
+const IMAGE_PRIORITY_COUNT = 3;
+const IMAGE_SIZES = [300, 480, 900, 1200];
+
+// Contexto e Provider
+const StoreContext = createContext<any | null>(null);
+
+async function sha256(input: string) {
+  try {
+    const enc = new TextEncoder();
+    const data = enc.encode(input);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const arr = Array.from(new Uint8Array(hashBuffer));
+    return arr.map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return '';
+  }
+}
 
 interface StoreProviderProps {
-  children: ReactNode;
-  store: StoreSettings;
-  initialProducts: Product[];
-  startProductId?: string;
+  store: StoreSettings | PublicCatalog;
+  initialProducts?: Product[];
+  startProductId?: string | null;
+  children?: React.ReactNode;
 }
-
-interface StoreContextType {
-  store: StoreSettings;
-  initialProducts: Product[];
-  cart: CartItem[];
-  favorites: string[];
-  isPricesVisible: boolean;
-  setIsPricesVisible: (v: boolean) => void;
-  showPrices: boolean;
-  toggleShowPrices: () => void;
-  displayProducts: Product[];
-  totalProducts: number;
-  currentPage: number;
-  totalPages: number;
-  setCurrentPage: (p: number) => void;
-  itemsPerPage: number;
-  setItemsPerPage: (items: number) => void;
-  viewMode: 'grid' | 'list' | 'table';
-  setViewMode: (m: 'grid' | 'list' | 'table') => void;
-  hideImages: boolean;
-  setHideImages: (b: boolean) => void;
-  imagePriorityCount: number;
-  imageSizes: string;
-  brands: string[];
-  brandsWithLogos: BrandWithLogo[];
-  categories: string[];
-  categoriesWithData: { name: string; image_url: string | null }[];
-  genders: string[];
-  gendersWithData: { name: string; image_url: string | null }[];
-  searchTerm: string;
-  setSearchTerm: (s: string) => void;
-  isLoadingSearch: boolean;
-  selectedBrand: string | string[];
-  setSelectedBrand: (s: string | string[]) => void;
-  selectedCategory: string;
-  setSelectedCategory: (s: string) => void;
-  selectedGender: string;
-  setSelectedGender: (s: string) => void;
-  sortOrder:
-    | 'name'
-    | 'price_asc'
-    | 'price_desc'
-    | 'ref_asc'
-    | 'ref_desc'
-    | 'created_desc'
-    | 'created_asc';
-  setSortOrder: (
-    s:
-      | 'name'
-      | 'price_asc'
-      | 'price_desc'
-      | 'ref_asc'
-      | 'ref_desc'
-      | 'created_desc'
-      | 'created_asc'
-  ) => void;
-  showOnlyNew: boolean;
-  setShowOnlyNew: (b: boolean) => void;
-  showOnlyBestsellers: boolean;
-  setShowOnlyBestsellers: (b: boolean) => void;
-  showFavorites: boolean;
-  setShowFavorites: (b: boolean) => void;
-  isFilterOpen: boolean;
-  setIsFilterOpen: (b: boolean) => void;
-  currentBanner: number;
-  modals: {
-    password: boolean;
-    load: boolean;
-    save: boolean;
-    zoom: boolean;
-    cart: boolean;
-    checkout: boolean;
-    product: Product | null;
-  };
-  setModal: (name: string, value: any) => void;
-  addToCart: (p: Product | string, qty?: number) => void;
-  removeFromCart: (id: string) => void;
-  updateQuantity: (id: string, delta: number) => void;
-  toggleFavorite: (id: string) => void;
-  unlockPrices: (password: string) => Promise<boolean>;
-  handleFinalizeOrder: (customer: CustomerInfo) => Promise<boolean>;
-  handleSaveCart: () => Promise<string | null>;
-  handleLoadCart: (code: string) => Promise<boolean>;
-  handleSaveOrder: () => Promise<string | null>;
-  loadingStates: { submitting: boolean; saving: boolean; loadingCart: boolean };
-  orderSuccessData: any;
-  setOrderSuccessData: (data: any) => void;
-  handleDownloadPDF: () => Promise<void>;
-  handleSendWhatsApp: () => void;
-  customerSession: CustomerInfo | null;
-  clearCustomerSession: () => void;
-  pendingImagesCount?: number;
-  refreshPendingImages?: () => Promise<void>;
-}
-
-async function sha256(message: string) {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-const StoreContext = createContext<StoreContextType | null>(null);
 
 export function StoreProvider({
-  children,
   store,
-  initialProducts,
-  startProductId,
+  initialProducts = [],
+  startProductId = null,
+  children,
 }: StoreProviderProps) {
   const supabase = createClient();
-  // Image loading defaults
-  const IMAGE_PRIORITY_COUNT = 4; // first N images get priority
-  const IMAGE_SIZES = '(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw';
-
   // ✅ PAGINAÇÃO PREMIUM: Estado dinâmico (localStorage persistence)
   const [itemsPerPage, setItemsPerPage] = useState(() => {
     if (typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function') {
@@ -231,7 +135,7 @@ export function StoreProvider({
     } catch (e) {
       // ignore if window is not available or parsing fails
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Auto-detect network conditions to choose a conservative initial UX
@@ -462,7 +366,7 @@ export function StoreProvider({
   // Contador global de imagens pendentes (diagnóstico)
   const [pendingImagesCount, setPendingImagesCount] = useState<number>(0);
 
-  const refreshPendingImages = async () => {
+  const refreshPendingImages = useCallback(async () => {
     try {
       // Try to include auth token if available (endpoint may be protected)
       // Only call diagnostics if we have a session token (avoid 401 noise on public storefront)
@@ -497,13 +401,13 @@ export function StoreProvider({
     } catch (e) {
       // ignore
     }
-  };
+  }, [store.user_id, supabase]);
 
   useEffect(() => {
     refreshPendingImages();
     const t = setInterval(() => refreshPendingImages(), 1000 * 60 * 5);
     return () => clearInterval(t);
-  }, [store.user_id]);
+  }, [refreshPendingImages, store.user_id]);
 
   // LOGIN INVISÍVEL: estado para armazenar dados do cliente reconhecido
   const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(
@@ -719,9 +623,9 @@ export function StoreProvider({
             .select('name, image_url')
             .eq('user_id', store.user_id)
             .order('name');
-          // @ts-ignore
+          // @ts-ignore - result typing may differ across supabase client versions
           data = res.data;
-          // @ts-ignore
+          // @ts-ignore - result typing may differ across supabase client versions
           error = res.error;
         } catch (err) {
           data = null;
@@ -736,9 +640,9 @@ export function StoreProvider({
               .select('name, image_url')
               .eq('user_id', store.user_id)
               .order('name');
-            // @ts-ignore
+            // @ts-ignore - result typing may differ across supabase client versions
             data = res2.data;
-            // @ts-ignore
+            // @ts-ignore - result typing may differ across supabase client versions
             error = res2.error;
           } catch (err2) {
             // manter error/data como está
@@ -855,33 +759,36 @@ export function StoreProvider({
     };
   }, [store.user_id]);
 
-  const isFeatureAllowed = (
-    featureKey: 'view_prices' | 'finalize_order' | 'save_cart'
-  ) => {
-    // 1) plan matrix override: if present, honor explicit true/false
-    const plan = storePlanName || (store as any).plan_type || null;
-    if (plan && planFeatureMatrix && planFeatureMatrix[plan]) {
-      const val = planFeatureMatrix[plan][featureKey];
-      if (typeof val === 'boolean') return val;
-    }
+  const isFeatureAllowed = useMemo(
+    () => (
+      featureKey: 'view_prices' | 'finalize_order' | 'save_cart'
+    ) => {
+      // 1) plan matrix override: if present, honor explicit true/false
+      const plan = storePlanName || (store as any).plan_type || null;
+      if (plan && planFeatureMatrix && planFeatureMatrix[plan]) {
+        const val = planFeatureMatrix[plan][featureKey];
+        if (typeof val === 'boolean') return val;
+      }
 
-    // 2) trial-specific global controls: allow if trial and global flags permit
-    if (storeSubscriptionStatus === 'trial') {
-      if (featureKey === 'view_prices' && globalControls?.allow_trial_unlock)
-        return true;
-      if (
-        (featureKey === 'finalize_order' || featureKey === 'save_cart') &&
-        globalControls?.allow_trial_checkout
-      )
-        return true;
-    }
+      // 2) trial-specific global controls: allow if trial and global flags permit
+      if (storeSubscriptionStatus === 'trial') {
+        if (featureKey === 'view_prices' && globalControls?.allow_trial_unlock)
+          return true;
+        if (
+          (featureKey === 'finalize_order' || featureKey === 'save_cart') &&
+          globalControls?.allow_trial_checkout
+        )
+          return true;
+      }
 
-    // 3) default behavior: non-trial users keep existing permissions (allow)
-    if (storeSubscriptionStatus !== 'trial') return true;
+      // 3) default behavior: non-trial users keep existing permissions (allow)
+      if (storeSubscriptionStatus !== 'trial') return true;
 
-    // 4) fallback: block
-    return false;
-  };
+      // 4) fallback: block
+      return false;
+    },
+    [storePlanName, planFeatureMatrix, storeSubscriptionStatus, globalControls, store]
+  );
 
   useEffect(() => {
     localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
@@ -946,7 +853,7 @@ export function StoreProvider({
   /**
    * FINALIZAÇÃO DE PEDIDO COM UPLOAD DE PDF
    */
-  const handleFinalizeOrder = async (customer: CustomerInfo) => {
+  const handleFinalizeOrder = useCallback(async (customer: CustomerInfo) => {
     setLoadingStates((s) => ({ ...s, submitting: true }));
     try {
       // Check plan matrix / global controls to allow finalize for trial accounts
@@ -1045,7 +952,7 @@ export function StoreProvider({
     } finally {
       setLoadingStates((s) => ({ ...s, submitting: false }));
     }
-  };
+  }, [cart, store, isFeatureAllowed, supabase]);
 
   /**
    * WHATSAPP COM RESUMO EXECUTIVO E LINK DO PDF
@@ -1403,6 +1310,137 @@ export function StoreProvider({
     return s;
   }, [store]);
 
+  // Função para desbloquear preços (estável via useCallback)
+  const unlockPrices = useCallback(
+    async (p: string) => {
+      const plain = p.trim();
+
+      // ✅ VALIDAÇÃO CRÍTICA: Senha vazia NÃO desbloqueia
+      if (!plain || plain.length === 0) {
+        toast.error('Digite uma senha válida');
+        return false;
+      }
+
+      // Verificar se há senha configurada no catálogo
+      const hasPasswordConfigured =
+        (store as any).price_password_hash || (store as any).price_password;
+
+      // Primeiro, se existe hash no sistema (compatibilidade), verifique-o
+      if ((store as any).price_password_hash) {
+        const hash = await sha256(plain);
+        if (hash === (store as any).price_password_hash) {
+          setShowPrices(true);
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('priceAccessGranted', 'true');
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              localStorage.setItem(
+                'priceAccessExpiresAt',
+                tomorrow.toISOString()
+              );
+            }
+          } catch {}
+          toast.success('Preços desbloqueados!');
+          return true;
+        }
+      }
+
+      // Em seguida, suporte a senha em texto simples (legado/solicitado)
+      if (
+        (store as any).price_password &&
+        plain === (store as any).price_password
+      ) {
+        setShowPrices(true);
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('priceAccessGranted', 'true');
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            localStorage.setItem(
+              'priceAccessExpiresAt',
+              tomorrow.toISOString()
+            );
+          }
+        } catch {}
+        toast.success('Preços desbloqueados!');
+        return true;
+      }
+
+      // Fallback server-side: se o cliente não tem o hash/plano disponível
+      // (caso de catálogos novos/testes), chamamos uma rota segura que usa
+      // a Service Role para validar a senha contra `settings` ou
+      // `public_catalogs` no servidor.
+      try {
+        const res = await fetch('/api/catalog/verify-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: (store as any).user_id,
+            password: plain,
+          }),
+        });
+        if (res.ok) {
+          const j = await res.json();
+          // If server validated the password, unlock
+          if (j.ok) {
+            setShowPrices(true);
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('priceAccessGranted', 'true');
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                localStorage.setItem(
+                  'priceAccessExpiresAt',
+                  tomorrow.toISOString()
+                );
+              }
+            } catch {}
+            toast.success('Preços desbloqueados!');
+            return true;
+          }
+
+          // If server indicates a password is configured remotely, treat
+          // this as an incorrect password attempt and do NOT fall back to
+          // trial bypasses.
+          if (j.configured) {
+            toast.error('Senha incorreta');
+            return false;
+          }
+        }
+      } catch (e) {
+        console.error('verify-password request failed', e);
+      }
+
+      // ✅ SE CHEGOU AQUI: Senha foi fornecida mas está INCORRETA
+      if (hasPasswordConfigured) {
+        toast.error('Senha incorreta');
+        return false;
+      }
+
+      // Plan matrix override
+      if (isFeatureAllowed('view_prices')) {
+        setShowPrices(true);
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('priceAccessGranted', 'true');
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            localStorage.setItem(
+              'priceAccessExpiresAt',
+              tomorrow.toISOString()
+            );
+          }
+        } catch {}
+        return true;
+      }
+
+      toast.error('Acesso negado');
+      return false;
+    },
+    [store, isFeatureAllowed]
+  );
+
   return (
     <StoreContext.Provider
       value={{
@@ -1465,7 +1503,7 @@ export function StoreProvider({
         setIsFilterOpen,
         currentBanner,
         modals,
-        setModal: (n, v) => {
+        setModal: (n: string, v: any) => {
           // Ao abrir modal de produto, buscar variantes do mesmo `reference_id`/`reference_code`
           if (n === 'product') {
             // fechamento rápido
@@ -1502,156 +1540,13 @@ export function StoreProvider({
           setModals((m) => ({ ...m, [n]: v }));
         },
         addToCart,
-        removeFromCart: (id) => setCart((c) => c.filter((i) => i.id !== id)),
+        removeFromCart: (id: string) => setCart((c: any[]) => c.filter((i: any) => i.id !== id)),
         updateQuantity,
-        toggleFavorite: (id) =>
-          setFavorites((f) =>
-            f.includes(id) ? f.filter((x) => x !== id) : [...f, id]
+        toggleFavorite: (id: string) =>
+          setFavorites((f: string[]) =>
+            f.includes(id) ? f.filter((x: string) => x !== id) : [...f, id]
           ),
-        unlockPrices: async (p) => {
-          const plain = p.trim();
-
-          // ✅ VALIDAÇÃO CRÍTICA: Senha vazia NÃO desbloqueia
-          if (!plain || plain.length === 0) {
-            toast.error('Digite uma senha válida');
-            return false;
-          }
-
-          // Verificar se há senha configurada no catálogo
-          const hasPasswordConfigured =
-            (store as any).price_password_hash || (store as any).price_password;
-
-          // Primeiro, se existe hash no sistema (compatibilidade), verifique-o
-          if ((store as any).price_password_hash) {
-            const hash = await sha256(plain);
-            if (hash === (store as any).price_password_hash) {
-              setShowPrices(true);
-              try {
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('priceAccessGranted', 'true');
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  localStorage.setItem(
-                    'priceAccessExpiresAt',
-                    tomorrow.toISOString()
-                  );
-                }
-              } catch {}
-              toast.success('Preços desbloqueados!');
-              return true;
-            }
-          }
-
-          // Em seguida, suporte a senha em texto simples (legado/solicitado)
-          if (
-            (store as any).price_password &&
-            plain === (store as any).price_password
-          ) {
-            setShowPrices(true);
-            try {
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('priceAccessGranted', 'true');
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                localStorage.setItem(
-                  'priceAccessExpiresAt',
-                  tomorrow.toISOString()
-                );
-              }
-            } catch {}
-            toast.success('Preços desbloqueados!');
-            return true;
-          }
-
-          // Fallback server-side: se o cliente não tem o hash/plano disponível
-          // (caso de catálogos novos/testes), chamamos uma rota segura que usa
-          // a Service Role para validar a senha contra `settings` ou
-          // `public_catalogs` no servidor.
-          try {
-            const res = await fetch('/api/catalog/verify-password', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: (store as any).user_id,
-                password: plain,
-              }),
-            });
-            if (res.ok) {
-              const j = await res.json();
-              // If server validated the password, unlock
-              if (j.ok) {
-                setShowPrices(true);
-                try {
-                  if (typeof window !== 'undefined') {
-                    localStorage.setItem('priceAccessGranted', 'true');
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    localStorage.setItem(
-                      'priceAccessExpiresAt',
-                      tomorrow.toISOString()
-                    );
-                  }
-                } catch {}
-                toast.success('Preços desbloqueados!');
-                return true;
-              }
-
-              // If server indicates a password is configured remotely, treat
-              // this as an incorrect password attempt and do NOT fall back to
-              // trial bypasses.
-              if (j.configured) {
-                toast.error('Senha incorreta');
-                return false;
-              }
-            }
-          } catch (e) {
-            console.error('verify-password request failed', e);
-          }
-
-          // ✅ SE CHEGOU AQUI: Senha foi fornecida mas está INCORRETA
-          if (hasPasswordConfigured) {
-            toast.error('Senha incorreta');
-            return false;
-          }
-
-          // ⚠️ FALLBACKS: Apenas quando NÃO há senha configurada
-          // If global control allows trial unlock bypass, allow it
-          if (globalControls?.allow_trial_unlock) {
-            setShowPrices(true);
-            try {
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('priceAccessGranted', 'true');
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                localStorage.setItem(
-                  'priceAccessExpiresAt',
-                  tomorrow.toISOString()
-                );
-              }
-            } catch {}
-            return true;
-          }
-
-          // Plan matrix override
-          if (isFeatureAllowed('view_prices')) {
-            setShowPrices(true);
-            try {
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('priceAccessGranted', 'true');
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                localStorage.setItem(
-                  'priceAccessExpiresAt',
-                  tomorrow.toISOString()
-                );
-              }
-            } catch {}
-            return true;
-          }
-
-          toast.error('Acesso negado');
-          return false;
-        },
+        unlockPrices,
         handleFinalizeOrder,
         handleSaveCart,
         handleLoadCart,

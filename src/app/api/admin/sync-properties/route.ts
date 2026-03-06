@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { targetUserId, brands, properties, dryRun } = body;
+    const { targetUserId, sourceUserId, brands, properties, dryRun } = body;
 
     // Default properties if not specified
     const propsToSync = properties || [
@@ -26,25 +26,55 @@ export async function POST(req: Request) {
       'description',
     ];
 
+    // determine effective source user: allow override when caller is master/admin
+    let effectiveSource = user.id;
+    if (sourceUserId && String(sourceUserId) !== String(user.id)) {
+      // check role of caller
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      const role = profile?.role || null;
+      if (role === 'master' || role === 'admin') {
+        effectiveSource = sourceUserId;
+      } else {
+        return NextResponse.json({ error: 'Forbidden to act on behalf of other users' }, { status: 403 });
+      }
+    }
+
+    // Support full clone when properties === 'all'
+    if (properties === 'all') {
+      // dry-run: count how many products would be cloned from the source for the brands
+      if (dryRun) {
+        const q = supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', effectiveSource);
+        if (brands && Array.isArray(brands) && brands.length > 0) q.in('brand', brands);
+        const { count, error: cErr } = await q;
+        if (cErr) throw cErr;
+        return NextResponse.json({ success: true, updatedCount: typeof count === 'number' ? count : 0 });
+      }
+
+      // execute full clone via RPC
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('clone_catalog_smart', {
+        source_user_id: effectiveSource,
+        target_user_id: targetUserId,
+        brands_to_copy: brands || null,
+      });
+
+      if (rpcErr) throw rpcErr;
+      return NextResponse.json({ success: true, updatedCount: rpcData });
+    }
+
     if (dryRun) {
       // Compute affected clones without applying changes
       // 1) fetch catalog_clones for this source user (and optional target filter)
       const { data: clones, error: clonesErr } = await supabase
         .from('catalog_clones')
         .select('source_product_id, cloned_product_id, target_user_id')
-        .eq('source_user_id', user.id)
-        .maybeSingle();
+        .eq('source_user_id', effectiveSource);
 
       // Note: .maybeSingle above returns single row when using maybeSingle; but we want array
       // Adjust: redo select without maybeSingle
-      const { data: clonesArr, error: clonesErr2 } = await supabase
-        .from('catalog_clones')
-        .select('source_product_id, cloned_product_id, target_user_id')
-        .eq('source_user_id', user.id);
-
-      if (clonesErr2) throw clonesErr2;
-
-      let filtered = clonesArr || [];
+      let filtered = clones || [];
 
       if (targetUserId) {
         filtered = filtered.filter((c: any) => String(c.target_user_id) === String(targetUserId));
@@ -67,7 +97,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        updatedProducts,
+        updatedCount: updatedProducts,
         affectedUsers,
         message: `${updatedProducts} produtos seriam atualizados em ${affectedUsers} usuário(s)`,
       });
@@ -77,7 +107,7 @@ export async function POST(req: Request) {
     const { data, error } = await supabase.rpc(
       'sync_product_properties_to_clones',
       {
-        p_source_user_id: user.id,
+        p_source_user_id: effectiveSource,
         p_target_user_id: targetUserId || null,
         p_brands: brands || null,
         p_properties: propsToSync,

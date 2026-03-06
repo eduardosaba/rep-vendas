@@ -183,7 +183,7 @@ export function SmartImage({
             sizes ||
             (variant === 'thumbnail' ? '100px' : '(max-width: 768px) 100vw, 400px')
           }
-          {...(variant === 'full' ? { fetchPriority: 'high', loading: 'eager' as 'eager' } : { loading: 'lazy' as 'lazy' })}
+          {...(variant === 'full' ? { fetchPriority: 'high', loading: 'eager' as const } : { loading: 'lazy' as const })}
           decoding="async"
           onError={handleError}
           onLoad={() => setLoaded(true)}

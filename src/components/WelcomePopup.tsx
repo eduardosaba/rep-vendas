@@ -10,25 +10,52 @@ interface WelcomePopupProps {
 
 export default function WelcomePopup({ version, onConfirm }: WelcomePopupProps) {
   const [posting, setPosting] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // register delivery when popup mounts
     if (!version) return;
+
+    // Segurança: se já vimos esse ID e não é force_show, avisar o pai e não renderizar
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const lastSeen = window.localStorage.getItem('repvendas_last_seen_update_id');
+        if (lastSeen === String(version.id) && !version.force_show) {
+          // solicita ao pai para limpar/fechar
+          onConfirm();
+          return;
+        }
+      }
+    } catch (e) {
+      // ignore localStorage errors
+    }
+
+    // Se chegou aqui, podemos mostrar e registrar a entrega
+    setVisible(true);
     try {
       fetch('/api/popup/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ popupId: version.id }),
       }).catch(() => {});
-    } catch (e) {}
-  }, [version]);
+    } catch (e) {
+      // ignore
+    }
+  }, [version, onConfirm]);
 
-  if (!version) return null;
+  if (!version || !visible) return null;
 
   const handleClose = async () => {
     if (!version) return onConfirm();
     try {
       setPosting(true);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('repvendas_last_seen_update_id', String(version.id));
+        }
+      } catch (e) {
+        // ignore localStorage errors
+      }
+
       await fetch('/api/popup/view', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

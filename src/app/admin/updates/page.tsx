@@ -100,6 +100,8 @@ export default function AdminUpdatesPage() {
   const [editorForceShow, setEditorForceShow] = useState(false);
   const [editorPublish, setEditorPublish] = useState(true);
   const [newHighlight, setNewHighlight] = useState('');
+  const [showUnpublishModal, setShowUnpublishModal] = useState<string | null>(null);
+  const [unpublishing, setUnpublishing] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'history') fetchHistory();
@@ -171,20 +173,31 @@ export default function AdminUpdatesPage() {
     }
   };
 
-  const handleUnpublish = async (version: string) => {
-    if (!confirm(`Despublicar a versão ${version}? Isso a removerá do fluxo ativo.`)) return;
+  const handleUnpublish = (version: string) => {
+    setShowUnpublishModal(version);
+  };
+
+  const handleConfirmUnpublish = async () => {
+    if (!showUnpublishModal) return;
+    setUnpublishing(true);
     try {
       const res = await fetch('/api/admin/update-version', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version, publish: false }),
+        body: JSON.stringify({ version: showUnpublishModal, publish: false }),
       });
-      if (!res.ok) throw new Error('Falha ao despublicar');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Falha ao despublicar');
+      }
       toast.success('Versão despublicada');
+      setShowUnpublishModal(null);
       fetchHistory();
     } catch (e: any) {
       console.error('unpublish error', e);
       toast.error(e?.message || 'Erro ao despublicar');
+    } finally {
+      setUnpublishing(false);
     }
   };
 
@@ -379,6 +392,21 @@ export default function AdminUpdatesPage() {
           </div>
         </div>
       )}
+      {/* Modal de confirmação para despublicar */}
+      {showUnpublishModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-950 rounded-2xl p-6 w-full max-w-lg border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <h3 className="font-black text-lg">Despublicar versão</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">Confirma que deseja despublicar a versão <strong>v{showUnpublishModal}</strong>? Isso a removerá do fluxo ativo para todos os usuários.</p>
+            <div className="mt-4 flex justify-end gap-3">
+              <button onClick={() => setShowUnpublishModal(null)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800">Cancelar</button>
+              <button onClick={handleConfirmUnpublish} disabled={unpublishing} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-black">
+                {unpublishing ? 'Processando...' : 'Despublicar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HISTÓRICO (simplificado) */}
       {activeTab === 'history' && (
@@ -411,7 +439,7 @@ export default function AdminUpdatesPage() {
                       </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                       v{u.version} •{' '}
-                      {new Date(u.date).toLocaleDateString('pt-BR')}
+                      {new Date(u.date).toLocaleDateString()}
                     </p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {u.highlights?.slice(0, 3).map((h, i) => (

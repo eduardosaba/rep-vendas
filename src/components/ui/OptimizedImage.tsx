@@ -94,7 +94,7 @@ export function OptimizedImage({
   // Para URLs externas, usamos <img> nativo para evitar restrições do Next.js
   if (isExternal) {
     return (
-      // eslint-disable-next-line jsx-a11y/alt-text
+       
       <img
         src={src}
         alt={alt}

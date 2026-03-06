@@ -104,7 +104,7 @@ export function ExportModal({
       ctx.font = 'bold 20px Arial';
       ctx.textAlign = 'center';
       const words = options.title.toUpperCase().split(' ');
-      let lines = [];
+      const lines = [];
       let curLine = words[0];
       for (let i = 1; i < words.length; i++) {
         if (ctx.measureText(curLine + ' ' + words[i]).width < 220) {

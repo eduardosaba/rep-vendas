@@ -272,7 +272,7 @@ export async function POST(request: Request) {
             targetUrl,
             {
               method: 'GET',
-              // @ts-ignore - pass agent to node runtime
+              // @ts-expect-error - agent is a Node http(s) agent passed to fetchWithTimeout
               agent,
               headers: refinedHeaders,
               __allowInsecure:
@@ -442,7 +442,7 @@ export async function POST(request: Request) {
               {
                 method: 'GET',
                 headers: refinedDirectHeaders,
-                // @ts-ignore
+                // @ts-expect-error - agent is provided for Node runtime fetch
                 agent,
                 __allowInsecure:
                   (agent as any)?.options?.rejectUnauthorized === false,

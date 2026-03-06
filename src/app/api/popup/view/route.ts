@@ -12,17 +12,14 @@ export async function POST(req: Request) {
     const user = (userData || {}).user;
     if (!user) return NextResponse.json({ success: false, error: 'not_authenticated' }, { status: 401 });
 
+    // Update only the viewed_at field to preserve created_at (delivery) and
+    // avoid overwriting existing timestamps. Only set viewed_at if it's null
+    // so we keep the first view time.
     const { error } = await supabase
       .from('popup_logs')
-      .upsert(
-        {
-          popup_id: popupId,
-          user_id: user.id,
-          user_email: user.email || null,
-          viewed_at: new Date().toISOString(),
-        },
-        { onConflict: 'popup_id,user_id' }
-      );
+      .update({ viewed_at: new Date().toISOString() })
+      .match({ popup_id: popupId, user_id: user.id })
+      .is('viewed_at', null);
 
     if (error) throw error;
     return NextResponse.json({ success: true });

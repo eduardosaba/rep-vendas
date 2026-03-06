@@ -103,7 +103,7 @@ export async function POST(request: Request) {
     // Repasse explícito de campos críticos (telefone, email, hash de senha)
     // para garantir que sejam persistidos mesmo se a leitura de `settings`
     // falhar por questões de permissões/rls no client anon.
-    await syncPublicCatalog(user_id, {
+    const syncData: any = {
       slug: finalSlug,
       is_active: is_active ?? true,
       store_name,
@@ -139,8 +139,14 @@ export async function POST(request: Request) {
       // Campos críticos vindos do payload
       phone: body.phone ?? null,
       email: body.email ?? null,
-      price_password_hash: body.price_password_hash ?? null,
-    });
+    };
+
+    // Only include price_password_hash when explicitly provided (avoid accidental null overwrite)
+    if (Object.prototype.hasOwnProperty.call(body, 'price_password_hash') && body.price_password_hash) {
+      syncData.price_password_hash = body.price_password_hash;
+    }
+
+    await syncPublicCatalog(user_id, syncData);
 
     // Revalidação on-demand: atualizar cache/OG da página pública imediatamente
     try {

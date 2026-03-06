@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         .from('product-images')
         .list(prefix, { limit: 1000 });
       if (error) throw error;
-      let names: string[] = [];
+      const names: string[] = [];
       for (const item of data || []) {
         // Heurística: nomes sem extensão são pastas — descer recursivamente
         if (!item.name.includes('.')) {
