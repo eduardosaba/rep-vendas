@@ -153,6 +153,7 @@ export default function ProductDetailPage() {
         .select('*, linked_images, product_images(*), gallery_images')
         .eq('id', productId)
         .eq('user_id', store.user_id)
+        .eq('is_active', true)
         .order('position', { foreignTable: 'product_images', ascending: true }) // Ordena fotos
         .maybeSingle();
 

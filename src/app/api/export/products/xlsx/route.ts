@@ -14,13 +14,23 @@ export async function GET(req: Request) {
     }
 
     const supabase = await createClient();
-    const { data, error } = await supabase
+
+    // If specific ids are provided, export only them. Otherwise export all user's products.
+    const idsParam = url.searchParams.get('ids');
+    let query = supabase
       .from('products')
       .select(
         'id,name,reference_code,price,sale_price,brand,category,stock_quantity,updated_at'
       )
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
+
+    if (idsParam) {
+      const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean);
+      if (ids.length > 0) query = query.in('id', ids as any);
+    }
+
+    const { data, error } = await query;
 
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });

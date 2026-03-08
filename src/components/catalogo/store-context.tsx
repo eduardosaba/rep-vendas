@@ -1228,6 +1228,8 @@ export function StoreProvider({
     const base = searchResults || initialProducts;
     return base
       .filter((p) => {
+        // Nunca exibir produtos inativos no catálogo público
+        if (p.is_active === false) return false;
         if (showFavorites && !favorites.includes(p.id)) return false;
         if (showOnlyNew && !p.is_launch) return false;
         if (showOnlyBestsellers && !p.is_best_seller) return false;
@@ -1582,7 +1584,7 @@ export function StoreProvider({
                 const ref = v.reference_id || v.reference_code || null;
                 if (!ref) return;
 
-                let query = supabase.from('products').select('*').eq('user_id', v.user_id);
+                let query = supabase.from('products').select('*').eq('user_id', v.user_id).eq('is_active', true);
                 if (v.reference_id) query = query.eq('reference_id', v.reference_id);
                 else query = query.eq('reference_code', v.reference_code);
 

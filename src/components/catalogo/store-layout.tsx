@@ -807,7 +807,7 @@ export function StoreMobileActionBar() {
         {/* 3. CARRINHO - DESTAQUE CENTRAL */}
         <button
           onClick={() => setModal('cart', true)}
-          className="flex flex-col items-center justify-center gap-1 relative -mt-4 bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 hover:from-[var(--primary)]/90 hover:to-[var(--primary)]/70 rounded-full h-14 w-14 mx-auto shadow-lg transition-all flex-shrink-0"
+          className="flex flex-col items-center justify-center gap-1 relative -mt-4 bg-[var(--primary)] hover:brightness-95 rounded-full h-14 w-14 mx-auto transition-all flex-shrink-0"
         >
           <ShoppingCart size={22} className="text-white" />
           {cartCount > 0 && (

@@ -94,7 +94,8 @@ export default function FavoritesPage() {
       const { data } = await supabase
         .from('products')
         .select('*')
-        .in('id', Array.from(favoritesIds));
+        .in('id', Array.from(favoritesIds))
+        .eq('is_active', true);
 
       setProducts(data || []);
       setLoadingData(false);

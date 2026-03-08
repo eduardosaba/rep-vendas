@@ -15,6 +15,7 @@ export async function GET(req: Request) {
     const sortKey = url.searchParams.get('sortKey');
     const sortDir = url.searchParams.get('sortDir');
     const userId = url.searchParams.get('userId');
+    const includeInactive = url.searchParams.get('includeInactive') === 'true';
 
     if (!userId)
       return NextResponse.json(
@@ -40,7 +41,9 @@ export async function GET(req: Request) {
     }
 
     // Comece sempre com um `select` antes de encadear filtros (compatibilidade com Postgrest)
+    // Por padrão, só retornamos produtos ativos. Admins podem enviar includeInactive=true.
     let query: any = supabase.from('products').select('*', { count: 'exact' }).eq('user_id', userId);
+    if (!includeInactive) query = query.eq('is_active', true);
     // Aplicar ordenação apenas se for uma chave permitida
     const allowedSortKeys = [
       'name',
@@ -70,27 +73,25 @@ export async function GET(req: Request) {
     // If caller only requested aggregates, compute and return them
     if (aggregateOnly) {
       try {
-        const { data: totalData, count: totalCount } = await supabase
-          .from('products')
-          .select('id', { count: 'exact' })
-          .eq('user_id', userId);
+        // Total (respeita is_active por padrão)
+        const totalQ = supabase.from('products').select('id', { count: 'exact' }).eq('user_id', userId);
+        if (!includeInactive) totalQ.eq('is_active', true);
+        const { data: _totalData, count: totalCount } = await totalQ;
 
-        const { data: launchData, count: launchCount } = await supabase
-          .from('products')
-          .select('id', { count: 'exact' })
-          .eq('user_id', userId)
-          .eq('is_launch', true);
+        // Launch and best-seller counts
+        const launchQ = supabase.from('products').select('id', { count: 'exact' }).eq('user_id', userId).eq('is_launch', true);
+        const bestQ = supabase.from('products').select('id', { count: 'exact' }).eq('user_id', userId).eq('is_best_seller', true);
+        if (!includeInactive) {
+          launchQ.eq('is_active', true);
+          bestQ.eq('is_active', true);
+        }
+        const { data: launchData, count: launchCount } = await launchQ;
+        const { data: bestData, count: bestCount } = await bestQ;
 
-        const { data: bestData, count: bestCount } = await supabase
-          .from('products')
-          .select('id', { count: 'exact' })
-          .eq('user_id', userId)
-          .eq('is_best_seller', true);
-
-        const { data: brandsData } = await supabase
-          .from('products')
-          .select('brand')
-          .eq('user_id', userId);
+        // Brands (only active by default)
+        const brandsQ = supabase.from('products').select('brand').eq('user_id', userId);
+        if (!includeInactive) brandsQ.eq('is_active', true);
+        const { data: brandsData } = await brandsQ;
 
         const brandsCount = new Set(
           (brandsData || []).map((r: any) => r.brand).filter(Boolean)
@@ -123,6 +124,7 @@ export async function GET(req: Request) {
         .select('*', { count: 'exact' })
         .in('id', ids)
         .eq('user_id', userId);
+      if (!includeInactive) query = query.eq('is_active', true);
     } else {
       // If caller requested only IDs (for select-all across pages), increase range
       // to cover large catalogs (admin scenarios) and reduce payload by selecting only `id`.

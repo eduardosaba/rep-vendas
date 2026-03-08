@@ -12,6 +12,7 @@ import {
   Box,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button'; // Usando nosso componente padronizado
+import ExportTriggerButton from '@/components/dashboard/ExportTriggerButton';
 // SyncProgressBanner removido — banner não exibido nesta página
 
 // 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA
@@ -45,10 +46,9 @@ export default async function ProductsPage() {
   const roleStr = (profile?.role || '').toString().toLowerCase();
   const isAdmin = roleStr.includes('master') || roleStr.includes('admin');
 
-  // DEBUG TEMPORÁRIO: imprimir informações de autorização para diagnosticar limites
+  // Informações de autorização (sem debug tag)
   try {
-     
-    console.log('[DEBUG_PRODUCTS_PAGE] activeUserId=', activeUserId, 'profileRole=', profile?.role, 'roleStr=', roleStr, 'isAdmin=', isAdmin);
+    console.log('activeUserId=', activeUserId, 'profileRole=', profile?.role, 'roleStr=', roleStr, 'isAdmin=', isAdmin);
   } catch (e) {
     // noop
   }
@@ -96,12 +96,7 @@ export default async function ProductsPage() {
   const { data: products, error, count } = await query;
 
   if (products && products.length >= maxLimit) {
-    try {
-       
-      console.warn('[DEBUG_PRODUCTS_PAGE] produtos retornados (' + products.length + ") >= maxLimit (" + maxLimit + "). Considere paginar.");
-    } catch (e) {
-      // noop
-    }
+    console.warn('produtos retornados (' + products.length + ") >= maxLimit (" + maxLimit + "). Considere paginar.");
   }
 
   if (error) {
@@ -207,19 +202,7 @@ export default async function ProductsPage() {
             </Button>
           </Link>
 
-          <Link
-            href={`/api/export/products/xlsx?userId=${activeUserId}`}
-            className="contents"
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto justify-center"
-              leftIcon={<FileSpreadsheet size={16} />}
-            >
-              Exportar Excel
-            </Button>
-          </Link>
+          <ExportTriggerButton userId={activeUserId} />
 
           {/* Botão Importar Visual */}
           <Link href="/dashboard/products/import-visual" className="contents">
@@ -245,29 +228,10 @@ export default async function ProductsPage() {
             </Button>
           </Link>
 
-          {/* Botão Novo Produto (Destaque) */}
-          <Link href="/dashboard/products/new" className="contents">
-            <Button
-              variant="primary"
-              size="sm"
-              className="w-full sm:w-auto justify-center col-span-2 sm:col-span-1"
-              leftIcon={<Plus size={16} />}
-            >
-              Novo Produto
-            </Button>
-          </Link>
+          {/* Painel de Diagnóstico desativado temporariamente */}
+          {/* Tabela de Dados */}
         </div>
       </div>
-
-      {/* Estatísticas de Otimização de Imagens (comentado temporariamente)
-          Renderização original condicional:
-          {showDiagnosticPanel && totalProducts > 0 && ( ... )}
-          O bloco foi comentado para não exibir o card enquanto não for necessário.
-      */}
-
-      {/* Painel de Diagnóstico desativado temporariamente */}
-
-      {/* Tabela de Dados */}
       {/* Envolvemos em um container com borda e fundo para o tema */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
         {/* Se o catálogo for grande, ativamos paginação server-side para não carregar milhares de linhas */}

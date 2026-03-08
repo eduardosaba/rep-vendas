@@ -26,6 +26,7 @@ import {
   Filter,
   Briefcase,
   FileText,
+  FileSpreadsheet,
   Download,
   Eye,
   EyeOff,
@@ -347,6 +348,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         const params = new URLSearchParams();
         params.set('userId', userId);
         params.set('aggregate', 'true');
+        if (serverMode) params.set('includeInactive', 'true');
         const res = await fetch(`/api/products?${params.toString()}`);
         if (!res.ok) return;
         const json = await res.json();
@@ -367,6 +369,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
   const [selectAllMatching, setSelectAllMatching] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showTextModal, setShowTextModal] = useState(false);
@@ -434,6 +437,63 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     };
     getUserId();
   }, [supabase]);
+
+  // Escuta evento global para exportar (top button dispara este evento)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const eventUserId = detail.userId || null;
+      // Se houver seleção, exporta selecionados; caso contrário, exporta tudo
+      if (selectedIds && selectedIds.length > 0) {
+        downloadSelectedXlsx(eventUserId);
+      } else {
+        // export all using provided userId if available
+        (async () => {
+          setExporting(true);
+          try {
+            const effectiveUserId = eventUserId || userId;
+            if (!effectiveUserId || effectiveUserId === 'guest') {
+              toast.error('Usuário não autenticado');
+              return;
+            }
+            const params = new URLSearchParams();
+            params.set('userId', effectiveUserId);
+            const url = `/api/export/products/xlsx?${params.toString()}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              let err = 'Erro ao gerar arquivo';
+              try {
+                const json = await res.json();
+                err = json?.error || err;
+              } catch (err) {}
+              throw new Error(err);
+            }
+            const blob = await res.blob();
+            const contentDisposition = res.headers.get('Content-Disposition') || '';
+            let filename = `products-${effectiveUserId}.xlsx`;
+            const m = /filename="?([^";]+)"?/.exec(contentDisposition);
+            if (m && m[1]) filename = m[1];
+            const href = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = href;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(href);
+            toast.success('Download iniciado');
+          } catch (err: any) {
+            console.error('export all xlsx error', err);
+            toast.error(err?.message || 'Erro ao exportar Excel');
+          } finally {
+            setExporting(false);
+          }
+        })();
+      }
+    };
+    window.addEventListener('repvendas:triggerExport', handler as EventListener);
+    return () => window.removeEventListener('repvendas:triggerExport', handler as EventListener);
+  }, [selectedIds, userId]);
 
   // Escuta evento global para abrir o modal de PDF (compatibilidade com triggers antigos)
   useEffect(() => {
@@ -647,6 +707,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         if (userId) params.set('userId', userId);
         params.set('page', String(page));
         params.set('limit', String(itemsPerPage));
+        if (serverMode) params.set('includeInactive', 'true');
         if (searchTerm) params.set('search', searchTerm);
         if (filters.minPrice) params.set('minPrice', String(filters.minPrice));
         if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
@@ -743,6 +804,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       params.set('userId', userId);
       params.set('page', String(page));
       params.set('limit', String(itemsPerPage));
+      if (serverMode) params.set('includeInactive', 'true');
       if (searchTerm) params.set('search', searchTerm);
       if (filters.minPrice) params.set('minPrice', String(filters.minPrice));
       if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
@@ -1198,6 +1260,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
           const params = new URLSearchParams();
           if (userId) params.set('userId', userId);
           params.set('idsOnly', 'true');
+          if (serverMode) params.set('includeInactive', 'true');
           if (filters.imageOptimization && filters.imageOptimization !== 'all')
             params.set('imageOptimization', String(filters.imageOptimization));
           if (filters.minPrice)
@@ -1257,6 +1320,58 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       setDuplicatingIds((s) => s.filter((i) => i !== productId));
     }
   };
+  
+  const downloadSelectedXlsx = async (exportUserId?: string | null) => {
+    const effectiveUserId = exportUserId || userId;
+    if (!effectiveUserId || effectiveUserId === 'guest') {
+      toast.error('Usuário não autenticado');
+      return;
+    }
+    if (!selectedIds || selectedIds.length === 0) {
+      toast.error('Selecione ao menos um produto para exportar');
+      return;
+    }
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('userId', effectiveUserId);
+      params.set('ids', selectedIds.join(','));
+      const url = `/api/export/products/xlsx?${params.toString()}`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        let err = 'Erro ao gerar arquivo';
+        try {
+          const json = await res.json();
+          err = json?.error || err;
+        } catch (e) {
+          // ignore
+        }
+        throw new Error(err);
+      }
+
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition') || '';
+      let filename = `products-${effectiveUserId}.xlsx`;
+      const m = /filename="?([^";]+)"?/.exec(contentDisposition);
+      if (m && m[1]) filename = m[1];
+
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      toast.success('Download iniciado');
+    } catch (err: any) {
+      console.error('export xlsx error', err);
+      toast.error(err?.message || 'Erro ao exportar Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
   const showTooltip = (key: string) => {
     setVisibleTooltips((prev) => ({ ...prev, [key]: true }));
     setTimeout(() => {
@@ -1279,10 +1394,12 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       }
       toast.success('Atualizado!');
       setSelectedIds([]);
-    } catch {
+    } catch (err) {
+      console.error('bulk update error', err);
       toast.error('Erro ao atualizar');
+    } finally {
+      setIsProcessing(false);
     }
-    setIsProcessing(false);
   };
 
   const handleBulkTextUpdate = async () => {
@@ -1306,10 +1423,12 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       toast.success('Atualizado!');
       setShowTextModal(false);
       setSelectedIds([]);
-    } catch {
+    } catch (err) {
+      console.error('bulk text update error', err);
       toast.error('Erro');
+    } finally {
+      setIsProcessing(false);
     }
-    setIsProcessing(false);
   };
 
   const handleBulkPriceUpdate = async () => {
@@ -1336,29 +1455,32 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
           )
         );
       }
-    } catch {
+      setSelectedIds([]);
+    } catch (err) {
+      console.error('bulk price update error', err);
       toast.error('Erro');
+    } finally {
       setIsProcessing(false);
     }
   };
 
   // Toggles para ações em massa (usa o primeiro produto selecionado como referência)
-  const toggleIsLaunch = () => {
+  const toggleIsLaunch = async () => {
     const ref = products.find((p) => p.id === selectedIds[0]);
     const current = ref ? Boolean(ref.is_launch) : false;
-    handleBulkUpdate('is_launch', !current);
+    await handleBulkUpdate('is_launch', !current);
   };
 
-  const toggleIsBestSeller = () => {
+  const toggleIsBestSeller = async () => {
     const ref = products.find((p) => p.id === selectedIds[0]);
     const current = ref ? Boolean(ref.is_best_seller) : false;
-    handleBulkUpdate('is_best_seller', !current);
+    await handleBulkUpdate('is_best_seller', !current);
   };
 
-  const toggleIsActive = () => {
+  const toggleIsActive = async () => {
     const ref = products.find((p) => p.id === selectedIds[0]);
     const current = ref ? Boolean(ref.is_active) : true;
-    handleBulkUpdate('is_active', !current);
+    await handleBulkUpdate('is_active', !current);
   };
 
   const executeDelete = async (forceSoft = false) => {
@@ -1387,9 +1509,10 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       setShowDeleteModal(false);
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setIsProcessing(false);
+      setDeleteTargetId(null);
     }
-    setIsProcessing(false);
-    setDeleteTargetId(null);
   };
 
   const handleGeneratePdf = async () => {
@@ -1405,6 +1528,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
             const params = new URLSearchParams();
             params.set('userId', userId || '');
             params.set('ids', selectedIds.join(','));
+            if (serverMode) params.set('includeInactive', 'true');
             const res = await fetch(`/api/products?${params.toString()}`);
             if (!res.ok) throw new Error('Erro ao buscar produtos para PDF');
             const json = await res.json();
@@ -1639,11 +1763,25 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
             })()}
           </div>
           <div className="min-w-0">
-            <div
-              onClick={() => setViewProduct(product)}
-              className="font-medium text-gray-900 dark:text-white truncate cursor-pointer hover:text-[var(--primary)] transition-colors"
-            >
-              {product.name}
+            <div className="flex items-center gap-2">
+              <div
+                onClick={() => setViewProduct(product)}
+                className="font-medium text-gray-900 dark:text-white truncate cursor-pointer hover:text-[var(--primary)] transition-colors"
+              >
+                {product.name}
+              </div>
+              <button
+                title="Ver no catálogo público"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const slug = storeSettings?.catalog_slug || userId || '';
+                  const href = `/catalogo/${encodeURIComponent(slug)}/product/${encodeURIComponent(product.id)}`;
+                  window.open(href, '_blank');
+                }}
+                className="p-1 rounded-md text-slate-400 hover:text-[var(--primary)]"
+              >
+                <Eye size={14} />
+              </button>
             </div>
             <div className="text-xs text-gray-500 dark:text-slate-400 truncate">
               {product.brand || '-'}
@@ -1823,77 +1961,118 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       {/* FILTROS E BUSCA */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row gap-4 justify-between">
-          <div className="flex-1 flex flex-wrap md:flex-nowrap gap-2 items-center">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar..."
-                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white min-w-0"
-              />
-            </div>
-            <Button
-              onClick={() => setShowFilters(!showFilters)}
-              variant="secondary"
-              size="sm"
-              className={`${showFilters ? 'ring-2 ring-[var(--primary)]' : ''} px-3 flex items-center gap-2`}
-            >
-              <Filter size={16} /> Filtros
-            </Button>
-
-            {/* BOTÃO COLUNAS RESTAURADO */}
-            <ColumnSelectorDropdown />
-
-            {/* BOTÃO ORDENAR */}
-            <SortSelectorDropdown />
-
-            {sortConfig && (
-              <div className="hidden sm:flex items-center gap-2 ml-2">
-                <span className="px-3 py-1 rounded bg-gray-100 dark:bg-slate-800 text-sm text-gray-700 dark:text-slate-300">
-                  Ordenado:{' '}
-                  {ALL_DATA_COLUMNS[sortConfig.key]?.title || sortConfig.key}
-                </span>
-                <button
-                  onClick={() =>
-                    setSortConfig({
-                      key: sortConfig.key,
-                      direction:
-                        sortConfig.direction === 'asc' ? 'desc' : 'asc',
-                    })
-                  }
-                  className="p-2 border rounded bg-white dark:bg-slate-900"
-                  title="Alternar direção"
-                >
-                  {sortConfig.direction === 'asc' ? (
-                    <ArrowUp size={14} />
-                  ) : (
-                    <ArrowDown size={14} />
-                  )}
-                </button>
-                <button
-                  onClick={() => setSortConfig(null)}
-                  className="text-xs text-red-500 hover:underline"
-                >
-                  Limpar
-                </button>
+          <div className="flex-1">
+            {/* Mobile layout: three stacked rows */}
+            <div className="block md:hidden space-y-2">
+              {/* Row 1: Search only */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar..."
+                  className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white min-w-0"
+                />
               </div>
-            )}
 
-            {/* BOTÃO PDF FIXO */}
-            <Button
-              onClick={() =>
-                window.dispatchEvent(
-                  new CustomEvent('repvendas:openCatalogPdf')
-                )
-              }
-              variant="secondary"
-              size="sm"
-              className={`flex items-center gap-2 px-3`}
-            >
-              <FileText size={16} />{' '}
-              <span className="hidden md:inline">PDF</span>
-            </Button>
+              {/* Row 2: Filters + Columns */}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setShowFilters(!showFilters)}
+                  variant="secondary"
+                  size="sm"
+                  className={`${showFilters ? 'ring-2 ring-[var(--primary)]' : ''} px-3 flex items-center gap-2`}
+                >
+                  <Filter size={16} /> Filtros
+                </Button>
+                <div className="flex items-center">
+                  <ColumnSelectorDropdown />
+                </div>
+              </div>
+
+              {/* Row 3: Sort + PDF */}
+              <div className="flex items-center gap-2">
+                <div>
+                  <SortSelectorDropdown />
+                </div>
+                <Button
+                  onClick={() => setShowPdfModal(true)}
+                  variant="secondary"
+                  size="sm"
+                  className={`flex items-center gap-2 px-3`}
+                >
+                  <FileText size={16} />{' '}
+                  <span className="inline">Catálogo em PDF</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Desktop: original single-row toolbar */}
+            <div className="hidden md:flex flex-wrap md:flex-nowrap gap-2 items-center">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar..."
+                  className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none dark:text-white min-w-0"
+                />
+              </div>
+              <Button
+                onClick={() => setShowFilters(!showFilters)}
+                variant="secondary"
+                size="sm"
+                className={`${showFilters ? 'ring-2 ring-[var(--primary)]' : ''} px-3 flex items-center gap-2`}
+              >
+                <Filter size={16} /> Filtros
+              </Button>
+
+              <ColumnSelectorDropdown />
+
+              <SortSelectorDropdown />
+
+              {sortConfig && (
+                <div className="hidden sm:flex items-center gap-2 ml-2">
+                  <span className="px-3 py-1 rounded bg-gray-100 dark:bg-slate-800 text-sm text-gray-700 dark:text-slate-300">
+                    Ordenado:{' '}
+                    {ALL_DATA_COLUMNS[sortConfig.key]?.title || sortConfig.key}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setSortConfig({
+                        key: sortConfig.key,
+                        direction:
+                          sortConfig.direction === 'asc' ? 'desc' : 'asc',
+                      })
+                    }
+                    className="p-2 border rounded bg-white dark:bg-slate-900"
+                    title="Alternar direção"
+                  >
+                    {sortConfig.direction === 'asc' ? (
+                      <ArrowUp size={14} />
+                    ) : (
+                      <ArrowDown size={14} />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setSortConfig(null)}
+                    className="text-xs text-red-500 hover:underline"
+                  >
+                    Limpar
+                  </button>
+                </div>
+              )}
+
+              <Button
+                onClick={() => setShowPdfModal(true)}
+                variant="secondary"
+                size="sm"
+                className={`flex items-center gap-2 px-3`}
+              >
+                <FileText size={16} />{' '}
+                <span className="hidden md:inline">Catálogo em PDF</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -2108,16 +2287,25 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
           {/* Botões de Ação com Scroll Horizontal */}
           <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 no-scrollbar">
             <button
-              onClick={() =>
-                window.dispatchEvent(
-                  new CustomEvent('repvendas:openCatalogPdf')
-                )
-              }
+              onClick={() => setShowPdfModal(true)}
               className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
             >
               <FileText size={18} className="text-orange-500" />{' '}
               <span className="text-[10px] text-gray-600 dark:text-slate-400">
                 PDF
+              </span>
+            </button>
+            <button
+              onClick={() => downloadSelectedXlsx()}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              {exporting ? (
+                <Loader2 size={18} className="animate-spin text-indigo-600" />
+              ) : (
+                <FileSpreadsheet size={18} className="text-indigo-600" />
+              )}{' '}
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Excel
               </span>
             </button>
             <div className="w-px h-8 bg-gray-200 dark:bg-slate-700 mx-1 shrink-0"></div>
@@ -2998,24 +3186,38 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         </div>
       )}
 
-      {/* Use ExportModal component (replaces inline PDF modal) */}
-      <ExportModal
-        isOpen={showPdfModal}
-        onClose={() => setShowPdfModal(false)}
-        products={
-          selectedIds.length > 0
-            ? products.filter((p) => selectedIds.includes(p.id))
-            : processedProducts
-        }
-        storeSettings={storeSettings}
-        brandMapping={availableBrands.reduce(
-          (acc, b) => {
-            acc[b.name] = b.logo_url;
-            return acc;
-          },
-          {} as Record<string, string | null>
-        )}
-      />
+      {/* MODAL CATALOGO PDF */}
+      {(() => {
+        // Resolve a lista de produtos a enviar ao modal.
+        // Quando houver seleção, tentamos resolver cada id procurando
+        // primeiro em `processedProducts`, depois em `serverProducts` e por fim em `products`.
+        const resolvedSelected = selectedIds.length
+          ? selectedIds
+              .map((id) =>
+                processedProducts.find((p) => p.id === id) ||
+                serverProducts.find((p) => p.id === id) ||
+                products.find((p) => p.id === id) ||
+                null
+              )
+              .filter((p): p is Product => p !== null)
+          : processedProducts;
+
+        return (
+          <ExportModal
+            isOpen={showPdfModal}
+            onClose={() => setShowPdfModal(false)}
+            products={resolvedSelected}
+            storeSettings={storeSettings}
+            brandMapping={availableBrands.reduce(
+              (acc, b) => {
+                acc[b.name] = b.logo_url;
+                return acc;
+              },
+              {} as Record<string, string | null>
+            )}
+          />
+        );
+      })()}
 
       {/* MODAL TEXTO (MARCA/CAT) */}
       {showTextModal && (

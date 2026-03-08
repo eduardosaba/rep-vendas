@@ -81,7 +81,8 @@ export default function Cart() {
     const { data: products } = await supabase
       .from('products')
       .select('*')
-      .in('id', productIds);
+      .in('id', productIds)
+      .eq('is_active', true);
 
     if (products) {
       const items: CartItem[] = products.map((product) => ({

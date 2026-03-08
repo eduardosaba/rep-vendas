@@ -475,7 +475,7 @@ export function EditProductForm({ product }: { product: Product }) {
     } catch (e) {
       console.warn('Normalization of gallery failed', e);
     }
-     
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
 
   // Note: preserve `gender` exactly as stored in `products` table for edit form

@@ -196,11 +196,40 @@ export function StoreModals() {
 
     return out;
   };
+  // remove duplicates por URL (prefere url480)
+  const dedupeImages = (arr: { url480: string; url1200: string; path: string | null }[]) => {
+    const seen = new Set<string>();
+    const res: typeof arr = [];
+    for (const it of arr) {
+      const key = (it.url480 || it.url1200 || '').trim();
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      res.push(it);
+    }
+    return res;
+  };
 
   const [activeProduct, setActiveProduct] = useState<any>(modals.product || null);
   const [variantList, setVariantList] = useState<any[]>(
     (modals.product as any)?.variants || []
   );
+
+  // Helper: remove duplicatas por `id`, preservando ordem
+  const dedupeById = (arr: any[] | undefined) => {
+    if (!Array.isArray(arr)) return [];
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const it of arr) {
+      if (!it) continue;
+      const id = String(it.id || it.product_id || '');
+      if (!id) continue;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(it);
+    }
+    return out;
+  };
 
   // Display product is the source of truth for modal UI: prefer activeProduct (updated on variant select)
   const displayProduct = activeProduct || modals.product || null;
@@ -212,9 +241,14 @@ export function StoreModals() {
     console.log('[store-modals] modals.product', prod);
     setActiveProduct(prod);
     // If modal opened with a product that already has variants attached, use them
-    if (prod && Array.isArray((prod as any).variants) && (prod as any).variants.length > 0) {
-      setVariantList((prod as any).variants);
-    } else {
+      if (prod && Array.isArray((prod as any).variants) && (prod as any).variants.length > 0) {
+        // Filtra variantes para o usuário/loja atual quando possível
+        const rawVars = (prod as any).variants as any[];
+        const filteredByUser = store?.user_id
+          ? rawVars.filter((v) => String(v.user_id) === String(store.user_id) || !v.user_id)
+          : rawVars;
+        setVariantList(dedupeById(filteredByUser));
+      } else {
       // initialize as empty array so ProductVariants can render placeholder state
       setVariantList([]);
     }
@@ -238,8 +272,9 @@ export function StoreModals() {
       try {
         const { data } = await supabase
           .from('products')
-          .select('id, reference_code, image_url, image_path, color, name, brand, gallery_images, image_variants')
+          .select('id, reference_code, image_url, image_path, color, name, brand, gallery_images, image_variants, is_active')
           .eq('id', p.id)
+          .eq('is_active', true)
           .maybeSingle();
         if (!mounted) return;
         if (data) {
@@ -270,9 +305,9 @@ export function StoreModals() {
 
         const { data, error } = await supabase
           .from('products')
-          .select('id, reference_code, reference_id, image_url, image_path, color, name, brand, gallery_images, image_variants, user_id, active')
+          .select('id, reference_code, reference_id, image_url, image_path, color, name, brand, gallery_images, image_variants, user_id, is_active')
           .eq('reference_id', prod.reference_id)
-          .eq('active', true)
+          .eq('is_active', true)
           .order('id', { ascending: true });
 
         if (!mounted || error || !data) return;
@@ -294,6 +329,12 @@ export function StoreModals() {
         });
 
         setVariantList(normalized as any[]);
+        // remove possíveis duplicatas por id (defesa contra payloads inconsistentes)
+        // Filtra variantes do usuário atual para evitar trazer variantes de outros lojistas
+        const filtered = store?.user_id
+          ? (normalized as any[]).filter((p) => String(p.user_id) === String(store.user_id) || !p.user_id)
+          : (normalized as any[]);
+        setVariantList(dedupeById(filtered));
       } catch (e) {
         console.error('[store-modals] loadVariants error', e);
       }
@@ -305,7 +346,10 @@ export function StoreModals() {
     };
   }, [modals.product?.reference_id, activeProduct?.reference_id, store.user_id]);
 
-  const productImages = useMemo(() => getProductImages(displayProduct), [displayProduct]);
+  const productImages = useMemo(() => {
+    const imgs = getProductImages(displayProduct);
+    return dedupeImages(imgs);
+  }, [displayProduct]);
 
   // Diagnostic log: show resolved images whenever displayProduct or productImages change
   useEffect(() => {
@@ -757,8 +801,9 @@ export function StoreModals() {
                         try {
                           const { data } = await supabase
                             .from('products')
-                            .select('*, gallery_images, image_variants')
+                            .select('*, gallery_images, image_variants, is_active')
                             .eq('id', variant.id)
+                            .eq('is_active', true)
                             .maybeSingle();
 
                           if (data) {

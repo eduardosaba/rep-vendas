@@ -4,6 +4,7 @@ import fetch from 'node-fetch';
 import sharp from 'sharp';
 import { createClient } from '@supabase/supabase-js';
 import https from 'https';
+import fs from 'fs';
 import pLimit from 'p-limit';
 import notifier from 'node-notifier';
 
@@ -23,6 +24,10 @@ const limit = pLimit(MAX_CONCURRENT);
 function splitUrls(input) {
   if (!input) return [];
   if (Array.isArray(input)) return input.flatMap((i) => splitUrls(i));
+  if (typeof input === 'object') {
+    // common fields that may hold a url inside gallery objects
+    return splitUrls(input.url || input.src || input.path || input.publicUrl || input.public_url || '');
+  }
   return String(input)
     .split(/[;,]/)
     .map((u) => u.trim())
@@ -64,19 +69,33 @@ async function syncFullCatalog() {
     scheduling: 'lifo',
   });
 
-  const brandFilter = process.argv[2];
+  // CLI args: [brandFilter] or flags: --dry-run, --ids=id1,id2
+  const rawArgs = process.argv.slice(2);
+  let brandFilter = null;
+  let dryRun = false;
+  let targetIds = null;
+  for (const a of rawArgs) {
+    if (a === '--dry-run') dryRun = true;
+    else if (a.startsWith('--ids=')) targetIds = a.split('=')[1].split(',').map((s) => s.trim()).filter(Boolean);
+    else if (!brandFilter) brandFilter = a;
+  }
   const startTime = Date.now();
 
   console.log(
     `\n🚀 [RepVendas] MODO TURBO ATIVADO (Concorrência: ${MAX_CONCURRENT})`.bold
   );
 
-  let query = supabase
-    .from('products')
-    .select('id, reference_code, image_url, external_image_url, images, brand')
-    .or('sync_status.eq.pending,sync_status.eq.failed');
+  let query;
+  if (targetIds && targetIds.length) {
+    query = supabase.from('products').select('id, reference_code, image_url, external_image_url, images, brand').in('id', targetIds);
+  } else {
+    query = supabase
+      .from('products')
+      .select('id, reference_code, image_url, external_image_url, images, brand')
+      .or('sync_status.eq.pending,sync_status.eq.failed');
 
-  if (brandFilter) query = query.ilike('brand', `%${brandFilter}%`);
+    if (brandFilter) query = query.ilike('brand', `%${brandFilter}%`);
+  }
 
   const { data, error } = await query.limit(1000);
   if (error || !data) {
@@ -106,6 +125,27 @@ async function syncFullCatalog() {
         ];
 
         if (urls.length > 0) {
+          if (dryRun) {
+            // In dry-run we only check availability of the URLs and record results
+            const checks = await Promise.all(
+              urls.map(async (u) => {
+                try {
+                  const r = await fetch(u, { agent, timeout: 10000 });
+                  return { url: u, ok: r.ok, status: r.status };
+                } catch (e) {
+                  return { url: u, ok: false, error: e.message };
+                }
+              })
+            );
+            // store dry-run info globally to write file after the run
+            if (!global.__dryRunReport) global.__dryRunReport = [];
+            global.__dryRunReport.push({ id: product.id, reference: ref, checks });
+            processed++;
+            process.stdout.write(
+              `\r[D-RUN] Verificados: ${processed}/${data.length} | Atual: ${ref}          `
+            );
+            return;
+          }
           // Processa Capa
           const mainVariants = await processImage(
             urls[0],
@@ -171,6 +211,18 @@ async function syncFullCatalog() {
   );
 
   await Promise.all(tasks);
+
+  // If we ran in dry-run mode, dump the report and exit before doing RPC/notifications
+  if (dryRun) {
+    const outPath = `./sync-dryrun-report-${Date.now()}.json`;
+    try {
+      fs.writeFileSync(outPath, JSON.stringify(global.__dryRunReport || [], null, 2));
+      console.log(`\n✅ Dry-run report salvo em ${outPath}`);
+    } catch (e) {
+      console.error('❌ Falha ao salvar dry-run report:', e.message || e);
+    }
+    return;
+  }
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`\n\n🏆 Finalizado! ${processed} itens em ${duration}s.`);
