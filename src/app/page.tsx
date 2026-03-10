@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import DemoCredentialsClient from '@/components/DemoCredentialsClient';
+import HeroDemoCTA from '@/components/HeroDemoCTA';
 import { createClient } from '@/lib/supabase/server';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { redirect } from 'next/navigation';
@@ -69,10 +70,9 @@ export default async function LandingPage() {
               Benefícios
             </a>
 
-            <DemoCredentialsClient
+            <HeroDemoCTA
               href="https://www.repvendas.com.br/catalogo/teste"
               label="Catálogo Demo"
-              showOnlyPrice={true}
               className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide flex items-center gap-1"
             />
 
@@ -145,7 +145,7 @@ export default async function LandingPage() {
             </Link>
 
             {/* Link para Demo do Dashboard */}
-            <DemoCredentialsClient
+            <HeroDemoCTA
               href="/demo/dashboard"
               label="Ver Dashboard Demo"
               className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/30 text-white rounded-full font-bold text-lg hover:bg-white/10 transition-all backdrop-blur-sm flex items-center justify-center gap-2"
@@ -154,10 +154,9 @@ export default async function LandingPage() {
 
           {/* Link Secundário para Demo do Catálogo */}
           <div className="mt-6">
-            <DemoCredentialsClient
+            <HeroDemoCTA
               href="https://www.repvendas.com.br/catalogo/teste"
               label="Ou veja como fica o Catálogo para seu cliente"
-              showOnlyPrice={true}
               className="text-gray-400 hover:text-[#b9722e] underline underline-offset-4 text-sm transition-colors inline-flex items-center gap-1"
             />
           </div>
@@ -262,9 +261,9 @@ export default async function LandingPage() {
       </section>
 
       {/* --- LOGOS / SOCIAL PROOF --- */}
-      <section className="py-10 border-b border-gray-100 bg-gray-50">
+      <section className="py-10 border-b border-gray-100 bg-brand-primary">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6">
+          <p className="text-lg font-bold text-[#0d1b2c] uppercase tracking-widest mb-6">
             Ideal para diversos segmentos
           </p>
           <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
@@ -278,7 +277,7 @@ export default async function LandingPage() {
             ].map((item) => (
               <span
                 key={item}
-                className="text-xl font-bold text-gray-400 hover:text-[#b9722e] cursor-default"
+                className="text-xl font-bold text-[#FFF/10] hover:text-[#FFF] cursor-default"
               >
                 {item}
               </span>
@@ -355,7 +354,7 @@ export default async function LandingPage() {
                 Comece a vender em menos de 5 minutos
               </h3>
 
-              <div className="space-y-12">
+              <div className="space-y-12" >
                 <Step
                   number="01"
                   title="Crie sua conta num piscar de olhos"
@@ -456,15 +455,15 @@ export default async function LandingPage() {
             />
           </div>
           <div className="text-sm flex gap-6">
-            <a href="#" className="hover:text-white transition-colors">
+            <Link href="/termos" className="hover:text-white transition-colors">
               Termos de Uso
-            </a>
-            <a href="#" className="hover:text-white transition-colors">
+            </Link>
+            <Link href="/privacidade" className="hover:text-white transition-colors">
               Privacidade
-            </a>
-            <a href="#" className="hover:text-white transition-colors">
+            </Link>
+            <Link href="/suporte" className="hover:text-white transition-colors">
               Suporte
-            </a>
+            </Link>
           </div>
           <p className="text-sm">
             © 2025 Rep-Vendas. Todos os direitos reservados.
@@ -510,9 +509,9 @@ function Step({
 }) {
   return (
     <div className="flex gap-6">
-      <div className="text-5xl font-bold text-white/10">{number}</div>
+      <div className="text-5xl font-bold text-[#b9722e]">{number}</div>
       <div>
-        <h4 className="text-xl font-bold text-white mb-2">{title}</h4>
+        <h4 className="text-xl font-bold text-[#b9722e] mb-2">{title}</h4>
         <p className="text-gray-400 leading-relaxed">{desc}</p>
       </div>
     </div>

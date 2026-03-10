@@ -13,7 +13,7 @@ import {
   ArrowLeft,
   Edit3,
   FileText,
-  AlertTriangle,
+  ImagePlus,
   Terminal,
   Play,
   ArrowUp,
@@ -27,7 +27,9 @@ import {
   prepareProductImage,
   prepareProductGallery,
   processSafiloImages,
+  getProductImage,
 } from '@/lib/utils/image-logic';
+import { trackEvent } from '@/lib/analytics';
 
 type Stats = {
   total: number;
@@ -149,6 +151,7 @@ export default function ImportMassaPage() {
     success: 0,
     errors: 0,
   });
+  const [externalPreviews, setExternalPreviews] = useState<string[]>([]);
 
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -964,6 +967,20 @@ export default function ImportMassaPage() {
         errors: errorCount,
       });
 
+      // Coletar pré-visualizações de imagens externas para exibir ao usuário
+      try {
+        const previewUrls = finalBatch
+          .flatMap((p) => (p.images && Array.isArray(p.images) ? p.images : []))
+          .filter((u) => typeof u === 'string' && u.startsWith('http'))
+          .map((u) => String(u).trim())
+          .filter(Boolean);
+        // Dedup e limitar
+        const unique = Array.from(new Set(previewUrls)).slice(0, 24);
+        setExternalPreviews(unique);
+      } catch (e) {
+        // não crítico
+      }
+
       // Atualiza o histórico com a quantidade real de inserções (para o desfazer funcionar corretamente)
       try {
         await supabase
@@ -1324,14 +1341,39 @@ export default function ImportMassaPage() {
               </div>
             </div>
           )}
+          {externalPreviews.length > 0 && (
+            <div className="mt-6 text-left">
+              <h4 className="font-semibold text-sm text-gray-700 mb-3">Pré-visualização de Imagens Externas</h4>
+              <p className="text-xs text-gray-500 mb-2">Imagens referenciadas por URL (serão mantidas como externas e processadas em background).</p>
+              <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                {externalPreviews.map((u, i) => (
+                  <div key={`${u}-${i}`} className="w-full h-24 bg-gray-100 rounded overflow-hidden flex items-center justify-center border">
+                    <img
+                      src={getProductImage(u, 'medium')}
+                      alt={`preview-${i}`}
+                      className="object-cover w-full h-full"
+                      onError={(e) => {
+                        const t = e.target as HTMLImageElement;
+                        t.onerror = null;
+                        t.src = '/placeholder-image.svg';
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="space-y-3">
             <Button
-              onClick={() => router.push('/dashboard/manage-external-images')}
-              leftIcon={<AlertTriangle size={20} />}
+              onClick={() => {
+                trackEvent('click_import_visual', { from: 'import-massa' });
+                router.push('/dashboard/products/import-visual');
+              }}
+              leftIcon={<ImagePlus size={20} />}
               variant="primary"
               className="w-full px-6 py-3"
             >
-              Ir para Sincronizar Imagens
+              Ir para Importar Imagens
             </Button>
             <div className="flex gap-3 justify-center mt-6">
               <button

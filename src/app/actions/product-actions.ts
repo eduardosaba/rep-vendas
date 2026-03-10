@@ -22,12 +22,16 @@ export async function duplicateProductAction(productId: string) {
 
     // Limpar campos únicos e timestamps
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id, created_at, updated_at, slug, reference_code, ...rest } = original as any;
+    const { id, created_at, updated_at, slug, reference_code, reference_id, sku, model_code, ...rest } = original as any;
 
     const copyPayload = {
       ...rest,
       name: `${original.name} (Cópia)`,
+      // ensure unique fields are cleared to avoid unique constraint conflicts
       reference_code: original.reference_code ? `${original.reference_code}-COPY` : null,
+      reference_id: null,
+      sku: null,
+      model_code: null,
       slug: original.slug ? `${original.slug}-copy-${Math.random().toString(36).substring(7)}` : null,
       user_id: activeUserId,
       image_is_shared: true,

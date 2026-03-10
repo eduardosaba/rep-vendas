@@ -135,7 +135,7 @@ export default function LoginOnboarding() {
 
       {/* Rodapé Fixo */}
       <div className="absolute bottom-8 z-10 text-sm text-slate-500">
-        © 2024 Sistema Rep-Vendas. Potencialize o seu negócio.
+        © 2025 Rep-Vendas v 1.0.0 - Potencialize o seu negócio.
       </div>
     </div>
   );

@@ -30,6 +30,8 @@ export default function DashboardHeader({
   const [userEmail, setUserEmail] = useState<string>('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | undefined>(undefined);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
@@ -53,13 +55,13 @@ export default function DashboardHeader({
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, role')
           .eq('id', user.id)
           .maybeSingle();
 
-        const avatarUrl =
-          profile?.avatar_url || user.user_metadata?.avatar_url || null;
+        const avatarUrl = profile?.avatar_url || user.user_metadata?.avatar_url || null;
         setUserAvatar(avatarUrl);
+        const role = profile?.role || null;
 
         const channel = supabase
           .channel(`profile-changes-${user.id}`)
@@ -81,13 +83,7 @@ export default function DashboardHeader({
           )
           .subscribe();
 
-        return () => {
-          try {
-            supabase.removeChannel(channel);
-          } catch (e) {
-            // ignore
-          }
-        };
+        return { cleanup: () => { try { supabase.removeChannel(channel); } catch (e) { /* ignore */ } }, role };
       }
     } catch (err) {
       console.error('DashboardHeader getUser error', err);
@@ -96,23 +92,51 @@ export default function DashboardHeader({
   }
 
   useEffect(() => {
+    let tInterval: number | undefined;
     let cleanup: (() => void) | undefined;
     const init = async () => {
-      // check impersonation cookie via admin API
-      (async () => {
+      const result = await getUser();
+      if (result && (result as any).role === 'master') {
+        // only master users should call admin impersonation status
         try {
           const res = await fetch('/api/admin/impersonate/status');
-          const j = await res.json();
-          if (j?.impersonate_user_id) setIsImpersonating(true);
+          if (res.ok) {
+            const j = await res.json().catch(() => null);
+            if (j?.impersonate_user_id) setIsImpersonating(true);
+          }
+        } catch (e) {
+          // ignore network errors
+        }
+      }
+      if (result && (result as any).cleanup) cleanup = (result as any).cleanup;
+      // after user data loaded, fetch subscription/trial info
+      if (userId) {
+        try {
+          const supabase = await createClient();
+          const { data: subscription, error } = await supabase
+            .from('subscriptions')
+            .select('current_period_end, status')
+            .eq('user_id', userId)
+            .maybeSingle();
+          if (!error && subscription && subscription.status === 'trial' && subscription.current_period_end) {
+            setTrialEndsAt(subscription.current_period_end as string);
+            const computeDays = () => {
+              const ends = Date.parse(subscription.current_period_end as string);
+              const msLeft = ends - Date.now();
+              const days = msLeft > 0 ? Math.ceil(msLeft / (1000 * 60 * 60 * 24)) : 0;
+              setTrialDaysLeft(days);
+            };
+            computeDays();
+            tInterval = window.setInterval(computeDays, 60 * 1000);
+          }
         } catch (e) {
           // ignore
         }
-      })();
-      const unsub = await getUser();
-      if (unsub) cleanup = unsub;
+      }
     };
     init();
     return () => {
+      if (tInterval) clearInterval(tInterval);
       if (cleanup) cleanup();
     };
   }, []);
@@ -196,6 +220,11 @@ export default function DashboardHeader({
                 </span>
               )}
             </div>
+            {trialDaysLeft !== null && (
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-100">
+                Trial {trialDaysLeft}d
+              </span>
+            )}
             <ChevronDown
               size={14}
               className={`text-gray-400 transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`}

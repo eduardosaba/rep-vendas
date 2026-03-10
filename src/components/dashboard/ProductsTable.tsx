@@ -8,6 +8,7 @@ import {
   Search,
   Edit2,
   Trash2,
+  Plus,
   Image as ImageIcon,
   Loader2,
   ArrowUpDown,
@@ -39,60 +40,20 @@ import Image from 'next/image';
 import { getProductImageUrl, formatImageUrl } from '@/lib/imageUtils';
 import { toast } from 'sonner';
 // imports removed: SyncSingleButton, getProductImage (not used)
-import {
-  bulkUpdateFields,
-  bulkUpdatePrice,
-  bulkDelete,
-} from '@/app/dashboard/products/actions';
 import { createClient } from '@/lib/supabase/client';
-import { generateCatalogPDF } from '@/utils/generateCatalogPDF';
 import { usePlanLimits } from '@/hooks/usePlanLimits';
 import { ExportModal } from '@/components/dashboard/ExportModal';
-
-// --- INTERFACES ---
-interface Product {
-  id: string;
-  name: string;
-  reference_code: string;
-  price: number;
-  brand: string | null;
-  category: string | null;
-  image_url: string | null;
-  image_path?: string | null;
-  external_image_url?: string | null;
-  images: string[] | null;
-  image_variants?: Array<{ size: number; path: string; url?: string }> | null; // Variantes responsivas
-  // Indica se a imagem principal está internalizada no Storage
-  image_optimized?: boolean | null;
-  is_launch: boolean;
-  is_best_seller: boolean;
-  is_destaque?: boolean;
-  is_active: boolean;
-  stock_quantity?: number;
-  track_stock?: boolean;
-  created_at: string;
-  sku?: string | null;
-  barcode?: string | null;
-  color?: string | null;
-  cost?: number;
-  sale_price?: number | null;
-  description?: string | null;
-  technical_specs?: Record<string, string> | null;
-  slug?: string;
-}
-
-interface ProductsTableProps {
-  initialProducts: Product[];
-  serverModeDefault?: boolean;
-  initialTotalCount?: number;
-}
+import type { Product } from '@/lib/types';
+import { generateCatalogPDF } from '@/utils/generateCatalogPDF';
+import { bulkUpdateFields, bulkUpdatePrice, bulkDelete } from '@/app/dashboard/products/actions';
 
 interface BrandOption {
   name: string;
   logo_url: string | null;
 }
 
-type DataKey = Exclude<keyof Product, 'images' | 'track_stock'>;
+// DataKey: base product keys plus custom virtual columns used in the table
+type DataKey = Exclude<keyof Product, 'images' | 'track_stock'> | 'image_optimized' | 'cost';
 
 interface ColumnDefinition {
   key: DataKey;
@@ -197,6 +158,7 @@ const DEFAULT_PREFS: UserPreferences = {
     'image_optimized',
     'is_active',
     'is_launch',
+    'is_best_seller',
   ],
   visibleKeys: new Set([
     'name',
@@ -205,6 +167,7 @@ const DEFAULT_PREFS: UserPreferences = {
     'brand',
     'is_active',
     'image_optimized',
+    'is_best_seller',
   ]),
 };
 
@@ -217,6 +180,12 @@ const DEFAULT_SORT_DIRECTION: Partial<Record<DataKey, 'asc' | 'desc'>> = {
   reference_code: 'asc',
   stock_quantity: 'desc',
 };
+
+interface ProductsTableProps {
+  initialProducts: Product[];
+  serverModeDefault?: boolean;
+  initialTotalCount?: number;
+}
 
 export function ProductsTable({ initialProducts, serverModeDefault, initialTotalCount }: ProductsTableProps) {
   // Component implementation
@@ -240,8 +209,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     DEFAULT_PREFS.visibleKeys
   );
   const [isLoadingPrefs, setIsLoadingPrefs] = useState(true);
+  const initialPrefsAppliedRef = useRef(false);
+  const userToggledColumnsRef = useRef(false);
   const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
-  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -273,6 +243,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     total: number;
     brands: number;
     launch: number;
+    featured: number;
     best: number;
   } | null>(null);
   const [serverLoading, setServerLoading] = useState(false);
@@ -305,6 +276,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     startX: number;
     startWidth: number;
   }>(null);
+  const savePrefTimeoutRef = useRef<number | null>(null);
 
   // global mouse handlers for resizing
   useEffect(() => {
@@ -334,35 +306,35 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     };
   }, []);
 
-  // Fetch aggregate KPIs when in serverMode (shows totals across all products)
-  useEffect(() => {
+  // Helper: fetch aggregate KPIs from server (used on mount, filters and after updates)
+  const fetchAggregateKpis = useCallback(async () => {
     if (!serverMode) {
       setKpisState(null);
       return;
     }
     if (!userId || userId === 'guest') return;
 
-    let mounted = true;
-    (async () => {
-      try {
-        const params = new URLSearchParams();
-        params.set('userId', userId);
-        params.set('aggregate', 'true');
-        if (serverMode) params.set('includeInactive', 'true');
-        const res = await fetch(`/api/products?${params.toString()}`);
-        if (!res.ok) return;
-        const json = await res.json();
-        if (mounted && json.aggregate) setKpisState(json.aggregate);
-      } catch (e) {
-        // ignore
-      }
-    })();
+    try {
+      const params = new URLSearchParams();
+      params.set('userId', userId);
+      params.set('aggregate', 'true');
+      if (serverMode) params.set('includeInactive', 'true');
+      if (filters.onlyLaunch) params.set('onlyLaunch', 'true');
+      if (filters.onlyFeatured) params.set('onlyFeatured', 'true');
+      if (filters.onlyBestSeller) params.set('onlyBestSeller', 'true');
+      const res = await fetch(`/api/products?${params.toString()}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.aggregate) setKpisState(json.aggregate);
+    } catch (e) {
+      // ignore
+    }
+  }, [serverMode, userId, filters.onlyLaunch, filters.onlyFeatured, filters.onlyBestSeller]);
 
-    return () => {
-      mounted = false;
-    };
-    // only run when serverMode/userId changes
-  }, [serverMode, userId]);
+  // Fetch aggregate KPIs when in serverMode (shows totals across all products)
+  useEffect(() => {
+    fetchAggregateKpis();
+  }, [fetchAggregateKpis]);
 
   // Seleção e Modais
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -649,11 +621,33 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
           const missing = DEFAULT_PREFS.columnOrder.filter(
             (key) => !loadedOrder.includes(key)
           );
-          setColumnOrder([...loadedOrder, ...missing]);
-          setVisibleColumnKeys(loadedVisible);
+          // Only apply remote prefs automatically if the user hasn't interacted
+          // with column visibility yet and we haven't applied prefs before.
+          if (!userToggledColumnsRef.current && !initialPrefsAppliedRef.current) {
+            try {
+              // eslint-disable-next-line no-console
+              console.debug('[ProductsTable] applying remote prefs', { loadedOrder, loadedVisible: Array.from(loadedVisible) });
+            } catch (e) {}
+            setColumnOrder([...loadedOrder, ...missing]);
+            setVisibleColumnKeys(loadedVisible);
+            initialPrefsAppliedRef.current = true;
+          } else {
+            // If the user already toggled, avoid overwriting their choices.
+            if (!initialPrefsAppliedRef.current) {
+              try {
+                // eslint-disable-next-line no-console
+                console.debug('[ProductsTable] skipping apply remote prefs because user already interacted');
+              } catch (e) {}
+              setColumnOrder((prev) => (prev && prev.length > 0 ? prev : [...loadedOrder, ...missing]));
+              initialPrefsAppliedRef.current = true;
+            }
+          }
         } else {
-          setColumnOrder(DEFAULT_PREFS.columnOrder);
-          setVisibleColumnKeys(DEFAULT_PREFS.visibleKeys);
+          if (!userToggledColumnsRef.current && !initialPrefsAppliedRef.current) {
+            setColumnOrder(DEFAULT_PREFS.columnOrder);
+            setVisibleColumnKeys(DEFAULT_PREFS.visibleKeys);
+            initialPrefsAppliedRef.current = true;
+          }
         }
         setIsLoadingPrefs(false);
       });
@@ -715,6 +709,15 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
           params.set('brand', String(filters.brand[0]));
         if (filters.imageOptimization && filters.imageOptimization !== 'all')
           params.set('imageOptimization', String(filters.imageOptimization));
+        if (filters.category) params.set('category', String(filters.category));
+        if (filters.visibility && filters.visibility !== 'all')
+          params.set('visibility', String(filters.visibility));
+        if (filters.stockStatus && filters.stockStatus !== 'all')
+          params.set('stockStatus', String(filters.stockStatus));
+        if (filters.color) params.set('color', String(filters.color));
+        if (filters.onlyLaunch) params.set('onlyLaunch', 'true');
+        if (filters.onlyFeatured) params.set('onlyFeatured', 'true');
+        if (filters.onlyBestSeller) params.set('onlyBestSeller', 'true');
         // Ordenação no modo servidor: envia chave e direção
         if (sortConfig) {
           params.set('sortKey', String(sortConfig.key));
@@ -792,6 +795,13 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     filters.maxPrice,
     filters.brand,
     filters.imageOptimization,
+    filters.onlyLaunch,
+    filters.onlyFeatured,
+    filters.onlyBestSeller,
+    filters.category,
+    filters.visibility,
+    filters.stockStatus,
+    filters.color,
     sortConfig,
   ]);
 
@@ -812,6 +822,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         params.set('brand', String(filters.brand[0]));
       if (filters.imageOptimization && filters.imageOptimization !== 'all')
         params.set('imageOptimization', String(filters.imageOptimization));
+      if (filters.onlyLaunch) params.set('onlyLaunch', 'true');
+      if (filters.onlyFeatured) params.set('onlyFeatured', 'true');
+      if (filters.onlyBestSeller) params.set('onlyBestSeller', 'true');
       if (sortConfig) {
         params.set('sortKey', String(sortConfig.key));
         params.set('sortDir', sortConfig.direction);
@@ -844,11 +857,22 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
 
   // --- MANIPULAÇÃO DE COLUNAS ---
   const toggleColumn = (key: DataKey) => {
+    userToggledColumnsRef.current = true;
     const newVisible = new Set(visibleColumnKeys);
     if (newVisible.has(key)) newVisible.delete(key);
     else newVisible.add(key);
     setVisibleColumnKeys(newVisible);
-    savePreferences(columnOrder, newVisible, columnWidths);
+    try {
+      // eslint-disable-next-line no-console
+      console.debug('[ProductsTable] toggleColumn -> visible keys now', Array.from(newVisible));
+    } catch (e) {}
+    // Debounce remote save to avoid UI jank if save is slow or fails
+    if (savePrefTimeoutRef.current) window.clearTimeout(savePrefTimeoutRef.current);
+    // @ts-ignore - window.setTimeout returns number in browsers
+    savePrefTimeoutRef.current = window.setTimeout(() => {
+      savePreferences(columnOrder, newVisible, columnWidths);
+      savePrefTimeoutRef.current = null;
+    }, 120);
   };
 
   const moveColumn = (key: DataKey, dir: 'up' | 'down') => {
@@ -864,213 +888,87 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     savePreferences(newOrder, visibleColumnKeys, columnWidths);
   };
 
-  // --- COMPONENTE DROPDOWN DE COLUNAS ---
-  const ColumnSelectorDropdown = () => {
-    const dropdownRef = useRef<any>(null);
-    useEffect(() => {
-      const handleClickOutside = (e: any) => {
-        if (
-          isColumnDropdownOpen &&
-          dropdownRef.current &&
-          !dropdownRef.current.contains(e.target)
-        ) {
-          setIsColumnDropdownOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () =>
-        document.removeEventListener('mousedown', handleClickOutside);
-    }, [isColumnDropdownOpen]);
+  // ColumnSelectorDropdown removed — modal will be used instead
 
+  // --- COLUMN SELECTOR MODAL (fallback/resilient) ---
+  const ColumnSelectorModal = () => {
+    const [open, setOpen] = useState(false);
     return (
-      <div className="relative inline-block text-left" ref={dropdownRef}>
+      <>
         <Button
-          type="button"
           size="sm"
           variant="secondary"
-          aria-expanded={isColumnDropdownOpen}
-          onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
-          className={`${isColumnDropdownOpen ? 'ring-2 ring-[var(--primary)]' : ''} px-3`}
+          onClick={() => setOpen(true)}
+          className="px-3 flex items-center gap-2"
         >
           <ListOrdered size={16} /> <span className="inline">Colunas</span>
         </Button>
-        {isColumnDropdownOpen && (
-          <div className="absolute mt-2 left-2 right-2 sm:left-auto sm:right-0 w-auto sm:w-72 mx-auto sm:mx-0 max-w-[calc(100vw-1rem)] sm:max-w-none rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 divide-y divide-gray-100 dark:divide-slate-800 z-50 max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-800">
-            <div className="p-2">
-              <div className="flex items-center justify-between px-2 mb-2">
-                <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold">
-                  Mostrar/Ocultar
-                </p>
-                <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={columnOrder
-                      .filter((k) => ALL_DATA_COLUMNS[k])
-                      .every((k) => visibleColumnKeys.has(k))}
-                    onChange={(e) => {
-                      const allKeys = columnOrder.filter(
-                        (k) => ALL_DATA_COLUMNS[k]
-                      );
-                      if (e.target.checked) {
-                        const newSet = new Set<DataKey>(allKeys);
-                        setVisibleColumnKeys(newSet);
-                        savePreferences(columnOrder, newSet, columnWidths);
-                      } else {
-                        const newSet = new Set<DataKey>();
-                        setVisibleColumnKeys(newSet);
-                        savePreferences(columnOrder, newSet, columnWidths);
-                      }
-                    }}
-                    className="h-4 w-4 text-primary rounded border-gray-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-primary"
-                  />
-                  Selecionar todos
-                </label>
+        {open && (
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center"> 
+            <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+            <div className="relative w-[min(720px,95vw)] max-h-[80vh] overflow-auto bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-[1201]">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold">Configurar colunas</h3>
+                <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+                  <X size={16} />
+                </button>
               </div>
-              {columnOrder.map((key, index) => {
-                const def = ALL_DATA_COLUMNS[key];
-                const isChecked = visibleColumnKeys.has(key);
-                const isFirst = index === 0;
-                const isLast = index === columnOrder.length - 1;
-                return (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition"
-                  >
-                    <div className="flex items-center min-w-0 flex-1">
-                      <input
-                        id={`col-${key}`}
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleColumn(key)}
-                        className="h-4 w-4 text-primary rounded border-gray-300 dark:border-slate-600 dark:bg-slate-800 focus:ring-primary"
-                      />
-                      <label
-                        htmlFor={`col-${key}`}
-                        className="ml-3 block text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer"
-                      >
-                        {def ? def.title : key}
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-1 ml-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          moveColumn(key, 'up');
-                        }}
-                        disabled={isFirst || !isChecked}
-                        className="p-1 rounded-full text-primary dark:text-primary/70 disabled:opacity-30 hover:bg-primary/10 dark:hover:bg-primary/20"
-                      >
-                        <ArrowUp size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          moveColumn(key, 'down');
-                        }}
-                        disabled={isLast || !isChecked}
-                        className="p-1 rounded-full text-primary dark:text-primary/70 disabled:opacity-30 hover:bg-primary/10 dark:hover:bg-primary/20"
-                      >
-                        <ArrowDown size={14} />
-                      </button>
-                    </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-2">
+                  <div className="text-xs text-gray-500">Mostrar/Ocultar</div>
+                  <div>
+                    <input
+                      type="checkbox"
+                      checked={columnOrder.filter((k) => ALL_DATA_COLUMNS[k]).every((k) => visibleColumnKeys.has(k))}
+                      onChange={(e) => {
+                        const allKeys = columnOrder.filter((k) => ALL_DATA_COLUMNS[k]);
+                        const newSet = e.target.checked ? new Set<DataKey>(allKeys) : new Set<DataKey>();
+                        setVisibleColumnKeys(newSet);
+                        savePreferences(columnOrder, newSet, columnWidths);
+                      }}
+                      className="h-4 w-4"
+                    />
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+                </div>
+                {columnOrder.map((key, index) => {
+                  const def = ALL_DATA_COLUMNS[key];
+                  if (!def) return null;
+                  const isChecked = visibleColumnKeys.has(key);
 
-  const SortSelectorDropdown = () => {
-    const ref = useRef<any>(null);
-    useEffect(() => {
-      const handleClickOutside = (e: any) => {
-        if (
-          isSortDropdownOpen &&
-          ref.current &&
-          !ref.current.contains(e.target)
-        ) {
-          setIsSortDropdownOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () =>
-        document.removeEventListener('mousedown', handleClickOutside);
-    }, [isSortDropdownOpen]);
-
-    const sortable = Object.values(ALL_DATA_COLUMNS).filter(
-      (c) => c.isSortable
-    );
-
-    return (
-      <div className="relative inline-block text-left" ref={ref}>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          aria-expanded={isSortDropdownOpen}
-          onClick={() => setIsSortDropdownOpen((s) => !s)}
-          className={`${isSortDropdownOpen ? 'ring-2 ring-[var(--primary)]' : ''} px-3`}
-        >
-          <ArrowUpDown size={16} /> <span className="inline">Ordenar</span>
-        </Button>
-
-        {isSortDropdownOpen && (
-          <div className="absolute mt-2 left-2 right-2 sm:left-auto sm:right-0 w-auto sm:w-56 max-w-[calc(100vw-1rem)] rounded-lg shadow-xl bg-white dark:bg-slate-900 ring-1 ring-black ring-opacity-5 z-50 border border-gray-200 dark:border-slate-800">
-            <div className="p-2">
-              <div className="flex items-center justify-between px-2 mb-2">
-                <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold">
-                  Ordenar por
-                </p>
-                <button
-                  onClick={() => setSortConfig(null)}
-                  className="text-xs text-red-500 hover:underline"
-                >
-                  Limpar
-                </button>
+                  return (
+                    <div key={String(key)} className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-800">
+                      <label className="flex items-center gap-3 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleColumn(key)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">{def.title}</span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => moveColumn(key, 'up')} disabled={index === 0} className="p-1 rounded hover:bg-slate-100">
+                          <ArrowUp size={14} />
+                        </button>
+                        <button onClick={() => moveColumn(key, 'down')} disabled={index === columnOrder.length - 1} className="p-1 rounded hover:bg-slate-100">
+                          <ArrowDown size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="flex justify-end mt-3">
+                  <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Fechar</Button>
+                </div>
               </div>
-              {sortable.map((col) => (
-                <button
-                  key={col.key}
-                  onClick={() => {
-                    // se já estiver ordenando por essa chave, alterna direção
-                    if (sortConfig && sortConfig.key === col.key) {
-                      setSortConfig({
-                        key: col.key,
-                        direction:
-                          sortConfig.direction === 'asc' ? 'desc' : 'asc',
-                      });
-                    } else {
-                      const dir =
-                        (DEFAULT_SORT_DIRECTION as any)[col.key] || 'asc';
-                      setSortConfig({ key: col.key, direction: dir });
-                    }
-                    setIsSortDropdownOpen(false);
-                  }}
-                  className="w-full text-left p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center justify-between"
-                >
-                  <span className="text-sm text-gray-700 dark:text-slate-300">
-                    {col.title}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {sortConfig && sortConfig.key === col.key ? (
-                      sortConfig.direction === 'asc' ? (
-                        <ArrowUp size={12} />
-                      ) : (
-                        <ArrowDown size={12} />
-                      )
-                    ) : null}
-                  </span>
-                </button>
-              ))}
             </div>
           </div>
         )}
-      </div>
+      </>
     );
   };
+
+  // SortSelectorDropdown removed per request (Ordenar button excluded)
 
   // --- FILTRAGEM ---
   const visibleAndOrderedColumns = useMemo(
@@ -1090,6 +988,21 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       .replace(/[^a-z0-9\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+
+  // Helpers to support multiple possible field names coming from different
+  // data sources/migrations (e.g. `bestseller`, `is_bestseller`, `best_seller`).
+  const isBestSeller = (p: any) =>
+    !!(
+      p?.is_best_seller ||
+      p?.best_seller ||
+      p?.is_bestseller ||
+      p?.bestseller
+    );
+
+  const isLaunch = (p: any) => !!(p?.is_launch || p?.launch || p?.isNew);
+
+  const isFeatured = (p: any) =>
+    !!(p?.is_destaque || p?.destaque || p?.is_featured || p?.featured);
 
   const processedProducts = useMemo(() => {
     if (serverMode) return serverProducts;
@@ -1118,9 +1031,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         const matchesSearch = tokens.every((t) => haystack.includes(t));
         if (!matchesSearch) return false;
       }
-      if (filters.onlyLaunch && !p.is_launch) return false;
-      if (filters.onlyFeatured && !p.is_destaque) return false;
-      if (filters.onlyBestSeller && !p.is_best_seller) return false;
+      if (filters.onlyLaunch && !isLaunch(p)) return false;
+      if (filters.onlyFeatured && !isFeatured(p)) return false;
+      if (filters.onlyBestSeller && !isBestSeller(p)) return false;
       if (
         filters.category &&
         !p.category?.toLowerCase().includes(filters.category.toLowerCase())
@@ -1140,7 +1053,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       if (filters.stockStatus === 'in_stock' && (p.stock_quantity || 0) <= 0)
         return false;
 
-      const price = p.cost ?? p.price ?? 0;
+      const price = (p as any).cost ?? p.price ?? 0;
       if (filters.minPrice && price < Number(filters.minPrice)) return false;
       if (filters.maxPrice && price > Number(filters.maxPrice)) return false;
 
@@ -1207,6 +1120,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         total: kpisState.total,
         brands: kpisState.brands,
         launch: kpisState.launch,
+        featured: kpisState.featured,
         best: kpisState.best,
       };
     }
@@ -1227,9 +1141,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     return {
       total: totalCount,
       brands: new Set(active.map((p) => p.brand).filter(Boolean)).size,
-      launch: active.filter((p) => p.is_launch).length,
-      best: active.filter((p) => p.is_best_seller).length,
-      featured: active.filter((p) => p.is_destaque).length,
+      launch: active.filter((p) => isLaunch(p)).length,
+      best: active.filter((p) => isBestSeller(p)).length,
+      featured: active.filter((p) => isFeatured(p)).length,
     } as any;
   }, [products, serverMode, serverProducts, serverMeta, initialTotalCount, kpisState]);
 
@@ -1380,16 +1294,47 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
   };
 
   const handleBulkUpdate = async (field: string, value: any) => {
+    if (!selectedIds || selectedIds.length === 0) {
+      toast.error('Selecione ao menos um produto');
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      await bulkUpdateFields(selectedIds, { [field]: value });
+      // ensure boolean/null payloads are explicit
+      const payload: Record<string, any> = { [field]: value };
+      if (value === undefined) payload[field] = null;
+      const res = await bulkUpdateFields(selectedIds, payload);
+      if (res && (res as any).error) throw new Error((res as any).error);
       if (serverMode) {
         await refreshServerPage(currentPage);
+        await fetchAggregateKpis();
       } else {
         setProducts((prev) =>
-          prev.map((p) =>
-            selectedIds.includes(p.id) ? { ...p, [field]: value } : p
-          )
+          prev.map((p) => {
+            if (!selectedIds.includes(p.id)) return p;
+            const next = { ...p, [field]: value } as any;
+            // Mirror legacy/alternate boolean column names on the client-side
+            if (field === 'is_best_seller') {
+              next.bestseller = value;
+              next.is_bestseller = value;
+              next.best_seller = value;
+            }
+            if (field === 'is_launch') {
+              next.launch = value;
+              next.isNew = value;
+              next.is_new = value;
+            }
+            if (field === 'is_destaque') {
+              next.destaque = value;
+              next.is_featured = value;
+              next.featured = value;
+            }
+            if (field === 'is_active') {
+              next.active = value;
+            }
+            return next;
+          })
         );
       }
       toast.success('Atualizado!');
@@ -1406,11 +1351,13 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     if (!textConfig.field) return;
     setIsProcessing(true);
     try {
-      await bulkUpdateFields(selectedIds, {
+      const res = await bulkUpdateFields(selectedIds, {
         [textConfig.field]: textConfig.value,
       });
+      if (res && (res as any).error) throw new Error((res as any).error);
       if (serverMode) {
         await refreshServerPage(currentPage);
+        await fetchAggregateKpis();
       } else {
         setProducts((prev) =>
           prev.map((p) =>
@@ -1434,14 +1381,16 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
   const handleBulkPriceUpdate = async () => {
     setIsProcessing(true);
     try {
-      await bulkUpdatePrice(
+      const res = await bulkUpdatePrice(
         selectedIds,
         priceConfig.mode,
         Number(priceConfig.value)
       );
+      // bulkUpdatePrice returns success object; if it throws it will be caught
       toast.success('Preços atualizados!');
       if (serverMode) {
         await refreshServerPage(currentPage);
+        await fetchAggregateKpis();
       } else {
         // best-effort: update local slice
         setProducts((prev) =>
@@ -1466,21 +1415,36 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
 
   // Toggles para ações em massa (usa o primeiro produto selecionado como referência)
   const toggleIsLaunch = async () => {
-    const ref = products.find((p) => p.id === selectedIds[0]);
-    const current = ref ? Boolean(ref.is_launch) : false;
+    if (!selectedIds || selectedIds.length === 0) return;
+    const ref = products.find((p) => p.id === selectedIds[0]) || serverProducts.find((p) => p.id === selectedIds[0]);
+    const current = ref ? isLaunch(ref) : false;
     await handleBulkUpdate('is_launch', !current);
   };
 
   const toggleIsBestSeller = async () => {
-    const ref = products.find((p) => p.id === selectedIds[0]);
-    const current = ref ? Boolean(ref.is_best_seller) : false;
+    if (!selectedIds || selectedIds.length === 0) return;
+    const ref = products.find((p) => p.id === selectedIds[0]) || serverProducts.find((p) => p.id === selectedIds[0]);
+    const current = ref ? isBestSeller(ref) : false;
     await handleBulkUpdate('is_best_seller', !current);
   };
 
+  const toggleIsFeatured = async () => {
+    if (!selectedIds || selectedIds.length === 0) return;
+    const ref = products.find((p) => p.id === selectedIds[0]) || serverProducts.find((p) => p.id === selectedIds[0]);
+    const current = ref ? isFeatured(ref) : false;
+    await handleBulkUpdate('is_destaque', !current);
+  };
+
   const toggleIsActive = async () => {
-    const ref = products.find((p) => p.id === selectedIds[0]);
-    const current = ref ? Boolean(ref.is_active) : true;
-    await handleBulkUpdate('is_active', !current);
+    if (!selectedIds || selectedIds.length === 0) return;
+    const selectedProducts = selectedIds
+      .map((id) => products.find((p) => p.id === id) || serverProducts.find((p) => p.id === id))
+      .filter(Boolean) as Product[];
+    if (selectedProducts.length === 0) return;
+    const activeCount = selectedProducts.filter((p) => p.is_active !== false).length;
+    const inactiveCount = selectedProducts.length - activeCount;
+    const majorityActive = activeCount >= inactiveCount;
+    await handleBulkUpdate('is_active', !majorityActive);
   };
 
   const executeDelete = async (forceSoft = false) => {
@@ -1493,6 +1457,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       });
       if (serverMode) {
         await refreshServerPage(currentPage);
+        await fetchAggregateKpis();
       } else {
         setProducts((prev) =>
           prev
@@ -1775,7 +1740,11 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 onClick={(e) => {
                   e.stopPropagation();
                   const slug = storeSettings?.catalog_slug || userId || '';
-                  const href = `/catalogo/${encodeURIComponent(slug)}/product/${encodeURIComponent(product.id)}`;
+                  // Preferir `slug` do produto quando disponível (melhor para URLs legíveis),
+                  // senão usar o `id` como fallback.
+                  const productIdParam = encodeURIComponent((product.slug as string) || product.id);
+                  const qParam = encodeURIComponent(String(product.brand || product.name || ''));
+                  const href = `/catalogo/${encodeURIComponent(slug)}?q=${qParam}&sort=ref_desc&view=grid&productId=${productIdParam}&p=${productIdParam}`;
                   window.open(href, '_blank');
                 }}
                 className="p-1 rounded-md text-slate-400 hover:text-[var(--primary)]"
@@ -1832,9 +1801,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         </span>
       );
     if (key === 'is_launch')
-      return val ? <Zap size={16} className="text-purple-500 mx-auto" /> : '-';
+      return isLaunch(product) ? <Zap size={16} className="text-purple-500 mx-auto" /> : '-';
     if (key === 'is_best_seller')
-      return val ? <Star size={16} className="text-orange-500 mx-auto" /> : '-';
+      return isBestSeller(product) ? <Star size={16} className="text-orange-500 mx-auto" /> : '-';
     if (key === 'stock_quantity')
       return (
         <div className="text-sm font-medium text-gray-900 dark:text-slate-200 text-right">
@@ -1985,16 +1954,19 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 >
                   <Filter size={16} /> Filtros
                 </Button>
-                <div className="flex items-center">
-                  <ColumnSelectorDropdown />
+                <div className="flex items-center gap-2 relative z-[110]">
+                  <ColumnSelectorModal />
                 </div>
               </div>
 
               {/* Row 3: Sort + PDF */}
               <div className="flex items-center gap-2">
-                <div>
-                  <SortSelectorDropdown />
-                </div>
+                <Link href="/dashboard/products/new" className="contents">
+                  <Button size="sm" variant="secondary" className="flex items-center gap-2 px-3">
+                    <Plus size={14} />
+                    <span className="inline">Novo produto</span>
+                  </Button>
+                </Link>
                 <Button
                   onClick={() => setShowPdfModal(true)}
                   variant="secondary"
@@ -2027,15 +1999,22 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 <Filter size={16} /> Filtros
               </Button>
 
-              <ColumnSelectorDropdown />
+              <div className="flex items-center gap-2 relative z-[110]">
+                <ColumnSelectorModal />
+              </div>
 
-              <SortSelectorDropdown />
+              <Link href="/dashboard/products/new" className="contents">
+                <Button size="sm" variant="secondary" className="flex items-center gap-2 px-3">
+                  <Plus size={14} />
+                  <span className="hidden md:inline">Novo produto</span>
+                </Button>
+              </Link>
 
               {sortConfig && (
                 <div className="hidden sm:flex items-center gap-2 ml-2">
                   <span className="px-3 py-1 rounded bg-gray-100 dark:bg-slate-800 text-sm text-gray-700 dark:text-slate-300">
                     Ordenado:{' '}
-                    {ALL_DATA_COLUMNS[sortConfig.key]?.title || sortConfig.key}
+                    {ALL_DATA_COLUMNS[sortConfig.key as DataKey]?.title || String(sortConfig.key)}
                   </span>
                   <button
                     onClick={() =>
@@ -2198,6 +2177,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                     onChange={(e) =>
                       setFilters({ ...filters, onlyLaunch: e.target.checked })
                     }
+                    onClick={(e) => e.stopPropagation()}
                     className="rounded text-[var(--primary)]"
                   />{' '}
                   Lançamentos
@@ -2209,6 +2189,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                     onChange={(e) =>
                       setFilters({ ...filters, onlyFeatured: e.target.checked })
                     }
+                    onClick={(e) => e.stopPropagation()}
                     className="rounded text-[var(--primary)]"
                   />{' '}
                   Destaques
@@ -2223,6 +2204,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                         onlyBestSeller: e.target.checked,
                       })
                     }
+                    onClick={(e) => e.stopPropagation()}
                     className="rounded text-[var(--primary)]"
                   />{' '}
                   Best Sellers
@@ -2347,7 +2329,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               <Rocket
                 size={18}
                 className={
-                  products.find((p) => p.id === selectedIds[0])?.is_launch
+                  isLaunch(products.find((p) => p.id === selectedIds[0]))
                     ? 'text-purple-600'
                     : 'text-gray-400'
                 }
@@ -2365,13 +2347,31 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               <Star
                 size={18}
                 className={
-                  products.find((p) => p.id === selectedIds[0])?.is_best_seller
+                  isBestSeller(products.find((p) => p.id === selectedIds[0]))
                     ? 'text-orange-500'
                     : 'text-gray-400'
                 }
               />
               <span className="text-[10px] text-gray-600 dark:text-slate-400">
-                Top/Rem.
+                BestSeller/Rem.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleIsFeatured}
+              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg min-w-[60px]"
+            >
+              <Package
+                size={18}
+                className={
+                  isFeatured(products.find((p) => p.id === selectedIds[0]))
+                    ? 'text-emerald-500'
+                    : 'text-gray-400'
+                }
+              />
+              <span className="text-[10px] text-gray-600 dark:text-slate-400">
+                Destaque/Rem.
               </span>
             </button>
 
@@ -2573,7 +2573,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               {visibleAndOrderedColumns.map((col) =>
                 col ? (
                   <col
-                    key={`col-${col.key}`}
+                    key={`col-${String(col.key)}`}
                     style={{
                       width: columnWidths[col.key]
                         ? `${columnWidths[col.key]}px`
@@ -2602,7 +2602,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 {visibleAndOrderedColumns.map((col) =>
                   col ? (
                     <SortableHeader
-                      key={col.key}
+                      key={String(col.key)}
                       label={col.title}
                       sortKey={col.key}
                       align={col.align}
@@ -2671,7 +2671,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                     {visibleAndOrderedColumns.map((col) =>
                       col ? (
                         <td
-                          key={col.key}
+                          key={String(col.key)}
                           className={`px-4 py-3 text-gray-600 dark:text-slate-400 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
                           style={
                             columnWidths[col.key]
@@ -3139,7 +3139,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
 
                 return imagesArray.length > 1 ? (
                   <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
-                    {imagesArray.map((_, idx) => (
+                    {imagesArray.map((_: any, idx: number) => (
                       <span
                         key={idx}
                         className={`h-1 w-6 rounded ${idx === viewIndex ? 'bg-white' : 'bg-white/40'}`}
@@ -3332,24 +3332,18 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                     Excluir apenas produtos do usuário autenticado
                   </span>
                 </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="deleteScope"
-                    value="all"
-                    checked={deleteScope === 'all'}
-                    onChange={() => setDeleteScope('all')}
-                    disabled={userRole !== 'master'}
-                  />
-                  <span className="text-sm">
-                    Excluir de todos os usuários (apenas admin/master)
-                  </span>
-                </label>
-                {userRole !== 'master' && (
-                  <div className="text-xs text-gray-500">
-                    Você não tem permissão para excluir globalmente.
-                  </div>
-                )}
+                {userRole === 'master' ? (
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="deleteScope"
+                      value="all"
+                      checked={deleteScope === 'all'}
+                      onChange={() => setDeleteScope('all')}
+                    />
+                    <span className="text-sm">Excluir de todos os usuários</span>
+                  </label>
+                ) : null}
               </div>
             </div>
 

@@ -550,10 +550,10 @@ export default function HelpPage() {
             suas vendas.
           </p>
           <a
-            href="https://wa.me/55SEUNUMERO"
+            href="https://wa.me/5575981272323?text=Ol%C3%A1%2C%20preciso%20de%20suporte%20pelo%20RepVendas"
             target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-4 bg-primary text-white px-10 py-5 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-primary/20"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-4 bg-[#25D366] text-white px-10 py-5 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-primary/20"
           >
             <PlayCircle size={24} /> SUPORTE VIA WHATSAPP
           </a>

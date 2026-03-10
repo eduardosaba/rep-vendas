@@ -6,14 +6,52 @@ import { revalidatePath } from 'next/cache';
 
 // Atualiza campos simples (Tags, Status)
 export async function bulkUpdateFields(ids: string[], data: any) {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  const { error } = await supabase.from('products').update(data).in('id', ids);
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      console.error('[BulkUpdate] auth error', userErr);
+      return { error: 'Usuário não autenticado.' } as any;
+    }
 
-  if (error) throw new Error(error.message);
+    // --- MAPEAMENTO DE SEGURANÇA ---
+    const mappedData: Record<string, any> = {};
 
-  revalidatePath('/dashboard/products');
-  return { success: true };
+    if (data.is_launch !== undefined) mappedData.is_launch = data.is_launch;
+    if (data.is_active !== undefined) mappedData.is_active = data.is_active;
+    if (data.is_destaque !== undefined) mappedData.is_destaque = data.is_destaque;
+
+    if (data.is_best_seller !== undefined) {
+      mappedData.is_best_seller = data.is_best_seller;
+      mappedData.bestseller = data.is_best_seller;
+    }
+
+    if (data.brand !== undefined) mappedData.brand = data.brand;
+    if (data.category !== undefined) mappedData.category = data.category;
+
+    console.log('[BulkUpdate] Mapped Data for DB:', mappedData);
+
+    const { error } = await supabase
+      .from('products')
+      .update(mappedData)
+      .in('id', ids)
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('[BulkUpdate] DB Error:', error);
+      return { error: `Erro no banco: ${error.message}` } as any;
+    }
+
+    revalidatePath('/dashboard/products');
+    return { success: true } as any;
+  } catch (err: any) {
+    console.error('[BulkUpdate] Critical Error:', err);
+    return { error: 'Falha interna ao processar atualização.' } as any;
+  }
 }
 
 // Atualização Inteligente de Preço (Fixo ou Porcentagem)
@@ -22,39 +60,49 @@ export async function bulkUpdatePrice(
   mode: 'fixed' | 'percentage',
   value: number
 ) {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+    if (userErr || !user) return { error: 'Não autenticado' } as any;
 
-  if (mode === 'fixed') {
-    // Define valor fixo para todos
-    const { error } = await supabase
-      .from('products')
-      .update({ price: value })
-      .in('id', ids);
-
-    if (error) throw new Error(error.message);
-  } else {
-    // Porcentagem: Precisamos ler, calcular e atualizar um por um (ou criar uma procedure SQL)
-    // Para simplificar e manter seguro no Next.js, vamos buscar e atualizar em lote
-    const { data: products } = await supabase
-      .from('products')
-      .select('id, price')
-      .in('id', ids);
-
-    if (!products) return { success: false };
-
-    const updates = products.map((p) => {
-      const newPrice = p.price * (1 + value / 100);
-      return supabase
+    if (mode === 'fixed') {
+      const { error } = await supabase
         .from('products')
-        .update({ price: newPrice })
-        .eq('id', p.id);
-    });
+        .update({ cost: value })
+        .in('id', ids)
+        .eq('user_id', user.id);
 
-    await Promise.all(updates);
+      if (error) return { error: error.message } as any;
+    } else {
+      const { data: currentProducts, error } = await supabase
+        .from('products')
+        .select('id, cost')
+        .in('id', ids)
+        .eq('user_id', user.id);
+
+      if (error) return { error: error.message } as any;
+      if (currentProducts) {
+        const updates = currentProducts.map((prod: any) => {
+          const newPrice = (prod.cost || 0) * (1 + value / 100);
+          return supabase
+            .from('products')
+            .update({ cost: newPrice })
+            .eq('id', prod.id)
+            .eq('user_id', user.id);
+        });
+        await Promise.all(updates);
+      }
+    }
+
+    revalidatePath('/dashboard/products');
+    return { success: true } as any;
+  } catch (err: any) {
+    console.error('[bulkUpdatePrice] error', err);
+    return { error: err?.message || 'Falha ao atualizar preços' } as any;
   }
-
-  revalidatePath('/dashboard/products');
-  return { success: true };
 }
 
 // Exclusão em Massa

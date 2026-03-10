@@ -208,3 +208,19 @@ body {
 .focus\:ring-blue-500:focus {
   box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.14) !important;
 }
+
+/* Utility: usar cor primária como background e cor secundária como texto
+   Estas classes permitem aplicar rapidamente a identidade visual do usuário
+   sem alterar a estrutura base do design. Use com moderação. */
+.bg-brand-primary {
+  background-color: var(--primary) !important;
+}
+.bg-brand-primary\/5 {
+  background-color: rgba(var(--primary-rgb), 0.05) !important;
+}
+.text-brand-secondary {
+  color: var(--secondary) !important;
+}
+.text-brand-secondary\/muted {
+  color: rgba(var(--secondary-rgb, 13,27,44), 0.85) !important;
+}

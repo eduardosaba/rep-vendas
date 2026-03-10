@@ -14,7 +14,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import LoginOnboarding from '@/components/LoginOnboarding';
-import Logo from '@/components/Logo';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { signup, loginWithGoogle } from '@/app/login/actions';
 
 // Componente de Botão
@@ -85,7 +85,8 @@ export default function RegisterPage() {
     }
   }, []);
 
-  const handleServerSignup = async (formData: FormData) => {
+  const handleSignupSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
@@ -96,8 +97,24 @@ export default function RegisterPage() {
       return;
     }
 
-    await signup(formData);
-    setLoading(false);
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+
+    // nenhum campo 'estados' será enviado
+
+    try {
+      const res: any = await signup(formData as unknown as FormData);
+      if (res?.error) {
+        setError(res.error);
+      } else if (res?.success) {
+        setSuccess('Cadastro realizado com sucesso. Redirecionando...');
+        if (res.redirectTo) router.push(res.redirectTo);
+      }
+    } catch (err) {
+      setError('Erro ao cadastrar usuário');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogleLogin = async () => {
@@ -121,7 +138,11 @@ export default function RegisterPage() {
             {/* Cabeçalho de Marketing (Trazido do seu código antigo) */}
             <div className="mb-6 text-center">
               <div className="mb-6 flex justify-center">
-                <Logo useSystemLogo={true} className="h-14" />
+                <img
+                  src={SYSTEM_LOGO_URL}
+                  alt="Rep-Vendas"
+                  className="h-14 w-auto object-contain"
+                />
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-[#0d1b2c]">
                 Teste Grátis por 14 Dias
@@ -197,8 +218,8 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* FORMULÁRIO EMAIL */}
-            <form action={handleServerSignup} className="space-y-5">
+              {/* FORMULÁRIO EMAIL */}
+              <form onSubmit={handleSignupSubmit} className="space-y-5">
               {error && (
                 <div className="flex items-center rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <span className="mr-2">⚠️</span> {error}
@@ -260,48 +281,7 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-bold text-[#0d1b2c]">
-                  Estados que atuam (opcional)
-                </label>
-                <select
-                  name="estados"
-                  multiple
-                  size={4}
-                  className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-[#b9722e] focus:ring-2 focus:ring-[#b9722e] focus:ring-offset-1 transition-all outline-none"
-                >
-                  <option value="AC">AC - Acre</option>
-                  <option value="AL">AL - Alagoas</option>
-                  <option value="AP">AP - Amapá</option>
-                  <option value="AM">AM - Amazonas</option>
-                  <option value="BA">BA - Bahia</option>
-                  <option value="CE">CE - Ceará</option>
-                  <option value="DF">DF - Distrito Federal</option>
-                  <option value="ES">ES - Espírito Santo</option>
-                  <option value="GO">GO - Goiás</option>
-                  <option value="MA">MA - Maranhão</option>
-                  <option value="MT">MT - Mato Grosso</option>
-                  <option value="MS">MS - Mato Grosso do Sul</option>
-                  <option value="MG">MG - Minas Gerais</option>
-                  <option value="PA">PA - Pará</option>
-                  <option value="PB">PB - Paraíba</option>
-                  <option value="PR">PR - Paraná</option>
-                  <option value="PE">PE - Pernambuco</option>
-                  <option value="PI">PI - Piauí</option>
-                  <option value="RJ">RJ - Rio de Janeiro</option>
-                  <option value="RN">RN - Rio Grande do Norte</option>
-                  <option value="RS">RS - Rio Grande do Sul</option>
-                  <option value="RO">RO - Rondônia</option>
-                  <option value="RR">RR - Roraima</option>
-                  <option value="SC">SC - Santa Catarina</option>
-                  <option value="SP">SP - São Paulo</option>
-                  <option value="SE">SE - Sergipe</option>
-                  <option value="TO">TO - Tocantins</option>
-                </select>
-                <p className="mt-2 text-xs text-gray-500">
-                  Selecione um ou mais estados onde sua operação atua. Opcional.
-                </p>
-              </div>
+              {/* Estados removidos — não serão coletados neste momento */}
 
               <Button type="submit" loading={loading} variant="primary">
                 Criar Conta Gratuita <ArrowRight className="ml-2 h-4 w-4" />

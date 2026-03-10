@@ -13,6 +13,7 @@ const firebaseConfig = {
 
 let app: any = null;
 let messaging: Messaging | null = null;
+let vapidErrorLogged = false;
 
 // Inicializa o app no cliente (se ainda não inicializado)
 if (typeof window !== 'undefined') {
@@ -92,8 +93,13 @@ export const getFcmToken = async () => {
       const token = await getToken(m, { vapidKey });
       return token;
     } catch (err: unknown) {
-      // More actionable log for the typical PushManager InvalidAccessError
-      console.error('Erro ao obter token FCM:', err);
+      // Avoid spamming the console if the VAPID key is invalid — log once
+      if (!vapidErrorLogged) {
+        console.error('Erro ao obter token FCM:', err);
+        vapidErrorLogged = true;
+      } else {
+        console.debug('Erro ao obter token FCM (silenciado):', err);
+      }
       return null;
     }
   } catch (error) {

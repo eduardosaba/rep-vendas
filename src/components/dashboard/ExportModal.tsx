@@ -148,7 +148,7 @@ export function ExportModal({ isOpen, onClose, products = [], storeSettings, bra
         
         <div className="p-5 border-b flex justify-between items-center bg-gray-50">
           <h2 className="text-lg font-black flex items-center gap-2 uppercase tracking-tighter text-slate-800">
-            <FileText className="text-indigo-600" /> CATALOGO PREMIUM
+            <FileText className="text-indigo-600" /> CATÁLOGO PREMIUM
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
         </div>

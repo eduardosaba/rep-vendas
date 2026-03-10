@@ -94,7 +94,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // 4.1 Verifica se o usuário já completou o onboarding
+  let onboardingCompleted = true;
+  if (user) {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .maybeSingle();
+      onboardingCompleted = profile?.onboarding_completed ?? false;
+    } catch (e) {
+      onboardingCompleted = true; // falha na consulta não deve bloquear o usuário
+    }
+  }
+
+  // Redireciona usuários autenticados sem onboarding para a página de boas-vindas
+  if (user && !onboardingCompleted && !pathname.startsWith('/dashboard/welcome') && !isAdminRoute && !pathname.startsWith('/api')) {
+    return NextResponse.redirect(new URL('/dashboard/welcome', request.url));
+  }
+
   if (pathname === '/login' && user) {
+    if (!onboardingCompleted) {
+      return NextResponse.redirect(new URL('/dashboard/welcome', request.url));
+    }
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

@@ -193,6 +193,33 @@ export async function GET(request: Request) {
 
     const contentType = mimeTypes[ext] || 'application/octet-stream';
 
+      // Detecta suporte a WebP via cabeçalho Accept e heurística de User-Agent
+      const acceptHeader = String(request.headers.get('accept') || '').toLowerCase();
+      const uaHeader = String(request.headers.get('user-agent') || '').toLowerCase();
+      const clientAcceptsWebP = acceptHeader.includes('image/webp');
+      // Heurística adicional: em dispositivos iOS antigos, o Accept pode não incluir webp
+      const isIos = /iphone|ipad|ipod/.test(uaHeader);
+
+      // Suporte a conversão on-the-fly via query param `format=jpg` ou `f=jpg`
+      const requestedFormat = (searchParams.get('format') || searchParams.get('f') || null)?.toLowerCase();
+      let outBuffer = buffer;
+      let outContentType = contentType;
+
+      const shouldConvertWebpToJpeg = (contentType === 'image/webp' && !clientAcceptsWebP) || requestedFormat === 'jpg' || requestedFormat === 'jpeg' || (contentType === 'image/webp' && isIos && !clientAcceptsWebP);
+
+      if (shouldConvertWebpToJpeg) {
+        try {
+          // lazy-load sharp only when needed
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const sharp = require('sharp');
+          const converted = await sharp(buffer).jpeg({ quality: 78 }).toBuffer();
+          outBuffer = converted;
+          outContentType = 'image/jpeg';
+        } catch (e: any) {
+          console.warn('[storage-image] sharp conversion failed, serving original', String(e?.message || e));
+        }
+      }
+
     if (debug === '1') {
       return NextResponse.json(
         {
@@ -207,11 +234,11 @@ export async function GET(request: Request) {
     }
 
     // 6. Resposta com Cache agressivo para performance
-    return new NextResponse(buffer, {
+    return new NextResponse(outBuffer, {
       status: 200,
       headers: {
-        'Content-Type': contentType,
-        'Content-Length': buffer.length.toString(),
+        'Content-Type': outContentType,
+        'Content-Length': outBuffer.length.toString(),
         // Cache de 1 dia no navegador, 7 dias no servidor (Vercel/Cloudflare)
         'Cache-Control':
           'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',

@@ -13,7 +13,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import LoginOnboarding from '@/components/LoginOnboarding';
-import Logo from '@/components/Logo';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { login, loginWithGoogle } from './actions';
 import { setupNotifications } from '@/lib/setupNotifications';
 import { createClient } from '@/lib/supabase/client';
@@ -146,7 +146,7 @@ export default function LoginPage() {
             )}
 
             <div className="mb-10 text-center">
-              <Logo useSystemLogo className="h-12 mx-auto mb-4" />
+              <img src={SYSTEM_LOGO_URL} alt="Rep-Vendas" className="h-12 mx-auto mb-4 w-auto object-contain" />
               <h2 className="text-2xl font-black text-[#0d1b2c]">
                 {view === 'login' ? 'Bem-vindo de volta' : 'Recuperar Senha'}
               </h2>

@@ -154,9 +154,21 @@ export default function BulkEditClient({
         body: JSON.stringify({ products: payload }),
       });
 
-      const json = await res.json();
+      const raw = await res.text().catch(() => null);
+      let json: any = {};
+      if (raw) {
+        try {
+          json = JSON.parse(raw);
+        } catch (e) {
+          // response is not JSON (e.g. 'Forbidden'), keep raw text
+          json = { _raw: raw };
+        }
+      }
+
       if (!res.ok) {
-        throw new Error(json?.error || 'Erro ao salvar');
+        console.warn('bulk-upsert failed', res.status, raw);
+        const message = (json && (json.error || json.message)) || raw || 'Erro ao salvar';
+        throw new Error(message);
       }
 
       toast.success('Tabela atualizada com sucesso!');
