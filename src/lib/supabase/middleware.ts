@@ -65,7 +65,9 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Usuário com onboarding incompleto → onboarding
-  if (user && onboardingIncomplete && path !== '/onboarding') {
+  // Somente redireciona quando o usuário acessa rotas protegidas (ex: /dashboard, /admin, /onboarding).
+  // Isso evita forçar o onboarding quando o lojista acessa o catálogo público.
+  if (user && onboardingIncomplete && isProtectedRoute && path !== '/onboarding') {
     return NextResponse.redirect(new URL('/onboarding', request.url));
   }
 
