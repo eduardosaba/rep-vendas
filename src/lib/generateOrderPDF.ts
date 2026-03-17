@@ -153,7 +153,8 @@ export const generateOrderPDF = async (
   store: StoreSettings,
   items: OrderItem[],
   total: number,
-  returnBlob: boolean = false
+  returnBlob: boolean = false,
+  overrideShowPrices?: boolean
 ): Promise<void | Blob> => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
@@ -278,26 +279,30 @@ export const generateOrderPDF = async (
     })
   );
 
+  // Decide se mostramos preços (quando o catálogo público tiver preços ocultos, o PDF também deve ocultar)
+  const showPrices =
+    typeof overrideShowPrices === 'boolean'
+      ? overrideShowPrices
+      : (store as any)?.show_sale_price !== false;
+
   const tableBody = items.map((item) => {
     const details = item.brand
       ? `${item.name}\nMarca: ${item.brand}`
       : item.name;
-    const priceStr = formatCurrency(item.price);
-    const totalStr = formatCurrency(item.price * item.quantity);
+    const priceStr = showPrices ? formatCurrency(item.price) : 'Sob consulta';
+    const totalStr = showPrices ? formatCurrency(item.price * item.quantity) : 'Sob consulta';
     // primeira coluna reservada para foto (renderizada em didDrawCell)
-    return [
-      '',
-      item.reference_code || '-',
-      details,
-      item.quantity,
-      priceStr,
-      totalStr,
-    ];
+    // Se não mostramos preços, omitimos as colunas UNIT/TOTAL do corpo
+    return showPrices
+      ? ['', item.reference_code || '-', details, item.quantity, priceStr, totalStr]
+      : ['', item.reference_code || '-', details, item.quantity];
   });
 
   autoTable(doc, {
     startY: boxY + 35,
-    head: [['FOTO', 'REF', 'PRODUTO / MARCA', 'QTD', 'UNIT', 'TOTAL']],
+    head: showPrices
+      ? [['FOTO', 'REF', 'PRODUTO / MARCA', 'QTD', 'UNIT', 'TOTAL']]
+      : [['FOTO', 'REF', 'PRODUTO / MARCA', 'QTD']],
     body: tableBody,
     theme: 'grid',
     headStyles: {
@@ -312,14 +317,21 @@ export const generateOrderPDF = async (
       lineWidth: 0.05,
       cellPadding: 3,
     },
-    columnStyles: {
-      0: { cellWidth: 30 },
-      1: { cellWidth: 25, fontStyle: 'bold' },
-      2: { cellWidth: 'auto' },
-      3: { halign: 'center', cellWidth: 15 },
-      4: { halign: 'right', cellWidth: 30 },
-      5: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
-    },
+    columnStyles: showPrices
+      ? {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 25, fontStyle: 'bold' },
+          2: { cellWidth: 'auto' },
+          3: { halign: 'center', cellWidth: 15 },
+          4: { halign: 'right', cellWidth: 30 },
+          5: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
+        }
+      : {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 25, fontStyle: 'bold' },
+          2: { cellWidth: 'auto' },
+          3: { halign: 'center', cellWidth: 15 },
+        },
     alternateRowStyles: {
       fillColor: [255, 255, 255],
     },
@@ -361,18 +373,22 @@ export const generateOrderPDF = async (
 
   // 4. TOTALIZADOR DESTACADO
   const finalY = (doc as any).lastAutoTable.finalY + 10;
+  // If prices are hidden in the catalog, add a legend to explain placeholders
+  if (!showPrices) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100);
+    doc.text('Valores não informados no catálogo', margin, finalY - 4);
+    doc.setFont('helvetica', 'bold');
+  }
   doc.setFillColor(primaryColor);
   doc.rect(pageWidth - margin - 60, finalY - 5, 60, 10, 'F');
 
   doc.setTextColor(255);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(
-    `TOTAL: ${formatCurrency(total)}`,
-    pageWidth - margin - 5,
-    finalY + 1.5,
-    { align: 'right' }
-  );
+  const totalLabel = showPrices ? `TOTAL: ${formatCurrency(total)}` : 'TOTAL: Sob consulta';
+  doc.text(totalLabel, pageWidth - margin - 5, finalY + 1.5, { align: 'right' });
 
   // 5. RODAPÉ (Informações de Contato e Paginação)
   const footerY = pageHeight - 15;

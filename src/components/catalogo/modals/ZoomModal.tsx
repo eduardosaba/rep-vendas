@@ -5,6 +5,7 @@
 import React, { useEffect } from 'react';
 import Image from 'next/image';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getProductImage } from '@/lib/utils/image-logic';
 import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 
@@ -21,6 +22,7 @@ interface ZoomModalProps {
   setIsZoomOpen: (isOpen: boolean) => void;
   currentImageIndex: number;
   setCurrentImageIndex: React.Dispatch<React.SetStateAction<number>>;
+  swipeThreshold?: number;
 }
 
 // Helper de Imagens (unificado): normaliza várias fontes possíveis
@@ -95,6 +97,7 @@ export function ZoomModal({
   setIsZoomOpen,
   currentImageIndex,
   setCurrentImageIndex,
+  swipeThreshold = 50,
 }: ZoomModalProps) {
   const productImages = getProductImages(viewProduct);
   const hasMultipleImages = productImages.length > 1;
@@ -160,35 +163,93 @@ export function ZoomModal({
           </button>
         )}
 
-        {productImages[currentImageIndex] && (
-          <div className="relative max-w-[90vw] max-h-[85vh] w-auto h-auto">
-            {(() => {
-              const raw = productImages[currentImageIndex];
-              const isPending = (viewProduct as any)?.sync_status === 'pending';
-              const isExternalHost =
-                String(raw).includes('safilo') ||
-                (String(raw).startsWith('http') &&
-                  !String(raw).includes('supabase.co'));
+        {productImages[currentImageIndex] && (() => {
+          const raw = productImages[currentImageIndex];
+          const isPending = (viewProduct as any)?.sync_status === 'pending';
+          const isExternalHost =
+            String(raw).includes('safilo') ||
+            (String(raw).startsWith('http') && !String(raw).includes('supabase.co'));
 
-              const src =
-                isPending || isExternalHost
-                  ? raw
-                  : getProductImage(raw, 'large') || raw;
+          const src = isPending || isExternalHost ? raw : getProductImage(raw, 'large') || raw;
 
-              return (
-                <Image
-                  src={src}
-                  alt="Zoom"
-                  fill
-                  style={{ objectFit: 'contain', maxWidth: '100%' }}
-                  className="select-none"
-                  loading="eager"
-                  quality={95}
-                />
-              );
-            })()}
-          </div>
-        )}
+          return (
+            <div className="relative max-w-[90vw] max-h-[85vh] w-auto h-auto flex items-center justify-center overflow-hidden">
+                <AnimatePresence mode="wait">
+                  {/**
+                   * Quando possível usamos `next/image` para otimização; o `motion.div` envolve
+                   * e recebe o gesto de drag. Para fontes externas ou pending, usamos imagem direta.
+                   */}
+                  {isExternalHost || (viewProduct as any)?.sync_status === 'pending' ? (
+                    <motion.img
+                      key={currentImageIndex}
+                      src={String(src)}
+                      alt={`Zoom ${currentImageIndex + 1}`}
+                      initial={{ opacity: 0, x: 50 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -50 }}
+                      transition={{ duration: 0.2 }}
+                      drag="x"
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={0.2}
+                      onDragEnd={(_: any, info: any) => {
+                        if (info.offset.x < -swipeThreshold) {
+                          setCurrentImageIndex((i) => Math.min(productImages.length - 1, i + 1));
+                        } else if (info.offset.x > swipeThreshold) {
+                          setCurrentImageIndex((i) => Math.max(0, i - 1));
+                        }
+                      }}
+                      className="max-w-full max-h-[85vh] object-contain select-none cursor-grab active:cursor-grabbing"
+                    />
+                  ) : (
+                    <motion.div
+                      key={currentImageIndex}
+                      initial={{ opacity: 0, x: 50 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -50 }}
+                      transition={{ duration: 0.2 }}
+                      drag="x"
+                      dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={0.2}
+                      onDragEnd={(_: any, info: any) => {
+                        if (info.offset.x < -swipeThreshold) {
+                          setCurrentImageIndex((i) => Math.min(productImages.length - 1, i + 1));
+                        } else if (info.offset.x > swipeThreshold) {
+                          setCurrentImageIndex((i) => Math.max(0, i - 1));
+                        }
+                      }}
+                      className="w-full h-full flex items-center justify-center"
+                    >
+                      <div className="relative w-full h-[85vh] max-w-full">
+                        <Image
+                          src={String(src)}
+                          alt={`Zoom ${currentImageIndex + 1}`}
+                          fill
+                          style={{ objectFit: 'contain' }}
+                          className="select-none"
+                          loading="eager"
+                          quality={95}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Indicadores */}
+                {productImages.length > 1 && (
+                  <div className="absolute bottom-4 flex gap-1">
+                    {productImages.map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={`h-1.5 w-6 rounded-full transition-colors ${
+                          idx === currentImageIndex ? 'bg-white' : 'bg-white/40'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+          );
+        })()}
 
         {hasMultipleImages && (
           <button

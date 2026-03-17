@@ -18,6 +18,7 @@ interface StoreData {
   email?: string;
   logo_url?: string | null;
   primary_color?: string;
+  show_sale_price?: boolean;
 }
 
 // URL da logo padrão do sistema (fallback) derivada da env
@@ -164,23 +165,36 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
   currentY += 48;
 
   // --- 4. TABELA DE ITENS ---
-  const tableBody = order.items.map((item) => [
-    item.reference_code || '-',
-    item.name,
-    item.quantity,
-    new Intl.NumberFormat('pt-BR', {
+  const showPrices = (store as any)?.show_sale_price !== false;
+
+  const tableBody = order.items.map((item) => {
+    const unit = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-    }).format(item.sale_price ?? item.price),
-    new Intl.NumberFormat('pt-BR', {
+    }).format(item.sale_price ?? item.price);
+    const lineTotal = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-    }).format((item.sale_price ?? item.price) * item.quantity),
-  ]);
+    }).format((item.sale_price ?? item.price) * item.quantity);
+
+    if (showPrices) {
+      return [
+        item.reference_code || '-',
+        item.name,
+        item.quantity,
+        unit,
+        lineTotal,
+      ];
+    }
+
+    return [item.reference_code || '-', item.name, item.quantity];
+  });
 
   autoTable(doc, {
     startY: currentY,
-    head: [['CÓDIGO', 'PRODUTO', 'QTD', 'UNITÁRIO', 'TOTAL']],
+    head: showPrices
+      ? [['CÓDIGO', 'PRODUTO', 'QTD', 'UNITÁRIO', 'TOTAL']]
+      : [['CÓDIGO', 'PRODUTO', 'QTD']],
     body: tableBody,
     theme: 'plain',
     headStyles: {
@@ -198,13 +212,19 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
       lineWidth: { bottom: 0.1 },
       valign: 'middle',
     },
-    columnStyles: {
-      0: { cellWidth: 30 },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 20, halign: 'center' },
-      3: { cellWidth: 35, halign: 'right' },
-      4: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
-    },
+    columnStyles: showPrices
+      ? {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 35, halign: 'right' },
+          4: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
+        }
+      : {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 20, halign: 'center' },
+        },
   });
 
   // Access lastAutoTable if present (added by autoTable at runtime)
@@ -240,9 +260,20 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
   });
 
   // Valor
+  // Valor
   doc.setFontSize(16);
   doc.setTextColor(0, 0, 0); // Preto
-  doc.text(totalText, pageWidth - margin, currentY + 2, { align: 'right' });
+  if (showPrices) {
+    doc.text(totalText, pageWidth - margin, currentY + 2, { align: 'right' });
+  } else {
+    doc.text('Sob consulta', pageWidth - margin, currentY + 2, { align: 'right' });
+    // legenda explicativa
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Valores não informados no catálogo', margin, currentY + 18);
+    doc.setFont('helvetica', 'normal');
+  }
 
   // --- 6. RODAPÉ (Representante) ---
   const pageHeight = doc.internal.pageSize.height;

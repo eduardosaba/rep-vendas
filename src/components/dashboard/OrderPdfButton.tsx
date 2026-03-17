@@ -107,8 +107,8 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
         order.total_value ||
         items.reduce((acc: number, i: any) => acc + i.quantity * i.price, 0);
 
-      // Chama o gerador
-      await generateOrderPDF(orderData, storeData, items, total);
+      // Chama o gerador (admin/dashboard: garantir que mostre preços)
+      await generateOrderPDF(orderData, storeData, items, total, false, true);
 
       toast.success('PDF gerado com sucesso!');
     } catch (error) {

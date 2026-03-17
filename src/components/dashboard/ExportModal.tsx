@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 export function ExportModal({ isOpen, onClose, products = [], storeSettings, brandMapping }: any) {
   const [loading, setLoading] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [progress, setProgress] = useState({ p: 0, msg: '' });
   const [previewTab, setPreviewTab] = useState<'cover' | 'page'>('cover');
   const [livePreview, setLivePreview] = useState<{cover: string|null, page: string|null}>({ cover: null, page: null });
@@ -240,9 +241,12 @@ export function ExportModal({ isOpen, onClose, products = [], storeSettings, bra
                 <button onClick={() => setPreviewTab('cover')} className={`px-6 py-1 rounded-full text-[10px] font-bold ${previewTab === 'cover' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>CAPA</button>
                 <button onClick={() => setPreviewTab('page')} className={`px-6 py-1 rounded-full text-[10px] font-bold ${previewTab === 'page' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>PÁGINAS</button>
             </div>
-            <div className="w-full max-w-[360px] aspect-[1/1.41] bg-white shadow-2xl rounded-xl overflow-hidden relative border-4 border-white">
+            <div className={`w-full max-w-[360px] bg-white shadow-2xl rounded-xl overflow-hidden relative border-4 border-white ${previewOpen ? 'h-[50vh] md:h-auto' : 'h-24 md:h-auto'} md:aspect-[1/1.41]`}>
+              <button onClick={() => setPreviewOpen(v => !v)} className="absolute right-3 top-3 z-20 bg-white/80 dark:bg-slate-900/80 p-1 rounded-full border shadow-sm">
+                {previewOpen ? <X size={14} /> : <Eye size={14} />}
+              </button>
               {pdfBlobUrl ? (
-                <iframe src={pdfBlobUrl} className="w-full h-full border-none" key={pdfBlobUrl} />
+                <iframe src={pdfBlobUrl} className="w-full h-full border-none" key={pdfBlobUrl} style={{ pointerEvents: previewOpen ? 'auto' : 'none' }} />
               ) : (
                 (previewTab === 'cover' ? livePreview.cover : livePreview.page) ? (
                   <img src={(previewTab === 'cover' ? livePreview.cover : livePreview.page) || ''} className="w-full h-full object-cover" alt="Preview" />

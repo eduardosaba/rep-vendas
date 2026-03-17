@@ -972,7 +972,8 @@ export function StoreProvider({
           store,
           cart,
           totalValue,
-          true
+          true,
+          showPrices
         );
         if (doc instanceof Blob) {
           const fileName = `pedidos/${serverOrder.id || serverOrder.display_id || 'unknown'}_${Date.now()}.pdf`;
@@ -1204,10 +1205,16 @@ export function StoreProvider({
       } as any;
 
       // Use server API to save cart so insertion happens with server privileges
+      // Normalize items to API expected shape: { product_id, quantity }
+      const apiItems = (items || []).map((it: any) => ({
+        product_id: it.id || it.product_id || null,
+        quantity: Number(it.quantity || 1),
+      }));
+
       const apiRes = await fetch('/api/save-cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, userId: store.user_id }),
+        body: JSON.stringify({ items: apiItems, userId: store.user_id }),
       });
 
       const apiJson = await apiRes.json().catch(() => null);
@@ -1631,7 +1638,8 @@ export function StoreProvider({
               store,
               orderSuccessData.items,
               orderSuccessData.total,
-              true
+              true,
+              showPrices
             );
             if (doc instanceof Blob) {
               const url = URL.createObjectURL(doc);

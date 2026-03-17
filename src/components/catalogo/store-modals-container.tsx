@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useStore } from './store-context';
 import {
@@ -385,6 +386,19 @@ export function StoreModals() {
     setCurrentImageIndex(0);
     setDetailQuantity(1);
   }, [displayProduct]);
+
+  const SWIPE_THRESHOLD = 80; // pixels
+
+  const handleImageDragEnd = (_: any, info: any) => {
+    const offsetX = info?.offset?.x || 0;
+    if (offsetX > SWIPE_THRESHOLD) {
+      // swipe right -> previous
+      setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : productImages.length - 1));
+    } else if (offsetX < -SWIPE_THRESHOLD) {
+      // swipe left -> next
+      setCurrentImageIndex((prev) => (prev < productImages.length - 1 ? prev + 1 : 0));
+    }
+  };
 
   // Quando um pedido é finalizado (orderSuccessData), salvar automaticamente
   // o pedido como código curto e abrir o modal de SaveCode.
@@ -1039,16 +1053,21 @@ export function StoreModals() {
                 className="relative w-full h-full max-w-6xl flex items-center justify-center p-4 md:p-12"
                 onClick={(e) => e.stopPropagation()}
               >
-                <img
+                <motion.img
                   src={productImages[currentImageIndex]?.url1200}
                   alt="Visualização em Alta Resolução"
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.12}
+                  onDragEnd={handleImageDragEnd}
+                  whileTap={{ scale: 0.995 }}
                   style={{
                     backgroundImage: `url(${productImages[currentImageIndex]?.url480})`,
                     backgroundSize: 'contain',
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'center',
                   }}
-                  className="max-w-full max-h-[70vh] md:max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none"
+                  className="max-w-full max-h-[70vh] md:max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none cursor-grab active:cursor-grabbing"
                 />
 
                 {/* Contador e Legenda */}
