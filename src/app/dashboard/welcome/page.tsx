@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Settings, Package, ArrowRight, CheckCircle2, LayoutDashboard, Loader2 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { createClient } from '@/lib/supabase/client';
@@ -12,7 +11,7 @@ export default function WelcomePage() {
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
 
-  const completeOnboarding = async (targetPath: string) => {
+  const completeOnboarding = useCallback(async (targetPath: string) => {
     setLoading(true);
     try {
       const {
@@ -20,7 +19,10 @@ export default function WelcomePage() {
       } = await supabase.auth.getUser();
 
       if (user) {
-        await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', user.id);
+        await supabase
+          .from('profiles')
+          .update({ onboarding_completed: true })
+          .eq('id', user.id);
       }
     } catch (e) {
       // ignore — não bloqueia a navegação
@@ -28,7 +30,11 @@ export default function WelcomePage() {
       setLoading(false);
       router.push(targetPath);
     }
-  };
+  }, [router, supabase]);
+
+  const goToBrandSetup = useCallback(() => {
+    router.push('/dashboard/settings');
+  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0d1b2c] p-4 md:p-6 font-sans">
@@ -75,7 +81,7 @@ export default function WelcomePage() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => completeOnboarding('/dashboard/settings')}
+              onClick={goToBrandSetup}
               disabled={loading}
               className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-[#b9722e] hover:bg-[#9a5e24] text-white rounded-2xl font-bold transition-all shadow-lg shadow-orange-200 disabled:opacity-50"
             >

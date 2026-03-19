@@ -10,6 +10,7 @@ import {
 
 export default function CloneUserPage() {
   const supabase = createClient();
+  const [mounted, setMounted] = useState(false);
   
   // Estados de Dados
   const [users, setUsers] = useState<any[]>([]);
@@ -41,6 +42,8 @@ export default function CloneUserPage() {
 
   // 1. Carregar lista de usuários
   useEffect(() => {
+    setMounted(true);
+
     async function loadUsers() {
       const { data } = await supabase.from('profiles').select('id, full_name, email').order('full_name');
       setUsers(data || []);
@@ -101,7 +104,7 @@ export default function CloneUserPage() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           sourceUserId: sourceUser,
@@ -110,12 +113,19 @@ export default function CloneUserPage() {
         })
       });
 
+      const json = await res.json().catch(() => null);
+
       clearInterval(interval);
 
-      if (!res.ok) throw new Error("Erro no processamento do clone");
+      if (!res.ok) {
+        const detail = [json?.error, json?.detail, json?.hint]
+          .filter(Boolean)
+          .join(' | ');
+        throw new Error(detail || 'Erro no processamento do clone');
+      }
 
       setProgress(100);
-      toast.success("Catálogo clonado com sucesso!");
+      toast.success(json?.message || 'Catálogo clonado com sucesso!');
       
       // Resetar após a conclusão
       setTimeout(() => {
@@ -130,6 +140,17 @@ export default function CloneUserPage() {
       toast.error(e.message);
     }
   };
+
+  if (!mounted) {
+    return (
+      <div className="max-w-7xl mx-auto p-6 md:p-10 min-h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3 text-slate-500">
+          <Loader2 className="animate-spin" size={18} />
+          Carregando central de clonagem...
+        </div>
+      </div>
+    );
+  }
 
   // 4. Histórico e Desfazer (Simplificados para Tailwind puro)
   const fetchHistory = async () => {

@@ -8,12 +8,28 @@ type Body = {
   brands: string[];
 };
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function POST(req: Request) {
   try {
     const body: Body = await req.json();
 
-    if (!body?.targetUserId || !Array.isArray(body.brands)) {
+    const cleanedBrands = Array.isArray(body?.brands)
+      ? body.brands
+          .map((b) => String(b || '').trim())
+          .filter((b) => b.length > 0)
+      : [];
+
+    if (!body?.targetUserId || cleanedBrands.length === 0) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    if (!UUID_REGEX.test(body.targetUserId)) {
+      return NextResponse.json(
+        { error: 'targetUserId inválido' },
+        { status: 400 }
+      );
     }
 
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,7 +49,7 @@ export async function POST(req: Request) {
     // Validate caller token and role
     const authHeader = req.headers.get('authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    if (!token)
+    if (!token || token === 'undefined' || token === 'null')
       return NextResponse.json({ error: 'Missing auth' }, { status: 401 });
 
     const { data: userResp, error: userErr } = await supabase.auth.getUser(
@@ -56,6 +72,20 @@ export async function POST(req: Request) {
     // Call RPC to clone catalog by brand (Postgres function must exist)
     const sourceId = body.sourceUserId || user.id;
 
+    if (!UUID_REGEX.test(sourceId)) {
+      return NextResponse.json(
+        { error: 'sourceUserId inválido' },
+        { status: 400 }
+      );
+    }
+
+    if (sourceId === body.targetUserId) {
+      return NextResponse.json(
+        { error: 'Origem e destino devem ser usuários diferentes' },
+        { status: 400 }
+      );
+    }
+
     // Optional: ensure source exists
     const { data: srcUser } = await supabase
       .from('profiles')
@@ -69,17 +99,29 @@ export async function POST(req: Request) {
       );
     }
 
+    const { data: targetUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', body.targetUserId)
+      .maybeSingle();
+    if (!targetUser) {
+      return NextResponse.json(
+        { error: 'Target user not found' },
+        { status: 400 }
+      );
+    }
+
     // Call the RPC. Function signature from migration: clone_catalog_smart(source_user_id uuid, target_user_id uuid, brands_to_copy text[])
     console.log('[setup-new-user] Calling clone_catalog_smart with:', {
       source_user_id: sourceId,
       target_user_id: body.targetUserId,
-      brands_to_copy: body.brands,
+      brands_to_copy: cleanedBrands,
     });
 
     const { data, error } = await supabase.rpc('clone_catalog_smart', {
       source_user_id: sourceId,
       target_user_id: body.targetUserId,
-      brands_to_copy: body.brands,
+      brands_to_copy: cleanedBrands,
     });
 
     if (error) {
@@ -108,7 +150,7 @@ export async function POST(req: Request) {
         metadata: {
           source_user_id: sourceId,
           target_user_id: body.targetUserId,
-          brands: body.brands,
+          brands: cleanedBrands,
           result: data,
         },
       });
@@ -116,7 +158,11 @@ export async function POST(req: Request) {
       console.warn('Failed to write activity log for setup-new-user', logErr);
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({
+      success: true,
+      message: 'Clonagem concluída com sucesso',
+      data,
+    });
   } catch (err: any) {
     console.error('setup-new-user error', err);
     return NextResponse.json(

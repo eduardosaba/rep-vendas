@@ -101,7 +101,7 @@ export default function NewUserSetup() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           sourceUserId: sourceUser,
@@ -111,7 +111,12 @@ export default function NewUserSetup() {
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Erro');
+      if (!res.ok) {
+        const detail = [json?.error, json?.detail, json?.hint]
+          .filter(Boolean)
+          .join(' | ');
+        throw new Error(detail || 'Erro');
+      }
       toast.success(json?.message || 'Clonagem iniciada');
 
       // complete progress

@@ -15,6 +15,26 @@ let app: any = null;
 let messaging: Messaging | null = null;
 let vapidErrorLogged = false;
 
+function isLikelyValidVapidKey(vapidKey: string): boolean {
+  // VAPID public key is usually an unpadded base64url string (~87 chars).
+  // Accept a safe range and only URL-safe base64 characters.
+  if (!vapidKey) return false;
+  if (vapidKey.length < 80 || vapidKey.length > 140) return false;
+  if (!/^[A-Za-z0-9_-]+$/.test(vapidKey)) return false;
+
+  const upper = vapidKey.toUpperCase();
+  if (
+    upper.includes('YOUR_VAPID_KEY') ||
+    upper.includes('PUBLIC_VAPID_KEY') ||
+    upper.includes('SUA_CHAVE') ||
+    upper.includes('EXAMPLE')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 // Inicializa o app no cliente (se ainda não inicializado)
 if (typeof window !== 'undefined') {
   if (!firebaseConfig.projectId) {
@@ -79,11 +99,9 @@ export const getFcmToken = async () => {
     // sanitize common mistakes: surrounding quotes, whitespace
     const vapidKey = String(rawVapid).trim().replace(/^"|"$/g, '');
 
-    // basic validation: should be URL-safe base64-like string (letters, numbers, -, _)
-    const isLikelyVapid = /^[A-Za-z0-9\-_]+=*$/.test(vapidKey);
-    if (!isLikelyVapid || vapidKey.length < 10) {
+    if (!isLikelyValidVapidKey(vapidKey)) {
       console.warn(
-        '[firebase] NEXT_PUBLIC_FIREBASE_VAPID_KEY looks invalid — please provide the public VAPID key (URL-safe base64 string) in .env as NEXT_PUBLIC_FIREBASE_VAPID_KEY'
+        '[firebase] NEXT_PUBLIC_FIREBASE_VAPID_KEY looks invalid — use the PUBLIC Web Push certificate key from Firebase (base64url), without quotes or placeholders'
       );
       return null;
     }
@@ -95,10 +113,13 @@ export const getFcmToken = async () => {
     } catch (err: unknown) {
       // Avoid spamming the console if the VAPID key is invalid — log once
       if (!vapidErrorLogged) {
-        console.error('Erro ao obter token FCM:', err);
+        console.warn(
+          '[firebase] failed to subscribe for push notifications. Check NEXT_PUBLIC_FIREBASE_VAPID_KEY and Firebase Web Push certificates.',
+          err
+        );
         vapidErrorLogged = true;
       } else {
-        console.debug('Erro ao obter token FCM (silenciado):', err);
+        console.debug('[firebase] FCM token error (silenced):', err);
       }
       return null;
     }

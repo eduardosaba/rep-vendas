@@ -105,12 +105,12 @@ export async function signup(formData: FormData) {
 
         if (missingCols.size > 0) {
           console.warn('signup: detected missing columns in DB schema', Array.from(missingCols));
-          return { success: true, redirectTo: '/dashboard/welcome', missingColumns: Array.from(missingCols) } as any;
+          return { success: true, redirectTo: '/dashboard', missingColumns: Array.from(missingCols) } as any;
         }
       } catch (err) { console.warn('Não foi possível completar rotinas pós-signup (trial/profiles):', err); }
     }
 
-    return { success: true, redirectTo: '/dashboard/welcome' };
+    return { success: true, redirectTo: '/dashboard' };
   } catch (err: unknown) {
     console.error('Erro signup:', err);
     return { error: 'Erro ao cadastrar usuário' };
