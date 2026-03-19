@@ -133,6 +133,7 @@ export default function ImportMassaPage() {
     price?: string;
     sale_price?: string;
     brand?: string;
+    gender?: string;
     image?: string;
     ref?: string;
     ean?: string;
@@ -260,6 +261,7 @@ export default function ImportMassaPage() {
     map.ean = findCol(/ean|barcode|codigo de barras|gtin/);
     map.category = findCol(/categoria|category/);
     map.color = findCol(/cor|color/);
+    map.gender = findCol(/genero|gender|sexo/);
     map.desc = findCol(/descricao|desc|description/);
 
     map.image = cols.find((c) => isImageLike(c));
@@ -353,6 +355,9 @@ export default function ImportMassaPage() {
           : null;
         const color = getField(row, mapping.color)
           ? String(getField(row, mapping.color))
+          : null;
+        const gender = getField(row, mapping.gender)
+          ? String(getField(row, mapping.gender))
           : null;
 
         // Imagem (Processamento Safilo: P00=Capa, Remove P13/P14)
@@ -507,6 +512,7 @@ export default function ImportMassaPage() {
           brand,
           category,
           color,
+          gender,
           description: finalDescription,
           // Garantir que o importador NÃO marque como otimizada por omissão.
           // `image_path` deve ser null quando a imagem ainda não foi internalizada.

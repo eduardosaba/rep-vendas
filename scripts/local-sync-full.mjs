@@ -16,6 +16,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const BUCKET = 'product-images';
 const RESPONSIVE_SIZES = [480, 1200];
+const SIZE_OPTIONS = {
+  480: { width: 480, quality: 70 },
+  1200: { width: 1200, quality: 85 },
+};
 // Com 400mb de internet, podemos subir para 15 ou 20
 const MAX_CONCURRENT = 15;
 
@@ -44,8 +48,8 @@ async function processImage(url, storageBase, agent) {
   return Promise.all(
     RESPONSIVE_SIZES.map(async (size) => {
       const outBuf = await sharp(buffer)
-        .resize(size, size, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 70 })
+        .resize({ width: SIZE_OPTIONS[size].width, withoutEnlargement: true })
+        .webp({ quality: SIZE_OPTIONS[size].quality })
         .toBuffer();
 
       const path = `${storageBase}-${size}w.webp`;
@@ -87,11 +91,11 @@ async function syncFullCatalog() {
 
   let query;
   if (targetIds && targetIds.length) {
-    query = supabase.from('products').select('id, reference_code, image_url, external_image_url, images, brand').in('id', targetIds);
+    query = supabase.from('products').select('id, reference_code, image_url, external_image_url, images, brand, color, gallery_images').in('id', targetIds);
   } else {
     query = supabase
       .from('products')
-      .select('id, reference_code, image_url, external_image_url, images, brand')
+      .select('id, reference_code, image_url, external_image_url, images, brand, color, gallery_images')
       .or('sync_status.eq.pending,sync_status.eq.failed');
 
     if (brandFilter) query = query.ilike('brand', `%${brandFilter}%`);
@@ -111,16 +115,25 @@ async function syncFullCatalog() {
     limit(async () => {
       const brand = product.brand || 'Geral';
       const ref = product.reference_code || product.id;
-      const brandSlug = brand.toLowerCase().replace(/\s+/g, '-');
+      const color = product.color || '';
       const refSafe = String(ref).replace(/[^a-zA-Z0-9]/g, '_');
-      const storagePath = `public/brands/${brandSlug}/${refSafe}`;
+      const colorSlugRaw = String(color || '').toString().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      // Avoid duplicating color if it's already part of the reference_code
+      const refNorm = refSafe.toLowerCase().replace(/[_]+/g, '-');
+      const includeColor = colorSlugRaw && !refNorm.endsWith('-' + colorSlugRaw) && !refNorm.endsWith(colorSlugRaw);
+      const brandSlug = String(brand || 'geral').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const fileBase = includeColor
+        ? `public/brands/${brandSlug}/${refSafe}-${colorSlugRaw}`
+        : `public/brands/${brandSlug}/${refSafe}`;
 
       try {
+        // Recolhe todas as URLs candidatas: capa, external, images array e gallery_images
         const urls = [
           ...new Set([
             ...splitUrls(product.image_url),
             ...splitUrls(product.external_image_url),
             ...splitUrls(product.images),
+            ...splitUrls(product.gallery_images),
           ]),
         ];
 
@@ -146,12 +159,8 @@ async function syncFullCatalog() {
             );
             return;
           }
-          // Processa Capa
-          const mainVariants = await processImage(
-            urls[0],
-            `${storagePath}-main`,
-            agent
-          );
+          // Processa Capa -> filename: <refSafe>-<color>-480w.webp / -1200w.webp
+          const mainVariants = await processImage(urls[0], fileBase, agent);
 
           // Processa Galeria em lote interno também
           const gallery = [];
@@ -159,11 +168,9 @@ async function syncFullCatalog() {
           await Promise.all(
             galleryUrls.map(async (gUrl, idx) => {
               try {
-                const v = await processImage(
-                  gUrl,
-                  `${storagePath}-${idx + 2}`,
-                  agent
-                );
+                // Gallery images: filename: <refSafe>-<color>-1-480w.webp, etc.
+                const indexPad = String(idx + 1).padStart(2, '0');
+                const v = await processImage(gUrl, `${fileBase}-${indexPad}`, agent);
                 gallery.push({
                   url: v.find((img) => img.size === 1200).url,
                   path: v.find((img) => img.size === 1200).path,

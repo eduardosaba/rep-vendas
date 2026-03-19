@@ -1,0 +1,28 @@
+[
+  {
+    "id": "3bc41d42-fbaa-4a21-888e-74701d6432d6",
+    "reference": "MOS176/S 086",
+    "checks": [
+      {
+        "url": "https://commportal-images.safilo.com/20/76/99/2076990086QT_P00.JPG",
+        "ok": true,
+        "status": 200
+      },
+      {
+        "url": "https://commportal-images.safilo.com/20/76/99/2076990086QT_P01.JPG",
+        "ok": true,
+        "status": 200
+      },
+      {
+        "url": "https://commportal-images.safilo.com/20/76/99/2076990086QT_P02.JPG",
+        "ok": true,
+        "status": 200
+      },
+      {
+        "url": "https://commportal-images.safilo.com/20/76/99/2076990086QT_P07.JPG",
+        "ok": true,
+        "status": 200
+      }
+    ]
+  }
+]

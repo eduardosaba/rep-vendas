@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
 const id = process.argv[2];
 if (!id) {

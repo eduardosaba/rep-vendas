@@ -40,7 +40,7 @@ async function startMassiveSync() {
     try {
       const { data: products, error } = await supabase
         .from('products')
-        .select('id, name, image_url')
+        .select('id, name, image_url, reference_code, brand, color')
         .eq('sync_status', 'pending')
         .limit(CHUNK_SIZE);
 
@@ -81,31 +81,82 @@ async function startMassiveSync() {
 
           const buffer = Buffer.from(await response.arrayBuffer());
 
-          const optimized = await sharp(buffer)
-            .resize(800, 800, { fit: 'inside' })
-            .webp({ quality: 80 })
-            .toBuffer();
+          // build brand/ref based storage base
+          const brand = product.brand || 'Geral';
+          const ref = product.reference_code || product.id;
+          const color = product.color || '';
+          const refSafe = String(ref).replace(/[^a-zA-Z0-9]/g, '_');
+          const colorSlugRaw = String(color || '').toString().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          const refNorm = refSafe.toLowerCase().replace(/[_]+/g, '-');
+          const includeColor = colorSlugRaw && !refNorm.endsWith('-' + colorSlugRaw) && !refNorm.endsWith(colorSlugRaw);
+          const brandSlug = String(brand || 'geral').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          const fileBase = includeColor
+            ? `public/brands/${brandSlug}/${refSafe}-${colorSlugRaw}-main`
+            : `public/brands/${brandSlug}/${refSafe}-main`;
 
-          const path = `products/${product.id}-main.webp`;
-          const { error: uploadError } = await supabase.storage
-            .from('product-images')
-            .upload(path, optimized, { upsert: true });
+          // create two responsive variants (480 and 1200) for main image
+          const variants = [];
+          const sizes = [{ size: 480, width: 480, quality: 70 }, { size: 1200, width: 1200, quality: 85 }];
+          for (const s of sizes) {
+            const out = await sharp(buffer)
+              .resize({ width: s.width, withoutEnlargement: true })
+              .webp({ quality: s.quality })
+              .toBuffer();
+            const path = `${fileBase}-${s.size}w.webp`;
+            const { error: uploadError } = await supabase.storage.from('product-images').upload(path, out, { upsert: true, contentType: 'image/webp' });
+            if (uploadError) throw uploadError;
+            const { data: publicData } = await supabase.storage.from('product-images').getPublicUrl(path);
+            const publicUrl = publicData?.publicUrl || publicData?.public_url || '';
+            variants.push({ size: s.size, url: publicUrl, path });
+          }
 
-          if (uploadError) throw uploadError;
+          // process gallery images if present in product.images (skip first if it's the cover)
+          const gallery = [];
+          try {
+            let galleryUrls = [];
+            if (Array.isArray(product.images)) galleryUrls = product.images.filter(Boolean);
+            else if (typeof product.images === 'string') galleryUrls = product.images.split(/[;,]/).map(s => s.trim()).filter(Boolean);
 
-          const { data: publicData } = await supabase.storage
-            .from('product-images')
-            .getPublicUrl(path);
+            // if first url is same as image_url, drop it
+            if (galleryUrls.length && product.image_url && galleryUrls[0] === product.image_url) galleryUrls = galleryUrls.slice(1);
 
-          const publicUrl =
-            publicData?.publicUrl || publicData?.public_url || '';
+            for (let idx = 0; idx < galleryUrls.length; idx++) {
+              const gUrl = galleryUrls[idx];
+              const indexPad = String(idx + 1).padStart(2, '0');
+              const fileBaseGallery = includeColor
+                ? `public/brands/${brandSlug}/${refSafe}-${colorSlugRaw}-${indexPad}`
+                : `public/brands/${brandSlug}/${refSafe}-${indexPad}`;
+              const gVariants = [];
+              for (const s of sizes) {
+                try {
+                  const respBuf = Buffer.from(await (await fetch(gUrl, { agent })).arrayBuffer());
+                  const out = await sharp(respBuf)
+                    .resize({ width: s.width, withoutEnlargement: true })
+                    .webp({ quality: s.quality })
+                    .toBuffer();
+                  const path = `${fileBaseGallery}-${s.size}w.webp`;
+                  const { error: uploadError } = await supabase.storage.from('product-images').upload(path, out, { upsert: true, contentType: 'image/webp' });
+                  if (uploadError) throw uploadError;
+                  const { data: publicData } = await supabase.storage.from('product-images').getPublicUrl(path);
+                  const publicUrl = publicData?.publicUrl || publicData?.public_url || '';
+                  gVariants.push({ size: s.size, url: publicUrl, path });
+                } catch (e) {
+                  // ignore per-image failures and continue
+                }
+              }
+              if (gVariants.length) gallery.push({ url: gVariants.find(v => v.size === 1200)?.url || gVariants[0].url, path: gVariants.find(v => v.size === 1200)?.path || gVariants[0].path, variants: gVariants });
+            }
+          } catch (e) {
+            // don't fail the whole product if gallery processing errors
+          }
 
+          // update product: set image_path to 1200w path and image_variants array, and gallery_images
           await supabase
             .from('products')
-            .update({ image_url: publicUrl, sync_status: 'synced' })
+            .update({ image_url: null, image_path: variants.find(v => v.size === 1200).path, image_variants: variants, gallery_images: gallery, sync_status: 'synced' })
             .eq('id', product.id);
 
-          console.log(`✅ ${product.name} - Sincronizado`);
+          console.log(`✅ ${product.name} - Sincronizado (brands path)`);
         } catch (err) {
           const message = err?.message || String(err);
           console.error(`⚠️ Falha em ${product.name}: ${message}`);
