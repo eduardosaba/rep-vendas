@@ -157,18 +157,20 @@ export default function AdminSidebar({
                 onClick={async (e) => {
                   e.preventDefault();
                   try {
-                    const supResp = await fetch('/api/auth/session');
-                    const supJson = await supResp.json().catch(() => ({}));
-                    const token = supJson?.access_token || null;
-                    await fetch('/api/admin/impersonate', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                      },
-                      body: JSON.stringify({}),
-                    });
-                    window.open('/dashboard', '_blank', 'noopener');
+                      const supResp = await fetch('/api/auth/session');
+                      const supJson = await supResp.json().catch(() => ({}));
+                      const token = supJson?.access_token || null;
+                      if (token) {
+                        await fetch('/api/admin/impersonate', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({}),
+                        });
+                      }
+                      window.open('/dashboard', '_blank', 'noopener');
                   } catch (err) {
                     console.error('Erro ao abrir dashboard público', err);
                     window.open('/dashboard', '_blank', 'noopener');
@@ -225,14 +227,16 @@ export default function AdminSidebar({
                 const supJson = await supResp.json().catch(() => ({}));
                 const token = supJson?.access_token || null;
 
-                await fetch('/api/admin/impersonate', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                  },
-                  body: JSON.stringify({}),
-                });
+                if (token) {
+                  await fetch('/api/admin/impersonate', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({}),
+                  });
+                }
 
                 window.open('/dashboard', '_blank', 'noopener');
               } catch (err) {

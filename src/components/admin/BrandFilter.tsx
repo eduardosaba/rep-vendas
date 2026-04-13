@@ -1,19 +1,28 @@
-'use client';
+"use client";
 
+import { useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter } from 'lucide-react';
 
 export function BrandFilter({ brands }: { brands: string[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentBrand = searchParams.get('brand') || '';
+  const currentBrand = searchParams?.get('brand') || '';
+  const [, startTransition] = useTransition();
 
   const handleChange = (brand: string) => {
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(searchParams as any);
     if (brand) params.set('brand', brand);
     else params.delete('brand');
 
-    router.push(`?${params.toString()}`);
+    startTransition(() => {
+      try {
+        router.replace(`?${params.toString()}`);
+      } catch (e) {
+        // fallback
+        router.push(`?${params.toString()}`);
+      }
+    });
   };
 
   return (

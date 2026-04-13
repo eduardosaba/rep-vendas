@@ -14,7 +14,7 @@ export function useCatalog(
   // usar sonner programático
 
   // Prioriza o ID passado via props (resolvido no servidor), senão tenta ler da URL
-  const userId = overrideUserId || (params.slug as string);
+  const userId = overrideUserId || (params?.slug as string);
 
   // --- ESTADOS DE DADOS ---
   const [products, setProducts] = useState<Product[]>([]);

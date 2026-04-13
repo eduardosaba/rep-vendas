@@ -100,6 +100,7 @@ export async function POST(req: Request) {
       price_password,
       price_password_hash,
       cash_price_discount_percent: _cash_price_discount_percent,
+      store_banner_meta,
       ...rest
     } = payload;
 
@@ -166,6 +167,11 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
+    // include store_banner_meta if provided (defensive upsert below)
+    if (typeof store_banner_meta !== 'undefined') {
+      settingsPayload.store_banner_meta = store_banner_meta || null;
+    }
+
     // Determine final price password hash only if provided explicitly
     let finalPricePasswordHash: string | undefined;
     if (typeof price_password_hash === 'string' && price_password_hash.trim()) {
@@ -179,11 +185,22 @@ export async function POST(req: Request) {
       settingsPayload.price_password_hash = finalPricePasswordHash;
     }
 
-    // Upsert settings
-    const { error: settingsError } = await supabase
-      .from('settings')
-      .upsert(settingsPayload);
-    if (settingsError) throw settingsError;
+    // Upsert settings (defensive: retry without store_banner_meta if column missing)
+    try {
+      const { error: settingsError } = await supabase.from('settings').upsert(settingsPayload);
+      if (settingsError) throw settingsError;
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (/column\s+"?store_banner_meta"?\s+does not exist/i.test(msg)) {
+        // retry without the field
+        const safePayload = { ...settingsPayload } as any;
+        delete safePayload.store_banner_meta;
+        const { error: settingsError2 } = await supabase.from('settings').upsert(safePayload);
+        if (settingsError2) throw settingsError2;
+      } else {
+        throw e;
+      }
+    }
 
     // Upsert profile whatsapp fallback
     const { error: profileError } = await supabase.from('profiles').upsert({

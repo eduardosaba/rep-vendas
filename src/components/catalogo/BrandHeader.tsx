@@ -1,4 +1,6 @@
-import React from 'react';
+"use client";
+
+import React, { useEffect, useState } from 'react';
 import { BrandWithLogo } from '@/lib/types';
 import { SmartImage } from './SmartImage';
 
@@ -7,9 +9,41 @@ export default function BrandHeader({
 }: {
   brand: BrandWithLogo | null | undefined;
 }) {
+  const [clientMeta, setClientMeta] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      if (brand && typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem(`brand_banner_meta:${(brand as any).id}`);
+        if (raw) setClientMeta(JSON.parse(raw));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [brand]);
+
   if (!brand) return null;
   const { banner_url, description, name } = brand;
   if (!banner_url && !description) return null;
+
+  const meta = clientMeta || (brand as any).banner_meta || null;
+
+  let imgClassName = 'object-cover transition-transform duration-700 hover:scale-105';
+  let imgStyle: React.CSSProperties = {};
+
+  if (meta) {
+    const mode = meta.mode || 'fill';
+    if (mode === 'fit') {
+      imgClassName = 'object-contain';
+      imgStyle = { objectPosition: '50% 50%' };
+    } else if (mode === 'stretch') {
+      imgClassName = 'object-fill';
+      imgStyle = { objectPosition: '50% 50%' };
+    } else {
+      imgClassName = 'object-cover transition-transform duration-700 hover:scale-105';
+      imgStyle = { objectPosition: `${meta.focusX ?? 50}% ${meta.focusY ?? 50}%`, transform: `scale(${(meta.zoom ?? 100) / 100})` };
+    }
+  }
 
   return (
     <div className="mb-8">
@@ -19,7 +53,8 @@ export default function BrandHeader({
             <SmartImage
               product={{ image_url: banner_url, name }}
               className="w-full h-full"
-              imgClassName="object-cover transition-transform duration-700 hover:scale-105"
+              imgClassName={imgClassName}
+              imgStyle={imgStyle}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
             <div className="absolute left-6 bottom-4 text-white">

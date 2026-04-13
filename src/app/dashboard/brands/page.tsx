@@ -30,6 +30,7 @@ interface Brand {
   banner_path?: string | null;
   description?: string | null;
   commission_percent: number;
+  banner_meta?: { mode?: string; focusX?: number; focusY?: number; zoom?: number } | null;
 }
 
 interface BrandFormData {
@@ -40,6 +41,7 @@ interface BrandFormData {
   bannerFile: File | null;
   bannerPreview: string | { publicUrl: string; path: string } | null;
   description: string;
+  bannerMeta?: { mode?: string; focusX?: number; focusY?: number; zoom?: number } | null;
 }
 
 const INITIAL_FORM_DATA: BrandFormData = {
@@ -50,6 +52,7 @@ const INITIAL_FORM_DATA: BrandFormData = {
   bannerFile: null,
   bannerPreview: null,
   description: '',
+  bannerMeta: null,
 };
 
 // --- COMPONENTE DE CARD (UI Isolada) ---
@@ -235,10 +238,26 @@ export default function BrandsPage() {
       logoPreview: brand.logo_url || null,
       bannerFile: null,
       bannerPreview: brand.banner_url ?? null,
+      bannerMeta: null,
       description: brand.description ?? '',
     });
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
+
+  // Ao abrir edição, tentamos carregar metadados salvos em localStorage
+  useEffect(() => {
+    if (!editingBrand) return;
+    try {
+      const key = `brand_banner_meta:${editingBrand.id}`;
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setFormData((prev) => ({ ...prev, bannerMeta: parsed }));
+      }
+    } catch {
+      // ignore
+    }
+  }, [editingBrand]);
 
   // replaced by SmartImageUpload usage in the form below
 
@@ -312,6 +331,7 @@ export default function BrandsPage() {
         commission_percent: Number(formData.commission) || 0,
         logo_url: finalLogoUrl,
         banner_url: finalBannerUrl,
+        banner_meta: formData.bannerMeta || editingBrand?.banner_meta || null,
         logo_path: finalLogoPath,
         banner_path: finalBannerPath,
         description: formData.description || null,
@@ -319,16 +339,83 @@ export default function BrandsPage() {
       };
 
       if (editingBrand) {
-        const { error } = await supabase
-          .from('brands')
-          .update(payload)
-          .eq('id', editingBrand.id);
-        if (error) throw error;
-        toast.success('Marca atualizada!', { id: toastId });
+        // Tenta atualizar incluindo banner_meta; se a coluna não existir no esquema
+        // (por exemplo, migration não aplicada), tentamos sem o campo para evitar crash.
+        try {
+          const { error } = await supabase.from('brands').update(payload).eq('id', editingBrand.id);
+          if (error) throw error;
+          toast.success('Marca atualizada!', { id: toastId });
+          try {
+            if (formData.bannerMeta && editingBrand?.id) {
+              window.localStorage.setItem(`brand_banner_meta:${editingBrand.id}`, JSON.stringify(formData.bannerMeta));
+            }
+          } catch {}
+        } catch (err: any) {
+          const msg = String(err?.message || err || '');
+          if (/column\s+"?banner_meta"?\s+does not exist/i.test(msg)) {
+            const payload2 = { ...payload } as any;
+            delete payload2.banner_meta;
+            const { error: e2 } = await supabase.from('brands').update(payload2).eq('id', editingBrand.id);
+            if (e2) throw e2;
+            toast.success('Marca atualizada!', { id: toastId });
+            try {
+              if (formData.bannerMeta && editingBrand?.id) {
+                window.localStorage.setItem(`brand_banner_meta:${editingBrand.id}`, JSON.stringify(formData.bannerMeta));
+              }
+            } catch {}
+          } else {
+            throw err;
+          }
+        }
+        // Persistir banner_meta no banco (já enviado no payload). Se houver um banner_path
+        // e quisermos gerar variantes, solicitamos processamento server-side.
+        try {
+          if (formData.bannerMeta && editingBrand?.id) {
+            // solicitando processamento async do banner
+            if (editingBrand.banner_path || payload.banner_path) {
+              try {
+                await fetch(`/api/brands/${editingBrand.id}/process-banner`, { method: 'POST' });
+              } catch (e) {
+                console.warn('process-banner trigger failed', e);
+              }
+            }
+          }
+        } catch {}
       } else {
-        const { error } = await supabase.from('brands').insert(payload);
-        if (error) throw error;
-        toast.success('Marca criada!', { id: toastId });
+        try {
+          const { error } = await supabase.from('brands').insert(payload);
+          if (error) throw error;
+          toast.success('Marca criada!', { id: toastId });
+        } catch (err: any) {
+          const msg = String(err?.message || err || '');
+          if (/column\s+"?banner_meta"?\s+does not exist/i.test(msg)) {
+            const payload2 = { ...payload } as any;
+            delete payload2.banner_meta;
+            const { data: inserted, error: e2 } = await supabase.from('brands').insert(payload2).select('id').single();
+            if (e2) throw e2;
+            toast.success('Marca criada!', { id: toastId });
+            try {
+              if (formData.bannerMeta && inserted?.id) {
+                window.localStorage.setItem(`brand_banner_meta:${inserted.id}`, JSON.stringify(formData.bannerMeta));
+              }
+            } catch {}
+          } else {
+            throw err;
+          }
+        }
+        // If inserted successfully and bannerMeta exists, also persist locally so preview matches
+        try {
+          if (formData.bannerMeta) {
+            // Try to find inserted brand id by name (best-effort) or skip
+            const { data: found } = await supabase.from('brands').select('id').eq('name', formData.name).maybeSingle();
+            if (found?.id) {
+              try {
+                window.localStorage.setItem(`brand_banner_meta:${found.id}`, JSON.stringify(formData.bannerMeta));
+              } catch {}
+            }
+          }
+        } catch {}
+        // Para nova marca: nada adicional — o usuário pode reabrir e gerar variantes
       }
 
       resetForm();
@@ -543,6 +630,7 @@ export default function BrandsPage() {
                         ? formData.bannerPreview
                         : formData.bannerPreview?.publicUrl || null
                     }
+                    initialMeta={formData.bannerMeta ?? null}
                     onUploadReady={async (file) => {
                       try {
                         const objectURL = URL.createObjectURL(file as File);
@@ -585,6 +673,9 @@ export default function BrandsPage() {
                           }
                         } catch {}
                       }
+                    }}
+                    onMetaChange={(meta) => {
+                      setFormData((prev) => ({ ...prev, bannerMeta: meta }));
                     }}
                     className="w-full"
                   />

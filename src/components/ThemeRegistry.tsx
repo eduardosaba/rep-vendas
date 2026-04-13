@@ -125,21 +125,8 @@ export default function ThemeRegistry() {
               }
             }
 
-            // Register service worker and configure push notifications for logged user
-            try {
-              if (typeof window !== 'undefined') {
-                if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.register('/firebase-messaging-sw.js').then(() => null).catch(() => null);
-                }
-                try {
-                  setupNotifications(user.id as string);
-                } catch (e) {
-                  // ignore
-                }
-              }
-            } catch (e) {
-              // ignore
-            }
+            // Not registering service worker or auto-configuring notifications here.
+            // Notification setup is performed explicitly via the Notifications CTA component.
 
             return;
           }

@@ -33,9 +33,15 @@ export const dynamic = 'force-dynamic';
 export default async function LandingPage() {
   // Verifica se já está logado para redirecionar ao Dashboard
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: any = null;
+  try {
+    const res: any = await supabase.auth.getUser();
+    user = res?.data?.user ?? null;
+  } catch (err: any) {
+    // Se o refresh token for inválido, apenas não redirecionamos
+    console.warn('LandingPage: supabase.auth.getUser() failed', err?.message || err);
+    user = null;
+  }
 
   if (user) {
     redirect('/dashboard');

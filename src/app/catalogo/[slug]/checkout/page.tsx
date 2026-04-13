@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 
 export default function Checkout() {
   const params = useParams();
-  const userId = params.userId as string;
+  const userId = (params?.userId || '') as string;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100">

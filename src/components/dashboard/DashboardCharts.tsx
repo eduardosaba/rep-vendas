@@ -28,7 +28,7 @@ interface DashboardChartsProps {
 
 export function DashboardCharts({ orders }: DashboardChartsProps) {
   const searchParams = useSearchParams();
-  const range = searchParams.get('range') || '30d';
+  const range = searchParams?.get('range') || '30d';
 
   const chartData = useMemo(() => {
     const now = new Date();

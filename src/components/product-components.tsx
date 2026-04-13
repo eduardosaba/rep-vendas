@@ -15,9 +15,9 @@ import {
   SlidersHorizontal,
   Archive,
   Heart,
+  Zap,
   Image as ImageIcon,
   ImageOff,
-  Zap,
   Star,
 } from 'lucide-react';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
@@ -203,6 +203,7 @@ export function CategoryBar() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+    // (store banner meta is handled in StoreBanners component)
   const router = useRouter();
 
   if (!displayCategories || displayCategories.length === 0) return null;
@@ -737,6 +738,8 @@ interface CarouselProps {
 function Carousel({ slides, interval = 5000 }: CarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [bannerMeta, setBannerMeta] = useState<any>(null);
+  const [isSmallViewport, setIsSmallViewport] = useState(false);
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
@@ -753,6 +756,26 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
     }, interval);
     return () => clearInterval(timer);
   }, [nextSlide, interval, isPaused]);
+
+  // Load store-level banner meta from localStorage (if present) so editor preview
+  // choices like 'fit' are respected in the public carousel during client render.
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem('store_banner_meta');
+        if (raw) setBannerMeta(JSON.parse(raw));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => setIsSmallViewport(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   if (slides.length === 0) return null;
 
@@ -771,25 +794,43 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
             key={slide.id}
             className="min-w-full w-full h-full relative flex-shrink-0"
           >
-            {typeof slide.imageUrl === 'string' && slide.imageUrl.startsWith('http') &&
-            !(typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')) ? (
-              <img
-                src={slide.imageUrl}
-                alt={slide.altText}
-                className="absolute inset-0 w-full h-full object-cover"
-                loading={slide.id === 0 ? 'eager' : 'lazy'}
-              />
-            ) : (
-              <Image
-                src={slide.imageUrl}
-                alt={slide.altText}
-                fill
-                sizes="(max-width: 768px) 100vw, (max-width: 1920px) 90vw, 1920px"
-                className="object-cover"
-                priority={slide.id === 0}
-                unoptimized={typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')}
-              />
-            )}
+            {(() => {
+              const useFit = bannerMeta && bannerMeta.mode === 'fit' && isSmallViewport;
+              if (useFit) {
+                return (
+                  // Use plain img for fit-on-mobile so image determines height
+                  <img
+                    src={slide.imageUrl}
+                    alt={slide.altText}
+                    className="w-full h-auto object-contain relative"
+                    loading={slide.id === 0 ? 'eager' : 'lazy'}
+                    style={bannerMeta && bannerMeta.focusX ? { objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`, transform: `scale(${(bannerMeta.zoom ?? 100) / 100})` } : undefined}
+                  />
+                );
+              }
+
+              return typeof slide.imageUrl === 'string' && slide.imageUrl.startsWith('http') &&
+                !(typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')) ? (
+                <img
+                  src={slide.imageUrl}
+                  alt={slide.altText}
+                  className={`absolute inset-0 w-full h-full ${bannerMeta?.mode === 'fit' ? 'object-contain' : 'object-cover'}`}
+                  loading={slide.id === 0 ? 'eager' : 'lazy'}
+                  style={bannerMeta && bannerMeta.mode !== 'fit' && bannerMeta.focusX ? { objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`, transform: `scale(${(bannerMeta.zoom ?? 100) / 100})` } : undefined}
+                />
+              ) : (
+                <Image
+                  src={slide.imageUrl}
+                  alt={slide.altText}
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1920px) 90vw, 1920px"
+                  className={bannerMeta?.mode === 'fit' ? 'object-contain' : 'object-cover'}
+                  priority={slide.id === 0}
+                  unoptimized={typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')}
+                  style={bannerMeta && bannerMeta.mode !== 'fit' && bannerMeta.focusX ? { objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`, transform: `scale(${(bannerMeta.zoom ?? 100) / 100})` } : undefined}
+                />
+              );
+            })()}
             <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none opacity-50" />
           </div>
         ))}
@@ -834,6 +875,7 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
 export function StoreBanners() {
   const { store, selectedBrand } = useStore();
   const [isMobile, setIsMobile] = useState(false);
+  const [storeBannerMeta, setStoreBannerMeta] = useState<any>(null);
   const { brandsWithLogos } = useStore();
 
   // Detectar mobile no client-side
@@ -852,6 +894,17 @@ export function StoreBanners() {
       if (tid) window.clearTimeout(tid);
       window.removeEventListener('resize', checkMobile);
     };
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem('store_banner_meta');
+        if (raw) setStoreBannerMeta(JSON.parse(raw));
+      }
+    } catch (e) {
+      // ignore
+    }
   }, []);
 
   // Verifica se existem banners (comuns ou mobile)
@@ -883,12 +936,43 @@ export function StoreBanners() {
       const bannerUrl = brandObj.banner_url;
 
       if (bannerUrl) {
+        // Try to load saved banner meta from localStorage (client-only, synchronous)
+        let bannerMeta: { mode?: string; focusX?: number; focusY?: number; zoom?: number } | null = null;
+        try {
+          if (typeof window !== 'undefined') {
+            const raw = window.localStorage.getItem(`brand_banner_meta:${brandObj.id}`);
+            if (raw) bannerMeta = JSON.parse(raw);
+          }
+        } catch {
+          // ignore
+        }
+
+        const imgStyle: React.CSSProperties = bannerMeta
+          ? bannerMeta.mode === 'fit'
+            ? { objectFit: 'contain', objectPosition: '50% 50%' }
+            : bannerMeta.mode === 'stretch'
+            ? { objectFit: 'fill', objectPosition: '50% 50%' }
+            : {
+                objectPosition: `${bannerMeta.focusX ?? 50}% ${bannerMeta.focusY ?? 50}%`,
+                transform: `scale(${(bannerMeta.zoom ?? 100) / 100})`,
+              }
+          : {};
+
+        const containerClass = bannerMeta && bannerMeta.mode === 'fit' && isMobile
+          ? 'w-full relative overflow-hidden bg-gray-100 rounded-md'
+          : 'w-full aspect-[4/1] min-h-[160px] md:min-h-[200px] relative overflow-hidden bg-gray-100 rounded-md';
+
+        const imgClass = bannerMeta && bannerMeta.mode === 'fit'
+          ? 'object-contain relative inset-0 w-full h-auto'
+          : 'object-cover absolute inset-0 w-full h-full';
+
         return (
           <div className="w-full">
             <SmartImage
               product={{ image_url: bannerUrl, name: brandObj.name }}
-              className="w-full aspect-[4/1] min-h-[160px] md:min-h-[200px] relative overflow-hidden bg-gray-100 rounded-md"
-              imgClassName="object-cover absolute inset-0 w-full h-full"
+              className={containerClass}
+              imgClassName={imgClass}
+              imgStyle={imgStyle}
               variant="hero"
               priority={true}
             />
@@ -963,9 +1047,15 @@ export function StoreBanners() {
 
   return (
     <div className="w-full">
-      <div className="w-full aspect-[3/1] md:aspect-[4/1] lg:aspect-[5/1] min-h-[180px] md:min-h-[220px] relative overflow-hidden bg-gray-100">
-        <Carousel slides={slides} interval={5000} />
-      </div>
+      {storeBannerMeta && storeBannerMeta.mode === 'fit' && isMobile ? (
+        <div className="w-full relative overflow-hidden bg-gray-100">
+          <Carousel slides={slides} interval={5000} />
+        </div>
+      ) : (
+        <div className="w-full aspect-[3/1] md:aspect-[4/1] lg:aspect-[5/1] min-h-[180px] md:min-h-[220px] relative overflow-hidden bg-gray-100">
+          <Carousel slides={slides} interval={5000} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1352,14 +1352,29 @@ export function StoreProvider({
 
     // 1. Normaliza banners desktop
     if (Array.isArray(s.banners)) {
-      s.banners = s.banners.map((b: any) => resolveUrl(b, false));
+      // If there are precomputed variants, prefer desktop variant URLs
+      try {
+        if ((s as any).banner_variants && (s as any).banner_variants.banners) {
+          s.banners = (s as any).banner_variants.banners.map((it: any) => it.variants?.desktop?.url || resolveUrl(it.original || it, false));
+        } else {
+          s.banners = s.banners.map((b: any) => resolveUrl(b, false));
+        }
+      } catch (e) {
+        s.banners = s.banners.map((b: any) => resolveUrl(b, false));
+      }
     }
 
     // 2. Normaliza banners mobile
     if (Array.isArray((s as any).banners_mobile)) {
-      (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) =>
-        resolveUrl(b, false)
-      );
+      try {
+        if ((s as any).banner_variants && (s as any).banner_variants.banners_mobile) {
+          (s as any).banners_mobile = (s as any).banner_variants.banners_mobile.map((it: any) => it.variants?.mobile?.url || resolveUrl(it.original || it, false));
+        } else {
+          (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false));
+        }
+      } catch (e) {
+        (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false));
+      }
     }
 
     // 3. Normaliza logo da loja (thumbnail)

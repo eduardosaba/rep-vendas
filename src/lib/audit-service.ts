@@ -9,9 +9,14 @@ export async function createAuditLog(
   const supabase = await createClient();
   const cookieStore = await cookies();
 
-  const {
-    data: { user: realUser },
-  } = await supabase.auth.getUser();
+  let realUser: any = null;
+  try {
+    const res: any = await supabase.auth.getUser();
+    realUser = res?.data?.user ?? null;
+  } catch (e: any) {
+    console.warn('createAuditLog: supabase.auth.getUser() failed', e?.message || e);
+    return;
+  }
   if (!realUser) return;
 
   const impersonateCookieName =

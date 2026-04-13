@@ -868,7 +868,6 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     } catch (e) {}
     // Debounce remote save to avoid UI jank if save is slow or fails
     if (savePrefTimeoutRef.current) window.clearTimeout(savePrefTimeoutRef.current);
-    // @ts-expect-error - window.setTimeout returns number in browsers
     savePrefTimeoutRef.current = window.setTimeout(() => {
       savePreferences(columnOrder, newVisible, columnWidths);
       savePrefTimeoutRef.current = null;

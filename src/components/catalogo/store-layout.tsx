@@ -963,24 +963,26 @@ export function CarouselBrands() {
   }
 
   const toggleBrand = useCallback((brandName: string) => {
-    const normalized = (s: unknown) => String(s || '').trim().toLowerCase();
+    // Single-selection behaviour: selecting a brand sets it as the only selection.
+    // If the same brand is clicked again, clear selection to 'all'.
     if (brandName === 'all') {
       setSelectedBrand('all');
       return;
     }
-    let currentSelection: string[] = Array.isArray(selectedBrand)
-      ? [...selectedBrand]
-      : selectedBrand && selectedBrand !== 'all'
-      ? [selectedBrand as string]
-      : [];
-    const foundIndex = currentSelection.findIndex((b) => normalized(b) === normalized(brandName));
-    if (foundIndex >= 0) currentSelection = currentSelection.filter((_, i) => i !== foundIndex);
-    else currentSelection.push(brandName);
-    setSelectedBrand(currentSelection.length === 0 ? 'all' : currentSelection);
+
+    const current = Array.isArray(selectedBrand)
+      ? (selectedBrand.length > 0 ? selectedBrand[0] : 'all')
+      : selectedBrand || 'all';
+
+    if (String(current) === String(brandName)) {
+      setSelectedBrand('all');
+    } else {
+      setSelectedBrand(brandName);
+    }
   }, [selectedBrand, setSelectedBrand]);
 
-  // Animate only on mobile when there are enough brands to justify it
-  const shouldAnimate = isMobile && memoBrands.length > 2;
+  // Animate on mobile when there are 2 or more brands so movement feels consistent
+  const shouldAnimate = isMobile && memoBrands.length >= 2;
   // On mobile we duplicate/triplicate to ensure continuous loop; on desktop/tablet render once
   const itemsToRender = shouldAnimate
     ? [...memoBrands, ...memoBrands, ...memoBrands]

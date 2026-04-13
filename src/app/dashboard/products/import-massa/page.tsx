@@ -33,7 +33,8 @@ import { trackEvent } from '@/lib/analytics';
 
 type Stats = {
   total: number;
-  success: number;
+  inserted: number;
+  updated: number;
   errors: number;
 };
 
@@ -67,6 +68,58 @@ function normalizeKey(s: string) {
 function getField(row: any, key: string | undefined) {
   if (!key) return null;
   return row[key];
+}
+
+// --- Normalização e dedupe de URLs de imagem (client-side) ---
+function normalizeUrl(u: unknown) {
+  if (!u) return null;
+  let s = String(u).trim();
+  if (!s) return null;
+  if (s.startsWith('data:')) return null;
+  // remove surrounding quotes
+  s = s.replace(/^"|"$/g, '');
+  // try to parse and remove common tracking params
+  try {
+    const url = new URL(s, 'https://example.invalid');
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].forEach((p) => url.searchParams.delete(p));
+    // if base was example.invalid and original was relative, keep original string
+    if (url.hostname === 'example.invalid') {
+      s = url.pathname + url.search + url.hash;
+    } else {
+      s = url.href;
+    }
+  } catch (e) {
+    // keep trimmed string when not a full URL
+  }
+  // collapse repeated spaces
+  s = s.replace(/\s+/g, ' ');
+  return s;
+}
+
+function cleanAndDedupeImages(raw: unknown[] | string | undefined, mainImageUrl?: string, limit = 60) {
+  const arr: string[] = [];
+  if (!raw) return arr;
+  const candidates: string[] = [];
+
+  if (typeof raw === 'string') {
+    raw.split(/[\n;,|]+/).forEach((r) => r && candidates.push(r));
+  } else if (Array.isArray(raw)) {
+    raw.forEach((r) => r !== undefined && r !== null && candidates.push(String(r)));
+  } else {
+    candidates.push(String(raw));
+  }
+
+  const seen = new Set<string>();
+  for (const c of candidates) {
+    const n = normalizeUrl(c);
+    if (!n) continue;
+    if (mainImageUrl && normalizeUrl(mainImageUrl) === n) continue;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    arr.push(n);
+    if (arr.length >= limit) break;
+  }
+  return arr;
 }
 
 // --- GERADOR DE DESCRIÇÃO ---
@@ -147,9 +200,11 @@ export default function ImportMassaPage() {
   const [techSpecTitles, setTechSpecTitles] = useState<Record<string, string>>(
     {}
   );
+  const [groupByReference, setGroupByReference] = useState<boolean>(true);
   const [stats, setStats] = useState<Stats>({
     total: 0,
-    success: 0,
+    inserted: 0,
+    updated: 0,
     errors: 0,
   });
   const [externalPreviews, setExternalPreviews] = useState<string[]>([]);
@@ -220,14 +275,29 @@ export default function ImportMassaPage() {
           return;
         }
 
-        setRows(data);
-        addLog(
-          `Leitura concluída. ${data.length} linhas encontradas.`,
-          'success'
-        );
+        // Tenta recuperar a linha de cabeçalho de forma robusta (header:1)
+        const rawRows = XLSX.utils.sheet_to_json<any>(ws, { header: 1 }) as any[];
+        const headerRow = Array.isArray(rawRows) && rawRows.length > 0 ? rawRows[0] : [];
+        const cols = (headerRow && headerRow.length > 0
+          ? headerRow.map((c: any) => String(c))
+          : Object.keys(data[0]));
 
-        const cols = Object.keys(data[0]);
+        setRows(data);
+        addLog(`Leitura concluída. ${data.length} linhas encontradas.`, 'success');
         setColumns(cols);
+
+        // Log útil para depuração: mostra formas normalizadas dos cabeçalhos
+        try {
+          addLog(
+            'Colunas detectadas: ' +
+              cols
+                .map((c: string) => `${c} (norm:${normalizeKey(String(c))})`)
+                .join(', ')
+          );
+        } catch (e) {
+          // não crítico
+        }
+
         autoMapColumns(cols);
         setStep(2);
       } catch (err) {
@@ -244,9 +314,8 @@ export default function ImportMassaPage() {
     const usedCols: string[] = [];
 
     const findCol = (regex: RegExp) => {
-      const col = cols.find(
-        (c) => regex.test(normalizeKey(c)) && !usedCols.includes(c)
-      );
+      const col = cols.find((c: string) => regex.test(normalizeKey(c)) && !usedCols.includes(c));
+
       if (col) usedCols.push(col);
       return col;
     };
@@ -261,19 +330,30 @@ export default function ImportMassaPage() {
     map.ean = findCol(/ean|barcode|codigo de barras|gtin/);
     map.category = findCol(/categoria|category/);
     map.color = findCol(/cor|color/);
-    map.gender = findCol(/genero|gender|sexo/);
+    // Não auto-mapear `genero` para o campo principal — preferimos tratá-lo
+    // como ficha técnica por padrão. Usuário pode mapear manualmente se desejar.
     map.desc = findCol(/descricao|desc|description/);
 
-    map.image = cols.find((c) => isImageLike(c));
+    map.image = cols.find((c: string) => isImageLike(c));
     if (map.image) usedCols.push(map.image);
 
-    const techSpecs = cols.filter(
-      (c) => !usedCols.includes(c) && !isImageLike(c)
-    );
+    // columns que serão consideradas ficha técnica (exclui imagens)
+    const rawTechSpecs = cols.filter((c: string) => !usedCols.includes(c) && !isImageLike(c));
+
+    // Forçar colunas relacionadas a 'genero' para o início da lista de ficha técnica
+    const generoCols = rawTechSpecs.filter((c: string) => {
+      const nk = normalizeKey(String(c));
+      return nk === 'genero' || nk === 'gender' || nk === 'sexo';
+    });
+
+    const techSpecs = [
+      ...generoCols,
+      ...rawTechSpecs.filter((c) => !generoCols.includes(c)),
+    ];
     map.techSpecColumns = techSpecs;
 
     const titles: Record<string, string> = {};
-    techSpecs.forEach((c) => {
+    techSpecs.forEach((c: string) => {
       titles[c] = c;
     });
 
@@ -334,7 +414,9 @@ export default function ImportMassaPage() {
       let successCount = 0;
       let errorCount = 0;
       const uniqueProductsMap = new Map();
+      const productsListNoGroup: any[] = [];
       const detectedBrands = new Set<string>();
+      const referenceCounts: Record<string, number> = {};
 
       const finalTechCols = mapping.techSpecColumns || [];
 
@@ -536,11 +618,44 @@ export default function ImportMassaPage() {
           slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
         };
 
-        uniqueProductsMap.set(refCode, productObj);
+        if (groupByReference) {
+          uniqueProductsMap.set(refCode, productObj);
+        } else {
+          // Quando não agrupar por referência, gerar um reference_code único
+          // Preferir sufixo pela cor; se não houver cor, usar um sufixo incremental.
+          const baseRef = String(refCode || '').trim();
+          const colorVal = color ? String(color).trim() : '';
+
+          const normalizeForCode = (s: string) =>
+            String(s || '')
+              .normalize('NFD')
+              .replace(/\p{Diacritic}/gu, '')
+              .replace(/\s+/g, '-')
+              .replace(/[^A-Za-z0-9-]/g, '')
+              .toUpperCase();
+
+          if (baseRef) {
+            if (colorVal) {
+              productObj.reference_code = `${baseRef}-${normalizeForCode(
+                colorVal
+              )}`;
+            } else {
+              // incremental
+              referenceCounts[baseRef] = (referenceCounts[baseRef] || 0) + 1;
+              productObj.reference_code = `${baseRef}-${referenceCounts[baseRef]}`;
+            }
+          }
+
+          productsListNoGroup.push(productObj);
+        }
       }
 
-      const productsToInsert = Array.from(uniqueProductsMap.values());
-      const duplicatesInFile = rows.length - productsToInsert.length;
+      const productsToInsert = groupByReference
+        ? Array.from(uniqueProductsMap.values())
+        : productsListNoGroup;
+      const duplicatesInFile = groupByReference
+        ? rows.length - productsToInsert.length
+        : 0;
 
       if (duplicatesInFile > 0) {
         addLog(
@@ -745,12 +860,10 @@ export default function ImportMassaPage() {
         addLog(`Busca de produtos existentes concluída. Encontrados: ${Object.keys(existingMap).length}`);
       }
 
-      const batchSize = 50; // REDUZIDO de 100 para 50 para garantir resposta rápida
+      const batchSize = 30; // lote menor para reduzir latência e evitar timeouts
       const totalBatches = Math.ceil(finalBatch.length / batchSize);
 
-      addLog(
-        `Inserindo/atualizando ${finalBatch.length} itens em ${totalBatches} lotes otimizados...`
-      );
+      addLog(`Enviando/atualizando ${finalBatch.length} itens em ${totalBatches} lotes via API...`);
 
       for (let i = 0; i < finalBatch.length; i += batchSize) {
         const batchNum = Math.floor(i / batchSize) + 1;
@@ -767,7 +880,6 @@ export default function ImportMassaPage() {
           if (existing && existing.slug) {
             item.slug = existing.slug;
           } else if (!item.slug) {
-            // Garante um slug para itens novos
             const slugBase = String(item.name || 'produto')
               .toLowerCase()
               .trim()
@@ -778,198 +890,47 @@ export default function ImportMassaPage() {
           }
         });
 
-        // Insert new items and update existing ones without overwriting critical fields
-        try {
-          const upsertMap: Record<string, any> = {};
-
-          // split into inserts (new) and updates (existing)
-          const toInsert = batch.filter((it) => {
-            const key = it.reference_id || it.reference_code;
-            return !existingMap[key];
-          });
-          const toUpdate = batch.filter((it) => {
-            const key = it.reference_id || it.reference_code;
-            return !!existingMap[key];
-          });
-
-          // INSERT new products (retain last_import_id on insert)
-          if (toInsert.length > 0) {
-            const { data: inserted, error: insertErr } = await supabase
-              .from('products')
-              .insert(toInsert)
-              .select('id, external_image_url, reference_id, reference_code');
-            if (insertErr) {
-              addLog(
-                `❌ Erro lote ${batchNum} (insert): ${insertErr.message}`,
-                'error'
-              );
-              errorCount += toInsert.length;
-            } else if (inserted && Array.isArray(inserted)) {
-              inserted.forEach((p: any) => {
-                const key = p.reference_id || p.reference_code;
-                if (key) upsertMap[key] = p;
-              });
-              totalInserted += inserted.length;
+        // enviar para API em tentativa com retry
+        let attempts = 0;
+        let processed = false;
+        while (attempts < 3 && !processed) {
+          attempts += 1;
+          try {
+            const res = await fetch('/api/import-products-chunk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ batch, historyId }),
+            });
+            if (!res.ok) {
+              const txt = await res.text();
+              addLog(`Erro no lote ${batchNum}: ${res.status} ${txt}`, 'error');
+              await new Promise((r) => setTimeout(r, 200 * attempts));
+              continue;
             }
+            const data = await res.json();
+            totalInserted += data.inserted || 0;
+            totalUpdated += data.updated || 0;
+            addLog(`Lote ${batchNum} processado: ${data.inserted || 0} inseridos, ${data.updated || 0} atualizados`, 'success');
+            processed = true;
+          } catch (e: any) {
+            addLog(`Exceção no lote ${batchNum}: ${e?.message || String(e)}`, 'error');
+            await new Promise((r) => setTimeout(r, 200 * attempts));
           }
-
-          // UPDATE existing products: only update non-destructive fields
-          if (toUpdate.length > 0) {
-            for (const itm of toUpdate) {
-              const safeFields: any = {
-                price: itm.price,
-                sale_price: itm.sale_price,
-                sku: itm.sku ?? null,
-                barcode: itm.barcode ?? null,
-                stock_quantity: (itm as any).stock_quantity ?? null,
-              };
-
-              // Ensure we don't overwrite last_import_id or image fields
-              try {
-                // Prefer update by reference_id when available, fallback to reference_code
-                let query = supabase.from('products').update(safeFields).eq('user_id', itm.user_id);
-                if (itm.reference_id) query = query.eq('reference_id', itm.reference_id);
-                else query = query.eq('reference_code', itm.reference_code);
-                const { data: updated, error: updErr } = await query.select('id, external_image_url, reference_id, reference_code');
-                if (updErr) {
-                  addLog(
-                    `❌ Erro atualizando ${itm.reference_code}: ${updErr.message}`,
-                    'error'
-                  );
-                  errorCount += 1;
-                } else if (updated && Array.isArray(updated)) {
-                  updated.forEach((p: any) => {
-                    const key = p.reference_id || p.reference_code;
-                    if (key) upsertMap[key] = p;
-                  });
-                  totalUpdated += updated.length;
-                }
-              } catch (e: any) {
-                addLog(
-                  `❌ Exceção atualizando ${itm.reference_code}: ${e.message}`,
-                  'error'
-                );
-                errorCount += 1;
-              }
-            }
-          }
-
-          // Some items may already exist in DB but were not part of the insert/update responses
-          const missingKeys = batch
-            .map((it) => it.reference_id || it.reference_code)
-            .filter((k) => k && !upsertMap[k]);
-          if (missingKeys.length > 0) {
-            // try by reference_id
-            const { data: fetchedByRefId } = await supabase
-              .from('products')
-              .select('id,external_image_url,reference_id,reference_code,gallery_images,image_path')
-              .eq('user_id', user.id)
-              .in('reference_id', missingKeys as any[]);
-
-            if (fetchedByRefId && Array.isArray(fetchedByRefId)) {
-              fetchedByRefId.forEach((p: any) => {
-                const key = p.reference_id || p.reference_code;
-                if (key) upsertMap[key] = p;
-              });
-            }
-
-            const stillMissing = missingKeys.filter((k) => !upsertMap[k]);
-            if (stillMissing.length > 0) {
-              const { data: fetchedMissing } = await supabase
-                .from('products')
-                .select('id,external_image_url,reference_code,gallery_images,image_path')
-                .eq('user_id', user.id)
-                .in('reference_code', stillMissing as any[]);
-
-              if (fetchedMissing && Array.isArray(fetchedMissing)) {
-                fetchedMissing.forEach((p: any) => {
-                  const key = p.reference_id || p.reference_code;
-                  if (key) upsertMap[key] = p;
-                });
-              }
-            }
-          }
-
-          // mark batch success based on processed items
-          successCount += Object.keys(upsertMap).length;
-
-          // --- PROCESSAMENTO DE GALERIA ---
-          const allImagesToInsert: any[] = [];
-          batch.forEach((originalItem) => {
-            const key = originalItem.reference_id || originalItem.reference_code;
-            const p = upsertMap[key] || existingMap[key];
-            const productId = p ? p.id : undefined;
-            const externalUrl = p
-              ? p.external_image_url
-              : originalItem.external_image_url;
-
-            const allImages = [] as string[];
-            if (externalUrl) allImages.push(externalUrl);
-            if (originalItem.images && Array.isArray(originalItem.images)) {
-              allImages.push(...originalItem.images);
-            } else if (
-              p &&
-              p.gallery_images &&
-              Array.isArray(p.gallery_images)
-            ) {
-              allImages.push(
-                ...p.gallery_images.map((g: any) =>
-                  typeof g === 'string' ? g : g.url || g.path
-                )
-              );
-            } else if (p && p.image_path) {
-              allImages.unshift(p.image_path);
-            }
-
-            if (productId && allImages.length > 0) {
-              const galleryItems = prepareProductGallery(productId, allImages);
-              allImagesToInsert.push(...galleryItems);
-            }
-          });
-
-          if (allImagesToInsert.length > 0) {
-            addLog(
-              `Inserindo ${allImagesToInsert.length} imagens de galeria...`
-            );
-            const galleryChunkSize = 200; // REDUZIDO de 500 para 200
-            for (
-              let k = 0;
-              k < allImagesToInsert.length;
-              k += galleryChunkSize
-            ) {
-              const galleryChunk = allImagesToInsert.slice(
-                k,
-                k + galleryChunkSize
-              );
-              const chunkIndex = Math.floor(k / galleryChunkSize) + 1;
-              addLog(
-                `  → Galeria chunk ${chunkIndex} (${k + 1}-${Math.min(k + galleryChunkSize, allImagesToInsert.length)})`
-              );
-              const { error: galleryError } = await supabase
-                .from('product_images')
-                .insert(galleryChunk);
-
-              if (galleryError) {
-                addLog(
-                  `  ⚠️ Aviso: Erro na galeria chunk ${chunkIndex}: ${galleryError.message}`,
-                  'error'
-                );
-              }
-            }
-            addLog(`✓ Galeria do lote ${batchNum} processada.`, 'success');
-          }
-        } catch (err: any) {
-          addLog(
-            `❌ Erro processamento lote ${batchNum}: ${err.message}`,
-            'error'
-          );
-          errorCount += batch.length;
         }
+
+        if (!processed) {
+          errorCount += batch.length;
+          addLog(`Falha definitiva no lote ${batchNum}`, 'error');
+        }
+
+        // pequeno delay entre lotes para reduzir bursts e aliviar limites de execução
+        await new Promise((r) => setTimeout(r, 150));
       }
 
       setStats({
         total: rows.length,
-        success: successCount,
+        inserted: totalInserted,
+        updated: totalUpdated,
         errors: errorCount,
       });
 
@@ -1024,6 +985,25 @@ export default function ImportMassaPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
     XLSX.writeFile(wb, 'modelo_produtos.xlsx');
   };
+
+  // Computa apenas os campos principais que foram realmente mapeados (truthy)
+  const mappedMain = [
+    'name',
+    'sku',
+    'price',
+    'sale_price',
+    'brand',
+    'ref',
+    'model_code',
+    'ean',
+    'category',
+    'color',
+    'gender',
+    'desc',
+    'image',
+  ]
+    .map((k) => (mapping as any)[k])
+    .filter(Boolean) as string[];
 
   // --- UI ---
 
@@ -1105,7 +1085,9 @@ export default function ImportMassaPage() {
                 { k: 'price', l: 'Preço Venda', r: true },
                 { k: 'sku', l: 'SKU / Código' },
                 { k: 'ref', l: 'Referência' },
+                { k: 'model_code', l: 'Model Code / Reference ID' },
                 { k: 'brand', l: 'Marca' },
+                { k: 'gender', l: 'Gênero' },
                 { k: 'image', l: 'URL da Imagem' },
                 { k: 'ean', l: 'EAN / Barcode' },
                 { k: 'category', l: 'Categoria' },
@@ -1132,7 +1114,7 @@ export default function ImportMassaPage() {
                       }
                     >
                       <option value="">{defaultOptionText}</option>
-                      {columns.map((c) => (
+                      {columns.map((c: string) => (
                         <option key={c} value={c}>
                           {c}
                         </option>
@@ -1141,6 +1123,17 @@ export default function ImportMassaPage() {
                   </div>
                 );
               })}
+              <div className="md:col-span-3">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={groupByReference}
+                    onChange={(e) => setGroupByReference(e.target.checked)}
+                    className="rounded text-primary"
+                  />
+                  <span className="text-gray-600">Agrupar por Reference ID (mesmas referências → 1 produto)</span>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -1153,12 +1146,11 @@ export default function ImportMassaPage() {
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               {columns
-                .filter(
-                  (c) =>
-                    !Object.values(mapping).includes(c) ||
-                    (mapping.techSpecColumns || []).includes(c)
+                .filter((c) =>
+                  !mappedMain.includes(c) ||
+                  (mapping.techSpecColumns || []).includes(c)
                 )
-                .map((col, idx) => {
+                .map((col: string, idx: number) => {
                   const isChecked = (mapping.techSpecColumns || []).includes(
                     col
                   );
@@ -1309,21 +1301,19 @@ export default function ImportMassaPage() {
           <p className="text-gray-500">Dados salvos com sucesso.</p>
           <div className="flex justify-center gap-8 my-8 py-6 bg-gray-50 rounded-lg border border-gray-100">
             <div className="text-center">
-              <p className="text-3xl font-bold text-green-600">
-                {stats.success}
-              </p>
-              <p className="text-xs uppercase font-bold text-gray-400 mt-1">
-                Salvos
-              </p>
+              <p className="text-3xl font-bold text-green-600">{stats.inserted}</p>
+              <p className="text-xs uppercase font-bold text-gray-400 mt-1">Inseridos</p>
             </div>
+
+            <div className="text-center">
+              <p className="text-3xl font-bold text-sky-600">{stats.updated}</p>
+              <p className="text-xs uppercase font-bold text-gray-400 mt-1">Atualizados</p>
+            </div>
+
             {stats.errors > 0 && (
               <div className="text-center">
-                <p className="text-3xl font-bold text-red-600">
-                  {stats.errors}
-                </p>
-                <p className="text-xs uppercase font-bold text-gray-400 mt-1">
-                  Erros
-                </p>
+                <p className="text-3xl font-bold text-red-600">{stats.errors}</p>
+                <p className="text-xs uppercase font-bold text-gray-400 mt-1">Erros</p>
               </div>
             )}
           </div>
@@ -1353,17 +1343,19 @@ export default function ImportMassaPage() {
               <p className="text-xs text-gray-500 mb-2">Imagens referenciadas por URL (serão mantidas como externas e processadas em background).</p>
               <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
                 {externalPreviews.map((u, i) => (
-                  <div key={`${u}-${i}`} className="w-full h-24 bg-gray-100 rounded overflow-hidden flex items-center justify-center border">
-                    <img
-                      src={getProductImage(u, 'medium')}
-                      alt={`preview-${i}`}
-                      className="object-cover w-full h-full"
-                      onError={(e) => {
-                        const t = e.target as HTMLImageElement;
-                        t.onerror = null;
-                        t.src = '/placeholder-image.svg';
-                      }}
-                    />
+                  <div key={`${u}-${i}`} className="w-full h-24 bg-gray-100 rounded overflow-hidden flex items-center justify-center border p-2">
+                    <div className="text-xs text-center truncate">
+                      <div className="mb-1 text-gray-600">Imagem externa (não carregada automaticamente)</div>
+                      <a
+                        href={String(u)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary underline block truncate"
+                        title={String(u)}
+                      >
+                        Abrir imagem
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>

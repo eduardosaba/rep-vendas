@@ -78,8 +78,8 @@ interface Settings {
 export default function ProductDetailPage() {
   const supabase = createClient();
   const params = useParams();
-  const slug = params.slug as string;
-  const productId = params.productId as string;
+  const slug = (params?.slug || '') as string;
+  const productId = (params?.productId || '') as string;
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [parsedSpecs, setParsedSpecs] = useState<

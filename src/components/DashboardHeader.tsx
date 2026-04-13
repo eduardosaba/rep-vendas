@@ -17,6 +17,7 @@ import {
   Settings,
   Store,
 } from 'lucide-react';
+import DevForceLogout from './DevForceLogout';
 import Image from 'next/image';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
@@ -312,6 +313,10 @@ export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
+
+        {((process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === 'true') || process.env.NODE_ENV === 'development') && (
+          <DevForceLogout />
+        )}
 
         {/* Notificações (Sininho) */}
         <div className="relative" ref={notifRef}>

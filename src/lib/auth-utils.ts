@@ -4,10 +4,15 @@ import { createClient } from '@/lib/supabase/server';
 export async function getActiveUserId() {
   const supabase = await createClient();
   const cookieStore = await cookies();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: any = null;
+  try {
+    const res = await supabase.auth.getUser();
+    user = res?.data?.user ?? null;
+  } catch (err: any) {
+    // Se o refresh token estiver inválido ou ausente, tratamos como não autenticado
+    console.warn('getActiveUserId: supabase.auth.getUser() failed', err?.message || err);
+    return null;
+  }
 
   if (!user) return null;
 

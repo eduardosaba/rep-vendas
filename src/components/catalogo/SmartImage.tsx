@@ -8,6 +8,7 @@ export function SmartImage({
   product,
   className = '',
   imgClassName = '',
+  imgStyle = {},
   variant = 'card',
   preferredSize,
   initialSrc = null,
@@ -109,6 +110,7 @@ export function SmartImage({
           onLoad={() => setStatus('loaded')}
           onError={handleError}
           className={`transition-all duration-500 ${imgClassName} max-w-full max-h-full ${status === 'loaded' ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+          style={imgStyle}
           loading={priority ? 'eager' : 'lazy'}
         />
       ) : null}

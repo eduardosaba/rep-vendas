@@ -131,6 +131,8 @@ export default function SettingsPage() {
     show_cost_price: false,
     show_sale_price: true,
     price_unlock_mode: 'none' as 'none' | 'modal' | 'fab',
+    // banner_mode controls how global banners are displayed in the catalog
+    banner_mode: 'fill' as 'fill' | 'fit' | 'stretch',
     // grid columns removed: controlled by frontend defaults
   });
 
@@ -294,6 +296,7 @@ export default function SettingsPage() {
             show_cost_price: settings.show_cost_price ?? false,
             show_sale_price: settings.show_sale_price ?? true,
             price_unlock_mode: settings.price_unlock_mode || 'none',
+            banner_mode: (settings.store_banner_meta && settings.store_banner_meta.mode) || (settings.banner_meta && settings.banner_meta.mode) || 'fill',
             // grid cols removed from settings; UI will use frontend defaults
           });
 
@@ -580,6 +583,8 @@ export default function SettingsPage() {
         is_active: isActive,
         font_family: formData.font_family || null,
         font_url: formData.font_url ?? null,
+        // persist store banner meta so public catalog can respect 'fit'/'fill'/'stretch'
+        store_banner_meta: { mode: catalogSettings.banner_mode },
       };
 
       // include password hash only when provided (non-null)
@@ -608,6 +613,17 @@ export default function SettingsPage() {
         }
         publicAction = json?.success ? 'updated' : null;
 
+        // Após salvar settings, solicitar geração de variantes para os banners (async)
+        try {
+          await fetch('/api/settings/process-banners', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id }),
+          });
+        } catch (e) {
+          console.warn('process-banners trigger failed', e);
+        }
+
         // If the settings include a price password hash, immediately invalidate
         // any local price-access grants so the new password takes effect.
         if (serverPayload.price_password_hash) {
@@ -625,6 +641,12 @@ export default function SettingsPage() {
       const baseMsg = 'Configurações aplicadas com sucesso!';
       const publicMsg = publicAction ? ' (Catálogo público atualizado)' : '';
       toast.success(baseMsg + publicMsg, { id: toastId });
+        // persist store_banner_meta client-side for immediate preview
+        try {
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem('store_banner_meta', JSON.stringify({ mode: catalogSettings.banner_mode }));
+          }
+        } catch {}
     } catch (err: any) {
       const msg = err?.message || String(err);
       if (msg.includes('slug') || msg.includes('Slug')) {
@@ -847,6 +869,31 @@ export default function SettingsPage() {
                     </span>
                   </button>
                 ))}
+              </div>
+              {/* Modo de exibição dos banners (moved here from Exibição) */}
+              <div className="mt-6 bg-white dark:bg-slate-900 p-4 rounded-[1rem] border border-gray-200 shadow-sm">
+                <label className="text-xs font-black uppercase text-slate-500 mb-2 block">Modo de exibição dos Banners</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'fit' }))}
+                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'fit' ? 'bg-primary text-white' : 'bg-white'}`}>
+                    Ajustar (Contain)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'fill' }))}
+                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'fill' ? 'bg-primary text-white' : 'bg-white'}`}>
+                    Preencher (Cover)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'stretch' }))}
+                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'stretch' ? 'bg-primary text-white' : 'bg-white'}`}>
+                    Esticar
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">Escolha como os banners serão ajustados no catálogo público. 'Ajustar' evita corte da imagem.</p>
               </div>
             </div>
 

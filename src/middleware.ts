@@ -47,7 +47,23 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // Helper: small timeout to avoid long-running middleware calls causing 504
+  const withTimeout = async <T,>(p: PromiseLike<T>, ms: number) => {
+    return Promise.race([
+      // Promise.race accepts PromiseLike, but we ensure compatibility
+      p as Promise<T>,
+      new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)),
+    ]);
+  };
+
+  let user: any = null;
+  try {
+    const res: any = await withTimeout(supabase.auth.getUser(), 2000);
+    user = res?.data?.user || null;
+  } catch (e) {
+    // timeout or other error: treat as unauthenticated to keep middleware fast
+    user = null;
+  }
 
   // 3. PROTEÇÃO ADMIN (Ajustada)
   // Só bloqueia se for explicitamente a área de gerenciamento interno
@@ -61,18 +77,19 @@ export async function middleware(request: NextRequest) {
     // If there's an authenticated user, allow if they are `master`.
     if (user) {
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle();
+        const profileRes: any = await withTimeout(
+          // maybeSingle returns a builder-like object; ensure a Promise by attaching .then
+          supabase.from('profiles').select('role').eq('id', user.id).maybeSingle().then((r: any) => r),
+          2000
+        );
+        const profile = profileRes?.data || profileRes;
         if (profile && profile.role === 'master') {
           // allow
         } else if (!secret || header !== secret) {
           return new NextResponse('Forbidden', { status: 403 });
         }
       } catch (e) {
-        // If profile lookup fails, fall back to header secret check
+        // profile lookup timeout or error: fall back to header secret check
         if (!secret || header !== secret) {
           return new NextResponse('Forbidden', { status: 403 });
         }

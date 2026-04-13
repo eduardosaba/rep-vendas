@@ -107,7 +107,7 @@ export default function LoginPage() {
               const user = res?.data?.user;
               // do not trigger notification permission or setup during login;
               // notifications are enabled via the Dashboard CTA instead
-              } catch (e) {
+            } catch (e) {
               // debug removed
             }
           }
