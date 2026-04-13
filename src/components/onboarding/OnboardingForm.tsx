@@ -46,8 +46,29 @@ export function OnboardingForm({ userId, userEmail }: OnboardingFormProps) {
   );
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Logout error', err);
+    }
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      if (typeof window !== 'undefined') {
+        if (navigator?.serviceWorker?.getRegistrations) {
+          navigator.serviceWorker.getRegistrations().then((regs) =>
+            regs.forEach((r) => r.unregister())
+          );
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    if (typeof window !== 'undefined') window.location.href = '/login';
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

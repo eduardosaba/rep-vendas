@@ -16,7 +16,7 @@ export default async function MarketingPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, share_banner_url')
+    .select('id, share_banner_url, updated_at')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -35,6 +35,11 @@ export default async function MarketingPage() {
     if (pub?.publicUrl) {
       fullImageUrl = `${pub.publicUrl}?v=${Date.now()}`;
     }
+  } else if (fullImageUrl && typeof fullImageUrl === 'string') {
+    // Mesmo para URL completa, adiciona cache-bust para evitar preview antigo.
+    const ts = profile?.updated_at ? new Date(profile.updated_at).getTime() : Date.now();
+    const sep = fullImageUrl.includes('?') ? '&' : '?';
+    fullImageUrl = `${fullImageUrl}${sep}v=${ts}`;
   }
 
   const enrichedProfile = {

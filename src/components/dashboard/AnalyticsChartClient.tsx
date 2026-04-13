@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-type DayPoint = { day: string; clicks: number; links_created: number };
+type DayPoint = { day: string; views: number };
 
 export default function AnalyticsChartClient({
   range = 30,
@@ -9,12 +9,13 @@ export default function AnalyticsChartClient({
 }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DayPoint[]>([]);
+  const [totalViews, setTotalViews] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetch(`/api/short-links/stats?range=${range}`)
+    fetch(`/api/marketing/catalog-engagement?range=${range}`)
       .then((r) => r.json())
       .then((json) => {
         if (!mounted) return;
@@ -22,6 +23,7 @@ export default function AnalyticsChartClient({
           setError(json.error);
         } else {
           setData(json.series || []);
+          setTotalViews(Number(json.total_views || 0));
         }
       })
       .catch((err) => setError(String(err)))
@@ -51,11 +53,9 @@ export default function AnalyticsChartClient({
       </div>
     );
 
-  // Build simple SVG line for clicks
-  const clicks = data.map((d) => d.clicks);
-  const linksCreated = data.map((d) => d.links_created);
-  const max = Math.max(1, ...clicks);
-  const maxLinks = Math.max(1, ...linksCreated);
+  // Build simple SVG line for views
+  const views = data.map((d) => d.views);
+  const max = Math.max(1, ...views);
   const width = 600;
   const height = 120;
   const padding = 20;
@@ -64,7 +64,7 @@ export default function AnalyticsChartClient({
   const points = data
     .map((d, i) => {
       const x = padding + i * stepX;
-      const y = padding + (1 - d.clicks / max) * (height - padding * 2);
+      const y = padding + (1 - d.views / max) * (height - padding * 2);
       return `${x},${y}`;
     })
     .join(' ');
@@ -78,32 +78,16 @@ export default function AnalyticsChartClient({
         <div className="text-xs text-slate-500">Últimos {range} dias</div>
       </div>
 
+      <div className="mb-3 text-xs text-slate-600 dark:text-slate-300">
+        Visualizações totais do catálogo: <span className="font-black text-slate-900 dark:text-white">{totalViews}</span>
+      </div>
+
       <div className="overflow-auto">
         <svg
           width="100%"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
         >
-          {/* Bars: links created (blue) */}
-          {data.map((d, i) => {
-            const x = padding + i * stepX;
-            const barWidth = Math.max(2, stepX * 0.6);
-            const barHeight =
-              (d.links_created / maxLinks) * (height - padding * 2);
-            const y = height - padding - barHeight;
-            return (
-              <rect
-                key={`bar-${d.day}`}
-                x={x - barWidth / 2}
-                y={y}
-                width={barWidth}
-                height={barHeight}
-                fill="#3b82f6"
-                opacity={0.85}
-              />
-            );
-          })}
-
           <polyline
             fill="none"
             stroke="#10b981"
@@ -131,7 +115,7 @@ export default function AnalyticsChartClient({
       </div>
 
       <div className="mt-3 text-xs text-slate-500">
-        Cliques por dia (linha verde)
+        Visualizações do catálogo por dia (linha verde)
       </div>
     </div>
   );

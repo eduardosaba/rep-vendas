@@ -27,27 +27,22 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        // Supabase SSR expects cookie helpers: get(name), set(name, value, options), delete(name)
-        get: (name: string) => {
-          const c = request.cookies.get(name);
-          return c ? c.value : undefined;
+        getAll() {
+          return request.cookies
+            .getAll()
+            .map((c) => ({ name: c.name, value: c.value } as any));
         },
-        set: (name: string, value: string, options?: any) => {
+        setAll(
+          cookiesToSet: Array<{ name: string; value: string; options?: any }>
+        ) {
           try {
-            response.cookies.set(name, value, options);
-          } catch (e) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          } catch {
             // ignore
           }
         },
-        delete: (name: string) => {
-          try {
-            response.cookies.delete(name);
-          } catch (e) {
-            // ignore
-          }
-        },
-        // fallback: provide all cookies if needed
-        getAll: () => request.cookies.getAll().map((c) => ({ name: c.name, value: c.value } as any)),
       },
     }
   );

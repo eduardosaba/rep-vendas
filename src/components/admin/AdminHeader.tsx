@@ -108,7 +108,24 @@ export default function AdminHeader({
     } catch (err) {
       console.error('Logout failed', err);
     }
-    router.push('/login');
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      if (typeof window !== 'undefined') {
+        if (navigator?.serviceWorker?.getRegistrations) {
+          navigator.serviceWorker.getRegistrations().then((regs) =>
+            regs.forEach((r) => r.unregister())
+          );
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    if (typeof window !== 'undefined') window.location.href = '/login';
   };
 
   if (!mounted)

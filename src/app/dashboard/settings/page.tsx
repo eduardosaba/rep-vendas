@@ -77,9 +77,6 @@ const THEME_PRESETS = [
 import { ToggleSetting } from './components/ToggleSetting';
 import SmartImageUpload from '@/components/SmartImageUpload';
 import SharePreview from '@/components/SharePreview';
-import WhatsAppLinkGenerator from '@/components/WhatsAppLinkGenerator';
-import AnalyticsChartClient from '@/components/AnalyticsChartClient';
-import MyShortLinksTable from '@/components/MyShortLinksTable';
 import { TabGeneral } from './components/TabGeneral';
 import { usePlan } from '@/hooks/use-plan';
 
@@ -133,6 +130,7 @@ export default function SettingsPage() {
     global_allow_backorder: false,
     show_cost_price: false,
     show_sale_price: true,
+    price_unlock_mode: 'none' as 'none' | 'modal' | 'fab',
     // grid columns removed: controlled by frontend defaults
   });
 
@@ -295,6 +293,7 @@ export default function SettingsPage() {
             global_allow_backorder: settings.global_allow_backorder ?? false,
             show_cost_price: settings.show_cost_price ?? false,
             show_sale_price: settings.show_sale_price ?? true,
+            price_unlock_mode: settings.price_unlock_mode || 'none',
             // grid cols removed from settings; UI will use frontend defaults
           });
 
@@ -572,6 +571,7 @@ export default function SettingsPage() {
         max_installments: Number(catalogSettings.max_installments || 1),
         show_sale_price: catalogSettings.show_sale_price ?? true,
         show_cost_price: catalogSettings.show_cost_price ?? false,
+        price_unlock_mode: catalogSettings.price_unlock_mode ?? 'none',
         manage_stock: catalogSettings.manage_stock ?? false,
         cash_price_discount_percent: Number(
           catalogSettings.cash_price_discount_percent || 5
@@ -1367,6 +1367,33 @@ export default function SettingsPage() {
                   icon={Package}
                 />
               </div>
+            </div>
+
+            <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
+                Modo de desbloqueio de preços
+              </label>
+              <select
+                name="price_unlock_mode"
+                value={catalogSettings.price_unlock_mode}
+                onChange={(e) =>
+                  setCatalogSettings((p) => ({
+                    ...p,
+                    price_unlock_mode: e.target.value as
+                      | 'none'
+                      | 'modal'
+                      | 'fab',
+                  }))
+                }
+                className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-medium"
+              >
+                <option value="none">Apenas botão nos produtos</option>
+                <option value="modal">Popup ao entrar (centralizado)</option>
+                <option value="fab">Botão flutuante (canto da tela)</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-2">
+                Essa opção só é usada quando o catálogo está com preços restritos.
+              </p>
             </div>
           </div>
         </div>

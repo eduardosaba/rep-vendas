@@ -49,4 +49,17 @@ export const CardTitle: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   </div>
 );
 
+export const CardDescription: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  className = '',
+  ...props
+}) => (
+  <div
+    className={`mt-1 text-xs text-gray-500 dark:text-gray-400 ${className}`}
+    {...props}
+  >
+    {children}
+  </div>
+);
+
 export default Card;

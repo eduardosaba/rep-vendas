@@ -165,7 +165,12 @@ export const generateOrderPDF = async (order: OrderData, store: StoreData) => {
   currentY += 48;
 
   // --- 4. TABELA DE ITENS ---
-  const showPrices = (store as any)?.show_sale_price !== false;
+  function isTruthyFlag(v: any) {
+    return v === true || v === 'true' || v === 1 || v === '1';
+  }
+
+  const rawSale = (store as any)?.show_sale_price;
+  const showPrices = rawSale == null ? true : isTruthyFlag(rawSale);
 
   const tableBody = order.items.map((item) => {
     const unit = new Intl.NumberFormat('pt-BR', {

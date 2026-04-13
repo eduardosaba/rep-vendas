@@ -10,6 +10,7 @@ export interface SyncCatalogData {
   slug: string;
   is_active?: boolean; // ADICIONADO: Para resolver o erro de compilação
   store_name: string | null;
+  price_unlock_mode?: 'none' | 'modal' | 'fab';
   logo_url?: string;
   primary_color?: string;
   secondary_color?: string;
@@ -80,8 +81,12 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
   }
 
   // Normalização de flags
-  const showSale = data.show_sale_price ?? true;
-  let showCost = data.show_cost_price ?? false;
+  function isTruthyFlag(v: any) {
+    return v === true || v === 'true' || v === 1 || v === '1';
+  }
+
+  const showSale = data.show_sale_price == null ? true : isTruthyFlag(data.show_sale_price);
+  let showCost = data.show_cost_price == null ? false : isTruthyFlag(data.show_cost_price);
   if (showSale && showCost) showCost = false;
 
   const isActive = data.is_active ?? true; // Captura o valor vindo do dashboard
@@ -89,9 +94,14 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
   // Verifica existência pelo `slug` — mais seguro para evitar alterações cruzadas
   const { data: existing } = await supabase
     .from('public_catalogs')
-    .select('id, user_id, catalog_slug')
+    .select('id, user_id, catalog_slug, store_name, logo_url, share_banner_url, og_image_url, banners, banners_mobile')
     .eq('catalog_slug', slug)
     .maybeSingle();
+
+  // Segurança multi-tenant: nunca permita escrita em slug de outro usuário.
+  if (existing && existing.user_id !== userId) {
+    throw new Error('Slug already belongs to another user');
+  }
 
   // helper: tentar registrar auditoria (se tabela existir), não bloquear fluxo
   const recordAudit = async (payload: Record<string, any>) => {
@@ -114,7 +124,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     const { data: settings } = await supabase
       .from('settings')
       .select(
-        'phone, email, price_password_hash, primary_color, secondary_color, header_background_color, footer_background_color, footer_message, show_sale_price, show_cost_price, font_family, font_url'
+        'phone, email, price_password_hash, primary_color, secondary_color, header_background_color, footer_background_color, footer_message, show_sale_price, show_cost_price, font_family, font_url, price_unlock_mode'
       )
       .eq('user_id', userId)
       .maybeSingle();
@@ -143,9 +153,28 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         mergedData.font_family = settings.font_family;
       if (!mergedData.font_url && settings.font_url)
         mergedData.font_url = settings.font_url;
+      if (!mergedData.price_unlock_mode && settings.price_unlock_mode)
+        mergedData.price_unlock_mode = settings.price_unlock_mode;
     }
   } catch (e) {
     // ignore - best effort
+  }
+
+  // Garantir que temos um `store_name` válido antes de qualquer escrita
+  // Usa o nome das `settings` se disponível ou um fallback seguro.
+  try {
+    if (!mergedData.store_name) {
+      const { data: settingsName } = await supabase
+        .from('settings')
+        .select('name, store_name')
+        .eq('user_id', userId)
+        .maybeSingle();
+      mergedData.store_name =
+        mergedData.store_name ?? settingsName?.name ?? settingsName?.store_name ?? 'Minha Loja';
+    }
+  } catch (e) {
+    // não deixe falhar o fluxo por causa dessa proteção
+    mergedData.store_name = mergedData.store_name ?? 'Minha Loja';
   }
 
   if (existing) {
@@ -224,11 +253,34 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       }
     };
 
+    const nonEmpty = (v: any) =>
+      typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
+
     // Basic fields (use mergedData for values but gate writes on presence)
-    setIfPresent('store_name', mergedData.store_name ?? data.store_name ?? null);
-    setIfPresent('logo_url', mergedData.logo_url ?? data.logo_url ?? null);
+    // Campos sensíveis: nunca sobrescrever com vazio/null quando já existe valor no catálogo.
+    const safeStoreName =
+      nonEmpty(mergedData.store_name) ||
+      nonEmpty(data.store_name) ||
+      nonEmpty((existing as any)?.store_name) ||
+      'Minha Loja';
+    const safeLogoUrl =
+      nonEmpty(mergedData.logo_url) ||
+      nonEmpty(data.logo_url) ||
+      nonEmpty((existing as any)?.logo_url) ||
+      null;
+
+    setIfPresent('store_name', safeStoreName);
+    setIfPresent('logo_url', safeLogoUrl);
     setIfPresent('phone', finalPhone ?? null);
     setIfPresent('email', mergedData.email ?? null);
+
+    if (!safeStoreName) {
+      console.error('[syncPublicCatalog] abort: missing store_name', {
+        userId,
+        slug,
+      });
+      throw new Error('store_name_required');
+    }
 
     // Colors and appearance: only write if caller provided them
     if (Object.prototype.hasOwnProperty.call(data, 'primary_color'))
@@ -243,6 +295,15 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         mergedData.footer_background_color ?? data.footer_background_color;
     if (Object.prototype.hasOwnProperty.call(data, 'footer_message'))
       updatePayload.footer_message = mergedData.footer_message ?? data.footer_message;
+    if (Object.prototype.hasOwnProperty.call(data, 'price_unlock_mode'))
+      updatePayload.price_unlock_mode =
+        mergedData.price_unlock_mode ?? data.price_unlock_mode ?? 'none';
+
+    // Price visibility flags (only update when explicitly provided)
+    if (Object.prototype.hasOwnProperty.call(data, 'show_sale_price'))
+      updatePayload.show_sale_price = !!isTruthyFlag(mergedData.show_sale_price ?? data.show_sale_price);
+    if (Object.prototype.hasOwnProperty.call(data, 'show_cost_price'))
+      updatePayload.show_cost_price = !!isTruthyFlag(mergedData.show_cost_price ?? data.show_cost_price);
 
     // Feature flags and numeric fields
     if (Object.prototype.hasOwnProperty.call(data, 'enable_stock_management'))
@@ -284,9 +345,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     if (Object.prototype.hasOwnProperty.call(data, 'font_url')) updatePayload.font_url = mergedData.font_url ?? data.font_url ?? null;
     if (Object.prototype.hasOwnProperty.call(data, 'og_image_url')) updatePayload.og_image_url = mergedData.og_image_url ?? data.og_image_url ?? null;
 
-    // Banners will be handled below (we may still want to update even if caller didn't send them)
-    updatePayload.banners = null;
-    updatePayload.banners_mobile = null;
+    // Banners serão tratados abaixo apenas quando houver campos explícitos no payload.
 
     // is_active explicitly controlled by caller
     if (Object.prototype.hasOwnProperty.call(data, 'is_active')) updatePayload.is_active = isActive;
@@ -381,18 +440,29 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         colNames: colNames.filter((c: string) => c.includes('banner')),
       });
 
-      if (colNames.includes('banners')) {
-        updatePayload.banners = incomingBanners;
-      } else if (colNames.includes('banner')) {
-        updatePayload.banner =
-          incomingBanners.length > 0 ? incomingBanners[0] : null;
+      const shouldUpdateDesktopBanners =
+        Object.prototype.hasOwnProperty.call(data, 'banners') ||
+        Object.prototype.hasOwnProperty.call(data, 'banner');
+      const shouldUpdateMobileBanners =
+        Object.prototype.hasOwnProperty.call(data, 'banners_mobile') ||
+        Object.prototype.hasOwnProperty.call(data, 'banner_mobile');
+
+      if (shouldUpdateDesktopBanners) {
+        if (colNames.includes('banners')) {
+          updatePayload.banners = incomingBanners;
+        } else if (colNames.includes('banner')) {
+          updatePayload.banner =
+            incomingBanners.length > 0 ? incomingBanners[0] : null;
+        }
       }
 
-      if (colNames.includes('banners_mobile')) {
-        updatePayload.banners_mobile = incomingBannersMobile;
-      } else if (colNames.includes('banner_mobile')) {
-        updatePayload.banner_mobile =
-          incomingBannersMobile.length > 0 ? incomingBannersMobile[0] : null;
+      if (shouldUpdateMobileBanners) {
+        if (colNames.includes('banners_mobile')) {
+          updatePayload.banners_mobile = incomingBannersMobile;
+        } else if (colNames.includes('banner_mobile')) {
+          updatePayload.banner_mobile =
+            incomingBannersMobile.length > 0 ? incomingBannersMobile[0] : null;
+        }
       }
     } catch (e) {
       console.error(
@@ -480,7 +550,7 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     const insertPayload: Record<string, any> = {
       user_id: userId,
       catalog_slug: slug,
-      store_name: mergedData.store_name || data.store_name,
+      store_name: mergedData.store_name || data.store_name || 'Minha Loja',
       phone: finalPhoneInsert,
       email: mergedData.email ?? null,
       logo_url: mergedData.logo_url ?? data.logo_url ?? null,
@@ -490,10 +560,18 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         mergedData.header_background_color ||
         data.header_background_color ||
         '#ffffff',
-      show_sale_price:
-        mergedData.show_sale_price ?? data.show_sale_price ?? showSale,
-      show_cost_price:
-        mergedData.show_cost_price ?? data.show_cost_price ?? showCost,
+      show_sale_price: mergedData.show_sale_price == null
+        ? data.show_sale_price == null
+          ? showSale
+          : !!isTruthyFlag(data.show_sale_price)
+        : !!isTruthyFlag(mergedData.show_sale_price),
+      show_cost_price: mergedData.show_cost_price == null
+        ? data.show_cost_price == null
+          ? showCost
+          : !!isTruthyFlag(data.show_cost_price)
+        : !!isTruthyFlag(mergedData.show_cost_price),
+      price_unlock_mode:
+        mergedData.price_unlock_mode ?? data.price_unlock_mode ?? 'none',
       secondary_color:
         mergedData.secondary_color || data.secondary_color || '#3b82f6',
       footer_message: mergedData.footer_message ?? data.footer_message ?? null,

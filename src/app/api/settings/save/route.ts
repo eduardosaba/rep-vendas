@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
-import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { inngest } from '@/inngest/client';
 
 export async function POST(req: Request) {
@@ -79,6 +78,7 @@ export async function POST(req: Request) {
       max_installments,
       show_sale_price,
       show_cost_price,
+      price_unlock_mode,
       cash_price_discount_percent,
       show_cash_discount,
 
@@ -142,6 +142,10 @@ export async function POST(req: Request) {
         typeof show_sale_price === 'boolean' ? show_sale_price : null,
       show_cost_price:
         typeof show_cost_price === 'boolean' ? show_cost_price : null,
+      price_unlock_mode:
+        price_unlock_mode === 'modal' || price_unlock_mode === 'fab'
+          ? price_unlock_mode
+          : 'none',
       cash_price_discount_percent: cash_price_discount_percent
         ? Number(cash_price_discount_percent)
         : null,
@@ -274,7 +278,8 @@ export async function POST(req: Request) {
     const publicCatalogPayload: any = {
       user_id: userId,
       catalog_slug: finalSlug,
-      store_name: name || null,
+      // Garantir `store_name` no payload para evitar constraint NOT NULL
+      store_name: name || payload.name || payload.store_name || 'Minha Loja',
       logo_url: logo_url || null,
       primary_color: primary_color || null,
       secondary_color: secondary_color || null,
@@ -293,6 +298,10 @@ export async function POST(req: Request) {
       font_url: font_url || null,
       show_cost_price: show_cost_price ?? null,
       show_sale_price: show_sale_price ?? null,
+      price_unlock_mode:
+        price_unlock_mode === 'modal' || price_unlock_mode === 'fab'
+          ? price_unlock_mode
+          : 'none',
       show_installments: show_installments ?? null,
       max_installments: max_installments ? Number(max_installments) : null,
       cash_price_discount_percent: cash_price_discount_percent ?? null,

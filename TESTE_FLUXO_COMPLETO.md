@@ -261,7 +261,7 @@ console.log(produto.dataset); // Deve ter storage path
    - Colar link no chat
    - Aguardar preview carregar
    - Deve mostrar banner personalizado
-   - **Nota:** WhatsApp cacheia por ~7 dias, pode precisar de link curto novo
+   - **Nota:** WhatsApp cacheia por ~7 dias, pode exigir atualização do parâmetro de versão na URL
 
 ---
 
@@ -323,7 +323,7 @@ UPDATE products SET sync_status = 'pending' WHERE id = 'abc123';
 
 **Soluções:**
 
-1. **Criar link curto novo** (força novo scraping)
+1. **Gerar URL com cache-bust** (força novo scraping)
 2. **Adicionar cache-bust manual:**
    ```
    https://www.repvendas.com.br/catalogo/{slug}?v=2026-02-03

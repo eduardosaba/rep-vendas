@@ -38,7 +38,7 @@ const PRESET_TEMPLATES = {
     title: '🚀 Bem-vindo ao RepVendas: Sua Potência de Vendas!',
     highlights: [
       '📦 GESTÃO: Sincronização via Planilha e Otimização de Imagens.',
-      '📱 VENDAS: Links curtos personalizados e filtros para WhatsApp.',
+      '📱 VENDAS: Compartilhamento direto do catálogo e filtros para WhatsApp.',
       '🛰️ INTELIGÊNCIA: Gráfico de cliques e ranking de produtos mais vistos.',
       '🔔 ALERTAS: Notificações em tempo real de abertura de catálogo.',
     ],
@@ -50,7 +50,7 @@ const PRESET_TEMPLATES = {
     highlights: [
       '📊 Novo Dashboard de Analytics integrado.',
       '📄 Geração de Relatórios de Performance em PDF.',
-      '🔗 Encurtador de links com nomes personalizados.',
+      '🔗 Link oficial do catálogo para compartilhamento rápido.',
       '⚡ Melhoria de 40% na velocidade de carregamento.',
     ],
     colorFrom: '#2563eb',
@@ -60,7 +60,7 @@ const PRESET_TEMPLATES = {
     title: '💡 Dicas de Mestre: Potencialize suas Vendas!',
     highlights: [
       '🎯 USE FILTROS: Crie links temáticos (ex: só Solares) para abordagens mais assertivas.',
-      '🔗 LINKS CURTOS: Use nomes fáceis como /v/PROMO para ditar por áudio ou telefone.',
+      '🔗 LINK OFICIAL: Compartilhe sempre /catalogo/{slug} para manter métricas consistentes.',
       '📊 ANTECIPE DESEJOS: Olhe o ranking "Top Choice" antes de visitar o lojista.',
       '📄 PROVA DE VALOR: Gere o relatório em PDF para mostrar o engajamento às marcas.',
     ],

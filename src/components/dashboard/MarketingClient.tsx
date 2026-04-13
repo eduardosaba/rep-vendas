@@ -1,348 +1,270 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  Share2,
-  Link as LinkIcon,
-  Loader2,
-  Info,
-  RefreshCw,
-} from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { toast } from 'sonner';
-import WhatsAppLinkGenerator from '@/components/dashboard/WhatsAppLinkGenerator';
-import SmartImageUpload from '@/components/ui/SmartImageUpload';
-import SharePreview from '@/components/SharePreview';
-import MyShortLinksTable from '@/components/dashboard/MyShortLinksTable';
-import AnalyticsChartClient from '@/components/dashboard/AnalyticsChartClient';
-import { Button } from '@/components/ui/button';
+import React, { useRef, useState } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Copy, MessageCircle, Share2, ImageIcon, RefreshCw } from 'lucide-react';
+import { toast } from "sonner";
 
 interface MarketingClientProps {
-  initialData: any | null;
-  userId: string | null;
-  catalogSlug?: string | null;
+  initialData: any;
+  userId: string;
+  catalogSlug: string | null;
 }
 
-export default function MarketingClient({
-  initialData,
-  userId,
-  catalogSlug,
-}: MarketingClientProps) {
-  const supabase = createClient();
-  const [formData, setFormData] = useState<any>(initialData || {});
-  const [shareUploading, setShareUploading] = useState(false);
-  const [syncingBanner, setSyncingBanner] = useState(false);
+export default function MarketingClient({ initialData, userId, catalogSlug }: MarketingClientProps) {
+  const [copied, setCopied] = useState(false);
+  const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const [shareBannerPreview, setShareBannerPreview] = useState<string | null>(
     initialData?.share_banner_url || null
   );
-  const defaultSlug = catalogSlug || formData?.slug || initialData?.slug || '';
-  const defaultCatalogUrl = `https://www.repvendas.com.br/catalogo/${defaultSlug}`;
+  const [shareUploading, setShareUploading] = useState(false);
+  const [forcingRefresh, setForcingRefresh] = useState(false);
+  
+  // URL oficial do seu catálogo
+  const fullUrl = `https://www.repvendas.com.br/catalogo/${catalogSlug || ''}`;
 
-  // Recarrega banner do banco ao montar o componente
-  React.useEffect(() => {
-    const loadBanner = async () => {
-      if (!userId) return;
+  // Estado da mensagem (já vem preenchida e é editável)
+  const [message, setMessage] = useState(
+      `Olá! Tudo bem? 👋\n\nEstou enviando o nosso catálogo virtual atualizado com as últimas novidades! 🚀 📚\n\nConfira aqui:\n${fullUrl}\n\n⚠️ *OBS:* Os preços estão bloqueados por segurança. Para visualizar os valores, basta me solicitar a **senha de acesso** por aqui mesmo. Qualquer dúvida, estou à disposição!`
+  );
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('share_banner_url')
-        .eq('id', userId)
-        .maybeSingle();
+  const syncCatalogOg = async (imageUrlWithVersion: string) => {
+    if (!userId || !catalogSlug) return;
+    await fetch('/api/marketing-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_url: imageUrlWithVersion,
+      }),
+    });
+    await fetch(`/api/revalidate?slug=${encodeURIComponent(catalogSlug)}`, {
+      method: 'POST',
+    });
+  };
 
-      if (profile?.share_banner_url) {
-        let fullUrl = profile.share_banner_url;
+  const copyLink = () => {
+    navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    toast.success("Link copiado com sucesso!");
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-        // Se não for URL completa, busca a URL pública
-        if (typeof fullUrl !== 'string' || !fullUrl.startsWith('http')) {
-          const { data: pub } = supabase.storage
-            .from('product-images')
-            .getPublicUrl(fullUrl.replace(/^\/+/, ''));
-
-          if (pub?.publicUrl) {
-            fullUrl = `${pub.publicUrl}?v=${Date.now()}`;
-          }
-        }
-
-        setShareBannerPreview(fullUrl);
-      }
-    };
-
-    loadBanner();
-  }, [userId, supabase]);
-
-  const [shareMessage, setShareMessage] = useState<string>(() => {
-    const name = formData?.name || initialData?.name || 'Meu Catálogo';
-    return [
-      'Olá! Tudo bem? 👋',
-      '',
-      'Estou enviando o nosso catálogo virtual atualizado com as últimas novidades! 🚀',
-      '',
-      `📲 Confira aqui: ${defaultCatalogUrl}`,
-      '',
-      '⚠️ *OBS:* Os preços estão bloqueados por segurança. Para visualizar os valores, basta me solicitar a **senha de acesso** por aqui mesmo.',
-      '',
-      'Qualquer dúvida, estou à disposição!'
-    ].join('\n');
-  });
-
-  const [shareHref, setShareHref] = useState<string>(() => defaultCatalogUrl);
-  const [shortLinksRefresh, setShortLinksRefresh] = useState<number>(0);
+  const openWhatsApp = () => {
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+  };
 
   const handleUploadBanner = async (file: File) => {
-    if (!userId) {
-      toast.error('Usuário não autenticado');
-      return;
-    }
+    if (!file) return;
     setShareUploading(true);
+    const localPreview = URL.createObjectURL(file);
+    setShareBannerPreview(localPreview);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}/marketing/share-banner-${Date.now()}.${fileExt}`;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('userId', userId || 'anon');
+      fd.append('brandSlug', catalogSlug || 'catalogo');
 
-      // 1. Upload para o Storage
-      const uploadResult = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadResult.error) throw uploadResult.error;
-
-      // 2. Obter URL Pública com cache-busting para forçar atualização no WhatsApp
-      const pub = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-      const baseUrl = pub?.data?.publicUrl;
-      const publicUrl = `${baseUrl}?v=${Date.now()}`;
-
-      // 3. Chamada única para a API de sincronização (Profiles, Marketing, Public Catalogs)
-      let syncOk = false;
-      try {
-        const resp = await fetch('/api/marketing-links', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_url: baseUrl, use_short_link: false }),
-        });
-
-        if (resp.ok) {
-          syncOk = true;
-        } else {
-          const body = await resp.json().catch(() => ({}));
-          console.warn('marketing-links responded with error', body);
-        }
-      } catch (e) {
-        console.warn('Failed to call /api/marketing-links:', e);
+      const uploadResp = await fetch('/api/upload/share-banner', {
+        method: 'POST',
+        body: fd,
+      });
+      const uploadJson = await uploadResp.json().catch(() => ({}));
+      if (!uploadResp.ok || !uploadJson?.publicUrl) {
+        throw new Error(uploadJson?.error || 'Falha ao enviar banner');
       }
 
-      // Fallback: se a API falhar, tenta aplicar updates diretamente via client-side Supabase
-      if (!syncOk) {
-        try {
-          const { data: profileUpdate, error: profileErr } = await supabase
-            .from('profiles')
-            .update({ share_banner_url: baseUrl })
-            .eq('id', userId);
-
-          const { data: catalogUpdate, error: catalogErr } = await supabase
-            .from('public_catalogs')
-            .update({ share_banner_url: baseUrl, og_image_url: baseUrl })
-            .eq('user_id', userId);
-
-          if (profileErr || catalogErr) {
-            console.warn('Fallback sync errors', { profileErr, catalogErr });
-            // não abortar — vamos notificar o usuário
-            toast.error('Banner enviado, mas houve falha ao sincronizar (tentativa fallback).');
-            setShareUploading(false);
-            return;
-          }
-
-          syncOk = true;
-        } catch (e) {
-          console.warn('Fallback sync exception', e);
-          toast.error('Banner enviado, mas falha ao sincronizar no servidor.');
-          setShareUploading(false);
-          return;
-        }
+      const cleanUrl = String(uploadJson.publicUrl).split('?')[0];
+      const versionedImageUrl = `${cleanUrl}?v=${Date.now()}`;
+      const syncResp = await fetch('/api/marketing-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: cleanUrl }),
+      });
+      if (!syncResp.ok) {
+        const syncJson = await syncResp.json().catch(() => ({}));
+        throw new Error(syncJson?.error || 'Falha ao sincronizar banner');
       }
 
-      // 4. append-banner está temporariamente desativado — não chamar o
-      // endpoint do cliente até decidirmos sobre a remoção/integração.
-
-      setShareBannerPreview(publicUrl);
+      setShareBannerPreview(versionedImageUrl);
+      await syncCatalogOg(versionedImageUrl);
       toast.success('Banner de compartilhamento atualizado!');
-    } catch (err: unknown) {
-      let message = 'Falha ao enviar imagem.';
-      try {
-        if (err instanceof Error) message = err.message;
-        else if (typeof err === 'object') message = JSON.stringify(err);
-        else message = String(err);
-      } catch {
-        message = String(err);
-      }
-      console.error('Erro no upload:', err);
-      toast.error(message);
+    } catch (err: any) {
+      setShareBannerPreview(initialData?.share_banner_url || null);
+      toast.error(err?.message || 'Erro ao atualizar banner');
     } finally {
+      URL.revokeObjectURL(localPreview);
       setShareUploading(false);
     }
   };
 
-  const onUploadReady = (f: File | Blob) => {
-    void handleUploadBanner(f as File);
+  const handleBannerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    void handleUploadBanner(f);
+    e.currentTarget.value = '';
   };
 
-  const handleForceSyncBanner = async () => {
-    if (!userId || !catalogSlug || !shareBannerPreview) {
-      toast.error('Dados insuficientes para sincronizar');
+  const handleForceRefresh = async () => {
+    if (!catalogSlug) {
+      toast.error('Slug do catálogo não encontrado para forçar atualização.');
       return;
     }
-
-    setSyncingBanner(true);
+    setForcingRefresh(true);
     try {
-      // Força sincronização com cache-busting atualizado
-      const publicUrl = `${shareBannerPreview.split('?')[0]}?v=${Date.now()}`;
-
-      const resp = await fetch('/api/public_catalogs/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          slug: catalogSlug,
-          share_banner_url: publicUrl,
-        }),
-      });
-
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        const msg = body?.error || body?.message || 'Erro desconhecido';
-        throw new Error(`Sincronização falhou: ${msg}`);
+      const currentBanner = String(shareBannerPreview || '').split('?')[0];
+      if (currentBanner && !currentBanner.startsWith('blob:')) {
+        await syncCatalogOg(`${currentBanner}?v=${Date.now()}`);
       }
 
-      // Atualiza preview com novo cache-busting
-      setShareBannerPreview(publicUrl);
-      toast.success('✅ Banner sincronizado! Cache atualizado para WhatsApp.');
-    } catch (err) {
-      console.error('Erro ao sincronizar:', err);
-      toast.error(err instanceof Error ? err.message : 'Falha ao sincronizar');
+      toast.success('Atualização forçada aplicada. O link oficial do catálogo foi mantido.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao forçar atualização.');
     } finally {
-      setSyncingBanner(false);
+      setForcingRefresh(false);
     }
   };
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
-      {/* SEÇÃO 1: ESTRATÉGIA DIGITAL */}
-      <div className="bg-white dark:bg-slate-900 p-4 md:p-6 lg:p-10 rounded-2xl md:rounded-[2.5rem] border border-gray-200 dark:border-slate-800 shadow-sm">
-        <h3 className="font-black text-xs md:text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2 mb-6 md:mb-8">
-          <Share2 size={16} className="md:w-[18px] md:h-[18px]" /> Estratégia
-          Digital
-        </h3>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      
+      <div className="space-y-8">
+        {/* CARD VERDE - COMPARTILHAMENTO RÁPIDO */}
+        <Card
+          className="!text-white border-none shadow-2xl rounded-[2rem] overflow-hidden"
+          style={{ backgroundColor: '#10b981', color: '#ffffff' }}
+        >
+          <CardContent className="p-8 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 p-2 rounded-lg">
+                <MessageCircle className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="font-black uppercase tracking-tight text-sm text-white">Compartilhamento Rápido</h2>
+                <p className="text-[10px] opacity-80 font-bold uppercase text-white">Mensagem (Editável)</p>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10">
-          <div className="space-y-8">
-            <WhatsAppLinkGenerator
-              catalogUrl={defaultCatalogUrl}
-              catalogName={formData.name}
-              imageUrl={shareBannerPreview || '/link.webp'}
-              message={shareMessage}
-              onMessageChange={(m: string) => setShareMessage(m)}
-              onCreated={(shortUrl?: string) => {
-                setShortLinksRefresh((s) => s + 1);
-                if (shortUrl) {
-                  // update preview href and message to use the short url
-                  setShareHref(shortUrl);
-                  setShareMessage((prev) =>
-                    prev.replace(
-                      `https://www.repvendas.com.br/catalogo/${formData.slug || initialData?.slug || ''}`,
-                      shortUrl
-                    )
-                  );
-                }
-              }}
+            {/* Área da Mensagem - Onde o texto verde é editado */}
+            <Textarea 
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="bg-[#059669] dark:!bg-[#059669] !text-white dark:!text-white border-none placeholder:text-white/50 min-h-[280px] resize-none focus-visible:ring-1 focus-visible:ring-white/30 rounded-xl leading-relaxed text-sm shadow-inner"
+              style={{ backgroundColor: '#059669', color: '#ffffff' }}
             />
 
-            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
-              <p className="text-xs font-black uppercase text-slate-400 mb-4">
-                Banner de Compartilhamento (WhatsApp/Social)
-              </p>
-              <p className="text-xs text-slate-500 mb-3">
-                Ideal: 1200x630px | Máximo: 5MB | Formatos: JPG, PNG, WebP
-              </p>
-              <SmartImageUpload
-                onUploadReady={onUploadReady}
-                defaultValue={shareBannerPreview}
-              />
-              {shareUploading && (
-                <div className="flex items-center gap-2 text-sm text-primary mt-3 font-bold animate-pulse">
-                  <Loader2 className="animate-spin" size={16} />
-                  Otimizando e sincronizando...
-                </div>
-              )}
+            <div className="space-y-4">
+              <h3 className="text-2xl font-black leading-none text-white">Envie seu catálogo pelo WhatsApp</h3>
+              <p className="text-xs opacity-90 font-medium text-white">Use o link direto para converter mais vendas.</p>
+            </div>
 
-              {/* Botão de Sincronização Forçada */}
-              {shareBannerPreview && catalogSlug && !shareUploading && (
-                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <Button
-                    onClick={handleForceSyncBanner}
-                    disabled={syncingBanner}
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    leftIcon={
-                      syncingBanner ? (
-                        <Loader2 className="animate-spin" size={14} />
-                      ) : (
-                        <RefreshCw size={14} />
-                      )
-                    }
-                  >
-                    {syncingBanner
-                      ? 'Sincronizando...'
-                      : 'Forçar Sincronização (Atualizar Cache WhatsApp)'}
-                  </Button>
-                  <p className="text-[10px] text-slate-400 mt-2 text-center">
-                    Use isso se a imagem não aparecer no WhatsApp após trocar o
-                    banner
-                  </p>
-                </div>
-              )}
+            {/* Botões de Ação Principais */}
+            <div className="grid grid-cols-2 gap-4">
+              <Button 
+                onClick={openWhatsApp}
+                className="bg-white text-[#10b981] hover:bg-slate-100 font-bold py-6 rounded-xl gap-2 border-none"
+              >
+                <MessageCircle className="w-5 h-5" />
+                ABRIR WHATS
+              </Button>
+              <Button 
+                onClick={copyLink}
+                className="bg-[#047857] text-white hover:bg-[#065f46] font-bold py-6 rounded-xl gap-2 border border-white/10"
+              >
+                {copied ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Copy className="w-5 h-5" />}
+                {copied ? "COPIADO!" : "COPIAR LINK"}
+              </Button>
+            </div>
+
+            {/* Rodapé do card com o link atual */}
+            <div className="bg-[#065f46]/50 p-3 rounded-lg truncate text-[10px] font-mono opacity-80 text-center border border-white/5">
+              {fullUrl}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Banner Informativo (Abaixo do card de compartilhamento rápido) */}
+        <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Banner de Compartilhamento</div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => bannerInputRef.current?.click()}
+                disabled={shareUploading}
+              >
+                {shareUploading ? 'Trocando...' : 'Trocar imagem'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={handleForceRefresh}
+                disabled={forcingRefresh || shareUploading}
+              >
+                {forcingRefresh ? 'Forçando...' : 'Forçar atualização'}
+              </Button>
             </div>
           </div>
-
-          <div className="space-y-4 lg:sticky lg:top-8">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2 md:ml-4">
-              Preview no WhatsApp
-            </label>
-            <SharePreview
-              title={formData.name || 'Meu Catálogo'}
-              description={`Confira as novidades da ${formData.name || 'nossa loja'}`}
-              imageUrl={shareBannerPreview || '/link.webp'}
-              domain="repvendas.com.br"
-              href={shareHref}
-              message={shareMessage}
-            />
-            <p className="text-[10px] text-slate-400 text-center px-4 md:px-6">
-              💡 O WhatsApp pode levar alguns minutos para atualizar a imagem de
-              cache após a troca. Para forçar atualização, use um link encurtado
-              novo.
-            </p>
+          <div className="rounded-2xl overflow-hidden border-2 border-dashed border-slate-200 dark:border-slate-700 aspect-[1.91/1] relative group">
+             {shareBannerPreview ? (
+               <img src={shareBannerPreview} className="w-full h-full object-cover" alt="Banner" />
+             ) : (
+               <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
+                 <ImageIcon className="opacity-20" size={48} />
+                 <span className="text-xs">Nenhum banner configurado</span>
+               </div>
+             )}
           </div>
+          <input
+            ref={bannerInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleBannerFileChange}
+          />
+          {shareUploading && (
+            <div className="mt-3 text-xs text-primary font-bold animate-pulse">
+              Enviando e sincronizando banner...
+            </div>
+          )}
+          <p className="text-[10px] text-slate-400 mt-4 italic text-center">
+            Ideal: 1200x630px | Formatos: JPG, PNG, WebP
+          </p>
         </div>
       </div>
 
-      {/* SEÇÃO 2: PERFORMANCE */}
-      <div className="bg-white dark:bg-slate-900 p-4 md:p-6 lg:p-10 rounded-2xl md:rounded-[2.5rem] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <h3 className="font-black text-xs md:text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2 mb-6 md:mb-8">
-          <LinkIcon size={16} className="md:w-[18px] md:h-[18px]" /> Meus Links
-          Curtos e Performance
-        </h3>
-        <div className="overflow-x-auto -mx-4 md:mx-0">
-          <div className="min-w-full inline-block align-middle">
-            <MyShortLinksTable refreshSignal={shortLinksRefresh} />
+      {/* LADO DIREITO - PREVIEW E BANNER */}
+      <div className="space-y-8">
+        
+        {/* Preview estilo WhatsApp */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+            <Share2 className="w-4 h-4" /> Preview no WhatsApp
+          </div>
+          
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-100 dark:border-slate-800 max-w-[380px]">
+             <div className="aspect-video bg-slate-100 relative overflow-hidden">
+                {shareBannerPreview ? (
+                  <img src={shareBannerPreview} alt="Banner" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-slate-300"><ImageIcon size={40} /></div>
+                )}
+             </div>
+             <div className="p-4 border-l-4 border-[#10b981] bg-slate-50 dark:bg-slate-800/50">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">REPVENDAS.COM.BR</p>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-white mt-1">Meu Catálogo</h4>
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed whitespace-pre-line max-h-32 overflow-auto">
+                  {message}
+                </p>
+             </div>
           </div>
         </div>
 
-        <div className="mt-8 md:mt-12 pt-8 md:pt-12 border-t border-slate-100 dark:border-slate-800">
-          <h4 className="font-black text-xs md:text-sm text-slate-900 dark:text-white mb-4 md:mb-6 uppercase tracking-widest">
-            Gráfico de Engajamento
-          </h4>
-          <AnalyticsChartClient />
-        </div>
       </div>
     </div>
   );

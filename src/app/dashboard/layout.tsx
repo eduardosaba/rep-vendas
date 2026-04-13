@@ -40,22 +40,39 @@ export default function DashboardLayout({
     }
 
     const checkSession = async () => {
-      try {
-        const supabase = await createClient();
-        const { data: userData, error } = await supabase.auth.getUser();
-        if (!mounted) return;
-        if (error) throw error;
-        if (!userData?.user) {
-          router.replace('/login');
-        } else {
-          setAuthorized(true);
+      // Tentativa com retries para evitar falso positivo quando uma sessão
+      // antiga está presa no cliente (ex: logout incompleto, SW cache).
+      const maxAttempts = 3;
+      let resolved = false;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const supabase = await createClient();
+          const { data: userData, error } = await supabase.auth.getUser();
+          if (!mounted) return;
+          if (error) throw error;
+          if (!userData?.user) {
+            resolved = true;
+            router.replace('/login');
+          } else {
+            resolved = true;
+            setAuthorized(true);
+          }
+          break; // sucesso
+        } catch (error) {
+          console.error(`[dashboard/layout] checkSession attempt ${attempt} failed`, error);
+          if (attempt === maxAttempts) {
+            resolved = true;
+            if (mounted) setConnectionError(true);
+          } else {
+            // aguarda um pouco antes de tentar novamente
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            await new Promise((res) => setTimeout(res, 500 * attempt));
+          }
         }
-      } catch (error) {
-        console.error('Erro:', error);
-        if (mounted) setConnectionError(true);
-      } finally {
-        if (mounted) setLoading(false);
       }
+
+      if (resolved && mounted) setLoading(false);
     };
 
     checkSession();

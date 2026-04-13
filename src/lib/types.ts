@@ -121,6 +121,8 @@ export interface BaseStoreSettings {
   show_filter_bestseller?: boolean;
   show_filter_price?: boolean;
   show_filter_category?: boolean;
+  // Modo de desbloqueio de preços no catálogo público
+  price_unlock_mode?: 'none' | 'modal' | 'fab';
 }
 
 /**

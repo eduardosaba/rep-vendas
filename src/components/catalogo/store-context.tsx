@@ -47,21 +47,17 @@ export function StoreProvider({
   children,
 }: StoreProviderProps) {
   const supabase = createClient();
-  // ✅ PAGINAÇÃO PREMIUM: Estado dinâmico (localStorage persistence)
-  const [itemsPerPage, setItemsPerPage] = useState(() => {
-    if (typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function') {
-      const saved = window.localStorage.getItem('itemsPerPage');
-      if (saved) return parseInt(saved, 10) || 24;
-    }
-    return 24;
-  });
+  // PAGINAÇÃO: padrão 24 itens por página. Não persistimos entre usuários.
+  const [itemsPerPage, setItemsPerPage] = useState<number>(24);
 
   // Estados
   // Determina o modo de preços: se o catálogo estiver em "preço de custo"
   // (show_cost_price=true e show_sale_price!=true) então os preços começam ocultos.
-  const isCostMode =
-    (store as any).show_cost_price === true &&
-    (store as any).show_sale_price !== true;
+  function isTruthyFlag(v: any) {
+    return v === true || v === 'true' || v === 1 || v === '1';
+  }
+
+  const isCostMode = isTruthyFlag((store as any).show_cost_price) && !isTruthyFlag((store as any).show_sale_price);
   // Por padrão: preços aparecem bloqueados (false). Usuário pode desbloquear via UI.
   const [showPrices, setShowPrices] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -1513,6 +1509,17 @@ export function StoreProvider({
     [store, isFeatureAllowed]
   );
 
+  const lockPrices = useCallback(() => {
+    setShowPrices(false);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('priceAccessGranted');
+        localStorage.removeItem('priceAccessExpiresAt');
+      }
+    } catch {}
+    toast.info('Precos ocultados com sucesso.');
+  }, []);
+
   return (
     <StoreContext.Provider
       value={{
@@ -1526,6 +1533,7 @@ export function StoreProvider({
         isPricesVisible: showPrices,
         setIsPricesVisible: setShowPrices,
         toggleShowPrices: () => setShowPrices(!showPrices),
+        lockPrices,
         displayProducts,
         totalProducts: filteredProducts.length,
         currentPage,
@@ -1538,9 +1546,6 @@ export function StoreProvider({
         setItemsPerPage: (items: number) => {
           setItemsPerPage(items);
           setCurrentPage(1); // Reset para primeira página ao mudar tamanho
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('itemsPerPage', items.toString());
-          }
         },
         viewMode,
         setViewMode,

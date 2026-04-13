@@ -143,3 +143,28 @@ body {
 .focus\:ring-blue-500:focus {
   box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.14) !important;
 }
+
+/* Carousel marquee global styles (stable on mobile) */
+@keyframes rv-marquee-infinite {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation-name: rv-marquee-infinite;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.paused {
+  animation-play-state: paused !important;
+}
+
+/* Ensure touch gestures vertical pan still works when inside the marquee */
+.touch-pan-y {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}

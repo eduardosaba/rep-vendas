@@ -7,8 +7,8 @@ export async function POST(req: Request) {
     const { image_url, share_banner_url, message, expires_at, metadata } = body || {};
 
     const supabase = await createRouteSupabase();
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData?.session?.user?.id || null;
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id || null;
     
     if (!userId) return NextResponse.json({ error: 'not_authenticated' }, { status: 401 });
 
@@ -22,44 +22,65 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'image_url_required' }, { status: 400 });
     }
 
-    // 1. Inserção em marketing_links
-    const { data: mkData, error: mkError } = await supabase
-      .from('marketing_links')
-      .insert({
-        user_id: userId,
-        image_url: cleanUrl,
-        share_banner_url: cleanUrl,
-        og_image_url: cleanUrl,
-        message: message || null,
-        expires_at: expires_at || null,
-        metadata: metadata || null,
-      })
-      .select()
-      .single();
+    // 1) Atualiza profile (fonte principal para preview compartilhado)
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ share_banner_url: cleanUrl }, { returning: 'minimal' } as any)
+      .eq('id', userId);
 
-    if (mkError) {
-      console.error('Erro marketing_links:', mkError);
-      return NextResponse.json({ error: mkError.message }, { status: 500 });
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
-    // 2. Atualiza Profile
-    const profileRes = await supabase.from('profiles').update({ share_banner_url: cleanUrl }, { returning: 'minimal' } as any).eq('id', userId);
-
-    // 3. Atualiza public_catalogs - CORREÇÃO AQUI
-    // Usamos head: true ou apenas não pedimos retorno para evitar o erro de tabela duplicada
-    const { error: catError } = await supabase
-      .from('public_catalogs')
-      .update({
-        og_image_url: cleanUrl,
-      }, { returning: 'minimal' } as any)
-      .eq('user_id', userId);
-
-    if (catError) {
-      console.error('Erro public_catalogs:', catError);
-      // Não travamos o processo aqui, pois o marketing_link e profile já foram
+    // 2) Tenta registrar histórico em marketing_links (best effort)
+    let mkData: any = null;
+    try {
+      const { data, error } = await supabase
+        .from('marketing_links')
+        .insert({
+          user_id: userId,
+          image_url: cleanUrl,
+          share_banner_url: cleanUrl,
+          og_image_url: cleanUrl,
+          message: message || null,
+          expires_at: expires_at || null,
+          metadata: metadata || null,
+        })
+        .select()
+        .single();
+      if (error) {
+        console.warn('marketing_links insert warning:', error.message);
+      } else {
+        mkData = data;
+      }
+    } catch (e: any) {
+      console.warn('marketing_links insert exception:', e?.message || String(e));
     }
 
-    return NextResponse.json({ success: true, data: mkData });
+    // 3) Tenta atualizar settings/public_catalogs (best effort).
+    // Alguns bancos possuem triggers legadas que podem retornar
+    // "table name public_catalogs specified more than once".
+    try {
+      const { error: settingsErr } = await supabase
+        .from('settings')
+        .update({ share_banner_url: cleanUrl }, { returning: 'minimal' } as any)
+        .eq('user_id', userId);
+      if (settingsErr) console.warn('settings update warning:', settingsErr.message);
+    } catch (e: any) {
+      console.warn('settings update exception:', e?.message || String(e));
+    }
+
+    try {
+      const { error: catErr } = await supabase
+        .from('public_catalogs')
+        .update({ og_image_url: cleanUrl, share_banner_url: cleanUrl }, { returning: 'minimal' } as any)
+        .eq('user_id', userId);
+      if (catErr) console.warn('public_catalogs update warning:', catErr.message);
+    } catch (e: any) {
+      console.warn('public_catalogs update exception:', e?.message || String(e));
+    }
+
+    return NextResponse.json({ success: true, data: mkData, image_url: cleanUrl });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
   }
@@ -68,8 +89,8 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const supabase = await createRouteSupabase();
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData?.session?.user?.id || null;
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id || null;
     if (!userId) return NextResponse.json({ error: 'not_authenticated' }, { status: 401 });
 
     const { data, error } = await supabase

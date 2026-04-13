@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import FeaturedSection from '@/components/catalog/FeaturedSection';
 import { Phone } from 'lucide-react';
-import { StoreProvider } from './store-context';
+import { StoreProvider, useStore } from './store-context';
 import {
   StoreTopBar,
   StoreHeader,
@@ -16,6 +16,7 @@ import { StoreBanners, ProductGrid, CategoryBar } from './product-components';
 import { StoreModals } from './store-modals-container';
 import { InstallPrompt } from './InstallPrompt';
 import { FloatingCart } from './FloatingCart';
+import { UnlockPriceActions } from './UnlockPriceActions';
 import { hexToRgb } from '@/lib/colors'; // Importando nossa função utilitária
 import { SYSTEM_FONTS } from '@/lib/fonts';
 
@@ -31,12 +32,38 @@ interface StorefrontProps {
   startProductId?: string;
 }
 
+function isTruthyFlag(value: unknown) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function UnlockPriceActionsBridge() {
+  const { store, isPricesVisible, setModal, lockPrices } = useStore();
+
+  const showCostPrice = isTruthyFlag(store?.show_cost_price);
+  const showSalePrice = isTruthyFlag(store?.show_sale_price);
+  const hasRestrictedPriceFlow =
+    showCostPrice && !showSalePrice;
+
+  if (!hasRestrictedPriceFlow) return null;
+
+  return (
+    <UnlockPriceActions
+      mode={(store?.price_unlock_mode as 'none' | 'modal' | 'fab') || 'none'}
+      isUnlocked={!!isPricesVisible}
+      onOpenAuth={() => setModal('password', true)}
+      onLockPrices={lockPrices}
+    />
+  );
+}
+
 export function Storefront({
   catalog,
   initialProducts,
   startProductId,
 }: StorefrontProps) {
   const c = catalog as unknown as Record<string, unknown>;
+  const showCostPrice = isTruthyFlag(c['show_cost_price']);
+  const showSalePrice = isTruthyFlag(c['show_sale_price']);
   /**
    * 1. MAPEAMENTO DE DADOS (Multi-tenant)
    * Transformamos o registro público do catálogo na interface de Settings usada pelo sistema.
@@ -55,8 +82,10 @@ export function Storefront({
       footer_message: (c['footer_message'] as string) || undefined,
 
       // Configurações de exibição vindas da tabela public_catalogs
-      show_cost_price: catalog.show_cost_price,
-      show_sale_price: catalog.show_sale_price,
+      show_cost_price: showCostPrice,
+      show_sale_price: showSalePrice,
+      price_unlock_mode:
+        (c['price_unlock_mode'] as 'none' | 'modal' | 'fab') || 'none',
       show_installments: catalog.show_installments,
       max_installments: catalog.max_installments,
       show_cash_discount: catalog.show_cash_discount,
@@ -86,7 +115,7 @@ export function Storefront({
       banners: (c['banners'] as string[]) || null,
       banners_mobile: (c['banners_mobile'] as string[]) || null,
     }),
-    [catalog, c]
+    [catalog, c, showCostPrice, showSalePrice]
   );
 
   // share_banner_url may exist on the public_catalogs row (not part of Settings type)
@@ -297,6 +326,7 @@ export function Storefront({
 
         {/* Camadas de Interação e Modais */}
         <StoreMobileActionBar />
+        <UnlockPriceActionsBridge />
         <div className="hidden md:block">
           <FloatingCart />
         </div>

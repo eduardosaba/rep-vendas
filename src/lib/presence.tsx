@@ -12,8 +12,6 @@ export default function PresenceProvider({
 }) {
   useEffect(() => {
     const supabase = createClient();
-    let intervalId: number | undefined;
-    let mounted = true;
     let connectionId: string | null = null;
 
     async function upsertPresence() {
@@ -42,7 +40,7 @@ export default function PresenceProvider({
     // primeira chamada
     upsertPresence();
     // heartbeat a cada 20s
-    intervalId = window.setInterval(upsertPresence, 20_000);
+    const intervalId = window.setInterval(upsertPresence, 20_000);
 
     const handleUnload = async () => {
       try {
@@ -61,8 +59,7 @@ export default function PresenceProvider({
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      mounted = false;
-      if (intervalId) clearInterval(intervalId);
+      clearInterval(intervalId);
       window.removeEventListener('beforeunload', handleUnload);
     };
   }, []);
