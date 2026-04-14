@@ -36,14 +36,19 @@ async function processSingle(admin: any, userId: string, originalUrl: string, id
   if ('error' in downloadRes && downloadRes.error) return null;
   const ab = await (downloadRes as any).arrayBuffer();
   const buf = Buffer.from(ab);
-
   const makeVariant = async (w: number, h: number, suffix: string) => {
-    const out = await sharp(buf).resize(w, h, { fit: 'cover' }).webp({ quality: 80 }).toBuffer();
-    const filename = `settings/${userId}/banners/banner-${idx}-${suffix}.webp`;
-    const { error: uploadError } = await admin.storage.from('product-images').upload(filename, out, { contentType: 'image/webp', upsert: true });
-    if (uploadError) throw uploadError;
-    const { data } = admin.storage.from('product-images').getPublicUrl(filename);
-    return { path: filename, url: data.publicUrl };
+    try {
+      const out = await sharp(buf).resize(w, h, { fit: 'cover' }).webp({ quality: 80 }).toBuffer();
+      const filename = `settings/${userId}/banners/banner-${idx}-${suffix}.webp`;
+      const { error: uploadError } = await admin.storage.from('product-images').upload(filename, out, { contentType: 'image/webp', upsert: true });
+      if (uploadError) {
+        return { error: uploadError.message || String(uploadError) };
+      }
+      const { data } = admin.storage.from('product-images').getPublicUrl(filename);
+      return { path: filename, url: data.publicUrl };
+    } catch (e: any) {
+      return { error: e?.message || String(e) };
+    }
   };
 
   const desktop = await makeVariant(1400, 400, 'desktop-1400x400');
@@ -67,6 +72,7 @@ export async function POST() {
 
 export async function PUT(req: Request) {
   try {
+    const url = new URL(req.url);
     const body = await req.json();
     const userId = body?.userId;
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
@@ -101,9 +107,18 @@ export async function PUT(req: Request) {
     const { error: updErr } = await admin.from('settings').update({ banner_variants: results }).eq('user_id', userId);
     if (updErr) throw updErr;
 
+    // If debug flag present include more info
+    const debugMode = url.searchParams.get('debug');
+    if (debugMode === '1') {
+      return NextResponse.json({ ok: true, results, _note: 'debug mode' });
+    }
+
     return NextResponse.json({ ok: true, results });
   } catch (err: any) {
     console.error('process-banners PUT error', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    const stack = err?.stack;
+    const debugBody: any = { error: err?.message || String(err) };
+    if (process.env.NODE_ENV !== 'production') debugBody['stack'] = stack;
+    return NextResponse.json(debugBody, { status: 500 });
   }
 }

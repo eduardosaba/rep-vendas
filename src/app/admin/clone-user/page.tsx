@@ -59,19 +59,20 @@ export default function CloneUserPage() {
         return;
       }
       setLoading(true);
-      const { data, error } = await supabase
-        .from('products')
-        .select('brand')
-        .eq('user_id', sourceUser)
-        .not('brand', 'is', null);
-
-      if (!error) {
-        const counts: Record<string, number> = {};
-        data.forEach(p => { counts[p.brand] = (counts[p.brand] || 0) + 1; });
-        const sorted = Object.entries(counts)
-          .map(([name, count]) => ({ name, count }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        setAvailableBrands(sorted);
+      // Pedir ao endpoint administrativo (usa service role) as marcas e contagens
+      try {
+        const res = await fetch(`/api/admin/user-brands?userId=${encodeURIComponent(sourceUser)}`);
+        if (!res.ok) throw new Error('Erro ao carregar marcas');
+        const json = await res.json().catch(() => ({}));
+        const brands = json?.brands || [];
+        const parsed = Array.isArray(brands) ? brands : [];
+        setAvailableBrands(parsed);
+        // debug: log brand list for troubleshooting counts
+        // eslint-disable-next-line no-console
+        console.debug('loadSourceBrands -> availableBrands', parsed);
+      } catch (e) {
+        console.error('loadSourceBrands error', e);
+        setAvailableBrands([]);
       }
       setLoading(false);
       setSelectedBrands([]);
@@ -355,11 +356,13 @@ export default function CloneUserPage() {
                   onClick={() => setSelectedBrands(prev => prev.includes(brand.name) ? prev.filter(x => x !== brand.name) : [...prev, brand.name])}
                   className={`p-5 rounded-[1.5rem] border-2 transition-all text-left relative ${selectedBrands.includes(brand.name) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800 hover:border-slate-300'}`}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="font-black text-sm uppercase tracking-tight">{brand.name}</span>
-                    {selectedBrands.includes(brand.name) && <Check size={16} className="text-indigo-600" />}
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">{brand.count} produtos</span>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-black text-sm uppercase tracking-tight">{brand.name}</span>
+                        {selectedBrands.includes(brand.name) && <Check size={16} className="text-indigo-600" />}
+                      </div>
+                      <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center justify-center px-2 py-1 min-w-[36px] h-6 rounded-full bg-indigo-600 text-white text-xs font-bold">{brand.count}</span>
+                      </div>
                 </button>
               ))}
               {availableBrands.length === 0 && !loading && <p className="col-span-full py-10 text-center text-slate-400 italic">Nenhuma marca disponível.</p>}
