@@ -13,6 +13,8 @@ interface OrderPdfButtonProps {
 export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
 
+  const pdfName = `pedido-${order?.display_id || (order?.id || '').slice(0, 8)}.pdf`;
+
   const handleGenerate = async () => {
     setIsLoading(true);
     try {
@@ -123,14 +125,16 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
     <button
       onClick={handleGenerate}
       disabled={isLoading}
-      className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 shadow-sm"
+      aria-label="Gerar PDF"
+      className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 shadow-sm"
     >
       {isLoading ? (
         <Loader2 size={16} className="animate-spin" />
       ) : (
         <FileText size={16} />
       )}
-      Gerar PDF
+      <span className="sm:hidden text-xs truncate max-w-[8rem]">{pdfName}</span>
+      <span className="hidden sm:inline">Gerar PDF</span>
     </button>
   );
 }

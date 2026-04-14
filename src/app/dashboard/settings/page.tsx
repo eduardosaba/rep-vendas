@@ -359,14 +359,14 @@ export default function SettingsPage() {
 
   const moveBannerMobile = (index: number, direction: 'up' | 'down') => {
     setCurrentBannersMobile((prev) => {
-      if (direction === 'up' && index === 0) return prev;
-      if (direction === 'down' && index === prev.length - 1) return prev;
-      const newArray = [...prev];
+      // If mobile list is empty, initialize from desktop banners
+      const base = (prev && prev.length ? prev.slice() : (currentBanners && currentBanners.length ? currentBanners.slice() : []));
+      if (direction === 'up' && index === 0) return base;
+      if (direction === 'down' && index === base.length - 1) return base;
+      const newArray = [...base];
       const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      [newArray[index], newArray[targetIndex]] = [
-        newArray[targetIndex],
-        newArray[index],
-      ];
+      if (targetIndex < 0 || targetIndex >= newArray.length) return newArray;
+      [newArray[index], newArray[targetIndex]] = [newArray[targetIndex], newArray[index]];
       return newArray;
     });
   };
@@ -521,6 +521,11 @@ export default function SettingsPage() {
       const safeBanners = await ensureArrayPublic(currentBanners);
       const safeBannersMobile = await ensureArrayPublic(currentBannersMobile);
 
+      // If no explicit mobile banners provided, fall back to desktop banners
+      const finalBannersMobile = (safeBannersMobile && safeBannersMobile.length)
+        ? safeBannersMobile
+        : (safeBanners && safeBanners.length ? safeBanners : null);
+
       // atualiza estados com as URLs públicas retornadas (se houver)
       if (safeTopBenefitImage && safeTopBenefitImage !== topBenefitImagePreview)
         setTopBenefitImagePreview(safeTopBenefitImage);
@@ -530,7 +535,7 @@ export default function SettingsPage() {
         setShareBannerPreview(safeShareBanner);
       if (safeLogo && safeLogo !== logoPreview) setLogoPreview(safeLogo);
       if (safeBanners) setCurrentBanners(safeBanners);
-      if (safeBannersMobile) setCurrentBannersMobile(safeBannersMobile);
+      if (finalBannersMobile) setCurrentBannersMobile(finalBannersMobile);
 
       // 1. Send entire settings payload to server-side endpoint which
       //    will upsert `settings` and `profiles` and perform the
@@ -551,11 +556,7 @@ export default function SettingsPage() {
         banners:
           safeBanners ??
           (currentBanners && currentBanners.length ? currentBanners : null),
-        banners_mobile:
-          safeBannersMobile ??
-          (currentBannersMobile && currentBannersMobile.length
-            ? currentBannersMobile
-            : null),
+        banners_mobile: finalBannersMobile ?? (currentBannersMobile && currentBannersMobile.length ? currentBannersMobile : (currentBanners && currentBanners.length ? currentBanners : null)),
         logo_url: safeLogo ?? logoPreview ?? null,
         og_image_url: safeOgImage ?? ogImagePreview ?? null,
         share_banner_url: safeShareBanner ?? shareBannerPreview ?? null,
@@ -870,33 +871,7 @@ export default function SettingsPage() {
                   </button>
                 ))}
               </div>
-              {/* Modo de exibição dos banners (moved here from Exibição) */}
-              <div className="mt-6 bg-white dark:bg-slate-900 p-4 rounded-[1rem] border border-gray-200 shadow-sm">
-                <label className="text-xs font-black uppercase text-slate-500 mb-2 block">Modo de exibição dos Banners</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'fit' }))}
-                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'fit' ? 'bg-primary text-white' : 'bg-white'}`}>
-                    Ajustar (Contain)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'fill' }))}
-                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'fill' ? 'bg-primary text-white' : 'bg-white'}`}>
-                    Preencher (Cover)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'stretch' }))}
-                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'stretch' ? 'bg-primary text-white' : 'bg-white'}`}>
-                    Esticar
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-2">Escolha como os banners serão ajustados no catálogo público. 'Ajustar' evita corte da imagem.</p>
-              </div>
-            </div>
-
+              
             {/* Logo e Cores (seção mantida) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-4">
@@ -1072,6 +1047,33 @@ export default function SettingsPage() {
             </div>
 
             {/* BANNERS DESKTOP COM REORDENAÇÃO */}
+            {/* Modo de exibição dos banners (moved here from Exibição) */}
+              <div className="mt-6 bg-white dark:bg-slate-900 p-4 rounded-[1rem] border border-gray-200 shadow-sm">
+                <label className="text-xs font-black uppercase text-slate-500 mb-2 block">Modo de exibição dos Banners</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'fit' }))}
+                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'fit' ? 'bg-primary text-white' : 'bg-white'}`}>
+                    Ajustar (Contain)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'fill' }))}
+                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'fill' ? 'bg-primary text-white' : 'bg-white'}`}>
+                    Preencher (Cover)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSettings((p) => ({ ...p, banner_mode: 'stretch' }))}
+                    className={`px-3 py-2 rounded-xl border ${catalogSettings.banner_mode === 'stretch' ? 'bg-primary text-white' : 'bg-white'}`}>
+                    Esticar
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">Escolha como os banners serão ajustados no catálogo público. 'Ajustar' evita corte da imagem.</p>
+              </div>
+            </div>
+
             <div className="space-y-4 pt-6 border-t">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black uppercase text-slate-500">
@@ -1181,7 +1183,7 @@ export default function SettingsPage() {
                 </label>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {currentBannersMobile.map((url, i) => (
+                {(currentBannersMobile && currentBannersMobile.length ? currentBannersMobile : currentBanners).map((url, i) => (
                   <div
                     key={i}
                     className="relative aspect-video rounded-2xl overflow-hidden group border shadow-sm border-transparent hover:border-primary transition-all"
@@ -1204,17 +1206,20 @@ export default function SettingsPage() {
                       </button>
                       <button
                         onClick={() => moveBannerMobile(i, 'down')}
-                        disabled={i === currentBannersMobile.length - 1}
+                        disabled={i === (currentBannersMobile && currentBannersMobile.length ? currentBannersMobile.length - 1 : (currentBanners ? currentBanners.length - 1 : 0))}
                         className="p-1.5 bg-white rounded-full text-slate-900 disabled:opacity-30 shadow-md"
                       >
                         <ChevronDown size={14} />
                       </button>
                       <button
-                        onClick={() =>
-                          setCurrentBannersMobile((p) =>
-                            p.filter((_, idx) => idx !== i)
-                          )
-                        }
+                        onClick={() => {
+                          if (!currentBannersMobile || currentBannersMobile.length === 0) {
+                            // initialize mobile list from desktop removing the clicked index
+                            setCurrentBannersMobile((currentBanners || []).filter((_, idx) => idx !== i));
+                          } else {
+                            setCurrentBannersMobile((p) => p.filter((_, idx) => idx !== i));
+                          }
+                        }}
                         className="p-1.5 bg-red-500 rounded-full text-white shadow-md"
                       >
                         <X size={14} />

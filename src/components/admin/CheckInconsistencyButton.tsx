@@ -25,10 +25,10 @@ export default function CheckInconsistencyButton({
         setCount(data.orphan || 0);
         toast.success(`Inconsistências: ${data.orphan}`);
       } else {
+        // show user-friendly error
         toast.error(data.error || 'Erro');
       }
     } catch (e: any) {
-      console.error(e);
       toast.error('Erro ao verificar');
     } finally {
       setLoading(false);

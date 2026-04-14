@@ -1011,14 +1011,19 @@ export function CarouselBrands() {
                 <button
                   key={`${brand.name}-${i}`}
                   onClick={() => toggleBrand(brand.name)}
-                  className={`group relative flex items-center justify-center p-1 mx-3 transition-all duration-200 shrink-0 hover:scale-105 ${
+                  className={`group relative flex h-12 w-[120px] md:w-[136px] items-center justify-center p-1 mx-3 transition-all duration-200 shrink-0 hover:scale-105 ${
                     active ? 'bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] rounded-lg' : ''
                   }`}
                 >
                   {src ? (
-                    <img src={src} alt={brand.name} loading="lazy" className="h-10 w-auto object-contain transition-all" />
+                    <img
+                      src={src}
+                      alt={brand.name}
+                      loading="lazy"
+                      className="max-h-9 md:max-h-10 w-auto max-w-[92%] object-contain transition-all"
+                    />
                   ) : (
-                    <span className={`px-3 text-xs font-bold whitespace-nowrap ${active ? 'text-[var(--primary)]' : 'text-gray-700'}`}>{brand.name}</span>
+                    <span className={`px-3 text-xs font-bold whitespace-nowrap truncate max-w-full ${active ? 'text-[var(--primary)]' : 'text-gray-700'}`}>{brand.name}</span>
                   )}
                 </button>
               );

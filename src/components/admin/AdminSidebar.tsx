@@ -89,11 +89,7 @@ export default function AdminSidebar({
       icon: BarChart2,
     },
     { label: 'Planos & Preços', href: '/admin/plans', icon: Package },
-    {
-      label: 'Edição de Preços',
-      href: '/admin/bulk-price-adjuster',
-      icon: Percent,
-    },
+    // 'Edição de Preços' removido
     {
       label: 'Matriz de Recursos',
       href: '/admin/plans/features',

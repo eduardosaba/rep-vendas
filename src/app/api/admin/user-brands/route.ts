@@ -32,55 +32,57 @@ export async function GET(req: Request) {
       .range(0, 1000000);
     if (prodErr) throw prodErr;
 
-    const normalize = (s: string) => {
-      try {
-        return s
-          .toString()
-          .normalize('NFKD')
-          .replace(/\p{Diacritic}/gu, '')
-          .replace(/[^\w\s-]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .toLowerCase();
-      } catch (e) {
-        return (s || '').toString().trim().toLowerCase();
-      }
-    };
+    const normalizeBrandKey = (value: string) =>
+      value
+        .normalize('NFKD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
 
-    const countsMap: Record<string, number> = {};
+    const grouped = new Map<
+      string,
+      { count: number; variants: Map<string, number> }
+    >();
+
     (prodData || []).forEach((r: any) => {
-      try {
-        const raw = (r.brand || '').toString();
-        const key = normalize(raw);
-        if (!key) return;
-        countsMap[key] = (countsMap[key] || 0) + 1;
-      } catch (e) {
-        // ignore
-      }
+      const raw = r?.brand?.toString().trim();
+      if (!raw) return;
+
+      const key = normalizeBrandKey(raw);
+      if (!key) return;
+
+      const current = grouped.get(key) || {
+        count: 0,
+        variants: new Map<string, number>(),
+      };
+
+      current.count += 1;
+      current.variants.set(raw, (current.variants.get(raw) || 0) + 1);
+      grouped.set(key, current);
     });
 
-    // Enrich with brands table to get canonical casing and include brands with zero products
-    const { data: brandsTable } = await service.from('brands').select('name').eq('user_id', userId);
+    const result: Array<{
+      key: string;
+      name: string;
+      count: number;
+      variants: string[];
+    }> = Array.from(grouped.entries()).map(([key, data]) => {
+      const orderedVariants = Array.from(data.variants.entries())
+        .sort((a, b) => {
+          if (b[1] !== a[1]) return b[1] - a[1];
+          return a[0].localeCompare(b[0]);
+        })
+        .map(([variant]) => variant);
 
-    const result: Array<{ name: string; count: number }> = [];
-    const seen = new Set<string>();
+      const displayName = orderedVariants[0] || key;
 
-    if (Array.isArray(brandsTable)) {
-      brandsTable.forEach((b: any) => {
-        const name = (b?.name || '').toString().trim();
-        if (!name) return;
-        const key = normalize(name);
-        seen.add(key);
-        result.push({ name, count: countsMap[key] || 0 });
-      });
-    }
-
-    // Add remaining counted brands that weren't present in brands table
-    Object.entries(countsMap).forEach(([key, cnt]) => {
-      if (seen.has(key)) return;
-      // fallback: present the normalized key as upper-case label
-      const pretty = key.toUpperCase();
-      result.push({ name: pretty, count: cnt });
+      return {
+        key,
+        name: displayName,
+        count: data.count,
+        variants: orderedVariants,
+      };
     });
 
     // Sort by name
@@ -89,7 +91,15 @@ export async function GET(req: Request) {
     // If debug flag present, include raw counts map to help troubleshooting
     const debugMode = url.searchParams.get('debug');
     if (debugMode === '1') {
-      return NextResponse.json({ brands: result, countsMap });
+      return NextResponse.json({
+        brands: result,
+        grouped: result.map((b) => ({
+          key: b.key,
+          name: b.name,
+          count: b.count,
+          variants: b.variants,
+        })),
+      });
     }
 
     return NextResponse.json({ brands: result });

@@ -27,17 +27,11 @@ export default function EcosystemHealthCards() {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        // try to read session token if endpoint exists
-        const sess = await fetch('/api/auth/session');
-        const sessJson = await sess.json().catch(() => ({}));
-        const token = sessJson?.access_token || null;
-
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch('/api/admin/ecosystem-summary', { headers });
+        const res = await fetch('/api/admin/ecosystem-summary', {
+          headers: { 'Content-Type': 'application/json' },
+        });
         if (!res.ok) {
-          setStats(null);
+          // keep previous stats on transient auth/network issues
           return;
         }
         const j = await res.json();

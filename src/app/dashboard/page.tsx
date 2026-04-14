@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import QuickActionCard from '@/components/QuickActionCard';
-import UpdateNotificationModal from '@/components/dashboard/UpdateNotificationModal';
 import NotificationsCTA from '@/components/NotificationsCTA';
 import { subDays, startOfDay, subMonths, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -216,7 +215,6 @@ export default async function DashboardPage({
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <DateFilter currentRange={range} />
-          <UpdateNotificationModal />
           {/* Notifications CTA: client component */}
           {profile.data && !profile.data.notifications_enabled && (
             // `NotificationsCTA` is a client component; show only if not enabled

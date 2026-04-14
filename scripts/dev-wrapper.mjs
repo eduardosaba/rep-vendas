@@ -6,17 +6,28 @@ const cwd = process.cwd();
 const portArgIndex = process.argv.findIndex((a) => a === '--port');
 const port = portArgIndex !== -1 ? process.argv[portArgIndex + 1] : '4000';
 
+function sanitizeNodeOptions(raw = '') {
+  if (!raw || typeof raw !== 'string') return '';
+
+  // Remove any '--localstorage-file' forms from inherited NODE_OPTIONS:
+  // 1) --localstorage-file=/path
+  // 2) --localstorage-file /path
+  // 3) --localstorage-file (without value)
+  const cleaned = raw
+    .replace(/--localstorage-file(?:=(?:"[^"]*"|'[^']*'|\S+))?/g, ' ')
+    .replace(/--localstorage-file\s+(?:"[^"]*"|'[^']*'|\S+)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned;
+}
+
 function runScript(cmd, args = []) {
   return new Promise((resolve, reject) => {
     const envClean = { ...process.env };
-    if (envClean.NODE_OPTIONS) {
-      envClean.NODE_OPTIONS = envClean.NODE_OPTIONS
-        .split(/\s+/)
-        .filter((opt) => opt && !opt.includes('--localstorage-file'))
-        .join(' ')
-        .trim();
-
-      if (envClean.NODE_OPTIONS === '') delete envClean.NODE_OPTIONS;
+    envClean.NODE_OPTIONS = sanitizeNodeOptions(envClean.NODE_OPTIONS || '');
+    if (!envClean.NODE_OPTIONS) {
+      envClean.NODE_OPTIONS = '--max-old-space-size=4096';
     }
     // remove any orphaned env var used by polyfills or wrappers
     if (envClean.LOCALSTORAGE_FILE) delete envClean.LOCALSTORAGE_FILE;
@@ -72,7 +83,10 @@ function runScript(cmd, args = []) {
     });
 
     // 3) Set a safe NODE_OPTIONS explicitly (no --localstorage-file inherited)
-    childEnv.NODE_OPTIONS = '--max-old-space-size=4096';
+    childEnv.NODE_OPTIONS = sanitizeNodeOptions(process.env.NODE_OPTIONS || '');
+    if (!childEnv.NODE_OPTIONS) {
+      childEnv.NODE_OPTIONS = '--max-old-space-size=4096';
+    }
 
     // 4) Ensure no stray vars remain
     if (childEnv.LOCALSTORAGE_FILE) delete childEnv.LOCALSTORAGE_FILE;

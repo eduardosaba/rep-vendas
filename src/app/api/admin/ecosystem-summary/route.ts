@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET(req: Request) {
   try {
@@ -18,18 +19,27 @@ export async function GET(req: Request) {
 
     const authHeader = req.headers.get('authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    if (!token)
-      return NextResponse.json({ error: 'Missing auth' }, { status: 401 });
 
-    const { data: userResp } = await supabase.auth.getUser(token as any);
-    const user = userResp?.user;
-    if (!user)
-      return NextResponse.json({ error: 'Invalid auth' }, { status: 401 });
+    let userId: string | null = null;
+    if (token) {
+      const { data: userResp } = await supabase.auth.getUser(token as any);
+      userId = userResp?.user?.id || null;
+    } else {
+      // Fallback: allow same-origin cookie session (client fetch without bearer)
+      const cookieClient = await createClient();
+      const {
+        data: { user },
+      } = await cookieClient.auth.getUser();
+      userId = user?.id || null;
+    }
+
+    if (!userId)
+      return NextResponse.json({ error: 'Missing auth' }, { status: 401 });
 
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .maybeSingle();
     const role = profile?.role || null;
     if (role !== 'master' && role !== 'admin') {

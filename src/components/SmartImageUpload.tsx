@@ -10,6 +10,8 @@ interface SmartUploadProps {
   initialPreview?: string | null;
   onMetaChange?: (meta: { mode?: string; focusX?: number; focusY?: number; zoom?: number }) => void;
   initialMeta?: { mode?: string; focusX?: number; focusY?: number; zoom?: number } | null;
+  showCropControls?: boolean;
+  showAdjustControls?: boolean;
 }
 
 export const SmartImageUpload: React.FC<SmartUploadProps> = ({
@@ -22,6 +24,8 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
   initialPreview = null,
   onMetaChange,
   initialMeta = null,
+  showCropControls = true,
+  showAdjustControls = true,
 }) => {
   const [preview, setPreview] = useState<string | null>(null);
   const prevPreviewRef = React.useRef<string | null>(null);
@@ -192,114 +196,132 @@ export const SmartImageUpload: React.FC<SmartUploadProps> = ({
     >
       {preview ? (
         <div className="flex flex-col items-center gap-3">
-          <div className="relative w-80 h-40 overflow-hidden rounded-lg shadow-md bg-gray-100">
-            <img
-              src={preview}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                objectPosition: `${focusX}% ${focusY}%`,
-                transform: `scale(${zoom / 100})`,
-                transition: 'transform 120ms linear, object-position 120ms linear',
-              }}
-              alt="preview"
-            />
-            <button
-              onClick={() => {
-                try {
-                  if (typeof preview === 'string' && preview.startsWith('blob:'))
-                    URL.revokeObjectURL(preview);
-                } catch {}
-                prevPreviewRef.current = null;
-                setPreview(null);
-              }}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs"
-              type="button"
-            >
-              ✕
-            </button>
-          </div>
+              <div className="relative w-80 h-40 overflow-hidden rounded-lg shadow-md bg-gray-100 p-3">
+                <img
+                  src={preview}
+                  style={
+                    showCropControls
+                      ? {
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          objectPosition: `${focusX}% ${focusY}%`,
+                          transform: `scale(${zoom / 100})`,
+                          transition: 'transform 120ms linear, object-position 120ms linear',
+                        }
+                      : {
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                        }
+                  }
+                  alt="preview"
+                />
+                <button
+                  onClick={() => {
+                    try {
+                      if (typeof preview === 'string' && preview.startsWith('blob:'))
+                        URL.revokeObjectURL(preview);
+                    } catch {}
+                    prevPreviewRef.current = null;
+                    setPreview(null);
+                  }}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs"
+                  type="button"
+                >
+                  ✕
+                </button>
+              </div>
 
-          <div className="w-80">
-            <div className="flex gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  const newMeta = { mode: 'crop-desktop', focusX, focusY, zoom: 100 };
-                  setMode('crop-desktop');
-                  setZoom(100);
-                  onMetaChange?.(newMeta);
-                }}
-                className={`px-2 py-1 text-sm rounded-md border ${mode === 'crop-desktop' ? 'bg-primary text-white' : 'bg-white'}`}
-              >
-                Cortar Desktop
-              </button>
+              {showCropControls || showAdjustControls ? (
+                <div className="w-80 p-3">
+                  <div className="flex gap-2 flex-wrap">
+                    {showCropControls && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newMeta = { mode: 'crop-desktop', focusX, focusY, zoom: 100 };
+                            setMode('crop-desktop');
+                            setZoom(100);
+                            onMetaChange?.(newMeta);
+                          }}
+                          className={`px-2 py-1 text-sm rounded-md border ${mode === 'crop-desktop' ? 'bg-primary text-white' : 'bg-white'}`}
+                        >
+                          Cortar Desktop
+                        </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const newMeta = { mode: 'crop-mobile', focusX, focusY, zoom: 100 };
-                  setMode('crop-mobile');
-                  setZoom(100);
-                  onMetaChange?.(newMeta);
-                }}
-                className={`px-2 py-1 text-sm rounded-md border ${mode === 'crop-mobile' ? 'bg-primary text-white' : 'bg-white'}`}
-              >
-                Cortar Mobile
-              </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newMeta = { mode: 'crop-mobile', focusX, focusY, zoom: 100 };
+                            setMode('crop-mobile');
+                            setZoom(100);
+                            onMetaChange?.(newMeta);
+                          }}
+                          className={`px-2 py-1 text-sm rounded-md border ${mode === 'crop-mobile' ? 'bg-primary text-white' : 'bg-white'}`}
+                        >
+                          Cortar Mobile
+                        </button>
+                      </>
+                    )}
 
-              <button
-                type="button"
-                onClick={() => {
-                  const newMeta = { mode: 'fit', focusX: 50, focusY: 50, zoom: 100 };
-                  setMode('fit');
-                  setFocusX(50);
-                  setFocusY(50);
-                  setZoom(100);
-                  onMetaChange?.(newMeta);
-                }}
-                className={`px-2 py-1 text-sm rounded-md border ${mode === 'fit' ? 'bg-primary text-white' : 'bg-white'}`}
-              >
-                Ajustar (Contain)
-              </button>
+                    {showAdjustControls && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newMeta = { mode: 'fit', focusX: 50, focusY: 50, zoom: 100 };
+                            setMode('fit');
+                            setFocusX(50);
+                            setFocusY(50);
+                            setZoom(100);
+                            onMetaChange?.(newMeta);
+                          }}
+                          className={`px-2 py-1 text-sm rounded-md border ${mode === 'fit' ? 'bg-primary text-white' : 'bg-white'}`}
+                        >
+                          Ajustar (Contain)
+                        </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const newMeta = { mode: 'fill', focusX: 50, focusY: 50, zoom: 110 };
-                  setMode('fill');
-                  setFocusX(50);
-                  setFocusY(50);
-                  setZoom(110);
-                  onMetaChange?.(newMeta);
-                }}
-                className={`px-2 py-1 text-sm rounded-md border ${mode === 'fill' ? 'bg-primary text-white' : 'bg-white'}`}
-              >
-                Preencher (Cover)
-              </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newMeta = { mode: 'fill', focusX: 50, focusY: 50, zoom: 110 };
+                            setMode('fill');
+                            setFocusX(50);
+                            setFocusY(50);
+                            setZoom(110);
+                            onMetaChange?.(newMeta);
+                          }}
+                          className={`px-2 py-1 text-sm rounded-md border ${mode === 'fill' ? 'bg-primary text-white' : 'bg-white'}`}
+                        >
+                          Preencher (Cover)
+                        </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const newMeta = { mode: 'stretch', focusX: 50, focusY: 50, zoom: 100 };
-                  setMode('stretch');
-                  setFocusX(50);
-                  setFocusY(50);
-                  setZoom(100);
-                  onMetaChange?.(newMeta);
-                }}
-                className={`px-2 py-1 text-sm rounded-md border ${mode === 'stretch' ? 'bg-primary text-white' : 'bg-white'}`}
-              >
-                Esticar
-              </button>
-            </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newMeta = { mode: 'stretch', focusX: 50, focusY: 50, zoom: 100 };
+                            setMode('stretch');
+                            setFocusX(50);
+                            setFocusY(50);
+                            setZoom(100);
+                            onMetaChange?.(newMeta);
+                          }}
+                          className={`px-2 py-1 text-sm rounded-md border ${mode === 'stretch' ? 'bg-primary text-white' : 'bg-white'}`}
+                        >
+                          Esticar
+                        </button>
+                      </>
+                    )}
+                  </div>
 
-            <div className="mt-3 text-xs text-gray-500">Use os modos para gerar crops específicos para cada layout.</div>
-          </div>
+                  <div className="mt-3 text-xs text-gray-500">Use os modos para gerar crops específicos para cada layout.</div>
+                </div>
+              ) : null}
         </div>
       ) : (
-        <label className="cursor-pointer flex flex-col items-center">
+        <label className="cursor-pointer flex flex-col items-center p-6">
           <span className="text-blue-500 font-bold text-sm">
             Clique para subir a foto
           </span>

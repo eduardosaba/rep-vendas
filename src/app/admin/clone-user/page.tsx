@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { 
@@ -11,13 +11,31 @@ import {
 export default function CloneUserPage() {
   const supabase = createClient();
   const [mounted, setMounted] = useState(false);
+
+  type AvailableBrand = {
+    key: string;
+    name: string;
+    count: number;
+    variants: string[];
+  };
   
   // Estados de Dados
   const [users, setUsers] = useState<any[]>([]);
   const [sourceUser, setSourceUser] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [availableBrands, setAvailableBrands] = useState<{name: string, count: number}[]>([]);
+  const [availableBrands, setAvailableBrands] = useState<AvailableBrand[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+    const selectedBrandVariants = useMemo(() => {
+      const selected = availableBrands.filter((b) => selectedBrands.includes(b.key));
+      return Array.from(
+        new Set(
+          selected.flatMap((b) =>
+            Array.isArray(b.variants) && b.variants.length > 0 ? b.variants : [b.name]
+          )
+        )
+      );
+    }, [availableBrands, selectedBrands]);
+
   
   // Estados de UI e Progresso
   const [loading, setLoading] = useState(false);
@@ -65,7 +83,27 @@ export default function CloneUserPage() {
         if (!res.ok) throw new Error('Erro ao carregar marcas');
         const json = await res.json().catch(() => ({}));
         const brands = json?.brands || [];
-        const parsed = Array.isArray(brands) ? brands : [];
+        const parsed: AvailableBrand[] = Array.isArray(brands)
+          ? brands
+              .map((b: any) => {
+                const name = String(b?.name || '').trim();
+                if (!name) return null;
+                const key = String(b?.key || name.toLowerCase().trim());
+                const variants = Array.isArray(b?.variants)
+                  ? b.variants
+                      .map((v: any) => String(v || '').trim())
+                      .filter(Boolean)
+                  : [name];
+
+                return {
+                  key,
+                  name,
+                  count: Number(b?.count || 0),
+                  variants,
+                };
+              })
+              .filter(Boolean) as AvailableBrand[]
+          : [];
         setAvailableBrands(parsed);
         // debug: log brand list for troubleshooting counts
         // eslint-disable-next-line no-console
@@ -84,6 +122,10 @@ export default function CloneUserPage() {
   const handleClone = async () => {
     if (!sourceUser || !selectedUser || selectedBrands.length === 0) {
       return toast.error("Selecione origem, destino e ao menos uma marca");
+    }
+
+    if (selectedBrandVariants.length === 0) {
+      return toast.error('Nenhuma variação de marca encontrada para clonar');
     }
 
     setIsCloning(true);
@@ -110,7 +152,7 @@ export default function CloneUserPage() {
         body: JSON.stringify({
           sourceUserId: sourceUser,
           targetUserId: selectedUser,
-          brands: selectedBrands
+          brands: selectedBrandVariants
         })
       });
 
@@ -181,7 +223,7 @@ export default function CloneUserPage() {
         .from('products')
         .select('id')
         .eq('user_id', sourceUser)
-        .in('brand', selectedBrands);
+        .in('brand', selectedBrandVariants);
 
       if (srcErr) throw srcErr;
 
@@ -251,7 +293,7 @@ export default function CloneUserPage() {
         body: JSON.stringify({
           targetUserId: selectedUser,
           sourceUserId: sourceUser || null,
-          brands: selectedBrands.length > 0 ? selectedBrands : null,
+          brands: selectedBrandVariants.length > 0 ? selectedBrandVariants : null,
           properties: payloadProperties,
           dryRun: Boolean(isSimulation),
         }),
@@ -352,13 +394,13 @@ export default function CloneUserPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-[400px] overflow-y-auto p-1">
               {availableBrands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase())).map(brand => (
                 <button
-                  key={brand.name}
-                  onClick={() => setSelectedBrands(prev => prev.includes(brand.name) ? prev.filter(x => x !== brand.name) : [...prev, brand.name])}
-                  className={`p-5 rounded-[1.5rem] border-2 transition-all text-left relative ${selectedBrands.includes(brand.name) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800 hover:border-slate-300'}`}
+                  key={brand.key}
+                  onClick={() => setSelectedBrands(prev => prev.includes(brand.key) ? prev.filter(x => x !== brand.key) : [...prev, brand.key])}
+                  className={`p-5 rounded-[1.5rem] border-2 transition-all text-left relative ${selectedBrands.includes(brand.key) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800 hover:border-slate-300'}`}
                 >
                       <div className="flex justify-between items-start mb-1">
                         <span className="font-black text-sm uppercase tracking-tight">{brand.name}</span>
-                        {selectedBrands.includes(brand.name) && <Check size={16} className="text-indigo-600" />}
+                        {selectedBrands.includes(brand.key) && <Check size={16} className="text-indigo-600" />}
                       </div>
                       <div className="absolute top-4 right-4">
                         <span className="inline-flex items-center justify-center px-2 py-1 min-w-[36px] h-6 rounded-full bg-indigo-600 text-white text-xs font-bold">{brand.count}</span>

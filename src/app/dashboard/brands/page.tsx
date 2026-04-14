@@ -518,7 +518,7 @@ export default function BrandsPage() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  placeholder="Ex: Nike, Adidas..."
+                  placeholder="Ex: Safilo, Tommy Hilfiger ..."
                   required
                 />
               </div>
@@ -610,6 +610,8 @@ export default function BrandsPage() {
                       }
                     }}
                     className="w-full"
+                    showCropControls={false}
+                    showAdjustControls={true}
                   />
                 </div>
               </div>
@@ -677,6 +679,8 @@ export default function BrandsPage() {
                     onMetaChange={(meta) => {
                       setFormData((prev) => ({ ...prev, bannerMeta: meta }));
                     }}
+                    showCropControls={false}
+                    showAdjustControls={true}
                     className="w-full"
                   />
                 </div>
