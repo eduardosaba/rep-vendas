@@ -5,6 +5,50 @@ import { getActiveUserId } from '@/lib/auth-utils';
 import { createAuditLog } from '@/lib/audit-service';
 import { revalidatePath } from 'next/cache';
 
+export async function getAdminContext() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Acesso negado');
+  }
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id,full_name,email,role,company_id,can_manage_catalog')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error || !profile) {
+    throw new Error(error?.message || 'Perfil não encontrado');
+  }
+
+  if (profile.role !== 'admin_company' && profile.role !== 'master') {
+    throw new Error('Permissão insuficiente');
+  }
+
+  if (!profile.company_id && profile.role !== 'master') {
+    throw new Error('Usuário sem company_id vinculado');
+  }
+
+  const { data: company, error: companyError } = await supabase
+    .from('companies')
+    .select('id,name,slug,cnpj,primary_color,secondary_color,logo_url,about_text,shipping_policy,contact_email')
+    .eq('id', profile.company_id)
+    .maybeSingle();
+
+  if (companyError) {
+    throw new Error(companyError.message);
+  }
+
+  return {
+    profile,
+    company,
+  };
+}
+
 export async function bulkPriceAdjustAction(params: {
   brand: string;
   type: 'percent' | 'fixed';

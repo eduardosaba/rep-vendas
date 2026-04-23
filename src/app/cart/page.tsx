@@ -368,7 +368,20 @@ export default function Cart() {
                 </div>
 
                 <button
-                  onClick={() => router.push('/checkout')}
+                  onClick={() => {
+                    try {
+                      const rep = typeof window !== 'undefined' ? window.localStorage.getItem('rep_slug') : null;
+                      const catalogSlug = (settings as any)?.catalog_slug || null;
+                      if (catalogSlug) {
+                        const href = `/catalogo/${encodeURIComponent(String(catalogSlug))}${rep ? `/${encodeURIComponent(rep)}` : ''}/checkout`;
+                        router.push(href);
+                        return;
+                      }
+                      router.push('/checkout');
+                    } catch (e) {
+                      router.push('/checkout');
+                    }
+                  }}
                   className="mb-3 w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                   style={{
                     backgroundColor: settings?.primary_color || '#4f46e5', // Fallback: Indigo-600

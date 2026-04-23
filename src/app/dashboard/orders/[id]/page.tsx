@@ -23,6 +23,7 @@ import {
 import OrderStatusControls from '@/components/dashboard/OrderStatusControls';
 import { OrderPdfButton } from '@/components/dashboard/OrderPdfButton';
 import { OrderDetailsView } from '@/components/dashboard/OrderDetailsView';
+import { NegotiationPanel } from '@/components/dashboard/NegotiationPanel';
 import { getUiStatusKey } from '@/lib/orderStatus';
 import { formatDocument } from '@/lib/formatDocument';
 
@@ -36,6 +37,20 @@ function StatusBadge({ status }: { status: string }) {
       border: 'border-yellow-200 dark:border-yellow-800',
       icon: Clock,
       label: 'Pendente',
+    },
+    pending_review: {
+      bg: 'bg-amber-100 dark:bg-amber-900/30',
+      text: 'text-amber-800 dark:text-amber-300',
+      border: 'border-amber-200 dark:border-amber-800',
+      icon: Clock,
+      label: 'Aguardando Revisão',
+    },
+    awaiting_billing: {
+      bg: 'bg-indigo-100 dark:bg-indigo-900/30',
+      text: 'text-indigo-800 dark:text-indigo-300',
+      border: 'border-indigo-200 dark:border-indigo-800',
+      icon: Clock,
+      label: 'Aguardando Faturamento',
     },
     confirmed: {
       bg: 'bg-blue-100 dark:bg-blue-900/30',
@@ -180,6 +195,14 @@ export default async function OrderDetailsPage({
       return acc + (item.quantity || 0) * (item.unit_price || 0);
     }, 0) || 0;
 
+  const negotiationItems = (order.order_items || []).map((item: any) => ({
+    id: String(item.id),
+    name: item.product_name || item.products?.name || 'Item',
+    brand: item.products?.brand || null,
+    quantity: Number(item.quantity || 0),
+    subtotal: Number(item.quantity || 0) * Number(item.unit_price || 0),
+  }));
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden animate-in fade-in">
       {/* HEADER */}
@@ -312,7 +335,18 @@ export default async function OrderDetailsPage({
               </div>
             </div>
 
-            {statusKey !== 'cancelled' && statusKey !== 'delivered' && (
+            {statusKey === 'pending_review' ? (
+              <NegotiationPanel
+                orderId={order.id}
+                customerName={clientName}
+                customerPhone={clientPhone}
+                representativeName={null}
+                baseTotal={calculatedTotal}
+                items={negotiationItems}
+              />
+            ) : null}
+
+            {statusKey !== 'cancelled' && statusKey !== 'delivered' && statusKey !== 'pending_review' && (
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                   <CheckCircle size={18} className="text-green-600 dark:text-green-400" /> Ações do Pedido
@@ -346,7 +380,18 @@ export default async function OrderDetailsPage({
                 {clientDoc && (<div className="text-sm font-mono">{formatDocument(clientDoc) || clientDoc}</div>)}
                 {clientAddress && (<div className="text-sm">{clientAddress}</div>)}
 
-                {statusKey !== 'cancelled' && statusKey !== 'delivered' && (
+                {statusKey === 'pending_review' ? (
+                  <NegotiationPanel
+                    orderId={order.id}
+                    customerName={clientName}
+                    customerPhone={clientPhone}
+                    representativeName={null}
+                    baseTotal={calculatedTotal}
+                    items={negotiationItems}
+                  />
+                ) : null}
+
+                {statusKey !== 'cancelled' && statusKey !== 'delivered' && statusKey !== 'pending_review' && (
                   <div>
                     <OrderStatusControls orderId={order.id} statusKey={statusKey} />
                   </div>

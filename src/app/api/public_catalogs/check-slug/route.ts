@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createClient as createSvcClient } from '@supabase/supabase-js';
 
 export async function GET(req: Request) {
   try {
@@ -16,8 +17,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const { createClient } = await import('@supabase/supabase-js');
-    const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const svc = createSvcClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { data, error } = await svc
       .from('public_catalogs')

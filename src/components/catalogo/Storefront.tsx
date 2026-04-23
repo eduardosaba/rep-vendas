@@ -17,6 +17,7 @@ import { StoreModals } from './store-modals-container';
 import { InstallPrompt } from './InstallPrompt';
 import { FloatingCart } from './FloatingCart';
 import { UnlockPriceActions } from './UnlockPriceActions';
+import CatalogThemeProvider from '@/components/theme/CatalogThemeProvider';
 import { hexToRgb } from '@/lib/colors'; // Importando nossa função utilitária
 import { SYSTEM_FONTS } from '@/lib/fonts';
 
@@ -27,10 +28,21 @@ import type {
 } from '@/lib/types';
 
 interface StorefrontProps {
-  catalog: PublicCatalog;
+  catalog: Partial<PublicCatalog> & Record<string, unknown>;
   initialProducts: Product[];
   startProductId?: string;
+  topSlot?: React.ReactNode;
+  hideHeaderActions?: boolean;
+  showStoreFooter?: boolean;
 }
+
+type StorefrontSettings = StoreSettings & {
+  owner_is_company?: boolean;
+  is_rich_catalog?: boolean;
+  representative_id?: string | null;
+  representative_name?: string | null;
+  representative_whatsapp?: string | null;
+};
 
 function isTruthyFlag(value: unknown) {
   return value === true || value === 'true' || value === 1 || value === '1';
@@ -60,6 +72,9 @@ export function Storefront({
   catalog,
   initialProducts,
   startProductId,
+  topSlot,
+  hideHeaderActions = false,
+  showStoreFooter = true,
 }: StorefrontProps) {
   const c = catalog as unknown as Record<string, unknown>;
   const showCostPrice = isTruthyFlag(c['show_cost_price']);
@@ -68,7 +83,7 @@ export function Storefront({
    * 1. MAPEAMENTO DE DADOS (Multi-tenant)
    * Transformamos o registro público do catálogo na interface de Settings usada pelo sistema.
    */
-  const store: StoreSettings = useMemo(
+  const store = useMemo<StorefrontSettings>(
     () => ({
       user_id: (c['user_id'] as string) || '',
       name: (c['store_name'] as string) || '',
@@ -109,11 +124,38 @@ export function Storefront({
       top_benefit_text_color:
         (c['top_benefit_text_color'] as string) || undefined,
       top_benefit_text: (c['top_benefit_text'] as string) || undefined,
-      show_top_benefit_bar: (c['show_top_benefit_bar'] as boolean) || false,
-      show_top_info_bar: (c['show_top_info_bar'] as boolean) || false,
+      top_benefit_mode:
+        String(c['top_benefit_mode'] || '').toLowerCase() === 'marquee'
+          ? 'marquee'
+          : 'static',
+      top_benefit_speed:
+        String(c['top_benefit_speed'] || '').toLowerCase() === 'slow'
+          ? 'slow'
+          : String(c['top_benefit_speed'] || '').toLowerCase() === 'fast'
+            ? 'fast'
+            : 'medium',
+      top_benefit_animation:
+        String(c['top_benefit_animation'] || '').toLowerCase() ===
+        'scroll_right'
+          ? 'scroll_right'
+          : String(c['top_benefit_animation'] || '').toLowerCase() ===
+              'alternate'
+            ? 'alternate'
+            : 'scroll_left',
+      show_top_benefit_bar: isTruthyFlag(c['show_top_benefit_bar']),
+      show_top_info_bar: isTruthyFlag(c['show_top_info_bar']),
+      // Footer colors
+      footer_background_color: (c['footer_background_color'] as string) || undefined,
+      footer_text_color: (c['footer_text_color'] as string) || undefined,
       // Banners
       banners: (c['banners'] as string[]) || null,
       banners_mobile: (c['banners_mobile'] as string[]) || null,
+      // Contexto de fluxo (individual x distribuidora)
+      owner_is_company: Boolean(c['owner_is_company']),
+      is_rich_catalog: Boolean(c['is_rich_catalog'] || c['owner_is_company']),
+      representative_id: (c['representative_id'] as string) || null,
+      representative_name: (c['representative_name'] as string) || null,
+      representative_whatsapp: (c['representative_whatsapp'] as string) || null,
     }),
     [catalog, c, showCostPrice, showSalePrice]
   );
@@ -138,6 +180,9 @@ export function Storefront({
       '--secondary': secondary,
       '--secondary-rgb': hexToRgb(secondary),
       '--header-bg': (c['header_background_color'] as string) || '#ffffff',
+      '--header-text': (c['header_text_color'] as string) || undefined,
+      '--header-icon-bg': (c['header_icon_bg_color'] as string) || undefined,
+      '--header-icon-color': (c['header_icon_color'] as string) || undefined,
       '--footer-bg': (c['footer_background_color'] as string) || secondary,
     } as React.CSSProperties;
   }, [store, c]);
@@ -236,17 +281,16 @@ export function Storefront({
       initialProducts={initialProducts}
       startProductId={startProductId}
     >
-      <div
-        style={{ ...cssVars, fontFamily: finalFamily }}
-        className="min-h-screen bg-gray-50 flex flex-col selection:bg-primary/20 selection:text-primary"
-      >
+      <CatalogThemeProvider cssVars={cssVars} fontFamily={finalFamily}>
+        {topSlot}
+
         {/* Barra de contatos fixa (sempre visível se houver dados) */}
         {(store.email || store.phone) && (
           <div
             className="w-full"
             style={{ backgroundColor: store.secondary_color }}
           >
-            <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-1 sm:py-2 flex justify-between items-center text-white/90 text-xs sm:text-sm border-b border-white/5">
+            <div className="w-full mx-auto px-5 py-1 sm:py-2 flex justify-between items-center text-white/90 text-xs sm:text-sm border-b border-white/5">
               <span className="inline-flex items-center gap-2 min-w-0">
                 {store.email ? (
                   <>
@@ -306,10 +350,10 @@ export function Storefront({
         )}
 
         {/* 2. BARRA DE BENEFÍCIOS (configurada no painel) */}
-        <StoreTopBar />
+        {!topSlot ? <StoreTopBar /> : null}
 
         {/* 3. HEADER PRINCIPAL (Logo e Busca) */}
-        <StoreHeader />
+        <StoreHeader hideActions={hideHeaderActions} />
         <CarouselBrands />
         <CategoryBar />
         <StoreBanners />
@@ -318,7 +362,7 @@ export function Storefront({
         <FeaturedSection userId={store.user_id} />
 
         {/* Grid Principal com Sidebar de Filtros */}
-        <main className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12 flex flex-col md:flex-row gap-8 flex-1 relative">
+        <main className="w-full mx-auto px-0 py-6 pb-24 md:pb-12 flex flex-col md:flex-row gap-8 flex-1 relative">
           <div className="flex-1 w-full min-w-0">
             <ProductGrid />
           </div>
@@ -331,9 +375,9 @@ export function Storefront({
           <FloatingCart />
         </div>
         <StoreModals />
-        <StoreFooter />
+        {showStoreFooter ? <StoreFooter /> : null}
         <InstallPrompt />
-      </div>
+      </CatalogThemeProvider>
     </StoreProvider>
   );
 }

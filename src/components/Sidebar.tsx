@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   ShoppingBag,
+  Building2,
   Package,
   Users,
   UploadCloud,
@@ -28,9 +29,11 @@ import {
   Zap,
   History,
   ClipboardList,
+  Megaphone,
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@/lib/supabase/client';
+import { usePermissions } from '@/hooks/usePermissions';
 import type { Settings } from '@/lib/types';
 
 const MENU_ITEMS = [
@@ -41,6 +44,12 @@ const MENU_ITEMS = [
     exact: true,
   },
   { icon: ShoppingBag, label: 'Pedidos', href: '/dashboard/orders' },
+  { icon: Building2, label: 'Distribuidora', href: '/dashboard/distribuidora' },
+  {
+    icon: SettingsIcon,
+    label: 'Gestão da Distribuidora',
+    href: '/dashboard/empresa',
+  },
   {
     icon: Package,
     label: 'Produtos',
@@ -125,6 +134,8 @@ const MENU_ITEMS = [
     ],
   },
   { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
+  { icon: Users, label: 'Equipe', href: '/dashboard/equipe' },
+  { icon: Megaphone, label: 'Comunicados', href: '/dashboard/equipe/comunicados' },
   { icon: SettingsIcon, label: 'Configurações', href: '/dashboard/settings' },
   { icon: HelpCircle, label: 'Ajuda', href: '/dashboard/help' },
 ];
@@ -155,9 +166,13 @@ export function Sidebar({
     initialSettings || null
   );
   const [isMaster, setIsMaster] = useState(false);
+  const [isCompanyAdmin, setIsCompanyAdmin] = useState(false);
+  const [isCompanyMember, setIsCompanyMember] = useState(false);
+  const [canManageCatalog, setCanManageCatalog] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   const isDashboardRoute = pathname?.startsWith('/dashboard');
+  const { hasSidebarItem, loading: permsLoading } = usePermissions();
 
   useEffect(() => {
     setMounted(true);
@@ -169,7 +184,7 @@ export function Sidebar({
       );
     updateWidth();
     window.addEventListener('resize', updateWidth);
-    const loadBranding = async () => {
+        const loadBranding = async () => {
       try {
         const res = await supabase.auth.getUser();
         const user = res?.data?.user;
@@ -192,7 +207,29 @@ export function Sidebar({
             .filter(Boolean);
           if (user.email && list.includes(user.email)) masterDetected = true;
         }
+        
         if (masterDetected) setIsMaster(true);
+        // busca profile para detectar role/company/permissions
+        try {
+          const profileRes = await supabase
+            .from('profiles')
+            .select('role,company_id,can_manage_catalog')
+            .eq('id', user.id)
+            .maybeSingle();
+          const profile = profileRes?.data as any | null;
+          if (profile) {
+            const role = profile?.role || '';
+            const isCompanyAdminRole =
+              role === 'admin_company' || role === 'master';
+            const hasCompanyLink = Boolean(profile?.company_id);
+            setIsCompanyAdmin(Boolean(isCompanyAdminRole) && hasCompanyLink);
+            setIsCompanyMember(hasCompanyLink);
+            setCanManageCatalog(Boolean(profile?.can_manage_catalog));
+          }
+        } catch (e) {
+          // ignore profile fetch failures
+        }
+
         const settingsRes = await supabase
           .from('settings')
           .select('*')
@@ -308,12 +345,19 @@ export function Sidebar({
       {/* Navegação */}
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
         {MENU_ITEMS.map((item) => {
-          // Hide admin-only links for non-master users (checked via `isMaster` state)
-          if (!isMaster) {
-            // If the top-level item itself points to the sync settings page, hide it
-            if (item.href === '/dashboard/settings/sync') return null;
-            // If any child is the sync settings page, we'll filter it out below when rendering children
-          }
+          // If permissions loaded and this item is not allowed, hide it (allow master to bypass)
+          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster) return null;
+          // company users: catalog operations are restricted unless explicitly allowed
+          const showCatalogOps =
+            isMaster || !isCompanyMember || isCompanyAdmin || canManageCatalog;
+          const showTools = showCatalogOps;
+          // Additional legacy guards that depend on company linkage or master flag
+          // If the top-level item itself points to the sync settings page, hide it for non-master
+          if (item.href === '/dashboard/settings/sync' && !isMaster) return null;
+          // Area de fila B2B da distribuidora apenas para membros vinculados
+          if (item.href === '/dashboard/distribuidora' && !isCompanyMember) return null;
+          // Gestão da distribuidora só para administradores da empresa
+          if (item.href === '/dashboard/empresa' && !isCompanyAdmin) return null;
           const active = item.exact
             ? pathname === item.href
             : pathname?.startsWith(item.href);
@@ -446,6 +490,14 @@ export function Sidebar({
               {hasChildren && expanded && !isCollapsed && (
                 <div className="mt-1 ml-4 space-y-1 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
                   {item.children.map((child) => {
+                    // hide child if permissions explicitly disallow it (allow master to bypass)
+                    const childLabel = (child as any).title || (child as any).href;
+                    // Show child if either the parent item is allowed or the child label is explicitly allowed
+                    const parentAllowed = permsLoading ? true : hasSidebarItem(item.label);
+                    const childAllowed = permsLoading ? true : hasSidebarItem(childLabel);
+                    if (!permsLoading && !isMaster && !parentAllowed && !childAllowed) return null;
+                    // hide admin-only tools for non-master users
+                    if ((child as any).role === 'admin' && !isMaster) return null;
                     // hide manage-external-images link from non-master and non-template users
                     const isTemplateAccount = Boolean(
                       (branding as any)?.is_template ||
@@ -456,6 +508,13 @@ export function Sidebar({
                     if (
                       (child.title === 'Saúde dos Dados' || child.href === '/dashboard/settings/sync') &&
                       !isMaster
+                    ) {
+                      return null;
+                    }
+                    // Only show some tools to master/template or company admins / permitted users
+                    if (
+                      (child.title === 'Importar Excel' || child.title === 'Sincronizador PROCV' || child.title === 'Vincular (Matcher)' || child.title === 'Importar Fotos' || child.title === 'Atualizar Preços') &&
+                      !showTools
                     ) {
                       return null;
                     }

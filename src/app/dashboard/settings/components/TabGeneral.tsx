@@ -11,6 +11,8 @@ import {
 
 interface TabGeneralProps {
   formData: any;
+  nameFieldLabel?: string;
+  nameFieldPlaceholder?: string;
   handleChange: (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => void;
@@ -20,10 +22,14 @@ interface TabGeneralProps {
   onToggleShowPassword?: () => void;
   isActive: boolean;
   onToggleActive: () => void;
+  isCompanyAdmin?: boolean;
+  userRole?: string | null;
 }
 
 export function TabGeneral({
   formData,
+  nameFieldLabel = 'Nome da Distribuidora',
+  nameFieldPlaceholder = 'Ex: Minha Loja Incrível',
   handleChange,
   handleSlugChange,
   slugRef,
@@ -31,6 +37,8 @@ export function TabGeneral({
   onToggleShowPassword,
   isActive,
   onToggleActive,
+  isCompanyAdmin = false,
+  userRole = null,
 }: TabGeneralProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
@@ -84,14 +92,14 @@ export function TabGeneral({
         <div className="grid md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-              Nome da Loja
+              {nameFieldLabel}
             </label>
             <input
               name="name"
               value={formData.name}
               onChange={handleChange}
               className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
-              placeholder="Ex: Minha Loja Incrível"
+              placeholder={nameFieldPlaceholder}
             />
           </div>
           <div>
@@ -127,7 +135,7 @@ export function TabGeneral({
         </h3>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Link do Catálogo
+            Link do Catálogo princial da Distribuidora
           </label>
           <div className="flex rounded-lg shadow-sm">
             <span className="bg-gray-100 dark:bg-slate-800 border border-r-0 border-gray-300 dark:border-slate-700 rounded-l-lg px-3 py-2.5 text-gray-500 text-sm hidden sm:flex items-center select-none">
@@ -182,17 +190,30 @@ export function TabGeneral({
           <MessageSquare size={18} className="text-[var(--primary)]" /> Rodapé
         </h3>
         <div>
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-            Mensagem do Footer
-          </label>
-          <textarea
-            name="footer_message"
-            value={formData.footer_message}
-            onChange={handleChange}
-            className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none resize-none"
-            rows={4}
-            placeholder="Ex: Enviamos para todo o Brasil. Aceitamos Pix e Cartão."
-          />
+          {userRole === 'admin_company' ? (
+            <>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Headline do Catálogo</label>
+              <input
+                name="headline"
+                value={formData.headline}
+                onChange={handleChange}
+                className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                placeholder="Ex: Catálogo Oficial"
+              />
+            </>
+          ) : (
+            <>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Mensagem do Footer</label>
+              <textarea
+                name="footer_message"
+                value={formData.footer_message}
+                onChange={handleChange}
+                className="w-full p-2.5 border rounded-lg bg-gray-50 dark:bg-slate-950 dark:border-slate-700 dark:text-white focus:ring-2 focus:ring-[var(--primary)] outline-none resize-none"
+                rows={4}
+                placeholder="Ex: Enviamos para todo o Brasil."
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -3,6 +3,8 @@
 
 export const DB_STATUSES = [
   'Pendente',
+  'Aguardando Revisão',
+  'Aguardando Faturamento',
   'Confirmado',
   'Em Preparação',
   'Enviado',
@@ -13,6 +15,8 @@ export const DB_STATUSES = [
 
 export type UIStatusKey =
   | 'pending'
+  | 'pending_review'
+  | 'awaiting_billing'
   | 'confirmed'
   | 'preparing'
   | 'delivered'
@@ -22,11 +26,13 @@ export type UIStatusKey =
 const statusMapToDb: Record<string, string> = {
   // English keys
   pending: 'Pendente',
+  pending_review: 'Aguardando Revisão',
   confirmed: 'Confirmado',
   preparing: 'Em Preparação',
   delivered: 'Entregue',
   cancelled: 'Cancelado',
   complete: 'Completo',
+  awaiting_billing: 'Aguardando Faturamento',
   // common variants
   shipped: 'Enviado',
   sent: 'Enviado',
@@ -35,6 +41,8 @@ const statusMapToDb: Record<string, string> = {
 
 const dbToUiKey: Record<string, UIStatusKey> = {
   Pendente: 'pending',
+  'Aguardando Revisão': 'pending_review',
+  'Aguardando Faturamento': 'awaiting_billing',
   Confirmado: 'confirmed',
   'Em Preparação': 'preparing',
   Enviado: 'delivered',
@@ -76,6 +84,8 @@ export function getUiStatusKey(input: string): UIStatusKey {
   // fallback: return lower if it matches expected keys
   if (
     lower === 'pending' ||
+    lower === 'pending_review' ||
+    lower === 'awaiting_billing' ||
     lower === 'confirmed' ||
     lower === 'preparing' ||
     lower === 'delivered' ||
@@ -91,6 +101,8 @@ export function getUiStatusKey(input: string): UIStatusKey {
 export function getStatusLabelFromKey(key: UIStatusKey): string {
   const map: Record<UIStatusKey, string> = {
     pending: 'Pendente',
+    pending_review: 'Aguardando Revisão',
+    awaiting_billing: 'Aguardando Faturamento',
     confirmed: 'Confirmado',
     preparing: 'Em Preparação',
     delivered: 'Entregue',

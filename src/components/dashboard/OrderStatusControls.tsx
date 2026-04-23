@@ -7,7 +7,14 @@ import { toast } from 'sonner';
 
 interface Props {
   orderId: string | number;
-  statusKey: 'pending' | 'confirmed' | 'delivered' | 'cancelled' | string;
+  statusKey:
+    | 'pending'
+    | 'pending_review'
+    | 'awaiting_billing'
+    | 'confirmed'
+    | 'delivered'
+    | 'cancelled'
+    | string;
 }
 
 export default function OrderStatusControls({ orderId, statusKey }: Props) {

@@ -9,6 +9,7 @@ import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import WelcomePopup from '@/components/WelcomePopup';
 import { useWelcomeManager } from '@/hooks/useWelcomeManager';
+import BlockedAccountPopup from '@/components/dashboard/BlockedAccountPopup';
 
 export default function DashboardLayout({
   children,
@@ -81,6 +82,36 @@ export default function DashboardLayout({
     };
   }, [router]);
 
+  const [showBlockedPopup, setShowBlockedPopup] = useState(false);
+
+  useEffect(() => {
+    if (!authorized) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/profile/status');
+        if (!mounted) return;
+        if (!res.ok) return;
+        const j = await res.json();
+        const profile = j?.profile || null;
+        if (profile) {
+          const status = profile.status || null;
+          const trialEnds = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+          const now = new Date();
+          const isTrialExpired = trialEnds ? now > trialEnds : false;
+          if (status === 'blocked' || (status === 'trial' && isTrialExpired)) {
+            setShowBlockedPopup(true);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [authorized]);
+
   if (connectionError) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-red-50 p-4">
@@ -136,6 +167,9 @@ export default function DashboardLayout({
                     await markAsSeen();
                   }}
                 />
+              )}
+              {showBlockedPopup && (
+                <BlockedAccountPopup onClose={() => setShowBlockedPopup(false)} />
               )}
             </div>
           </main>

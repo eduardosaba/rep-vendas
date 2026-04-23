@@ -70,7 +70,6 @@ async function main() {
       logo_url: s.logo_url ?? null,
       primary_color: s.primary_color ?? '#b9722e',
       secondary_color: s.secondary_color ?? '#0d1b2c',
-      header_background_color: s.header_background_color ?? '#ffffff',
       show_sale_price: s.show_sale_price ?? true,
       show_cost_price: s.show_cost_price ?? false,
       enable_stock_management: s.enable_stock_management ?? false,

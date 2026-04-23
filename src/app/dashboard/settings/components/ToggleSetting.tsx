@@ -8,6 +8,7 @@ interface ToggleSettingProps {
   checked: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   icon: LucideIcon;
+  disabled?: boolean;
   children?: React.ReactNode;
 }
 
@@ -18,6 +19,7 @@ export const ToggleSetting = ({
   checked,
   onChange,
   icon: Icon,
+  disabled = false,
   children,
 }: ToggleSettingProps) => (
   <div
@@ -25,7 +27,7 @@ export const ToggleSetting = ({
       checked
         ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]/20 shadow-sm'
         : 'border-gray-200 dark:border-slate-800'
-    }`}
+    } ${disabled ? 'opacity-70 pointer-events-none' : ''}`}
   >
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-start gap-3">
@@ -58,6 +60,7 @@ export const ToggleSetting = ({
           name={name}
           checked={checked}
           onChange={onChange}
+          disabled={disabled}
           className="sr-only peer"
         />
         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>

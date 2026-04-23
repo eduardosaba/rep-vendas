@@ -30,6 +30,7 @@ export default function ImportHistoryPage() {
   const [history, setHistory] = useState<ImportHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [scope, setScope] = useState<{ field: 'user_id' | 'company_id'; id: string } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
   const [typedConfirm, setTypedConfirm] = useState<string>('');
@@ -38,9 +39,49 @@ export default function ImportHistoryPage() {
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      setLoading(false);
+      toast.error('Sessão inválida. Faça login novamente.');
+      return;
+    }
+
+    let targetScope: { field: 'user_id' | 'company_id'; id: string } = {
+      field: 'user_id',
+      id: user.id,
+    };
+
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role,company_id,can_manage_catalog')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const role = String((profile as any)?.role || '');
+      const companyId = String((profile as any)?.company_id || '');
+      const canManageCatalog = Boolean((profile as any)?.can_manage_catalog);
+      const canUseCompanyScope =
+        Boolean(companyId) &&
+        (role === 'admin_company' || role === 'master' || canManageCatalog);
+
+      if (canUseCompanyScope) {
+        targetScope = { field: 'company_id', id: companyId };
+      }
+    } catch {
+      // fallback para escopo individual
+    }
+
+    setScope(targetScope);
+
     const { data, error } = await supabase
       .from('import_history')
       .select('*')
+      .eq(targetScope.field, targetScope.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -66,10 +107,16 @@ export default function ImportHistoryPage() {
 
     try {
       // 1. Identificar imagens para remover do Storage
-      const { data: products } = await supabase
+      let productsQuery = supabase
         .from('products')
         .select('image_path, images')
         .eq('last_import_id', importId);
+
+      if (scope) {
+        productsQuery = productsQuery.eq(scope.field, scope.id);
+      }
+
+      const { data: products } = await productsQuery;
 
       // Coleta todos os paths (image_path principal + array images)
       const pathsToDelete: string[] = [];
@@ -106,18 +153,27 @@ export default function ImportHistoryPage() {
       }
 
       // 3. Excluir Produtos do Banco (Cascade deve cuidar do resto, mas garantimos aqui)
-      const { error: prodError, count } = await supabase
+      let deleteProductsQuery = supabase
         .from('products')
         .delete({ count: 'exact' })
         .eq('last_import_id', importId);
 
+      if (scope) {
+        deleteProductsQuery = deleteProductsQuery.eq(scope.field, scope.id);
+      }
+
+      const { error: prodError, count } = await deleteProductsQuery;
+
       if (prodError) throw prodError;
 
       // 4. Excluir o registro do histórico
-      const { error: histError } = await supabase
-        .from('import_history')
-        .delete()
-        .eq('id', importId);
+      let deleteHistoryQuery = supabase.from('import_history').delete().eq('id', importId);
+
+      if (scope) {
+        deleteHistoryQuery = deleteHistoryQuery.eq(scope.field, scope.id);
+      }
+
+      const { error: histError } = await deleteHistoryQuery;
 
       if (histError) throw histError;
 

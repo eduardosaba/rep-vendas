@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { SmartImage } from './SmartImage';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
@@ -119,20 +120,107 @@ export function StoreTopBar() {
   const [benefitImageErrored, setBenefitImageErrored] = useState(false);
   useEffect(() => setBenefitImageErrored(false), [store?.top_benefit_image_url]);
   if (!store) return null as any;
+  // Debug: mostrar valores relevantes da barra para diagnóstico em runtime
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    try {
+      // eslint-disable-next-line no-console
+      console.debug('StoreTopBar debug:', {
+        show_top_benefit_bar: store.show_top_benefit_bar,
+        top_benefit_mode: store.top_benefit_mode,
+        top_benefit_speed: store.top_benefit_speed,
+        top_benefit_animation: store.top_benefit_animation,
+        top_benefit_bg_color: store.top_benefit_bg_color,
+        top_benefit_text_color: store.top_benefit_text_color,
+        top_benefit_text: store.top_benefit_text,
+      });
+    } catch (e) {}
+  }
   if (store.show_top_benefit_bar) {
     const bg = store.top_benefit_bg_color || 'var(--primary)';
     const textColor = store.top_benefit_text_color || getContrastColor(String(bg));
     const height = store.top_benefit_height || 36;
+    const mode = store.top_benefit_mode === 'marquee' ? 'marquee' : 'static';
+    const speed = store.top_benefit_speed || 'medium';
+    const animationType = store.top_benefit_animation || 'scroll_left';
+    const durationSeconds = speed === 'slow' ? 35 : speed === 'fast' ? 14 : 25;
+    const benefitText = (store.top_benefit_text || '').trim();
+    const textChunks = benefitText
+      ? benefitText
+          .split('/')
+          .map((chunk: string) => chunk.trim())
+          .filter(Boolean)
+      : ['Confira nossas ofertas'];
+    const marqueeItems = [...textChunks, ...textChunks];
     const hasImageUrl = Boolean(store.top_benefit_image_url && String(store.top_benefit_image_url).trim());
     return (
-      <div className="w-full" style={{ backgroundColor: bg, color: textColor }}>
+      <div className="w-full relative overflow-hidden" style={{ backgroundColor: bg, color: textColor }}>
         <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-4" style={{ height }}>
           {hasImageUrl && !benefitImageErrored ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={store.top_benefit_image_url ?? undefined} alt={store.top_benefit_text ?? undefined} className="h-full mr-3 object-contain" style={{ maxHeight: height }} onError={() => setBenefitImageErrored(true)} onLoad={() => setBenefitImageErrored(false)} />
           ) : null}
-          <div className="flex-1 text-sm font-bold overflow-hidden" style={{ fontSize: store.top_benefit_text_size ? `${store.top_benefit_text_size}px` : undefined }}>{store.top_benefit_text || ''}</div>
+
+          {mode === 'marquee' ? (
+            <div className="flex-1 overflow-hidden whitespace-nowrap">
+              <div
+                className="inline-flex min-w-full w-max items-center"
+                style={{
+                  fontSize: store.top_benefit_text_size
+                    ? `${store.top_benefit_text_size}px`
+                    : undefined,
+                  animationName:
+                    animationType === 'scroll_right'
+                      ? 'rv-top-benefit-marquee-right'
+                      : 'rv-top-benefit-marquee-left',
+                  animationDuration: `${durationSeconds}s`,
+                  animationTimingFunction:
+                    animationType === 'alternate' ? 'ease-in-out' : 'linear',
+                  animationIterationCount: 'infinite',
+                  animationDirection:
+                    animationType === 'alternate' ? 'alternate' : 'normal',
+                }}
+              >
+                {marqueeItems.map((item, idx) => (
+                  <span key={`${item}-${idx}`} className="inline-flex items-center px-6 text-sm font-bold uppercase tracking-widest">
+                    {item}
+                    <span className="mx-4 opacity-80">/</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 text-sm font-bold overflow-hidden" style={{ fontSize: store.top_benefit_text_size ? `${store.top_benefit_text_size}px` : undefined }}>
+              {store.top_benefit_text || ''}
+            </div>
+          )}
         </div>
+
+        {mode === 'marquee' ? (
+          <>
+            <div className="pointer-events-none absolute left-0 top-0 h-full w-10" style={{ background: `linear-gradient(to right, ${String(bg)}, transparent)` }} />
+            <div className="pointer-events-none absolute right-0 top-0 h-full w-10" style={{ background: `linear-gradient(to left, ${String(bg)}, transparent)` }} />
+          </>
+        ) : null}
+
+        <style jsx>{`
+          @keyframes rv-top-benefit-marquee-left {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-50%);
+            }
+          }
+
+          @keyframes rv-top-benefit-marquee-right {
+            0% {
+              transform: translateX(-50%);
+            }
+            100% {
+              transform: translateX(0);
+            }
+          }
+        `}</style>
       </div>
     );
   }
@@ -140,7 +228,7 @@ export function StoreTopBar() {
 }
 
 // --- Header (simplified, uses existing CarouselBrands component) ---
-export function StoreHeader() {
+export function StoreHeader({ hideActions = false }: { hideActions?: boolean }) {
   const {
     store,
     searchTerm,
@@ -167,6 +255,11 @@ export function StoreHeader() {
 
   const { toggleSidebar } = useLayoutStore();
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const pathname = usePathname();
+  const { catalogSlug, repSlug, isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
+  const currentRep = isInstitutional ? null : repSlug;
+  const logoBase = store.catalog_slug ? store.catalog_slug : store.user_id;
 
   const handleSearchInputChange = (v: string) => setSearchTerm(v);
 
@@ -204,11 +297,7 @@ export function StoreHeader() {
         <div className="flex items-center gap-4">
           {store.logo_url ? (
             <a
-              href={
-                store.catalog_slug
-                  ? `/catalogo/${store.catalog_slug}`
-                  : `/catalogo/${store.user_id}`
-              }
+              href={`/catalogo/${logoBase}${isInstitutional ? '/empresa' : currentRep ? `/${currentRep}` : ''}`}
               className="relative h-10 lg:h-12 xl:h-14 w-auto flex items-center"
             >
               <LogoImage src={store.logo_url} alt={store.name} />
@@ -243,6 +332,7 @@ export function StoreHeader() {
           </div>
         </div>
 
+        {!hideActions && (
         <div
           className={`hidden md:flex items-center gap-6 text-[10px] font-bold uppercase tracking-wider text-[var(--primary)] ${hoverClass}`}
         >
@@ -309,6 +399,7 @@ export function StoreHeader() {
             <span>Carrinho</span>
           </button>
         </div>
+        )}
       </div>
 
       {/* Marcas moved to storefront to preserve visual hierarchy */}

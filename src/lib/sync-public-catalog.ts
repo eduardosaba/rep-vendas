@@ -22,6 +22,9 @@ export interface SyncCatalogData {
   show_sale_price?: boolean | null;
   show_cost_price?: boolean | null;
   header_background_color?: string | null;
+  header_text_color?: string | null;
+  header_icon_bg_color?: string | null;
+  header_icon_color?: string | null;
   enable_stock_management?: boolean;
   show_installments?: boolean;
   max_installments?: number | null;
@@ -42,6 +45,9 @@ export interface SyncCatalogData {
   top_benefit_text_color?: string;
   // Top benefit content + visibility
   top_benefit_text?: string;
+  top_benefit_mode?: 'static' | 'marquee';
+  top_benefit_speed?: 'slow' | 'medium' | 'fast';
+  top_benefit_animation?: 'scroll_left' | 'scroll_right' | 'alternate';
   show_top_benefit_bar?: boolean;
   show_top_info_bar?: boolean;
   // Fonte customizada (nome conforme SYSTEM_FONTS.name) - opcional
@@ -98,12 +104,10 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     .eq('catalog_slug', slug)
     .maybeSingle();
 
-  // Segurança multi-tenant: nunca permita escrita em slug de outro usuário.
   if (existing && existing.user_id !== userId) {
     throw new Error('Slug already belongs to another user');
   }
 
-  // helper: tentar registrar auditoria (se tabela existir), não bloquear fluxo
   const recordAudit = async (payload: Record<string, any>) => {
     try {
       await supabase.from('audit_logs').insert(payload);
@@ -118,13 +122,14 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
   };
 
   // Merge data with settings as best-effort so fields like phone/email/hash
-  // are present when not provided by the caller.
+  // are present when not provided by the caller. NOTE: header_* fields are
+  // intentionally excluded from automatic merging/syncing.
   const mergedData: SyncCatalogData = { ...data };
   try {
     const { data: settings } = await supabase
       .from('settings')
       .select(
-        'phone, email, price_password_hash, primary_color, secondary_color, header_background_color, footer_background_color, footer_message, show_sale_price, show_cost_price, font_family, font_url, price_unlock_mode'
+        'phone, email, price_password_hash, primary_color, secondary_color, footer_background_color, footer_message, show_sale_price, show_cost_price, font_family, font_url, price_unlock_mode'
       )
       .eq('user_id', userId)
       .maybeSingle();
@@ -134,13 +139,15 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       if (!mergedData.price_password_hash && settings.price_password_hash)
         mergedData.price_password_hash = settings.price_password_hash;
 
-      // Merge visual settings so we don't create public catalogs with defaults
+      // Merge visual settings (exclude header colors)
       if (!mergedData.primary_color && settings.primary_color)
         mergedData.primary_color = settings.primary_color;
       if (!mergedData.secondary_color && settings.secondary_color)
         mergedData.secondary_color = settings.secondary_color;
-      if (!mergedData.header_background_color && settings.header_background_color)
-        mergedData.header_background_color = settings.header_background_color;
+      if (!mergedData.header_icon_bg_color && (settings as any).header_icon_bg_color)
+        mergedData.header_icon_bg_color = (settings as any).header_icon_bg_color;
+      if (!mergedData.header_icon_color && (settings as any).header_icon_color)
+        mergedData.header_icon_color = (settings as any).header_icon_color;
       if (!mergedData.footer_background_color && settings.footer_background_color)
         mergedData.footer_background_color = settings.footer_background_color;
       if (!mergedData.footer_message && settings.footer_message)
@@ -287,9 +294,13 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       updatePayload.primary_color = mergedData.primary_color ?? data.primary_color;
     if (Object.prototype.hasOwnProperty.call(data, 'secondary_color'))
       updatePayload.secondary_color = mergedData.secondary_color ?? data.secondary_color;
-    if (Object.prototype.hasOwnProperty.call(data, 'header_background_color'))
-      updatePayload.header_background_color =
-        mergedData.header_background_color ?? data.header_background_color;
+    // header colors intentionally omitted: header visual customization is deprecated for direct catalog sync
+    if (Object.prototype.hasOwnProperty.call(data, 'header_icon_bg_color'))
+      updatePayload.header_icon_bg_color =
+        mergedData.header_icon_bg_color ?? (data as any).header_icon_bg_color;
+    if (Object.prototype.hasOwnProperty.call(data, 'header_icon_color'))
+      updatePayload.header_icon_color =
+        mergedData.header_icon_color ?? (data as any).header_icon_color;
     if (Object.prototype.hasOwnProperty.call(data, 'footer_background_color'))
       updatePayload.footer_background_color =
         mergedData.footer_background_color ?? data.footer_background_color;
@@ -335,6 +346,23 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       updatePayload.top_benefit_text_color = mergedData.top_benefit_text_color ?? data.top_benefit_text_color ?? '#b9722e';
     if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_text'))
       updatePayload.top_benefit_text = mergedData.top_benefit_text ?? data.top_benefit_text ?? null;
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_mode'))
+      updatePayload.top_benefit_mode =
+        mergedData.top_benefit_mode === 'marquee' ? 'marquee' : 'static';
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_speed'))
+      updatePayload.top_benefit_speed =
+        mergedData.top_benefit_speed === 'slow'
+          ? 'slow'
+          : mergedData.top_benefit_speed === 'fast'
+            ? 'fast'
+            : 'medium';
+    if (Object.prototype.hasOwnProperty.call(data, 'top_benefit_animation'))
+      updatePayload.top_benefit_animation =
+        mergedData.top_benefit_animation === 'scroll_right'
+          ? 'scroll_right'
+          : mergedData.top_benefit_animation === 'alternate'
+            ? 'alternate'
+            : 'scroll_left';
     if (Object.prototype.hasOwnProperty.call(data, 'show_top_benefit_bar'))
       updatePayload.show_top_benefit_bar = mergedData.show_top_benefit_bar ?? data.show_top_benefit_bar ?? false;
     if (Object.prototype.hasOwnProperty.call(data, 'show_top_info_bar'))
@@ -556,10 +584,11 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       logo_url: mergedData.logo_url ?? data.logo_url ?? null,
       primary_color:
         mergedData.primary_color || data.primary_color || '#2563eb',
-      header_background_color:
-        mergedData.header_background_color ||
-        data.header_background_color ||
-        '#ffffff',
+      // header colors intentionally omitted: header visual customization is deprecated for direct catalog sync
+      header_icon_bg_color:
+        mergedData.header_icon_bg_color || data.header_icon_bg_color || null,
+      header_icon_color:
+        mergedData.header_icon_color || data.header_icon_color || null,
       show_sale_price: mergedData.show_sale_price == null
         ? data.show_sale_price == null
           ? showSale
@@ -615,6 +644,20 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
         null,
       top_benefit_text:
         mergedData.top_benefit_text ?? data.top_benefit_text ?? null,
+      top_benefit_mode:
+        mergedData.top_benefit_mode === 'marquee' ? 'marquee' : 'static',
+      top_benefit_speed:
+        mergedData.top_benefit_speed === 'slow'
+          ? 'slow'
+          : mergedData.top_benefit_speed === 'fast'
+            ? 'fast'
+            : 'medium',
+      top_benefit_animation:
+        mergedData.top_benefit_animation === 'scroll_right'
+          ? 'scroll_right'
+          : mergedData.top_benefit_animation === 'alternate'
+            ? 'alternate'
+            : 'scroll_left',
       show_top_benefit_bar:
         mergedData.show_top_benefit_bar ?? data.show_top_benefit_bar ?? false,
       share_banner_url:

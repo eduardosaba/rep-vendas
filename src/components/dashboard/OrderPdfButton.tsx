@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 interface OrderPdfButtonProps {
   order: any;
@@ -12,12 +13,31 @@ interface OrderPdfButtonProps {
 
 export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const supabase = createClient();
+
+  const resolveBrand = (item: any, byReference: Record<string, string>): string | null => {
+    const raw =
+      item?.products?.brand ||
+      item?.products?.brand?.name ||
+      item?.brand ||
+      item?.product_brand ||
+      byReference[String(item?.products?.reference_code || item?.product_reference || '').trim()] ||
+      null;
+    const normalized = String(raw || '').trim();
+    if (!normalized) return null;
+    if (normalized.toLowerCase() === 'sem marca') return null;
+    return normalized;
+  };
 
   const pdfName = `pedido-${order?.display_id || (order?.id || '').slice(0, 8)}.pdf`;
 
   const handleGenerate = async () => {
     setIsLoading(true);
     try {
+      const noteText = String(order?.notes || '');
+      const paymentTerms = (noteText.match(/Condição:\s*([^|]+)/i)?.[1] || '').trim();
+      const signatureUrl = (noteText.match(/Assinatura:\s*(https?:\/\/\S+)/i)?.[1] || '').trim();
+
       // 1. Normaliza dados do Cliente
       // Tenta pegar do cadastro (clients join) ou dos campos de visitante (guest)
       const clientData = Array.isArray(order.clients)
@@ -49,7 +69,38 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
         customer: customer,
       };
 
-      // 3. Normaliza Itens
+      // 3. Fallback de marca por referência (útil para pedidos salvos antigos)
+      let byReference: Record<string, string> = {};
+      try {
+        const refs = Array.from(
+          new Set(
+            (order.order_items || [])
+              .map((item: any) =>
+                String(item?.products?.reference_code || item?.product_reference || '').trim()
+              )
+              .filter(Boolean)
+          )
+        );
+
+        if (refs.length > 0 && store?.user_id) {
+          const { data: productsByRef } = await supabase
+            .from('products')
+            .select('reference_code, brand')
+            .eq('user_id', store.user_id)
+            .in('reference_code', refs);
+
+          byReference = (productsByRef || []).reduce((acc: Record<string, string>, p: any) => {
+            const ref = String(p?.reference_code || '').trim();
+            const brand = String(p?.brand || '').trim();
+            if (ref && brand) acc[ref] = brand;
+            return acc;
+          }, {});
+        }
+      } catch {
+        byReference = {};
+      }
+
+      // 4. Normaliza Itens
       const items = order.order_items.map((item: any) => ({
         // Nome: Prioriza o nome do produto (join), se não tiver usa o nome gravado no item
         name: item.products?.name || item.product_name || 'Produto',
@@ -57,7 +108,7 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
         price: item.unit_price,
         // Referência e Marca (indispensáveis para o layout novo)
         reference_code: item.products?.reference_code || item.product_reference,
-          brand: item.products?.brand,
+          brand: resolveBrand(item, byReference),
           // Imagens: incluímos campos que o gerador de PDF espera
           id: item.id,
           image_url: item.image_url || item.products?.image_url || null,
@@ -110,7 +161,11 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
         items.reduce((acc: number, i: any) => acc + i.quantity * i.price, 0);
 
       // Chama o gerador (admin/dashboard: garantir que mostre preços)
-      await generateOrderPDF(orderData, storeData, items, total, false, true);
+      await generateOrderPDF(orderData, storeData, items, total, false, true, {
+        paymentTerms: paymentTerms || undefined,
+        signatureUrl: signatureUrl || undefined,
+        groupByBrand: true,
+      });
 
       toast.success('PDF gerado com sucesso!');
     } catch (error) {

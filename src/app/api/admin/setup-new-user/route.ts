@@ -101,7 +101,7 @@ export async function POST(req: Request) {
 
     const { data: targetUser } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id,company_id')
       .eq('id', body.targetUserId)
       .maybeSingle();
     if (!targetUser) {
@@ -136,6 +136,96 @@ export async function POST(req: Request) {
       );
     }
 
+    // Company-aware normalization: when target user belongs to a company,
+    // move cloned products to company scope while keeping user_id (schema requires NOT NULL).
+    let normalizedToCompany = 0;
+    const targetCompanyId = (targetUser as any)?.company_id
+      ? String((targetUser as any).company_id)
+      : null;
+
+    if (targetCompanyId) {
+      const { data: sourceProducts } = await supabase
+        .from('products')
+        .select('id')
+        .eq('user_id', sourceId)
+        .in('brand', cleanedBrands as any[]);
+
+      const sourceIds = (sourceProducts || [])
+        .map((p: any) => p.id)
+        .filter(Boolean);
+
+      if (sourceIds.length > 0) {
+        const { data: mappings } = await supabase
+          .from('catalog_clones')
+          .select('cloned_product_id')
+          .eq('target_user_id', body.targetUserId)
+          .eq('source_user_id', sourceId)
+          .in('source_product_id', sourceIds as any[]);
+
+        const clonedIds = (mappings || [])
+          .map((m: any) => m.cloned_product_id)
+          .filter(Boolean);
+
+        if (clonedIds.length > 0) {
+          const { data: normalizedRows, error: normalizeErr } = await supabase
+            .from('products')
+            .update({ company_id: targetCompanyId, user_id: body.targetUserId } as any)
+            .in('id', clonedIds as any[])
+            .select('id,user_id');
+
+          if (normalizeErr) {
+            throw new Error(`Falha ao normalizar clone para company_id: ${normalizeErr.message}`);
+          }
+
+          normalizedToCompany = Array.isArray(normalizedRows)
+            ? normalizedRows.length
+            : 0;
+
+          // Pós-condição crítica: clone corporativo precisa manter user_id preenchido (NOT NULL).
+          const leakedCount = Array.isArray(normalizedRows)
+            ? normalizedRows.filter((r: any) => !r?.user_id).length
+            : 0;
+
+          if (leakedCount > 0) {
+            throw new Error(
+              `Normalização incompleta: ${leakedCount} produto(s) corporativos ficaram sem user_id.`
+            );
+          }
+        }
+
+        // Fallback robusto: garante promoção mesmo quando catalog_clones estiver incompleto.
+        const { data: fallbackRows, error: fallbackErr } = await supabase
+          .from('products')
+          .update({ company_id: targetCompanyId, user_id: body.targetUserId } as any)
+          .eq('user_id', body.targetUserId)
+          .in('brand', cleanedBrands as any[])
+          .select('id,user_id');
+
+        if (fallbackErr) {
+          throw new Error(`Falha no fallback de normalização para company_id: ${fallbackErr.message}`);
+        }
+
+        normalizedToCompany += Array.isArray(fallbackRows) ? fallbackRows.length : 0;
+
+        const { count: leakedAfterFallback, error: leakedErr } = await supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', targetCompanyId)
+          .is('user_id', null)
+          .in('brand', cleanedBrands as any[]);
+
+        if (leakedErr) {
+          throw new Error(`Falha ao validar pós-condição do fallback: ${leakedErr.message}`);
+        }
+
+        if (Number(leakedAfterFallback || 0) > 0) {
+          throw new Error(
+            `Normalização falhou após fallback: ${leakedAfterFallback} produto(s) ficaram sem user_id.`
+          );
+        }
+      }
+    }
+
     try {
       const cookieStore = await cookies();
       const impersonateCookieName =
@@ -162,6 +252,7 @@ export async function POST(req: Request) {
       success: true,
       message: 'Clonagem concluída com sucesso',
       data,
+      normalizedToCompany,
     });
   } catch (err: any) {
     console.error('setup-new-user error', err);

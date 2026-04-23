@@ -150,6 +150,11 @@ body {
   to { transform: translateX(-50%); }
 }
 
+@keyframes progress-stripe {
+  from { background-position: 0 0; }
+  to { background-position: 20px 0; }
+}
+
 .animate-marquee {
   display: flex;
   width: max-content;
@@ -168,3 +173,41 @@ body {
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
+
+/* Progress bar stripe animation used by the master-sync progress UI */
+@keyframes progress-stripe {
+  from { background-position: 0 0; }
+  to { background-position: 20px 0; }
+}
+
+/* Theme helper utilities used by the ThemeLayout to apply company branding
+   These map CSS variables injected at runtime to convenient utility classes. */
+@layer base {
+  .bg-primary {
+    background-color: var(--primary) !important;
+  }
+
+  .text-accent {
+    color: var(--accent) !important;
+  }
+
+  .rounded-custom {
+    border-radius: var(--radius) !important;
+  }
+
+  /* Expose a utility to use secondary background color */
+  .bg-secondary {
+    background-color: var(--secondary) !important;
+  }
+}
+
+/* Tailwind Typography link color override to use runtime primary color
+   Uses `--primary-color` if provided by ThemeRegistry, otherwise falls back
+   to `--primary`. Kept scoped globally so prose elements render brand links. */
+.prose a {
+  color: var(--primary-color, var(--primary)) !important;
+}
+.prose a:hover {
+  text-decoration: underline;
+}
+

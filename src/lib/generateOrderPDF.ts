@@ -18,13 +18,28 @@ interface OrderItem {
   reference_code?: string | null;
   brand?: string | null;
   id?: string | number;
+  image_url?: string | null;
+  external_image_url?: string | null;
+  image_variants?: Array<{ size?: number | string; url?: string }> | null;
+  optimized_variants?:
+    | Array<{ size?: number | string; url?: string }>
+    | Record<string, { url?: string }>
+    | null;
+  product_images?: Array<{ is_primary?: boolean; url?: string; optimized_variants?: any }> | null;
 }
 
 interface OrderData {
   id: number | string;
-  created_at: string | Date;
+  created_at?: string | Date;
   customer: Customer;
   display_id?: string | number;
+}
+
+interface PdfRenderOptions {
+  paymentTerms?: string;
+  signatureUrl?: string | null;
+  disclaimer?: string;
+  groupByBrand?: boolean;
 }
 
 // --- HELPERS ---
@@ -34,6 +49,15 @@ const formatCurrency = (value: number) => {
     style: 'currency',
     currency: 'BRL',
   }).format(value);
+};
+
+const resolveOrderDateLabel = (orderData: OrderData) => {
+  const candidate = (orderData as any)?.created_at || (orderData as any)?.date || (orderData as any)?.closed_at || null;
+  const parsed = candidate ? new Date(candidate) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('pt-BR');
+  }
+  return new Date().toLocaleDateString('pt-BR');
 };
 
 const getBase64ImageFromURL = async (
@@ -143,6 +167,34 @@ const normalizeImageUrlForFetch = (raw: string | null | undefined) => {
   return `/api/storage-image?path=${encodeURIComponent(s)}`;
 };
 
+const extractVariantUrl = (variants: any): string | null => {
+  if (!variants) return null;
+  if (Array.isArray(variants)) {
+    const v480 = variants.find(
+      (v: any) => Number(v?.size) === 480 || String(v?.size) === '480'
+    );
+    if (v480?.url) return String(v480.url);
+    const firstWithUrl = variants.find((v: any) => Boolean(v?.url));
+    return firstWithUrl?.url ? String(firstWithUrl.url) : null;
+  }
+  if (typeof variants === 'object') {
+    const direct480 = variants['480'] || variants[480 as any];
+    if (direct480?.url) return String(direct480.url);
+    const first = Object.values(variants).find((v: any) => Boolean(v?.url)) as
+      | { url?: string }
+      | undefined;
+    return first?.url ? String(first.url) : null;
+  }
+  return null;
+};
+
+const normalizeBrandName = (brand: unknown): string | null => {
+  const normalized = String(brand || '').trim();
+  if (!normalized) return null;
+  if (normalized.toLowerCase() === 'sem marca') return null;
+  return normalized;
+};
+
 // --- FUNÇÃO PRINCIPAL ---
 /**
  * Gera o PDF do pedido com branding dinâmico.
@@ -154,7 +206,8 @@ export const generateOrderPDF = async (
   items: OrderItem[],
   total: number,
   returnBlob: boolean = false,
-  overrideShowPrices?: boolean
+  overrideShowPrices?: boolean,
+  options?: PdfRenderOptions
 ): Promise<void | Blob> => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
@@ -204,7 +257,7 @@ export const generateOrderPDF = async (
     { align: 'right' }
   );
   doc.text(
-    new Date(orderData.created_at).toLocaleString('pt-BR'),
+    resolveOrderDateLabel(orderData),
     pageWidth - margin,
     startY + 17,
     { align: 'right' }
@@ -242,25 +295,29 @@ export const generateOrderPDF = async (
     items.map(async (item) => {
       try {
         const variants =
-          (item as any).image_variants ||
-          (item as any).optimized_variants ||
-          null;
+          (item as any).image_variants || (item as any).optimized_variants || null;
         let chosenUrl: string | null = null;
-        if (Array.isArray(variants) && variants.length > 0) {
-          const v480 = variants.find(
-            (v: any) => Number(v.size) === 480 || String(v.size) === '480'
-          );
-          if (v480 && v480.url) chosenUrl = v480.url;
-          else if (variants[0].url) chosenUrl = variants[0].url;
+        chosenUrl = extractVariantUrl(variants);
+
+        if (!chosenUrl && Array.isArray((item as any).product_images)) {
+          const gallery = (item as any).product_images as Array<any>;
+          const primary = gallery.find((img) => Boolean(img?.is_primary) && Boolean(img?.url));
+          const first = gallery.find((img) => Boolean(img?.url));
+          chosenUrl = (primary?.url || first?.url || null) as string | null;
+          if (!chosenUrl) {
+            const variantFromGallery = gallery
+              .map((img) => extractVariantUrl(img?.optimized_variants))
+              .find(Boolean);
+            if (variantFromGallery) chosenUrl = String(variantFromGallery);
+          }
         }
-        if (
-          !chosenUrl &&
-          typeof (item as any).image_url === 'string' &&
-          (typeof (item as any).image_url === 'string' && (item as any).image_url.startsWith('http'))
-        )
-          chosenUrl = (item as any).image_url;
-        if (!chosenUrl && (item as any).external_image_url)
-          chosenUrl = (item as any).external_image_url;
+
+        if (!chosenUrl && typeof (item as any).image_url === 'string' && (item as any).image_url.trim()) {
+          chosenUrl = String((item as any).image_url).trim();
+        }
+        if (!chosenUrl && typeof (item as any).external_image_url === 'string' && (item as any).external_image_url.trim()) {
+          chosenUrl = String((item as any).external_image_url).trim();
+        }
 
         if (chosenUrl) {
           const normalized = normalizeImageUrlForFetch(chosenUrl);
@@ -285,17 +342,48 @@ export const generateOrderPDF = async (
       ? overrideShowPrices
       : (store as any)?.show_sale_price !== false;
 
-  const tableBody = items.map((item) => {
-    const details = item.brand
-      ? `${item.name}\nMarca: ${item.brand}`
+  const sortedItems = [...items].sort((a, b) => {
+    const ba = normalizeBrandName(a.brand);
+    const bb = normalizeBrandName(b.brand);
+    const baKey = ba || '~~~';
+    const bbKey = bb || '~~~';
+    const brandCmp = baKey.localeCompare(bbKey, 'pt-BR');
+    if (brandCmp !== 0) return brandCmp;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+  });
+
+  const brandCounts = sortedItems.reduce((acc, item) => {
+    const brandName = normalizeBrandName(item.brand);
+    if (!brandName) return acc;
+    acc[brandName] = (acc[brandName] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const tableBody = (options?.groupByBrand === false ? sortedItems : sortedItems).flatMap((item, index, arr) => {
+    const brandName = normalizeBrandName(item.brand);
+    const details = brandName
+      ? `${item.name}\nMarca: ${brandName}`
       : item.name;
     const priceStr = showPrices ? formatCurrency(item.price) : 'Sob consulta';
     const totalStr = showPrices ? formatCurrency(item.price * item.quantity) : 'Sob consulta';
+    const prevBrand = index > 0 ? normalizeBrandName(arr[index - 1].brand) : null;
+    const currentBrand = brandName;
+    const shouldShowGroupHeader =
+      options?.groupByBrand !== false &&
+      Boolean(currentBrand) &&
+      (brandCounts[currentBrand || ''] || 0) >= 2 &&
+      prevBrand !== currentBrand;
+
+    const brandHeader = !shouldShowGroupHeader
+      ? []
+      : [showPrices ? ['', '', `MARCA: ${currentBrand}`, '', '', ''] : ['', '', `MARCA: ${currentBrand}`, '']];
     // primeira coluna reservada para foto (renderizada em didDrawCell)
     // Se não mostramos preços, omitimos as colunas UNIT/TOTAL do corpo
-    return showPrices
-      ? ['', item.reference_code || '-', details, item.quantity, priceStr, totalStr]
-      : ['', item.reference_code || '-', details, item.quantity];
+    const imageKey = String(item.reference_code || item.id || item.name || `row-${index}`);
+    const row = showPrices
+      ? [imageKey, item.reference_code || '-', details, item.quantity, priceStr, totalStr]
+      : [imageKey, item.reference_code || '-', details, item.quantity];
+    return [...brandHeader, row];
   });
 
   autoTable(doc, {
@@ -338,7 +426,15 @@ export const generateOrderPDF = async (
     didDrawCell: (data: any) => {
       // Coluna FOTO (índice 0)
       if (data.section === 'body' && data.column.index === 0) {
-        const item = items[data.row.index];
+        const rawRow = tableBody[data.row.index] as any[];
+        if (rawRow && typeof rawRow[2] === 'string' && rawRow[2].startsWith('MARCA:')) {
+          return;
+        }
+        const imageKey = String(rawRow?.[0] || '');
+        const item = sortedItems.find(
+          (it) => String(it.reference_code || it.id || it.name || '') === imageKey
+        );
+        if (!item) return;
         const key = item.reference_code || item.id || item.name;
         const imgData = itemImages[key];
         if (imgData && imgData.base64) {
@@ -369,6 +465,19 @@ export const generateOrderPDF = async (
         }
       }
     },
+    didParseCell: (data: any) => {
+      if (data.section === 'body') {
+        const rawRow = tableBody[data.row.index] as any[];
+        if (rawRow && typeof rawRow[2] === 'string' && rawRow[2].startsWith('MARCA:')) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = [20, 20, 20];
+          data.cell.styles.fillColor = [245, 245, 245];
+          if (data.column.index !== 2) data.cell.text = '';
+        } else if (data.column.index === 0) {
+          data.cell.text = '';
+        }
+      }
+    },
   });
 
   // 4. TOTALIZADOR DESTACADO
@@ -389,6 +498,43 @@ export const generateOrderPDF = async (
   doc.setFont('helvetica', 'bold');
   const totalLabel = showPrices ? `TOTAL: ${formatCurrency(total)}` : 'TOTAL: Sob consulta';
   doc.text(totalLabel, pageWidth - margin - 5, finalY + 1.5, { align: 'right' });
+
+  // 4.1 Condição de pagamento (quando informada)
+  if (options?.paymentTerms) {
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Condição: ${options.paymentTerms}`, margin, finalY + 7);
+  }
+
+  // 4.2 Assinatura opcional
+  let signatureBottomY = finalY + 10;
+  if (options?.signatureUrl) {
+    const signSource = normalizeImageUrlForFetch(options.signatureUrl) || options.signatureUrl;
+    const signData = await getBase64ImageFromURL(signSource);
+    if (signData?.base64) {
+      const desiredW = 55;
+      const ratio = signData.width / Math.max(signData.height, 1);
+      const desiredH = Math.max(14, desiredW / Math.max(ratio, 1));
+      const boxY = finalY + 10;
+      const boxX = margin;
+
+      if (boxY + desiredH + 22 > pageHeight - 24) {
+        doc.addPage();
+        signatureBottomY = 40;
+      } else {
+        signatureBottomY = boxY;
+      }
+
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text('Assinatura do Cliente', boxX, signatureBottomY + 4);
+      doc.addImage(signData.base64, detectImageFormat(signData.base64), boxX, signatureBottomY + 6, desiredW, desiredH);
+      doc.setDrawColor(120);
+      doc.line(boxX, signatureBottomY + desiredH + 10, boxX + 70, signatureBottomY + desiredH + 10);
+      signatureBottomY = signatureBottomY + desiredH + 14;
+    }
+  }
 
   // 5. RODAPÉ (Informações de Contato e Paginação)
   const footerY = pageHeight - 15;
@@ -411,6 +557,13 @@ export const generateOrderPDF = async (
       : store.footer_message || 'Obrigado pela preferência!';
 
   doc.text(footerText, pageWidth / 2, footerY, { align: 'center' });
+
+  const disclaimer =
+    options?.disclaimer ||
+    'Este documento é um espelho de pedido sujeito à aprovação de crédito pela distribuidora.';
+  doc.setFontSize(7);
+  doc.setTextColor(140);
+  doc.text(disclaimer, margin, footerY - 8);
 
   // Paginação automática
   const pageCount = doc.getNumberOfPages();

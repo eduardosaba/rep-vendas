@@ -44,6 +44,7 @@ import {
   ensure480w,
 } from '@/lib/imageHelpers';
 import { PasswordModal } from './modals/PasswordModal';
+import ReactDOM from 'react-dom';
 
 // Lupa/magnifier removida — simplificamos para modal fullscreen
 
@@ -67,17 +68,34 @@ export function StoreModals() {
     setOrderSuccessData,
     handleSendWhatsApp,
     isPricesVisible,
+    blockedForOrders,
+    blockedReason,
     favorites,
     toggleFavorite,
     unlockPrices,
     customerSession,
+    isRichCatalog,
   } = useStore();
+
+  const cartRef = useRef<HTMLDivElement | null>(null);
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [detailQuantity, setDetailQuantity] = useState(1);
   const [passwordInput, setPasswordInput] = useState('');
   const [loadCodeInput, setLoadCodeInput] = useState('');
   const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
+  // Pinch-to-zoom state (mobile)
+  const [pinchScale, setPinchScale] = useState(1);
+  const [isPinching, setIsPinching] = useState(false);
+  const pinchRef = useRef({ initialDistance: 0, initialScale: 1, originX: 0, originY: 0 });
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRef = useRef<{ x: number; y: number } | null>(null);
+  const zoomContainerRef = useRef<HTMLDivElement | null>(null);
+  const zoomImageRef = useRef<HTMLImageElement | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const panVelocityRef = useRef<{ x: number; y: number } | null>(null);
+  const lastMoveTimeRef = useRef<number | null>(null);
+  const inertiaAnimationRef = useRef<number | null>(null);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
@@ -106,6 +124,21 @@ export function StoreModals() {
       });
     }
   }, [customerSession]);
+
+  useEffect(() => {
+    if (blockedForOrders) {
+      // abrir modal amigável informando que pedidos estão desabilitados
+      setModal('blocked', {
+        message:
+          'Este catálogo está temporariamente com pedidos desabilitados. Entre em contato com o lojista para ativar o funcionamento completo.',
+        reason: blockedReason || null,
+      });
+    } else {
+      // fechar modal caso tenha sido aberto anteriormente
+      setModal('blocked', null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockedForOrders]);
 
   const getProductImages = (productArg?: any): { url480: string; url1200: string; path: string | null }[] => {
     // Blindagem universal: garante thumb/full/path a partir de qualquer formato
@@ -400,6 +433,191 @@ export function StoreModals() {
     }
   };
 
+  // Touch gesture helpers for pinch-to-zoom
+  const getDistance = (t0: any, t1: any) => {
+    const dx = t0.clientX - t1.clientX;
+    const dy = t0.clientY - t1.clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  const getMidpoint = (t0: any, t1: any) => {
+    return { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
+  };
+  const onZoomTouchStart = (e: React.TouchEvent) => {
+    // stop any running inertia
+    if (inertiaAnimationRef.current) {
+      cancelAnimationFrame(inertiaAnimationRef.current);
+      inertiaAnimationRef.current = null;
+      panVelocityRef.current = null;
+    }
+
+    if (e.touches.length === 2) {
+      const d = getDistance(e.touches[0], e.touches[1]);
+      const mid = getMidpoint(e.touches[0], e.touches[1]);
+      pinchRef.current.initialDistance = d;
+      pinchRef.current.initialScale = pinchScale;
+      pinchRef.current.originX = mid.x;
+      pinchRef.current.originY = mid.y;
+      setIsPinching(true);
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0];
+      const now = Date.now();
+      // Double-tap detection (300ms, within 30px)
+      const last = lastTapRef.current;
+      if (last && now - last.time < 300) {
+        const dx = Math.abs(last.x - t.clientX);
+        const dy = Math.abs(last.y - t.clientY);
+        if (dx < 30 && dy < 30) {
+          const container = zoomContainerRef.current;
+          if (container) {
+            const rect = container.getBoundingClientRect();
+            const tapX = t.clientX - rect.left;
+            const tapY = t.clientY - rect.top;
+            const targetZoom = pinchScale > 1.01 ? 1 : 2;
+            setPinchScale(() => {
+              const newScale = targetZoom;
+              const centerX = rect.width / 2;
+              const centerY = rect.height / 2;
+              const relX = tapX - centerX;
+              const relY = tapY - centerY;
+              const newPanX = -relX * (newScale - 1);
+              const newPanY = -relY * (newScale - 1);
+              setPan((p) => clampPan({ x: newPanX, y: newPanY }, newScale, container));
+              return newScale;
+            });
+            lastTapRef.current = null;
+            return;
+          }
+        }
+      }
+      lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
+
+      // begin panning if zoomed
+      if (pinchScale > 1) {
+        panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        lastMoveTimeRef.current = Date.now();
+      }
+    }
+  };
+
+  const onZoomTouchMove = (e: React.TouchEvent) => {
+    if (isPinching && e.touches.length === 2) {
+      e.preventDefault();
+      const d = getDistance(e.touches[0], e.touches[1]);
+      const newScale = Math.max(1, Math.min(4, (pinchRef.current.initialScale * d) / pinchRef.current.initialDistance));
+      setPinchScale(newScale);
+    } else if (pinchScale > 1 && e.touches.length === 1 && panRef.current) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - panRef.current.x;
+      const dy = e.touches[0].clientY - panRef.current.y;
+      const now = Date.now();
+      const dt = lastMoveTimeRef.current ? Math.max(1, now - lastMoveTimeRef.current) : 16;
+      // velocity in px/ms
+      panVelocityRef.current = { x: dx / dt, y: dy / dt };
+      lastMoveTimeRef.current = now;
+      panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      setPan((p) => {
+        const container = zoomContainerRef.current;
+        const next = { x: p.x + dx, y: p.y + dy };
+        if (container) return clampPan(next, pinchScale, container);
+        return next;
+      });
+    }
+  };
+
+  const onZoomTouchEnd = (e: React.TouchEvent) => {
+    if (isPinching && e.touches.length < 2) {
+      setIsPinching(false);
+      pinchRef.current.initialDistance = 0;
+      pinchRef.current.initialScale = pinchScale;
+    }
+    if (e.touches.length === 0) {
+      panRef.current = null;
+      // If scale returned near 1, reset pan/scale to defaults
+      if (pinchScale <= 1.01) {
+        setPinchScale(1);
+        setPan({ x: 0, y: 0 });
+      } else {
+        // start inertia animation if we have velocity
+        const vel = panVelocityRef.current;
+        const container = zoomContainerRef.current;
+        if (vel && container) {
+          startInertia(vel, container);
+        }
+      }
+    }
+  };
+
+  const clampPan = (p: { x: number; y: number }, scale: number, container: HTMLDivElement) => {
+    try {
+      const img = zoomImageRef.current;
+      const rect = container.getBoundingClientRect();
+      const imgRect = img ? img.getBoundingClientRect() : { width: rect.width, height: rect.height };
+      const scaledW = imgRect.width * scale;
+      const scaledH = imgRect.height * scale;
+      const maxX = Math.max(0, (scaledW - rect.width) / 2);
+      const maxY = Math.max(0, (scaledH - rect.height) / 2);
+      return { x: Math.max(-maxX, Math.min(maxX, p.x)), y: Math.max(-maxY, Math.min(maxY, p.y)) };
+    } catch (e) {
+      return p;
+    }
+  };
+
+  const startInertia = (initialVelocity: { x: number; y: number }, container: HTMLDivElement) => {
+    let vx = initialVelocity.x * 16; // convert px/ms to approx px/frame
+    let vy = initialVelocity.y * 16;
+    const friction = 0.92;
+
+    const step = () => {
+      vx *= friction;
+      vy *= friction;
+      setPan((p) => {
+        const next = { x: p.x + vx, y: p.y + vy };
+        const clamped = clampPan(next, pinchScale, container);
+        // if clamped changed, damp velocity
+        if (clamped.x !== next.x) vx *= 0.6;
+        if (clamped.y !== next.y) vy *= 0.6;
+        return clamped;
+      });
+
+      if (Math.abs(vx) > 0.5 || Math.abs(vy) > 0.5) {
+        inertiaAnimationRef.current = requestAnimationFrame(step);
+      } else {
+        inertiaAnimationRef.current = null;
+        panVelocityRef.current = null;
+      }
+    };
+
+    if (inertiaAnimationRef.current) cancelAnimationFrame(inertiaAnimationRef.current);
+    inertiaAnimationRef.current = requestAnimationFrame(step);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (inertiaAnimationRef.current) cancelAnimationFrame(inertiaAnimationRef.current);
+    };
+  }, []);
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    const container = zoomContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+    const targetZoom = pinchScale > 1.01 ? 1 : 2;
+    setPinchScale(() => {
+      const newScale = targetZoom;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const relX = clickX - centerX;
+      const relY = clickY - centerY;
+      const newPanX = -relX * (newScale - 1);
+      const newPanY = -relY * (newScale - 1);
+      setPan((p) => clampPan({ x: newPanX, y: newPanY }, newScale, container));
+      return newScale;
+    });
+  };
+
   // Quando um pedido é finalizado (orderSuccessData), salvar automaticamente
   // o pedido como código curto e abrir o modal de SaveCode.
   useEffect(() => {
@@ -435,6 +653,33 @@ export function StoreModals() {
     };
   }, [orderSuccessData]);
 
+  // Render blocked modal content if modals.blocked is set
+  const blocked = modals.blocked || null;
+  const renderBlockedModal = () => {
+    if (!blocked) return null;
+    return (
+      <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="relative max-w-lg w-full bg-white rounded-lg p-6 shadow-lg">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Pedidos desabilitados</h3>
+          <p className="text-sm text-gray-700 mb-4">{blocked.message || 'Pedidos temporariamente indisponíveis.'}</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setModal('blocked', null)}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-800"
+            >
+              Fechar
+              {renderBlockedModal()}
+            </button>
+            <a href={`mailto:${store.phone || ''}`} className="px-4 py-2 rounded bg-[var(--primary)] text-white">
+              Contatar lojista
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Atalhos de Teclado para o Modal de Zoom
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -464,11 +709,28 @@ export function StoreModals() {
     if (success) setModal('checkout', false);
   };
 
+  useEffect(() => {
+    const el = cartRef.current;
+    if (!el) return;
+    // Nota Técnica: Mantemos o `inert` ativo durante o checkout para garantir que
+    // tecnologias assistivas (ex: leitores de tela) não acessem o conteúdo do
+    // carrinho em segundo plano, mesmo que o componente do carrinho permaneça
+    // montado por razões de performance ou transições. Isso é uma blindagem de
+    // acessibilidade que evita leitura/confusão e previne interação acidental.
+    try {
+      (el as any).inert = !!modals.checkout;
+    } catch (e) {
+      // Fallback para navegadores sem suporte a `inert` — ainda aplicamos aria-hidden
+    }
+    if (modals.checkout) el.setAttribute('aria-hidden', 'true');
+    else el.removeAttribute('aria-hidden');
+  }, [modals.checkout]);
+
   return (
     <>
       {/* --- MODAL CARRINHO --- */}
       {modals.cart && (
-        <div className="fixed inset-0 z-[100] flex justify-end">
+        <div ref={cartRef} className="fixed inset-0 z-[140] flex justify-end">
           <div
             className="absolute inset-0 bg-[#0d1b2c]/40 backdrop-blur-sm"
             onClick={() => setModal('cart', false)}
@@ -476,7 +738,7 @@ export function StoreModals() {
           <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
             <div className="flex items-center justify-between border-b p-6">
               <h2 className="flex items-center gap-2 text-xl font-black text-secondary">
-                <ShoppingCart size={24} className="text-primary" /> Meu Carrinho
+                <ShoppingCart size={24} className="text-primary" /> {isRichCatalog ? 'Seu Orçamento' : 'Meu Carrinho'}
               </h2>
               <button
                 onClick={() => setModal('cart', false)}
@@ -592,11 +854,21 @@ export function StoreModals() {
                 </button>
 
                 <Button
-                  onClick={() => setModal('checkout', true)}
+                  onClick={() => {
+                    setModal('cart', false);
+                    setModal('checkout', true);
+                  }}
                   className="w-full py-7 text-lg uppercase tracking-tighter"
                 >
-                  Finalizar Pedido
+                  {isRichCatalog
+                    ? 'Finalizar Pedido Agora - enviar para Representante'
+                    : 'Finalizar Pedido Agora'}
                 </Button>
+                {isRichCatalog ? (
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-center text-slate-400 leading-relaxed">
+                    As condições comerciais serão validadas com o representante antes da confirmação.
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
@@ -605,7 +877,7 @@ export function StoreModals() {
 
       {/* --- MODAL DETALHES DO PRODUTO (MODERNO/IMERSIVO) --- */}
       {displayProduct && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 md:p-4">
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-2 md:p-4">
           <div
             className="absolute inset-0 bg-[#0d1b2c]/95 backdrop-blur-xl animate-in fade-in"
             onClick={() => setModal('product', null)}
@@ -615,7 +887,7 @@ export function StoreModals() {
             {/* Botão Fechar */}
             <button
               onClick={() => setModal('product', null)}
-              className="absolute right-6 top-6 z-[130] p-3 rounded-full bg-black/5 hover:bg-black/10 transition-all"
+              className="absolute right-6 top-6 z-[150] p-3 rounded-full bg-black/5 hover:bg-black/10 transition-all"
             >
               <X size={24} className="text-secondary" />
             </button>
@@ -1050,10 +1322,13 @@ export function StoreModals() {
 
               {/* Imagem em Alta Resolução (1200w) */}
               <div
+                ref={zoomContainerRef}
                 className="relative w-full h-full max-w-6xl flex items-center justify-center p-4 md:p-12"
                 onClick={(e) => e.stopPropagation()}
               >
                 <motion.img
+                  ref={zoomImageRef as any}
+                  onDoubleClick={handleDoubleClick}
                   src={productImages[currentImageIndex]?.url1200}
                   alt="Visualização em Alta Resolução"
                   drag="x"
@@ -1061,11 +1336,17 @@ export function StoreModals() {
                   dragElastic={0.12}
                   onDragEnd={handleImageDragEnd}
                   whileTap={{ scale: 0.995 }}
+                  onTouchStart={onZoomTouchStart}
+                  onTouchMove={onZoomTouchMove}
+                  onTouchEnd={onZoomTouchEnd}
                   style={{
                     backgroundImage: `url(${productImages[currentImageIndex]?.url480})`,
                     backgroundSize: 'contain',
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'center',
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${pinchScale})`,
+                    touchAction: 'none',
+                    transformOrigin: 'center center',
                   }}
                   className="max-w-full max-h-[70vh] md:max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none cursor-grab active:cursor-grabbing"
                 />
@@ -1121,15 +1402,34 @@ export function StoreModals() {
 
       {/* MODAL CHECKOUT IDENTIFICAÇÃO */}
       {modals.checkout && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-[#0d1b2c]/80 backdrop-blur-md"
-            onClick={() => setModal('checkout', false)}
+            onClick={() => {
+              setModal('checkout', false);
+              setModal('cart', true);
+            }}
           />
-          <div className="relative w-full max-w-xl bg-white rounded-[3rem] p-8 md:p-12 animate-in zoom-in-95">
-            <h2 className="text-3xl font-black mb-8 tracking-tighter">
+          <div className="relative w-full max-w-xl bg-white rounded-[3rem] p-8 md:p-12 animate-in zoom-in-95 shadow-2xl">
+            <div className="absolute right-8 top-8">
+              <button
+                onClick={() => {
+                  setModal('checkout', false);
+                  setModal('cart', true);
+                }}
+                className="p-2 bg-gray-100 rounded-full text-gray-500"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <h2 className="text-3xl font-black mb-8 tracking-tighter text-secondary">
               Identificação
             </h2>
+            {isRichCatalog ? (
+              <p className="-mt-5 mb-6 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Você está enviando um orçamento para análise do consultor.
+              </p>
+            ) : null}
             <form onSubmit={onFinalize} className="space-y-4">
               <input
                 required
@@ -1165,7 +1465,7 @@ export function StoreModals() {
                 loadingText="Finalizando..."
                 className="w-full py-7 text-lg uppercase font-black"
               >
-                Confirmar e Enviar
+                {isRichCatalog ? 'Enviar para Análise' : 'Confirmar Pedido'}
               </Button>
             </form>
           </div>
@@ -1184,7 +1484,9 @@ export function StoreModals() {
               Tudo pronto!
             </h2>
             <p className="text-gray-500 mb-10 text-lg">
-              Seu pedido foi processado com sucesso.
+              {isRichCatalog
+                ? 'Seu orçamento foi enviado para análise com sucesso.'
+                : 'Seu pedido foi processado com sucesso.'}
             </p>
             <div className="space-y-4">
               <button

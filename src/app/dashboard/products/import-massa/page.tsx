@@ -410,6 +410,35 @@ export default function ImportMassaPage() {
 
       addLog(`Usuário autenticado: ${user.email}`);
       addLog(`Processando ${rows.length} produtos...`);
+      
+      // busca profile para detectar role/company/permissions e definir escopo (company vs user)
+      let profile: any = null;
+      let isCompany = false;
+      let companyId: string | null = null;
+      try {
+        const profileRes = await supabase
+          .from('profiles')
+          .select('role,company_id,can_manage_catalog')
+          .eq('id', user.id)
+          .maybeSingle();
+        profile = profileRes?.data ?? null;
+        const role = profile?.role || '';
+        const hasCompany = Boolean(profile?.company_id);
+        const canManageCatalog = Boolean(profile?.can_manage_catalog);
+        const canUseCompanyScope =
+          role === 'admin_company' || role === 'master' || canManageCatalog;
+        isCompany = hasCompany && canUseCompanyScope;
+        companyId = isCompany ? profile?.company_id ?? null : null;
+      } catch (e) {
+        // ignore profile fetch errors and assume individual
+      }
+
+      if (isCompany && !companyId) {
+        throw new Error('Empresa não identificada para importação em escopo distribuídora');
+      }
+
+      const ownerField = isCompany ? 'company_id' : 'user_id';
+      const ownerId = isCompany ? companyId : user.id;
 
       let successCount = 0;
       let errorCount = 0;
@@ -583,7 +612,9 @@ export default function ImportMassaPage() {
         const uniqueImages = Array.from(new Set(flattenedImages));
 
         const productObj = {
-          user_id: user.id,
+          user_id: isCompany ? null : user.id,
+          company_id: isCompany ? companyId : null,
+          profile_id: isCompany ? null : user.id,
           name: String(name),
           reference_code: refCode,
           reference_id: referenceId,
@@ -693,7 +724,7 @@ export default function ImportMassaPage() {
           const { data: byRefId, error: errRefId } = await supabase
             .from('products')
             .select('id,reference_id,reference_code,slug,gallery_images,image_path,external_image_url')
-            .eq('user_id', user.id)
+            .eq(ownerField, ownerId)
             .in('reference_id', chunk as any[]);
 
           if (errRefId) {
@@ -725,7 +756,7 @@ export default function ImportMassaPage() {
             const { data: byRefCode, error: errRefCode } = await supabase
               .from('products')
               .select('id,reference_id,reference_code,slug,gallery_images,image_path,external_image_url')
-              .eq('user_id', user.id)
+              .eq(ownerField, ownerId)
               .in('reference_code', missing as any[]);
 
             if (errRefCode) {
@@ -774,7 +805,8 @@ export default function ImportMassaPage() {
       const { data: historyData, error: historyError } = await supabase
         .from('import_history')
         .insert({
-          user_id: user.id,
+          user_id: isCompany ? null : user.id,
+          company_id: isCompany ? companyId : null,
           total_items: productsToInsert.length,
           brand_summary: brandSummary,
           file_name: fileName || 'Importação Manual',
@@ -818,7 +850,7 @@ export default function ImportMassaPage() {
           const { data: existingByRefId, error: errByRefId } = await supabase
             .from('products')
             .select('id,reference_id,reference_code,slug')
-            .eq('user_id', user.id)
+            .eq(ownerField, ownerId)
             .in('reference_id', missingChunk as any[]);
 
           if (errByRefId) {
@@ -838,7 +870,7 @@ export default function ImportMassaPage() {
             const { data: existingByRefCode, error: existingError } = await supabase
               .from('products')
               .select('id,reference_id,reference_code,slug')
-              .eq('user_id', user.id)
+              .eq(ownerField, ownerId)
               .in('reference_code', stillMissing as any[]);
 
             if (existingError) {

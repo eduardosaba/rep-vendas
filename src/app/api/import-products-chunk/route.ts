@@ -5,7 +5,7 @@ import { prepareProductGallery } from '@/lib/utils/image-logic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const batch: any[] = body.batch || [];
+    const incomingBatch: any[] = body.batch || [];
     const historyId: string | null = body.historyId || null;
 
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,7 +20,51 @@ export async function POST(req: Request) {
     let totalUpdated = 0;
     let errorCount = 0;
 
-    if (batch.length === 0) return NextResponse.json({ inserted: 0, updated: 0, errors: 0 });
+    if (incomingBatch.length === 0) return NextResponse.json({ inserted: 0, updated: 0, errors: 0 });
+
+    // Normalize owner for company members: if payload comes with user_id and this user belongs
+    // to a company, force company scope to preserve multitenancy consistency.
+    let batch: any[] = incomingBatch;
+    const firstIncoming = incomingBatch[0] || {};
+    const incomingUserId = firstIncoming?.user_id ? String(firstIncoming.user_id) : null;
+    const incomingCompanyId = firstIncoming?.company_id ? String(firstIncoming.company_id) : null;
+
+    if (!incomingCompanyId && incomingUserId) {
+      const { data: ownerProfile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', incomingUserId)
+        .maybeSingle();
+
+      const profileCompanyId = (ownerProfile as any)?.company_id ? String((ownerProfile as any).company_id) : null;
+      if (profileCompanyId) {
+        batch = incomingBatch.map((item) => ({
+          ...item,
+          company_id: profileCompanyId,
+          user_id: incomingUserId,
+        }));
+      }
+    }
+
+    const first = batch[0] || {};
+    const ownerField = first.company_id ? 'company_id' : 'user_id';
+    const ownerId = first.company_id || first.user_id;
+    if (!ownerId) {
+      return NextResponse.json({ error: 'Missing owner in batch items' }, { status: 400 });
+    }
+
+    const mixedOwner = batch.some((item) => {
+      const itemOwnerField = item.company_id ? 'company_id' : 'user_id';
+      const itemOwnerId = item.company_id || item.user_id;
+      return itemOwnerField !== ownerField || itemOwnerId !== ownerId;
+    });
+
+    if (mixedOwner) {
+      return NextResponse.json(
+        { error: 'Batch contains mixed owners. Split by owner before import.' },
+        { status: 400 }
+      );
+    }
 
     // Build keys and fetch existing
     const keys = Array.from(new Set(batch.map((p) => p.reference_id || p.reference_code).filter(Boolean)));
@@ -30,6 +74,7 @@ export async function POST(req: Request) {
       const { data: byRefId } = await supabase
         .from('products')
         .select('id,reference_id,reference_code,slug,gallery_images,image_path,external_image_url')
+        .eq(ownerField, ownerId)
         .in('reference_id', keys as any[]);
       if (Array.isArray(byRefId)) {
         byRefId.forEach((p: any) => {
@@ -43,6 +88,7 @@ export async function POST(req: Request) {
         const { data: byRefCode } = await supabase
           .from('products')
           .select('id,reference_id,reference_code,slug,gallery_images,image_path,external_image_url')
+          .eq(ownerField, ownerId)
           .in('reference_code', stillMissing as any[]);
         if (Array.isArray(byRefCode)) {
           byRefCode.forEach((p: any) => {
@@ -91,7 +137,7 @@ export async function POST(req: Request) {
             barcode: itm.barcode ?? null,
             stock_quantity: itm.stock_quantity ?? null,
           };
-          let query = supabase.from('products').update(safeFields).eq('user_id', itm.user_id);
+          let query = supabase.from('products').update(safeFields).eq(ownerField, ownerId);
           if (itm.reference_id) query = query.eq('reference_id', itm.reference_id);
           else query = query.eq('reference_code', itm.reference_code);
           const { data: updated, error: updErr } = await query.select('id, external_image_url, reference_id, reference_code');

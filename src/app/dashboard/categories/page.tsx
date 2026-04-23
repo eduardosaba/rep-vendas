@@ -24,7 +24,7 @@ interface MetadataItem {
   id: string;
   name: string;
   image_url: string | null;
-  type: 'category' | 'gender';
+  type: 'category' | 'gender' | 'material';
 }
 
 export default function CategoriesAndGendersPage() {
@@ -32,7 +32,7 @@ export default function CategoriesAndGendersPage() {
   const formRef = useRef<HTMLDivElement>(null);
 
   // Estados
-  const [activeTab, setActiveTab] = useState<'category' | 'gender'>('category');
+  const [activeTab, setActiveTab] = useState<'category' | 'gender' | 'material'>('category');
   const [items, setItems] = useState<MetadataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -56,15 +56,33 @@ export default function CategoriesAndGendersPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const table = activeTab === 'category' ? 'categories' : 'product_genders';
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name');
+      if (activeTab === 'material') {
+        // Não existe tabela dedicada a materiais — derivamos dos produtos
+        const { data: productsData, error: prodErr } = await supabase
+          .from('products')
+          .select('material')
+          .eq('user_id', user.id)
+          .not('material', 'is', null);
 
-      if (error) throw error;
-      setItems(data.map((i: any) => ({ ...i, type: activeTab })));
+        if (prodErr) throw prodErr;
+
+        const unique = Array.from(
+          new Set((productsData || []).map((p: any) => (p.material || '').trim()).filter(Boolean))
+        );
+
+        const mapped = unique.map((m: string, idx: number) => ({ id: `mat-${idx}`, name: m, image_url: null, type: 'material' }));
+        setItems(mapped as MetadataItem[]);
+      } else {
+        const table = activeTab === 'category' ? 'categories' : 'product_genders';
+        const { data, error } = await supabase
+          .from(table)
+          .select('*')
+          .eq('user_id', user.id)
+          .order('name');
+
+        if (error) throw error;
+        setItems(data.map((i: any) => ({ ...i, type: activeTab })) as MetadataItem[]);
+      }
     } catch (error) {
       toast.error('Erro ao carregar dados');
     } finally {
@@ -94,6 +112,29 @@ export default function CategoriesAndGendersPage() {
       toast.error('Erro na sincronização', { id: toastId });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleRemoveMaterialFromProducts = async (materialName: string) => {
+    const toastId = toast.loading('Removendo material dos produtos...');
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Login necessário');
+
+      // Atualiza todos os produtos deste usuário que têm esse material, setando null
+      const { error } = await supabase
+        .from('products')
+        .update({ material: null })
+        .eq('user_id', user.id)
+        .eq('material', materialName);
+
+      if (error) throw error;
+      toast.success('Material removido dos produtos', { id: toastId });
+      fetchItems();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao remover material', { id: toastId });
     }
   };
 
@@ -153,17 +194,25 @@ export default function CategoriesAndGendersPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Login necessário');
 
-      const table = activeTab === 'category' ? 'categories' : 'product_genders';
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq('id', deleteId)
-        .eq('user_id', user.id);
+      if (activeTab === 'material') {
+        // deleteId contains the material name in this case
+        await handleRemoveMaterialFromProducts(deleteId);
+        toast.success('Operação concluída', { id: toastId });
+        setDeleteId(null);
+        fetchItems();
+      } else {
+        const table = activeTab === 'category' ? 'categories' : 'product_genders';
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('id', deleteId)
+          .eq('user_id', user.id);
 
-      if (error) throw error;
-      toast.success('Excluído!', { id: toastId });
-      setDeleteId(null);
-      fetchItems();
+        if (error) throw error;
+        toast.success('Excluído!', { id: toastId });
+        setDeleteId(null);
+        fetchItems();
+      }
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao excluir', { id: toastId });
     } finally {
@@ -197,6 +246,12 @@ export default function CategoriesAndGendersPage() {
               className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'gender' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500'}`}
             >
               <Users size={16} /> Gêneros
+            </button>
+            <button
+              onClick={() => setActiveTab('material')}
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'material' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary' : 'text-slate-500'}`}
+            >
+              <Tag size={16} /> Materiais
             </button>
           </div>
         </div>
@@ -302,27 +357,40 @@ export default function CategoriesAndGendersPage() {
                   className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center relative hover:shadow-xl hover:-translate-y-1 transition-all"
                 >
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                    <button
-                      onClick={() => {
-                        setEditingItem(item);
-                        setFormData({
-                          name: item.name,
-                          iconFile: null,
-                          iconPreview: item.image_url,
-                        });
-                        formRef.current?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="p-2 bg-white dark:bg-slate-800 shadow-md rounded-lg text-slate-600 hover:text-primary"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteId(item.id)}
-                      className="p-2 bg-white dark:bg-slate-800 shadow-md rounded-lg text-red-600 hover:text-red-700"
-                      title="Excluir"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {item.type !== 'material' && (
+                      <button
+                        onClick={() => {
+                          setEditingItem(item);
+                          setFormData({
+                            name: item.name,
+                            iconFile: null,
+                            iconPreview: item.image_url,
+                          });
+                          formRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="p-2 bg-white dark:bg-slate-800 shadow-md rounded-lg text-slate-600 hover:text-primary"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
+
+                    {item.type === 'material' ? (
+                      <button
+                        onClick={() => setDeleteId(item.name)}
+                        className="p-2 bg-white dark:bg-slate-800 shadow-md rounded-lg text-red-600 hover:text-red-700"
+                        title="Remover material dos produtos"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setDeleteId(item.id)}
+                        className="p-2 bg-white dark:bg-slate-800 shadow-md rounded-lg text-red-600 hover:text-red-700"
+                        title="Excluir"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
 
                   <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 overflow-hidden border border-slate-100 dark:border-slate-700">
@@ -334,8 +402,10 @@ export default function CategoriesAndGendersPage() {
                       />
                     ) : item.type === 'category' ? (
                       <Tag className="text-slate-300" size={30} />
-                    ) : (
+                    ) : item.type === 'gender' ? (
                       <Users className="text-slate-300" size={30} />
+                    ) : (
+                      <div className="text-slate-400 font-bold uppercase text-sm">{String(item.name).slice(0,2)}</div>
                     )}
                   </div>
                   <h4 className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-widest">

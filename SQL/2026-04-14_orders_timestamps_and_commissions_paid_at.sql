@@ -1,0 +1,16 @@
+-- Add timestamps for order status changes and paid_at for commissions
+BEGIN;
+
+ALTER TABLE IF EXISTS public.orders
+ADD COLUMN IF NOT EXISTS faturado_at TIMESTAMP WITH TIME ZONE;
+
+ALTER TABLE IF EXISTS public.orders
+ADD COLUMN IF NOT EXISTS despachado_at TIMESTAMP WITH TIME ZONE;
+
+ALTER TABLE IF EXISTS public.orders
+ADD COLUMN IF NOT EXISTS entregue_at TIMESTAMP WITH TIME ZONE;
+
+ALTER TABLE IF EXISTS public.commissions
+ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP WITH TIME ZONE;
+
+COMMIT;

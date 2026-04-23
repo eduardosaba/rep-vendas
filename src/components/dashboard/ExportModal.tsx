@@ -157,9 +157,9 @@ export function ExportModal({ isOpen, onClose, products = [], storeSettings, bra
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           <div className="w-full md:w-[380px] p-6 border-r overflow-y-auto space-y-5 bg-white">
             
-            <section className="space-y-2">
+              <section className="space-y-2">
               <label className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-2"><Type size={14}/> Título da Capa</label>
-              <input type="text" value={options.title} onChange={e => setOptions({...options, title: e.target.value})} className="w-full p-2.5 rounded-xl border-none ring-1 ring-slate-200 font-bold focus:ring-2 focus:ring-indigo-500" />
+              <input type="text" value={options.title} onChange={e => setOptions(prev => ({...prev, title: e.target.value}))} className="w-full p-2.5 rounded-xl border-none ring-1 ring-slate-200 font-bold focus:ring-2 focus:ring-indigo-500" />
             </section>
 
             <div className="grid grid-cols-2 gap-3">
@@ -167,7 +167,7 @@ export function ExportModal({ isOpen, onClose, products = [], storeSettings, bra
                 <label className="text-[10px] font-black uppercase text-slate-400">Variantes</label>
                 <div className="flex bg-slate-100 p-1 rounded-xl">
                   <button disabled title="Modo agrupado temporariamente desativado" className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all opacity-50 cursor-not-allowed`}>AGRUPAR</button>
-                  <button onClick={() => setOptions({...options, variantLayout: 'grid'})} className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all ${options.variantLayout === 'grid' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>SEPARAR</button>
+                  <button onClick={() => setOptions(prev => ({...prev, variantLayout: 'grid'}))} className={`flex-1 py-2 rounded-lg text-[9px] font-black transition-all ${options.variantLayout === 'grid' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>SEPARAR</button>
                 </div>
               </section>
 
@@ -175,8 +175,8 @@ export function ExportModal({ isOpen, onClose, products = [], storeSettings, bra
                 <section className="space-y-2 animate-in fade-in">
                   <label className="text-[10px] font-black uppercase text-slate-400">Grade</label>
                   <div className="flex bg-slate-100 p-1 rounded-xl">
-                    {[1, 2, 3].map(n => (
-                      <button key={n} onClick={() => setOptions({...options, itemsPerRow: n as any})} className={`flex-1 py-2 rounded-lg text-[9px] font-black ${options.itemsPerRow === n ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>
+                      {[1, 2, 3].map(n => (
+                      <button key={n} onClick={() => setOptions(prev => ({...prev, itemsPerRow: n as any}))} className={`flex-1 py-2 rounded-lg text-[9px] font-black ${options.itemsPerRow === n ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>
                         {n === 1 ? '1x' : n === 2 ? '2x4' : '3x5'}
                       </button>
                     ))}
@@ -188,37 +188,37 @@ export function ExportModal({ isOpen, onClose, products = [], storeSettings, bra
             <section className="space-y-3">
               <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Palette size={14}/> Cores do Catálogo</label>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
+                  <div className="space-y-1">
                   <span className="text-[8px] font-bold text-gray-400">PÁGINAS</span>
-                  <input type="color" value={options.primaryColor} onChange={e => setOptions({...options, primaryColor: e.target.value})} className="w-full h-10 rounded-lg cursor-pointer bg-white p-1 ring-1 ring-slate-200" />
+                  <input type="color" value={options.primaryColor} onChange={e => setOptions(prev => ({...prev, primaryColor: e.target.value}))} className="w-full h-10 rounded-lg cursor-pointer bg-white p-1 ring-1 ring-slate-200" />
                 </div>
                 <div className="space-y-1">
                   <span className="text-[8px] font-bold text-gray-400">CAPA</span>
-                  <input type="color" value={options.secondaryColor} onChange={e => setOptions({...options, secondaryColor: e.target.value})} className="w-full h-10 rounded-lg cursor-pointer bg-white p-1 ring-1 ring-slate-200" />
+                  <input type="color" value={options.secondaryColor} onChange={e => setOptions(prev => ({...prev, secondaryColor: e.target.value}))} className="w-full h-10 rounded-lg cursor-pointer bg-white p-1 ring-1 ring-slate-200" />
                 </div>
               </div>
             </section>
 
             <section className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
               <label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><User size={14}/> Dados do Representante</label>
-              <input type="text" placeholder="Nome" value={options.repName} onChange={e => setOptions({...options, repName: e.target.value})} className="w-full p-2 text-xs rounded-lg border-slate-200" />
-              <input type="text" placeholder="Telefone" value={options.repPhone} onChange={e => setOptions({...options, repPhone: e.target.value})} className="w-full p-2 text-xs rounded-lg border-slate-200" />
+              <input type="text" placeholder="Nome" value={options.repName} onChange={e => setOptions(prev => ({...prev, repName: e.target.value}))} className="w-full p-2 text-xs rounded-lg border-slate-200" />
+              <input type="text" placeholder="Telefone" value={options.repPhone} onChange={e => setOptions(prev => ({...prev, repPhone: e.target.value}))} className="w-full p-2 text-xs rounded-lg border-slate-200" />
             </section>
 
             <section className="space-y-3">
                <div className="flex gap-2">
-                 <button onClick={() => setOptions({...options, showPrices: !options.showPrices})} className={`flex-1 p-3 rounded-xl border-2 text-[9px] font-black flex items-center justify-center gap-2 transition-all ${options.showPrices ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400'}`}>
+                 <button onClick={() => setOptions(prev => ({...prev, showPrices: !prev.showPrices}))} className={`flex-1 p-3 rounded-xl border-2 text-[9px] font-black flex items-center justify-center gap-2 transition-all ${options.showPrices ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400'}`}>
                    <DollarSign size={14}/> PREÇOS
                  </button>
-                 <button onClick={() => setOptions({...options, showQR: !options.showQR})} className={`flex-1 p-3 rounded-xl border-2 text-[9px] font-black flex items-center justify-center gap-2 transition-all ${options.showQR ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400'}`}>
+                 <button onClick={() => setOptions(prev => ({...prev, showQR: !prev.showQR}))} className={`flex-1 p-3 rounded-xl border-2 text-[9px] font-black flex items-center justify-center gap-2 transition-all ${options.showQR ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400'}`}>
                    <QrCode size={14}/> QR CODE
                  </button>
                </div>
                
                {options.showPrices && (
                  <div className="flex bg-slate-100 p-1 rounded-xl animate-in slide-in-from-top-1">
-                    <button onClick={() => setOptions({...options, priceType: 'price'})} className={`flex-1 py-2 rounded-lg text-[9px] font-black ${options.priceType === 'price' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>CUSTO</button>
-                    <button onClick={() => setOptions({...options, priceType: 'sale_price'})} className={`flex-1 py-2 rounded-lg text-[9px] font-black ${options.priceType === 'sale_price' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>SUGERIDO</button>
+                    <button onClick={() => setOptions(prev => ({...prev, priceType: 'price'}))} className={`flex-1 py-2 rounded-lg text-[9px] font-black ${options.priceType === 'price' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>CUSTO</button>
+                    <button onClick={() => setOptions(prev => ({...prev, priceType: 'sale_price'}))} className={`flex-1 py-2 rounded-lg text-[9px] font-black ${options.priceType === 'sale_price' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>SUGERIDO</button>
                  </div>
                )}
             </section>
@@ -226,8 +226,8 @@ export function ExportModal({ isOpen, onClose, products = [], storeSettings, bra
             <section className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400">Logo Capa</label>
               <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button onClick={() => setOptions({...options, logoPosition: 'top'})} className={`flex-1 py-2 rounded-lg text-[8px] font-black ${options.logoPosition === 'top' ? 'bg-white shadow text-indigo-600' : ''}`}>TOPO</button>
-                <button onClick={() => setOptions({...options, logoPosition: 'center'})} className={`flex-1 py-2 rounded-lg text-[8px] font-black ${options.logoPosition === 'center' ? 'bg-white shadow text-indigo-600' : ''}`}>MEIO</button>
+                <button onClick={() => setOptions(prev => ({...prev, logoPosition: 'top'}))} className={`flex-1 py-2 rounded-lg text-[8px] font-black ${options.logoPosition === 'top' ? 'bg-white shadow text-indigo-600' : ''}`}>TOPO</button>
+                <button onClick={() => setOptions(prev => ({...prev, logoPosition: 'center'}))} className={`flex-1 py-2 rounded-lg text-[8px] font-black ${options.logoPosition === 'center' ? 'bg-white shadow text-indigo-600' : ''}`}>MEIO</button>
               </div>
             </section>
 

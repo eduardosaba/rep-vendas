@@ -63,7 +63,7 @@ export default function CloneUserPage() {
     setMounted(true);
 
     async function loadUsers() {
-      const { data } = await supabase.from('profiles').select('id, full_name, email').order('full_name');
+      const { data } = await supabase.from('profiles').select('id, full_name, email, company_id').order('full_name');
       setUsers(data || []);
     }
     loadUsers();
@@ -250,8 +250,15 @@ export default function CloneUserPage() {
         return;
       }
 
+      const selectedUserProfile = users.find((u: any) => u.id === selectedUser);
+      const selectedCompanyId = selectedUserProfile?.company_id || null;
+
       // 3) deletar produtos clonados apenas (seguro) e remover mapeamentos correspondentes
-      const { error: delErr } = await supabase.from('products').delete().in('id', clonedIds).eq('user_id', selectedUser);
+      let delQuery = supabase.from('products').delete().in('id', clonedIds);
+      if (selectedCompanyId) delQuery = delQuery.eq('company_id', selectedCompanyId);
+      else delQuery = delQuery.eq('user_id', selectedUser);
+
+      const { error: delErr } = await delQuery;
       if (delErr) throw delErr;
 
       // opcional: remover entradas em catalog_clones para manter consistência

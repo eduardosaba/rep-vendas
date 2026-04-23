@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Heart, X } from 'lucide-react';
 import { ProductCardProps } from '@/lib/types';
 import ProductImage from './ProductImage';
@@ -24,6 +24,8 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
   hasPriceAccess,
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
+  const { catalogSlug: currentCatalogSlug, repSlug: currentRepSlug, isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const touchStartX = React.useRef<number | null>(null);
@@ -31,7 +33,9 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
   const [quantity, setQuantity] = useState(1);
 
   const handleProductClick = () => {
-    router.push(`/catalogo/${userId}/product/${product.id}`);
+    const baseSlug = currentCatalogSlug || userId;
+    const repSegment = isInstitutional ? '/empresa' : currentRepSlug ? `/${currentRepSlug}` : '';
+    router.push(`/catalogo/${baseSlug}${repSegment}/product/${product.id}`);
   };
 
   const salePrice = product.sale_price ?? product.price;

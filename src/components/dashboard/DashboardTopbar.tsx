@@ -31,6 +31,7 @@ export function DashboardTopbar({ settings }: { settings?: Settings | null }) {
   // Pega o título da página baseado na rota
   const getPageTitle = () => {
     if (pathname?.includes('/products')) return 'Gestão de Produtos';
+    if (pathname?.includes('/distribuidora')) return 'Orçamentos Distribuidora';
     if (pathname?.includes('/orders')) return 'Pedidos e Vendas';
     if (pathname?.includes('/clients')) return 'Clientes';
     if (pathname?.includes('/settings')) return 'Configurações';

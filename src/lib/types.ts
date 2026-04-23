@@ -90,6 +90,9 @@ export interface BaseStoreSettings {
   primary_color?: string;
   secondary_color?: string;
   header_background_color?: string;
+  header_text_color?: string;
+  header_icon_bg_color?: string;
+  header_icon_color?: string;
   footer_background_color?: string;
   logo_url?: string | null;
   store_name?: string;
@@ -123,6 +126,10 @@ export interface BaseStoreSettings {
   show_filter_category?: boolean;
   // Modo de desbloqueio de preços no catálogo público
   price_unlock_mode?: 'none' | 'modal' | 'fab';
+  // Modo de exibição da barra de benefícios
+  top_benefit_mode?: 'static' | 'marquee';
+  top_benefit_speed?: 'slow' | 'medium' | 'fast';
+  top_benefit_animation?: 'scroll_left' | 'scroll_right' | 'alternate';
 }
 
 /**

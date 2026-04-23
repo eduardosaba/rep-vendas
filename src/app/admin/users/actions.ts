@@ -99,8 +99,11 @@ export async function getUsersWithSubscriptions() {
         id,
         email,
         role,
+        status,
+        trial_ends_at,
         created_at,
         full_name,
+        company_id,
         subscriptions (
           status,
           current_period_end,
@@ -126,6 +129,7 @@ export async function createManualUser(data: {
   password: string;
   role: string;
   planName: string;
+  company_id?: string | null;
 }) {
   try {
     await requireAdminPermission();
@@ -162,10 +166,36 @@ export async function createManualUser(data: {
     const mapRoleToDb = (role: string) => {
       const r = (role || '').toString().toLowerCase();
       if (r === 'master' || r === 'admin') return 'master';
+      // Preserve company roles when supported by the database role model.
+      if (r === 'admin_company') return 'admin_company';
+      if (r === 'rep_company') return 'rep_company';
+      if (r === 'representante' || r === 'representative') return 'representative';
       return 'rep';
     };
 
+    const isRoleConstraintError = (err: any) => {
+      const code = String(err?.code || '');
+      const msg = String(err?.message || '').toLowerCase();
+      return (
+        code === '22P02' ||
+        code === '23514' ||
+        msg.includes('invalid input value for enum user_role') ||
+        msg.includes('check constraint')
+      );
+    };
+
+    const buildRoleCandidates = (baseRole: string) => {
+      const r = (baseRole || '').toLowerCase();
+      if (r === 'master' || r === 'admin') return ['master'];
+      if (r === 'admin_company') return ['admin_company', 'representative', 'rep'];
+      if (r === 'rep_company') return ['rep_company', 'representative', 'rep'];
+      if (r === 'representante' || r === 'representative') return ['representative', 'rep'];
+      if (r === 'rep') return ['rep'];
+      return ['rep'];
+    };
+
     const dbRole = mapRoleToDb(data.role);
+    const roleCandidates = buildRoleCandidates(dbRole);
 
     logger.info('Tentando criar usuário no Auth', {
       email: data.email,
@@ -183,7 +213,7 @@ export async function createManualUser(data: {
         email: data.email,
         password: data.password,
         email_confirm: true,
-        user_metadata: { role: dbRole },
+        user_metadata: { role: roleCandidates[0], company_id: data.company_id ?? null },
       });
 
       if (result.error) {
@@ -256,18 +286,45 @@ export async function createManualUser(data: {
     }
 
     // 3. Profile (inclui plan_id para sincronização)
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .upsert({
+    let selectedRole: string | null = null;
+    for (const candidateRole of roleCandidates) {
+      const profileUpsert: any = {
         id: userId,
         email: data.email,
         full_name: data.email.split('@')[0],
-        role: dbRole,
+        role: candidateRole,
         plan_id: planId, // Sincronizar plan_id
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (data.company_id) profileUpsert.company_id = data.company_id;
 
-    if (profileError) throw new Error(`Erro Perfil: ${profileError.message}`);
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert(profileUpsert);
+
+      if (!profileError) {
+        selectedRole = candidateRole;
+        break;
+      }
+
+      if (!isRoleConstraintError(profileError)) {
+        throw new Error(`Erro Perfil: ${profileError.message}`);
+      }
+    }
+
+    if (!selectedRole) {
+      throw new Error('Nenhuma role compatível com o schema atual foi aceita pelo banco.');
+    }
+
+    // Best effort: manter metadata do Auth alinhada com a role final aplicada no profile.
+    try {
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          role: selectedRole,
+          company_id: data.company_id ?? null,
+        },
+      });
+    } catch {}
 
     // 4. Subscription
     const { error: subError } = await supabaseAdmin
@@ -376,6 +433,32 @@ export async function updateUserLicense(
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId);
+
+    // Sincronizar status e trial_ends_at em profiles conforme o status da assinatura
+    try {
+      if (String(status).toLowerCase() === 'active') {
+        await supabaseAdmin
+          .from('profiles')
+          .update({ status: 'active', trial_ends_at: null, updated_at: new Date().toISOString() })
+          .eq('id', userId);
+      } else if (String(status).toLowerCase() === 'trial') {
+        // se veio uma data de término, sincronizar trial_ends_at
+        if (updateData.current_period_end) {
+          await supabaseAdmin
+            .from('profiles')
+            .update({ status: 'trial', trial_ends_at: updateData.current_period_end, updated_at: new Date().toISOString() })
+            .eq('id', userId);
+        } else {
+          await supabaseAdmin
+            .from('profiles')
+            .update({ status: 'trial', updated_at: new Date().toISOString() })
+            .eq('id', userId);
+        }
+      }
+    } catch (e) {
+      // não interromper o fluxo principal se a sincronização falhar
+      console.warn('Aviso: falha ao sincronizar profile.status após updateUserLicense', e);
+    }
 
     // Sincronizar plan_type em settings (armazena o tipo do plano mesmo que seja 'Free' ou vazio)
     await supabaseAdmin.from('settings').upsert({

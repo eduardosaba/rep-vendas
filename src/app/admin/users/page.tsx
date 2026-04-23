@@ -20,6 +20,7 @@ import {
   getUsersWithSubscriptions,
   getPlans,
 } from './actions';
+import { getCompanies } from './companiesActions';
 import { Button } from '@/components/ui/button';
 
 interface Plan {
@@ -32,6 +33,9 @@ interface UserData {
   id: string;
   email: string;
   role: string;
+  status?: string | null;
+  trial_ends_at?: string | null;
+  company_id?: string | null;
   created_at: string;
   full_name?: string;
   subscriptions?: {
@@ -46,6 +50,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [plansList, setPlansList] = useState<Plan[]>([]);
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
 
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -56,12 +61,24 @@ export default function AdminUsersPage() {
     password: '',
     role: 'representante',
     planName: '',
+    company_id: '',
   });
+  
 
   useEffect(() => {
     fetchUsers();
     fetchPlans();
+    fetchCompanies();
   }, []);
+
+  const fetchCompanies = async () => {
+    try {
+      const res = await getCompanies();
+      if (res.success && res.data) setCompanies(res.data as any[]);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const fetchPlans = async () => {
     const res = await getPlans();
@@ -100,6 +117,9 @@ export default function AdminUsersPage() {
             id: profile.id as string,
             email: (profile.email as string) || '',
             role: (profile.role as string) || 'user',
+            status: (profile.status as string) || null,
+            trial_ends_at: (profile.trial_ends_at as string) || null,
+            company_id: (profile.company_id as string) || null,
             created_at: profile.created_at as string,
             full_name: profile.full_name as string | undefined,
             subscriptions: subData
@@ -151,6 +171,7 @@ export default function AdminUsersPage() {
           password: '',
           role: 'representante',
           planName: plansList[0]?.name || '',
+          company_id: '',
         });
         fetchUsers();
       } else {
@@ -207,6 +228,23 @@ export default function AdminUsersPage() {
   };
 
   const renderExpirationDate = (user: UserData) => {
+    // 1) Manual block
+    if (user.status === 'blocked') {
+      return <span className="text-red-600 font-bold">BLOQUEADO</span>;
+    }
+
+    // 2) Trial logic
+    if (user.status === 'trial' && user.trial_ends_at) {
+      const trialDate = new Date(user.trial_ends_at);
+      const isExpired = trialDate < new Date();
+      return (
+        <span className={isExpired ? 'text-red-500 font-bold' : 'text-amber-500 font-medium'}>
+          {isExpired ? 'Trial Expirado' : `Trial até ${trialDate.toLocaleDateString()}`}
+        </span>
+      );
+    }
+
+    // 3) Subscription based
     if (!user.subscriptions || !user.subscriptions.current_period_end) {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400">
@@ -214,20 +252,16 @@ export default function AdminUsersPage() {
         </span>
       );
     }
+
     const date = new Date(user.subscriptions.current_period_end);
     const isExpired = date.getTime() < new Date().getTime();
     return (
       <div className="flex flex-col">
-        <span
-          className={`text-sm font-medium ${
-            isExpired ? 'text-red-600' : 'text-green-600'
-          }`}
-        >
+        <span className={`text-sm font-medium ${isExpired ? 'text-red-600' : 'text-green-600'}`}>
           {date.toLocaleDateString('pt-BR')}
         </span>
         <span className="text-[10px] text-gray-400 flex gap-1">
-          {isExpired ? 'Expirado' : 'Ativo'} •{' '}
-          {user.subscriptions.plan_name || 'Plano'}
+          {isExpired ? 'Expirado' : 'Ativo'} • {user.subscriptions.plan_name || 'Plano'}
         </span>
       </div>
     );
@@ -275,6 +309,7 @@ export default function AdminUsersPage() {
               <tr>
                 <th className="px-4 sm:px-6 py-4 min-w-[200px]">Usuário</th>
                 <th className="px-4 sm:px-6 py-4 min-w-[100px]">Role</th>
+                <th className="px-4 sm:px-6 py-4 min-w-[160px]">Empresa</th>
                 <th className="px-4 sm:px-6 py-4 min-w-[120px]">Cadastro</th>
                 <th className="px-4 sm:px-6 py-4 min-w-[150px]">Vencimento</th>
                 <th className="px-4 sm:px-6 py-4 text-right min-w-[140px] sticky right-0 bg-gray-50 dark:bg-slate-950 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
@@ -285,7 +320,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="p-12 text-center text-gray-500">
+                  <td colSpan={6} className="p-12 text-center text-gray-500">
                     <div className="flex justify-center items-center gap-2">
                       <Loader2
                         className="animate-spin text-[var(--primary)]"
@@ -297,7 +332,7 @@ export default function AdminUsersPage() {
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-12 text-center text-gray-500">
+                  <td colSpan={6} className="p-12 text-center text-gray-500">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
@@ -328,13 +363,20 @@ export default function AdminUsersPage() {
                     <td className="px-4 sm:px-6 py-4">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                          user.role === 'master' || user.role === 'admin'
+                          user.company_id
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : user.role === 'master' || user.role === 'admin'
                             ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
                             : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
                         }`}
                       >
-                        {user.role || 'user'}
+                        {user.company_id ? 'Empresa/Distrib.' : user.role || 'user'}
                       </span>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4 text-gray-500 dark:text-slate-400">
+                      {user.company_id
+                        ? (companies.find((c) => c.id === user.company_id)?.name ?? user.company_id)
+                        : '—'}
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-gray-500 dark:text-slate-400">
                       {new Date(user.created_at).toLocaleDateString('pt-BR')}
@@ -399,7 +441,7 @@ export default function AdminUsersPage() {
               key={user.id}
               className="p-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm"
             >
-              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800 flex-shrink-0">
                     {user.email?.charAt(0).toUpperCase()}
@@ -418,12 +460,14 @@ export default function AdminUsersPage() {
                 </div>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${
-                    user.role === 'master' || user.role === 'admin'
+                    user.company_id
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : user.role === 'master' || user.role === 'admin'
                       ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
                       : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
                   }`}
                 >
-                  {user.role || 'user'}
+                  {user.company_id ? 'Empresa/Distrib.' : user.role || 'user'}
                 </span>
               </div>
 
@@ -538,9 +582,26 @@ export default function AdminUsersPage() {
                     className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
                     <option value="representante">Representante</option>
+                    <option value="representative">Representante (vinculado a empresa)</option>
+                    <option value="rep">Admin Empresa (Distribuidora)</option>
                     <option value="master">Master</option>
                   </select>
                 </div>
+              {['representative', 'rep'].includes(formData.role) && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Empresa Pai (Distribuidora)</label>
+                  <select
+                    value={formData.company_id}
+                    onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
+                    className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                  >
+                    <option value="">Nenhuma (Autônomo)</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     Plano Inicial

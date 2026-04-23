@@ -4,14 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from './store-context';
+import { PriceDisplay } from './PriceDisplay';
 
 export function FloatingCart() {
-  const { cart, setModal } = useStore() as any;
+  const { cart, setModal, isPricesVisible } = useStore() as any;
 
-  const total = cart.reduce(
-    (acc: number, it: any) => acc + it.price * it.quantity,
-    0
-  );
+  const total = cart.reduce((acc: number, it: any) => acc + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0);
   const count = cart.reduce((acc: number, it: any) => acc + it.quantity, 0);
 
   const [hidden, setHidden] = useState(false);
@@ -62,10 +60,7 @@ export function FloatingCart() {
           <div className="text-left">
             <div className="text-xs text-gray-500">Ver carrinho</div>
             <div className="font-bold">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              }).format(total)}
+              <PriceDisplay value={total} isPricesVisible={isPricesVisible} />
             </div>
           </div>
         </Button>

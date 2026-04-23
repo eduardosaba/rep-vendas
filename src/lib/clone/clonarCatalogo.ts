@@ -11,6 +11,14 @@ export async function clonarCatalogo(
   targetUserId: string,
   brandName: string
 ) {
+  // Detecta se o alvo pertence a uma empresa (tenant corporativo)
+  const { data: targetProfile } = await svc
+    .from('profiles')
+    .select('company_id')
+    .eq('id', targetUserId)
+    .maybeSingle();
+  const targetCompanyId = (targetProfile as any)?.company_id || null;
+
   // 1) Busca os produtos originais
   const { data: originalProducts, error: fetchError } = await svc
     .from('products')
@@ -30,17 +38,62 @@ export async function clonarCatalogo(
     return {
       ...productData,
       user_id: targetUserId,
+      company_id: targetCompanyId || null,
     };
   });
 
-  // 3) Upsert em lotes — usar `reference_code` como chave para preservar variantes
-  // Observação: usar `reference_id` aqui fazia agrupar/colapsar múltiplos SKUs
-  // com o mesmo `reference_id`, o que perde campos por-variant (ex: `gender`).
-  const { error: upsertError } = await svc
-    .from('products')
-    .upsert(productsToClone, { onConflict: 'user_id,reference_code' });
+  if (!targetCompanyId) {
+    // 3) Fluxo individual: upsert por (user_id, reference_code)
+    const { error: upsertError } = await svc
+      .from('products')
+      .upsert(productsToClone, { onConflict: 'user_id,reference_code' });
 
-  if (upsertError) throw upsertError;
+    if (upsertError) throw upsertError;
+  } else {
+    // 3) Fluxo corporativo: atualiza por company_id+reference_code; insere os ausentes
+    const referenceCodesForCompany = productsToClone
+      .map((p: any) => p.reference_code)
+      .filter(Boolean);
+
+    const { data: existingCompanyProducts } = await svc
+      .from('products')
+      .select('id,reference_code')
+      .eq('company_id', targetCompanyId)
+      .in('reference_code', referenceCodesForCompany as any[]);
+
+    const existingByRef: Record<string, string> = {};
+    (existingCompanyProducts || []).forEach((p: any) => {
+      if (p.reference_code && !existingByRef[p.reference_code]) {
+        existingByRef[p.reference_code] = p.id;
+      }
+    });
+
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: string; payload: any }> = [];
+
+    for (const item of productsToClone) {
+      const ref = item.reference_code;
+      const existingId = ref ? existingByRef[ref] : null;
+      if (existingId) {
+        toUpdate.push({ id: existingId, payload: item });
+      } else {
+        toInsert.push(item);
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const { error: insertError } = await svc.from('products').insert(toInsert);
+      if (insertError) throw insertError;
+    }
+
+    for (const item of toUpdate) {
+      const { error: updateError } = await svc
+        .from('products')
+        .update(item.payload)
+        .eq('id', item.id);
+      if (updateError) throw updateError;
+    }
+  }
 
   // 4) Re-resgata produtos no target para obter os IDs gerados/atualizados
   // 4) Re-resgata produtos no target para obter os IDs gerados/atualizados
@@ -49,11 +102,22 @@ export async function clonarCatalogo(
   const referenceCodes = productsToClone
     .map((p: any) => p.reference_code)
     .filter(Boolean);
-  const { data: targetProducts } = await svc
-    .from('products')
-    .select('id,reference_code')
-    .eq('user_id', targetUserId)
-    .in('reference_code', referenceCodes);
+  let targetProducts: any[] | null = null;
+  if (targetCompanyId) {
+    const { data } = await svc
+      .from('products')
+      .select('id,reference_code')
+      .eq('company_id', targetCompanyId)
+      .in('reference_code', referenceCodes as any[]);
+    targetProducts = data as any[];
+  } else {
+    const { data } = await svc
+      .from('products')
+      .select('id,reference_code')
+      .eq('user_id', targetUserId)
+      .in('reference_code', referenceCodes as any[]);
+    targetProducts = data as any[];
+  }
 
   const refCodeToTargetId: Record<string, string> = {};
   (targetProducts || []).forEach((p: any) => {

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { useRep } from '@/components/catalogo/RepProvider'
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
 import type {
   Product,
@@ -47,6 +48,7 @@ export function StoreProvider({
   children,
 }: StoreProviderProps) {
   const supabase = createClient();
+  const rep = useRep();
   // PAGINAÇÃO: padrão 24 itens por página. Não persistimos entre usuários.
   const [itemsPerPage, setItemsPerPage] = useState<number>(24);
 
@@ -57,9 +59,25 @@ export function StoreProvider({
     return v === true || v === 'true' || v === 1 || v === '1';
   }
 
-  const isCostMode = isTruthyFlag((store as any).show_cost_price) && !isTruthyFlag((store as any).show_sale_price);
+  const isCostMode = useMemo(() => {
+    const showCost = isTruthyFlag((store as any).show_cost_price);
+    const showSale = isTruthyFlag((store as any).show_sale_price);
+    return showCost && !showSale;
+  }, [store]);
+
   // Por padrão: preços aparecem bloqueados (false). Usuário pode desbloquear via UI.
-  const [showPrices, setShowPrices] = useState(false);
+  const [showPrices, setShowPrices] = useState<boolean>(() => false);
+
+  // Se o catálogo está em modo custo, garantimos que os preços fiquem ocultos
+  // quando a fonte (store) mudar — evita que merges/overrides em rotas de rep
+  // acabem deixando os preços visíveis por herança.
+  useEffect(() => {
+    try {
+      if (isCostMode) setShowPrices(false);
+    } catch (e) {
+      // ignore
+    }
+  }, [isCostMode]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,6 +87,9 @@ export function StoreProvider({
   const [selectedBrand, setSelectedBrand] = useState<string | string[]>('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedGender, setSelectedGender] = useState('all');
+  const [selectedMaterial, setSelectedMaterial] = useState('all');
+  const [filterPolarizado, setFilterPolarizado] = useState(false);
+  const [filterFotocromatico, setFilterFotocromatico] = useState(false);
   const [sortOrder, setSortOrder] = useState<
     | 'name'
     | 'price_asc'
@@ -94,6 +115,7 @@ export function StoreProvider({
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
   const router = useRouter();
+  const _initialisedRef = React.useRef(false);
 
   // Inicializa estados de filtros a partir da query string (permitir links compartilháveis)
   useEffect(() => {
@@ -119,6 +141,12 @@ export function StoreProvider({
       setShowOnlyBestsellers(params.get('bs') === '1');
       setShowFavorites(params.get('fav') === '1');
 
+      const material = params.get('material');
+      if (material) setSelectedMaterial(material);
+
+      setFilterPolarizado(params.get('polarizado') === '1');
+      setFilterFotocromatico(params.get('fotocromatico') === '1');
+
       const sort = params.get('sort');
       if (sort) setSortOrder(sort as any);
 
@@ -130,8 +158,11 @@ export function StoreProvider({
       if (page) setCurrentPage(Number(page) || 1);
     } catch (e) {
       // ignore if window is not available or parsing fails
+    } finally {
+      try {
+        _initialisedRef.current = true;
+      } catch (e) {}
     }
-     
   }, []);
 
   // Auto-detect network conditions to choose a conservative initial UX
@@ -150,7 +181,9 @@ export function StoreProvider({
         setHideImages(true);
         try {
           toast.info('Conexão detectada como lenta — modo compacto ativado.');
-        } catch (e) {}
+        } catch (e) {
+          // ignore
+        }
       }
     } catch (e) {
       // ignore
@@ -159,6 +192,9 @@ export function StoreProvider({
 
   // Sincroniza estado de filtros para a URL (debounced)
   useEffect(() => {
+    // evitar o replace inicial antes de termos lido a query string
+    if (!_initialisedRef.current) return;
+
     const t = setTimeout(() => {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -188,6 +224,15 @@ export function StoreProvider({
 
         if (showFavorites) params.set('fav', '1');
         else params.delete('fav');
+
+        if (selectedMaterial && selectedMaterial !== 'all') params.set('material', String(selectedMaterial));
+        else params.delete('material');
+
+        if (filterPolarizado) params.set('polarizado', '1');
+        else params.delete('polarizado');
+
+        if (filterFotocromatico) params.set('fotocromatico', '1');
+        else params.delete('fotocromatico');
 
         if (sortOrder) params.set('sort', String(sortOrder));
         else params.delete('sort');
@@ -247,6 +292,10 @@ export function StoreProvider({
     saving: false,
     loadingCart: false,
   });
+  const isRichCatalog = useMemo(
+    () => Boolean((store as any)?.is_rich_catalog || (store as any)?.owner_is_company),
+    [store]
+  );
 
   const [modals, setModals] = useState({
     cart: false,
@@ -350,6 +399,8 @@ export function StoreProvider({
     allow_trial_checkout?: boolean;
     allow_test_bypass?: boolean;
   } | null>(null);
+  const [blockedForOrders, setBlockedForOrders] = useState(false);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [planFeatureMatrix, setPlanFeatureMatrix] = useState<Record<
     string,
     Record<string, boolean>
@@ -441,18 +492,57 @@ export function StoreProvider({
             .map((p) => (p as any).gender?.trim())
             .filter(Boolean) as string[]
         )
-      ).sort(),
+      )
+        .filter((g) => {
+          const v = String(g || '').trim();
+          return v && !/^#?\s*n\/?d\s*$/i.test(v) && v.toLowerCase() !== 'n/a';
+        })
+        .sort(),
     [initialProducts]
   );
+
+  const materials = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts
+            .map((p: any) => (p as any).material?.trim())
+            .filter(Boolean) as string[]
+        )
+      ).filter((m) => {
+        const v = String(m || '').trim();
+        return v && !/^#?\s*n\/?d\s*$/i.test(v) && v.toLowerCase() !== 'n/a';
+      }),
+    [initialProducts]
+  );
+
+  const hasPolarizado = useMemo(() => {
+    try {
+      return initialProducts.some((p: any) => isTruthyFlag((p as any).polarizado));
+    } catch {
+      return false;
+    }
+  }, [initialProducts]);
+
+  const hasFotocromatico = useMemo(() => {
+    try {
+      return initialProducts.some((p: any) => isTruthyFlag((p as any).fotocromatico));
+    } catch {
+      return false;
+    }
+  }, [initialProducts]);
 
   // Persistência e busca de marcas
   useEffect(() => {
     const fetchLogos = async () => {
-      const { data } = await supabase
-        .from('brands')
-        .select('name, logo_url, banner_url, description')
-        .eq('user_id', store.user_id)
-        .in('name', brands);
+      // if we have specific brand names derived from products, request only them
+      // otherwise fetch all brands for this store so institutional pages still show logos
+      const query = supabase.from('brands').select('name, logo_url, banner_url, description').eq('user_id', store.user_id);
+      if (Array.isArray(brands) && brands.length > 0) {
+        query.in('name', brands);
+      }
+
+      const { data } = await query;
       if (data) {
         const PUBLIC_BASE =
           typeof window !== 'undefined'
@@ -540,7 +630,8 @@ export function StoreProvider({
         };
         setBrandsWithLogos(
           brands.map((b) => {
-            const found = data.find((d: any) => d.name === b);
+            const needle = String(b || '').trim().toLowerCase();
+            const found = data.find((d: any) => String(d.name || '').trim().toLowerCase() === needle);
             return found
               ? normalize(found)
               : {
@@ -553,7 +644,8 @@ export function StoreProvider({
         );
       }
     };
-    if (brands.length > 0) fetchLogos();
+    // Only attempt to fetch if we have a valid store.user_id
+    if (store.user_id) fetchLogos();
   }, [brands, store.user_id]);
 
   // Fetch categories (with optional image_url) for this store to power
@@ -731,6 +823,32 @@ export function StoreProvider({
       mounted = false;
     };
   }, []);
+
+  // Check if this store is blocked for orders (public storefront)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/catalog/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: store.user_id }),
+        });
+        if (!mounted) return;
+        if (!res.ok) return;
+        const j = await res.json();
+        if (j && j.ok) {
+          setBlockedForOrders(!!j.blocked);
+          setBlockedReason(j.status || null);
+        }
+      } catch (e) {
+        // ignore network errors — fail open
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [store.user_id]);
 
   // Load store's subscription/plan info to evaluate matrix rules
   useEffect(() => {
@@ -922,10 +1040,23 @@ export function StoreProvider({
         return false;
       }
       const totalValue = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
+      // If the route is institutional (/empresa), do not attach a sellerId
+      let sellerId = (store as any)?.representative_id || rep?.id || null;
+      try {
+        const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+        const { isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
+        if (isInstitutional) sellerId = null;
+      } catch (e) {
+        // ignore
+      }
+      const ownerIsCompany = Boolean((store as any)?.owner_is_company);
 
       // Use server-side API to create orders (avoids RLS 403 for public catalogs)
       const payload = {
         storeOwnerId: store.user_id,
+        sellerId,
+        ownerIsCompany,
+        source: isRichCatalog ? 'client_link' : 'catalogo',
         customer: {
           name: customer.name,
           phone: customer.phone,
@@ -1012,7 +1143,7 @@ export function StoreProvider({
     } finally {
       setLoadingStates((s) => ({ ...s, submitting: false }));
     }
-  }, [cart, store, isFeatureAllowed, supabase]);
+  }, [cart, store, rep?.id, isRichCatalog, isFeatureAllowed, supabase]);
 
   /**
    * WHATSAPP COM RESUMO EXECUTIVO E LINK DO PDF
@@ -1039,7 +1170,11 @@ export function StoreProvider({
     }
 
     // Fallback to store.phone if route didn't return a phone
-    if (!destPhone) destPhone = (store.phone || null) as string | null;
+    if (!destPhone) {
+      destPhone =
+        ((store as any)?.representative_whatsapp as string | null) ||
+        (store.phone || null) as string | null;
+    }
     const phone = (destPhone || '').replace(/\D/g, '');
 
     // Formatação de Moeda
@@ -1258,6 +1393,16 @@ export function StoreProvider({
               .toLowerCase();
           if (normalize(p.gender) !== normalize(selectedGender)) return false;
         }
+        if (selectedMaterial !== 'all') {
+          const mat = String((p as any).material || '').trim();
+          if (mat !== String(selectedMaterial)) return false;
+        }
+        if (filterPolarizado) {
+          if (!((p as any).polarizado === true || (p as any).polarizado === 'true' || (p as any).polarizado === 1 || (p as any).polarizado === '1')) return false;
+        }
+        if (filterFotocromatico) {
+          if (!((p as any).fotocromatico === true || (p as any).fotocromatico === 'true' || (p as any).fotocromatico === 1 || (p as any).fotocromatico === '1')) return false;
+        }
         return true;
       })
       .sort((a, b) => {
@@ -1298,6 +1443,9 @@ export function StoreProvider({
     selectedBrand,
     selectedCategory,
     selectedGender,
+    selectedMaterial,
+    filterPolarizado,
+    filterFotocromatico,
     sortOrder,
   ]);
 
@@ -1389,6 +1537,23 @@ export function StoreProvider({
 
     // Garantir flags booleanas existam
     s.show_top_benefit_bar = s.show_top_benefit_bar ?? false;
+
+    // Garantir flags de preço e modo de desbloqueio estejam presentes e normalizados
+    try {
+      s.show_cost_price = isTruthyFlag((s as any).show_cost_price);
+    } catch (e) {
+      s.show_cost_price = false;
+    }
+    try {
+      // Por padrão, mostrar preço de venda quando não definido
+      s.show_sale_price = typeof (s as any).show_sale_price !== 'undefined' ? isTruthyFlag((s as any).show_sale_price) : true;
+    } catch (e) {
+      s.show_sale_price = true;
+    }
+
+    s.price_unlock_mode = (s as any).price_unlock_mode || (store as any).price_unlock_mode || 'modal';
+    s.price_password_hash = (s as any).price_password_hash || (s as any).price_password || null;
+    s.secondary_color = (s as any).secondary_color || (store as any).secondary_color || '#0f172a';
 
     return s;
   }, [store]);
@@ -1549,6 +1714,8 @@ export function StoreProvider({
         setIsPricesVisible: setShowPrices,
         toggleShowPrices: () => setShowPrices(!showPrices),
         lockPrices,
+        blockedForOrders,
+        blockedReason,
         displayProducts,
         totalProducts: filteredProducts.length,
         currentPage,
@@ -1573,6 +1740,7 @@ export function StoreProvider({
         categories,
         categoriesWithData,
         genders,
+        materials,
         gendersWithData,
         searchTerm,
         setSearchTerm,
@@ -1583,6 +1751,12 @@ export function StoreProvider({
         setSelectedCategory,
         selectedGender,
         setSelectedGender,
+        selectedMaterial,
+        setSelectedMaterial,
+        filterPolarizado,
+        setFilterPolarizado,
+        filterFotocromatico,
+        setFilterFotocromatico,
         sortOrder,
         setSortOrder,
         showOnlyNew,
@@ -1646,6 +1820,7 @@ export function StoreProvider({
         loadingStates,
         orderSuccessData,
         setOrderSuccessData,
+        isRichCatalog,
         handleDownloadPDF: async () => {
           if (!orderSuccessData) return;
           try {
@@ -1684,6 +1859,8 @@ export function StoreProvider({
           } catch {}
           setCustomerSession(null);
         },
+        hasPolarizado,
+        hasFotocromatico,
       }}
     >
       {children}

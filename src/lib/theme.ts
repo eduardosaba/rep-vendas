@@ -9,6 +9,9 @@ export interface ThemeColors {
   primary: string;
   secondary: string;
   headerBg?: string;
+  headerText?: string;
+  headerIconBg?: string;
+  headerIconColor?: string;
 }
 
 /**
@@ -19,28 +22,46 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
 
   const root = document.documentElement;
 
-  // Build all variable assignments first, then apply in one atomic cssText write
-  const primaryColor = colors.primary || DEFAULT_PRIMARY_COLOR;
-  const primaryRgb = hexToRgb(primaryColor);
-  const primaryContrast = getContrastColor(primaryColor);
-
-  const secondaryColor = colors.secondary || DEFAULT_SECONDARY_COLOR;
-  const secondaryRgb = hexToRgb(secondaryColor);
-  const secondaryContrast = getContrastColor(secondaryColor);
-
+  // Build all variable assignments first, then apply in one atomic setProperty loop
   const vars: string[] = [];
-  vars.push(`--primary: ${primaryColor}`);
-  vars.push(`--primary-rgb: ${primaryRgb}`);
-  vars.push(`--primary-foreground: ${primaryContrast}`);
 
-  vars.push(`--secondary: ${secondaryColor}`);
-  vars.push(`--secondary-rgb: ${secondaryRgb}`);
-  vars.push(`--secondary-foreground: ${secondaryContrast}`);
+  // Only update primary/secondary if explicit values were provided.
+  // This avoids unintentionally reverting theme colors to defaults during
+  // Fast Refresh / HMR when callers don't supply primary/secondary.
+  if (typeof colors.primary !== 'undefined' && colors.primary !== null) {
+    const primaryColor = colors.primary;
+    const primaryRgb = hexToRgb(primaryColor);
+    const primaryContrast = getContrastColor(primaryColor);
+    vars.push(`--primary: ${primaryColor}`);
+    vars.push(`--primary-rgb: ${primaryRgb}`);
+    vars.push(`--primary-foreground: ${primaryContrast}`);
+  }
+
+  if (typeof colors.secondary !== 'undefined' && colors.secondary !== null) {
+    const secondaryColor = colors.secondary;
+    const secondaryRgb = hexToRgb(secondaryColor);
+    const secondaryContrast = getContrastColor(secondaryColor);
+    vars.push(`--secondary: ${secondaryColor}`);
+    vars.push(`--secondary-rgb: ${secondaryRgb}`);
+    vars.push(`--secondary-foreground: ${secondaryContrast}`);
+  }
 
   if (colors.headerBg) {
     const headerRgb = hexToRgb(colors.headerBg);
     vars.push(`--header-bg: ${colors.headerBg}`);
     vars.push(`--header-bg-rgb: ${headerRgb}`);
+  }
+
+  if (colors.headerText) {
+    vars.push(`--header-text: ${colors.headerText}`);
+  }
+
+  if (colors.headerIconBg) {
+    vars.push(`--header-icon-bg: ${colors.headerIconBg}`);
+  }
+
+  if (colors.headerIconColor) {
+    vars.push(`--header-icon-color: ${colors.headerIconColor}`);
   }
 
   // Apply variables using setProperty to avoid overwriting unrelated inline styles

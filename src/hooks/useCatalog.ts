@@ -28,6 +28,7 @@ export function useCatalog(
   const [cart, setCart] = useState<Record<string, number>>({}); // { productId: quantity }
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loadedOrderCode, setLoadedOrderCode] = useState<string | null>(null);
+  const [totalProducts, setTotalProducts] = useState<number>(0);
 
   // --- ESTADOS DE FILTRO E UI ---
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,34 +68,78 @@ export function useCatalog(
               .select('*')
               .eq('user_id', userId)
               .maybeSingle();
-        const productsPromise = supabase
-          .from('products')
-          .select('*')
-          .eq('user_id', userId);
+        // Buscar produtos via rota API que aplica filtros e paginação no servidor
+        try {
+          const params = new URLSearchParams(window.location.search || '');
+          const p = new URLSearchParams();
+          p.set('user_id', String(userId));
+          p.set('page', String(currentPage || 1));
+          p.set('per_page', String(itemsPerPage || 24));
+          if (searchTerm) p.set('q', searchTerm);
+          if (selectedCategory && selectedCategory !== 'all') p.set('category', String(selectedCategory));
+          if (selectedBrands && selectedBrands.length > 0) p.set('brands', selectedBrands.join(','));
+          // respeitar filtros de URL (material/polarizado/fotocromatico)
+          const material = params.get('material');
+          const polarizado = params.get('polarizado');
+          const fotocromatico = params.get('fotocromatico');
+          if (material) p.set('material', material);
+          if (polarizado) p.set('polarizado', polarizado);
+          if (fotocromatico) p.set('fotocromatico', fotocromatico);
 
-        const [settingsRes, productsRes] = await Promise.all([
-          settingsPromise,
-          productsPromise,
-        ]);
+          // ordenação
+          if (sortBy) p.set('sort', sortBy);
+          if (sortOrder) p.set('order', sortOrder === 'asc' ? 'asc' : 'desc');
 
-        if (settingsRes && (settingsRes as any).data)
-          setSettings((settingsRes as any).data);
-        if (productsRes.data) {
-          // Normalizar produto: manter compatibilidade com schema atual onde
-          // `price` pode representar custo. Aqui garantimos duas propriedades
-          // no objeto do frontend:
-          // - `cost`: valor de custo (vindo de `price` no banco)
-          // - `price`: preço de venda (vindo de `sale_price` no banco, se existir)
-          const normalized = (productsRes.data as any[]).map((p) => {
-            const costVal = p.cost ?? p.price ?? null;
-            const saleVal = p.sale_price ?? p.price ?? null;
-            return {
-              ...p,
-              cost: costVal,
-              price: saleVal,
-            } as any;
-          });
-          setProducts(normalized as Product[]);
+          const url = `/api/catalog?${p.toString()}`;
+          const productsRes = await fetch(url);
+          const productsJson = await productsRes.json();
+
+          const settingsRes = await settingsPromise;
+
+          if (settingsRes && (settingsRes as any).data) setSettings((settingsRes as any).data);
+          if (productsJson && productsJson.products) {
+            const normalized = (productsJson.products as any[]).map((p) => {
+              const costVal = p.cost ?? p.price ?? null;
+              const saleVal = p.sale_price ?? p.price ?? null;
+              return {
+                ...p,
+                cost: costVal,
+                price: saleVal,
+              } as any;
+            });
+            setProducts(normalized as Product[]);
+            if (typeof productsJson.count === 'number') setTotalProducts(productsJson.count);
+          }
+        } catch (e) {
+          // Fallback para consulta direta caso a rota falhe
+          const offset = Math.max(0, (currentPage - 1) * itemsPerPage);
+          const limit = itemsPerPage;
+          let query = supabase
+            .from('products')
+            .select('*', { count: 'exact' })
+            .eq('user_id', userId)
+            .range(offset, offset + limit - 1)
+            .order('created_at', { ascending: false });
+          if (searchTerm && searchTerm.trim().length > 0) {
+            const like = `%${searchTerm.trim()}%`;
+            query = query.or(`name.ilike.${like},reference_code.ilike.${like}`);
+          }
+          const [settingsRes, productsRes] = await Promise.all([settingsPromise, query]);
+
+          if (settingsRes && (settingsRes as any).data) setSettings((settingsRes as any).data);
+          if (productsRes && (productsRes as any).data) {
+            const normalized = (productsRes.data as any[]).map((p) => {
+              const costVal = p.cost ?? p.price ?? null;
+              const saleVal = p.sale_price ?? p.price ?? null;
+              return {
+                ...p,
+                cost: costVal,
+                price: saleVal,
+              } as any;
+            });
+            setProducts(normalized as Product[]);
+            if (typeof productsRes.count === 'number') setTotalProducts(productsRes.count);
+          }
         }
 
         // 3. Carregar logos das marcas (se existir tabela `brands`)

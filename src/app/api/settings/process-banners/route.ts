@@ -104,8 +104,49 @@ export async function PUT(req: Request) {
       }
     }
 
-    const { error: updErr } = await admin.from('settings').update({ banner_variants: results }).eq('user_id', userId);
-    if (updErr) throw updErr;
+    try {
+      try {
+        const { error: updErr } = await admin.from('settings').update({ banner_variants: results }).eq('user_id', userId);
+        if (updErr) {
+          console.warn('process-banners: update returned error', updErr);
+          throw updErr;
+        }
+      } catch (e: any) {
+        // Fallback: coluna `banner_variants` ausente no schema — tentar persistir em `store_banner_meta.banner_variants`
+        const msg = String(e?.message || e || '');
+        console.warn('process-banners: banner_variants update failed, attempting fallback', msg);
+        try {
+          const { data: existing } = await admin.from('settings').select('store_banner_meta').eq('user_id', userId).maybeSingle();
+          const currentMeta = (existing && (existing as any).store_banner_meta) || {};
+          currentMeta.banner_variants = results;
+          const { error: fallbackErr } = await admin.from('settings').update({ store_banner_meta: currentMeta }).eq('user_id', userId);
+          if (fallbackErr) {
+            console.error('process-banners fallback update failed', fallbackErr);
+            return NextResponse.json({ ok: false, error: 'fallback_update_failed', detail: fallbackErr.message || String(fallbackErr) }, { status: 500 });
+          }
+        } catch (ee) {
+          console.error('process-banners final fallback failed', ee);
+          return NextResponse.json({ ok: false, error: 'final_fallback_failed', detail: (ee as any)?.message || String(ee) }, { status: 500 });
+        }
+      }
+    } catch (e: any) {
+      // Fallback: coluna `banner_variants` ausente no schema — tentar persistir em `store_banner_meta.banner_variants`
+      const msg = String(e?.message || e || '');
+      console.warn('process-banners: banner_variants update failed, attempting fallback', msg);
+      try {
+        const { data: existing } = await admin.from('settings').select('store_banner_meta').eq('user_id', userId).maybeSingle();
+        const currentMeta = (existing && (existing as any).store_banner_meta) || {};
+        currentMeta.banner_variants = results;
+        const { error: fallbackErr } = await admin.from('settings').update({ store_banner_meta: currentMeta }).eq('user_id', userId);
+        if (fallbackErr) {
+          console.error('process-banners fallback update failed', fallbackErr);
+          throw fallbackErr;
+        }
+      } catch (ee) {
+        console.error('process-banners final fallback failed', ee);
+        throw ee;
+      }
+    }
 
     // If debug flag present include more info
     const debugMode = url.searchParams.get('debug');

@@ -24,12 +24,13 @@ export default function ThemeRegistry() {
 
     const loadAndApplyTheme = async () => {
       try {
-        // Detect public catalog path (ex: /v/slug)
+        // Detect public catalog path (legacy: /v/slug) or new nested: /catalogo/{companySlug}/{repSlug}
         const pathParts = pathname?.split('/') || [];
-        const isPublicCatalog = pathParts[1] === 'v';
+        const isLegacyPublicCatalog = pathParts[1] === 'v';
+        const isNestedCatalog = pathParts[1] === 'catalogo' && !!pathParts[2];
 
         // Prefer using next-themes API to set theme instead of touching classList
-        if (isPublicCatalog) {
+        if (isLegacyPublicCatalog) {
           try {
             // 0. Checa configurações globais da plataforma (system-wide)
             try {
@@ -79,7 +80,87 @@ export default function ThemeRegistry() {
           }
         }
 
-        // 1. Verifica se há usuário logado (Contexto Dashboard/Admin)
+        // 1. Visitante (Catálogo Virtual) - prioriza tema público e evita chamadas
+        // de settings/profiles em contexto público (podem falhar por RLS).
+        if (isLegacyPublicCatalog) {
+          const catalogSlug = pathParts[2];
+          if (catalogSlug) {
+              const { data: publicCatalog } = await supabase
+              .from('public_catalogs')
+              .select('primary_color, secondary_color, font_family, font_url')
+              .eq('catalog_slug', catalogSlug)
+              .maybeSingle();
+
+              if (publicCatalog) {
+              applyThemeColors({
+                primary: publicCatalog.primary_color,
+                secondary: publicCatalog.secondary_color,
+              });
+
+              if (publicCatalog.font_family) {
+                try {
+                  if (publicCatalog.font_url) {
+                    const id = `rv-font-${btoa(publicCatalog.font_family).replace(/=/g, '')}`;
+                    if (!document.getElementById(id)) {
+                      const style = document.createElement('style');
+                      style.id = id;
+                      style.innerHTML = `@font-face { font-family: '${publicCatalog.font_family}'; src: url('${publicCatalog.font_url}') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }`;
+                      document.head.appendChild(style);
+                    }
+                  }
+                  document.documentElement.style.setProperty('--rv-font', publicCatalog.font_family);
+                } catch (e) {
+                  // ignore
+                }
+              }
+
+              return;
+            }
+          }
+        }
+
+        // If nested catalog path (/catalogo/{slug}/{repSlug}), use public_catalogs
+        // as source of theme tokens (companies may not have font columns).
+        if (isNestedCatalog) {
+          const slug = pathParts[2];
+          try {
+            const { data: publicCatalog } = await supabase
+              .from('public_catalogs')
+              .select('primary_color, secondary_color, font_family, font_url')
+              .eq('catalog_slug', slug)
+              .maybeSingle();
+
+            if (publicCatalog) {
+              applyThemeColors({
+                primary: (publicCatalog as any).primary_color,
+                secondary: (publicCatalog as any).secondary_color,
+              });
+
+              if ((publicCatalog as any).font_family) {
+                try {
+                  if ((publicCatalog as any).font_url) {
+                    const id = `rv-font-${btoa((publicCatalog as any).font_family).replace(/=/g, '')}`;
+                    if (!document.getElementById(id)) {
+                      const style = document.createElement('style');
+                      style.id = id;
+                      style.innerHTML = `@font-face { font-family: '${(publicCatalog as any).font_family}'; src: url('${(publicCatalog as any).font_url}') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }`;
+                      document.head.appendChild(style);
+                    }
+                  }
+                  document.documentElement.style.setProperty('--rv-font', (publicCatalog as any).font_family);
+                } catch (e) {
+                  // ignore
+                }
+              }
+
+              return;
+            }
+          } catch (e) {
+            // ignore fetch errors and continue
+          }
+        }
+
+        // 2. Verifica se há usuário logado (Contexto Dashboard/Admin)
         let user: any = null;
         try {
           const userPromise = supabase.auth.getUser();
@@ -95,7 +176,7 @@ export default function ThemeRegistry() {
         if (user) {
           const { data: settings } = await supabase
             .from('settings')
-            .select('primary_color, secondary_color, header_background_color, font_family, font_url')
+            .select('primary_color, secondary_color, header_background_color, header_text_color, header_icon_bg_color, header_icon_color, font_family, font_url')
             .eq('user_id', user.id)
             .maybeSingle();
 
@@ -104,6 +185,9 @@ export default function ThemeRegistry() {
               primary: settings.primary_color || DEFAULT_PRIMARY_COLOR,
               secondary: settings.secondary_color || DEFAULT_SECONDARY_COLOR,
               headerBg: settings.header_background_color,
+              headerText: (settings as any).header_text_color,
+              headerIconBg: (settings as any).header_icon_bg_color,
+              headerIconColor: (settings as any).header_icon_color,
             });
 
             // Apply global font if present
@@ -127,44 +211,6 @@ export default function ThemeRegistry() {
 
             // Not registering service worker or auto-configuring notifications here.
             // Notification setup is performed explicitly via the Notifications CTA component.
-
-            return;
-          }
-        }
-
-        // 2. Visitante (Catálogo Virtual)
-        const catalogSlug = pathParts[1] === 'v' ? pathParts[2] : null;
-
-        if (catalogSlug) {
-          const { data: publicCatalog } = await supabase
-            .from('public_catalogs')
-            .select('primary_color, secondary_color, header_background_color, font_family, font_url')
-            .eq('catalog_slug', catalogSlug)
-            .maybeSingle();
-
-          if (publicCatalog) {
-            applyThemeColors({
-              primary: publicCatalog.primary_color,
-              secondary: publicCatalog.secondary_color,
-              headerBg: publicCatalog.header_background_color,
-            });
-
-            if (publicCatalog.font_family) {
-              try {
-                if (publicCatalog.font_url) {
-                  const id = `rv-font-${btoa(publicCatalog.font_family).replace(/=/g, '')}`;
-                  if (!document.getElementById(id)) {
-                    const style = document.createElement('style');
-                    style.id = id;
-                    style.innerHTML = `@font-face { font-family: '${publicCatalog.font_family}'; src: url('${publicCatalog.font_url}') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }`;
-                    document.head.appendChild(style);
-                  }
-                }
-                document.documentElement.style.setProperty('--rv-font', publicCatalog.font_family);
-              } catch (e) {
-                // ignore
-              }
-            }
 
             return;
           }

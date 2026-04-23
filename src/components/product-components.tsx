@@ -43,15 +43,17 @@ function OutsideCloseEffect({
   openType,
   openGender,
   openMore,
+  openMaterial,
   onCloseAll,
 }: {
   openType: boolean;
   openGender: boolean;
   openMore: boolean;
+  openMaterial?: boolean;
   onCloseAll: () => void;
 }) {
   useEffect(() => {
-    if (!openType && !openGender && !openMore) return;
+    if (!openType && !openGender && !openMore && !openMaterial) return;
     const onDocDown = (e: Event) => {
       const target = e.target as HTMLElement | null;
       if (!target) return onCloseAll();
@@ -75,7 +77,7 @@ function OutsideCloseEffect({
       document.removeEventListener('touchstart', onDocDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [openType, openGender, openMore, onCloseAll]);
+  }, [openType, openGender, openMore, openMaterial, onCloseAll]);
 
   return null;
 }
@@ -91,8 +93,11 @@ export function CategoryBar() {
     showOnlyBestsellers,
     setShowOnlyBestsellers,
     selectedBrand,
+    searchTerm,
+    setSearchTerm,
   } = useStore();
   const { genders = [], selectedGender, setSelectedGender } = useStore();
+  const { materials = [], selectedMaterial, setSelectedMaterial, filterPolarizado, setFilterPolarizado, filterFotocromatico, setFilterFotocromatico, hasPolarizado, hasFotocromatico } = useStore();
 
   const displayGenders = useMemo(() => {
     const activeBrand = Array.isArray(selectedBrand)
@@ -160,7 +165,8 @@ export function CategoryBar() {
       new Set(
         productsForBrand
           .map((p: Product) => (p as any).class_core)
-          .filter(Boolean)
+          .map((t: any) => (t === null || t === undefined ? '' : String(t).trim()))
+          .filter((t: string) => t !== '' && t !== '#N/D')
       )
     );
     return fromProducts;
@@ -176,10 +182,12 @@ export function CategoryBar() {
 
   const [openTypeMenu, setOpenTypeMenu] = useState(false);
   const [openGenderMenu, setOpenGenderMenu] = useState(false);
+  const [openMaterialMenu, setOpenMaterialMenu] = useState(false);
   const [openMoreMenu, setOpenMoreMenu] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const typeBtnRef = useRef<HTMLButtonElement | null>(null);
   const genderBtnRef = useRef<HTMLButtonElement | null>(null);
+  const materialBtnRef = useRef<HTMLButtonElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement | null>(null);
   const [typeMenuRect, setTypeMenuRect] = useState<null | {
     left: number;
@@ -191,6 +199,7 @@ export function CategoryBar() {
     top: number;
     width: number;
   }>(null);
+  const [materialMenuRect, setMaterialMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
   const [moreMenuRect, setMoreMenuRect] = useState<null | {
     left: number;
     top: number;
@@ -258,7 +267,7 @@ export function CategoryBar() {
 
         {openMoreMenu && moreMenuRect && (
           <div className="px-4 pt-3 pb-4 bg-white border-t">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <h4 className="text-xs font-bold text-gray-700 mb-2">Tipo</h4>
                 <div className="flex flex-col space-y-1">
@@ -315,6 +324,33 @@ export function CategoryBar() {
                   ))}
                 </div>
               </div>
+              
+              <div>
+                <h4 className="text-xs font-bold text-gray-700 mb-2">Material</h4>
+                <div className="flex flex-col space-y-1">
+                  <button
+                    onClick={() => {
+                      setSelectedMaterial('all');
+                      setOpenMoreMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    Todos os Materiais
+                  </button>
+                  {(materials && materials.length ? materials : []).map((m: any) => (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        setSelectedMaterial(m);
+                        setOpenMoreMenu(false);
+                      }}
+                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      {String(m)}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="mt-4 border-t pt-3">
@@ -360,6 +396,50 @@ export function CategoryBar() {
                 className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
               >
                 <Zap size={14} /> Lançamentos
+              </button>
+              
+              <button
+                onClick={() => {
+                  const next = !filterPolarizado;
+                  setFilterPolarizado && setFilterPolarizado(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('polarizado', '1');
+                    else params.delete('polarizado');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                  setOpenMoreMenu(false);
+                }}
+                className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
+              >
+                Polarizado
+              </button>
+
+              <button
+                onClick={() => {
+                  const next = !filterFotocromatico;
+                  setFilterFotocromatico && setFilterFotocromatico(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('fotocromatico', '1');
+                    else params.delete('fotocromatico');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                  setOpenMoreMenu(false);
+                }}
+                className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
+              >
+                Fotocromático
               </button>
             </div>
           </div>
@@ -412,6 +492,8 @@ export function CategoryBar() {
                 const next = !openTypeMenu;
                 setOpenTypeMenu(next);
                 setOpenGenderMenu(false);
+                setOpenMaterialMenu(false);
+                setOpenMoreMenu(false);
                 if (next && typeBtnRef.current) {
                   const r = typeBtnRef.current.getBoundingClientRect();
                   setTypeMenuRect({
@@ -434,6 +516,8 @@ export function CategoryBar() {
                 const next = !openGenderMenu;
                 setOpenGenderMenu(next);
                 setOpenTypeMenu(false);
+                setOpenMaterialMenu(false);
+                setOpenMoreMenu(false);
                 if (next && genderBtnRef.current) {
                   const r = genderBtnRef.current.getBoundingClientRect();
                   setGenderMenuRect({
@@ -448,6 +532,28 @@ export function CategoryBar() {
             >
               Gênero ▾
             </button>
+
+            {materials && materials.length > 0 && (
+            <button
+              ref={materialBtnRef}
+              data-menu-trigger="material"
+              onClick={() => {
+                const next = !openMaterialMenu;
+                setOpenMaterialMenu(next);
+                setOpenTypeMenu(false);
+                setOpenGenderMenu(false);
+                setOpenMoreMenu(false);
+                if (next && materialBtnRef.current) {
+                  const r = materialBtnRef.current.getBoundingClientRect();
+                  setMaterialMenuRect({ left: r.left, top: r.bottom + 8, width: Math.max(220, r.width * 2) });
+                }
+              }}
+              aria-expanded={openMaterialMenu}
+              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+            >
+              Material ▾
+            </button>
+            )}
 
             {isMobile && (
               <button
@@ -502,6 +608,8 @@ export function CategoryBar() {
               </span>
             </button>
 
+            
+
             <button
               onClick={() => {
                 const next = !showOnlyBestsellers;
@@ -529,15 +637,71 @@ export function CategoryBar() {
                 <Star size={14} /> Best Sellers
               </span>
             </button>
+
+            {hasPolarizado && (
+            <button
+              onClick={() => {
+                const next = !filterPolarizado;
+                setFilterPolarizado && setFilterPolarizado(next);
+                try {
+                  const params = new URLSearchParams(window.location.search);
+                  if (next) params.set('polarizado', '1');
+                  else params.delete('polarizado');
+                  const url = params.toString()
+                    ? `${window.location.pathname}?${params.toString()}`
+                    : window.location.pathname;
+                  router.replace(url);
+                } catch (e) {
+                  // ignore
+                }
+              }}
+              aria-pressed={!!filterPolarizado}
+              className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                filterPolarizado
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Polarizado
+            </button>
+            )}
+
+            {hasFotocromatico && (
+            <button
+              onClick={() => {
+                const next = !filterFotocromatico;
+                setFilterFotocromatico && setFilterFotocromatico(next);
+                try {
+                  const params = new URLSearchParams(window.location.search);
+                  if (next) params.set('fotocromatico', '1');
+                  else params.delete('fotocromatico');
+                  const url = params.toString()
+                    ? `${window.location.pathname}?${params.toString()}`
+                    : window.location.pathname;
+                  router.replace(url);
+                } catch (e) {
+                  // ignore
+                }
+              }}
+              aria-pressed={!!filterFotocromatico}
+              className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                filterFotocromatico
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Fotocromático
+            </button>
+            )}
           </div>
 
           {/* Fixed overlays for Tipo and Gênero - rendered as fixed so they overlay content */}
-          {openTypeMenu && typeMenuRect && (
+          {typeMenuRect && (
             <div
               role="dialog"
               aria-modal="false"
               data-menu="type"
-              className="fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[60vh] overflow-auto"
+              className={`fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[60vh] overflow-auto transition-all duration-200 transform origin-top ${openTypeMenu ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
               style={{
                 left: typeMenuRect.left,
                 top: typeMenuRect.top,
@@ -583,18 +747,18 @@ export function CategoryBar() {
             </div>
           )}
 
-          {openGenderMenu && genderMenuRect && (
+          {genderMenuRect && (
             <div
               role="dialog"
               aria-modal="false"
               data-menu="gender"
-              className="fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[60vh] overflow-auto"
+              className={`fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[60vh] overflow-auto transition-all duration-200 transform origin-top ${openGenderMenu ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
               style={{
                 left: genderMenuRect.left,
                 top: genderMenuRect.top,
                 width: Math.min(genderMenuRect.width, 420),
               }}
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()} 
             >
               <div>
                 <div className="w-full flex items-center justify-between text-sm font-bold text-gray-700 mb-2">
@@ -637,12 +801,63 @@ export function CategoryBar() {
             </div>
           )}
 
-          {openMoreMenu && moreMenuRect && (
+          {materialMenuRect && (
+            <div
+              role="dialog"
+              aria-modal="false"
+              data-menu="material"
+              className={`fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[60vh] overflow-auto transition-all duration-200 transform origin-top ${openMaterialMenu ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+              style={{
+                left: materialMenuRect.left,
+                top: materialMenuRect.top,
+                width: Math.min(materialMenuRect.width, 600),
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div>
+                <div className="w-full flex items-center justify-between text-sm font-bold text-gray-700 mb-2">
+                  <span>Material</span>
+                  <button
+                    onClick={() => setOpenMaterialMenu(false)}
+                    className="text-xs text-gray-400"
+                    aria-label="Fechar Material"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 pr-2">
+                  <button
+                    onClick={() => {
+                      setSelectedMaterial('all');
+                      setOpenMaterialMenu(false);
+                    }}
+                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    Todos os Materiais
+                  </button>
+                  {(materials && materials.length ? materials : []).map((m: any) => (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        setSelectedMaterial(m);
+                        setOpenMaterialMenu(false);
+                      }}
+                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      {String(m)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {moreMenuRect && (
             <div
               role="dialog"
               aria-modal="false"
               data-menu="more"
-              className="fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[40vh] overflow-auto"
+              className={`fixed bg-white border rounded-lg shadow-lg p-4 z-[9999] max-h-[40vh] overflow-auto transition-all duration-200 transform origin-top ${openMoreMenu ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
               style={{
                 left: moreMenuRect.left,
                 top: moreMenuRect.top,
@@ -717,10 +932,12 @@ export function CategoryBar() {
             openType={openTypeMenu}
             openGender={openGenderMenu}
             openMore={openMoreMenu}
+            openMaterial={openMaterialMenu}
             onCloseAll={() => {
               setOpenTypeMenu(false);
               setOpenGenderMenu(false);
               setOpenMoreMenu(false);
+              setOpenMaterialMenu(false);
             }}
           />
         </div>
@@ -732,10 +949,11 @@ export function CategoryBar() {
 interface CarouselProps {
   slides: SlideData[];
   interval?: number;
+  bannerMetaOverride?: any;
 }
 
 // --- Componente Carrossel ---
-function Carousel({ slides, interval = 5000 }: CarouselProps) {
+function Carousel({ slides, interval = 5000, bannerMetaOverride = null }: CarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [bannerMeta, setBannerMeta] = useState<any>(null);
@@ -760,6 +978,10 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
   // Load store-level banner meta from localStorage (if present) so editor preview
   // choices like 'fit' are respected in the public carousel during client render.
   useEffect(() => {
+    if (bannerMetaOverride) {
+      setBannerMeta(bannerMetaOverride);
+      return;
+    }
     try {
       if (typeof window !== 'undefined') {
         const raw = window.localStorage.getItem('store_banner_meta');
@@ -768,7 +990,7 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
     } catch (e) {
       // ignore
     }
-  }, []);
+  }, [bannerMetaOverride]);
 
   useEffect(() => {
     const onResize = () => setIsSmallViewport(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
@@ -875,7 +1097,9 @@ function Carousel({ slides, interval = 5000 }: CarouselProps) {
 export function StoreBanners() {
   const { store, selectedBrand } = useStore();
   const [isMobile, setIsMobile] = useState(false);
-  const [storeBannerMeta, setStoreBannerMeta] = useState<any>(null);
+  const [storeBannerMeta, setStoreBannerMeta] = useState<any>(
+    (store as any)?.store_banner_meta || null
+  );
   const { brandsWithLogos } = useStore();
 
   // Detectar mobile no client-side
@@ -895,6 +1119,10 @@ export function StoreBanners() {
       window.removeEventListener('resize', checkMobile);
     };
   }, []);
+
+  useEffect(() => {
+    setStoreBannerMeta((store as any)?.store_banner_meta || null);
+  }, [store]);
 
   useEffect(() => {
     try {
@@ -1049,11 +1277,11 @@ export function StoreBanners() {
     <div className="w-full">
       {storeBannerMeta && storeBannerMeta.mode === 'fit' && isMobile ? (
         <div className="w-full relative overflow-hidden bg-gray-100">
-          <Carousel slides={slides} interval={5000} />
+          <Carousel slides={slides} interval={5000} bannerMetaOverride={storeBannerMeta} />
         </div>
       ) : (
         <div className="w-full aspect-[3/1] md:aspect-[4/1] lg:aspect-[5/1] min-h-[180px] md:min-h-[220px] relative overflow-hidden bg-gray-100">
-          <Carousel slides={slides} interval={5000} />
+          <Carousel slides={slides} interval={5000} bannerMetaOverride={storeBannerMeta} />
         </div>
       )}
     </div>
@@ -1076,6 +1304,26 @@ export function ProductGrid() {
     setModal,
     isFilterOpen,
     setIsFilterOpen,
+    selectedBrand,
+    setSelectedBrand,
+    selectedCategory,
+    setSelectedCategory,
+    selectedGender,
+    setSelectedGender,
+    searchTerm,
+    setSearchTerm,
+    showOnlyNew,
+    setShowOnlyNew,
+    showOnlyBestsellers,
+    setShowOnlyBestsellers,
+    showFavorites,
+    setShowFavorites,
+    selectedMaterial,
+    setSelectedMaterial,
+    filterPolarizado,
+    setFilterPolarizado,
+    filterFotocromatico,
+    setFilterFotocromatico,
     sortOrder,
     setSortOrder,
     store,
@@ -1090,6 +1338,8 @@ export function ProductGrid() {
   } = useStore();
 
   const toggleSidebar = useLayoutStore((s: any) => s.toggleSidebar);
+
+  const router = useRouter();
 
   // Tipagem corrigida de 'any' para 'Product'
   const isOutOfStock = (product: Product) => {
@@ -1132,6 +1382,137 @@ export function ProductGrid() {
           >
             <span className="max-[380px]:hidden">Filtros</span>
           </Button>
+        </div>
+
+        {/* Filtros Ativos */}
+        <div className="mt-2 sm:mt-0 sm:ml-4 flex items-center gap-2 flex-wrap">
+          {selectedMaterial && selectedMaterial !== 'all' && (
+            <button
+              onClick={() => setSelectedMaterial('all')}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
+              <span className="font-bold">Material:</span> {selectedMaterial}
+              <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+
+          {typeof selectedCategory === 'string' && selectedCategory !== 'all' && (
+            <button onClick={() => setSelectedCategory && setSelectedCategory('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+              <span className="font-bold">Categoria:</span> {selectedCategory}
+              <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+
+          {typeof selectedGender === 'string' && selectedGender !== 'all' && (
+            <button onClick={() => setSelectedGender && setSelectedGender('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+              <span className="font-bold">Gênero:</span> {selectedGender}
+              <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+
+          {searchTerm && searchTerm.trim().length > 0 && (
+            <button onClick={() => setSearchTerm && setSearchTerm('')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+              Busca: {searchTerm}
+              <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+
+          {showOnlyNew && (
+            <button onClick={() => setShowOnlyNew && setShowOnlyNew(false)} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+              Lançamentos <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+
+          {showOnlyBestsellers && (
+            <button onClick={() => setShowOnlyBestsellers && setShowOnlyBestsellers(false)} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+              Mais vendidos <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+
+          {showFavorites && (
+            <button onClick={() => setShowFavorites && setShowFavorites(false)} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+              Favoritos <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+
+              {filterPolarizado && (
+            <button
+              onClick={() => setFilterPolarizado(false)}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
+              Polarizado <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+              {Array.isArray(selectedBrand) && selectedBrand.length > 0 && selectedBrand[0] !== 'all' && (
+                selectedBrand.map((b) => (
+                  <button key={`brand-${b}`} onClick={() => {
+                    const next = Array.isArray(selectedBrand) ? selectedBrand.filter((s) => s !== b) : [];
+                    setSelectedBrand && setSelectedBrand(next.length === 0 ? 'all' : next);
+                  }} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+                    {b} <span className="ml-2 text-xs text-gray-400">✕</span>
+                  </button>
+                ))
+              )}
+              {typeof selectedBrand === 'string' && selectedBrand !== 'all' && (
+                <button onClick={() => setSelectedBrand && setSelectedBrand('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+                  {selectedBrand} <span className="ml-2 text-xs text-gray-400">✕</span>
+                </button>
+              )}
+
+          {filterFotocromatico && (
+            <button
+              onClick={() => setFilterFotocromatico(false)}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
+              Fotocromático <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
+          {/* Botão Limpar filtros na área de resumo */}
+          {(
+            (selectedCategory && selectedCategory !== 'all') ||
+            (selectedGender && selectedGender !== 'all') ||
+            (selectedMaterial && selectedMaterial !== 'all') ||
+            !!filterPolarizado ||
+            !!filterFotocromatico ||
+            !!showOnlyNew ||
+            !!showOnlyBestsellers ||
+            !!showFavorites ||
+            (!!searchTerm && String(searchTerm).trim() !== '') ||
+            (Array.isArray(selectedBrand) && selectedBrand.length > 0 && selectedBrand[0] !== 'all') ||
+            (typeof selectedBrand === 'string' && selectedBrand !== 'all')
+          ) && (
+            <button
+              onClick={() => {
+                try {
+                  setSelectedCategory && setSelectedCategory('all');
+                  setSelectedGender && setSelectedGender('all');
+                  setSelectedMaterial && setSelectedMaterial('all');
+                  setFilterPolarizado && setFilterPolarizado(false);
+                  setFilterFotocromatico && setFilterFotocromatico(false);
+                  setShowOnlyNew && setShowOnlyNew(false);
+                  setShowOnlyBestsellers && setShowOnlyBestsellers(false);
+                  setShowFavorites && setShowFavorites(false);
+                  setSearchTerm && setSearchTerm('');
+                  setSelectedBrand && setSelectedBrand('all');
+
+                  const params = new URLSearchParams(window.location.search);
+                  params.delete('bs');
+                  params.delete('new');
+                  params.delete('polarizado');
+                  params.delete('fotocromatico');
+                  params.delete('category');
+                  params.delete('type');
+                  const url = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+                  router.replace(url);
+                } catch (e) {
+                  // ignore
+                }
+              }}
+              className="px-3 py-1 rounded-full bg-white border border-gray-200 text-sm text-gray-700 flex items-center gap-2"
+            >
+              Limpar filtros ✕
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">

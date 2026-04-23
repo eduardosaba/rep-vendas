@@ -141,6 +141,22 @@ export default function ImportMassaPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não logado');
 
+      // fetch profile to determine if the user is a company admin
+      let profile: any = null;
+      try {
+        const profileRes = await supabase
+          .from('profiles')
+          .select('role,company_id,can_manage_catalog')
+          .eq('id', user.id)
+          .maybeSingle();
+        profile = profileRes?.data ?? null;
+      } catch (e) {
+        // ignore profile fetch failure and treat as individual
+      }
+      const role = profile?.role || '';
+      const isCompany = role === 'admin_company' || role === 'master';
+      const companyId = isCompany ? profile?.company_id : null;
+
       // Prepara os dados para o formato do banco usando os mapeamentos escolhidos
       const productsToInsert = previewData
         .map((row: any) => {
@@ -189,7 +205,10 @@ export default function ImportMassaPage() {
           const slugBase = slugify(String(name) || 'produto');
 
           return {
-            user_id: user.id,
+            // owner scoping: company_id for company admins, user_id for individuals
+            user_id: isCompany ? null : user.id,
+            company_id: isCompany ? companyId : null,
+            profile_id: isCompany ? null : user.id,
             name: String(name),
             reference_code: finalRef,
             price: isNaN(price) ? 0 : price,
@@ -201,7 +220,7 @@ export default function ImportMassaPage() {
 
       // Envia em lotes de 50 para não sobrecarregar
       const batchSize = 50;
-      for (let i = 0; i < productsToInsert.length; i += batchSize) {
+        for (let i = 0; i < productsToInsert.length; i += batchSize) {
         const batch = productsToInsert.slice(i, i + batchSize);
 
         // Tentativa de upsert com fallbacks porque o ON CONFLICT exige constraint única existente.
@@ -210,9 +229,8 @@ export default function ImportMassaPage() {
         // 3) Se ainda falhar, faz insert simples como fallback
         let res: any;
         try {
-          res = await supabase
-            .from('products')
-            .upsert(batch, { onConflict: 'user_id,reference_code' });
+          const onConflictKey = isCompany ? 'company_id,reference_code' : 'user_id,reference_code';
+          res = await supabase.from('products').upsert(batch, { onConflict: onConflictKey });
         } catch (e: any) {
           // Alguns clientes retornam via throw; normalizar para objeto com error
           res = { error: e };

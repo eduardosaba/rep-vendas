@@ -16,7 +16,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getUiStatusKey } from "@/lib/orderStatus";
+import { getUiStatusKey, mapToDbStatus } from "@/lib/orderStatus";
 
 export interface Order {
   id: string | number;
@@ -34,10 +34,13 @@ export interface Order {
 
 interface OrdersTableProps {
   initialOrders: any[];
+  currentUserId?: string | null;
 }
 
-export function OrdersTable({ initialOrders }: OrdersTableProps) {
-  const [orders] = useState<Order[]>(initialOrders || []);
+export function OrdersTable({ initialOrders, currentUserId }: OrdersTableProps) {
+  const [orders, setOrders] = useState<Order[] & any[]>(initialOrders || []);
+  // If parent passed currentUserId via prop (second arg), override local
+  // Note: React doesn't provide direct access to prop in function signature above
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -73,9 +76,18 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
 
   const getStatusBadge = (status: string) => {
     const key = getUiStatusKey(status);
-    const labels: Record<string, string> = { pending: "Pendente", confirmed: "Confirmado", delivered: "Entregue", cancelled: "Cancelado" };
+    const labels: Record<string, string> = {
+      pending: "Pendente",
+      pending_review: "Aguardando Revisão",
+      awaiting_billing: "Aguardando Faturamento",
+      confirmed: "Confirmado",
+      delivered: "Entregue",
+      cancelled: "Cancelado",
+    };
     const styles: Record<string, string> = {
       pending: "bg-yellow-100 text-yellow-800",
+      pending_review: "bg-amber-100 text-amber-800",
+      awaiting_billing: "bg-indigo-100 text-indigo-800",
       confirmed: "bg-blue-100 text-blue-800",
       delivered: "bg-green-100 text-green-800",
       cancelled: "bg-red-100 text-red-800",
@@ -165,7 +177,51 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                     {order.total_qty || order.item_count}
                   </span>
                 </td>
-                <td className="px-4 py-4">{getStatusBadge(order.status)}</td>
+                <td className="px-4 py-4">{getStatusBadge(order.status)}
+                  {/* Show release controls for representative when order is awaiting review */}
+                  {getUiStatusKey(order.status) === 'pending_review' && (order as any).seller_id && String((order as any).seller_id) === String(currentUserId) && (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const res = await fetch('/api/orders/release', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id }) });
+                            const j = await res.json();
+                            if (!res.ok || !j.success) throw new Error(j?.error || 'Erro');
+                            // Update local state
+                            setOrders((prev) => prev.map((p) => (p.id === order.id ? { ...p, status: mapToDbStatus('pending') } : p)));
+                            // Call notifications endpoint
+                            try { await fetch('/api/notifications/new-order-released', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id }) }); } catch {}
+                          } catch (err) {
+                            // eslint-disable-next-line no-console
+                            console.error('Erro ao liberar pedido', err);
+                            alert('Erro ao liberar pedido');
+                          }
+                        }}
+                        className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >Enviar para Distribuidora</button>
+
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!confirm('Deseja recusar este pedido?')) return;
+                          try {
+                            const res = await fetch('/api/orders/reject', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id }) });
+                            const j = await res.json();
+                            if (!res.ok || !j.success) throw new Error(j?.error || 'Erro');
+                            setOrders((prev) => prev.map((p) => (p.id === order.id ? { ...p, status: mapToDbStatus('cancelled') } : p)));
+                          } catch (err) {
+                            // eslint-disable-next-line no-console
+                            console.error('Erro ao recusar pedido', err);
+                            alert('Erro ao recusar pedido');
+                          }
+                        }}
+                        className="bg-red-100 text-red-600 px-3 py-1 rounded text-xs font-bold"
+                      >Recusar</button>
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-4 text-right font-black text-slate-900">
                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(order.total_value)}
                 </td>

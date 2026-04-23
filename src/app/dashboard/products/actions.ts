@@ -1,6 +1,7 @@
-'use server';
+ 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSvcClient } from '@supabase/supabase-js';
 import { deleteImageIfUnused } from '@/lib/storage';
 import { revalidatePath } from 'next/cache';
 
@@ -35,6 +36,11 @@ export async function bulkUpdateFields(ids: string[], data: any) {
 
     console.log('[BulkUpdate] Mapped Data for DB:', mappedData);
 
+    if (Object.keys(mappedData).length === 0) {
+      console.warn('[BulkUpdate] No mapped fields to update, aborting');
+      return { error: 'Nenhum campo editável fornecido' } as any;
+    }
+
     const { error } = await supabase
       .from('products')
       .update(mappedData)
@@ -43,7 +49,7 @@ export async function bulkUpdateFields(ids: string[], data: any) {
 
     if (error) {
       console.error('[BulkUpdate] DB Error:', error);
-      return { error: `Erro no banco: ${error.message}` } as any;
+      return { error: `Erro no banco: ${error.message || JSON.stringify(error)}` } as any;
     }
 
     revalidatePath('/dashboard/products');
@@ -228,8 +234,7 @@ export async function bulkDelete(
       throw new Error('missing_service_role_key');
     }
 
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createSvcClient(
       SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY,
       { global: { fetch } }

@@ -1,9 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useStore } from './store-context';
 import { Search, Heart, ShoppingCart, LogIn, Phone, Mail } from 'lucide-react';
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Settings } from '../../lib/types';
 import { normalizePhone } from '@/lib/phone';
@@ -31,7 +31,23 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const router = useRouter();
+  const pathname = usePathname();
+  const { catalogSlug, repSlug, isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
+  const currentRepSlug = isInstitutional ? null : repSlug;
   const { customerSession, clearCustomerSession } = useStore();
+
+  // Persist current rep slug so other pages (cart/checkout) can preserve rep context
+  useEffect(() => {
+    try {
+      if (currentRepSlug) {
+        window.localStorage.setItem('rep_slug', currentRepSlug);
+      } else {
+        window.localStorage.removeItem('rep_slug');
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [currentRepSlug]);
 
   return (
     <header
@@ -83,14 +99,25 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
 
         <div className="flex items-center justify-between py-4">
           <div className="flex items-center space-x-8">
-            <div className="relative h-14 w-auto">
-              <Image
-                src={settings?.logo_url || SYSTEM_LOGO_URL}
-                alt={settings?.store_name || 'Rep-Vendas'}
-                fill
-                style={{ objectFit: 'contain' }}
-              />
-            </div>
+              <div className="relative h-14 w-auto">
+                <div
+                  className="h-14 w-auto cursor-pointer"
+                    onClick={() => {
+                    const base = (settings && (settings as any).catalog_slug) || userId;
+                    const repSegment = isInstitutional ? '/empresa' : currentRepSlug ? `/${currentRepSlug}` : '';
+                    router.push(`/catalogo/${base}${repSegment}`);
+                  }}
+                  role="link"
+                  aria-label="Ir para o catálogo"
+                >
+                  <Image
+                    src={settings?.logo_url || SYSTEM_LOGO_URL}
+                    alt={settings?.store_name || 'Rep-Vendas'}
+                    fill
+                    style={{ objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
           </div>
 
           <div className="mx-8 max-w-2xl flex-1">
@@ -149,7 +176,11 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
               <span className="text-xs">Favoritos ({favorites.size})</span>
             </button>
             <button
-              onClick={() => router.push(`/catalogo/${userId}/checkout`)}
+                onClick={() => {
+                const base = (settings && (settings as any).catalog_slug) || userId;
+                const repSegment = isInstitutional ? '/empresa' : currentRepSlug ? `/${currentRepSlug}` : '';
+                router.push(`/catalogo/${base}${repSegment}/checkout`);
+              }}
               className="flex flex-col items-center text-gray-600 hover:text-gray-900"
               style={{ color: settings?.icon_color || '#4B5563' }}
             >

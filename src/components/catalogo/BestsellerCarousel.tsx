@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Heart, Star } from 'lucide-react';
 import Image from 'next/image';
 import { Product, Settings } from '../../lib/types';
@@ -25,6 +25,8 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
   userId,
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
+  const { catalogSlug: currentCatalogSlug, repSlug: currentRepSlug, isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
 
   if (products.length === 0) {
     return null;
@@ -42,8 +44,10 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
             <div
               key={product.id}
               className="w-64 flex-shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-              onClick={() =>
-                router.push(`/catalogo/${userId}/product/${product.id}`)
+              onClick={() => {
+                  const repSegment = isInstitutional ? '/empresa' : currentRepSlug ? `/${currentRepSlug}` : '';
+                  router.push(`/catalogo/${currentCatalogSlug || userId}${repSegment}/product/${product.id}`);
+                }
               }
             >
               <div className="relative">

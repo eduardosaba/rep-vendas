@@ -15,8 +15,7 @@ export default function FeaturedSection({ userId }: { userId?: string }) {
         if (!mounted) return;
         setItems(Array.isArray(j?.products) ? j.products : []);
       })
-      .catch((e) => {
-        console.warn('Failed to load featured products', e);
+      .catch(() => {
         if (mounted) setItems([]);
       });
     return () => {

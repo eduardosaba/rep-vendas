@@ -7,6 +7,7 @@ import {
   Users,
   CreditCard,
   BarChart2,
+  ShoppingBag,
   Settings,
   LayoutDashboard,
   Package,
@@ -78,10 +79,15 @@ export default function AdminSidebar({
       icon: LayoutDashboard,
       exact: true,
     },
+      { label: 'Editar Experiência do Catálogo', href: '/admin/configuracoes/catalogo', icon: ImageIcon },
     { label: 'Usuários', href: '/admin/users', icon: Users },
+    { label: 'Distribuidores', href: '/admin/companies', icon: Users },
+    { label: 'Pedidos B2B', href: '/admin/distribuidora/pedidos', icon: ShoppingBag },
     { label: 'Assinaturas', href: '/admin/licenses', icon: CreditCard },
+    { label: 'Fechamento Mensal', href: '/admin/financeiro/fechamento', icon: Percent },
     { label: 'Clonar Catálogo', href: '/admin/clone-user', icon: Copy },
     { label: 'Auditoria de Sinc.', href: '/admin/sync-logs', icon: History },
+    { label: 'Sincronizador Master.', href: '/admin/products/master-sync', icon: ShieldCheck },
     { label: 'Auditoria Catalogo', href: '/admin/audit', icon: ImageIcon },
     {
       label: 'Status de Importação',
@@ -209,6 +215,23 @@ export default function AdminSidebar({
           );
         })}
 
+        {(userRole === 'master' || userRole === 'admin_company') && (
+          <Link
+            href="/admin/permissions"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
+              pathname?.startsWith('/admin/permissions')
+                ? 'bg-primary/10 text-primary ring-1 ring-primary/10'
+                : 'hover:bg-gray-100 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+            }`}
+          >
+            <ShieldCheck
+              size={18}
+              className={`${pathname?.startsWith('/admin/permissions') ? 'text-primary' : ''}`}
+            />
+            {!isCollapsed && <span className="truncate">Permissões</span>}
+          </Link>
+        )}
+
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 space-y-2">
           {/* Sempre disponibiliza o link público do dashboard em nova aba */}
           {/* Abre o dashboard público limpando primeiro qualquer impersonation */}
@@ -257,6 +280,7 @@ export default function AdminSidebar({
               {!isCollapsed && <span>Dashboard de Saúde</span>}
             </Link>
           )}
+        
         </div>
       </nav>
 

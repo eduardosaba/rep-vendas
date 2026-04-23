@@ -264,6 +264,87 @@ export const cloneCatalog = inngest.createFunction(
         brands_to_copy: brands || null,
       });
       if (error) throw error;
+
+      // Company-aware normalization for worker-based clone path.
+      try {
+        const { data: targetProfile } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('id', target_user_id)
+          .maybeSingle();
+
+        const targetCompanyId = (targetProfile as any)?.company_id || null;
+        if (targetCompanyId) {
+          const { data: sourceProducts } = await supabase
+            .from('products')
+            .select('id')
+            .eq('user_id', source_user_id)
+            .in('brand', Array.isArray(brands) ? brands : []);
+
+          const sourceIds = (sourceProducts || []).map((p: any) => p.id).filter(Boolean);
+          if (sourceIds.length > 0) {
+            const { data: mappings } = await supabase
+              .from('catalog_clones')
+              .select('cloned_product_id')
+              .eq('target_user_id', target_user_id)
+              .eq('source_user_id', source_user_id)
+              .in('source_product_id', sourceIds as any[]);
+
+            const clonedIds = (mappings || []).map((m: any) => m.cloned_product_id).filter(Boolean);
+            if (clonedIds.length > 0) {
+              const { data: normalizedRows, error: normalizeErr } = await supabase
+                .from('products')
+                .update({ company_id: targetCompanyId, user_id: target_user_id } as any)
+                .in('id', clonedIds as any[])
+                .select('id,user_id');
+
+              if (normalizeErr) {
+                throw new Error(`Worker normalization failed: ${normalizeErr.message}`);
+              }
+
+              const leakedCount = Array.isArray(normalizedRows)
+                ? normalizedRows.filter((r: any) => !r?.user_id).length
+                : 0;
+              if (leakedCount > 0) {
+                throw new Error(
+                  `Worker normalization incomplete: ${leakedCount} produto(s) corporativos ficaram sem user_id.`
+                );
+              }
+            }
+
+            // Fallback robusto para casos sem mapeamento completo em catalog_clones.
+            const { error: fallbackErr } = await supabase
+              .from('products')
+              .update({ company_id: targetCompanyId, user_id: target_user_id } as any)
+              .eq('user_id', target_user_id)
+              .in('brand', Array.isArray(brands) ? brands : []);
+
+            if (fallbackErr) {
+              throw new Error(`Worker fallback normalization failed: ${fallbackErr.message}`);
+            }
+
+            const { count: leakedAfterFallback, error: leakedErr } = await supabase
+              .from('products')
+              .select('id', { count: 'exact', head: true })
+              .eq('company_id', targetCompanyId)
+              .is('user_id', null)
+              .in('brand', Array.isArray(brands) ? brands : []);
+
+            if (leakedErr) {
+              throw new Error(`Worker fallback validation failed: ${leakedErr.message}`);
+            }
+
+            if (Number(leakedAfterFallback || 0) > 0) {
+              throw new Error(
+                `Worker fallback incomplete: ${leakedAfterFallback} produto(s) ficaram sem user_id.`
+              );
+            }
+          }
+        }
+      } catch (normalizeErr) {
+        throw normalizeErr;
+      }
+
       try {
         await supabase.from('activity_logs').insert({
           user_id: source_user_id,
