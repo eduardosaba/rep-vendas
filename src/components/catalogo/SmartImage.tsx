@@ -4,6 +4,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Loader2, ImageOff } from 'lucide-react';
 import { ensure480w } from '@/lib/imageUtils';
 
+const DEFAULT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="100%" height="100%" fill="#f8fafc" /><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="12" font-weight="bold">IMAGEM</text><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#cbd5e1" font-family="sans-serif" font-size="10">NÃO ENCONTRADA</text></svg>`;
+const DEFAULT_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(DEFAULT_SVG)}`;
+
 export function SmartImage({
   product,
   className = '',
@@ -27,8 +30,8 @@ export function SmartImage({
     if (variant === 'thumbnail' || preferredSize === 480) {
       const base = product?.image_url || product?.image_path;
       if (base) {
-        const s = typeof base === 'string' ? base : base.url;
-        if (!s) return '/placeholder.png';
+      const s = typeof base === 'string' ? base : base.url;
+      if (!s) return DEFAULT_PLACEHOLDER;
         // If the value is already a proxy URL or an absolute external URL, do not rewrite it
         if (s.startsWith('/api/storage-image') || s.includes('?path=') || s.startsWith('http://') || s.startsWith('https://')) {
           return s;
@@ -37,7 +40,7 @@ export function SmartImage({
       }
     }
 
-    return product?.image_url || product?.image_path || '/placeholder.png';
+    return product?.image_url || product?.image_path || DEFAULT_PLACEHOLDER;
   };
 
   useEffect(() => {
@@ -52,7 +55,7 @@ export function SmartImage({
   }, [product?.id, product?.image_url, variant]);
 
   const handleError = () => {
-    const placeholder = '/placeholder.png';
+    const placeholder = DEFAULT_PLACEHOLDER;
 
     // Prevent infinite loops
     if (retryCount.current >= 4) {

@@ -59,8 +59,49 @@ export async function GET(req: NextRequest) {
       if (arr.length === 1) query = query.eq('brand', arr[0]);
       else if (arr.length > 1) query = query.in('brand', arr as any);
     }
+    // Improved category/class_core matching: accept several variants and
+    // attempt case-insensitive, partial matches on both `category` and
+    // `class_core`. This helps match values like "OPT + CLIP-ON", "Clipon",
+    // "CLIPON" etc.
+    const classCoreParam = params.get('class_core');
+    if (category || classCoreParam) {
+      const raw = String(category || classCoreParam || '').trim();
+      if (raw.length > 0) {
+        const lower = raw.toLowerCase();
+        const cleaned = lower.replace(/[^a-z0-9]+/g, '');
+        // Special-case CLIP variants which are common and inconsistent in data
+        const patterns: string[] = [];
+        if (cleaned.includes('clipon') || (cleaned.includes('clip') && cleaned.includes('on'))) {
+          patterns.push('%clip-on%');
+          patterns.push('%clipon%');
+          patterns.push('%clip%on%');
+          patterns.push('%opt%clip%');
+          patterns.push('%opt%clip-on%');
+        }
+        // Always add generic fallbacks
+        patterns.push(`%${raw}%`);
+        patterns.push(`%${lower}%`);
+        patterns.push(`%${cleaned}%`);
 
-    if (category) query = query.eq('category', category);
+        // Deduplicate
+        const uniq = Array.from(new Set(patterns)).filter(Boolean);
+        // Build OR conditions for PostgREST
+        const conds = uniq.map((p) => `category.ilike.${p},class_core.ilike.${p}`).join(',');
+        try {
+          // Log for debugging when running locally
+          // eslint-disable-next-line no-console
+          console.debug('[api/catalog] category filter', { raw, cleaned, conds });
+          query = query.or(conds);
+        } catch (e) {
+          // Fallback to ilike on category only
+          try {
+            query = query.ilike('category', `%${cleaned}%`);
+          } catch {
+            query = query.eq('category', raw);
+          }
+        }
+      }
+    }
     if (material) query = query.eq('material', material);
 
     if (polarizado === '1' || polarizado === 'true') query = query.eq('polarizado', true);

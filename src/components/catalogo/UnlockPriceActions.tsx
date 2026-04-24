@@ -21,14 +21,26 @@ export function UnlockPriceActions({
   onLockPrices,
 }: UnlockPriceActionsProps) {
   const [showInitialModal, setShowInitialModal] = useState(false);
+  const [suppressUntil, setSuppressUntil] = useState<number | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [hideFabOnScroll, setHideFabOnScroll] = useState(false);
   const scrollStopTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (mode === 'modal' && !isUnlocked) {
-      const timer = window.setTimeout(() => setShowInitialModal(true), 1200);
-      return () => window.clearTimeout(timer);
+      try {
+        const raw = window.localStorage.getItem('rv_suppress_price_modal_until');
+        const until = raw ? Number(raw) : null;
+        setSuppressUntil(until);
+        const now = Date.now();
+        if (!until || now > until) {
+          const timer = window.setTimeout(() => setShowInitialModal(true), 1200);
+          return () => window.clearTimeout(timer);
+        }
+      } catch (e) {
+        const timer = window.setTimeout(() => setShowInitialModal(true), 1200);
+        return () => window.clearTimeout(timer);
+      }
     }
     setShowInitialModal(false);
   }, [mode, isUnlocked]);
@@ -103,7 +115,16 @@ export function UnlockPriceActions({
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setShowInitialModal(false)}
+                onClick={() => {
+                  try {
+                    // Suppress this modal for a short period (hours) when user chooses to view catalog without prices
+                    const HOURS = 1; // suppress duration in hours
+                    const until = Date.now() + HOURS * 60 * 60 * 1000;
+                    window.localStorage.setItem('rv_suppress_price_modal_until', String(until));
+                    setSuppressUntil(until);
+                  } catch (e) {}
+                  setShowInitialModal(false);
+                }}
               >
                 Ver catálogo completo, sem preços
               </Button>

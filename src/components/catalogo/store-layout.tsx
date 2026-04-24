@@ -81,9 +81,22 @@ function getContrastColor(hexColor?: string): string {
 }
 
 // Logo helper with fallback — simplified
-function LogoImage({ src, alt }: { src?: string | null; alt?: string }) {
+function LogoImage({ src, alt }: { src?: any; alt?: string }) {
   const [errored, setErrored] = useState(false);
-  if (!src || errored) {
+
+  const resolvedSrc = useMemo(() => {
+    if (!src) return null;
+    try {
+      if (typeof src === 'object' && src !== null) {
+        return src.variants?.desktop?.url || src.original || src.url || null;
+      }
+      return String(src).trim() || null;
+    } catch (e) {
+      return null;
+    }
+  }, [src]);
+
+  if (!resolvedSrc || errored) {
     const initials = String(alt || '')
       .trim()
       .split(' ')
@@ -92,11 +105,16 @@ function LogoImage({ src, alt }: { src?: string | null; alt?: string }) {
       .slice(0, 2)
       .join('')
       .toUpperCase();
-    return <div className="h-10 lg:h-12 xl:h-14 w-36 lg:w-44 xl:w-52 flex items-center justify-center rounded bg-white/20 text-white font-bold text-lg">{initials || 'LOJA'}</div>;
+    return (
+      <div className="h-10 lg:h-12 xl:h-14 w-36 lg:w-44 xl:w-52 flex items-center justify-center rounded bg-white/20 text-white font-bold text-lg">
+        {initials || 'LOJA'}
+      </div>
+    );
   }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src || undefined} alt={alt || 'Logo'} className="h-10 lg:h-12 xl:h-14 w-auto max-w-[150px] lg:max-w-[180px] xl:max-w-[210px] object-contain" onError={() => setErrored(true)} />
+    <img src={resolvedSrc || undefined} alt={alt || 'Logo'} className="h-10 lg:h-12 xl:h-14 w-auto max-w-[150px] lg:max-w-[180px] xl:max-w-[210px] object-contain" onError={() => setErrored(true)} />
   );
 }
 
@@ -154,7 +172,7 @@ export function StoreTopBar() {
     const hasImageUrl = Boolean(store.top_benefit_image_url && String(store.top_benefit_image_url).trim());
     return (
       <div className="w-full relative overflow-hidden" style={{ backgroundColor: bg, color: textColor }}>
-        <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-4" style={{ height }}>
+        <div className="w-full px-4 lg:px-8 flex items-center gap-4" style={{ height }}>
           {hasImageUrl && !benefitImageErrored ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={store.top_benefit_image_url ?? undefined} alt={store.top_benefit_text ?? undefined} className="h-full mr-3 object-contain" style={{ maxHeight: height }} onError={() => setBenefitImageErrored(true)} onLoad={() => setBenefitImageErrored(false)} />
@@ -252,15 +270,7 @@ export function StoreHeader({ hideActions = false }: { hideActions?: boolean }) 
   }
 
   const hasRestrictedPriceFlow = isTruthyFlag(store.show_cost_price) && !isTruthyFlag(store.show_sale_price);
-
-  const { toggleSidebar } = useLayoutStore();
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const pathname = usePathname();
-  const { catalogSlug, repSlug, isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
-  const currentRep = isInstitutional ? null : repSlug;
-  const logoBase = store.catalog_slug ? store.catalog_slug : store.user_id;
-
   const handleSearchInputChange = (v: string) => setSearchTerm(v);
 
   const getCartCount = (c: any) => {
@@ -293,11 +303,11 @@ export function StoreHeader({ hideActions = false }: { hideActions?: boolean }) 
 
   return (
     <header style={cssVars}>
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-3 flex items-center gap-4">
+      <div className="w-full px-4 lg:px-8 py-3 flex items-center gap-4 lg:gap-6">
         <div className="flex items-center gap-4">
           {store.logo_url ? (
             <a
-              href={`/catalogo/${logoBase}${isInstitutional ? '/empresa' : currentRep ? `/${currentRep}` : ''}`}
+              href={`/catalogo/${(store as any).catalog_slug || ''}`}
               className="relative h-10 lg:h-12 xl:h-14 w-auto flex items-center"
             >
               <LogoImage src={store.logo_url} alt={store.name} />
@@ -727,7 +737,7 @@ export function StoreSidebar() {
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  <span>Todos os gêneros</span>
+                  <span>TODOS OS GÊNEROS</span>
                   {selectedGender === 'all' && (
                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
                   )}
@@ -946,7 +956,7 @@ export function StoreFooter() {
       className="border-t border-white/10 pt-12 pb-6 mt-auto relative z-10"
       style={{ backgroundColor: footerBg, color: footerTextColor }}
     >
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8">
+      <div className="w-full px-4 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="col-span-1">
             <h4 className="font-bold text-lg mb-4 text-[var(--primary)] filter brightness-150">
@@ -1038,39 +1048,49 @@ export function CarouselBrands() {
     brandsWithLogos && brandsWithLogos.length > 0
       ? brandsWithLogos
       : (brands || []).map((b: any) => ({ name: b, logo_url: null }));
-  if (!effectiveBrands || effectiveBrands.length === 0) return null;
-
   const memoBrands = useMemo(
     () => effectiveBrands,
     [JSON.stringify(effectiveBrands.map((b: any) => ({ name: b.name || '', logo: b.logo_url || '' })))]
   );
+  // Ensure toggleBrand hook is declared before any early returns
+  const toggleBrand = useCallback(
+    (brandName: string) => {
+      if (brandName === 'all') {
+        setSelectedBrand('all');
+        return;
+      }
+      // Single-selection: clicking a brand selects it, clicking again clears to 'all'
+      const current = Array.isArray(selectedBrand)
+        ? selectedBrand[0]
+        : selectedBrand && selectedBrand !== 'all'
+        ? String(selectedBrand)
+        : null;
 
-  function normalizeLogoSrc(src?: string | null): string | null {
+      if (current === brandName) {
+        setSelectedBrand('all');
+      } else {
+        setSelectedBrand(String(brandName));
+      }
+    },
+    [selectedBrand, setSelectedBrand]
+  );
+
+  function normalizeLogoSrc(src?: any): string | null {
     if (!src) return null;
-    const s = String(src).trim();
-    if (!s) return null;
-    if (/^https?:\/\//i.test(s)) return s;
-    return s.startsWith('/') ? s : `/${s}`;
+    try {
+      let finalPath = '';
+      if (typeof src === 'object' && src !== null) {
+        finalPath = src.variants?.desktop?.url || src.original || src.url || '';
+      } else {
+        finalPath = String(src).trim();
+      }
+      if (!finalPath || finalPath === '[object Object]') return null;
+      if (/^https?:\/\//i.test(finalPath)) return finalPath;
+      return finalPath.startsWith('/') ? finalPath : `/${finalPath}`;
+    } catch (e) {
+      return null;
+    }
   }
-
-  const toggleBrand = useCallback((brandName: string) => {
-    // Single-selection behaviour: selecting a brand sets it as the only selection.
-    // If the same brand is clicked again, clear selection to 'all'.
-    if (brandName === 'all') {
-      setSelectedBrand('all');
-      return;
-    }
-
-    const current = Array.isArray(selectedBrand)
-      ? (selectedBrand.length > 0 ? selectedBrand[0] : 'all')
-      : selectedBrand || 'all';
-
-    if (String(current) === String(brandName)) {
-      setSelectedBrand('all');
-    } else {
-      setSelectedBrand(brandName);
-    }
-  }, [selectedBrand, setSelectedBrand]);
 
   // Animate on mobile when there are 2 or more brands so movement feels consistent
   const shouldAnimate = isMobile && memoBrands.length >= 2;
@@ -1082,7 +1102,7 @@ export function CarouselBrands() {
 
   return (
     <div className="w-full border-t py-2 overflow-hidden relative bg-white touch-pan-y">
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center">
+      <div className="w-full px-4 lg:px-8 flex items-center gap-6">
         <span className="font-bold uppercase tracking-wide text-xs mr-3 flex-shrink-0">Marcas:</span>
 
         <div className="flex-1 overflow-hidden">
@@ -1097,6 +1117,8 @@ export function CarouselBrands() {
             {itemsToRender.map((brand: any, i: number) => {
               const active = Array.isArray(selectedBrand) ? selectedBrand.includes(brand.name) : selectedBrand === brand.name;
               const src = normalizeLogoSrc(brand.logo_url);
+
+              // no-op
 
               return (
                 <button

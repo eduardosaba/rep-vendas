@@ -172,7 +172,12 @@ export default function BrandsPage() {
         .order('name');
 
       if (error) throw error;
-      setBrands(data || []);
+      // apply per-user hidden list (session-scoped)
+      const hiddenRaw = typeof window !== 'undefined' ? sessionStorage.getItem('rv_hidden_metadata_v1') : null;
+      const hidden = hiddenRaw ? JSON.parse(hiddenRaw) : {};
+      const userHidden = (hidden[user.id] && hidden[user.id].brands) || [];
+      const filtered = (data || []).filter((b: any) => !userHidden.includes(b.id));
+      setBrands(filtered);
     } catch (error: unknown) {
       console.error(getErrorMessage(error));
       toast.error('Erro ao carregar marcas');
@@ -447,10 +452,36 @@ export default function BrandsPage() {
         .eq('id', deleteId);
       if (error) throw error;
 
-      setBrands((prev) => prev.filter((b) => b.id !== deleteId));
-      if (editingBrand?.id === deleteId) resetForm();
+      // Instead of deleting the DB row, persist a per-user hidden list so the
+      // brand is hidden in the user's virtual catalog but remains in the DB.
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error('Login necessário');
 
-      toast.success('Marca removida com sucesso.');
+        const hiddenKey = 'rv_hidden_metadata_v1';
+        const raw = typeof window !== 'undefined' ? sessionStorage.getItem(hiddenKey) : null;
+        const hidden = raw ? JSON.parse(raw) : {};
+        if (!hidden[user.id]) hidden[user.id] = { category: [], gender: [], material: [], brands: [], brand_names: [] };
+        // push id
+        if (!hidden[user.id].brands.includes(deleteId)) hidden[user.id].brands.push(deleteId);
+        // also push brand name (if available) so product-derived brand lists can be filtered
+        const brandObj = (brands || []).find((b) => b.id === deleteId);
+        const brandName = brandObj ? String(brandObj.name || '') : '';
+        if (brandName && !hidden[user.id].brand_names.includes(brandName)) hidden[user.id].brand_names.push(brandName);
+        if (typeof window !== 'undefined') sessionStorage.setItem(hiddenKey, JSON.stringify(hidden));
+
+        setBrands((prev) => prev.filter((b) => b.id !== deleteId));
+        if (editingBrand?.id === deleteId) resetForm();
+
+        toast.success('Marca ocultada no catálogo virtual (visível apenas para você).');
+      } catch (err) {
+        // fallback to hard delete if sessionStorage or auth failed
+        setBrands((prev) => prev.filter((b) => b.id !== deleteId));
+        if (editingBrand?.id === deleteId) resetForm();
+        toast.success('Marca removida da lista local.');
+      }
     } catch (error: unknown) {
       const msg = getErrorMessage(error);
       toast.error('Erro ao remover', { description: msg });

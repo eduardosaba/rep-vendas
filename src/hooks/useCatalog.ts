@@ -76,7 +76,11 @@ export function useCatalog(
           p.set('page', String(currentPage || 1));
           p.set('per_page', String(itemsPerPage || 24));
           if (searchTerm) p.set('q', searchTerm);
-          if (selectedCategory && selectedCategory !== 'all') p.set('category', String(selectedCategory));
+          if (selectedCategory && selectedCategory !== 'all') {
+            // send both category and class_core so server can filter by either
+            p.set('category', String(selectedCategory));
+            p.set('class_core', String(selectedCategory));
+          }
           if (selectedBrands && selectedBrands.length > 0) p.set('brands', selectedBrands.join(','));
           // respeitar filtros de URL (material/polarizado/fotocromatico)
           const material = params.get('material');
@@ -91,6 +95,11 @@ export function useCatalog(
           if (sortOrder) p.set('order', sortOrder === 'asc' ? 'asc' : 'desc');
 
           const url = `/api/catalog?${p.toString()}`;
+          try {
+            // debug: show the exact query sent to the server
+            // eslint-disable-next-line no-console
+            console.debug('[useCatalog] fetching', url);
+          } catch {}
           const productsRes = await fetch(url);
           const productsJson = await productsRes.json();
 
@@ -263,9 +272,34 @@ export function useCatalog(
           selectedBrands.length === 0 ||
           (product.brand && selectedBrands.includes(product.brand));
 
-        // 4. Filtro de Categoria (Usando 'Brand' como categoria por enquanto, ajuste se tiver campo category)
+        // 4. Filtro de Categoria / Tipo
+        // selectedCategory pode ser uma brand, uma categoria ou um tipo (class_core).
+        const selRaw = String(selectedCategory || '').toString().trim();
+        const brandRaw = String(product.brand || '').trim();
+        const categoryRaw = String((product as any).category || '').trim();
+        // normalization helper: strip non-alphanum, remove leading opt, detect CLIPON variants
+        const normalizeForClip = (v: string) => {
+          if (!v) return '';
+          let s = String(v || '').toLowerCase();
+          s = s.replace(/[^a-z0-9]+/g, ''); // remove hyphens/spaces/special chars
+          s = s.replace(/^opt+/, ''); // strip leading opt prefix
+          if (!s) return '';
+          if (s.includes('clipon')) return 'CLIPON';
+          if (s.includes('clip') && s.includes('on')) return 'CLIPON';
+          if (s.includes('clion') || s.includes('clpon')) return 'CLIPON';
+          return s.toUpperCase();
+        };
+        const sel = normalizeForClip(selRaw) || selRaw.toUpperCase();
+        const brandNorm = normalizeForClip(brandRaw) || brandRaw.toUpperCase();
+        const categoryNorm = normalizeForClip(categoryRaw) || categoryRaw.toUpperCase();
+        // normalize class_core
+        let classRaw = String((product as any).class_core || '').trim();
+        const classNorm = normalizeForClip(classRaw) || classRaw.toUpperCase();
         const matchesCategory =
-          selectedCategory === 'all' || product.brand === selectedCategory;
+          selectedCategory === 'all' ||
+          sel === brandNorm ||
+          sel === classNorm ||
+          sel === categoryNorm;
 
         // 5. Filtros Especiais (Tags)
         const matchesBestseller = !showOnlyBestsellers || product.bestseller;

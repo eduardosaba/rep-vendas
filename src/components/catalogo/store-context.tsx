@@ -34,6 +34,26 @@ async function sha256(input: string) {
   }
 }
 
+// Função de normalização idêntica à da interface visual para garantir match
+const normalizeForTypeMatch = (x: any) => {
+  try {
+    let s = String(x || '').toLowerCase().trim();
+    if (
+      s.includes('clipon') ||
+      (s.includes('clip') && s.includes('on')) ||
+      s.includes('clion') ||
+      s.includes('clpon') ||
+      s.includes('clip-on')
+    ) {
+      return 'clipon';
+    }
+    const cleaned = s.replace(/[^a-z0-9]+/gi, '');
+    return cleaned.replace(/^opt+/, '');
+  } catch (e) {
+    return String(x || '').toLowerCase();
+  }
+};
+
 interface StoreProviderProps {
   store: StoreSettings | PublicCatalog;
   initialProducts?: Product[];
@@ -202,9 +222,12 @@ export function StoreProvider({
         if (searchTerm) params.set('q', searchTerm);
         else params.delete('q');
 
-        if (selectedBrand && selectedBrand !== 'all') {
-          if (Array.isArray(selectedBrand))
-            params.set('brand', selectedBrand.join(','));
+        const hasBrandSelection = Array.isArray(selectedBrand)
+          ? selectedBrand.length > 0
+          : selectedBrand && selectedBrand !== 'all';
+
+        if (hasBrandSelection) {
+          if (Array.isArray(selectedBrand)) params.set('brand', selectedBrand.join(','));
           else params.set('brand', selectedBrand as string);
         } else params.delete('brand');
 
@@ -278,8 +301,8 @@ export function StoreProvider({
       return;
     }
     try {
-      setSelectedCategory('all');
-      setSelectedGender('all');
+      // Não resetar categoria/gênero para permitir multi-seleção de marcas
+      // ao trocar de marca — apenas ajustar paginação.
       setCurrentPage(1);
     } catch (e) {
       // ignore
@@ -462,42 +485,93 @@ export function StoreProvider({
   );
 
   // Memoização para performance
-  const brands = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          initialProducts
-            .map((p) => p.brand?.trim())
-            .filter(Boolean) as string[]
-        )
-      ),
-    [initialProducts]
-  );
-  const categories = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          initialProducts
-            .map((p) => p.category?.trim())
-            .filter(Boolean) as string[]
-        )
-      ),
-    [initialProducts]
-  );
+  const brands = useMemo(() => {
+    const raw = (initialProducts || [])
+      .map((p) => {
+        const v = p.brand;
+        if (v === null || typeof v === 'undefined') return null;
+        const s = String(v || '').trim();
+        if (!s) return null;
+        // filter out N/D-like values
+        if (/^#?\s*n\/?d\s*$/i.test(s) || /^n\/a$/i.test(s)) return null;
+        return s;
+      })
+      .filter(Boolean) as string[];
+
+    // Deduplicate case-insensitively, but return Title Case for UI
+    // collect session-hidden brand names only for the current store user (if any)
+    let hiddenNames = new Set<string>();
+    try {
+      const uid = store?.user_id;
+      if (uid && typeof window !== 'undefined') {
+        const rawHidden = sessionStorage.getItem('rv_hidden_metadata_v1');
+        const hiddenObj = rawHidden ? JSON.parse(rawHidden) : {};
+        const arr = hiddenObj[uid]?.brand_names;
+        if (Array.isArray(arr)) arr.forEach((n: string) => hiddenNames.add(String(n).trim().toLowerCase()));
+      }
+    } catch (e) {
+      /* ignore session errors */
+    }
+
+    const seen = new Map<string, string>();
+    for (const b of raw) {
+      const key = String(b).trim().toLowerCase();
+      if (hiddenNames.has(key)) continue;
+      if (!seen.has(key)) {
+        // Title case words
+        const title = String(b)
+          .trim()
+          .split(/\s+/)
+          .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+          .join(' ');
+        seen.set(key, title);
+      }
+    }
+    return Array.from(seen.values());
+  }, [initialProducts]);
+
+  const categories = useMemo(() => {
+    const raw = (initialProducts || [])
+      .map((p) => {
+        const v = p.category;
+        if (v === null || typeof v === 'undefined') return null;
+        const s = String(v || '').trim();
+        if (!s) return null;
+        if (/^#?\s*n\/?d\s*$/i.test(s) || /^n\/a$/i.test(s)) return null;
+        return s;
+      })
+      .filter(Boolean) as string[];
+
+    const seen = new Map<string, string>();
+    for (const c of raw) {
+      const key = String(c).trim().toLowerCase();
+      if (!seen.has(key)) {
+        const title = String(c)
+          .trim()
+          .split(/\s+/)
+          .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+          .join(' ');
+        seen.set(key, title);
+      }
+    }
+    return Array.from(seen.values());
+  }, [initialProducts]);
   const genders = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          initialProducts
-            .map((p) => (p as any).gender?.trim())
-            .filter(Boolean) as string[]
-        )
-      )
-        .filter((g) => {
-          const v = String(g || '').trim();
-          return v && !/^#?\s*n\/?d\s*$/i.test(v) && v.toLowerCase() !== 'n/a';
+    () => {
+      const raw = (initialProducts || [])
+        .map((p) => {
+          const v = (p as any).gender;
+          if (v === null || typeof v === 'undefined') return null;
+          const s = String(v || '').trim();
+          if (!s) return null;
+          // filter out N/D-like values early
+          if (/^#?\s*n\/?d\s*$/i.test(s) || /^n\/a$/i.test(s)) return null;
+          return s.toUpperCase();
         })
-        .sort(),
+        .filter(Boolean) as string[];
+
+      return Array.from(new Set(raw)).sort();
+    },
     [initialProducts]
   );
 
@@ -537,60 +611,90 @@ export function StoreProvider({
     const fetchLogos = async () => {
       // if we have specific brand names derived from products, request only them
       // otherwise fetch all brands for this store so institutional pages still show logos
-      const query = supabase.from('brands').select('name, logo_url, banner_url, description').eq('user_id', store.user_id);
+      const query = supabase.from('brands').select('id, name, logo_url, banner_url, description').eq('user_id', store.user_id);
       if (Array.isArray(brands) && brands.length > 0) {
         query.in('name', brands);
       }
 
-      const { data } = await query;
-      if (data) {
+      let { data } = await query;
+      // If we attempted to narrow by brand names and got no rows, fall back
+      // to fetching all brands for this user (some DBs may have different
+      // capitalization/formatting and `.in('name', ...)` can miss matches).
+      if ((Array.isArray(data) && data.length === 0) && Array.isArray(brands) && brands.length > 0) {
+        try {
+          const res = await supabase.from('brands').select('id, name, logo_url, banner_url, description').eq('user_id', store.user_id);
+          data = res.data;
+        } catch (e) {
+          // ignore and keep original data
+        }
+      }
+      // normalize a working rows array and apply per-user hidden brands (session-scoped)
+      let rows: any[] = Array.isArray(data) ? data : [];
+      try {
+        const uid = store?.user_id;
+        if (uid && typeof window !== 'undefined') {
+          const hiddenRaw = sessionStorage.getItem('rv_hidden_metadata_v1');
+          const hidden = hiddenRaw ? JSON.parse(hiddenRaw) : {};
+          const userHidden = (hidden[uid] && hidden[uid].brands) || [];
+          if (Array.isArray(userHidden) && userHidden.length > 0 && Array.isArray(rows)) {
+            rows = rows.filter((d: any) => !userHidden.includes(d.id));
+          }
+        }
+      } catch (e) {
+        // ignore sessionStorage failures — proceed with original rows
+      }
+      if (rows) {
+        try {
+          // debug: mostrar rows retornadas pelo supabase e brands solicitadas
+          // eslint-disable-next-line no-console
+          console.debug('[store] fetchLogos rows count', rows.length, { requestedBrands: brands });
+        } catch (e) {}
         const PUBLIC_BASE =
           typeof window !== 'undefined'
             ? process.env.NEXT_PUBLIC_APP_URL || ''
             : process.env.NEXT_PUBLIC_APP_URL || '';
 
         const extractUrl = (raw: any): string | null => {
-          if (!raw && raw !== '') return null;
+          if (!raw) return null;
           try {
-            // If it's already an object with common keys
-            if (typeof raw === 'object') {
-              if (raw.publicUrl) return String(raw.publicUrl);
-              if (raw.secureUrl) return String(raw.secureUrl);
-              if (raw.url) return String(raw.url);
-            }
+            let target: any = raw;
 
-            // If it's a JSON string, try to parse
-            if (typeof raw === 'string') {
-              const s = raw.trim();
-              if (s.startsWith('{') || s.startsWith('[') || s.startsWith('"')) {
-                try {
-                  const parsed = JSON.parse(s);
-                  if (!parsed) return null;
-                  if (Array.isArray(parsed) && parsed.length > 0)
-                    return String(parsed[0]);
-                  if (typeof parsed === 'string') return parsed;
-                  if (parsed.publicUrl) return String(parsed.publicUrl);
-                  if (parsed.secureUrl) return String(parsed.secureUrl);
-                  if (parsed.url) return String(parsed.url);
-                } catch (e) {
-                  // fallthrough to regexp
-                }
+            // 1. Se for string, tenta ver se é um JSON stringificado (comum vindo do Supabase)
+            if (typeof raw === 'string' && (raw.startsWith('{') || raw.startsWith('['))) {
+              try {
+                const parsed = JSON.parse(raw);
+                target = Array.isArray(parsed) ? parsed[0] : parsed;
+              } catch (e) {
+                target = raw;
               }
-
-              // Try regex extraction for embedded publicUrl
-              const m = raw.match(/publicUrl"\s*:\s*"(https?:\/\/[^"]+)"/i);
-              if (m && m[1]) return m[1];
-
-              // Plain URL
-              if (/^https?:\/\//i.test(raw)) return raw;
-              // Trim surrounding quotes
-              const trimmed = raw.replace(/^"|"$/g, '');
-              if (/^https?:\/\//i.test(trimmed)) return trimmed;
             }
+
+            // 2. Extração de URL de objeto ou string
+            let finalPath = '';
+            if (typeof target === 'object' && target !== null) {
+              // Prioridade: Variante desktop -> Original -> Chaves Legadas
+              finalPath = target.variants?.desktop?.url || target.original || target.publicUrl || target.url || '';
+            } else {
+              finalPath = String(target);
+            }
+
+            if (!finalPath || finalPath === '[object Object]') return null;
+            if (/^https?:\/\//i.test(finalPath)) return finalPath;
+
+            // 3. Normalização para o Proxy
+            let cleanPath = finalPath;
+            if (finalPath.includes('/storage/v1/object/public/')) {
+              cleanPath = finalPath.split('/storage/v1/object/public/')[1];
+            }
+
+            // Remove duplicidade de prefixos
+            cleanPath = cleanPath.replace(/^(public\/)+/, '').replace('product-images/public/', 'product-images/');
+
+            return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
           } catch (e) {
-            // ignore
+            console.error('Erro ao extrair URL da marca:', e);
+            return null;
           }
-          return null;
         };
 
         const normalize = (d: any) => {
@@ -628,20 +732,21 @@ export function StoreProvider({
             description: d.description || null,
           } as any;
         };
-        setBrandsWithLogos(
-          brands.map((b) => {
-            const needle = String(b || '').trim().toLowerCase();
-            const found = data.find((d: any) => String(d.name || '').trim().toLowerCase() === needle);
-            return found
-              ? normalize(found)
-              : {
-                  name: b,
-                  logo_url: null,
-                  banner_url: null,
-                  description: null,
-                };
-          })
-        );
+        const mapped = brands.map((b) => {
+          const needle = String(b || '').trim().toLowerCase();
+          const found = rows.find((d: any) => String(d.name || '').trim().toLowerCase() === needle);
+          return found
+            ? normalize(found)
+            : {
+                name: b,
+                logo_url: null,
+                banner_url: null,
+                description: null,
+              };
+        });
+
+        setBrandsWithLogos(mapped);
+        
       }
     };
     // Only attempt to fetch if we have a valid store.user_id
@@ -1384,8 +1489,12 @@ export function StoreProvider({
             if (productBrand !== normalize(selectedBrand)) return false;
           }
         }
-        if (selectedCategory !== 'all' && p.category !== selectedCategory)
-          return false;
+        if (selectedCategory !== 'all') {
+          const selectedNorm = normalizeForTypeMatch(selectedCategory);
+          const categoryNorm = normalizeForTypeMatch((p as any).category || '');
+          const typeNorm = normalizeForTypeMatch((p as any).class_core || '');
+          if (categoryNorm !== selectedNorm && typeNorm !== selectedNorm) return false;
+        }
         if (selectedGender !== 'all') {
           const normalize = (s: unknown) =>
             String(s || '')
@@ -1475,26 +1584,35 @@ export function StoreProvider({
     // Criamos uma cópia para preservar todas as propriedades originais
     const s: any = { ...store };
 
-    const resolveUrl = (u: string | null | undefined, isThumbnail = false) => {
-      if (!u) return '';
-      const str = String(u || '');
+    const resolveUrl = (u: any, isThumbnail = false) => {
+      if (!u && u !== '') return '';
 
-      // Keep external full URLs that are not Supabase storage
-      if (/^https?:\/\//i.test(str) && !str.includes('supabase.co/storage'))
-        return str;
+      // Accept objects (new variants format) or strings
+      let finalPath = '';
+      if (typeof u === 'object' && u !== null) {
+        finalPath = isThumbnail
+          ? (u.variants?.mobile?.url || u.variants?.desktop?.url || u.original || '')
+          : (u.variants?.desktop?.url || u.original || '');
+      } else {
+        finalPath = String(u || '');
+      }
+
+      if (!finalPath) return '';
+
+      // If it's an external full URL (not Supabase storage), return as-is
+      if (/^https?:\/\//i.test(finalPath) && !finalPath.includes('supabase.co/storage')) return finalPath;
 
       // Normalize Supabase storage paths and remove duplicated 'public/' segments
-      let path = str;
-      if (str.includes('/storage/v1/object/public/')) {
-        path = str.split('/storage/v1/object/public/')[1];
+      let path = finalPath;
+      if (finalPath.includes('/storage/v1/object/public/')) {
+        path = finalPath.split('/storage/v1/object/public/')[1];
       }
-      const cleanPath = path.replace(
-        'product-images/public/',
-        'product-images/'
-      );
 
-      // If requesting a thumbnail, ask the proxy to resize for smaller payloads
-      const resizeParam = isThumbnail ? '&width=300&quality=70' : '';
+      // Remove leading repeated public/ segments
+      let cleanPath = String(path || '').replace(/^(public\/)+/, '');
+      cleanPath = cleanPath.replace('product-images/public/', 'product-images/');
+
+      const resizeParam = isThumbnail ? '&width=400&quality=75' : '';
       return `/api/storage-image?path=${encodeURIComponent(cleanPath)}${resizeParam}`;
     };
 
@@ -1704,6 +1822,7 @@ export function StoreProvider({
     <StoreContext.Provider
       value={{
         store: normalizedStore,
+        filteredProducts,
         initialProducts,
         pendingImagesCount,
         refreshPendingImages,

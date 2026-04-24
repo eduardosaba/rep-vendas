@@ -1,4 +1,4 @@
- 'use client';
+﻿ 'use client';
 
 import React from 'react';
 import Image from 'next/image';
@@ -19,6 +19,8 @@ import {
   Image as ImageIcon,
   ImageOff,
   Star,
+  User,
+  Sun,
 } from 'lucide-react';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -39,6 +41,35 @@ interface SlideData {
   altText: string;
 }
 
+// Normalization helper used across category/type logic (moved to module scope)
+const normalizeForTypeModule = (x: any) => {
+  try {
+    let s = String(x || '').toLowerCase().trim();
+
+    // 1. Semantic mapping for Clip-on variants
+    if (
+      s.includes('clipon') ||
+      (s.includes('clip') && s.includes('on')) ||
+      s.includes('clion') ||
+      s.includes('clpon') ||
+      s.includes('clip-on')
+    ) {
+      return 'clipon';
+    }
+
+    // 2. Standard normalization: remove non-alphanumeric and leading 'opt'
+    const cleaned = s.replace(/[^a-z0-9]+/gi, '');
+    return cleaned.replace(/^opt+/, '');
+  } catch (e) {
+    return String(x || '').toLowerCase();
+  }
+};
+
+// Back-compat alias for any runtime references (HMR/dev overlay protection)
+// Keep `normalizeForType` name for modules that may still reference it during hot reload.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const normalizeForType: (x: any) => string = normalizeForTypeModule as any;
+
 function OutsideCloseEffect({
   openType,
   openGender,
@@ -49,7 +80,7 @@ function OutsideCloseEffect({
   openType: boolean;
   openGender: boolean;
   openMore: boolean;
-  openMaterial?: boolean;
+  openMaterial: boolean;
   onCloseAll: () => void;
 }) {
   useEffect(() => {
@@ -64,11 +95,9 @@ function OutsideCloseEffect({
         return;
       onCloseAll();
     };
-
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCloseAll();
     };
-
     document.addEventListener('mousedown', onDocDown);
     document.addEventListener('touchstart', onDocDown);
     document.addEventListener('keydown', onKey);
@@ -78,7 +107,6 @@ function OutsideCloseEffect({
       document.removeEventListener('keydown', onKey);
     };
   }, [openType, openGender, openMore, openMaterial, onCloseAll]);
-
   return null;
 }
 
@@ -93,17 +121,38 @@ export function CategoryBar() {
     showOnlyBestsellers,
     setShowOnlyBestsellers,
     selectedBrand,
-    searchTerm,
-    setSearchTerm,
+    selectedMaterial,
+    setSelectedMaterial,
+    materials = [],
+    filterPolarizado,
+    setFilterPolarizado,
+    filterFotocromatico,
+    setFilterFotocromatico,
   } = useStore();
+  // debug: log category-related data when debugging CLIPON issues
+  try {
+    // eslint-disable-next-line no-console
+    console.debug('[CategoryBar] categories', categories && categories.slice ? categories.slice(0,10) : categories);
+  } catch {}
   const { genders = [], selectedGender, setSelectedGender } = useStore();
-  const { materials = [], selectedMaterial, setSelectedMaterial, filterPolarizado, setFilterPolarizado, filterFotocromatico, setFilterFotocromatico, hasPolarizado, hasFotocromatico } = useStore();
+
+  const hasBestSellers = useMemo(
+    () => initialProducts.some((p: Product) => (p as any).bestseller),
+    [initialProducts]
+  );
+  const hasPolarizado = useMemo(
+    () => initialProducts.some((p: Product) => (p as any).polarizado),
+    [initialProducts]
+  );
+  const hasFotocromatico = useMemo(
+    () => initialProducts.some((p: Product) => (p as any).fotocromatico),
+    [initialProducts]
+  );
 
   const displayGenders = useMemo(() => {
     const activeBrand = Array.isArray(selectedBrand)
       ? (selectedBrand[0] as string)
       : (selectedBrand as string | undefined);
-
     const productsForBrand =
       activeBrand && activeBrand !== 'all'
         ? initialProducts.filter(
@@ -112,20 +161,22 @@ export function CategoryBar() {
               (activeBrand || '').toString().trim().toLowerCase()
           )
         : initialProducts;
-
-    const fromProducts = Array.from(
-      new Set(
-        productsForBrand.map((p: Product) => (p as any).gender).filter(Boolean)
-      )
-    );
-    return fromProducts;
+    const ND_PATTERNS = ['n/d', '#n/d', 'nd', 'n.d', 'n.d.', '-', ''];
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const p of productsForBrand) {
+      const raw = ((p as any).gender || '').toString().trim();
+      if (!raw || ND_PATTERNS.includes(raw.toLowerCase())) continue;
+      const upper = raw.toUpperCase();
+      if (!seen.has(upper)) { seen.add(upper); result.push(upper); }
+    }
+    return result;
   }, [initialProducts, selectedBrand]);
+
   const displayCategories = useMemo(() => {
-    // If a brand is selected, derive categories only from that brand's products
     const activeBrand = Array.isArray(selectedBrand)
       ? (selectedBrand[0] as string)
       : (selectedBrand as string | undefined);
-
     const productsForBrand =
       activeBrand && activeBrand !== 'all'
         ? initialProducts.filter(
@@ -134,24 +185,46 @@ export function CategoryBar() {
               (activeBrand || '').toString().trim().toLowerCase()
           )
         : initialProducts;
-
-    if (categories && categories.length > 0 && !activeBrand) {
-      return categories.map((c: any) =>
-        typeof c === 'string' ? c : c?.name || String(c)
-      );
+    // If there are categories in the dedicated table, merge them with
+    // categories derived from products so deleting rows doesn't hide product-backed categories.
+    const tableCats = (categories && categories.length > 0)
+      ? categories.map((c: any) => (typeof c === 'string' ? c : c?.name || String(c)))
+      : [];
+    const ND_PATTERNS = ['n/d', '#n/d', 'nd', 'n.d', 'n.d.', '-', ''];
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const p of productsForBrand) {
+      const raw = (p.category || '').toString().trim();
+      if (!raw || ND_PATTERNS.includes(raw.toLowerCase())) continue;
+      const upper = raw.toUpperCase();
+      if (!seen.has(upper)) { seen.add(upper); result.push(upper); }
     }
-
-    const fromProducts = Array.from(
-      new Set(productsForBrand.map((p: Product) => p.category).filter(Boolean))
-    );
-    return fromProducts;
+    // Merge table categories and product-derived categories, preserving order: table first
+    const merged = [...tableCats.map((t: string) => String(t)), ...result];
+    // Deduplicate case-insensitively while preserving first appearance
+    const uniq: string[] = [];
+    const seenLower = new Set<string>();
+    for (const v of merged) {
+      const k = String(v || '').trim().toLowerCase();
+      if (!k) continue;
+      if (!seenLower.has(k)) {
+        seenLower.add(k);
+        // Return in Title Case for UI consistency
+        const title = String(v)
+          .trim()
+          .split(/\s+/)
+          .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+          .join(' ');
+        uniq.push(title);
+      }
+    }
+    return uniq;
   }, [categories, initialProducts, selectedBrand]);
 
   const displayTypes = useMemo(() => {
     const activeBrand = Array.isArray(selectedBrand)
       ? (selectedBrand[0] as string)
       : (selectedBrand as string | undefined);
-
     const productsForBrand =
       activeBrand && activeBrand !== 'all'
         ? initialProducts.filter(
@@ -160,51 +233,68 @@ export function CategoryBar() {
               (activeBrand || '').toString().trim().toLowerCase()
           )
         : initialProducts;
+    const ND_PATTERNS = ['n/d', '#n/d', 'nd', 'n.d', 'n.d.', '-', '', 'classe a'];
+    const seen = new Set<string>();
+    const result: string[] = [];
 
-    const fromProducts = Array.from(
-      new Set(
-        productsForBrand
-          .map((p: Product) => (p as any).class_core)
-          .map((t: any) => (t === null || t === undefined ? '' : String(t).trim()))
-          .filter((t: string) => t !== '' && t !== '#N/D')
-      )
-    );
-    return fromProducts;
+    const isClipVariant = (val: string) => {
+      if (!val) return false;
+      // normalize: lowercase, remove non-alphanumeric
+      let s = String(val || '').toLowerCase();
+      s = s.replace(/[^a-z0-9]+/g, '');
+      // strip leading opt prefix (e.g., OPTCLI-ON -> CLI ON)
+      s = s.replace(/^opt+/, '');
+      if (!s) return false;
+      if (s.includes('clipon')) return true;
+      if (s.includes('clip') && s.includes('on')) return true;
+      if (s.includes('clion')) return true;
+      if (s.includes('clpon')) return true;
+      return false;
+    };
+
+    for (const p of productsForBrand) {
+      let raw = ((p as any).class_core || '') as string;
+      raw = String(raw || '').trim();
+      if (!raw || ND_PATTERNS.includes(raw.toLowerCase())) continue;
+      const normalized = isClipVariant(raw) ? 'CLIPON' : raw.toUpperCase();
+      if (!seen.has(normalized)) { seen.add(normalized); result.push(normalized); }
+    }
+    return result;
   }, [initialProducts, selectedBrand]);
 
-  // Remove qualquer item que também seja classificado como 'type' para evitar
-  // duplicação (mostramos tipos apenas no dropdown). Mantemos a ordem original.
+  
+
+  const isSelectedType = (t: any) => {
+    if (!t) return false;
+    return normalizeForTypeModule(selectedCategory) === normalizeForTypeModule(t);
+  };
+  const normalizeSimple = (s: any) => String(s || '').trim().toLowerCase();
+  const isSelectedGender = (g: any) => normalizeSimple(selectedGender) === normalizeSimple(g);
+  const isSelectedMaterial = (m: any) => normalizeSimple(selectedMaterial) === normalizeSimple(m);
+
   const visibleCategories = useMemo(() => {
     if (!displayCategories) return [];
-    const typesSet = new Set((displayTypes || []).map(String));
-    return displayCategories.filter((c: any) => !typesSet.has(String(c)));
+    const typesSet = new Set((displayTypes || []).map((s) => normalizeForTypeModule(s)));
+    return displayCategories.filter((c: any) => {
+      const norm = normalizeForTypeModule(c);
+      if (!norm) return false;
+      return !typesSet.has(norm);
+    });
   }, [displayCategories, displayTypes]);
 
   const [openTypeMenu, setOpenTypeMenu] = useState(false);
   const [openGenderMenu, setOpenGenderMenu] = useState(false);
-  const [openMaterialMenu, setOpenMaterialMenu] = useState(false);
   const [openMoreMenu, setOpenMoreMenu] = useState(false);
+  const [openMaterialMenu, setOpenMaterialMenu] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const typeBtnRef = useRef<HTMLButtonElement | null>(null);
   const genderBtnRef = useRef<HTMLButtonElement | null>(null);
-  const materialBtnRef = useRef<HTMLButtonElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement | null>(null);
-  const [typeMenuRect, setTypeMenuRect] = useState<null | {
-    left: number;
-    top: number;
-    width: number;
-  }>(null);
-  const [genderMenuRect, setGenderMenuRect] = useState<null | {
-    left: number;
-    top: number;
-    width: number;
-  }>(null);
+  const materialBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [typeMenuRect, setTypeMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
+  const [genderMenuRect, setGenderMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
   const [materialMenuRect, setMaterialMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
-  const [moreMenuRect, setMoreMenuRect] = useState<null | {
-    left: number;
-    top: number;
-    width: number;
-  }>(null);
+  const [moreMenuRect, setMoreMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
@@ -215,13 +305,15 @@ export function CategoryBar() {
     // (store banner meta is handled in StoreBanners component)
   const router = useRouter();
 
+  
+
   if (!displayCategories || displayCategories.length === 0) return null;
 
   // Mobile: render compact bar without horizontal scroll
   if (isMobile) {
     return (
       <div className="w-full bg-white border-b border-gray-100 py-3 sticky top-0 z-30">
-        <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center justify-between">
+        <div className="w-full px-4 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelectedCategory('all')}
@@ -270,29 +362,29 @@ export function CategoryBar() {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <h4 className="text-xs font-bold text-gray-700 mb-2">Tipo</h4>
-                <div className="flex flex-col space-y-1">
-                  <button
-                    onClick={() => {
-                      setSelectedCategory('all');
-                      setOpenMoreMenu(false);
-                    }}
-                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
-                  >
-                    Todos os Tipos
-                  </button>
-                  {displayTypes.map((t: any) => (
+                <div className="flex flex-col gap-2 pr-2">
                     <button
-                      key={t}
                       onClick={() => {
-                        setSelectedCategory(t);
+                        setSelectedCategory('all');
                         setOpenMoreMenu(false);
                       }}
-                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${selectedCategory === 'all' ? 'font-bold' : ''}`}
                     >
-                      {String(t)}
+                      TODOS OS TIPOS
                     </button>
-                  ))}
-                </div>
+                    {(displayTypes && displayTypes.length ? displayTypes : []).map((t: string) => (
+                      <button
+                        key={t}
+                        onClick={() => {
+                          setSelectedCategory(t);
+                          setOpenMoreMenu(false);
+                        }}
+                        className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedType(t) ? 'bg-[var(--primary)] text-white' : ''}`}
+                      >
+                        {String(t).toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
               </div>
 
               <div>
@@ -305,7 +397,7 @@ export function CategoryBar() {
                     }}
                     className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
                   >
-                    Todos os Gêneros
+                    TODOS OS GÊNEROS
                   </button>
                   {(displayGenders && displayGenders.length
                     ? displayGenders
@@ -319,7 +411,7 @@ export function CategoryBar() {
                       }}
                       className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
                     >
-                      {String(g)}
+                      {String(g).toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -335,7 +427,7 @@ export function CategoryBar() {
                     }}
                     className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
                   >
-                    Todos os Materiais
+                    TODOS OS MATERIAIS
                   </button>
                   {(materials && materials.length ? materials : []).map((m: any) => (
                     <button
@@ -346,7 +438,7 @@ export function CategoryBar() {
                       }}
                       className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
                     >
-                      {String(m)}
+                      {String(m).toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -417,7 +509,9 @@ export function CategoryBar() {
                 }}
                 className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
               >
-                Polarizado
+                <span className="inline-flex items-center gap-2">
+                  <Sun size={14} /> Polarizado
+                </span>
               </button>
 
               <button
@@ -439,7 +533,9 @@ export function CategoryBar() {
                 }}
                 className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
               >
-                Fotocromático
+                <span className="inline-flex items-center gap-2">
+                  <ImageIcon size={14} /> Fotocromático
+                </span>
               </button>
             </div>
           </div>
@@ -450,7 +546,7 @@ export function CategoryBar() {
 
   return (
     <div className="w-full bg-white border-b border-gray-100 py-3 sticky top-0 z-30 shadow-sm md:shadow-none">
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 flex items-center gap-2 overflow-x-auto scrollbar-hide select-none">
+      <div className="w-full px-4 lg:px-8 flex items-center gap-4 lg:gap-6 overflow-x-auto scrollbar-hide select-none scroll-px-4">
         <div className="relative">
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 shrink-0 pr-2">
@@ -468,46 +564,36 @@ export function CategoryBar() {
               Todos
             </button>
 
-            {visibleCategories.slice(0, 6).map((cat: any) => (
-              <button
-                key={typeof cat === 'string' ? cat : cat?.name}
-                onClick={() =>
-                  setSelectedCategory(typeof cat === 'string' ? cat : cat?.name)
-                }
-                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border ${
-                  selectedCategory ===
-                  (typeof cat === 'string' ? cat : cat?.name)
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'bg-white text-gray-600 border-gray-200'
-                }`}
-              >
-                {typeof cat === 'string' ? cat : cat?.name}
-              </button>
-            ))}
+            {/* categories rendered after the main filter buttons (see below) */}
 
-            <button
-              ref={typeBtnRef}
-              data-menu-trigger="type"
-              onClick={() => {
-                const next = !openTypeMenu;
-                setOpenTypeMenu(next);
-                setOpenGenderMenu(false);
-                setOpenMaterialMenu(false);
-                setOpenMoreMenu(false);
-                if (next && typeBtnRef.current) {
-                  const r = typeBtnRef.current.getBoundingClientRect();
-                  setTypeMenuRect({
-                    left: r.left,
-                    top: r.bottom + 8,
-                    width: Math.max(240, r.width * 2),
-                  });
-                }
-              }}
-              aria-expanded={openTypeMenu}
-              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
-            >
-              Tipo ▾
-            </button>
+            {/* Tipo: botão com dropdown no desktop; no mobile permanece dentro de 'Mais' */}
+            {!isMobile && (
+              <>
+                <button
+                  ref={typeBtnRef}
+                  data-menu-trigger="type"
+                  onClick={() => {
+                    const next = !openTypeMenu;
+                    setOpenTypeMenu(next);
+                    setOpenGenderMenu(false);
+                    setOpenMaterialMenu(false);
+                    setOpenMoreMenu(false);
+                    if (next && typeBtnRef.current) {
+                      const r = typeBtnRef.current.getBoundingClientRect();
+                      setTypeMenuRect({
+                        left: r.left,
+                        top: r.bottom + 8,
+                        width: Math.max(240, r.width * 2),
+                      });
+                    }
+                  }}
+                  aria-expanded={openTypeMenu}
+                  className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+                >
+                  <span className="inline-flex items-center gap-2"><LayoutGrid size={14} /> Tipo ▾</span>
+                </button>
+              </>
+            )}
 
             <button
               ref={genderBtnRef}
@@ -530,7 +616,7 @@ export function CategoryBar() {
               aria-expanded={openGenderMenu}
               className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
             >
-              Gênero ▾
+              <span className="inline-flex items-center gap-2"><User size={14} /> Gênero ▾</span>
             </button>
 
             {materials && materials.length > 0 && (
@@ -551,7 +637,7 @@ export function CategoryBar() {
               aria-expanded={openMaterialMenu}
               className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
             >
-              Material ▾
+              <span className="inline-flex items-center gap-2"><Archive size={14} /> Material ▾</span>
             </button>
             )}
 
@@ -579,6 +665,23 @@ export function CategoryBar() {
                 Mais ▾
               </button>
             )}
+
+            {/* Render category chips after main filter buttons */}
+            {visibleCategories.slice(0, 6).map((cat: any) => (
+              <button
+                key={typeof cat === 'string' ? cat : cat?.name}
+                onClick={() =>
+                  setSelectedCategory(typeof cat === 'string' ? cat : cat?.name)
+                }
+                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border ${
+                  selectedCategory === (typeof cat === 'string' ? cat : cat?.name)
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-white text-gray-600 border-gray-200'
+                }`}
+              >
+                {(typeof cat === 'string' ? cat : cat?.name || '').toString().toUpperCase()}
+              </button>
+            ))}
 
             <button
               onClick={() => {
@@ -608,8 +711,7 @@ export function CategoryBar() {
               </span>
             </button>
 
-            
-
+            {hasBestSellers && (
             <button
               onClick={() => {
                 const next = !showOnlyBestsellers;
@@ -637,6 +739,7 @@ export function CategoryBar() {
                 <Star size={14} /> Best Sellers
               </span>
             </button>
+            )}
 
             {hasPolarizado && (
             <button
@@ -661,9 +764,11 @@ export function CategoryBar() {
                   ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
-            >
-              Polarizado
-            </button>
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Sun size={14} /> Polarizado
+                </span>
+              </button>
             )}
 
             {hasFotocromatico && (
@@ -690,12 +795,15 @@ export function CategoryBar() {
                   : 'text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
             >
-              Fotocromático
+              <span className="inline-flex items-center gap-2">
+                <ImageIcon size={14} /> Fotocromático
+              </span>
             </button>
             )}
           </div>
 
           {/* Fixed overlays for Tipo and Gênero - rendered as fixed so they overlay content */}
+          {/* Tipo overlay (desktop dropdown) */}
           {typeMenuRect && (
             <div
               role="dialog"
@@ -721,15 +829,28 @@ export function CategoryBar() {
                   </button>
                 </div>
                 <div className="flex flex-col gap-2 pr-2">
-                  <button
-                    onClick={() => {
-                      setSelectedCategory('all');
-                      setOpenTypeMenu(false);
-                    }}
-                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
-                  >
-                    Todos os Tipos
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        setSelectedCategory('all');
+                        setOpenTypeMenu(false);
+                      }}
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${selectedCategory === 'all' ? 'font-bold' : ''}`}
+                    >
+                      TODOS OS TIPOS
+                    </button>
+                    {selectedCategory && selectedCategory !== 'all' && (
+                      <button
+                        onClick={() => {
+                          setSelectedCategory('all');
+                          setOpenTypeMenu(false);
+                        }}
+                        className="text-xs text-gray-500 ml-2"
+                      >
+                        Remover filtro
+                      </button>
+                    )}
+                  </div>
                   {displayTypes.map((t: any) => (
                     <button
                       key={t}
@@ -737,7 +858,7 @@ export function CategoryBar() {
                         setSelectedCategory(t);
                         setOpenTypeMenu(false);
                       }}
-                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedType(t) ? 'bg-[var(--primary)] text-white' : ''}`}
                     >
                       {String(t)}
                     </button>
@@ -772,15 +893,28 @@ export function CategoryBar() {
                   </button>
                 </div>
                 <div className="flex flex-col gap-2 pr-2">
-                  <button
-                    onClick={() => {
-                      setSelectedGender('all');
-                      setOpenGenderMenu(false);
-                    }}
-                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
-                  >
-                    Todos os Gêneros
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        setSelectedGender('all');
+                        setOpenGenderMenu(false);
+                      }}
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${selectedGender === 'all' ? 'font-bold' : ''}`}
+                    >
+                      TODOS OS GÊNEROS
+                    </button>
+                    {selectedGender && selectedGender !== 'all' && (
+                      <button
+                        onClick={() => {
+                          setSelectedGender('all');
+                          setOpenGenderMenu(false);
+                        }}
+                        className="text-xs text-gray-500 ml-2"
+                      >
+                        Remover filtro
+                      </button>
+                    )}
+                  </div>
                   {(displayGenders && displayGenders.length
                     ? displayGenders
                     : genders
@@ -791,9 +925,9 @@ export function CategoryBar() {
                         setSelectedGender(g);
                         setOpenGenderMenu(false);
                       }}
-                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedGender(g) ? 'bg-[var(--primary)] text-white' : ''}`}
                     >
-                      {String(g)}
+                      {String(g).toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -826,15 +960,28 @@ export function CategoryBar() {
                   </button>
                 </div>
                 <div className="flex flex-col gap-2 pr-2">
-                  <button
-                    onClick={() => {
-                      setSelectedMaterial('all');
-                      setOpenMaterialMenu(false);
-                    }}
-                    className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
-                  >
-                    Todos os Materiais
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        setSelectedMaterial('all');
+                        setOpenMaterialMenu(false);
+                      }}
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${selectedMaterial === 'all' ? 'font-bold' : ''}`}
+                    >
+                      TODOS OS MATERIAIS
+                    </button>
+                    {selectedMaterial && selectedMaterial !== 'all' && (
+                      <button
+                        onClick={() => {
+                          setSelectedMaterial('all');
+                          setOpenMaterialMenu(false);
+                        }}
+                        className="text-xs text-gray-500 ml-2"
+                      >
+                        Remover filtro
+                      </button>
+                    )}
+                  </div>
                   {(materials && materials.length ? materials : []).map((m: any) => (
                     <button
                       key={m}
@@ -842,9 +989,9 @@ export function CategoryBar() {
                         setSelectedMaterial(m);
                         setOpenMaterialMenu(false);
                       }}
-                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedMaterial(m) ? 'bg-[var(--primary)] text-white' : ''}`}
                     >
-                      {String(m)}
+                      {String(m).toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -1143,12 +1290,13 @@ export function StoreBanners() {
   // Se não houver nenhum banner, não renderiza
   if (!hasBanners && !hasMobileBanners) return null;
   // If a brand is selected, show the brand-specific banner/description instead
-  if (selectedBrand && selectedBrand !== 'all') {
+  const hasBrandSelection = Array.isArray(selectedBrand) ? selectedBrand.length > 0 : selectedBrand && selectedBrand !== 'all';
+  if (hasBrandSelection) {
     const normalize = (s: unknown) =>
       String(s || '')
         .trim()
         .toLowerCase();
-    const findName = Array.isArray(selectedBrand)
+    const findName = Array.isArray(selectedBrand) && selectedBrand.length > 0
       ? (selectedBrand[0] as string)
       : (selectedBrand as string);
     const brandObj = (brandsWithLogos || []).find(
@@ -1164,6 +1312,10 @@ export function StoreBanners() {
       const bannerUrl = brandObj.banner_url;
 
       if (bannerUrl) {
+        // Garante que pegamos a string da URL, mesmo que venha como objeto
+        const resolvedBannerUrl = typeof bannerUrl === 'object'
+          ? (bannerUrl.variants?.desktop?.url || bannerUrl.original || bannerUrl.url || null)
+          : bannerUrl;
         // Try to load saved banner meta from localStorage (client-only, synchronous)
         let bannerMeta: { mode?: string; focusX?: number; focusY?: number; zoom?: number } | null = null;
         try {
@@ -1197,7 +1349,7 @@ export function StoreBanners() {
         return (
           <div className="w-full">
             <SmartImage
-              product={{ image_url: bannerUrl, name: brandObj.name }}
+              product={{ image_url: resolvedBannerUrl, name: brandObj.name }}
               className={containerClass}
               imgClassName={imgClass}
               imgStyle={imgStyle}
@@ -1221,7 +1373,7 @@ export function StoreBanners() {
       // hide the main carousel area elsewhere.
       return (
         <div className="w-full">
-          <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-4 flex items-center gap-4 bg-white rounded-md shadow-sm">
+          <div className="w-full px-4 lg:px-8 py-4 flex items-center gap-4 bg-white rounded-md shadow-sm">
             <div className="flex-shrink-0">
               {brandObj.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -1341,6 +1493,20 @@ export function ProductGrid() {
 
   const router = useRouter();
 
+  // Detect if the currently selectedCategory is actually a 'type' (class_core)
+  const isSelectedCategoryType = React.useMemo(() => {
+    try {
+      if (typeof selectedCategory !== 'string' || selectedCategory === 'all') return false;
+      const selectedNorm = normalizeForTypeModule(selectedCategory);
+      return (displayProducts || []).some((p: any) => {
+        const productTypeNorm = normalizeForTypeModule((p as any).class_core || '');
+        return productTypeNorm === selectedNorm && productTypeNorm !== '';
+      });
+    } catch (e) {
+      return false;
+    }
+  }, [displayProducts, selectedCategory]);
+
   // Tipagem corrigida de 'any' para 'Product'
   const isOutOfStock = (product: Product) => {
     if (!store.enable_stock_management) return false;
@@ -1397,10 +1563,26 @@ export function ProductGrid() {
           )}
 
           {typeof selectedCategory === 'string' && selectedCategory !== 'all' && (
-            <button onClick={() => setSelectedCategory && setSelectedCategory('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
-              <span className="font-bold">Categoria:</span> {selectedCategory}
-              <span className="ml-2 text-xs text-gray-400">✕</span>
-            </button>
+            (() => {
+              try {
+                if (isSelectedCategoryType) {
+                  return (
+                    <button onClick={() => setSelectedCategory && setSelectedCategory('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+                      <span className="font-bold">Tipo:</span> {selectedCategory}
+                      <span className="ml-2 text-xs text-gray-400">✕</span>
+                    </button>
+                  );
+                }
+              } catch (e) {
+                // if anything fails, fall back to showing as category
+              }
+              return (
+                <button onClick={() => setSelectedCategory && setSelectedCategory('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+                  <span className="font-bold">Categoria:</span> {selectedCategory}
+                  <span className="ml-2 text-xs text-gray-400">✕</span>
+                </button>
+              );
+            })()
           )}
 
           {typeof selectedGender === 'string' && selectedGender !== 'all' && (

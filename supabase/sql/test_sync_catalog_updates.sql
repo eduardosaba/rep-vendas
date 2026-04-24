@@ -15,6 +15,7 @@ DO $$
 DECLARE
   v_master_id uuid := 'fe7ea2fc-afd4-4310-a080-266fca8186a7'; -- REPLACE WITH YOUR MASTER USER ID
   v_target_id uuid; -- Will be populated if exists
+  rec record;
 BEGIN
   -- Find a target user who already has clones
   SELECT DISTINCT target_user_id INTO v_target_id
@@ -106,6 +107,7 @@ DO $$
 DECLARE
   v_master_id uuid := 'fe7ea2fc-afd4-4310-a080-266fca8186a7';
   v_target_id uuid;
+  rec record;
 BEGIN
   SELECT DISTINCT target_user_id INTO v_target_id
   FROM catalog_clones

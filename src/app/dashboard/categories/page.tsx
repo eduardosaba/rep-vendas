@@ -48,13 +48,13 @@ export default function CategoriesAndGendersPage() {
   });
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const fetchItems = useCallback(async () => {
+  const fetchItems = useCallback(async (): Promise<MetadataItem[]> => {
     setLoading(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) return [];
 
       if (activeTab === 'material') {
         // Não existe tabela dedicada a materiais — derivamos dos produtos
@@ -71,7 +71,13 @@ export default function CategoriesAndGendersPage() {
         );
 
         const mapped = unique.map((m: string, idx: number) => ({ id: `mat-${idx}`, name: m, image_url: null, type: 'material' }));
-        setItems(mapped as MetadataItem[]);
+        // filter out hidden items for this user (session-scoped)
+        const hiddenRaw = sessionStorage.getItem('rv_hidden_metadata_v1');
+        const hidden = hiddenRaw ? JSON.parse(hiddenRaw) : {};
+        const userHidden = (hidden[user.id] && hidden[user.id].materials) || [];
+        const filtered = mapped.filter((m: any) => !userHidden.includes(m.name));
+        setItems(filtered as MetadataItem[]);
+        return filtered as MetadataItem[];
       } else {
         const table = activeTab === 'category' ? 'categories' : 'product_genders';
         const { data, error } = await supabase
@@ -81,10 +87,21 @@ export default function CategoriesAndGendersPage() {
           .order('name');
 
         if (error) throw error;
-        setItems(data.map((i: any) => ({ ...i, type: activeTab })) as MetadataItem[]);
+        const mapped = (data || []).map((i: any) => ({ ...i, type: activeTab })) as MetadataItem[];
+        // ensure we only show items that belong to the logged-in user (defensive check)
+        const ownerOnly = mapped.filter((i: any) => (i as any).user_id === user.id);
+        // apply per-user hidden list (session-scoped)
+        const hiddenRaw = sessionStorage.getItem('rv_hidden_metadata_v1');
+        const hidden = hiddenRaw ? JSON.parse(hiddenRaw) : {};
+        const userHidden = (hidden[user.id] && hidden[user.id][activeTab]) || [];
+        const filtered = ownerOnly.filter((i: any) => !userHidden.includes(i.id));
+        setItems(filtered);
+        return filtered;
       }
     } catch (error) {
+      console.error('fetchItems error', error);
       toast.error('Erro ao carregar dados');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -104,12 +121,45 @@ export default function CategoriesAndGendersPage() {
       if (!user) return;
 
       // Chama a nova função RPC unificada
-      await supabase.rpc('sync_product_metadata', { p_user_id: user.id });
+      const beforeNames = items.map((it) => it.name).sort();
+      const { error: rpcErr } = await supabase.rpc('sync_product_metadata', { p_user_id: user.id });
+      if (rpcErr) throw rpcErr;
 
-      toast.success('Sincronização concluída!', { id: toastId });
-      fetchItems();
-    } catch (error) {
-      toast.error('Erro na sincronização', { id: toastId });
+      // Poll a curto prazo para permitir que a sincronização finalize e a lista mude
+      const MAX_ATTEMPTS = 6;
+      const DELAY_MS = 800;
+      let synced = false;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const fetched = await fetchItems();
+        const names = fetched.map((it) => it.name).sort();
+        if (JSON.stringify(names) !== JSON.stringify(beforeNames)) {
+          synced = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+      }
+      toast.success(synced ? 'Sincronização concluída!' : 'Sincronização concluída (sem mudanças detectadas)', { id: toastId });
+    } catch (error: any) {
+      console.error('handleSync error', error);
+      const msg = error?.message || (error?.error && error.error.message) || JSON.stringify(error);
+
+      // Handle missing constraint error (42704) specifically and give actionable guidance
+      if (error?.code === '42704' || String(msg).toLowerCase().includes('constraint') && String(msg).toLowerCase().includes('does not exist')) {
+        toast.error('Sincronização falhou: constraint ausente no banco. Rode a migração SQL em supabase/sql/sync_product_metadata_safe.sql no seu projeto Supabase (SQL Editor).', { id: toastId });
+        try { await fetchItems(); } catch (e) { console.error('fetchItems after 42704 failed', e); }
+        return;
+      }
+
+      // Handle duplicate-key conflict (23505) with friendlier guidance and refresh
+      if (error?.code === '23505' || String(msg).toLowerCase().includes('duplicate key')) {
+        let hint = 'Itens duplicados detectados.';
+        if (String(msg).includes('uq_categories')) hint += ' Conflito em Categorias.';
+        if (String(msg).includes('uq_product_genders')) hint += ' Conflito em Gêneros.';
+        toast.error(`Sincronização falhou: ${hint} Verifique o cadastro no admin.`, { id: toastId });
+        try { await fetchItems(); } catch (e) { console.error('fetchItems after duplicate error failed', e); }
+      } else {
+        toast.error(`Erro na sincronização: ${msg}`, { id: toastId });
+      }
     } finally {
       setSyncing(false);
     }
@@ -123,14 +173,25 @@ export default function CategoriesAndGendersPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Login necessário');
 
-      // Atualiza todos os produtos deste usuário que têm esse material, setando null
-      const { error } = await supabase
+      // Query ids matching and update in chunks to avoid statement timeout
+      const { data: matches, error: selErr } = await supabase
         .from('products')
-        .update({ material: null })
+        .select('id')
         .eq('user_id', user.id)
         .eq('material', materialName);
 
-      if (error) throw error;
+      if (selErr) throw selErr;
+      const ids = (matches || []).map((r: any) => r.id).filter(Boolean);
+      const CHUNK = 500;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        const { error: updErr } = await supabase
+          .from('products')
+          .update({ material: null })
+          .in('id', chunk)
+          .eq('user_id', user.id);
+        if (updErr) throw updErr;
+      }
       toast.success('Material removido dos produtos', { id: toastId });
       fetchItems();
     } catch (e: any) {
@@ -193,25 +254,28 @@ export default function CategoriesAndGendersPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Login necessário');
+      // Instead of deleting in Supabase, persist a per-user hidden list in sessionStorage
+      const hiddenKey = 'rv_hidden_metadata_v1';
+      const raw = sessionStorage.getItem(hiddenKey);
+      const hidden = raw ? JSON.parse(raw) : {};
+      if (!hidden[user.id]) hidden[user.id] = { category: [], gender: [], material: [] };
 
       if (activeTab === 'material') {
         // deleteId contains the material name in this case
-        await handleRemoveMaterialFromProducts(deleteId);
-        toast.success('Operação concluída', { id: toastId });
+        if (!hidden[user.id].material.includes(deleteId)) hidden[user.id].material.push(deleteId);
+        sessionStorage.setItem(hiddenKey, JSON.stringify(hidden));
+        // update UI
+        setItems((prev) => prev.filter((it) => it.name !== deleteId));
+        toast.success('Material ocultado no catálogo virtual', { id: toastId });
         setDeleteId(null);
-        fetchItems();
       } else {
-        const table = activeTab === 'category' ? 'categories' : 'product_genders';
-        const { error } = await supabase
-          .from(table)
-          .delete()
-          .eq('id', deleteId)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
-        toast.success('Excluído!', { id: toastId });
+        // for category/gender, deleteId is the metadata id
+        const listKey = activeTab === 'category' ? 'category' : 'gender';
+        if (!hidden[user.id][listKey].includes(deleteId)) hidden[user.id][listKey].push(deleteId);
+        sessionStorage.setItem(hiddenKey, JSON.stringify(hidden));
+        setItems((prev) => prev.filter((it) => it.id !== deleteId));
+        toast.success('Item ocultado no catálogo virtual', { id: toastId });
         setDeleteId(null);
-        fetchItems();
       }
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao excluir', { id: toastId });
@@ -274,8 +338,8 @@ export default function CategoriesAndGendersPage() {
           <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm sticky top-6">
             <h3 className="font-bold text-slate-900 dark:text-white mb-4">
               {editingItem
-                ? `Editar ${activeTab === 'category' ? 'Categoria' : 'Gênero'}`
-                : `Novo ${activeTab === 'category' ? 'Categoria' : 'Gênero'}`}
+                ? `Editar ${activeTab === 'category' ? 'Categoria' : activeTab === 'gender' ? 'Gênero' : 'Material'}`
+                : `Novo ${activeTab === 'category' ? 'Categoria' : activeTab === 'gender' ? 'Gênero' : 'Material'}`}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <input
@@ -405,10 +469,10 @@ export default function CategoriesAndGendersPage() {
                     ) : item.type === 'gender' ? (
                       <Users className="text-slate-300" size={30} />
                     ) : (
-                      <div className="text-slate-400 font-bold uppercase text-sm">{String(item.name).slice(0,2)}</div>
+                      <div className="text-slate-400 font-bold text-sm">{String(item.name).slice(0,2)}</div>
                     )}
                   </div>
-                  <h4 className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-widest">
+                  <h4 className="font-black text-slate-800 dark:text-white text-xs tracking-widest">
                     {item.name}
                   </h4>
                 </div>
@@ -425,10 +489,10 @@ export default function CategoriesAndGendersPage() {
               <AlertTriangle size={32} />
             </div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              Excluir {activeTab === 'category' ? 'Categoria' : 'Gênero'}?
+              Excluir {activeTab === 'category' ? 'Categoria' : activeTab === 'gender' ? 'Gênero' : 'Material'}?
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
-              Esta ação é permanente e removerá também referências nos produtos.
+              Esta ação é permanente e removerá também referências no seu catálogo virtual.
               Deseja continuar?
             </p>
             <div className="grid grid-cols-2 gap-3">
