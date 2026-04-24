@@ -46,7 +46,7 @@
     "firebase": "^12.9.0",
     "framer-motion": "^10.18.0",
     "html2canvas": "^1.4.1",
-    "inngest": "^3.49.3",
+    "inngest": "^3.54.0",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.378.0",
