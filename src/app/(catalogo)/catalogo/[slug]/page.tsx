@@ -345,6 +345,11 @@ export default async function CatalogPage({ params, searchParams }: Props) {
           top_benefit_image_url:
             settingsFallback.top_benefit_image_url ??
             catalog.top_benefit_image_url,
+          // Pricing / access (prefer settings when present so storefront reflects latest intent)
+          show_cost_price: typeof settingsFallback.show_cost_price !== 'undefined' ? settingsFallback.show_cost_price : catalog.show_cost_price,
+          show_sale_price: typeof settingsFallback.show_sale_price !== 'undefined' ? settingsFallback.show_sale_price : catalog.show_sale_price,
+          price_unlock_mode: settingsFallback.price_unlock_mode ?? catalog.price_unlock_mode,
+          price_password_hash: settingsFallback.price_password_hash ?? (catalog as any).price_password_hash,
         };
       }
 
@@ -439,9 +444,45 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         return { ...p, variant_count: variantCount };
       });
 
+      // Ensure settings explicitly override public_catalogs store_name/logo/colors
+      const finalCatalog = {
+        ...catalog,
+        // Prefer settings.name (explicit request) then representative_name then catalog.store_name
+        store_name:
+          (settingsFallback?.name as any) ||
+          (settingsFallback?.representative_name as any) ||
+          (catalog as any).store_name,
+        // Propagate contact and branding from settings when present
+        email: (settingsFallback?.email as any) || (catalog as any).email || null,
+        phone: (settingsFallback?.phone as any) || (catalog as any).phone || null,
+        logo_url:
+          (settingsFallback?.logo_url as any) ||
+          (catalog as any).single_brand_logo_url ||
+          (catalog as any).logo_url,
+        primary_color:
+          (settingsFallback?.primary_color as any) ||
+          (catalog as any).primary_color,
+        secondary_color:
+          (settingsFallback?.secondary_color as any) ||
+          (catalog as any).secondary_color,
+        representative_name: (settingsFallback?.representative_name as any) || (catalog as any).representative_name || null,
+      };
+
+      try {
+        if (normalizedCompanySlug === 'itelson') {
+          console.log('[catalog/page][itelson] finalCatalog=', JSON.stringify(finalCatalog));
+          console.log('[catalog/page][itelson] settingsFallback=', JSON.stringify(settingsFallback));
+          console.log('[catalog/page][itelson] catalog(before merge)=', JSON.stringify(catalog));
+        } else {
+          console.log(`[catalog/page] slug=${normalizedCompanySlug} finalStoreName=${finalCatalog.store_name} hasSettings=${!!settingsFallback}`);
+        }
+      } catch (e) {
+        /* ignore logging errors */
+      }
+
       return (
         <Storefront
-          catalog={catalog}
+          catalog={finalCatalog}
           initialProducts={productsWithImages || []}
           startProductId={typeof productId === 'string' ? productId : undefined}
         />

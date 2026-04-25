@@ -87,17 +87,61 @@ export async function resolveContext(
     };
   }
 
-  // Legacy fallback: catalogo individual por catalog_slug (public_catalogs/settings)
-  const { data: catalog } = await supabase
+  // First try settings.catalog_slug (saved from dashboard)
+  let catalog: any = null;
+  let foundSettings: any = null;
+  try {
+    const { data: settingsRow } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('catalog_slug', repSlug)
+      .maybeSingle();
+    if (settingsRow) {
+      foundSettings = settingsRow;
+      // if settingsRow.user_id exists, try to load profile for representative
+      if (settingsRow.user_id) {
+        try {
+          const { data: repProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', settingsRow.user_id)
+            .maybeSingle();
+          if (repProfile) {
+            return {
+              type: 'individual',
+              repSlug,
+              catalogSlug: repSlug,
+              representative: repProfile,
+              catalog: null,
+              settings: settingsRow,
+              pathPrefix: `/catalogo/${repSlug}`,
+            };
+          }
+        } catch (e) {
+          // ignore profile lookup errors and continue to public_catalogs fallback
+        }
+      }
+      // do not assign settingsRow to `catalog` — store it in foundSettings and continue fallback
+    }
+  } catch (e) {
+    // ignore settings lookup errors and continue to public_catalogs fallback
+  }
+
+  // Fallback: public_catalogs by catalog_slug
+  const { data: publicCatalog } = await supabase
     .from('public_catalogs')
     .select('*')
     .eq('catalog_slug', repSlug)
     .maybeSingle();
 
-  if (!catalog) return null;
+  if (!catalog && !publicCatalog) return null;
 
-  let settings: any = null;
-  if (catalog.user_id) {
+  // prefer settings result when available
+  if (!catalog && publicCatalog) catalog = publicCatalog;
+
+  // Prefer explicit settings found by catalog_slug; otherwise, try loading settings by catalog.user_id
+  let settings: any = foundSettings ?? null;
+  if (!settings && catalog?.user_id) {
     const { data } = await supabase
       .from('settings')
       .select('*')

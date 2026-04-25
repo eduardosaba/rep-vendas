@@ -742,6 +742,37 @@ export async function POST(req: Request) {
         );
       }
 
+      // Persist slug on profiles.id as well so resolveContext can find representatives
+      try {
+        const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+          try {
+            const svc = createSvcClient(String(SUPABASE_URL), String(SUPABASE_SERVICE_ROLE_KEY));
+            const { error: svcErr } = await svc
+              .from('profiles')
+              .update({ slug: finalSlugToUse, updated_at: new Date().toISOString() })
+              .eq('id', userId);
+            if (svcErr) console.warn('[settings/save] svc failed to update profiles.slug', svcErr);
+            else console.log('[settings/save] updated profiles.slug for user via service role', userId);
+          } catch (e) {
+            console.warn('[settings/save] exception when updating profiles.slug via svc', e);
+          }
+        } else {
+          const { error: profileSlugError } = await supabase
+            .from('profiles')
+            .update({ slug: finalSlugToUse, updated_at: new Date().toISOString() })
+            .eq('id', userId);
+          if (profileSlugError) {
+            console.warn('[settings/save] failed to update profiles.slug', profileSlugError);
+          } else {
+            console.log('[settings/save] updated profiles.slug for user', userId);
+          }
+        }
+      } catch (e) {
+        console.warn('[settings/save] exception updating profiles.slug', e);
+      }
+
       // Remove user_id/updated_at from payload when upserting by user_id conflict
       const { user_id, updated_at, ...upsertBody } = publicCatalogPayload;
 

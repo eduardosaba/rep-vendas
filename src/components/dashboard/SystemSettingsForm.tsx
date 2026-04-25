@@ -635,7 +635,28 @@ export default function SystemSettingsForm({ context = 'representative', targetI
       case 'institucional':
         return ['about_text','welcome_text','cover_image','store_banner_meta','gallery_urls','gallery_title','gallery_subtitle'];
       case 'display':
-        return ['show_top_benefit_bar','top_benefit_text','top_benefit_mode','top_benefit_speed','top_benefit_animation','top_benefit_bg_color','top_benefit_text_color','top_benefit_height','top_benefit_text_size','top_benefit_image_url','top_benefit_image_fit','top_benefit_image_scale','top_benefit_text_align','top_benefit_image_align'];
+        return [
+          'show_top_benefit_bar',
+          'top_benefit_text',
+          'top_benefit_mode',
+          'top_benefit_speed',
+          'top_benefit_animation',
+          'top_benefit_bg_color',
+          'top_benefit_text_color',
+          'top_benefit_height',
+          'top_benefit_text_size',
+          'top_benefit_image_url',
+          'top_benefit_image_fit',
+          'top_benefit_image_scale',
+          'top_benefit_text_align',
+          'top_benefit_image_align',
+          // Pricing/display fields
+          'show_sale_price',
+          'show_cost_price',
+          'price_unlock_mode',
+          'show_installments',
+          'max_installments',
+        ];
       case 'gallery':
         return ['gallery_urls','gallery_title','gallery_subtitle','gallery_title_color','gallery_subtitle_color'];
       case 'stock':

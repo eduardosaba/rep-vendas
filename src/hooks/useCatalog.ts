@@ -172,20 +172,26 @@ export function useCatalog(
           }
         }
 
-        // 4. Carregar hash público da senha (public_catalogs.price_password_hash)
+        // 4. Carregar hash público da senha — priorizar `settings.price_password_hash`
         try {
-          const { data: publicCatalog } = await supabase
-            .from('public_catalogs')
-            .select('price_password_hash')
-            .eq('user_id', userId)
-            .maybeSingle();
+          const settingsRow = settings;
+          if (settingsRow && settingsRow.price_password_hash) {
+            setPricePasswordHash(settingsRow.price_password_hash);
+          } else {
+            // fallback: read from public_catalogs if settings doesn't provide it
+            const { data: publicCatalog } = await supabase
+              .from('public_catalogs')
+              .select('price_password_hash')
+              .eq('user_id', userId)
+              .maybeSingle();
 
-          if (publicCatalog && (publicCatalog as any).price_password_hash) {
-            setPricePasswordHash((publicCatalog as any).price_password_hash);
+            if (publicCatalog && (publicCatalog as any).price_password_hash) {
+              setPricePasswordHash((publicCatalog as any).price_password_hash);
+            }
           }
         } catch (err) {
           if (!isNextRedirect(err)) {
-            // debug removed
+            // ignore non-fatal errors
           }
         }
 
