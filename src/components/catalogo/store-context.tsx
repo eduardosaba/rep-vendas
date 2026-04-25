@@ -129,6 +129,7 @@ export function StoreProvider({
   const [categoriesWithData, setCategoriesWithData] = useState<
     { name: string; image_url: string | null }[]
   >([]);
+  const [distinctTypes, setDistinctTypes] = useState<string[] | null>(null);
   const [gendersWithData, setGendersWithData] = useState<
     { name: string; image_url: string | null }[]
   >([]);
@@ -268,7 +269,9 @@ export function StoreProvider({
         else params.delete('page');
 
         const base = window.location.pathname;
-        const qs = params.toString();
+        // Use explicit encodeURIComponent for query values to avoid '+' form-encoding
+        const entries = Array.from(params.entries());
+        const qs = entries.length > 0 ? entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&') : '';
         const url = qs ? `${base}?${qs}` : base;
         router.replace(url);
       } catch (e) {
@@ -288,6 +291,15 @@ export function StoreProvider({
     currentPage,
     router,
   ]);
+  // Quando a categoria selecionada muda, resetar para a primeira página
+  useEffect(() => {
+    if (!_initialisedRef.current) return;
+    try {
+      setCurrentPage(1);
+    } catch (e) {
+      // ignore
+    }
+  }, [selectedCategory]);
   // Quando a marca selecionada mudar (após a montagem inicial), resetar
   // categoria/gênero para evitar filtros persistentes entre marcas.
   const _brandMounted = (globalThis as any).__repv_brand_mounted || {
@@ -644,11 +656,7 @@ export function StoreProvider({
         // ignore sessionStorage failures — proceed with original rows
       }
       if (rows) {
-        try {
-          // debug: mostrar rows retornadas pelo supabase e brands solicitadas
-          // eslint-disable-next-line no-console
-          console.debug('[store] fetchLogos rows count', rows.length, { requestedBrands: brands });
-        } catch (e) {}
+        // debug removed
         const PUBLIC_BASE =
           typeof window !== 'undefined'
             ? process.env.NEXT_PUBLIC_APP_URL || ''
@@ -749,6 +757,22 @@ export function StoreProvider({
         
       }
     };
+    const fetchDistinctTypes = async () => {
+      try {
+        const uid = store?.user_id;
+        const slug = (store as any)?.catalog_slug || (store as any)?.slug || null;
+        if (!uid && !slug) return;
+        const q = uid ? `user_id=${encodeURIComponent(String(uid))}` : `slug=${encodeURIComponent(String(slug))}`;
+        const res = await fetch(`/api/catalog/distinct-types?${q}`);
+        if (!res.ok) return;
+        const j = await res.json();
+        if (Array.isArray(j.types)) setDistinctTypes(j.types.filter(Boolean));
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    fetchDistinctTypes();
     // Only attempt to fetch if we have a valid store.user_id
     if (store.user_id) fetchLogos();
   }, [brands, store.user_id]);
@@ -800,6 +824,15 @@ export function StoreProvider({
       mounted = false;
     };
   }, [supabase, store.user_id]);
+
+  // Expor `distinctTypes` no `window` para consumo pelo dropdown (evita prop drilling)
+  useEffect(() => {
+    try {
+      (window as any).__rv_distinct_types = Array.isArray(distinctTypes) ? distinctTypes : null;
+    } catch (e) {
+      // ignore
+    }
+  }, [distinctTypes]);
 
   // Genders: attempt to fetch a dedicated genders table; otherwise derive
   // from initial products as simple name-only entries (no images).

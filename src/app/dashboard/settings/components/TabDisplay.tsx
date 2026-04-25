@@ -1,6 +1,5 @@
-import React from 'react';
-import { Image as ImageIcon, Zap, DollarSign } from 'lucide-react';
 import { ToggleSetting } from '@/app/dashboard/settings/components/ToggleSetting';
+import { DollarSign, Image as ImageIcon, Zap } from 'lucide-react';
 
 export function TabDisplay(props: any) {
   const {
@@ -115,14 +114,36 @@ export function TabDisplay(props: any) {
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-400">Fundo</label>
                     <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200">
-                      <input type="color" value={safeTopBenefitBgColor} onChange={(e: any) => setTopBenefitBgColor(e.target.value)} disabled={props.loading} className="h-8 w-8 rounded-lg cursor-pointer border-none" />
+                      <input
+                        type="color"
+                        value={safeTopBenefitBgColor}
+                        onChange={(e: any) => {
+                          const v = e.target.value;
+                          setTopBenefitBgColor(v);
+                          if (setCatalogSettings) setCatalogSettings((p: any) => ({ ...(p || {}), top_benefit_bg_color: v }));
+                          if (handleCatalogSettingsChange) handleCatalogSettingsChange({ target: { name: 'top_benefit_bg_color', value: v } } as any);
+                        }}
+                        disabled={props.loading}
+                        className="h-8 w-8 rounded-lg cursor-pointer border-none"
+                      />
                       <span className="hidden sm:inline text-[10px] font-mono uppercase">{topBenefitBgColor}</span>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-400">Texto</label>
                     <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200">
-                      <input type="color" value={safeTopBenefitTextColor} onChange={(e: any) => setTopBenefitTextColor(e.target.value)} disabled={props.loading} className="h-8 w-8 rounded-lg cursor-pointer border-none" />
+                      <input
+                        type="color"
+                        value={safeTopBenefitTextColor}
+                        onChange={(e: any) => {
+                          const v = e.target.value;
+                          setTopBenefitTextColor(v);
+                          if (setCatalogSettings) setCatalogSettings((p: any) => ({ ...(p || {}), top_benefit_text_color: v }));
+                          if (handleCatalogSettingsChange) handleCatalogSettingsChange({ target: { name: 'top_benefit_text_color', value: v } } as any);
+                        }}
+                        disabled={props.loading}
+                        className="h-8 w-8 rounded-lg cursor-pointer border-none"
+                      />
                       <span className="hidden sm:inline text-[10px] font-mono uppercase">{topBenefitTextColor}</span>
                     </div>
                   </div>

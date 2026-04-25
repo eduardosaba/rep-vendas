@@ -54,11 +54,15 @@ export async function POST(req: Request) {
       }
 
       // execute full clone via RPC
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('clone_catalog_smart', {
+      const rpcParams: any = {
         source_user_id: effectiveSource,
         target_user_id: targetUserId,
         brands_to_copy: brands || null,
-      });
+        p_brands_to_copy: brands || null,
+        p_source_user_id: effectiveSource,
+        p_target_user_id: targetUserId,
+      };
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('clone_catalog_smart', rpcParams);
 
       if (rpcErr) throw rpcErr;
       return NextResponse.json({ success: true, updatedCount: rpcData });

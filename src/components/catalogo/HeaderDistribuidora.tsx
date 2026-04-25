@@ -58,39 +58,7 @@ export function HeaderDistribuidora({ slug, repSlug, repName, companyLogo, compa
   const topBenefitItems = [...topBenefitParts, ...topBenefitParts];
   const topBenefitDuration = topBenefitSpeed === 'slow' ? 35 : topBenefitSpeed === 'fast' ? 14 : 25;
 
-  if (process.env.NODE_ENV === 'development') {
-    // debug runtime values to help diagnose why the bar isn't appearing
-    // (only in development to avoid spamming prod logs)
-    // eslint-disable-next-line no-console
-    console.debug('HeaderDistribuidora debug:', {
-      topBenefitConfig,
-      storeTopValues: {
-        show_top_benefit_bar: barSource?.show_top_benefit_bar,
-        top_benefit_mode: barSource?.top_benefit_mode,
-        top_benefit_speed: barSource?.top_benefit_speed,
-        top_benefit_animation: barSource?.top_benefit_animation,
-        top_benefit_bg_color: barSource?.top_benefit_bg_color,
-        top_benefit_text_color: barSource?.top_benefit_text_color,
-        top_benefit_text: barSource?.top_benefit_text,
-      },
-      computed: {
-        showTopBenefitBar,
-        topBenefitMode,
-        topBenefitSpeed,
-        topBenefitAnimation,
-        topBenefitBgColor,
-        topBenefitTextColor,
-        topBenefitText,
-      },
-      themeProps: {
-        primaryColor,
-        headerBackgroundColor,
-        headerTextColor,
-        headerIconBgColor,
-        headerIconColor,
-      },
-    });
-  }
+  // debug removed
 
   const cartCount = Array.isArray(cart)
     ? cart.reduce((acc: number, item: any) => acc + (item?.quantity || 0), 0)
@@ -265,10 +233,7 @@ export function HeaderDistribuidora({ slug, repSlug, repName, companyLogo, compa
                   return `/${str}`;
                 };
                 const src = normalize(candidate) || '/repvendas.png';
-                if (process.env.NODE_ENV === 'development') {
-                  // eslint-disable-next-line no-console
-                  console.debug('HeaderDistribuidora logo resolution:', { companyLogo, storeFromProps: storeFromProps?.logo_url, storeFromContext: storeFromContext?.logo_url, candidate, src });
-                }
+                // debug removed
                 return <img src={src} alt={companyName} className="h-10 hover:opacity-80 transition-opacity" />;
               })()
             }

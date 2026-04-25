@@ -138,21 +138,7 @@ export function StoreTopBar() {
   const [benefitImageErrored, setBenefitImageErrored] = useState(false);
   useEffect(() => setBenefitImageErrored(false), [store?.top_benefit_image_url]);
   if (!store) return null as any;
-  // Debug: mostrar valores relevantes da barra para diagnóstico em runtime
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    try {
-      // eslint-disable-next-line no-console
-      console.debug('StoreTopBar debug:', {
-        show_top_benefit_bar: store.show_top_benefit_bar,
-        top_benefit_mode: store.top_benefit_mode,
-        top_benefit_speed: store.top_benefit_speed,
-        top_benefit_animation: store.top_benefit_animation,
-        top_benefit_bg_color: store.top_benefit_bg_color,
-        top_benefit_text_color: store.top_benefit_text_color,
-        top_benefit_text: store.top_benefit_text,
-      });
-    } catch (e) {}
-  }
+  // debug logs removed
   if (store.show_top_benefit_bar) {
     const bg = store.top_benefit_bg_color || 'var(--primary)';
     const textColor = store.top_benefit_text_color || getContrastColor(String(bg));
@@ -930,7 +916,7 @@ export function StoreFooter() {
       if (typeof window !== 'undefined') window.location.href = p;
     },
   } as any;
-  const footerBg = store.footer_background_color || 'var(--secondary)';
+  const footerBg = store.footer_background_color || store.secondary_color || '#0d1b2c';
   let footerTextColor = 'white';
   if (
     typeof footerBg === 'string' &&

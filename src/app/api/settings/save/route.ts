@@ -535,6 +535,7 @@ export async function POST(req: Request) {
       whatsapp_message_template: whatsapp_message_template || null,
       banners: banners || [],
       banners_mobile: banners_mobile || [],
+      banner_mode: payload.banner_mode ?? null,
       share_banner_url: share_banner_url || null,
       cover_image_fit: cover_image_fit || null,
       cover_image_height: cover_image_height ? Number(cover_image_height) : null,
@@ -608,6 +609,16 @@ export async function POST(req: Request) {
       top_benefit_text_align: top_benefit_text_align || null,
       is_active: typeof is_active === 'boolean' ? is_active : true,
       updated_at: new Date().toISOString(),
+    };
+
+    // Ensure sync status object exists in outer scope so final return can
+    // reference it even if some conditional paths are skipped.
+    let publicCatalogSyncLocal: any = {
+      attempted: false,
+      skipped: false,
+      reason: null,
+      result: null,
+      error: null,
     };
 
     if (isTabScopedSave) {
@@ -776,7 +787,155 @@ export async function POST(req: Request) {
       // Remove user_id/updated_at from payload when upserting by user_id conflict
       const { user_id, updated_at, ...upsertBody } = publicCatalogPayload;
 
+      // Robust defensive sync: read the canonical `settings` row after the
+      // upsert (or existing) and use its values to populate any critical
+      // visual/price fields missing from the current payload. This ensures
+      // that tab-scoped saves (partial payloads) won't inadvertently erase
+      // important public-facing fields in `public_catalogs`.
+      try {
+        const { data: fullSettings, error: fullSettingsErr } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        if (fullSettingsErr) {
+          console.warn('[settings/save] failed to read full settings for defensive sync', fullSettingsErr);
+        }
+
+        if (fullSettings) {
+          // Defensive sync: list of keys we want to ensure are mirrored from
+          // `settings` into `public_catalogs` when the incoming public payload
+          // is partial. This prevents tab-scoped saves from erasing visual
+          // and public-facing configuration.
+          const mirrorKeys = [
+            // Branding / identity
+            'name',
+            'logo_url',
+            'primary_color',
+            'secondary_color',
+            'cover_image',
+            'cover_image_fit',
+            'cover_image_height',
+            'cover_image_position',
+            'cover_image_offset_x',
+            'cover_image_offset_y',
+
+            // Contact
+            'email',
+            'phone',
+
+            // Footer
+            'footer_background_color',
+            'footer_text_color',
+            'footer_message',
+
+            // Banners / gallery
+            'banners',
+            'banners_mobile',
+            'banner_mode',
+            'share_banner_url',
+            'og_image_url',
+            'gallery_urls',
+
+            // Headline / texts
+            'headline',
+            'welcome_text',
+            'about_text',
+
+            // Fonts
+            'font_family',
+            'font_url',
+
+            // Pricing / flags
+            'show_sale_price',
+            'show_cost_price',
+            'price_unlock_mode',
+            'show_installments',
+            'max_installments',
+            'cash_price_discount_percent',
+            'enable_stock_management',
+            'global_allow_backorder',
+
+            // Top benefit (all related fields)
+            'show_top_benefit_bar',
+            'show_top_info_bar',
+            'top_benefit_text',
+            'top_benefit_bg_color',
+            'top_benefit_text_color',
+            'top_benefit_mode',
+            'top_benefit_speed',
+            'top_benefit_animation',
+            'top_benefit_image_url',
+            'top_benefit_image_fit',
+            'top_benefit_image_scale',
+            'top_benefit_image_align',
+            'top_benefit_text_align',
+            'top_benefit_height',
+            'top_benefit_text_size',
+          ];
+
+          // Copy missing keys from fullSettings to upsertBody when absent
+          mirrorKeys.forEach((k) => {
+            try {
+              if (k === 'name') {
+                // public_catalogs uses `store_name`
+                if (!("store_name" in upsertBody) || upsertBody.store_name === null || typeof upsertBody.store_name === 'undefined') {
+                  (upsertBody as any).store_name = (fullSettings as any).name || (upsertBody as any).store_name || null;
+                }
+                return;
+              }
+
+              if (!(k in upsertBody) || (upsertBody as any)[k] === null || typeof (upsertBody as any)[k] === 'undefined') {
+                // Prefer the value from fullSettings when available
+                (upsertBody as any)[k] = (fullSettings as any)[k];
+              }
+            } catch (e) {
+              // non-fatal: continue with next key
+            }
+          });
+
+          // Special handling: ensure arrays are normalized to empty arrays if settings provides arrays
+          if (!('banners' in upsertBody) && Array.isArray((fullSettings as any).banners)) upsertBody.banners = (fullSettings as any).banners;
+          if (!('banners_mobile' in upsertBody) && Array.isArray((fullSettings as any).banners_mobile)) upsertBody.banners_mobile = (fullSettings as any).banners_mobile;
+          if (!('gallery_urls' in upsertBody) && Array.isArray((fullSettings as any).gallery_urls)) upsertBody.gallery_urls = (fullSettings as any).gallery_urls;
+
+          // Keys that are critical for public presentation and should be
+          // preserved from `settings` when missing from the incoming payload.
+          const criticalKeys = [
+            'top_benefit_bg_color',
+            'top_benefit_text_color',
+            'show_sale_price',
+            'show_cost_price',
+            'price_unlock_mode',
+            'primary_color',
+            'secondary_color',
+          ];
+
+          criticalKeys.forEach((k: string) => {
+            if (!(k in upsertBody) || (upsertBody as any)[k] === null || typeof (upsertBody as any)[k] === 'undefined') {
+              (upsertBody as any)[k] = (fullSettings as any)[k];
+            }
+          });
+
+          // Special handling for custom fields in `settings` that map to
+          // different column names in `public_catalogs`.
+          if (!upsertBody.primary_color) upsertBody.primary_color = fullSettings.custom_primary_color ?? upsertBody.primary_color;
+          if (!upsertBody.logo_url) upsertBody.logo_url = fullSettings.custom_logo_url ?? upsertBody.logo_url;
+        }
+      } catch (e) {
+        console.warn('[settings/save] Falha no preenchimento defensivo:', e);
+      }
+
       // Upsert into public_catalogs using service role (server-to-server)
+      // Track sync status to return explicit feedback to the frontend
+      publicCatalogSyncLocal = {
+        attempted: false,
+        skipped: false,
+        reason: null,
+        result: null,
+        error: null,
+      };
       try {
         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -784,11 +943,14 @@ export async function POST(req: Request) {
           '[settings/save] Tentando upsert direto em public_catalogs para slug',
           finalSlugToUse
         );
-        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-          console.warn(
-            '[settings/save] Service role ausente; não foi possível atualizar public_catalogs diretamente'
-          );
+          if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+            console.warn(
+              '[settings/save] Service role ausente; não foi possível atualizar public_catalogs diretamente'
+            );
+            publicCatalogSyncLocal.skipped = true;
+            publicCatalogSyncLocal.reason = 'service_role_missing';
           } else {
+            publicCatalogSyncLocal.attempted = true;
           const svc = createSvcClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
           // helper: validate slug ownership (catalog_slug column)
@@ -887,16 +1049,16 @@ export async function POST(req: Request) {
           }
           // attach result for later response
           (publicCatalogPayload as any)._lastUpsert = publicCatalogUpsertResult;
+          publicCatalogSyncLocal.result = publicCatalogUpsertResult;
         }
       } catch (e: any) {
         console.error(
           'settings/save: upsert direto em public_catalogs falhou',
           e
         );
-        return NextResponse.json(
-          { error: e?.message || String(e) },
-          { status: 500 }
-        );
+        publicCatalogSyncLocal.error = e?.message || String(e);
+        // don't early-return — include sync error in response for visibility
+        // return NextResponse.json({ error: e?.message || String(e) }, { status: 500 });
       }
 
       // Best-effort: when company admin saves settings, mirror the adjusted
@@ -955,6 +1117,7 @@ export async function POST(req: Request) {
 
           if (hasOwnPayloadKey('banners')) companyUpdate.banners = Array.isArray(banners) ? banners : null;
           if (hasOwnPayloadKey('banners_mobile')) companyUpdate.banners_mobile = Array.isArray(banners_mobile) ? banners_mobile : null;
+          if (hasOwnPayloadKey('banner_mode')) companyUpdate.banner_mode = (payload as any).banner_mode || null;
           if (hasOwnPayloadKey('store_banner_meta')) companyUpdate.store_banner_meta = store_banner_meta || null;
 
           // PDF do catálogo e flags relacionadas
@@ -1053,6 +1216,7 @@ export async function POST(req: Request) {
       profile: profileUpsertData || null,
       public_catalog: (publicCatalogPayload as any)._lastUpsert || null,
       companies_mirror: (publicCatalogPayload as any)._companiesMirror || null,
+      public_catalog_sync: publicCatalogSyncLocal,
     });
   } catch (err: any) {
     console.error('settings/save error', err);

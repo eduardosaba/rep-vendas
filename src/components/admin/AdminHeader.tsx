@@ -50,15 +50,39 @@ export default function AdminHeader({
       .select('user_id, is_online, last_seen')
       .limit(10);
 
-    if (data) {
-      const mapped = (data as any[]).map((row) => ({
-        id: `${row.user_id}-${row.last_seen}`,
-        title: row.is_online
-          ? `Online: ${row.user_id.substring(0, 8)}...`
-          : `Offline: ${row.user_id.substring(0, 8)}...`,
-        created_at: row.last_seen || new Date().toISOString(),
-        read_at: null,
-      }));
+    if (data && Array.isArray(data)) {
+      // Fetch profile names for the user_ids returned
+      const userIds = data.map((r: any) => r.user_id).filter(Boolean);
+      let profilesMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        try {
+          const { data: profiles } = await client
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', userIds as any[]);
+          if (Array.isArray(profiles)) {
+            profilesMap = profiles.reduce((acc: any, p: any) => {
+              acc[p.id] = p.full_name || '';
+              return acc;
+            }, {} as Record<string, string>);
+          }
+        } catch (e) {
+          // ignore and fallback to ids
+        }
+      }
+
+      const mapped = (data as any[]).map((row) => {
+        const name = profilesMap[row.user_id] || null;
+        const display = name
+          ? `${name}${row.is_online ? ' (online)' : ' (offline)'}`
+          : `${row.is_online ? 'Online' : 'Offline'}: ${String(row.user_id).substring(0, 8)}...`;
+        return {
+          id: `${row.user_id}-${row.last_seen}`,
+          title: display,
+          created_at: row.last_seen || new Date().toISOString(),
+          read_at: null,
+        };
+      });
       setNotifications(mapped);
     }
   }, []);

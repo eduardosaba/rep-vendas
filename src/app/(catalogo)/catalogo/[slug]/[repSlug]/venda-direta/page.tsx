@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { resolveContext } from '@/lib/resolve-context';
 import CheckoutForm from '@/app/catalogo/checkout/CheckoutForm.client';
 
+export const dynamic = 'force-dynamic';
+
 type SearchParams = Record<string, string | string[] | undefined>;
 
 export default async function DirectSalePage({
@@ -56,7 +58,6 @@ export default async function DirectSalePage({
 
     initialCustomer = customer || null;
   }
-
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="mx-auto w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">

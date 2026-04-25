@@ -31,7 +31,7 @@ export default function FooterDistribuidora({ company, primaryColor }: any) {
     return yiq >= 128 ? '#111827' : '#ffffff';
   }
 
-  const footerBg = company.footer_background_color || company.header_background_color || '#ffffff';
+  const footerBg = company.footer_background_color || company.header_background_color || '#0d1b2c';
   const computedTextColor = getContrastColor(footerBg);
   const textColor = company.footer_text_color || company.header_text_color || computedTextColor;
 

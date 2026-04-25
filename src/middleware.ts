@@ -24,6 +24,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Allow the admin 'unauthorized' page to be public so redirects don't loop
+  if (pathname === '/admin/unauthorized') {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next({ request: { headers: request.headers } });
 
   const supabase = createServerClient(

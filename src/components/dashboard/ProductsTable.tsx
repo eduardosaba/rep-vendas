@@ -231,6 +231,14 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     imageOptimization: 'all',
   });
 
+  useEffect(() => {
+    try {
+      // debug: monitor filter changes to help diagnose why some filters don't apply
+      // eslint-disable-next-line no-console
+      console.debug('[ProductsTable] filters changed', filters);
+    } catch (e) {}
+  }, [filters]);
+
   // Server-side filtering mode
   const [serverMode, setServerMode] = useState<boolean>(Boolean(serverModeDefault) || false);
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
@@ -2077,6 +2085,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               <input
                 list="brands"
                 className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                value={(filters.brand && filters.brand[0]) || ''}
                 onChange={(e) =>
                   setFilters({
                     ...filters,
@@ -2126,6 +2135,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               <input
                 list="categories"
                 className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                value={filters.category || ''}
                 onChange={(e) =>
                   setFilters({ ...filters, category: e.target.value })
                 }
@@ -2143,6 +2153,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               </label>
               <select
                 className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                value={filters.visibility || 'all'}
                 onChange={(e) =>
                   setFilters({ ...filters, visibility: e.target.value })
                 }
@@ -2158,6 +2169,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               </label>
               <select
                 className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                value={filters.stockStatus || 'all'}
                 onChange={(e) =>
                   setFilters({ ...filters, stockStatus: e.target.value })
                 }

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Brush, Image as ImageIcon, ChevronUp, ChevronDown, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,18 +27,44 @@ export function TabAppearance(props: any) {
     moveBannerMobile,
   } = props;
 
+  // Garantir que banners sejam arrays para evitar erros ao usar .map
+  const safeCurrentBanners = Array.isArray(currentBanners) ? currentBanners : [];
+  const safeCurrentBannersMobile = Array.isArray(currentBannersMobile) ? currentBannersMobile : [];
+  const [copyToMobile, setCopyToMobile] = useState(true);
+  const [bannerMode, setBannerMode] = useState<string | null>(null);
+
+  // initialize bannerMode from incoming settings/formData when available
+  useEffect(() => {
+    try {
+      const initial = (catalogSettings && (catalogSettings as any).banner_mode) || (formData && formData.banner_mode) || null;
+      setBannerMode(initial);
+    } catch (e) {
+      // ignore
+    }
+  }, [catalogSettings, formData]);
+
   useEffect(() => {
     try {
       setFormData((prev: any) => ({
         ...(prev || {}),
         banners: Array.isArray(currentBanners) ? currentBanners : [],
-        banners_mobile: Array.isArray(currentBannersMobile) ? currentBannersMobile : [],
-        banner_mode: (catalogSettings && catalogSettings.banner_mode) || (prev && prev.banner_mode) || null,
+        banners_mobile: copyToMobile
+          ? (Array.isArray(currentBanners) ? currentBanners : [])
+          : (Array.isArray(currentBannersMobile) ? currentBannersMobile : []),
       }));
+
+      // also update mobile state when copying is enabled so UI controls reflect the same list
+      if (copyToMobile) {
+        try {
+          setCurrentBannersMobile?.(Array.isArray(currentBanners) ? currentBanners : []);
+        } catch (e) {
+          // ignore
+        }
+      }
     } catch (e) {
       // setFormData may be optional; ignore failures
     }
-  }, [currentBanners, currentBannersMobile, catalogSettings && catalogSettings.banner_mode, setFormData]);
+  }, [currentBanners, currentBannersMobile, setFormData, copyToMobile]);
 
   return (
     <div className="space-y-8 animate-in slide-in-from-right-4">
@@ -200,36 +226,36 @@ export function TabAppearance(props: any) {
               <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl space-y-4">
               <label className="text-xs font-black uppercase text-slate-500 block">Cores do Tema</label>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400">Primária</span>
-                  <input type="color" name="primary_color" value={formData.primary_color} onChange={(e: any) => {
-                    const v = e.target.value;
-                    try { setFormData((p: any) => ({ ...p, primary_color: v })); } catch (err) {}
-                    try { setCatalogSettings((p: any) => ({ ...(p||{}), primary_color: v })); } catch (err) {}
-                  }} className="w-full h-12 rounded-xl cursor-pointer" />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400">Secundária</span>
-                  <input type="color" name="secondary_color" value={formData.secondary_color} onChange={(e: any) => {
-                    const v = e.target.value;
-                    try { setFormData((p: any) => ({ ...p, secondary_color: v })); } catch (err) {}
-                    try { setCatalogSettings((p: any) => ({ ...(p||{}), secondary_color: v })); } catch (err) {}
-                  }} className="w-full h-12 rounded-xl cursor-pointer" />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400">Rodapé (Fundo)</span>
-                  <input type="color" name="footer_background_color" value={formData.footer_background_color || ''} onChange={(e: any) => {
-                    const v = e.target.value;
-                    try { setFormData((p: any) => ({ ...p, footer_background_color: v })); } catch (err) {}
-                  }} className="w-full h-12 rounded-xl cursor-pointer" />
-                </div>
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-slate-400">Rodapé (Texto)</span>
-                  <input type="color" name="footer_text_color" value={formData.footer_text_color || ''} onChange={(e: any) => {
-                    const v = e.target.value;
-                    try { setFormData((p: any) => ({ ...p, footer_text_color: v })); } catch (err) {}
-                  }} className="w-full h-12 rounded-xl cursor-pointer" />
-                </div>
+                  <div className="space-y-5 flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400">Primária</span>
+                    <input type="color" name="primary_color" value={formData.primary_color || ''} onChange={(e: any) => {
+                      const v = e.target.value;
+                      try { setFormData((p: any) => ({ ...p, primary_color: v })); } catch (err) {}
+                      try { setCatalogSettings((p: any) => ({ ...(p||{}), primary_color: v })); } catch (err) {}
+                    }} className="w-full h-12 rounded-xl cursor-pointer" />
+                  </div>
+                  <div className="space-y-5 flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400">Secundária</span>
+                    <input type="color" name="secondary_color" value={formData.secondary_color || ''} onChange={(e: any) => {
+                      const v = e.target.value;
+                      try { setFormData((p: any) => ({ ...p, secondary_color: v })); } catch (err) {}
+                      try { setCatalogSettings((p: any) => ({ ...(p||{}), secondary_color: v })); } catch (err) {}
+                    }} className="w-full h-12 rounded-xl cursor-pointer" />
+                  </div>
+                  <div className="space-y-2 flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400">Rodapé (Fundo)</span>
+                    <input type="color" name="footer_background_color" value={formData.footer_background_color || ''} onChange={(e: any) => {
+                      const v = e.target.value;
+                      try { setFormData((p: any) => ({ ...p, footer_background_color: v })); } catch (err) {}
+                    }} className="w-full h-12 rounded-xl cursor-pointer" />
+                  </div>
+                  <div className="space-y-2 flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400">Rodapé (Texto)</span>
+                    <input type="color" name="footer_text_color" value={formData.footer_text_color || ''} onChange={(e: any) => {
+                      const v = e.target.value;
+                      try { setFormData((p: any) => ({ ...p, footer_text_color: v })); } catch (err) {}
+                    }} className="w-full h-12 rounded-xl cursor-pointer" />
+                  </div>
               </div>
             </div>
           </div>
@@ -244,11 +270,13 @@ export function TabAppearance(props: any) {
                   key={mode}
                   type="button"
                   onClick={() => {
-                    setCatalogSettings((p: any) => ({ ...p, banner_mode: mode }));
-                    try { setFormData((p: any) => ({ ...p, banner_mode: mode })); } catch (e) { /* ignore if not provided */ }
+                    // persist banner_mode to formData/catalogSettings so it will be saved
+                    setBannerMode(mode);
+                    try { setCatalogSettings((p: any) => ({ ...(p||{}), banner_mode: mode })); } catch (e) {}
+                    try { setFormData((p: any) => ({ ...(p||{}), banner_mode: mode })); } catch (e) {}
                   }}
                   className={`px-3 py-2 rounded-xl border transition-all ${
-                    (catalogSettings.banner_mode === mode || (formData && formData.banner_mode === mode))
+                    (bannerMode === mode)
                       ? 'bg-primary text-white border-primary'
                       : 'bg-white text-slate-600 border-slate-200'
                   }`}
@@ -263,25 +291,42 @@ export function TabAppearance(props: any) {
           <div className="space-y-4 pt-6 border-t">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black uppercase text-slate-500">Banners Desktop (1400x400)</label>
-              <label className="px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase cursor-pointer hover:bg-primary transition-colors">Adicionar <input type="file" className="hidden" accept="image/*" multiple onChange={async (e: any) => {
+                <div className="flex items-center gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={copyToMobile} onChange={(e) => setCopyToMobile(Boolean(e.target.checked))} className="w-4 h-4" />
+                    <span className="text-xs font-medium">Copiar para mobile</span>
+                  </label>
+                  <label className="px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase cursor-pointer hover:bg-primary transition-colors">Adicionar <input type="file" className="hidden" accept="image/*" multiple onChange={async (e: any) => {
                 const files = Array.from(e.target.files || []);
                 if (!files.length) return;
                 try {
                   const urls = await uploadBannersToStorage(files, 'desktop');
-                  setCurrentBanners((p: any) => [...p, ...urls]);
+                  if (Array.isArray(urls) && urls.length > 0) {
+                      const next = [...safeCurrentBanners, ...urls].filter((v, idx, arr) => arr.indexOf(v) === idx);
+                      setCurrentBanners(next);
+                      if (copyToMobile) setCurrentBannersMobile(next);
+                    toast.success('Banners enviados com sucesso');
+                  } else {
+                    toast.error('Nenhum banner foi gerado');
+                  }
                 } catch (err) {
                   console.error('Erro ao enviar banners:', err);
+                  toast.error('Falha ao enviar banners');
                 }
-              }} /></label>
+                }} /></label>
+                </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {currentBanners.map((url: string, i: number) => (
+                {safeCurrentBanners.map((url: string, i: number) => (
                 <div key={i} className="relative aspect-[14/4] rounded-2xl overflow-hidden group border-2 border-transparent hover:border-primary transition-all shadow-md">
                   {url ? <img src={url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">Imagem indisponível</div>}
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                     <button onClick={() => moveBanner(i, 'up')} disabled={i === 0} className="p-2 bg-white rounded-full text-slate-900 disabled:opacity-30 shadow-lg hover:scale-110 transition-transform"><ChevronUp size={18} /></button>
-                    <button onClick={() => moveBanner(i, 'down')} disabled={i === currentBanners.length - 1} className="p-2 bg-white rounded-full text-slate-900 disabled:opacity-30 shadow-lg hover:scale-110 transition-transform"><ChevronDown size={18} /></button>
-                    <button onClick={() => setCurrentBanners((p: any) => p.filter((_: any, idx: number) => idx !== i))} className="p-2 bg-red-500 rounded-full text-white shadow-lg hover:scale-110 transition-transform"><Trash2 size={18} /></button>
+                    <button onClick={() => moveBanner(i, 'down')} disabled={i === safeCurrentBanners.length - 1} className="p-2 bg-white rounded-full text-slate-900 disabled:opacity-30 shadow-lg hover:scale-110 transition-transform"><ChevronDown size={18} /></button>
+                    <button onClick={() => {
+                      const next = safeCurrentBanners.filter((_: any, idx: number) => idx !== i);
+                      setCurrentBanners(next);
+                    }} className="p-2 bg-red-500 rounded-full text-white shadow-lg hover:scale-110 transition-transform"><Trash2 size={18} /></button>
                   </div>
                   <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[8px] font-black px-2 py-1 rounded-md uppercase">Posição: {i + 1}</div>
                 </div>
@@ -297,25 +342,30 @@ export function TabAppearance(props: any) {
                 if (!files.length) return;
                 try {
                   const urls = await uploadBannersToStorage(files, 'mobile');
-                  setCurrentBannersMobile((p: any) => [...p, ...urls]);
+                  if (Array.isArray(urls) && urls.length > 0) {
+                    const next = [...safeCurrentBannersMobile, ...urls].filter((v, idx, arr) => arr.indexOf(v) === idx);
+                    setCurrentBannersMobile(next);
+                    toast.success('Banners mobile enviados com sucesso');
+                  } else {
+                    toast.error('Nenhum banner mobile foi gerado');
+                  }
                 } catch (err) {
                   console.error('Erro ao enviar banners mobile:', err);
+                  toast.error('Falha ao enviar banners mobile');
                 }
               }} /></label>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {(currentBannersMobile && currentBannersMobile.length ? currentBannersMobile : currentBanners).map((url: string, i: number) => (
+              {(safeCurrentBannersMobile && safeCurrentBannersMobile.length ? safeCurrentBannersMobile : safeCurrentBanners).map((url: string, i: number) => (
                 <div key={i} className="relative aspect-video rounded-2xl overflow-hidden group border shadow-sm border-transparent hover:border-primary transition-all">
                   {url ? <img src={url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm text-gray-400">Imagem indisponível</div>}
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
                     <button onClick={() => moveBannerMobile(i, 'up')} disabled={i === 0} className="p-1.5 bg-white rounded-full text-slate-900 disabled:opacity-30 shadow-md"><ChevronUp size={14} /></button>
-                    <button onClick={() => moveBannerMobile(i, 'down')} disabled={i === (currentBannersMobile && currentBannersMobile.length ? currentBannersMobile.length - 1 : (currentBanners ? currentBanners.length - 1 : 0))} className="p-1.5 bg-white rounded-full text-slate-900 disabled:opacity-30 shadow-md"><ChevronDown size={14} /></button>
+                    <button onClick={() => moveBannerMobile(i, 'down')} disabled={i === ((safeCurrentBannersMobile && safeCurrentBannersMobile.length) ? safeCurrentBannersMobile.length - 1 : (safeCurrentBanners ? safeCurrentBanners.length - 1 : 0))} className="p-1.5 bg-white rounded-full text-slate-900 disabled:opacity-30 shadow-md"><ChevronDown size={14} /></button>
                     <button onClick={() => {
-                      if (!currentBannersMobile || currentBannersMobile.length === 0) {
-                        setCurrentBannersMobile((currentBanners || []).filter((_: any, idx: number) => idx !== i));
-                      } else {
-                        setCurrentBannersMobile((p: any) => p.filter((_: any, idx: number) => idx !== i));
-                      }
+                      const src = (safeCurrentBannersMobile && safeCurrentBannersMobile.length) ? safeCurrentBannersMobile : safeCurrentBanners;
+                      const next = src.filter((_: any, idx: number) => idx !== i);
+                      setCurrentBannersMobile(next);
                     }} className="p-1.5 bg-red-500 rounded-full text-white shadow-md"><X size={14} /></button>
                   </div>
                 </div>

@@ -152,7 +152,8 @@ export default function CloneUserPage() {
         body: JSON.stringify({
           sourceUserId: sourceUser,
           targetUserId: selectedUser,
-          brands: selectedBrandVariants
+          // always send an array when intent is to filter; fallback to selectedBrands
+          brands: selectedBrandVariants.length > 0 ? selectedBrandVariants : (selectedBrands.length > 0 ? selectedBrands : [])
         })
       });
 
@@ -297,10 +298,11 @@ export default function CloneUserPage() {
           'Content-Type': 'application/json',
           Authorization: token ? `Bearer ${token}` : '',
         },
-        body: JSON.stringify({
+          body: JSON.stringify({
           targetUserId: selectedUser,
           sourceUserId: sourceUser || null,
-          brands: selectedBrandVariants.length > 0 ? selectedBrandVariants : null,
+          // never send null for brands when intent is to filter
+          brands: selectedBrandVariants.length > 0 ? selectedBrandVariants : (selectedBrands.length > 0 ? selectedBrands : []),
           properties: payloadProperties,
           dryRun: Boolean(isSimulation),
         }),
@@ -392,6 +394,7 @@ export default function CloneUserPage() {
           <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
               <h3 className="font-bold text-lg flex items-center gap-2 tracking-tight"><Copy size={20} className="text-indigo-500"/> Seleção de Marcas</h3>
+              <p className="text-blue-700 text-xs mt-1 font-medium">selecionar apenas 1 marca por vez</p>
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input type="text" placeholder="Filtrar marcas..." className="w-full pl-11 pr-4 py-3 rounded-2xl border bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 ring-indigo-500 text-sm" onChange={(e) => setBrandSearch(e.target.value)} />

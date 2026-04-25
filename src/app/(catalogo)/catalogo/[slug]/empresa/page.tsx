@@ -217,6 +217,20 @@ export default async function Page({ params }: PageProps) {
   const catalogData = await getPublicCatalog(String(company.id));
   const products = catalogData.success && Array.isArray(catalogData.products) ? catalogData.products : [];
 
+  // Server-side debug: log effective company fields relevant to top benefit and footer colors
+  try {
+    // eslint-disable-next-line no-console
+    console.debug('[CompanyEffective] debug', {
+      id: company.id,
+      slug: normalizedCompanySlug,
+      show_top_benefit_bar: companyEffective.show_top_benefit_bar,
+      top_benefit_bg_color: companyEffective.top_benefit_bg_color,
+      top_benefit_text_color: companyEffective.top_benefit_text_color,
+      footer_message: companyEffective.footer_message || null,
+      header_background_color: companyEffective.header_background_color || null,
+    });
+  } catch (e) {}
+
   return (
     <CatalogRichLayout
       company={{ ...companyEffective, company_pages: companyPages || [] }}

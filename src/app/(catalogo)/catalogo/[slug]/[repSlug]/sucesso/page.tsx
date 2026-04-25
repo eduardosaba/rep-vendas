@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { resolveContext } from '@/lib/resolve-context';
 import OrderReceipt from '@/components/checkout/OrderReceipt';
 
+export const dynamic = 'force-dynamic';
+
 type SearchParams = Record<string, string | string[] | undefined>;
 
 export default async function SuccessPage({

@@ -457,7 +457,21 @@ export default function SystemSettingsForm({ context = 'representative', targetI
       const merged = { ...(originalData || {}), ...partial };
       setOriginalData(merged);
       setFormData((p: any) => ({ ...p, ...partial }));
-      return { success: true };
+
+      // Provide frontend feedback about public_catalog sync when available
+      const pubSync = j?.public_catalog_sync;
+      if (pubSync) {
+        if (pubSync.skipped) {
+          toast.warning('Sincronização pública ignorada: ' + (pubSync.reason || 'motivo desconhecido'));
+        } else if (pubSync.attempted && pubSync.result) {
+          const slug = (pubSync.result && pubSync.result.catalog_slug) || (j?.public_catalog && j.public_catalog.catalog_slug) || null;
+          toast.success('Sincronização pública realizada' + (slug ? ` (slug: ${slug})` : ''));
+        } else if (pubSync.error) {
+          toast.error('Erro na sincronização pública: ' + String(pubSync.error));
+        }
+      }
+
+      return { success: true, public_catalog_sync: pubSync || null };
     } catch (e: any) {
       // network or unexpected error
       toast.error('Erro ao salvar: ' + (e?.message || String(e)));
@@ -509,6 +523,9 @@ export default function SystemSettingsForm({ context = 'representative', targetI
         updated_at: now,
       };
 
+      // banner_mode agora existe no schema (migration SQL). Garantir que seja incluído.
+      // Nenhuma ação adicional necessária aqui — mantemos `mergedCatalog.banner_mode`.
+
       // Normalização de tipos
       const numericKeys = ['top_benefit_image_scale', 'top_benefit_height', 'top_benefit_text_size', 'max_installments'];
       numericKeys.forEach((k) => {
@@ -524,6 +541,17 @@ export default function SystemSettingsForm({ context = 'representative', targetI
       // 2. Estratégia de herança — salvar no lugar certo
       // -------------------------------------------------------
       const tasks: Array<Promise<any>> = [];
+
+      // helper: sanitize payloads to avoid sending empty-strings to PostgREST
+      const sanitizeEmptyStrings = (o: Record<string, any>) => {
+        const out: Record<string, any> = {};
+        Object.keys(o).forEach((k) => {
+          const v = o[k];
+          if (v === '') out[k] = null;
+          else out[k] = v;
+        });
+        return out;
+      };
 
       // --- CENÁRIO A: admin_company ou master ↔ salva na tabela `companies` ---
       const isCompanyAdmin = actingRole === 'admin_company' || actingRole === 'master';
@@ -563,7 +591,7 @@ export default function SystemSettingsForm({ context = 'representative', targetI
           enable_stock_management: mergedCatalog.enable_stock_management,
           updated_at: now,
         };
-        tasks.push(supabase.from('companies').update(companyPayload).eq('id', companyId) as any);
+        tasks.push(supabase.from('companies').update(sanitizeEmptyStrings(companyPayload)).eq('id', companyId) as any);
       }
 
       // --- CENÁRIO B: representante / rep ---
@@ -582,11 +610,14 @@ export default function SystemSettingsForm({ context = 'representative', targetI
         footer_message: formData.footer_message || null,
         updated_at: now,
       };
-      // remove campos técnicos antes de salvar em settings
-      delete settingsPayload.header_background_color;
-      delete settingsPayload.header_text_color;
+      // sanitize before upsert: convert empty strings to null to avoid Postgres integer parse errors
+      const settingsPayloadSanitized = sanitizeEmptyStrings({ ...settingsPayload });
+
+      // remove campos técnicos antes de salvar em settings (aplica na cópia sanitizada)
+      delete settingsPayloadSanitized.header_background_color;
+      delete settingsPayloadSanitized.header_text_color;
       tasks.push(
-        supabase.from('settings').upsert([settingsPayload], { onConflict: 'user_id' }) as any
+        supabase.from('settings').upsert([settingsPayloadSanitized], { onConflict: 'user_id' }) as any
       );
 
       // --- ÍNDICE PÚBLICO: public_catalogs guarda apenas slug + is_active ---
@@ -631,7 +662,8 @@ export default function SystemSettingsForm({ context = 'representative', targetI
       case 'general':
         return ['name','phone','email','catalog_slug','price_password','headline','footer_message','is_active'];
       case 'appearance':
-        return ['primary_color','secondary_color','font_family','font_url','logo_url','footer_background_color','footer_text_color','banners','banners_mobile'];
+        return ['primary_color','secondary_color','font_family','font_url','logo_url','footer_background_color','footer_text_color','banners','banners_mobile','banner_mode'];
+      
       case 'institucional':
         return ['about_text','welcome_text','cover_image','store_banner_meta','gallery_urls','gallery_title','gallery_subtitle'];
       case 'display':
@@ -672,14 +704,41 @@ export default function SystemSettingsForm({ context = 'representative', targetI
       const fields = getFieldsForTab(activeTab);
       const partial: any = {};
       fields.forEach((f) => {
-        // prefer catalogSettings for fields managed there
-        if ((catalogSettings as any)[f] !== undefined) partial[f] = (catalogSettings as any)[f];
-        else if (formData[f] !== undefined) partial[f] = formData[f];
+        // For robust detection, prefer explicit user edits in formData,
+        // then catalogSettings, then fall back to originalData.
+        if (formData && Object.prototype.hasOwnProperty.call(formData, f) && formData[f] !== undefined) {
+          partial[f] = formData[f];
+        } else if (catalogSettings && Object.prototype.hasOwnProperty.call(catalogSettings, f) && (catalogSettings as any)[f] !== undefined) {
+          partial[f] = (catalogSettings as any)[f];
+        } else if (originalData && Object.prototype.hasOwnProperty.call(originalData, f)) {
+          partial[f] = originalData[f];
+        } else {
+          partial[f] = undefined;
+        }
       });
       // compute diff against originalData
       const diff: any = {};
+      // Include display-specific local states not stored in formData/catalogSettings
+      if (activeTab === 'display') {
+        try {
+          // topBenefit local preview/state variables
+          partial.top_benefit_bg_color = topBenefitBgColor ?? (catalogSettings as any)?.top_benefit_bg_color ?? originalData?.top_benefit_bg_color;
+          partial.top_benefit_text_color = topBenefitTextColor ?? (catalogSettings as any)?.top_benefit_text_color ?? originalData?.top_benefit_text_color;
+          partial.top_benefit_height = typeof topBenefitHeight !== 'undefined' ? topBenefitHeight : (catalogSettings as any)?.top_benefit_height ?? originalData?.top_benefit_height;
+          partial.top_benefit_image_url = topBenefitImagePreview ?? (catalogSettings as any)?.top_benefit_image_url ?? originalData?.top_benefit_image_url;
+          partial.top_benefit_image_scale = (catalogSettings as any)?.top_benefit_image_scale ?? originalData?.top_benefit_image_scale;
+        } catch (e) {
+          // ignore
+        }
+      }
       Object.keys(partial).forEach(k => {
-        if (JSON.stringify(partial[k]) !== JSON.stringify(originalData?.[k])) diff[k] = partial[k];
+        const a = typeof partial[k] === 'undefined' || partial[k] === null ? '' : partial[k];
+        const b = typeof originalData?.[k] === 'undefined' || originalData?.[k] === null ? '' : originalData?.[k];
+        try {
+          if (JSON.stringify(a) !== JSON.stringify(b)) diff[k] = partial[k];
+        } catch (e) {
+          if (String(a) !== String(b)) diff[k] = partial[k];
+        }
       });
       if (Object.keys(diff).length === 0) {
         toast.info('Nenhuma alteração nesta aba.');
@@ -773,7 +832,124 @@ export default function SystemSettingsForm({ context = 'representative', targetI
             applyDashboardFont={() => {}}
             catalogSettings={catalogSettings}
             setCatalogSettings={setCatalogSettings}
-            uploadBannersToStorage={async () => []}
+            uploadBannersToStorage={async (files: File[], which: 'desktop' | 'mobile') => {
+              try {
+                const {
+                  data: { user },
+                } = await supabase.auth.getUser();
+                if (!user) throw new Error('Usuário não autenticado');
+
+                // For banners we produce a single optimized image at 1200w
+                const targetWidth = 1200;
+                const quality = 0.82;
+
+                const toWebpBlob = async (file: File) => {
+                  // decode image
+                  const imgBitmap = await createImageBitmap(file);
+                  // calculate scale preserving aspect ratio
+                  const scale = imgBitmap.width > targetWidth ? targetWidth / imgBitmap.width : 1;
+                  const w = Math.max(1, Math.round(imgBitmap.width * scale));
+                  const h = Math.max(1, Math.round(imgBitmap.height * scale));
+
+                  // prefer OffscreenCanvas when available
+                  const canvas: HTMLCanvasElement | OffscreenCanvas = (typeof OffscreenCanvas !== 'undefined')
+                    ? new OffscreenCanvas(w, h)
+                    : (document.createElement('canvas') as HTMLCanvasElement);
+
+                  if (canvas instanceof HTMLCanvasElement) {
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) throw new Error('Canvas 2D not available');
+                    ctx.drawImage(imgBitmap, 0, 0, w, h);
+                    return await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/webp', quality));
+                  } else {
+                    // OffscreenCanvas
+                    const ctx = (canvas as OffscreenCanvas).getContext('2d');
+                    if (!ctx) throw new Error('OffscreenCanvas 2D not available');
+                    ctx.drawImage(imgBitmap, 0, 0, w, h);
+                    // @ts-ignore OffscreenCanvas.prototype.convertToBlob exists in many browsers
+                    if (typeof (canvas as any).convertToBlob === 'function') {
+                      return await (canvas as any).convertToBlob({ type: 'image/webp', quality });
+                    }
+                    return null;
+                  }
+                };
+
+                const uploadedUrls: string[] = [];
+                for (let i = 0; i < files.length; i++) {
+                  const file = files[i];
+                  try {
+                    const webpBlob = await toWebpBlob(file);
+                    const ext = 'webp';
+                    const fileName = `banner-${which}-${Date.now()}-${i}-1200w.${ext}`;
+                    const filePath = `${user.id}/banners/${which}/${fileName}`;
+
+                    const uploadFile = webpBlob ? new File([webpBlob], fileName, { type: 'image/webp' }) : file;
+
+                    const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, uploadFile, { upsert: true });
+                    if (uploadError) throw uploadError;
+                    let publicUrl: string | null = null;
+                    try {
+                      const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(filePath);
+                      publicUrl = urlData?.publicUrl || null;
+                    } catch (e) {}
+                    if (!publicUrl) {
+                      try {
+                        const { data: signedData, error: signedErr } = await supabase.storage.from('product-images').createSignedUrl(filePath, 60 * 60);
+                        if (!signedErr) publicUrl = (signedData && signedData.signedUrl) || null;
+                      } catch (e) {
+                        // ignore
+                      }
+                    }
+                    if (!publicUrl) {
+                      try {
+                        const clientUrl = (supabase as any).url || (supabase as any).supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+                        if (clientUrl) publicUrl = `${clientUrl.replace(/\/$/, '')}/storage/v1/object/public/product-images/${filePath}`;
+                      } catch (e) {}
+                    }
+                    if (publicUrl) uploadedUrls.push(publicUrl);
+                  } catch (err) {
+                    // on error, continue with original file upload as fallback
+                    try {
+                      const fileExt = file.name.split('.').pop();
+                      const fileName = `banner-${which}-${Date.now()}-${i}.${fileExt || 'jpg'}`;
+                      const filePath = `${user.id}/banners/${which}/${fileName}`;
+                      const { error: uploadError2 } = await supabase.storage.from('product-images').upload(filePath, file, { upsert: true });
+                      if (!uploadError2) {
+                        let publicUrl2: string | null = null;
+                        try {
+                          const { data: urlData2 } = supabase.storage.from('product-images').getPublicUrl(filePath);
+                          publicUrl2 = urlData2?.publicUrl || null;
+                        } catch (e) {}
+                        if (!publicUrl2) {
+                          try {
+                            const { data: signedData2, error: signedErr2 } = await supabase.storage.from('product-images').createSignedUrl(filePath, 60 * 60);
+                            if (!signedErr2) publicUrl2 = (signedData2 && signedData2.signedUrl) || null;
+                          } catch (e) {}
+                        }
+                        if (!publicUrl2) {
+                          try {
+                            const clientUrl2 = (supabase as any).url || (supabase as any).supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+                            if (clientUrl2) publicUrl2 = `${clientUrl2.replace(/\/$/, '')}/storage/v1/object/public/product-images/${filePath}`;
+                          } catch (e) {}
+                        }
+                        if (publicUrl2) {
+                          uploadedUrls.push(publicUrl2);
+                          continue;
+                        }
+                      }
+                    } catch (e) {}
+                    console.warn('uploadBannersToStorage: failed to process file', file.name, err);
+                  }
+                }
+
+                return uploadedUrls;
+              } catch (e) {
+                console.error('uploadBannersToStorage failed', e);
+                return [];
+              }
+            }}
             currentBanners={(catalogSettings && catalogSettings.banners) || []}
             setCurrentBanners={(next: string[]) => setCatalogSettings((p: any) => ({ ...(p||{}), banners: next }))}
             currentBannersMobile={(catalogSettings && catalogSettings.banners_mobile) || []}

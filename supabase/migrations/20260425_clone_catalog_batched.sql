@@ -1,7 +1,11 @@
--- Migration: Ensure clone_catalog_smart copies additional product fields
--- Date: 2026-04-24
--- Adds material, polarizado, fotocromatico, material_haste, colecao to cloned rows
+-- Migration: Batched clone_catalog_smart and helpful indexes
+-- Date: 2026-04-25
 
+-- Create indexes to speed up lookups used by the clone function
+CREATE INDEX IF NOT EXISTS products_user_reference_brand_idx ON public.products (user_id, reference_code, brand);
+CREATE INDEX IF NOT EXISTS products_user_slug_idx ON public.products (user_id, slug);
+
+-- Replace clone_catalog_smart with a batched cursor implementation to avoid large memory scans
 CREATE OR REPLACE FUNCTION public.clone_catalog_smart(
   source_user_id UUID,
   target_user_id UUID,
@@ -15,62 +19,60 @@ DECLARE
   max_suffix INT;
   suffix INT;
   cloned_product_id uuid;
+  cur REFCURSOR;
+  source_company_id uuid := NULL;
+  target_company_id uuid := NULL;
+  br_name text;
+  src_brand record;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(target_user_id::text)::bigint);
   PERFORM set_config('statement_timeout', '600000', true); -- 10 minutes for long clones
 
-  -- Resolve company ids for source and target (if any)
-  DECLARE
-    source_company_id uuid := NULL;
-    target_company_id uuid := NULL;
-    br_name text;
-    src_brand record;
+  SELECT company_id INTO source_company_id FROM public.profiles WHERE id = source_user_id LIMIT 1;
+  SELECT company_id INTO target_company_id FROM public.profiles WHERE id = target_user_id LIMIT 1;
+
+  -- Upsert brands metadata for each brand in brands_to_copy (if provided)
+  IF brands_to_copy IS NOT NULL THEN
+    FOREACH br_name IN ARRAY brands_to_copy LOOP
+      SELECT b.name, b.logo_url, b.banner_url, b.description, b.banner_meta
+      INTO src_brand
+      FROM public.brands b
+      WHERE b.name = br_name
+        AND (b.user_id = source_user_id OR (source_company_id IS NOT NULL AND b.company_id = source_company_id))
+      LIMIT 1;
+
+      IF FOUND THEN
+        INSERT INTO public.brands (id, name, logo_url, banner_url, description, banner_meta, user_id, company_id, created_at, updated_at)
+        SELECT gen_random_uuid(), src_brand.name, src_brand.logo_url, src_brand.banner_url, src_brand.description, src_brand.banner_meta,
+               target_user_id, target_company_id, now(), now()
+        WHERE NOT EXISTS (
+          SELECT 1 FROM public.brands tb
+          WHERE tb.name = src_brand.name AND (tb.user_id = target_user_id OR (target_company_id IS NOT NULL AND tb.company_id = target_company_id))
+        );
+      END IF;
+    END LOOP;
+  END IF;
+
+  -- Copy settings.logo_url from source user to target user (if present)
+  DECLARE src_settings record;
   BEGIN
-    SELECT company_id INTO source_company_id FROM public.profiles WHERE id = source_user_id LIMIT 1;
-    SELECT company_id INTO target_company_id FROM public.profiles WHERE id = target_user_id LIMIT 1;
-
-    -- Upsert brands metadata for each brand in brands_to_copy (if provided)
-    IF brands_to_copy IS NOT NULL THEN
-      FOREACH br_name IN ARRAY brands_to_copy LOOP
-        -- try find brand owned by source user
-        SELECT b.name, b.logo_url, b.banner_url, b.description, b.banner_meta
-        INTO src_brand
-        FROM public.brands b
-        WHERE b.name = br_name
-          AND (b.user_id = source_user_id OR (source_company_id IS NOT NULL AND b.company_id = source_company_id))
-        LIMIT 1;
-
-        IF FOUND THEN
-          -- insert if not exists for target (user or company)
-          INSERT INTO public.brands (id, name, logo_url, banner_url, description, banner_meta, user_id, company_id, created_at, updated_at)
-          SELECT gen_random_uuid(), src_brand.name, src_brand.logo_url, src_brand.banner_url, src_brand.description, src_brand.banner_meta,
-                 target_user_id, target_company_id, now(), now()
-          WHERE NOT EXISTS (
-            SELECT 1 FROM public.brands tb
-            WHERE tb.name = src_brand.name AND (tb.user_id = target_user_id OR (target_company_id IS NOT NULL AND tb.company_id = target_company_id))
-          );
-        END IF;
-      END LOOP;
+    SELECT logo_url INTO src_settings FROM public.settings WHERE user_id = source_user_id LIMIT 1;
+    IF FOUND AND src_settings.logo_url IS NOT NULL THEN
+      -- try update first, otherwise insert
+      UPDATE public.settings SET logo_url = src_settings.logo_url, updated_at = now()
+      WHERE user_id = target_user_id;
+      IF NOT FOUND THEN
+        INSERT INTO public.settings (id, user_id, logo_url, created_at, updated_at)
+        VALUES (gen_random_uuid(), target_user_id, src_settings.logo_url, now(), now());
+      END IF;
     END IF;
+  EXCEPTION WHEN undefined_column OR undefined_table THEN
+    -- If `public.settings` or `logo_url` doesn't exist, skip silently to avoid migration failure
+    NULL;
   END;
 
-    -- Copy settings.logo_url from source user to target user (if present)
-    DECLARE src_settings record;
-    BEGIN
-      SELECT logo_url INTO src_settings FROM public.settings WHERE user_id = source_user_id LIMIT 1;
-      IF FOUND AND src_settings.logo_url IS NOT NULL THEN
-        UPDATE public.settings SET logo_url = src_settings.logo_url, updated_at = now()
-        WHERE user_id = target_user_id;
-        IF NOT FOUND THEN
-          INSERT INTO public.settings (id, user_id, logo_url, created_at, updated_at)
-          VALUES (gen_random_uuid(), target_user_id, src_settings.logo_url, now(), now());
-        END IF;
-      END IF;
-    EXCEPTION WHEN undefined_column OR undefined_table THEN
-      NULL;
-    END;
-
-  FOR s_row IN
+  -- Open a cursor to iterate products from the source without materializing the whole set
+  OPEN cur FOR
     SELECT p.*, (CASE WHEN COALESCE(p.slug, '') = '' THEN regexp_replace(lower(p.name), '[^a-z0-9]+', '-', 'g') ELSE p.slug END) AS base_slug
     FROM public.products p
     WHERE p.user_id = source_user_id
@@ -81,8 +83,13 @@ BEGIN
           AND p2.reference_code = p.reference_code
           AND p2.brand = p.brand
       )
-    ORDER BY p.id
+    ORDER BY p.id;
+
   LOOP
+    FETCH cur INTO s_row;
+    EXIT WHEN NOT FOUND;
+
+    -- compute slug candidate with numeric suffix to avoid collisions
     SELECT COALESCE(MAX((substring(p.slug FROM '-(\d+)$'))::int), 0) INTO max_suffix
     FROM public.products p
     WHERE p.user_id = target_user_id
@@ -103,7 +110,6 @@ BEGIN
           technical_specs, stock_quantity, track_stock, manage_stock,
           min_stock_level, sku, barcode, color, gender, class_core, short_id,
           original_product_id, sync_status, user_id,
-          -- New fields
           material, polarizado, fotocromatico, material_haste, colecao, frame_formato, color_nome
         )
         VALUES (
@@ -116,7 +122,6 @@ BEGIN
           s_row.technical_specs, s_row.stock_quantity, s_row.track_stock, s_row.manage_stock,
           s_row.min_stock_level, s_row.sku, s_row.barcode, s_row.color, s_row.gender, s_row.class_core, s_row.short_id,
           s_row.id, 'synced', target_user_id,
-          -- New values copied through
           s_row.material, s_row.polarizado, s_row.fotocromatico, s_row.material_haste, s_row.colecao, s_row.frame_formato, s_row.color_nome
         )
         RETURNING id INTO cloned_product_id;
@@ -132,6 +137,8 @@ BEGIN
 
     v_count := v_count + 1;
   END LOOP;
+
+  CLOSE cur;
 
   RETURN QUERY SELECT v_count;
 END;

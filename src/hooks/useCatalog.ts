@@ -1,683 +1,208 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Product, Settings, CartItem } from '@/lib/types';
+import { Product, Settings } from '@/lib/types';
 import { toast } from 'sonner';
 import { isNextRedirect } from '@/lib/isNextRedirect';
 import { useParams } from 'next/navigation';
 
-export function useCatalog(
-  overrideUserId?: string,
-  initialSettings?: Settings | null
-) {
+export function useCatalog(overrideUserId?: string, initialSettings?: Settings | null) {
   const supabase = createClient();
   const params = useParams();
-  // usar sonner programático
-
-  // Prioriza o ID passado via props (resolvido no servidor), senão tenta ler da URL
   const userId = overrideUserId || (params?.slug as string);
 
   // --- ESTADOS DE DADOS ---
   const [products, setProducts] = useState<Product[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(
-    initialSettings || null
-  );
-  const [brandLogos, setBrandLogos] = useState<Record<string, string | null>>(
-    {}
-  );
+  const [settings, setSettings] = useState<Settings | null>(initialSettings || null);
+  const [brandLogos, setBrandLogos] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState<Record<string, number>>({}); // { productId: quantity }
+  const [cart, setCart] = useState<Record<string, number>>({});
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [loadedOrderCode, setLoadedOrderCode] = useState<string | null>(null);
   const [totalProducts, setTotalProducts] = useState<number>(0);
 
   // --- ESTADOS DE FILTRO E UI ---
   const [searchTerm, setSearchTerm] = useState('');
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(12);
-  const [showFilters, setShowFilters] = useState(false);
-  const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
-  const [showOnlyNew, setShowOnlyNew] = useState(false);
+  const [itemsPerPage, setItemsPerPage] = useState(24);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  // --- ESTADOS DE ACESSO (PREÇO) ---
   const [priceAccessGranted, setPriceAccessGranted] = useState(false);
-  const [pricePasswordHash, setPricePasswordHash] = useState<string | null>(
-    null
-  );
+  const [pricePasswordHash, setPricePasswordHash] = useState<string | null>(null);
 
-  // --- CARREGAMENTO INICIAL ---
+  // Helper de Normalização para Categorias (Igual ao do Componente Visual)
+  const normalizeCategory = (v: string) => {
+    if (!v) return '';
+    let s = String(v).toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^opt+/, '');
+    if (s.includes('clipon') || (s.includes('clip') && s.includes('on')) || s.includes('clion')) return 'CLIPON';
+    return s.toUpperCase();
+  };
+
+  // --- BUSCA DE PRODUTOS (SERVER-SIDE) ---
   useEffect(() => {
     if (!userId) return;
 
-    const initCatalog = async () => {
+    const fetchProducts = async () => {
       try {
         setLoading(true);
+        const p = new URLSearchParams();
+        p.set('user_id', String(userId));
+        p.set('page', String(currentPage));
+        p.set('per_page', String(itemsPerPage));
 
-        // 1. Carregar Configurações e Produtos (se não vierem via props no futuro)
-        // Nota: Mesmo que a página passe initialProducts, este fetch garante dados frescos se o usuário navegar
-        // Buscar settings apenas se não foi fornecido como initialSettings (com resiliência .maybeSingle())
-        const settingsPromise = initialSettings
-          ? Promise.resolve({ data: initialSettings })
-          : supabase
-              .from('settings')
-              .select('*')
-              .eq('user_id', userId)
-              .maybeSingle();
-        // Buscar produtos via rota API que aplica filtros e paginação no servidor
-        try {
-          const params = new URLSearchParams(window.location.search || '');
-          const p = new URLSearchParams();
-          p.set('user_id', String(userId));
-          p.set('page', String(currentPage || 1));
-          p.set('per_page', String(itemsPerPage || 24));
-          if (searchTerm) p.set('q', searchTerm);
-          if (selectedCategory && selectedCategory !== 'all') {
-            // send both category and class_core so server can filter by either
-            p.set('category', String(selectedCategory));
-            p.set('class_core', String(selectedCategory));
-          }
-          if (selectedBrands && selectedBrands.length > 0) p.set('brands', selectedBrands.join(','));
-          // respeitar filtros de URL (material/polarizado/fotocromatico)
-          const material = params.get('material');
-          const polarizado = params.get('polarizado');
-          const fotocromatico = params.get('fotocromatico');
-          if (material) p.set('material', material);
-          if (polarizado) p.set('polarizado', polarizado);
-          if (fotocromatico) p.set('fotocromatico', fotocromatico);
+        if (searchTerm) p.set('q', searchTerm);
+        if (selectedCategory && selectedCategory !== 'all') p.set('category', selectedCategory);
+        if (selectedBrands.length > 0) p.set('brands', selectedBrands.join(','));
+        if (sortBy) p.set('sort', sortBy);
+        if (sortOrder) p.set('order', sortOrder);
 
-          // ordenação
-          if (sortBy) p.set('sort', sortBy);
-          if (sortOrder) p.set('order', sortOrder === 'asc' ? 'asc' : 'desc');
+        const res = await fetch(`/api/catalog?${p.toString()}`);
+        const data = await res.json();
 
-          const url = `/api/catalog?${p.toString()}`;
-          try {
-            // debug: show the exact query sent to the server
-            // eslint-disable-next-line no-console
-            console.debug('[useCatalog] fetching', url);
-          } catch {}
-          const productsRes = await fetch(url);
-          const productsJson = await productsRes.json();
-
-          const settingsRes = await settingsPromise;
-
-          if (settingsRes && (settingsRes as any).data) setSettings((settingsRes as any).data);
-          if (productsJson && productsJson.products) {
-            const normalized = (productsJson.products as any[]).map((p) => {
-              const costVal = p.cost ?? p.price ?? null;
-              const saleVal = p.sale_price ?? p.price ?? null;
-              return {
-                ...p,
-                cost: costVal,
-                price: saleVal,
-              } as any;
-            });
-            setProducts(normalized as Product[]);
-            if (typeof productsJson.count === 'number') setTotalProducts(productsJson.count);
-          }
-        } catch (e) {
-          // Fallback para consulta direta caso a rota falhe
-          const offset = Math.max(0, (currentPage - 1) * itemsPerPage);
-          const limit = itemsPerPage;
-          let query = supabase
-            .from('products')
-            .select('*', { count: 'exact' })
-            .eq('user_id', userId)
-            .range(offset, offset + limit - 1)
-            .order('created_at', { ascending: false });
-          if (searchTerm && searchTerm.trim().length > 0) {
-            const like = `%${searchTerm.trim()}%`;
-            query = query.or(`name.ilike.${like},reference_code.ilike.${like}`);
-          }
-          const [settingsRes, productsRes] = await Promise.all([settingsPromise, query]);
-
-          if (settingsRes && (settingsRes as any).data) setSettings((settingsRes as any).data);
-          if (productsRes && (productsRes as any).data) {
-            const normalized = (productsRes.data as any[]).map((p) => {
-              const costVal = p.cost ?? p.price ?? null;
-              const saleVal = p.sale_price ?? p.price ?? null;
-              return {
-                ...p,
-                cost: costVal,
-                price: saleVal,
-              } as any;
-            });
-            setProducts(normalized as Product[]);
-            if (typeof productsRes.count === 'number') setTotalProducts(productsRes.count);
-          }
-        }
-
-        // 3. Carregar logos das marcas (se existir tabela `brands`)
-        try {
-          const { data: brandsData } = await supabase
-            .from('brands')
-            .select('name,logo_url')
-            .eq('user_id', userId);
-
-          if (brandsData) {
-            const map: Record<string, string | null> = {};
-            (brandsData as any[]).forEach((b) => {
-              if (b && b.name) map[b.name] = b.logo_url || null;
-            });
-            setBrandLogos(map);
-          }
-        } catch (err) {
-          // Não crítico — continuar sem logos
-          if (!isNextRedirect(err)) {
-            // debug removed
-          }
-        }
-
-        // 4. Carregar hash público da senha — priorizar `settings.price_password_hash`
-        try {
-          const settingsRow = settings;
-          if (settingsRow && settingsRow.price_password_hash) {
-            setPricePasswordHash(settingsRow.price_password_hash);
-          } else {
-            // fallback: read from public_catalogs if settings doesn't provide it
-            const { data: publicCatalog } = await supabase
-              .from('public_catalogs')
-              .select('price_password_hash')
-              .eq('user_id', userId)
-              .maybeSingle();
-
-            if (publicCatalog && (publicCatalog as any).price_password_hash) {
-              setPricePasswordHash((publicCatalog as any).price_password_hash);
-            }
-          }
-        } catch (err) {
-          if (!isNextRedirect(err)) {
-            // ignore non-fatal errors
-          }
-        }
-
-        // 2. Carregar Dados do Cliente (LocalStorage)
-        // Isso só roda no navegador
-        if (typeof window !== 'undefined') {
-          const savedCart =
-            typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-              ? window.localStorage.getItem('cart')
-              : null;
-          if (savedCart) {
-            try {
-              setCart(JSON.parse(savedCart));
-            } catch (e) {
-              console.warn(
-                'useCatalog: invalid cart in localStorage, clearing',
-                savedCart
-              );
-              try {
-                if (typeof window !== 'undefined' && typeof window.localStorage?.removeItem === 'function')
-                  window.localStorage.removeItem('cart');
-              } catch {}
-              setCart({});
-            }
-          }
-
-          const savedFavs =
-            typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-              ? window.localStorage.getItem('favorites')
-              : null;
-          if (savedFavs) {
-            try {
-              setFavorites(new Set(JSON.parse(savedFavs)));
-            } catch (e) {
-              console.warn(
-                'useCatalog: invalid favorites in localStorage, clearing',
-                savedFavs
-              );
-              try {
-                if (typeof window !== 'undefined' && typeof window.localStorage?.removeItem === 'function')
-                  window.localStorage.removeItem('favorites');
-              } catch {}
-              setFavorites(new Set());
-            }
-          }
-
-          const access =
-            typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-              ? window.localStorage.getItem('priceAccessGranted')
-              : null;
-          if (access === 'true') setPriceAccessGranted(true);
+        if (data.products) {
+          const normalized = data.products.map((prod: any) => ({
+            ...prod,
+            price: prod.sale_price ?? prod.price ?? 0,
+            cost: prod.cost ?? prod.price ?? 0,
+          }));
+          setProducts(normalized);
+          setTotalProducts(data.count || 0);
         }
       } catch (error) {
-        if (!isNextRedirect(error))
-          console.error('Erro ao carregar catálogo:', error);
-        toast.error('Erro ao carregar catálogo');
+        console.error('Erro ao buscar produtos:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    initCatalog();
+    fetchProducts();
+  }, [userId, currentPage, itemsPerPage, searchTerm, selectedCategory, selectedBrands, sortBy, sortOrder]);
+
+  // --- CARREGAMENTO DE CONFIGURAÇÕES E LOGOS ---
+  useEffect(() => {
+    if (!userId) return;
+
+    const loadSettings = async () => {
+      try {
+        if (!initialSettings) {
+          const { data } = await supabase.from('settings').select('*').eq('user_id', userId).maybeSingle();
+          if (data) {
+            setSettings(data);
+            setPricePasswordHash(data.price_password_hash);
+          }
+        }
+
+        const { data: brandsData } = await supabase.from('brands').select('name,logo_url').eq('user_id', userId);
+        if (brandsData) {
+          const map: Record<string, string | null> = {};
+          brandsData.forEach((b: any) => { map[b.name] = b.logo_url || null; });
+          setBrandLogos(map);
+        }
+      } catch (err) {
+        if (!isNextRedirect(err)) console.warn('loadSettings error', err);
+      }
+    };
+
+    loadSettings();
+
+    if (typeof window !== 'undefined') {
+      const savedCart = localStorage.getItem('cart');
+      if (savedCart) setCart(JSON.parse(savedCart));
+
+      const savedFavs = localStorage.getItem('favorites');
+      if (savedFavs) setFavorites(new Set(JSON.parse(savedFavs)));
+
+      if (localStorage.getItem('priceAccessGranted') === 'true') setPriceAccessGranted(true);
+    }
   }, [userId]);
 
-  // --- FILTRAGEM E ORDENAÇÃO ---
-  // Usamos useMemo para não recalcular a lista toda vez que o componente renderizar
-  const filteredProducts = useMemo(() => {
-    return products
-      .filter((product) => {
-        // 1. Busca por Texto (Nome ou Referência)
-        const matchesSearch =
-          product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (product.reference_code &&
-            product.reference_code
-              .toLowerCase()
-              .includes(searchTerm.toLowerCase()));
+  // --- LISTAS AUXILIARES PARA FILTROS ---
+  const allBrands = useMemo(() => {
+    return [...new Set(products.map((p) => p.brand).filter(Boolean))].sort() as string[];
+  }, [products]);
 
-        // 2. Filtro de Preço
-        const matchesPrice =
-          product.price >= priceRange[0] && product.price <= priceRange[1];
+  useEffect(() => {
+    // debug removed
+  }, [allBrands]);
 
-        // 3. Filtro de Marca
-        const matchesBrand =
-          selectedBrands.length === 0 ||
-          (product.brand && selectedBrands.includes(product.brand));
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach(p => {
+      if (p.category) set.add(p.category);
+    });
+    return [...set].sort();
+  }, [products]);
 
-        // 4. Filtro de Categoria / Tipo
-        // selectedCategory pode ser uma brand, uma categoria ou um tipo (class_core).
-        const selRaw = String(selectedCategory || '').toString().trim();
-        const brandRaw = String(product.brand || '').trim();
-        const categoryRaw = String((product as any).category || '').trim();
-        // normalization helper: strip non-alphanum, remove leading opt, detect CLIPON variants
-        const normalizeForClip = (v: string) => {
-          if (!v) return '';
-          let s = String(v || '').toLowerCase();
-          s = s.replace(/[^a-z0-9]+/g, ''); // remove hyphens/spaces/special chars
-          s = s.replace(/^opt+/, ''); // strip leading opt prefix
-          if (!s) return '';
-          if (s.includes('clipon')) return 'CLIPON';
-          if (s.includes('clip') && s.includes('on')) return 'CLIPON';
-          if (s.includes('clion') || s.includes('clpon')) return 'CLIPON';
-          return s.toUpperCase();
-        };
-        const sel = normalizeForClip(selRaw) || selRaw.toUpperCase();
-        const brandNorm = normalizeForClip(brandRaw) || brandRaw.toUpperCase();
-        const categoryNorm = normalizeForClip(categoryRaw) || categoryRaw.toUpperCase();
-        // normalize class_core
-        let classRaw = String((product as any).class_core || '').trim();
-        const classNorm = normalizeForClip(classRaw) || classRaw.toUpperCase();
-        const matchesCategory =
-          selectedCategory === 'all' ||
-          sel === brandNorm ||
-          sel === classNorm ||
-          sel === categoryNorm;
-
-        // 5. Filtros Especiais (Tags)
-        const matchesBestseller = !showOnlyBestsellers || product.bestseller;
-        const matchesNew = !showOnlyNew || product.is_launch;
-
-        return (
-          matchesSearch &&
-          matchesPrice &&
-          matchesBrand &&
-          matchesCategory &&
-          matchesBestseller &&
-          matchesNew
-        );
-      })
-      .sort((a, b) => {
-        // Lógica de Ordenação
-        if (sortBy === 'price') {
-          return sortOrder === 'asc' ? a.price - b.price : b.price - a.price;
-        }
-        if (sortBy === 'brand') {
-          const brandA = a.brand || '';
-          const brandB = b.brand || '';
-          return sortOrder === 'asc'
-            ? brandA.localeCompare(brandB)
-            : brandB.localeCompare(brandA);
-        }
-        // Default: Nome
-        return sortOrder === 'asc'
-          ? a.name.localeCompare(b.name)
-          : b.name.localeCompare(a.name);
-      });
-  }, [
-    products,
-    searchTerm,
-    priceRange,
-    selectedBrands,
-    selectedCategory,
-    sortBy,
-    sortOrder,
-    showOnlyBestsellers,
-    showOnlyNew,
-  ]);
-
-  // --- PAGINAÇÃO ---
-  const paginatedProducts = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredProducts, currentPage, itemsPerPage]);
-
-  // --- LISTAS AUXILIARES (Marcas/Categorias dinâmicas) ---
-  const allBrands = useMemo(
-    () =>
-      [
-        ...new Set(products.map((p) => p.brand).filter(Boolean) as string[]),
-      ].sort(),
-    [products]
-  );
-  const categories = useMemo(() => [...allBrands], [allBrands]);
-  const bestsellerProducts = useMemo(
-    () => products.filter((p) => p.bestseller).slice(0, 10),
-    [products]
-  );
-
-  // --- AÇÕES DO CARRINHO ---
+  // --- AÇÕES ---
   const addToCart = (productId: string, quantity = 1) => {
-    const newCart = { ...cart };
-    newCart[productId] = (newCart[productId] || 0) + quantity;
-
+    const newCart = { ...cart, [productId]: (cart[productId] || 0) + quantity };
     setCart(newCart);
     localStorage.setItem('cart', JSON.stringify(newCart));
-
-    const product = products.find((p) => p.id === productId);
-    toast.success('Adicionado ao pedido', {
-      description: `${quantity}x ${product?.name || 'Produto'}`,
-    });
+    toast.success('Adicionado ao pedido');
   };
 
-  // --- AÇÕES DE FAVORITOS ---
   const toggleFavorite = (productId: string) => {
     const newFavs = new Set(favorites);
-    if (newFavs.has(productId)) {
-      newFavs.delete(productId);
-      toast('Removido dos favoritos');
-    } else {
-      newFavs.add(productId);
-      toast.success('Adicionado aos favoritos');
-    }
+    if (newFavs.has(productId)) newFavs.delete(productId);
+    else newFavs.add(productId);
     setFavorites(newFavs);
     localStorage.setItem('favorites', JSON.stringify([...newFavs]));
   };
 
-  // --- CONTROLE DE UI ---
   const clearFilters = () => {
     setSearchTerm('');
-    setPriceRange([0, 10000]);
     setSelectedBrands([]);
     setSelectedCategory('all');
-    setShowOnlyBestsellers(false);
-    setShowOnlyNew(false);
     setCurrentPage(1);
-    toast('Filtros limpos');
   };
-
-  // --- CONTROLE DE ACESSO (PREÇOS) ---
-  const checkPriceAccess = () => priceAccessGranted;
 
   const requestPriceAccess = async (password: string) => {
-    if (!pricePasswordHash) {
-      toast.error('Operação indisponível: senha não configurada');
-      return false;
-    }
+    if (!pricePasswordHash) return false;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-    try {
-      // calcular SHA-256 do input e comparar com hash público
-      const encoder = new TextEncoder();
-      const data = encoder.encode(password);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-
-      if (hashHex === pricePasswordHash) {
-        setPriceAccessGranted(true);
-        localStorage.setItem('priceAccessGranted', 'true');
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
-        toast.success('Acesso liberado!');
-        return true;
-      }
-
-      toast.error('Senha incorreta');
-      return false;
-    } catch (err) {
-      console.error('Erro ao verificar senha (cliente)', err);
-      toast.error('Erro ao verificar senha');
-      return false;
-    }
-  };
-
-  // --- FORMATADOR ---
-  const formatPrice = useCallback(
-    (price: number) => {
-      if (!priceAccessGranted) return 'R$ ---';
-      return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-      }).format(price);
-    },
-    [priceAccessGranted]
-  );
-
-  // --- PERSISTÊNCIA DE PEDIDO (API) ---
-  const saveCart = async (): Promise<string> => {
-    if (Object.keys(cart).length === 0) {
-      toast('Carrinho vazio');
-      return '';
-    }
-
-    // Converte o objeto cart {id: qty} para o formato que a API espera (array)
-    // Mas nossa API espera o objeto JSONB direto ou array?
-    // No nosso type Order, não definimos estritamente, mas a API de save-cart espera { items: ... }
-    // Vamos mandar um array de objetos simples
-    const itemsPayload = Object.entries(cart).map(([productId, quantity]) => ({
-      product_id: productId,
-      quantity,
-    }));
-
-    try {
-      // Se usuário autenticado (Fluxo existente): usar endpoint server-side atual
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = (sessionData as any)?.session;
-
-      if (session) {
-        const res = await fetch('/api/save-cart', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: itemsPayload, userId }),
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          toast.success('Pedido salvo com sucesso!');
-          return data.code;
-        }
-
-        throw new Error(data.error || 'Erro ao salvar pedido');
-      }
-
-      // Flow para convidados (guest): usar RPC `api.insert_saved_cart_for_guest`
-      if (typeof window === 'undefined') {
-        toast.error('Operação não suportada no servidor');
-        return '';
-      }
-
-      // Garantir guest_id no localStorage
-      let guestId =
-        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-          ? window.localStorage.getItem('guest_id')
-          : null;
-      if (!guestId) {
-        guestId = crypto.randomUUID();
-        localStorage.setItem('guest_id', guestId);
-      }
-
-      // Gerar shortId simples (6 chars) se necessário
-      const generateShortId = () =>
-        Math.random().toString(36).slice(2, 8).toUpperCase();
-
-      const shortId = generateShortId();
-
-      // note: wrapper public signature expects (p_guest_id, p_items, p_short_id)
-      const rpcParams = {
-        p_guest_id: guestId,
-        p_items: itemsPayload,
-        p_short_id: shortId,
-      } as any;
-
-      const { data: rpcData, error: rpcError } = await supabase.rpc(
-        'insert_saved_cart_for_guest',
-        rpcParams
-      );
-
-      if (rpcError) {
-        console.error('RPC error', rpcError);
-        toast.error('Erro ao salvar pedido (guest)');
-        return '';
-      }
-
-      toast.success('Pedido salvo com sucesso!');
-      return shortId;
-    } catch (error) {
-      console.error('saveCart error', error);
-      toast.error('Erro ao salvar pedido');
-      return '';
-    }
-  };
-
-  const loadCart = async (code: string): Promise<boolean> => {
-    try {
-      // Se usuário autenticado: usar endpoint server-side existente
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = (sessionData as any)?.session;
-
-      if (session) {
-        const res = await fetch(`/api/load-cart?code=${code}`);
-        const data = await res.json();
-
-        if (data.success && data.items) {
-          const newCart: Record<string, number> = {};
-          data.items.forEach((item: any) => {
-            newCart[item.product_id] = item.quantity;
-          });
-
-          setCart(newCart);
-          localStorage.setItem('cart', JSON.stringify(newCart));
-          setLoadedOrderCode(code);
-          toast.success('Pedido carregado!');
-          return true;
-        }
-
-        toast.error('Código inválido ou expirado');
-        return false;
-      }
-
-      // Fluxo guest: usar RPC `api.get_saved_cart_for_guest`
-      if (typeof window === 'undefined') {
-        toast.error('Operação não suportada no servidor');
-        return false;
-      }
-
-      const guestId =
-        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-          ? window.localStorage.getItem('guest_id')
-          : null;
-      if (!guestId) {
-        toast.error('Guest ID não encontrado');
-        return false;
-      }
-
-      const { data: rpcRes, error: rpcErr } = await supabase.rpc(
-        'get_saved_cart_for_guest',
-        { p_short_id: code, p_guest_id: guestId }
-      );
-
-      if (rpcErr) {
-        console.error('RPC load error', rpcErr);
-        toast.error('Erro ao carregar pedido (guest)');
-        return false;
-      }
-
-      const row = Array.isArray(rpcRes) ? rpcRes[0] : rpcRes;
-      if (!row || !row.items) {
-        toast.error('Código inválido ou expirado');
-        return false;
-      }
-
-      const newCart: Record<string, number> = {};
-      (row.items as any[]).forEach((item: any) => {
-        newCart[item.product_id] = item.quantity;
-      });
-
-      setCart(newCart);
-      localStorage.setItem('cart', JSON.stringify(newCart));
-      setLoadedOrderCode(code);
-      toast.success('Pedido carregado!');
+    if (hashHex === pricePasswordHash) {
+      setPriceAccessGranted(true);
+      localStorage.setItem('priceAccessGranted', 'true');
       return true;
-    } catch (error) {
-      toast.error('Erro ao carregar pedido');
-      return false;
     }
+    return false;
   };
 
   return {
-    // Dados Básicos
-    userId,
+    products,
+    totalProducts,
     loading,
-    products: paginatedProducts,
-    totalProducts: filteredProducts.length,
     settings,
+    brandLogos,
     cart,
-    loadedOrderCode,
     favorites,
-    bestsellerProducts,
-
-    // Listas Auxiliares
-    allBrands,
-    categories,
-
-    // Estados de Filtro
     searchTerm,
-    priceRange,
-    selectedBrands,
-    selectedCategory,
-    sortBy,
-    sortOrder,
-    viewMode,
-    currentPage,
-    itemsPerPage,
-    showFilters,
-    showOnlyBestsellers,
-    showOnlyNew,
-
-    // Setters
     setSearchTerm,
-    setPriceRange,
+    selectedBrands,
     setSelectedBrands,
+    selectedCategory,
     setSelectedCategory,
-    setSortBy,
-    setSortOrder,
-    setViewMode,
+    currentPage,
     setCurrentPage,
+    itemsPerPage,
     setItemsPerPage,
-    setShowFilters,
-    setShowOnlyBestsellers,
-    setShowOnlyNew,
-
-    // Ações
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+    viewMode,
+    setViewMode,
     addToCart,
     toggleFavorite,
     clearFilters,
-
-    // Lógica de Negócio
-    formatPrice,
     priceAccessGranted,
-    checkPriceAccess,
     requestPriceAccess,
-    saveCart,
-    loadCart,
-    // Brand logos map: { [brandName]: logo_url }
-    brandLogos,
+    allBrands,
+    categories
   };
 }

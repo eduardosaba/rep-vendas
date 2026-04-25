@@ -33,7 +33,7 @@ export default async function ProductsPage() {
   }
 
   // 2. Busca de Produtos Otimizada
-  let maxLimit = 5000; // fallback seguro para usuários comuns
+  let maxLimit = 500; // fallback seguro para usuários comuns (reduzido para evitar timeouts)
 
   // 2.1 Verifica o cargo do usuário para definir o limite
   // Use activeUserId (impersonation-aware) to fetch the profile server-side
@@ -54,7 +54,7 @@ export default async function ProductsPage() {
   }
 
   if (isAdmin) {
-    maxLimit = 20000;
+    maxLimit = 5000;
   } else {
     // Busca limite do plano para usuários comuns
     try {
@@ -86,9 +86,13 @@ export default async function ProductsPage() {
   );
 
   // 3. Query de Produtos (usar range sempre para honrar maxLimit)
+  // Select only the fields needed for listing to reduce payload and query time
   const query = supabase
     .from('products')
-    .select('*', { count: 'exact' })
+    .select(
+      'id, reference_code, name, brand, price, sale_price, image_variants, image_url, image_path, gallery_images, is_active, created_at',
+      { count: 'planned' }
+    )
     .eq('user_id', activeUserId)
     .order('created_at', { ascending: false })
     .range(0, maxLimit);
@@ -163,10 +167,10 @@ export default async function ProductsPage() {
   // Estatísticas de otimização de imagens
   const totalProducts = totalCount;
   const productsWithInternalImages = safeProducts.filter(
-    (p) => p.image_path
+    (p: any) => p.image_path
   ).length;
   const productsWithExternalImages = safeProducts.filter(
-    (p) => !p.image_path && (p.image_url || p.external_image_url || p.images)
+    (p: any) => !p.image_path && (p.image_url || p.external_image_url || p.images)
   ).length;
   const optimizationRate =
     totalProducts > 0

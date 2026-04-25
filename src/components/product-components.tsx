@@ -129,11 +129,7 @@ export function CategoryBar() {
     filterFotocromatico,
     setFilterFotocromatico,
   } = useStore();
-  // debug: log category-related data when debugging CLIPON issues
-  try {
-    // eslint-disable-next-line no-console
-    console.debug('[CategoryBar] categories', categories && categories.slice ? categories.slice(0,10) : categories);
-  } catch {}
+  // prod: removed debug logs
   const { genders = [], selectedGender, setSelectedGender } = useStore();
 
   const hasBestSellers = useMemo(
@@ -225,41 +221,42 @@ export function CategoryBar() {
     const activeBrand = Array.isArray(selectedBrand)
       ? (selectedBrand[0] as string)
       : (selectedBrand as string | undefined);
+
     const productsForBrand =
       activeBrand && activeBrand !== 'all'
-        ? initialProducts.filter(
-            (p: Product) =>
-              (p.brand || '').toString().trim().toLowerCase() ===
-              (activeBrand || '').toString().trim().toLowerCase()
+        ? initialProducts.filter((p: Product) =>
+            (p.brand || '').toString().trim().toLowerCase() ===
+            (activeBrand || '').toString().trim().toLowerCase()
           )
         : initialProducts;
-    const ND_PATTERNS = ['n/d', '#n/d', 'nd', 'n.d', 'n.d.', '-', '', 'classe a'];
+
     const seen = new Set<string>();
     const result: string[] = [];
 
-    const isClipVariant = (val: string) => {
-      if (!val) return false;
-      // normalize: lowercase, remove non-alphanumeric
-      let s = String(val || '').toLowerCase();
-      s = s.replace(/[^a-z0-9]+/g, '');
-      // strip leading opt prefix (e.g., OPTCLI-ON -> CLI ON)
-      s = s.replace(/^opt+/, '');
-      if (!s) return false;
-      if (s.includes('clipon')) return true;
-      if (s.includes('clip') && s.includes('on')) return true;
-      if (s.includes('clion')) return true;
-      if (s.includes('clpon')) return true;
-      return false;
-    };
+    // 1) Include categories coming from product records (these should be considered types)
+    productsForBrand.forEach((p: any) => {
+      const cat = String(p.category || '').trim();
+      if (!cat) return;
+      const key = cat.toUpperCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(cat);
+      }
+    });
 
-    for (const p of productsForBrand) {
-      let raw = ((p as any).class_core || '') as string;
-      raw = String(raw || '').trim();
-      if (!raw || ND_PATTERNS.includes(raw.toLowerCase())) continue;
-      const normalized = isClipVariant(raw) ? 'CLIPON' : raw.toUpperCase();
-      if (!seen.has(normalized)) { seen.add(normalized); result.push(normalized); }
-    }
-    return result;
+    // 2) Also include class_core entries (de-duplicated)
+    productsForBrand.forEach((p: any) => {
+      const core = String((p as any).class_core || '').trim();
+      if (!core) return;
+      const key = core.toUpperCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(core);
+      }
+    });
+
+    // Sort for deterministic order
+    return result.sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
   }, [initialProducts, selectedBrand]);
 
   
@@ -272,15 +269,8 @@ export function CategoryBar() {
   const isSelectedGender = (g: any) => normalizeSimple(selectedGender) === normalizeSimple(g);
   const isSelectedMaterial = (m: any) => normalizeSimple(selectedMaterial) === normalizeSimple(m);
 
-  const visibleCategories = useMemo(() => {
-    if (!displayCategories) return [];
-    const typesSet = new Set((displayTypes || []).map((s) => normalizeForTypeModule(s)));
-    return displayCategories.filter((c: any) => {
-      const norm = normalizeForTypeModule(c);
-      if (!norm) return false;
-      return !typesSet.has(norm);
-    });
-  }, [displayCategories, displayTypes]);
+  // Avoid rendering loose category chips — force empty visibleCategories
+  const visibleCategories = useMemo(() => [], []);
 
   const [openTypeMenu, setOpenTypeMenu] = useState(false);
   const [openGenderMenu, setOpenGenderMenu] = useState(false);

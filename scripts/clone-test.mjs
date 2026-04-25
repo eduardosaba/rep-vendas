@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
@@ -48,11 +48,15 @@ async function main() {
       targetUserId,
       brands,
     });
-    const { data, error } = await supabase.rpc('clone_catalog_smart', {
-      source_user_id: sourceUserId,
-      target_user_id: targetUserId,
-      brands_to_copy: brands,
-    });
+    
+    // Attempting with only the hint's suggested parameters
+    const rpcParams = {
+      p_source_user_id: sourceUserId,
+      p_target_user_id: targetUserId,
+      p_brands_to_copy: brands
+    };
+    
+    const { data, error } = await supabase.rpc('clone_catalog_smart', rpcParams);
     if (error) throw error;
     console.log('RPC result:', data);
 
