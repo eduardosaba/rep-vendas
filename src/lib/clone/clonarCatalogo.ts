@@ -19,6 +19,14 @@ export async function clonarCatalogo(
     .maybeSingle();
   const targetCompanyId = (targetProfile as any)?.company_id || null;
 
+  // Detecta company do source caso a brand esteja associada a uma company
+  const { data: sourceProfile } = await svc
+    .from('profiles')
+    .select('company_id')
+    .eq('id', sourceUserId)
+    .maybeSingle();
+  const sourceCompanyId = (sourceProfile as any)?.company_id || null;
+
   // 1) Busca os produtos originais
   const { data: originalProducts, error: fetchError } = await svc
     .from('products')
@@ -30,13 +38,68 @@ export async function clonarCatalogo(
   if (!originalProducts || originalProducts.length === 0)
     return { success: true, count: 0 };
 
-  // 2) Prepara payload removendo ids e timestamps para que o DB gere novos ids
+  // 2) (Opcional) Upsert da brand no target: traz meta da marca (logo/banner/descricao)
+  // para que o target tenha a mesma apresentação. Não move arquivos do storage,
+  // apenas copia as URLs/metadados.
+  try {
+    // Primeiro tente encontrar a brand do source como registro do usuário
+    let srcBrand: any = null;
+    const { data: brandUserData } = await svc
+      .from('brands')
+      .select('name,logo_url,banner_url,description,banner_meta')
+      .eq('name', brandName)
+      .eq('user_id', sourceUserId)
+      .maybeSingle();
+
+    if (brandUserData) {
+      srcBrand = brandUserData;
+    } else if (sourceCompanyId) {
+      // fallback: procurar brand vinculada à company do source
+      const { data: brandCompanyData } = await svc
+        .from('brands')
+        .select('name,logo_url,banner_url,description,banner_meta')
+        .eq('name', brandName)
+        .eq('company_id', sourceCompanyId)
+        .maybeSingle();
+      if (brandCompanyData) srcBrand = brandCompanyData;
+    }
+
+    if (srcBrand) {
+      const brandPayload: any = {
+        name: srcBrand.name,
+        logo_url: srcBrand.logo_url || null,
+        banner_url: srcBrand.banner_url || null,
+        description: srcBrand.description || null,
+        banner_meta: srcBrand.banner_meta || null,
+        user_id: targetUserId,
+        company_id: targetCompanyId || null,
+      };
+
+      // Use onConflict apropriado conforme target ser company ou user
+      const onConflict = targetCompanyId ? 'company_id,name' : 'user_id,name';
+      await svc.from('brands').upsert(brandPayload, { onConflict });
+    }
+  } catch (bErr) {
+    // Não falhar o fluxo de clone se a brand não puder ser copiada
+    const errMsg = (bErr && typeof bErr === 'object' && 'message' in bErr) ? (bErr as any).message : String(bErr);
+    console.warn('falha ao copiar brand para target:', errMsg);
+  }
+
+  // 3) Prepara payload removendo ids e timestamps para que o DB gere novos ids
   const productsToClone = originalProducts.map((product: any) => {
     const { id, created_at, updated_at, ...productData } = product;
     // Garantir que reference_id exista no clone (fallback para reference_code)
     productData.reference_id = productData.reference_id || productData.reference_code || null;
+    // Ensure newer product fields are explicitly copied so older clone flows that
+    // rely on explicit mapping don't miss recently added columns.
+    productData.material = typeof product.material !== 'undefined' ? product.material : (productData.material ?? null);
+    productData.polarizado = typeof product.polarizado !== 'undefined' ? product.polarizado : (productData.polarizado ?? false);
+    productData.fotocromatico = typeof product.fotocromatico !== 'undefined' ? product.fotocromatico : (productData.fotocromatico ?? false);
+
     return {
       ...productData,
+      // mantemos o campo brand como veio do source
+      brand: productData.brand,
       user_id: targetUserId,
       company_id: targetCompanyId || null,
     };
