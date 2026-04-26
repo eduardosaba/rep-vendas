@@ -38,6 +38,7 @@ export interface SyncCatalogData {
   top_benefit_text_size?: number;
   banners?: string[] | null;
   banners_mobile?: string[] | null;
+  banner_mode?: string | null;
   // Singular fallbacks for compatibility
   banner?: string | null;
   banner_mobile?: string | null;
@@ -301,9 +302,18 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     if (Object.prototype.hasOwnProperty.call(data, 'header_icon_color'))
       updatePayload.header_icon_color =
         mergedData.header_icon_color ?? (data as any).header_icon_color;
-    if (Object.prototype.hasOwnProperty.call(data, 'footer_background_color'))
+    // Allow writing footer_background_color when either the caller explicitly
+    // provided it in `data` OR when it was merged from `settings` (mergedData).
+    // Previously this field was gated only on presence in `data`, which meant
+    // callers that relied on defensive merging would not persist the footer
+    // color into `public_catalogs`.
+    if (
+      Object.prototype.hasOwnProperty.call(data, 'footer_background_color') ||
+      (mergedData.footer_background_color && typeof mergedData.footer_background_color === 'string')
+    ) {
       updatePayload.footer_background_color =
-        mergedData.footer_background_color ?? data.footer_background_color;
+        mergedData.footer_background_color ?? data.footer_background_color ?? null;
+    }
     if (Object.prototype.hasOwnProperty.call(data, 'footer_message'))
       updatePayload.footer_message = mergedData.footer_message ?? data.footer_message;
     if (Object.prototype.hasOwnProperty.call(data, 'price_unlock_mode'))
@@ -372,6 +382,14 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     if (Object.prototype.hasOwnProperty.call(data, 'font_family')) updatePayload.font_family = finalFont;
     if (Object.prototype.hasOwnProperty.call(data, 'font_url')) updatePayload.font_url = mergedData.font_url ?? data.font_url ?? null;
     if (Object.prototype.hasOwnProperty.call(data, 'og_image_url')) updatePayload.og_image_url = mergedData.og_image_url ?? data.og_image_url ?? null;
+
+    // Permitir sincronizar banner_mode (por compatibilidade com saves parciais e merges)
+    if (
+      Object.prototype.hasOwnProperty.call(data, 'banner_mode') ||
+      ((mergedData as any).banner_mode && typeof (mergedData as any).banner_mode === 'string')
+    ) {
+      updatePayload.banner_mode = (mergedData as any).banner_mode ?? (data as any).banner_mode ?? null;
+    }
 
     // Banners serão tratados abaixo apenas quando houver campos explícitos no payload.
 
@@ -674,6 +692,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
       grid_cols_xl: mergedData.grid_cols_xl ?? data.grid_cols_xl ?? null,
       font_url: mergedData.font_url ?? data.font_url ?? null,
       og_image_url: mergedData.og_image_url ?? data.og_image_url ?? null,
+      // banner_mode persistente para novo catálogo (quando disponível)
+      banner_mode: mergedData.banner_mode ?? data.banner_mode ?? null,
       // placeholders; we'll decide which column to write after detecting schema
       banners: null,
       banners_mobile: null,

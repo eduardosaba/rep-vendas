@@ -1396,12 +1396,16 @@ export function StoreBanners() {
     }
   }
 
-  // 📱 Lógica de seleção de banners:
-  // - Mobile E tem banners_mobile configurados → usa banners_mobile
-  // - Caso contrário (desktop OU mobile sem banners específicos) → usa banners desktop
-  // - Se não houver banner mobile, o desktop é automaticamente usado no mobile (fallback)
-  const activeBanners =
-    isMobile && hasMobileBanners ? store.banners_mobile : store.banners || [];
+  // 📱 Lógica de seleção de banners (com fallback mais permissivo):
+  // - Mobile: prefere `banners_mobile`, senão usa `banners` (fallback)
+  // - Desktop: prefere `banners`, mas se estiver vazio tenta `banners_mobile` antes de não renderizar
+  const activeBanners = (() => {
+    const desktopBanners = Array.isArray(store.banners) && store.banners.length > 0 ? store.banners : null;
+    const mobileBanners = Array.isArray(store.banners_mobile) && store.banners_mobile.length > 0 ? store.banners_mobile : null;
+
+    if (isMobile) return mobileBanners ?? desktopBanners ?? [];
+    return desktopBanners ?? mobileBanners ?? [];
+  })();
 
   // Mapeia apenas os banners que foram feitos upload (1, 2, 3... N banners)
   // Não é obrigatório ter 5 banners - renderiza quantos existirem

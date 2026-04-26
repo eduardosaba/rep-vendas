@@ -241,6 +241,26 @@ export async function resolveCatalogBranding(
   if (!Array.isArray(result.banners_mobile)) result.banners_mobile = [];
   if (!Array.isArray(result.gallery_urls)) result.gallery_urls = [];
 
+  // Compatibilidade: aceitar campos customizados como fallback
+  const normalizeArr = (v: any) => {
+    if (Array.isArray(v)) return v.filter(Boolean);
+    if (typeof v === 'string' && v.trim()) return [v.trim()];
+    return null;
+  };
+
+  try {
+    if ((!result.banners || result.banners.length === 0)) {
+      const fromCustom = normalizeArr((result as any).custom_banners) ?? normalizeArr((result as any).custom_banner);
+      if (fromCustom && fromCustom.length > 0) result.banners = fromCustom;
+    }
+    if ((!result.banners_mobile || result.banners_mobile.length === 0)) {
+      const fromCustomMobile = normalizeArr((result as any).custom_banners_mobile) ?? normalizeArr((result as any).custom_banner_mobile);
+      if (fromCustomMobile && fromCustomMobile.length > 0) result.banners_mobile = fromCustomMobile;
+    }
+  } catch (e) {
+    // non-fatal
+  }
+
   // slug e is_active vêm do índice público (authoritative)
   if (publicIndex?.catalog_slug) result.catalog_slug = publicIndex.catalog_slug;
   if (typeof publicIndex?.is_active === 'boolean') result.is_active = publicIndex.is_active;

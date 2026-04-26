@@ -380,7 +380,9 @@ export default function SystemSettingsForm({ context = 'representative', targetI
   const onToggleActive = () => setFormData((p: any) => ({ ...p, is_active: !p.is_active }));
 
   const quickSave = async (partial: Record<string, any>, saveScope: 'tab' | 'full' = 'tab') => {
-    // Use server-side endpoint to save settings so mirroring to companies/public_catalogs works
+    // Use server-side endpoint to save settings — public_catalogs and companies
+    // are synchronized by a DB trigger/function (sync_settings_to_catalogs). Do
+    // not write directly to `public_catalogs` from the client.
     const targetUserId = targetId || (await (await supabase.auth.getUser()).data.user)?.id;
     if (!targetUserId) throw new Error('Usuário alvo não identificado');
     try {
@@ -620,14 +622,9 @@ export default function SystemSettingsForm({ context = 'representative', targetI
         supabase.from('settings').upsert([settingsPayloadSanitized], { onConflict: 'user_id' }) as any
       );
 
-      // --- ÍNDICE PÚBLICO: public_catalogs guarda apenas slug + is_active ---
-      // Design é lido por herança: settings → companies
-      tasks.push(
-        supabase.from('public_catalogs').upsert(
-          [{ user_id: actingUser.id, catalog_slug: formData.catalog_slug || null, is_active: formData.is_active ?? true, updated_at: now }],
-          { onConflict: 'user_id' }
-        ) as any
-      );
+      // public_catalogs agora é sincronizado automaticamente por um TRIGGER
+      // no banco (sync_settings_to_catalogs). Não é necessário upsert manual
+      // daqui para frente — o banco garante atomicidade e consistência.
 
       // -------------------------------------------------------
       // 3. Executar e avaliar resultados
@@ -797,6 +794,31 @@ export default function SystemSettingsForm({ context = 'representative', targetI
           </button>
         ))}
       </nav>
+
+      {/* Mobile: premium pill-style tab selector (scrollable) */}
+      <div className="md:hidden my-3 -mx-4 px-4">
+        <div role="tablist" aria-label="Abas" className="flex gap-3 overflow-x-auto no-scrollbar py-1">
+          {tabs.map((t) => {
+            const active = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                aria-pressed={active}
+                onClick={() => setActiveTab(t.id as any)}
+                className={`inline-flex items-center gap-2 whitespace-nowrap px-3 py-2 rounded-full text-sm font-semibold transition-colors focus:outline-none ${
+                  active
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <t.icon size={14} />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {activeTab === 'general' && (
         <TabGeneral

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import '@/styles/premium-menu.css';
 import { Toaster } from '@/components/ui/Toaster';
@@ -6,6 +7,14 @@ import { ThemeProvider } from '@/providers/theme-provider';
 import ThemeRegistry from '@/components/ThemeRegistry';
 import { NetworkStatusIndicator } from '@/components/NetworkStatusIndicator';
 import PresenceProvider from '@/lib/presence';
+
+// Configure Inter font to be served locally by Next.js
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '700', '900'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
 
@@ -48,7 +57,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className="antialiased bg-gray-50 dark:bg-slate-950">
+      <body className={`${inter.className} antialiased bg-gray-50 dark:bg-slate-950`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light" // Inicia como claro

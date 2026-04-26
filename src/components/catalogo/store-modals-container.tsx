@@ -80,6 +80,8 @@ export function StoreModals() {
   const cartRef = useRef<HTMLDivElement | null>(null);
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isAdded, setIsAdded] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [detailQuantity, setDetailQuantity] = useState(1);
   const [passwordInput, setPasswordInput] = useState('');
   const [loadCodeInput, setLoadCodeInput] = useState('');
@@ -96,6 +98,7 @@ export function StoreModals() {
   const panVelocityRef = useRef<{ x: number; y: number } | null>(null);
   const lastMoveTimeRef = useRef<number | null>(null);
   const inertiaAnimationRef = useRef<number | null>(null);
+  const [isDone, setIsDone] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
@@ -1072,13 +1075,9 @@ export function StoreModals() {
                   </div>
                 </div>
 
-                <p className="text-gray-500 text-sm md:text-base mb-8 leading-relaxed">
-                  {displayProduct?.description ||
-                    'Produto de alta qualidade com acabamento impecável, ideal para quem busca estilo e durabilidade.'}
-                </p>
-
                 {/* Variantes / Miniaturas de Cores: componente dedicado */}
                 {(variantList && Array.isArray(variantList) && variantList.length > 0) && (
+                  <div className="mb-6">
                     <ProductVariants
                       currentReferenceId={displayProduct?.reference_id}
                       variants={variantList}
@@ -1141,7 +1140,39 @@ export function StoreModals() {
                         }
                       }}
                     />
+                  </div>
                 )}
+              {/* Descrição com Lógica "Ler Mais" */}
+                  <div className="mb-8">
+                {(() => {
+                  const descriptionText = displayProduct?.description || 
+                  'Produto de alta qualidade com acabamento impecável, ideal para quem busca estilo e durabilidade.';
+    
+                // Define o limite para mostrar o botão (ex: 160 caracteres)
+                    const characterLimit = 160;
+                    const isLongDescription = descriptionText.length > characterLimit;
+
+                  return (
+                <>
+                    <p className={`text-gray-500 text-sm md:text-base leading-relaxed text-justify ${
+                    (!isDescriptionExpanded && isLongDescription) ? 'line-clamp-3' : ''
+                    }`}>
+                    {descriptionText}
+                 </p>
+        
+                    {/* Só renderiza o botão se a descrição for realmente longa */}
+                    {isLongDescription && (
+                <button 
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                    className="text-primary text-xs font-black uppercase tracking-widest mt-2 hover:underline"
+                  >
+                   {isDescriptionExpanded ? 'Ver menos' : 'Ler descrição completa'}
+                  </button>
+                    )}
+                </>
+                   );
+                    })()}
+                  </div>
 
                 {/* Ficha Técnica - Collapsible */}
                 {displayProduct?.technical_specs && (
@@ -1218,7 +1249,7 @@ export function StoreModals() {
                       <div className="flex items-center gap-2 text-secondary/40">
                         <BarcodeIcon size={16} />
                         <span className="text-[10px] font-bold uppercase">
-                          Código de Barras
+                          Código de Barras (EAN)
                         </span>
                       </div>
                       <div className="bg-white p-4 rounded-xl">
@@ -1263,14 +1294,42 @@ export function StoreModals() {
                       />
                     </div>
                   </div>
-                  <Button
-                    onClick={() => {
-                      if (displayProduct) addToCart(displayProduct, detailQuantity);
+
+                                {/* Botão de adicionar ao pedido */}
+
+                      <Button
+                        onClick={() => {
+                      if (displayProduct) {
+                    // 1. Muda o texto para "Adicionado!"
+                      setIsAdded(true);
+      
+                    // 2. Executa a lógica do carrinho
+                      addToCart(displayProduct, detailQuantity);
+
+                    // 3. Aguarda o tempo da animação antes de fechar o modal
+                      setTimeout(() => {
                       setModal('product', null);
-                    }}
-                    className="w-full py-4 md:py-8 text-xl font-black uppercase tracking-tighter shadow-2xl shadow-primary/30 rounded-none md:rounded-2xl"
-                  >
-                    Adicionar ao Pedido
+        
+                    // Resetamos o estado para que, na próxima vez que abrir o modal,
+                    // o botão volte ao texto original
+                      setIsAdded(false); 
+                      }, 600); // Aumentei para 600ms para dar tempo de ler o texto novo
+                        }
+                  }}
+                      className={`
+                      w-full py-4 md:py-8 text-xl 
+                      font-bold uppercase  {/* Troquei font-black por font-bold para garantir compatibilidade */}
+                      tracking-tighter shadow-2xl rounded-none md:rounded-2xl transition-all 
+                      active:scale-80 
+                      ${isAdded ? 'bg-green-500 hover:bg-green-500' : 'bg-primary shadow-primary/30'}
+                    `}
+>
+                     {/* 4. Lógica condicional do texto */}
+                    
+                        <strong className="font-bold">
+                        {isAdded ? '✓ Adicionado!' : 'Adicionar ao Pedido'}
+                      </strong>
+
                   </Button>
                 </div>
               </div>
