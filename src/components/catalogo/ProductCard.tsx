@@ -240,8 +240,7 @@ export function ProductCard({
                     <button onClick={(e) => { e.stopPropagation(); onAddToCart(product, 1); }} className="p-1 bg-primary text-white rounded-md"><Plus size={12} /></button>
                   </div>
                 ) : (
-                  <button onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) onAddToCart(product, 1); }} disabled={isOutOfStock} className={`flex h-10 w-10 items-center justify-center rounded-xl ${isOutOfStock ? 'bg-gray-400' : 'bg-primary text-primary-foreground shadow-md'} transition-all`}><Shopping
-Cart size={18} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) onAddToCart(product, 1); }} disabled={isOutOfStock} className={`flex h-10 w-10 items-center justify-center rounded-xl ${isOutOfStock ? 'bg-gray-400' : 'bg-primary text-primary-foreground shadow-md'} transition-all`}><ShoppingCart size={18} /></button>
                 )}
               </div>
             </div>
@@ -252,4 +251,4 @@ Cart size={18} /></button>
       <QuickOrderModal product={product} open={quickOpen} onClose={() => setQuickOpen(false)} />
     </>
   )
-}
+} 
