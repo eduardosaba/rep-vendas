@@ -51,107 +51,73 @@ export function ProductCard({
   const rep = useRep();
   const [quickOpen, setQuickOpen] = useState(false)
 
-  // NOTE: removed verbose debug logs to avoid flooding console and causing
-  // performance issues when many cards re-render.
-
   const isStockManaged = Boolean(storeSettings.enable_stock_management);
   const stockQty = (product.stock_quantity ?? 0) as number;
   const isOutOfStock = isStockManaged && stockQty <= 0;
 
-  // --- LÓGICA DE IMAGEM OTIMIZADA (USANDO VARIANTES DO SCRIPT) ---
   const isPending = product.sync_status === 'pending';
   const isFailed = product.sync_status === 'failed';
 
   let displayImage = '/images/product-placeholder.svg';
-
-  /**
-   * 1. PRIORIDADE: Variantes geradas pelo script (image_variants)
-   * Buscamos especificamente a de 480w para o Card (mais leve)
-   */
-  const variants = (product as any).image_variants;
-  const smallVariant = Array.isArray(variants)
-    ? variants.find((v: any) => v.size === 480 || v.size === '480w')
+  const variantsImages = (product as any).image_variants;
+  const smallVariant = Array.isArray(variantsImages)
+    ? variantsImages.find((v: any) => v.size === 480 || v.size === '480w')
     : null;
 
   if (smallVariant?.path) {
-    // Se temos o path da variante 480w, usamos ela via proxy
     displayImage = `/api/storage-image?path=${encodeURIComponent(smallVariant.path)}&format=webp&q=80`;
   } else if (product.image_path) {
-    // 2. BACKUP: Se não houver array de variantes mas houver path principal
     const path = String(product.image_path).replace(/^\/+/, '');
     displayImage = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=75&w=480`;
   } else if (isPending && product.external_image_url) {
-    // 3. PENDENTE: Mostra URL externa enquanto o script não processa
     displayImage = product.external_image_url;
   } else {
-    // 4. FALLBACK: Lógica de candidato original (URLs externas em outros campos)
     const normalizeImageInput = (input: any): string | null => {
       if (!input && input !== 0) return null;
       if (typeof input === 'string') return input.split(',')[0].trim();
       if (Array.isArray(input) && input.length > 0) {
         const first = input[0];
-        return typeof first === 'string'
-          ? first
-          : first?.url || first?.path || null;
+        return typeof first === 'string' ? first : first?.url || first?.path || null;
       }
       return null;
     };
-    const candidate =
-      normalizeImageInput(product.image_url) ||
-      normalizeImageInput(product.images);
+    const candidate = normalizeImageInput(product.image_url) || normalizeImageInput(product.images);
     if (candidate) displayImage = candidate;
   }
 
-  // --- LÓGICA DE PREÇOS ---
   const costPrice = product.price || 0;
   const salePrice = (product as any).sale_price || 0;
-
-  // Respeitar configurações da loja: se `show_cost_price` está ativo, mostrar preço de custo.
-  // Caso contrário, mostrar preço de venda quando disponível, senão preço de custo.
   const showSale = isPricesVisible && storeSettings.show_sale_price !== false;
   const showCost = isPricesVisible && storeSettings.show_cost_price === true;
+  
   let currentPrice = costPrice;
-  if (showCost) {
-    currentPrice = costPrice;
-  } else if (showSale && salePrice > 0) {
-    currentPrice = salePrice;
-  } else {
-    currentPrice = costPrice;
-  }
+  if (showCost) currentPrice = costPrice;
+  else if (showSale && salePrice > 0) currentPrice = salePrice;
+  else currentPrice = costPrice;
 
-  const hasValidOriginalPrice =
-    product.original_price && product.original_price > currentPrice;
+  const hasValidOriginalPrice = product.original_price && product.original_price > currentPrice;
   const discountPercent = hasValidOriginalPrice
-    ? Math.round(
-        ((product.original_price! - currentPrice) / product.original_price!) *
-          100
-      )
+    ? Math.round(((product.original_price! - currentPrice) / product.original_price!) * 100)
     : 0;
-
-  // showSale/showCost já definidos acima and used to control badges/visibility
 
   const inCart = cart.find((it: CartItem) => it.id === product.id);
   const qty = inCart ? inCart.quantity : 0;
 
-  const rawVariantCount = (product as any).variant_count || (product as any).variants?.length || 0;
-  const variantCount = Number(rawVariantCount) || 0;
-  const isPartOfGroup = !!product.reference_id && product.reference_id !== product.reference_code;
+  // LÓGICA DE CORES RECUPERADA
+  const productVariants = (product as any).variants || [];
+  const variantCount = Array.isArray(productVariants) ? productVariants.length : 0;
 
-  // Build up to 3 color dots from variant color fields (fallback to neutral palette)
   const colorDots = (() => {
     try {
-      const v = (product as any).variants;
-      if (Array.isArray(v) && v.length > 0) {
-        const cols = v
-          .map((it: any) => it?.color || it?.color_hex || it?.color_code || it?.swatch_color || it?.color_name)
+      if (variantCount > 0) {
+        const cols = productVariants
+          .map((it: any) => it?.color_hex || it?.color || it?.swatch_color)
           .filter(Boolean);
         const uniq = Array.from(new Set(cols)).slice(0, 3);
         if (uniq.length > 0) return uniq;
       }
-    } catch (e) {
-      // ignore
-    }
-    return ['#ff7b00', '#b9722e', '#060029'];
+    } catch (e) {}
+    return ['#cbd5e1']; // Fallback neutro
   })();
 
   const additionalColors = Math.max(0, variantCount - 1);
@@ -162,19 +128,11 @@ export function ProductCard({
         onClick={() => onViewDetails(product)}
         className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/10 ${isOutOfStock ? 'opacity-60 grayscale' : ''}`}
       >
-        {/* Image section */}
         <div className="relative aspect-square w-full flex items-center justify-center bg-white overflow-hidden border-b border-gray-50">
           {isPending && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/40 p-4 text-center backdrop-blur-[2px]">
               <Loader2 className="mb-1 h-6 w-6 animate-spin text-indigo-500" />
               <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Otimizando HD</span>
-            </div>
-          )}
-
-          {isFailed && !product.image_path && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-red-50/80 p-4 text-center">
-              <AlertCircle className="mb-1 h-6 w-6 text-red-400" />
-              <span className="text-[8px] font-bold uppercase text-red-500">Erro na Imagem</span>
             </div>
           )}
 
@@ -187,8 +145,8 @@ export function ProductCard({
               sizes="(max-width: 768px) 50vw, 25vw"
             />
           ) : (
-            <div className="h-full w-full flex items-center justify-center p-4 bg-gray-50 text-gray-400">
-              <div className="text-sm font-bold">{(product.reference_code || '').slice(0, 12) || product.name?.slice(0, 12)}</div>
+            <div className="h-full w-full flex items-center justify-center p-4 bg-gray-50 text-gray-400 font-bold text-sm">
+              {product.reference_code || product.name?.slice(0, 12)}
             </div>
           )}
 
@@ -202,11 +160,18 @@ export function ProductCard({
             <Heart size={16} className={isFavorite ? 'fill-red-500 text-red-500' : ''} />
           </button>
 
-          {variantCount >= 1 && (
+          {/* INDICADOR DE CORES - REATIVADO */}
+          {variantCount > 0 && (
             <div className="absolute bottom-2 right-2 z-10">
-              <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-gray-100 px-2 py-1 rounded-md shadow-sm hover:scale-105 transition-transform cursor-default">
-                <div className="flex -space-x-1.5">{colorDots.map((c, i) => (<div key={i} className={`w-2.5 h-2.5 rounded-full border border-white`} style={c ? { backgroundColor: c } : undefined} />))}</div>
-                <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">{additionalColors === 0 ? 'COR' : additionalColors === 1 ? '+1 COR' : `+ ${additionalColors} CORES`}</span>
+              <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-gray-100 px-2 py-1 rounded-md shadow-sm">
+                <div className="flex -space-x-1.5">
+                  {colorDots.map((c, i) => (
+                    <div key={i} className="w-2.5 h-2.5 rounded-full border border-white" style={{ backgroundColor: c }} />
+                  ))}
+                </div>
+                <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter">
+                  {additionalColors === 0 ? 'COR' : `+ ${additionalColors} CORES`}
+                </span>
               </div>
             </div>
           )}
@@ -224,15 +189,27 @@ export function ProductCard({
               {isPricesVisible ? (
                 <div className="flex flex-col">
                   <PriceDisplay value={currentPrice} isPricesVisible={isPricesVisible} className="text-lg font-black text-gray-900 leading-tight" />
-                  {hasValidOriginalPrice && (<div className="mt-1 text-xs text-gray-500 line-through"><PriceDisplay value={product.original_price!} isPricesVisible={isPricesVisible} className="text-sm font-medium" size="small" /></div>)}
-                  <div className="mt-1">{(() => { const isUsingSalePrice = currentPrice === salePrice && salePrice > 0; const showInstallmentsSetting = (storeSettings as any).show_installments === true; const maxInst = Number((storeSettings as any).max_installments || 0); if (!isPricesVisible) return null; if (isUsingSalePrice) { if (!showInstallmentsSetting) return null; return getInstallmentText(currentPrice, (storeSettings as any).max_installments || 1, isPricesVisible); } if (showCost && showInstallmentsSetting && maxInst > 1) { return getInstallmentText(currentPrice, maxInst, isPricesVisible); } return null; })()} {getCashDiscountText(currentPrice, discountPercent, isPricesVisible)}</div>
+                  <div className="mt-1">
+                    {(() => {
+                      const isUsingSalePrice = currentPrice === salePrice && salePrice > 0;
+                      const showInstallmentsSetting = (storeSettings as any).show_installments === true;
+                      if (isUsingSalePrice && showInstallmentsSetting) {
+                        return getInstallmentText(currentPrice, (storeSettings as any).max_installments || 1, isPricesVisible);
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 uppercase"><Lock size={10} /><span>Sob consulta</span></div>
               )}
 
-              <div className="shrink-0">
-                {rep ? (<div className="mb-2"><button onClick={(e) => { e.stopPropagation(); setQuickOpen(true); }} className="mb-2 w-full text-[12px] font-bold px-3 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200">Pedido Rápido</button></div>) : null}
+              <div className="shrink-0 flex flex-col gap-2">
+                {rep && (
+                  <button onClick={(e) => { e.stopPropagation(); setQuickOpen(true); }} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200">
+                    Pedido Rápido
+                  </button>
+                )}
                 {qty > 0 ? (
                   <div className="flex items-center rounded-xl border border-primary/20 bg-primary/5 p-1">
                     <button onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, -1); }} className="p-1 text-primary"><Minus size={12} /></button>
@@ -240,7 +217,9 @@ export function ProductCard({
                     <button onClick={(e) => { e.stopPropagation(); onAddToCart(product, 1); }} className="p-1 bg-primary text-white rounded-md"><Plus size={12} /></button>
                   </div>
                 ) : (
-                  <button onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) onAddToCart(product, 1); }} disabled={isOutOfStock} className={`flex h-10 w-10 items-center justify-center rounded-xl ${isOutOfStock ? 'bg-gray-400' : 'bg-primary text-primary-foreground shadow-md'} transition-all`}><ShoppingCart size={18} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); if (!isOutOfStock) onAddToCart(product, 1); }} disabled={isOutOfStock} className={`flex h-10 w-10 items-center justify-center rounded-xl ${isOutOfStock ? 'bg-gray-400' : 'bg-primary text-primary-foreground shadow-md'}`}>
+                    <ShoppingCart size={18} />
+                  </button>
                 )}
               </div>
             </div>
