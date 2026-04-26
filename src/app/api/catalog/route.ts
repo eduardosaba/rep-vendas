@@ -21,14 +21,12 @@ export async function GET(req: NextRequest) {
     const sort = params.get('sort') || 'created_at';
     const order = (params.get('order') || params.get('dir') || 'desc') as 'asc' | 'desc';
 
-    // numeric/range filters
     const minPrice = params.get('min_price');
     const maxPrice = params.get('max_price');
     const stockMin = params.get('stock_min');
     const stockMax = params.get('stock_max');
     const active = params.get('active');
 
-    // Decide scoping: company_id takes precedence if provided or found via profile
     let companyId: string | null = explicitCompany;
     if (!companyId && userId) {
       const prof = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
@@ -37,8 +35,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // projection: only essential fields to reduce payload
-    const projection = 'id,name,slug,brand,category,material,price,sale_price,stock_quantity,manage_stock,bestseller,is_launch,polarizado,fotocromatico,images,created_at';
+    // PROJEÇÃO ATUALIZADA: Incluindo reference_id e sub-query de variantes
+    const projection = `
+      id, name, slug, brand, category, material, price, sale_price, 
+      stock_quantity, manage_stock, bestseller, is_launch, polarizado, 
+      fotocromatico, images, created_at, reference_id, reference_code,
+      variants:products!reference_id(id, color, color_hex, image_url)
+    `;
 
     let query = supabase
       .from('products')
@@ -59,41 +62,23 @@ export async function GET(req: NextRequest) {
       if (arr.length === 1) query = query.eq('brand', arr[0]);
       else if (arr.length > 1) query = query.in('brand', arr as any);
     }
-    // Improved category/class_core matching: accept several variants and
-    // attempt case-insensitive, partial matches on both `category` and
-    // `class_core`. This helps match values like "OPT + CLIP-ON", "Clipon",
-    // "CLIPON" etc.
+
     const classCoreParam = params.get('class_core');
     if (category || classCoreParam) {
       const raw = String(category || classCoreParam || '').trim();
       if (raw.length > 0) {
         const lower = raw.toLowerCase();
         const cleaned = lower.replace(/[^a-z0-9]+/g, '');
-        // Special-case CLIP variants which are common and inconsistent in data
         const patterns: string[] = [];
         if (cleaned.includes('clipon') || (cleaned.includes('clip') && cleaned.includes('on'))) {
-          patterns.push('%clip-on%');
-          patterns.push('%clipon%');
-          patterns.push('%clip%on%');
-          patterns.push('%opt%clip%');
-          patterns.push('%opt%clip-on%');
+          patterns.push('%clip-on%', '%clipon%', '%clip%on%', '%opt%clip%', '%opt%clip-on%');
         }
-        // Always add generic fallbacks
-        patterns.push(`%${raw}%`);
-        patterns.push(`%${lower}%`);
-        patterns.push(`%${cleaned}%`);
-
-        // Deduplicate
+        patterns.push(`%${raw}%`, `%${lower}%`, `%${cleaned}%`);
         const uniq = Array.from(new Set(patterns)).filter(Boolean);
-        // Build OR conditions for PostgREST
         const conds = uniq.map((p) => `category.ilike.${p},class_core.ilike.${p}`).join(',');
         try {
-          // Log for debugging when running locally
-          // eslint-disable-next-line no-console
-          console.debug('[api/catalog] category filter', { raw, cleaned, conds });
           query = query.or(conds);
         } catch (e) {
-          // Fallback to ilike on category only
           try {
             query = query.ilike('category', `%${cleaned}%`);
           } catch {
@@ -103,16 +88,12 @@ export async function GET(req: NextRequest) {
       }
     }
     if (material) query = query.eq('material', material);
-
     if (polarizado === '1' || polarizado === 'true') query = query.eq('polarizado', true);
     if (fotocromatico === '1' || fotocromatico === 'true') query = query.eq('fotocromatico', true);
-
     if (minPrice) query = query.gte('price', Number(minPrice));
     if (maxPrice) query = query.lte('price', Number(maxPrice));
-
     if (stockMin) query = query.gte('stock_quantity', Number(stockMin));
     if (stockMax) query = query.lte('stock_quantity', Number(stockMax));
-
     if (active === '1' || active === 'true') query = query.eq('is_active', true);
 
     const res = await query;
