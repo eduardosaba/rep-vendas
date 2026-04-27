@@ -17,6 +17,7 @@ import {
   Loader2,
   Eye,
 } from 'lucide-react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 interface Order {
   id: number;
@@ -344,7 +345,7 @@ export function ClientsTable({ initialOrders, initialClients }: { initialOrders:
                       <div className="flex flex-col gap-1">
                         {client.phone ? (
                           <a
-                            href={`https://wa.me/55${client.phone.replace(/\D/g, '')}`}
+                            href={makeWhatsAppUrl(client.phone) || makeWhatsAppUrl(String(client.phone).replace(/\D/g,'')) || '#'}
                             target="_blank"
                             className="flex items-center gap-1.5 text-gray-600 hover:text-green-600 transition-colors"
                           >
@@ -433,7 +434,7 @@ export function ClientsTable({ initialOrders, initialClients }: { initialOrders:
                     <div className="mt-3 flex items-center gap-3">
                       {client.phone ? (
                         <a
-                          href={`https://wa.me/55${client.phone.replace(/\D/g, '')}`}
+                          href={makeWhatsAppUrl(client.phone) || makeWhatsAppUrl(String(client.phone).replace(/\D/g,'')) || '#'}
                           target="_blank"
                           className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600"
                         >
@@ -582,7 +583,7 @@ export function ClientsTable({ initialOrders, initialClients }: { initialOrders:
                 </h3>
                 {selectedClient.phone ? (
                   <a
-                    href={`https://wa.me/55${selectedClient.phone.replace(/\D/g, '')}`}
+                    href={makeWhatsAppUrl(selectedClient.phone) || makeWhatsAppUrl(String(selectedClient.phone).replace(/\D/g,'')) || '#'}
                     target="_blank"
                     className="flex items-center gap-3 p-3 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors group"
                   >

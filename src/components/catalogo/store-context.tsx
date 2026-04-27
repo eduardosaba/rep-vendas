@@ -1313,7 +1313,8 @@ export function StoreProvider({
         ((store as any)?.representative_whatsapp as string | null) ||
         (store.phone || null) as string | null;
     }
-    const phone = (destPhone || '').replace(/\D/g, '');
+    const phoneRaw = destPhone || '';
+    const phone = (await import('@/lib/format-whatsapp')).formatWhatsAppDigits(phoneRaw);
 
     // Formatação de Moeda
     const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1343,10 +1344,8 @@ export function StoreProvider({
 
     msg += `\n_Gerado por R̳e̳p̳V̳e̳n̳d̳a̳s̳ ⭐_`;
 
-    window.open(
-      `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,
-      '_blank'
-    );
+    const waUrl = (await import('@/lib/format-whatsapp')).makeWhatsAppUrl(phoneRaw, msg);
+    if (waUrl) window.open(waUrl, '_blank');
   };
 
   const handleSaveCart = async () => {

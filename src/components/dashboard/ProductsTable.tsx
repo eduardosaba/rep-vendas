@@ -1,51 +1,54 @@
 'use client';
 // touch: incluir este arquivo no próximo commit (deploy cache-bust)
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import ProductBarcode from '@/components/ui/Barcode';
+import { formatImageUrl, getProductImageUrl } from '@/lib/imageUtils';
 import {
-  Search,
-  Edit2,
-  Trash2,
-  Plus,
-  Image as ImageIcon,
-  Loader2,
-  ArrowUpDown,
-  ArrowUp,
   ArrowDown,
-  Copy,
-  CheckSquare,
-  Square,
-  Zap,
-  Star,
-  DollarSign,
-  Package,
-  X,
-  Tag,
-  Layers,
-  Filter,
+  ArrowUp,
+  ArrowUpDown,
   Briefcase,
-  FileText,
-  FileSpreadsheet,
-  Download,
+  CheckSquare,
+  Copy,
+  DollarSign,
+  Edit2,
   Eye,
   EyeOff,
+  FileSpreadsheet,
+  FileText,
+  Filter,
+  Image as ImageIcon,
+  Layers,
   ListOrdered,
+  Loader2,
+  Package,
+  Plus,
   Rocket,
+  Search,
+  Square,
+  Star,
+  Tag,
+  Trash2,
+  X,
+  Zap,
 } from 'lucide-react';
-import { Button } from '../ui/button';
-import ProductBarcode from '@/components/ui/Barcode';
 import Image from 'next/image';
-import { getProductImageUrl, formatImageUrl } from '@/lib/imageUtils';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { Button } from '../ui/button';
 // imports removed: SyncSingleButton, getProductImage (not used)
-import { createClient } from '@/lib/supabase/client';
-import { usePlanLimits } from '@/hooks/usePlanLimits';
+import {
+  bulkDelete,
+  bulkUpdateFields,
+  bulkUpdatePrice,
+} from '@/app/dashboard/products/actions';
 import { ExportModal } from '@/components/dashboard/ExportModal';
+import { usePlanLimits } from '@/hooks/usePlanLimits';
+import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/types';
 import { generateCatalogPDF } from '@/utils/generateCatalogPDF';
-import { bulkUpdateFields, bulkUpdatePrice, bulkDelete } from '@/app/dashboard/products/actions';
 
 interface BrandOption {
   name: string;
@@ -53,7 +56,10 @@ interface BrandOption {
 }
 
 // DataKey: base product keys plus custom virtual columns used in the table
-type DataKey = Exclude<keyof Product, 'images' | 'track_stock'> | 'image_optimized' | 'cost';
+type DataKey =
+  | Exclude<keyof Product, 'images' | 'track_stock'>
+  | 'image_optimized'
+  | 'cost';
 
 interface ColumnDefinition {
   key: DataKey;
@@ -187,7 +193,11 @@ interface ProductsTableProps {
   initialTotalCount?: number;
 }
 
-export function ProductsTable({ initialProducts, serverModeDefault, initialTotalCount }: ProductsTableProps) {
+export function ProductsTable({
+  initialProducts,
+  serverModeDefault,
+  initialTotalCount,
+}: ProductsTableProps) {
   // Component implementation
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -240,7 +250,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
   }, [filters]);
 
   // Server-side filtering mode
-  const [serverMode, setServerMode] = useState<boolean>(Boolean(serverModeDefault) || false);
+  const [serverMode, setServerMode] = useState<boolean>(
+    Boolean(serverModeDefault) || false
+  );
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [serverMeta, setServerMeta] = useState<{
     totalCount?: number;
@@ -337,7 +349,13 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     } catch (e) {
       // ignore
     }
-  }, [serverMode, userId, filters.onlyLaunch, filters.onlyFeatured, filters.onlyBestSeller]);
+  }, [
+    serverMode,
+    userId,
+    filters.onlyLaunch,
+    filters.onlyFeatured,
+    filters.onlyBestSeller,
+  ]);
 
   // Fetch aggregate KPIs when in serverMode (shows totals across all products)
   useEffect(() => {
@@ -449,7 +467,8 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               throw new Error(err);
             }
             const blob = await res.blob();
-            const contentDisposition = res.headers.get('Content-Disposition') || '';
+            const contentDisposition =
+              res.headers.get('Content-Disposition') || '';
             let filename = `products-${effectiveUserId}.xlsx`;
             const m = /filename="?([^";]+)"?/.exec(contentDisposition);
             if (m && m[1]) filename = m[1];
@@ -471,8 +490,15 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         })();
       }
     };
-    window.addEventListener('repvendas:triggerExport', handler as EventListener);
-    return () => window.removeEventListener('repvendas:triggerExport', handler as EventListener);
+    window.addEventListener(
+      'repvendas:triggerExport',
+      handler as EventListener
+    );
+    return () =>
+      window.removeEventListener(
+        'repvendas:triggerExport',
+        handler as EventListener
+      );
   }, [selectedIds, userId]);
 
   // Escuta evento global para abrir o modal de PDF (compatibilidade com triggers antigos)
@@ -631,10 +657,16 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
           );
           // Only apply remote prefs automatically if the user hasn't interacted
           // with column visibility yet and we haven't applied prefs before.
-          if (!userToggledColumnsRef.current && !initialPrefsAppliedRef.current) {
+          if (
+            !userToggledColumnsRef.current &&
+            !initialPrefsAppliedRef.current
+          ) {
             try {
               // eslint-disable-next-line no-console
-              console.debug('[ProductsTable] applying remote prefs', { loadedOrder, loadedVisible: Array.from(loadedVisible) });
+              console.debug('[ProductsTable] applying remote prefs', {
+                loadedOrder,
+                loadedVisible: Array.from(loadedVisible),
+              });
             } catch (e) {}
             setColumnOrder([...loadedOrder, ...missing]);
             setVisibleColumnKeys(loadedVisible);
@@ -644,14 +676,21 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
             if (!initialPrefsAppliedRef.current) {
               try {
                 // eslint-disable-next-line no-console
-                console.debug('[ProductsTable] skipping apply remote prefs because user already interacted');
+                console.debug(
+                  '[ProductsTable] skipping apply remote prefs because user already interacted'
+                );
               } catch (e) {}
-              setColumnOrder((prev) => (prev && prev.length > 0 ? prev : [...loadedOrder, ...missing]));
+              setColumnOrder((prev) =>
+                prev && prev.length > 0 ? prev : [...loadedOrder, ...missing]
+              );
               initialPrefsAppliedRef.current = true;
             }
           }
         } else {
-          if (!userToggledColumnsRef.current && !initialPrefsAppliedRef.current) {
+          if (
+            !userToggledColumnsRef.current &&
+            !initialPrefsAppliedRef.current
+          ) {
             setColumnOrder(DEFAULT_PREFS.columnOrder);
             setVisibleColumnKeys(DEFAULT_PREFS.visibleKeys);
             initialPrefsAppliedRef.current = true;
@@ -793,7 +832,6 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     return () => {
       if (fetchTimerRef.current) window.clearTimeout(fetchTimerRef.current);
     };
-     
   }, [
     serverMode,
     userId,
@@ -850,7 +888,11 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
             body = null;
           }
         }
-        console.error('[api/products] refresh response error', res.status, body);
+        console.error(
+          '[api/products] refresh response error',
+          res.status,
+          body
+        );
         throw new Error('Erro ao buscar produtos');
       }
       const json = await res.json();
@@ -872,10 +914,14 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     setVisibleColumnKeys(newVisible);
     try {
       // eslint-disable-next-line no-console
-      console.debug('[ProductsTable] toggleColumn -> visible keys now', Array.from(newVisible));
+      console.debug(
+        '[ProductsTable] toggleColumn -> visible keys now',
+        Array.from(newVisible)
+      );
     } catch (e) {}
     // Debounce remote save to avoid UI jank if save is slow or fails
-    if (savePrefTimeoutRef.current) window.clearTimeout(savePrefTimeoutRef.current);
+    if (savePrefTimeoutRef.current)
+      window.clearTimeout(savePrefTimeoutRef.current);
     savePrefTimeoutRef.current = window.setTimeout(() => {
       savePreferences(columnOrder, newVisible, columnWidths);
       savePrefTimeoutRef.current = null;
@@ -911,12 +957,18 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
           <ListOrdered size={16} /> <span className="inline">Colunas</span>
         </Button>
         {open && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center"> 
-            <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setOpen(false)}
+            />
             <div className="relative w-[min(720px,95vw)] max-h-[80vh] overflow-auto bg-white dark:bg-slate-900 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-[1201]">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold">Configurar colunas</h3>
-                <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+                <button
+                  onClick={() => setOpen(false)}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
                   <X size={16} />
                 </button>
               </div>
@@ -926,10 +978,16 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                   <div>
                     <input
                       type="checkbox"
-                      checked={columnOrder.filter((k) => ALL_DATA_COLUMNS[k]).every((k) => visibleColumnKeys.has(k))}
+                      checked={columnOrder
+                        .filter((k) => ALL_DATA_COLUMNS[k])
+                        .every((k) => visibleColumnKeys.has(k))}
                       onChange={(e) => {
-                        const allKeys = columnOrder.filter((k) => ALL_DATA_COLUMNS[k]);
-                        const newSet = e.target.checked ? new Set<DataKey>(allKeys) : new Set<DataKey>();
+                        const allKeys = columnOrder.filter(
+                          (k) => ALL_DATA_COLUMNS[k]
+                        );
+                        const newSet = e.target.checked
+                          ? new Set<DataKey>(allKeys)
+                          : new Set<DataKey>();
                         setVisibleColumnKeys(newSet);
                         savePreferences(columnOrder, newSet, columnWidths);
                       }}
@@ -943,7 +1001,10 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                   const isChecked = visibleColumnKeys.has(key);
 
                   return (
-                    <div key={String(key)} className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-800">
+                    <div
+                      key={String(key)}
+                      className="flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-800"
+                    >
                       <label className="flex items-center gap-3 cursor-pointer flex-1">
                         <input
                           type="checkbox"
@@ -954,10 +1015,18 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                         <span className="text-sm">{def.title}</span>
                       </label>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => moveColumn(key, 'up')} disabled={index === 0} className="p-1 rounded hover:bg-slate-100">
+                        <button
+                          onClick={() => moveColumn(key, 'up')}
+                          disabled={index === 0}
+                          className="p-1 rounded hover:bg-slate-100"
+                        >
                           <ArrowUp size={14} />
                         </button>
-                        <button onClick={() => moveColumn(key, 'down')} disabled={index === columnOrder.length - 1} className="p-1 rounded hover:bg-slate-100">
+                        <button
+                          onClick={() => moveColumn(key, 'down')}
+                          disabled={index === columnOrder.length - 1}
+                          className="p-1 rounded hover:bg-slate-100"
+                        >
                           <ArrowDown size={14} />
                         </button>
                       </div>
@@ -965,7 +1034,13 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                   );
                 })}
                 <div className="flex justify-end mt-3">
-                  <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Fechar</Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setOpen(false)}
+                  >
+                    Fechar
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1132,18 +1207,22 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       };
     }
 
+    // When running client-side (serverMode === false) we must compute KPIs
+    // from the filtered list (`processedProducts`) so the cards reflect the
+    // active filters shown in the table. In serverMode we still prefer
+    // server-provided aggregates or the raw `products` payload when needed.
     const sourceForCounts = serverMode
       ? products && products.length > 0
         ? products
         : serverProducts && serverProducts.length > 0
-        ? serverProducts
-        : []
-      : products;
+          ? serverProducts
+          : []
+      : processedProducts;
 
     const active = sourceForCounts.filter((p) => p.is_active !== false);
     const totalCount = serverMode
-      ? initialTotalCount ?? serverMeta?.totalCount ?? sourceForCounts.length
-      : products.length;
+      ? (initialTotalCount ?? serverMeta?.totalCount ?? sourceForCounts.length)
+      : sourceForCounts.length;
 
     return {
       total: totalCount,
@@ -1152,7 +1231,15 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       best: active.filter((p) => isBestSeller(p)).length,
       featured: active.filter((p) => isFeatured(p)).length,
     } as any;
-  }, [products, serverMode, serverProducts, serverMeta, initialTotalCount, kpisState]);
+  }, [
+    products,
+    serverMode,
+    serverProducts,
+    serverMeta,
+    initialTotalCount,
+    kpisState,
+    processedProducts,
+  ]);
 
   // --- AÇÕES ---
   const toggleSelectOne = (id: string) => {
@@ -1213,7 +1300,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
     Record<string, boolean>
   >({});
   const [duplicatingIds, setDuplicatingIds] = useState<string[]>([]);
-  const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(null);
+  const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(
+    null
+  );
 
   const isDuplicating = (id: string) => duplicatingIds.includes(id);
 
@@ -1241,7 +1330,7 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
       setDuplicatingIds((s) => s.filter((i) => i !== productId));
     }
   };
-  
+
   const downloadSelectedXlsx = async (exportUserId?: string | null) => {
     const effectiveUserId = exportUserId || userId;
     if (!effectiveUserId || effectiveUserId === 'guest') {
@@ -1405,7 +1494,10 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
             selectedIds.includes(p.id)
               ? {
                   ...p,
-                  price: priceConfig.mode === 'fixed' ? Number(priceConfig.value) : p.price,
+                  price:
+                    priceConfig.mode === 'fixed'
+                      ? Number(priceConfig.value)
+                      : p.price,
                 }
               : p
           )
@@ -1423,21 +1515,27 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
   // Toggles para ações em massa (usa o primeiro produto selecionado como referência)
   const toggleIsLaunch = async () => {
     if (!selectedIds || selectedIds.length === 0) return;
-    const ref = products.find((p) => p.id === selectedIds[0]) || serverProducts.find((p) => p.id === selectedIds[0]);
+    const ref =
+      products.find((p) => p.id === selectedIds[0]) ||
+      serverProducts.find((p) => p.id === selectedIds[0]);
     const current = ref ? isLaunch(ref) : false;
     await handleBulkUpdate('is_launch', !current);
   };
 
   const toggleIsBestSeller = async () => {
     if (!selectedIds || selectedIds.length === 0) return;
-    const ref = products.find((p) => p.id === selectedIds[0]) || serverProducts.find((p) => p.id === selectedIds[0]);
+    const ref =
+      products.find((p) => p.id === selectedIds[0]) ||
+      serverProducts.find((p) => p.id === selectedIds[0]);
     const current = ref ? isBestSeller(ref) : false;
     await handleBulkUpdate('is_best_seller', !current);
   };
 
   const toggleIsFeatured = async () => {
     if (!selectedIds || selectedIds.length === 0) return;
-    const ref = products.find((p) => p.id === selectedIds[0]) || serverProducts.find((p) => p.id === selectedIds[0]);
+    const ref =
+      products.find((p) => p.id === selectedIds[0]) ||
+      serverProducts.find((p) => p.id === selectedIds[0]);
     const current = ref ? isFeatured(ref) : false;
     await handleBulkUpdate('is_destaque', !current);
   };
@@ -1445,10 +1543,16 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
   const toggleIsActive = async () => {
     if (!selectedIds || selectedIds.length === 0) return;
     const selectedProducts = selectedIds
-      .map((id) => products.find((p) => p.id === id) || serverProducts.find((p) => p.id === id))
+      .map(
+        (id) =>
+          products.find((p) => p.id === id) ||
+          serverProducts.find((p) => p.id === id)
+      )
       .filter(Boolean) as Product[];
     if (selectedProducts.length === 0) return;
-    const activeCount = selectedProducts.filter((p) => p.is_active !== false).length;
+    const activeCount = selectedProducts.filter(
+      (p) => p.is_active !== false
+    ).length;
     const inactiveCount = selectedProducts.length - activeCount;
     const majorityActive = activeCount >= inactiveCount;
     await handleBulkUpdate('is_active', !majorityActive);
@@ -1469,7 +1573,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         setProducts((prev) =>
           prev
             .map((p) =>
-              res?.softDeletedIds?.includes(p.id) ? { ...p, is_active: false } : p
+              res?.softDeletedIds?.includes(p.id)
+                ? { ...p, is_active: false }
+                : p
             )
             .filter((p) => !res?.deletedIds?.includes(p.id))
         );
@@ -1693,9 +1799,13 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 Array.isArray(product.image_variants)
               ) {
                 const smallVariant =
-                  product.image_variants.find((v: any) => v && (v.size === 480 || v.size === '480')) ||
-                  product.image_variants[0];
-                const variantPath = smallVariant?.path || (smallVariant as any)?.storage_path || null;
+                  product.image_variants.find(
+                    (v: any) => v && (v.size === 480 || v.size === '480')
+                  ) || product.image_variants[0];
+                const variantPath =
+                  smallVariant?.path ||
+                  (smallVariant as any)?.storage_path ||
+                  null;
                 if (variantPath) thumbnailSrc = formatImageUrl(variantPath);
               } else {
                 const { src, isExternal } = getProductImageUrl(product as any);
@@ -1749,8 +1859,12 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                   const slug = storeSettings?.catalog_slug || userId || '';
                   // Preferir `slug` do produto quando disponível (melhor para URLs legíveis),
                   // senão usar o `id` como fallback.
-                  const productIdParam = encodeURIComponent((product.slug as string) || product.id);
-                  const qParam = encodeURIComponent(String(product.brand || product.name || ''));
+                  const productIdParam = encodeURIComponent(
+                    (product.slug as string) || product.id
+                  );
+                  const qParam = encodeURIComponent(
+                    String(product.brand || product.name || '')
+                  );
                   const href = `/catalogo/${encodeURIComponent(slug)}?q=${qParam}&sort=ref_desc&view=grid&productId=${productIdParam}&p=${productIdParam}`;
                   window.open(href, '_blank');
                 }}
@@ -1808,9 +1922,17 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         </span>
       );
     if (key === 'is_launch')
-      return isLaunch(product) ? <Zap size={16} className="text-purple-500 mx-auto" /> : '-';
+      return isLaunch(product) ? (
+        <Zap size={16} className="text-purple-500 mx-auto" />
+      ) : (
+        '-'
+      );
     if (key === 'is_best_seller')
-      return isBestSeller(product) ? <Star size={16} className="text-orange-500 mx-auto" /> : '-';
+      return isBestSeller(product) ? (
+        <Star size={16} className="text-orange-500 mx-auto" />
+      ) : (
+        '-'
+      );
     if (key === 'stock_quantity')
       return (
         <div className="text-sm font-medium text-gray-900 dark:text-slate-200 text-right">
@@ -1969,7 +2091,11 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               {/* Row 3: Sort + PDF */}
               <div className="flex items-center gap-2">
                 <Link href="/dashboard/products/new" className="contents">
-                  <Button size="sm" variant="secondary" className="flex items-center gap-2 px-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex items-center gap-2 px-3"
+                  >
                     <Plus size={14} />
                     <span className="inline">Novo produto</span>
                   </Button>
@@ -2011,7 +2137,11 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               </div>
 
               <Link href="/dashboard/products/new" className="contents">
-                <Button size="sm" variant="secondary" className="flex items-center gap-2 px-3">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="flex items-center gap-2 px-3"
+                >
                   <Plus size={14} />
                   <span className="hidden md:inline">Novo produto</span>
                 </Button>
@@ -2021,7 +2151,8 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                 <div className="hidden sm:flex items-center gap-2 ml-2">
                   <span className="px-3 py-1 rounded bg-gray-100 dark:bg-slate-800 text-sm text-gray-700 dark:text-slate-300">
                     Ordenado:{' '}
-                    {ALL_DATA_COLUMNS[sortConfig.key as DataKey]?.title || String(sortConfig.key)}
+                    {ALL_DATA_COLUMNS[sortConfig.key as DataKey]?.title ||
+                      String(sortConfig.key)}
                   </span>
                   <button
                     onClick={() =>
@@ -2630,16 +2761,27 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
               {paginatedProducts.length === 0 ? (
                 serverMode && (serverMeta?.totalCount || 0) > 0 ? (
                   <tr>
-                    <td colSpan={100} className="p-12 text-center text-gray-500 dark:text-slate-400">
+                    <td
+                      colSpan={100}
+                      className="p-12 text-center text-gray-500 dark:text-slate-400"
+                    >
                       {serverLoading ? (
                         <div className="flex items-center justify-center gap-2">
-                          <Loader2 className="animate-spin" /> Carregando produtos...
+                          <Loader2 className="animate-spin" /> Carregando
+                          produtos...
                         </div>
                       ) : (
                         <div>
-                          <p>Catálogo grande detectado ({serverMeta?.totalCount} itens) — nenhuma página carregada.</p>
+                          <p>
+                            Catálogo grande detectado ({serverMeta?.totalCount}{' '}
+                            itens) — nenhuma página carregada.
+                          </p>
                           <div className="mt-3 flex justify-center">
-                            <Button size="sm" variant="outline" onClick={() => refreshServerPage(1)}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => refreshServerPage(1)}
+                            >
                               Tentar novamente
                             </Button>
                           </div>
@@ -2750,9 +2892,16 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                   </div>
                 ) : (
                   <div>
-                    <p>Catálogo grande detectado ({serverMeta?.totalCount} itens) — nenhuma página carregada.</p>
+                    <p>
+                      Catálogo grande detectado ({serverMeta?.totalCount} itens)
+                      — nenhuma página carregada.
+                    </p>
                     <div className="mt-3 flex justify-center">
-                      <Button size="sm" variant="outline" onClick={() => refreshServerPage(1)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => refreshServerPage(1)}
+                      >
                         Tentar novamente
                       </Button>
                     </div>
@@ -3204,11 +3353,12 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
         // primeiro em `processedProducts`, depois em `serverProducts` e por fim em `products`.
         const resolvedSelected = selectedIds.length
           ? selectedIds
-              .map((id) =>
-                processedProducts.find((p) => p.id === id) ||
-                serverProducts.find((p) => p.id === id) ||
-                products.find((p) => p.id === id) ||
-                null
+              .map(
+                (id) =>
+                  processedProducts.find((p) => p.id === id) ||
+                  serverProducts.find((p) => p.id === id) ||
+                  products.find((p) => p.id === id) ||
+                  null
               )
               .filter((p): p is Product => p !== null)
           : processedProducts;
@@ -3352,7 +3502,9 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
                       checked={deleteScope === 'all'}
                       onChange={() => setDeleteScope('all')}
                     />
-                    <span className="text-sm">Excluir de todos os usuários</span>
+                    <span className="text-sm">
+                      Excluir de todos os usuários
+                    </span>
                   </label>
                 ) : null}
               </div>
@@ -3415,9 +3567,12 @@ export function ProductsTable({ initialProducts, serverModeDefault, initialTotal
             <div className="flex items-center gap-4 justify-center mb-4">
               <Copy size={36} className="text-blue-600" />
             </div>
-            <h3 className="text-lg font-bold dark:text-white">Duplicar Produto?</h3>
+            <h3 className="text-lg font-bold dark:text-white">
+              Duplicar Produto?
+            </h3>
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-2 mb-4">
-              Será criada uma cópia deste produto. As imagens da cópia serão marcadas como compartilhadas.
+              Será criada uma cópia deste produto. As imagens da cópia serão
+              marcadas como compartilhadas.
             </p>
             <div className="grid grid-cols-2 gap-3 mt-4">
               <button

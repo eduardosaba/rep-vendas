@@ -1,6 +1,26 @@
+'use client';
+
+import { useEffect } from 'react';
 import Link from 'next/link';
 
 export default function NotFound() {
+  useEffect(() => {
+    try {
+      void fetch('/api/error-logs/insert', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          url: typeof window !== 'undefined' ? window.location.href : null,
+          error_type: '404',
+          message: 'Página não encontrada',
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        }),
+      });
+    } catch (e) {
+      // swallow
+    }
+  }, []);
+
   const logoUrl =
     'https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg';
 
@@ -58,7 +78,7 @@ export default function NotFound() {
       </div>
 
       <div className="mt-8 text-xs text-gray-400">
-        RepVendas SaaS &copy; {new Date().getFullYear()}
+        RepVendas SaaS © {new Date().getFullYear()}
       </div>
     </div>
   );

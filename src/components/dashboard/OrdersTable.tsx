@@ -1,22 +1,16 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  Search,
-  Filter,
-  RefreshCcw,
-  ShoppingBag,
-  Clock,
-  ArrowRight,
-  ArrowLeft,
-  Package,
-  TrendingUp,
-  DollarSign,
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getUiStatusKey, mapToDbStatus } from "@/lib/orderStatus";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Package,
+  Search
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 
 export interface Order {
   id: string | number;

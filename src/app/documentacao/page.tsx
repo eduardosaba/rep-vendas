@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import HeroDemoCTA from '@/components/HeroDemoCTA';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 // --- DADOS DO MANUAL INTEGRADOS ---
 
@@ -333,7 +334,7 @@ export default function HelpPage() {
            </h3>
            <p className="text-green-50 mb-8 font-medium">Nossa equipe de suporte está online para te ajudar agora.</p>
            <a
-             href="https://wa.me/5575981272323"
+             href={makeWhatsAppUrl('5575981272323')}
              target="_blank"
              className="bg-white text-[#25D366] px-12 py-5 rounded-[1.5rem] font-black text-sm uppercase tracking-widest hover:shadow-xl transition-all inline-block"
            >

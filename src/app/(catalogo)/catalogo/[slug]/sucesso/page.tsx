@@ -4,8 +4,12 @@ import { CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { resolveContext } from '@/lib/resolve-context';
 import OrderReceipt from '@/components/checkout/OrderReceipt';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 type SearchParams = Record<string, string | string[] | undefined>;
+
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 export default async function IndividualSuccessPage({
   params,
@@ -91,14 +95,13 @@ export default async function IndividualSuccessPage({
       };
 
       if (customerPhone) {
-        const text = encodeURIComponent(
+        const message =
           `Pedido confirmado\n\n` +
-            `Pedido: #${orderDisplayId}\n` +
-            `Total: R$ ${Number((order as any).total_value || 0).toFixed(2)}\n` +
-            `${paymentMatch?.[1]?.trim() ? `Condição: ${paymentMatch[1].trim()}\n` : ''}\n` +
-            `Atendimento: ${context.representative.full_name || context.representative.slug}`
-        );
-        whatsappHref = `https://wa.me/${customerPhone}?text=${text}`;
+          `Pedido: #${orderDisplayId}\n` +
+          `Total: R$ ${Number((order as any).total_value || 0).toFixed(2)}\n` +
+          `${paymentMatch?.[1]?.trim() ? `Condição: ${paymentMatch[1].trim()}\n` : ''}\n` +
+          `Atendimento: ${context.representative.full_name || context.representative.slug}`;
+        whatsappHref = makeWhatsAppUrl(customerPhone, message) || makeWhatsAppUrl(String(customerPhone).replace(/\D/g, ''), message) || '#';
       }
     }
   }

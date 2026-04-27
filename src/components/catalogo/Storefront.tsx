@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useEffect, useState } from 'react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import FeaturedSection from '@/components/catalog/FeaturedSection';
 import { Phone } from 'lucide-react';
 import { StoreProvider, useStore } from './store-context';
@@ -190,8 +191,7 @@ export function Storefront({
   // Helpers de Formatação (Poderiam ser movidos para @/lib/utils no futuro)
   const formatWhatsappUrl = (phone?: string) => {
     if (!phone) return '#';
-    const digits = phone.replace(/\D/g, '');
-    return `https://wa.me/${typeof digits === 'string' && digits.startsWith('55') ? digits : `55${digits}`}`;
+    return makeWhatsAppUrl(phone) || '#';
   };
 
   // FONT OPTIONS centralizadas via src/lib/fonts

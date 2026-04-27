@@ -7,6 +7,7 @@ import { useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Settings } from '../../lib/types';
 import { normalizePhone } from '@/lib/phone';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 interface CatalogHeaderProps {
@@ -66,12 +67,12 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
               <div className="flex items-center gap-3">
                 {settings?.phone &&
                   (() => {
-                    const raw = String(settings.phone || '').replace(/\D/g, '');
-                    const digits = typeof raw === 'string' && raw.startsWith('55') ? raw : `55${raw}`;
+                    const raw = String(settings.phone || '');
                     const display = normalizePhone(settings.phone);
+                    const href = makeWhatsAppUrl(raw) || '#';
                     return (
                       <a
-                        href={`https://wa.me/${digits}`}
+                        href={href}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Chamar no WhatsApp ${display}`}

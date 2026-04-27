@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/providers/theme-provider';
 import ThemeRegistry from '@/components/ThemeRegistry';
 import { NetworkStatusIndicator } from '@/components/NetworkStatusIndicator';
 import PresenceProvider from '@/lib/presence';
+import { MaintenanceBanner } from '@/components/MaintenanceBanner';
 
 // Configure Inter font to be served locally by Next.js
 const inter = Inter({
@@ -65,6 +66,8 @@ export default function RootLayout({
         >
           {/* O ThemeRegistry aplicará as cores específicas do dono do catálogo */}
           <ThemeRegistry />
+          {/* Server-side control: read MAINTENANCE_MODE (no NEXT_PUBLIC) and pass to client component */}
+          <MaintenanceBanner forcedVisible={process.env.MAINTENANCE_MODE === 'true'} />
           <PresenceProvider>{children}</PresenceProvider>
           <Toaster position="top-right" />
           <NetworkStatusIndicator />

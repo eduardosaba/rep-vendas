@@ -6,6 +6,9 @@ import { getPublicCatalog } from '@/lib/catalog';
 import { resolveContext } from '@/lib/resolve-context';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 function buildSupabaseAdmin() {
   const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

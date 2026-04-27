@@ -10,6 +10,7 @@ import { resolveContext } from '@/lib/resolve-context';
 
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 type Props = {
   params: Promise<{ slug: string }>;

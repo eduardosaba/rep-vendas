@@ -2,6 +2,7 @@
 
 import type { Settings } from '@/lib/types';
 import { normalizePhone } from '@/lib/phone';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 interface CatalogFooterProps {
   settings: Settings | null;
@@ -102,7 +103,7 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
                 <p>
                   <span className="block font-medium">📞 Telefone</span>
                   <a
-                    href={`https://wa.me/${String(settings.phone).replace(/\D/g, '').startsWith('55') ? String(settings.phone).replace(/\D/g, '') : '55' + String(settings.phone).replace(/\D/g, '')}`}
+                    href={makeWhatsAppUrl(String(settings.phone))}
                     className="block"
                     target="_blank"
                     rel="noopener noreferrer"

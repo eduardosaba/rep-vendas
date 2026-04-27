@@ -229,7 +229,7 @@ export default async function QuotesListPage({
 
                   {quote.customerPhone ? (
                     <a
-                      href={`https://wa.me/${String(quote.customerPhone).replace(/\D/g, '')}?text=${encodeURIComponent('Oi! Vi seu orçamento aqui na distribuidora, vamos alinhar prazo e condições?')}`}
+                      href={(function(){ try { const m = require('@/lib/format-whatsapp'); return m.makeWhatsAppUrl(String(quote.customerPhone), 'Oi! Vi seu orçamento aqui na distribuidora, vamos alinhar prazo e condições?') || '#'; } catch(e) { return '#'; } })()}
                       target="_blank"
                       rel="noreferrer"
                       className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl hover:bg-emerald-600 hover:text-white transition-colors"

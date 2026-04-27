@@ -4,8 +4,11 @@ import { CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { resolveContext } from '@/lib/resolve-context';
 import OrderReceipt from '@/components/checkout/OrderReceipt';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 export const dynamic = 'force-dynamic';
+
+export const fetchCache = 'force-no-store';
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -73,7 +76,7 @@ export default async function SuccessPage({
         subtotal: Number(item.total_price || 0),
       }));
 
-      const customerPhone = String((order as any).client_phone_guest || '').replace(/\D/g, '');
+      const customerPhone = String((order as any).client_phone_guest || '');
       const customerName = String((order as any).client_name_guest || 'Cliente');
 
       receiptOrder = {
@@ -94,14 +97,13 @@ export default async function SuccessPage({
       };
 
       if (customerPhone) {
-        const text = encodeURIComponent(
+        const text =
           `Pedido confirmado - ${context.company.name}\n\n` +
-            `Pedido: #${orderDisplayId}\n` +
-            `Total: R$ ${Number((order as any).total_value || 0).toFixed(2)}\n` +
-            `${paymentMatch?.[1]?.trim() ? `Condição: ${paymentMatch[1].trim()}\n` : ''}\n` +
-            `Atendimento: ${context.representative.full_name || context.representative.slug}`
-        );
-        whatsappHref = `https://wa.me/${customerPhone}?text=${text}`;
+          `Pedido: #${orderDisplayId}\n` +
+          `Total: R$ ${Number((order as any).total_value || 0).toFixed(2)}\n` +
+          `${paymentMatch?.[1]?.trim() ? `Condição: ${paymentMatch[1].trim()}\n` : ''}\n` +
+          `Atendimento: ${context.representative.full_name || context.representative.slug}`;
+        whatsappHref = makeWhatsAppUrl(customerPhone, text);
       }
     }
   }

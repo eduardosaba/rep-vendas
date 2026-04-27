@@ -20,6 +20,7 @@ import {
   Hash,
   Tag,
 } from 'lucide-react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import OrderStatusControls from '@/components/dashboard/OrderStatusControls';
 import { OrderPdfButton } from '@/components/dashboard/OrderPdfButton';
 import { OrderDetailsView } from '@/components/dashboard/OrderDetailsView';
@@ -278,7 +279,7 @@ export default async function OrderDetailsPage({
                         </label>
                         <div className="flex items-center gap-2 mt-1">
                           <a
-                            href={`https://wa.me/55${clientPhone.replace(/\D/g, '')}`}
+                            href={makeWhatsAppUrl(clientPhone) || '#'}
                             target="_blank"
                             rel="noreferrer"
                             className="flex items-center gap-2 text-sm font-medium text-green-600 hover:text-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg transition-colors w-full"
@@ -372,7 +373,7 @@ export default async function OrderDetailsPage({
 
                 {(clientPhone || clientEmail) && (
                   <div className="space-y-2">
-                    {clientPhone && (<a href={`https://wa.me/55${clientPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-sm text-green-600">{clientPhone}</a>)}
+                    {clientPhone && (<a href={makeWhatsAppUrl(clientPhone) || '#'} target="_blank" rel="noreferrer" className="text-sm text-green-600">{clientPhone}</a>)}
                     {clientEmail && (<div className="text-sm text-gray-700">{clientEmail}</div>)}
                   </div>
                 )}

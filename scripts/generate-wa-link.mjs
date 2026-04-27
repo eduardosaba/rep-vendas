@@ -3,6 +3,15 @@ function normalizePhone(phone) {
   return String(phone).replace(/\D/g, '');
 }
 
+function makeWhatsAppUrl(phone, message) {
+  if (!phone) return '#';
+  let digits = String(phone).replace(/\D/g, '');
+  if (!digits) return '#';
+  if (!digits.startsWith('55')) digits = `55${digits}`;
+  const txt = message ? `?text=${encodeURIComponent(message)}` : '';
+  return `https://wa.me/${digits}${txt}`;
+}
+
 function buildMessage({ customer, items, total, display_id, id, pdf_url }) {
   let msg = `*📦 NOVO PEDIDO: #${display_id || id}*\n`;
   msg += `--------------------------------\n\n`;
@@ -56,7 +65,7 @@ for (const ex of examples) {
   const dest = ex.representativePhone || ex.storePhone || '';
   const phoneDigits = normalizePhone(dest);
   const msg = buildMessage(ex.order);
-  const url = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(msg)}`;
+  const url = makeWhatsAppUrl(phoneDigits, msg);
 
   console.log('---');
   console.log(ex.name);

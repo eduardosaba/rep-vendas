@@ -1,6 +1,7 @@
-'use client';
+ 'use client';
 
 import { useStore } from '@/components/catalogo/store-context';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import type { CartItem } from '@/lib/types';
 import {
   Home,
@@ -29,8 +30,7 @@ export function MobileCatalogNav() {
 
   const formatWhatsappUrl = (phone?: string) => {
     if (!phone) return '#';
-    const digits = String(phone).replace(/\D/g, '');
-    return `https://wa.me/${typeof digits === 'string' && digits.startsWith('55') ? digits : `55${digits}`}`;
+    return makeWhatsAppUrl(phone) || '#';
   };
 
   // Lógica: Se preços de custo visíveis, mostra Ver Pedido ao invés de Favoritos

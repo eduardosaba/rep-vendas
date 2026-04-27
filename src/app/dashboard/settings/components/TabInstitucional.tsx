@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import { Building2, X, FileText, Upload, Trash2, Eye, Instagram, Facebook, Linkedin, ExternalLink, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks';
 import RichTextEditor from '@/components/ui/RichTextEditor';
@@ -13,13 +14,10 @@ function normalizePhoneDigits(input?: string) {
   return digits;
 }
 
-// Gera o link do WhatsApp no formato https://wa.me/55{digits}
+// Use utilitária central para gerar o link do WhatsApp
 function makeWhatsappUrlFromPhone(input?: string) {
-  const digits = normalizePhoneDigits(input);
-  if (!digits) return '';
-  if (digits.startsWith('55') && digits.length >= 4) return `https://wa.me/${digits}`;
-  if (digits.length === 10 || digits.length === 11) return `https://wa.me/55${digits}`;
-  return `https://wa.me/55${digits}`;
+  if (!input) return '';
+  return makeWhatsAppUrl(input) || '';
 }
 
 // Gera URLs públicas para redes sociais a partir de um handle/nome

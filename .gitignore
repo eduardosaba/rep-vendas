@@ -134,3 +134,5 @@ Desktop.ini
 # Allow committed static fonts
 !public/fonts/
 !public/fonts/**
+# Sentry Config File
+.env.sentry-build-plugin

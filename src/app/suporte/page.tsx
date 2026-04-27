@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
   import HeroDemoCTA from '@/components/HeroDemoCTA';
   import { SYSTEM_LOGO_URL } from '@/lib/constants';
+  import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 export const metadata: Metadata = {
   title: 'Suporte | RepVendas',
@@ -120,7 +121,7 @@ export default function SupportPage() {
               Fale diretamente com um consultor para auxílio em tempo real.
             </p>
             <a
-              href="https://wa.me/5575981272323?text=Ol%C3%A1%2C%20preciso%20de%20suporte%20pelo%20RepVendas"
+              href={makeWhatsAppUrl('5575981272323', 'Olá, preciso de suporte pelo RepVendas')}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#25D366] text-white text-sm font-bold transition-shadow hover:shadow-lg"

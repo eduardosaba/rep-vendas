@@ -1,5 +1,6 @@
 import { Power, MessageCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 interface StoreMaintenanceProps {
   storeName: string;
@@ -29,7 +30,7 @@ export function StoreMaintenance({ storeName, phone }: StoreMaintenanceProps) {
         <div className="space-y-4">
           {phone && (
             <a
-              href={`https://wa.me/55${phone.replace(/\D/g, '')}`}
+              href={makeWhatsAppUrl(phone)}
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full py-5 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-2xl font-black text-lg shadow-lg transition-all hover:-translate-y-1 flex items-center justify-center gap-3"

@@ -32,6 +32,7 @@
     "ts-fix": "node ./scripts/tsc-fixer/fix-tsc.cjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.50.0",
     "@supabase/ssr": "0.4.0",
     "@supabase/supabase-js": "^2.89.0",
     "@tiptap/extension-image": "^3.22.4",

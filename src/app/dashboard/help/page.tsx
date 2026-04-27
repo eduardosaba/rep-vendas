@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import Link from 'next/link';
 import {
   Search,
@@ -549,14 +550,14 @@ export default function HelpPage() {
             Nossa equipe de especialistas está online para ajudar você a escalar
             suas vendas.
           </p>
-          <a
-            href="https://wa.me/5575981272323?text=Ol%C3%A1%2C%20preciso%20de%20suporte%20pelo%20RepVendas"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-4 bg-[#25D366] text-white px-10 py-5 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-primary/20"
-          >
-            <PlayCircle size={24} /> SUPORTE VIA WHATSAPP
-          </a>
+            <a
+              href={makeWhatsAppUrl('5575981272323', 'Olá, preciso de suporte pelo RepVendas')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-4 bg-[#25D366] text-white px-10 py-5 rounded-2xl font-black hover:scale-105 transition-all shadow-xl shadow-primary/20"
+            >
+              <PlayCircle size={24} /> SUPORTE VIA WHATSAPP
+            </a>
         </div>
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
           <div className="absolute -top-20 -right-20 w-96 h-96 bg-primary rounded-full blur-3xl"></div>

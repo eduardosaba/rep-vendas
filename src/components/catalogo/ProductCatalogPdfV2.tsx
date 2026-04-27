@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
 import HTMLFlipBook from 'react-pageflip';
@@ -411,10 +412,9 @@ export const ProductCatalogPdfV2: React.FC<Props> = ({
                               `• ${i.quantity}x ${i.name} (REF: ${i.reference})`
                           )
                           .join('%0A');
-                        const msg = `Olá ${rep?.full_name}, gostaria de enviar este pedido através do catálogo interativo:%0A%0A${itemsTxt}%0A%0A*TOTAL: R$ ${cartSummary().total.toFixed(2)}*`;
-                        window.open(
-                          `https://wa.me/${rep?.whatsapp_number?.replace(/\D/g, '')}?text=${msg}`
-                        );
+                        const msg = `Olá ${rep?.full_name}, gostaria de enviar este pedido através do catálogo interativo:\n\n${itemsTxt}\n\n*TOTAL: R$ ${cartSummary().total.toFixed(2)}*`;
+                        const url = makeWhatsAppUrl(rep?.whatsapp_number, msg) || makeWhatsAppUrl(String(rep?.whatsapp_number || '').replace(/\D/g, ''), msg) || '#';
+                        if (url && url !== '#') window.open(url, '_blank');
                       }}
                       className="w-full py-5 rounded-2xl font-black text-lg bg-green-500 text-white shadow-xl shadow-green-200 hover:bg-green-600 transition-all disabled:bg-gray-300"
                     >

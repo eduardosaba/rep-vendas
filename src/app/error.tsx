@@ -12,8 +12,27 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log do erro no console (ou serviço de monitoramento como Sentry)
-    console.error('Erro capturado pelo App:', error);
+    // Envia o erro para a Torre de Controle via API interna
+    const send = async () => {
+      try {
+        console.error('Erro capturado pelo App:', error);
+        await fetch('/api/error-logs/insert', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            url: typeof window !== 'undefined' ? window.location.href : null,
+            error_type: '500',
+            message: error?.message || 'Erro inesperado',
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+            stack_trace: error?.stack || null,
+          }),
+        });
+      } catch (e) {
+        // swallow
+      }
+    };
+
+    send();
   }, [error]);
 
   return (

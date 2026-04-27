@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Copy, MessageCircle, Share2, ImageIcon, RefreshCw } from 'lucide-react';
+import { makeWhatsAppShareUrl } from '@/lib/format-whatsapp';
+import { Copy, ImageIcon, MessageCircle, RefreshCw, Share2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
 import { toast } from "sonner";
 
 interface MarketingClientProps {
@@ -52,8 +53,8 @@ export default function MarketingClient({ initialData, userId, catalogSlug }: Ma
   };
 
   const openWhatsApp = () => {
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+    const url = makeWhatsAppShareUrl(message);
+    window.open(url, '_blank');
   };
 
   const handleUploadBanner = async (file: File) => {

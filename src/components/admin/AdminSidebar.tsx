@@ -114,6 +114,7 @@ export default function AdminSidebar({
     },
     { label: 'Torre de Controle', href: '/admin/clear', icon: Cpu },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
+    { label: 'Auditoria de Erro', href: '/admin/error-logs', icon: ShieldAlert },
     { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket },
     { label: 'Sobre / Ajuda', href: '/admin/help', icon: HelpCircle },
     { label: 'Configurações', href: '/admin/settings', icon: Settings },

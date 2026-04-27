@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import { usePathname } from 'next/navigation';
 import { SmartImage } from './SmartImage';
 import { Button } from '@/components/ui/button';
@@ -45,9 +46,14 @@ function normalizePhoneDigits(phone?: string | null) {
 }
 
 function whatsappHref(phone?: string | null) {
-  const digits = normalizePhoneDigits(phone);
-  if (!digits) return '#';
-  return `https://wa.me/${digits}`;
+  const url = makeWhatsAppUrl(phone);
+  if (!url) {
+    const digits = normalizePhoneDigits(phone);
+    if (!digits) return '#';
+    const fallback = makeWhatsAppUrl(digits) || '#';
+    return fallback;
+  }
+  return url;
 }
 
 function formatPhoneDisplay(phone?: string | null) {

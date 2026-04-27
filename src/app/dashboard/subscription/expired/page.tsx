@@ -1,6 +1,7 @@
 'use client';
 
 import { Lock, ExternalLink, LogOut, ShieldAlert } from 'lucide-react';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -32,9 +33,7 @@ export default function ExpiredPage() {
 
   // Configure aqui o número do suporte
   const WHATSAPP_NUMBER = '5575999999999'; // Substitua pelo seu número real
-  const WHATSAPP_MSG = encodeURIComponent(
-    'Olá! Minha licença no Rep-Vendas expirou e gostaria de renovar para liberar meu acesso.'
-  );
+  const WHATSAPP_MSG = 'Olá! Minha licença no Rep-Vendas expirou e gostaria de renovar para liberar meu acesso.';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950 px-4 animate-in fade-in duration-500">
@@ -60,7 +59,7 @@ export default function ExpiredPage() {
           <div className="space-y-4">
             {/* Botão de Renovação (Destaque) */}
             <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MSG}`}
+              href={makeWhatsAppUrl(WHATSAPP_NUMBER, WHATSAPP_MSG)}
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-center w-full py-3.5 px-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-green-600/20 active:scale-95 group"

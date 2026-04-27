@@ -1,8 +1,8 @@
-'use server';
-
-import React from 'react';
+'use client';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import CheckoutForm from './CheckoutForm.client';
+
+export const dynamic = 'force-dynamic';
 
 const supabaseAdmin = createSupabaseAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,7 +10,16 @@ const supabaseAdmin = createSupabaseAdmin(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-export default async function Page({ searchParams }: { searchParams: { company?: string; rep?: string; venda?: string; product?: string } }) {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: {
+    company?: string;
+    rep?: string;
+    venda?: string;
+    product?: string;
+  };
+}) {
   const { company, rep, venda, product } = searchParams || {};
 
   let companyData: any = null;
@@ -68,7 +77,9 @@ export default async function Page({ searchParams }: { searchParams: { company?:
   if (effectiveCompanyId) {
     const { data: settings } = await supabaseAdmin
       .from('company_settings')
-      .select('primary_color,secondary_color,accent_color,font_family,border_radius')
+      .select(
+        'primary_color,secondary_color,accent_color,font_family,border_radius'
+      )
       .eq('company_id', effectiveCompanyId)
       .maybeSingle();
     themeSettings = settings || null;
@@ -86,7 +97,11 @@ export default async function Page({ searchParams }: { searchParams: { company?:
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Checkout</h1>
-      {companyData ? <div className="mb-4">Pedido para: <strong>{companyData.name}</strong></div> : null}
+      {companyData ? (
+        <div className="mb-4">
+          Pedido para: <strong>{companyData.name}</strong>
+        </div>
+      ) : null}
       <CheckoutForm
         companyId={effectiveCompanyId}
         repId={rep}

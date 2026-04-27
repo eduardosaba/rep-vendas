@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import { CheckCircle, Clock, Loader2, Percent } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 type NegotiationItem = {
@@ -66,13 +67,11 @@ export function NegotiationPanel({
       }
       toast.success('Negociação aprovada e enviada para faturamento');
 
-      const phone = String(customerPhone || '').replace(/\D/g, '');
+      const phone = String(customerPhone || '');
       if (phone) {
         const message = `Otimas noticias! O seu pedido foi aprovado com a condicao: ${paymentTerms}.`;
-        window.open(
-          `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
-          '_blank'
-        );
+        const url = makeWhatsAppUrl(phone, message) || '#';
+        window.open(url, '_blank');
       }
 
       router.refresh();
