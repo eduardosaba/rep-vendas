@@ -1,29 +1,29 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { createOrder } from '@/app/catalogo/actions';
+import getProductImageUrl from '@/lib/imageUtils';
 import {
-  Phone,
-  Mail,
-  FileText,
-  Search,
-  Plus,
-  Minus,
-  Trash2,
-  ShoppingCart,
   ArrowLeft,
-  Package,
-  Zap,
-  CheckCircle,
-  Loader2,
   Box,
+  CheckCircle,
+  FileText,
+  Loader2,
+  Mail,
+  Minus,
+  Package,
+  Phone,
+  Plus,
+  Search,
+  ShoppingCart,
+  Trash2,
   UserPlus,
   X,
+  Zap,
 } from 'lucide-react';
-import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { createOrder } from '@/app/catalogo/actions';
 
 // Tipos
 interface Product {
@@ -91,20 +91,41 @@ export function NewOrderClient({
   // Helper para mapear URLs de storage Supabase para o proxy local
   const getSafeUrl = (url: string | null | undefined) => {
     if (!url) return null;
+    if (url.startsWith('/api/storage-image')) return url;
     try {
-      if (url.includes('/storage/v1/object/public/') || url.includes('supabase.co/storage')) {
-        const parts = url.split('/storage/v1/object/public/');
-        const path = parts.length > 1 ? parts[1] : parts[0];
+      // Caso supabase storage pública
+      const storageMarker = '/storage/v1/object/public/';
+      if (url.includes(storageMarker)) {
+        const idx = url.indexOf(storageMarker);
+        const path = url.slice(idx + storageMarker.length);
         return `/api/storage-image?path=${encodeURIComponent(path)}`;
       }
+
+      // Caso inclua nome do bucket seguido do caminho
+      if (url.includes('product-images/')) {
+        const idx = url.indexOf('product-images/');
+        const path = url.slice(idx + 'product-images/'.length);
+        return `/api/storage-image?path=${encodeURIComponent(path)}`;
+      }
+
+      // caminhos relativos para storage
+      if (url.startsWith('/storage')) {
+        return `/api/storage-image?path=${encodeURIComponent(url)}`;
+      }
+
+      // URLs externas (http, https, data) retornam como estão
+      if (/^(https?:|data:)/.test(url)) return url;
     } catch (e) {
-      // fallback to raw url
+      console.error('Erro ao processar URL da imagem:', e);
     }
     return url;
   };
   const categories = useMemo(() => {
     const values = initialProducts
-      .map((p) => p.category || (p as any).category_name || (p as any).category_code)
+      .map(
+        (p) =>
+          p.category || (p as any).category_name || (p as any).category_code
+      )
       .filter(Boolean)
       .map((s) => String(s).trim());
     return Array.from(new Set(values)).sort();
@@ -119,16 +140,24 @@ export function NewOrderClient({
   }, [initialProducts]);
 
   const filteredProducts = useMemo(() => {
-    const q = String(searchTerm || '').toLowerCase().trim();
+    const q = String(searchTerm || '')
+      .toLowerCase()
+      .trim();
     return initialProducts.filter((p) => {
       const name = String(p.name || '').toLowerCase();
       const ref = String(p.reference_code || '').toLowerCase();
       const matchesSearch = !q || name.includes(q) || ref.includes(q);
 
       const cat = (p.category || (p as any).category_name || '').toString();
-      const matchesCategory = selectedCategory === 'all' || cat === selectedCategory;
+      const matchesCategory =
+        selectedCategory === 'all' || cat === selectedCategory;
 
-      const br = (p.brand || (p as any).brand_name || (p as any).manufacturer || '').toString();
+      const br = (
+        p.brand ||
+        (p as any).brand_name ||
+        (p as any).manufacturer ||
+        ''
+      ).toString();
       const matchesBrand = selectedBrand === 'all' || br === selectedBrand;
 
       return matchesSearch && matchesCategory && matchesBrand;
@@ -136,9 +165,15 @@ export function NewOrderClient({
   }, [initialProducts, searchTerm, selectedCategory, selectedBrand]);
 
   // Reset page when filters/search change
-  useEffect(() => setCurrentPage(1), [searchTerm, selectedCategory, selectedBrand, itemsPerPage]);
+  useEffect(
+    () => setCurrentPage(1),
+    [searchTerm, selectedCategory, selectedBrand, itemsPerPage]
+  );
 
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / itemsPerPage)
+  );
   const paginatedProducts = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredProducts.slice(start, start + itemsPerPage);
@@ -253,24 +288,20 @@ export function NewOrderClient({
   // --- FINALIZAR ---
   const handleFinalize = async () => {
     if (!customer.name) {
-      toast('Informe o nome do cliente');
+      toast.error('Informe o nome do cliente');
       return;
     }
     if (cart.length === 0) {
-      toast('Carrinho vazio');
+      toast.error('O carrinho está vazio');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // CORREÇÃO CRÍTICA: Higienizar o carrinho antes de enviar.
-      // Itens manuais têm IDs como "manual-123" que quebram o banco se ele esperar UUID.
-      // Removemos o ID dos itens manuais (ou passamos null/undefined) para que o banco saiba que não é um produto cadastrado.
       const sanitizedCart = cart.map((item) => {
         if (item.is_manual) {
-          // Clona o item removendo o ID temporário inválido
           const { id, ...rest } = item;
-          return { ...rest, id: undefined }; // Backend deve tratar id undefined como item sem vínculo
+          return { ...rest, id: undefined } as any;
         }
         return item;
       });
@@ -278,18 +309,32 @@ export function NewOrderClient({
       const result = await createOrder(userId, customer, sanitizedCart);
 
       if (result.success) {
-        toast.success('Venda realizada com sucesso!');
-        // Redireciona para o detalhe do novo pedido
-        router.push(`/dashboard/orders/${result.orderId}`);
+        toast.success('Pedido finalizado com sucesso!');
+
+        // Limpa o carrinho e o cliente para evitar re-envio
+        setCart([]);
+        setCustomer({ name: '', phone: '', email: '', cnpj: '' });
+
+        // Redireciona para a lista geral de pedidos após curto delay
+        setTimeout(() => {
+          try {
+            router.push('/dashboard/orders');
+            // garante que a lista seja recarregada
+            router.refresh();
+          } catch (e) {
+            // ignore
+          }
+        }, 1500);
       } else {
-        console.error('Erro na criação:', result.error);
         toast.error('Erro ao finalizar', {
-          description: result.error || 'Falha desconhecida',
+          description: result.error || 'Falha ao salvar no banco.',
         });
       }
     } catch (error: any) {
       console.error('Erro crítico no handleFinalize:', error);
-      toast.error('Erro crítico', { description: error.message });
+      toast.error('Erro crítico', {
+        description: error?.message || String(error),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -301,7 +346,7 @@ export function NewOrderClient({
       <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200 bg-white">
         {/* Header Esquerdo */}
         <div className="bg-white p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 items-center justify-between shrink-0 z-10">
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <Link
               href="/dashboard/orders"
               className="p-2 hover:bg-gray-100 rounded-full text-gray-500"
@@ -419,19 +464,19 @@ export function NewOrderClient({
           {activeTab === 'catalog' ? (
             <div className="space-y-4">
               {/* Filtros */}
-              <div className="flex gap-2 sticky top-0 bg-white py-2 z-10">
-                <div className="relative flex-1">
+              <div className="flex flex-wrap gap-2 sticky top-0 bg-white py-2 z-10">
+                <div className="relative w-full sm:flex-1 min-w-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <input
                     type="text"
                     placeholder="Buscar produto..."
-                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm"
+                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm min-w-0"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 <select
-                  className="p-3 rounded-xl border border-gray-200 bg-white outline-none cursor-pointer shadow-sm max-w-[150px]"
+                  className="p-3 rounded-xl border border-gray-200 bg-white outline-none cursor-pointer shadow-sm max-w-[150px] w-full sm:w-auto"
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
@@ -443,7 +488,7 @@ export function NewOrderClient({
                   ))}
                 </select>
                 <select
-                  className="p-3 rounded-xl border border-gray-200 bg-white outline-none cursor-pointer shadow-sm max-w-[150px]"
+                  className="p-3 rounded-xl border border-gray-200 bg-white outline-none cursor-pointer shadow-sm max-w-[150px] w-full sm:w-auto"
                   value={selectedBrand}
                   onChange={(e) => setSelectedBrand(e.target.value)}
                 >
@@ -469,7 +514,9 @@ export function NewOrderClient({
                 <label className="text-xs text-gray-500">Itens / página</label>
                 <select
                   value={itemsPerPage}
-                  onChange={(e) => setItemsPerPage(Number(e.target.value) || 24)}
+                  onChange={(e) =>
+                    setItemsPerPage(Number(e.target.value) || 24)
+                  }
                   className="p-1 rounded border bg-white text-xs"
                 >
                   <option value={12}>12</option>
@@ -488,20 +535,32 @@ export function NewOrderClient({
                   >
                     <div className="aspect-square bg-gray-50 rounded-lg mb-2 overflow-hidden flex items-center justify-center border border-gray-100">
                       {}
-                      {showImages && product.image_url ? (
-                        <div className="relative w-full h-full">
-                          <Image
-                            src={getSafeUrl(product.image_url) || product.image_url || ''}
-                            alt={product.name}
-                            fill
-                            sizes="(max-width: 640px) 100vw, 33vw"
-                            style={{ objectFit: 'contain' }}
-                            className="group-hover:scale-105 transition-transform"
-                            loading="lazy"
-                            quality={75}
-                            unoptimized
-                          />
-                        </div>
+                      {showImages ? (
+                        (() => {
+                          const info = getProductImageUrl(product as any) || {
+                            src: null,
+                          };
+                          const srcRaw = info?.src || product.image_url || null;
+                          const src =
+                            getSafeUrl(srcRaw) || srcRaw || '/placeholder.png';
+                          if (typeof window !== 'undefined')
+                            console.debug('NewOrder product image', {
+                              id: product.id,
+                              src,
+                              raw: srcRaw,
+                              info,
+                            });
+                          return src ? (
+                            <img
+                              src={src}
+                              alt={product.name || ''}
+                              className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <Package className="text-gray-300" />
+                          );
+                        })()
                       ) : (
                         <Package className="text-gray-300" />
                       )}
@@ -537,13 +596,21 @@ export function NewOrderClient({
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
                     className="px-3 py-1 rounded border bg-white"
-                  >Prev</button>
-                  <span className="text-sm">{currentPage} / {totalPages}</span>
+                  >
+                    Prev
+                  </button>
+                  <span className="text-sm">
+                    {currentPage} / {totalPages}
+                  </span>
                   <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
                     disabled={currentPage === totalPages}
                     className="px-3 py-1 rounded border bg-white"
-                  >Next</button>
+                  >
+                    Next
+                  </button>
                 </div>
               )}
               {filteredProducts.length === 0 && (
@@ -663,16 +730,31 @@ export function NewOrderClient({
               >
                 <div className="h-14 w-14 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden">
                   {item.image_url ? (
-                    <div className="relative h-full w-full">
-                      <Image
-                        src={getSafeUrl(item.image_url) || item.image_url || ''}
-                        alt={item.name || ''}
-                        width={56}
-                        height={56}
-                        className="object-cover"
-                        unoptimized
-                      />
-                    </div>
+                    (() => {
+                      const info = getProductImageUrl(item as any) || {
+                        src: null,
+                      };
+                      const srcRaw = info?.src || item.image_url || null;
+                      const src =
+                        getSafeUrl(srcRaw) || srcRaw || '/placeholder.png';
+                      if (typeof window !== 'undefined')
+                        console.debug('Cart item image (desktop)', {
+                          id: item.id,
+                          src,
+                          raw: srcRaw,
+                          info,
+                        });
+                      return (
+                        <img
+                          src={src}
+                          alt={item.name || ''}
+                          width={56}
+                          height={56}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      );
+                    })()
                   ) : (
                     <Package size={16} className="text-gray-400" />
                   )}
@@ -823,16 +905,31 @@ export function NewOrderClient({
                 >
                   <div className="h-14 w-14 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden">
                     {item.image_url ? (
-                      <div className="relative h-full w-full">
-                        <Image
-                          src={getSafeUrl(item.image_url) || item.image_url || ''}
-                          alt={item.name || ''}
-                          width={56}
-                          height={56}
-                          className="object-cover"
-                          unoptimized
-                        />
-                      </div>
+                      (() => {
+                        const info = getProductImageUrl(item as any) || {
+                          src: null,
+                        };
+                        const srcRaw = info?.src || item.image_url || null;
+                        const src =
+                          getSafeUrl(srcRaw) || srcRaw || '/placeholder.png';
+                        if (typeof window !== 'undefined')
+                          console.debug('Cart item image (mobile)', {
+                            id: item.id,
+                            src,
+                            raw: srcRaw,
+                            info,
+                          });
+                        return (
+                          <img
+                            src={src}
+                            alt={item.name || ''}
+                            width={56}
+                            height={56}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        );
+                      })()
                     ) : (
                       <Package size={16} className="text-gray-400" />
                     )}
@@ -909,7 +1006,11 @@ export function NewOrderClient({
               disabled={isSubmitting || cart.length === 0}
               className="w-full py-3.5 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {isSubmitting ? <Loader2 className="animate-spin" /> : <CheckCircle size={18} />}
+              {isSubmitting ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <CheckCircle size={18} />
+              )}
               Finalizar Venda
             </button>
           </div>

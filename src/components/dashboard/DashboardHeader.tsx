@@ -1,13 +1,13 @@
-'use client';
+﻿'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
-import { usePathname } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import ImpersonateBanner from '@/components/dashboard/ImpersonateBanner';
+import NotificationDropdown from '@/components/NotificationDropdown';
+import { createClient } from '@/lib/supabase/client';
+import { ChevronDown, LogOut, Menu, Moon, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import { User, Menu, ChevronDown, Sun, Moon, LogOut } from 'lucide-react';
-import NotificationDropdown from '@/components/NotificationDropdown';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 // Importamos a Server Action de logout para garantir a limpeza dos cookies
 import { logout } from '@/app/login/actions';
 
@@ -39,7 +39,8 @@ export default function DashboardHeader({
   // delegated to shared util for easier testing and configuration
   // import dynamically to avoid top-level cycles in some test setups
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { getPageTitle: _getPageTitle } = require('@/lib/routeTitles') as typeof import('@/lib/routeTitles');
+  const { getPageTitle: _getPageTitle } =
+    require('@/lib/routeTitles') as typeof import('@/lib/routeTitles');
   const getPageTitle = _getPageTitle as (p: string) => string;
 
   async function getUser() {
@@ -59,7 +60,8 @@ export default function DashboardHeader({
           .eq('id', user.id)
           .maybeSingle();
 
-        const avatarUrl = profile?.avatar_url || user.user_metadata?.avatar_url || null;
+        const avatarUrl =
+          profile?.avatar_url || user.user_metadata?.avatar_url || null;
         setUserAvatar(avatarUrl);
         const role = profile?.role || null;
 
@@ -83,7 +85,16 @@ export default function DashboardHeader({
           )
           .subscribe();
 
-        return { cleanup: () => { try { supabase.removeChannel(channel); } catch (e) { /* ignore */ } }, role };
+        return {
+          cleanup: () => {
+            try {
+              supabase.removeChannel(channel);
+            } catch (e) {
+              /* ignore */
+            }
+          },
+          role,
+        };
       }
     } catch (err) {
       console.error('DashboardHeader getUser error', err);
@@ -118,12 +129,20 @@ export default function DashboardHeader({
             .select('current_period_end, status')
             .eq('user_id', userId)
             .maybeSingle();
-          if (!error && subscription && subscription.status === 'trial' && subscription.current_period_end) {
+          if (
+            !error &&
+            subscription &&
+            subscription.status === 'trial' &&
+            subscription.current_period_end
+          ) {
             setTrialEndsAt(subscription.current_period_end as string);
             const computeDays = () => {
-              const ends = Date.parse(subscription.current_period_end as string);
+              const ends = Date.parse(
+                subscription.current_period_end as string
+              );
               const msLeft = ends - Date.now();
-              const days = msLeft > 0 ? Math.ceil(msLeft / (1000 * 60 * 60 * 24)) : 0;
+              const days =
+                msLeft > 0 ? Math.ceil(msLeft / (1000 * 60 * 60 * 24)) : 0;
               setTrialDaysLeft(days);
             };
             computeDays();

@@ -1,4 +1,3 @@
-'use client';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import CheckoutForm from './CheckoutForm.client';
 

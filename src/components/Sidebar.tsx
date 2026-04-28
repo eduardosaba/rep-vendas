@@ -1,40 +1,38 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePermissions } from '@/hooks/usePermissions';
+import { createClient } from '@/lib/supabase/client';
+import type { Settings } from '@/lib/types';
 import {
-  LayoutDashboard,
-  ShoppingBag,
+  Box,
   Building2,
-  Package,
-  Users,
-  UploadCloud,
-  RefreshCcw,
-  Download,
-  Link as LinkIcon,
-  PlusCircle,
-  Tag,
-  List,
-  HelpCircle,
-  Settings as SettingsIcon,
-  DollarSign,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
+  ClipboardList,
+  DollarSign,
+  Download,
   Edit,
   FileText,
-  Circle,
-  Box,
-  Zap,
+  HelpCircle,
   History,
-  ClipboardList,
+  LayoutDashboard,
+  Link as LinkIcon,
+  List,
   Megaphone,
+  Package,
+  PlusCircle,
+  RefreshCcw,
+  Settings as SettingsIcon,
+  ShoppingBag,
+  Tag,
+  UploadCloud,
+  Users,
+  Zap,
 } from 'lucide-react';
-import Logo from './Logo';
-import { createClient } from '@/lib/supabase/client';
-import { usePermissions } from '@/hooks/usePermissions';
-import type { Settings } from '@/lib/types';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 const MENU_ITEMS = [
   {
@@ -135,7 +133,11 @@ const MENU_ITEMS = [
   },
   { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
   { icon: Users, label: 'Equipe', href: '/dashboard/equipe' },
-  { icon: Megaphone, label: 'Comunicados', href: '/dashboard/equipe/comunicados' },
+  {
+    icon: Megaphone,
+    label: 'Comunicados',
+    href: '/dashboard/equipe/comunicados',
+  },
   { icon: SettingsIcon, label: 'Configurações', href: '/dashboard/settings' },
   { icon: HelpCircle, label: 'Ajuda', href: '/dashboard/help' },
 ];
@@ -184,7 +186,7 @@ export function Sidebar({
       );
     updateWidth();
     window.addEventListener('resize', updateWidth);
-        const loadBranding = async () => {
+    const loadBranding = async () => {
       try {
         const res = await supabase.auth.getUser();
         const user = res?.data?.user;
@@ -207,7 +209,7 @@ export function Sidebar({
             .filter(Boolean);
           if (user.email && list.includes(user.email)) masterDetected = true;
         }
-        
+
         if (masterDetected) setIsMaster(true);
         // busca profile para detectar role/company/permissions
         try {
@@ -346,18 +348,22 @@ export function Sidebar({
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
         {MENU_ITEMS.map((item) => {
           // If permissions loaded and this item is not allowed, hide it (allow master to bypass)
-          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster) return null;
+          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster)
+            return null;
           // company users: catalog operations are restricted unless explicitly allowed
           const showCatalogOps =
             isMaster || !isCompanyMember || isCompanyAdmin || canManageCatalog;
           const showTools = showCatalogOps;
           // Additional legacy guards that depend on company linkage or master flag
           // If the top-level item itself points to the sync settings page, hide it for non-master
-          if (item.href === '/dashboard/settings/sync' && !isMaster) return null;
+          if (item.href === '/dashboard/settings/sync' && !isMaster)
+            return null;
           // Area de fila B2B da distribuidora apenas para membros vinculados
-          if (item.href === '/dashboard/distribuidora' && !isCompanyMember) return null;
+          if (item.href === '/dashboard/distribuidora' && !isCompanyMember)
+            return null;
           // Gestão da distribuidora só para administradores da empresa
-          if (item.href === '/dashboard/empresa' && !isCompanyAdmin) return null;
+          if (item.href === '/dashboard/empresa' && !isCompanyAdmin)
+            return null;
           const active = item.exact
             ? pathname === item.href
             : pathname?.startsWith(item.href);
@@ -491,13 +497,25 @@ export function Sidebar({
                 <div className="mt-1 ml-4 space-y-1 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
                   {item.children.map((child) => {
                     // hide child if permissions explicitly disallow it (allow master to bypass)
-                    const childLabel = (child as any).title || (child as any).href;
+                    const childLabel =
+                      (child as any).title || (child as any).href;
                     // Show child if either the parent item is allowed or the child label is explicitly allowed
-                    const parentAllowed = permsLoading ? true : hasSidebarItem(item.label);
-                    const childAllowed = permsLoading ? true : hasSidebarItem(childLabel);
-                    if (!permsLoading && !isMaster && !parentAllowed && !childAllowed) return null;
+                    const parentAllowed = permsLoading
+                      ? true
+                      : hasSidebarItem(item.label);
+                    const childAllowed = permsLoading
+                      ? true
+                      : hasSidebarItem(childLabel);
+                    if (
+                      !permsLoading &&
+                      !isMaster &&
+                      !parentAllowed &&
+                      !childAllowed
+                    )
+                      return null;
                     // hide admin-only tools for non-master users
-                    if ((child as any).role === 'admin' && !isMaster) return null;
+                    if ((child as any).role === 'admin' && !isMaster)
+                      return null;
                     // hide manage-external-images link from non-master and non-template users
                     const isTemplateAccount = Boolean(
                       (branding as any)?.is_template ||
@@ -506,14 +524,19 @@ export function Sidebar({
                     );
                     // hide 'Saúde dos Dados' and sync settings page for non-master users
                     if (
-                      (child.title === 'Saúde dos Dados' || child.href === '/dashboard/settings/sync') &&
+                      (child.title === 'Saúde dos Dados' ||
+                        child.href === '/dashboard/settings/sync') &&
                       !isMaster
                     ) {
                       return null;
                     }
                     // Only show some tools to master/template or company admins / permitted users
                     if (
-                      (child.title === 'Importar Excel' || child.title === 'Sincronizador PROCV' || child.title === 'Vincular (Matcher)' || child.title === 'Importar Fotos' || child.title === 'Atualizar Preços') &&
+                      (child.title === 'Importar Excel' ||
+                        child.title === 'Sincronizador PROCV' ||
+                        child.title === 'Vincular (Matcher)' ||
+                        child.title === 'Importar Fotos' ||
+                        child.title === 'Atualizar Preços') &&
                       !showTools
                     ) {
                       return null;

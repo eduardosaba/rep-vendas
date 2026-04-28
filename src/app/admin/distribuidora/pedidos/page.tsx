@@ -1,9 +1,8 @@
 'use server';
 
-import React from 'react';
 import { getCompanyOrders } from '@/app/admin/companies/actions';
-import { createClient } from '@/lib/supabase/server';
 import AdminOrdersCentral from '@/components/admin/orders/AdminOrdersCentral';
+import { createClient } from '@/lib/supabase/server';
 
 export default async function Page() {
   const supabase = await createClient();

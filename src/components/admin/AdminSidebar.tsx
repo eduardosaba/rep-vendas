@@ -1,31 +1,30 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import {
-  Users,
-  CreditCard,
   BarChart2,
-  ShoppingBag,
-  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Cpu,
+  CreditCard,
+  HelpCircle,
+  History,
+  Image as ImageIcon,
   LayoutDashboard,
   Package,
   Percent,
-  Copy,
-  ToggleLeft,
-  ChevronLeft,
-  ChevronRight,
-  ShieldAlert,
-  HelpCircle,
   Rocket,
+  Settings,
+  ShieldAlert,
   ShieldCheck,
-  History,
-  Trash2,
-  Cpu,
-  Image as ImageIcon,
+  ShoppingBag,
+  ToggleLeft,
+  Users,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -79,15 +78,31 @@ export default function AdminSidebar({
       icon: LayoutDashboard,
       exact: true,
     },
-      { label: 'Editar Experiência do Catálogo', href: '/admin/configuracoes/catalogo', icon: ImageIcon },
+    {
+      label: 'Editar Experiência do Catálogo',
+      href: '/admin/configuracoes/catalogo',
+      icon: ImageIcon,
+    },
     { label: 'Usuários', href: '/admin/users', icon: Users },
     { label: 'Distribuidores', href: '/admin/companies', icon: Users },
-    { label: 'Pedidos B2B', href: '/admin/distribuidora/pedidos', icon: ShoppingBag },
+    {
+      label: 'Pedidos B2B',
+      href: '/admin/distribuidora/pedidos',
+      icon: ShoppingBag,
+    },
     { label: 'Assinaturas', href: '/admin/licenses', icon: CreditCard },
-    { label: 'Fechamento Mensal', href: '/admin/financeiro/fechamento', icon: Percent },
+    {
+      label: 'Fechamento Mensal',
+      href: '/admin/financeiro/fechamento',
+      icon: Percent,
+    },
     { label: 'Clonar Catálogo', href: '/admin/clone-user', icon: Copy },
     { label: 'Auditoria de Sinc.', href: '/admin/sync-logs', icon: History },
-    { label: 'Sincronizador Master.', href: '/admin/products/master-sync', icon: ShieldCheck },
+    {
+      label: 'Sincronizador Master.',
+      href: '/admin/products/master-sync',
+      icon: ShieldCheck,
+    },
     { label: 'Auditoria Catalogo', href: '/admin/audit', icon: ImageIcon },
     {
       label: 'Status de Importação',
@@ -114,7 +129,11 @@ export default function AdminSidebar({
     },
     { label: 'Torre de Controle', href: '/admin/clear', icon: Cpu },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
-    { label: 'Auditoria de Erro', href: '/admin/error-logs', icon: ShieldAlert },
+    {
+      label: 'Auditoria de Erro',
+      href: '/admin/error-logs',
+      icon: ShieldAlert,
+    },
     { label: 'Novidades & Updates', href: '/admin/updates', icon: Rocket },
     { label: 'Sobre / Ajuda', href: '/admin/help', icon: HelpCircle },
     { label: 'Configurações', href: '/admin/settings', icon: Settings },
@@ -160,20 +179,20 @@ export default function AdminSidebar({
                 onClick={async (e) => {
                   e.preventDefault();
                   try {
-                      const supResp = await fetch('/api/auth/session');
-                      const supJson = await supResp.json().catch(() => ({}));
-                      const token = supJson?.access_token || null;
-                      if (token) {
-                        await fetch('/api/admin/impersonate', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${token}`,
-                          },
-                          body: JSON.stringify({}),
-                        });
-                      }
-                      window.open('/dashboard', '_blank', 'noopener');
+                    const supResp = await fetch('/api/auth/session');
+                    const supJson = await supResp.json().catch(() => ({}));
+                    const token = supJson?.access_token || null;
+                    if (token) {
+                      await fetch('/api/admin/impersonate', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({}),
+                      });
+                    }
+                    window.open('/dashboard', '_blank', 'noopener');
                   } catch (err) {
                     console.error('Erro ao abrir dashboard público', err);
                     window.open('/dashboard', '_blank', 'noopener');
@@ -281,7 +300,6 @@ export default function AdminSidebar({
               {!isCollapsed && <span>Dashboard de Saúde</span>}
             </Link>
           )}
-        
         </div>
       </nav>
 

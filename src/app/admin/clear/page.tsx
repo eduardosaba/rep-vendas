@@ -1,11 +1,11 @@
-import { Metadata } from 'next';
-import ControlTower from '@/components/admin/ControlTower';
 import CleanupControl from '@/components/admin/CleanupControl';
+import ControlTower from '@/components/admin/ControlTower';
 import NewUserSetup from '@/components/admin/NewUserSetup';
 import ReprocessImagesControl from '@/components/admin/ReprocessImagesControl';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
+import { Metadata } from 'next';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Limpeza de Storage | RepVendas Master',

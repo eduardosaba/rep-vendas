@@ -1,15 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import ImpersonateBanner from '@/components/dashboard/ImpersonateBanner';
-import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/Sidebar';
-import DashboardHeader from '@/components/dashboard/DashboardHeader';
-import { Loader2, AlertTriangle } from 'lucide-react';
 import WelcomePopup from '@/components/WelcomePopup';
-import { useWelcomeManager } from '@/hooks/useWelcomeManager';
 import BlockedAccountPopup from '@/components/dashboard/BlockedAccountPopup';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
+import { useWelcomeManager } from '@/hooks/useWelcomeManager';
+import { createClient } from '@/lib/supabase/client';
+import { AlertTriangle, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function DashboardLayout({
   children,
@@ -60,7 +59,10 @@ export default function DashboardLayout({
           }
           break; // sucesso
         } catch (error) {
-          console.error(`[dashboard/layout] checkSession attempt ${attempt} failed`, error);
+          console.error(
+            `[dashboard/layout] checkSession attempt ${attempt} failed`,
+            error
+          );
           if (attempt === maxAttempts) {
             resolved = true;
             if (mounted) setConnectionError(true);
@@ -96,7 +98,9 @@ export default function DashboardLayout({
         const profile = j?.profile || null;
         if (profile) {
           const status = profile.status || null;
-          const trialEnds = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+          const trialEnds = profile.trial_ends_at
+            ? new Date(profile.trial_ends_at)
+            : null;
           const now = new Date();
           const isTrialExpired = trialEnds ? now > trialEnds : false;
           if (status === 'blocked' || (status === 'trial' && isTrialExpired)) {
@@ -169,7 +173,9 @@ export default function DashboardLayout({
                 />
               )}
               {showBlockedPopup && (
-                <BlockedAccountPopup onClose={() => setShowBlockedPopup(false)} />
+                <BlockedAccountPopup
+                  onClose={() => setShowBlockedPopup(false)}
+                />
               )}
             </div>
           </main>

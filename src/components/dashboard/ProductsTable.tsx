@@ -104,7 +104,25 @@ const ALL_DATA_COLUMNS: Partial<Record<DataKey, ColumnDefinition>> = {
     isSortable: true,
     align: 'left',
   },
+  material: {
+    key: 'material',
+    title: 'Material',
+    isSortable: true,
+    align: 'left',
+  },
   color: { key: 'color', title: 'Cor', isSortable: true, align: 'left' },
+  polarizado: {
+    key: 'polarizado',
+    title: 'Polarizado',
+    isSortable: true,
+    align: 'center',
+  },
+  fotocromatico: {
+    key: 'fotocromatico',
+    title: 'Fotocromático',
+    isSortable: true,
+    align: 'center',
+  },
   price: {
     key: 'price',
     title: 'Preço Custo',
@@ -156,10 +174,14 @@ const DEFAULT_PREFS: UserPreferences = {
   columnOrder: [
     'name',
     'reference_code',
+    'material',
+    'color',
     'price',
     'sale_price',
     'brand',
     'category',
+    'polarizado',
+    'fotocromatico',
     'stock_quantity',
     'image_optimized',
     'is_active',
@@ -172,6 +194,8 @@ const DEFAULT_PREFS: UserPreferences = {
     'price',
     'brand',
     'is_active',
+    'color',
+    'material',
     'image_optimized',
     'is_best_seller',
   ]),
@@ -232,13 +256,15 @@ export function ProductsTable({
     onlyLaunch: false,
     onlyFeatured: false,
     onlyBestSeller: false,
+    // new resilient filter flags (Portuguese keys for clarity)
+    polarizado: false,
+    fotocromatico: false,
     stockStatus: 'all',
     visibility: 'all',
     category: '',
     brand: [] as string[],
     color: '',
-    // 'all' | 'optimized' | 'unoptimized'
-    imageOptimization: 'all',
+    material: '',
   });
 
   useEffect(() => {
@@ -250,9 +276,7 @@ export function ProductsTable({
   }, [filters]);
 
   // Server-side filtering mode
-  const [serverMode, setServerMode] = useState<boolean>(
-    Boolean(serverModeDefault) || false
-  );
+  const [serverMode, setServerMode] = useState<boolean>(!!serverModeDefault);
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [serverMeta, setServerMeta] = useState<{
     totalCount?: number;
@@ -342,6 +366,18 @@ export function ProductsTable({
       if (filters.onlyLaunch) params.set('onlyLaunch', 'true');
       if (filters.onlyFeatured) params.set('onlyFeatured', 'true');
       if (filters.onlyBestSeller) params.set('onlyBestSeller', 'true');
+      // enviar filtros de polarizado/fotocromatico para o servidor
+      if (filters.polarizado) params.set('polarizado', 'true');
+      if (filters.fotocromatico) params.set('fotocromatico', 'true');
+      if (filters.brand && filters.brand.length > 0)
+        params.set('brand', String(filters.brand[0]));
+      if (filters.category) params.set('category', String(filters.category));
+      if (filters.material) params.set('material', String(filters.material));
+      if (filters.color) params.set('color', String(filters.color));
+      if (filters.visibility && filters.visibility !== 'all')
+        params.set('visibility', String(filters.visibility));
+      if (filters.stockStatus && filters.stockStatus !== 'all')
+        params.set('stockStatus', String(filters.stockStatus));
       const res = await fetch(`/api/products?${params.toString()}`);
       if (!res.ok) return;
       const json = await res.json();
@@ -355,6 +391,14 @@ export function ProductsTable({
     filters.onlyLaunch,
     filters.onlyFeatured,
     filters.onlyBestSeller,
+    filters.polarizado,
+    filters.fotocromatico,
+    filters.brand,
+    filters.category,
+    filters.material,
+    filters.color,
+    filters.visibility,
+    filters.stockStatus,
   ]);
 
   // Fetch aggregate KPIs when in serverMode (shows totals across all products)
@@ -754,8 +798,11 @@ export function ProductsTable({
         if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
         if (filters.brand && filters.brand.length > 0)
           params.set('brand', String(filters.brand[0]));
-        if (filters.imageOptimization && filters.imageOptimization !== 'all')
-          params.set('imageOptimization', String(filters.imageOptimization));
+        // polarizado / fotocromatico server filters
+        if (filters.polarizado) params.set('polarizado', 'true');
+        if (filters.fotocromatico) params.set('fotocromatico', 'true');
+        // imageOptimization removed — filtering handled client-side
+        // material/polarized/photochromic filtering handled client-side now
         if (filters.category) params.set('category', String(filters.category));
         if (filters.visibility && filters.visibility !== 'all')
           params.set('visibility', String(filters.visibility));
@@ -788,33 +835,7 @@ export function ProductsTable({
         }
         const json = await res.json();
         let serverData = json.data || [];
-        // se o filtro de otimização de imagem estiver ativo, aplique uma filtragem adicional
-        if (filters.imageOptimization && filters.imageOptimization !== 'all') {
-          const filtered = (serverData as any[]).filter((p) => {
-            const hasStorageImage = Boolean(
-              p.image_path ||
-              (typeof p.image_url === 'string' &&
-                p.image_url.includes('supabase.co/storage')) ||
-              (typeof p.external_image_url === 'string' &&
-                p.external_image_url.includes('supabase.co/storage')) ||
-              (p.images &&
-                Array.isArray(p.images) &&
-                p.images.some((i: any) =>
-                  typeof i === 'string'
-                    ? i.includes('supabase.co/storage')
-                    : i && typeof i.url === 'string'
-                      ? i.url.includes('supabase.co/storage')
-                      : false
-                ))
-            );
-            if (filters.imageOptimization === 'optimized')
-              return hasStorageImage;
-            if (filters.imageOptimization === 'unoptimized')
-              return !hasStorageImage;
-            return true;
-          });
-          serverData = filtered;
-        }
+        // imageOptimization filtering removed from server flow
         setServerProducts(serverData);
         setServerMeta(json.meta || {});
       } catch (e) {
@@ -840,7 +861,8 @@ export function ProductsTable({
     filters.minPrice,
     filters.maxPrice,
     filters.brand,
-    filters.imageOptimization,
+    filters.polarizado,
+    filters.fotocromatico,
     filters.onlyLaunch,
     filters.onlyFeatured,
     filters.onlyBestSeller,
@@ -866,11 +888,21 @@ export function ProductsTable({
       if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
       if (filters.brand && filters.brand.length > 0)
         params.set('brand', String(filters.brand[0]));
-      if (filters.imageOptimization && filters.imageOptimization !== 'all')
-        params.set('imageOptimization', String(filters.imageOptimization));
+      // imageOptimization removed — filtering occurs client-side
       if (filters.onlyLaunch) params.set('onlyLaunch', 'true');
       if (filters.onlyFeatured) params.set('onlyFeatured', 'true');
       if (filters.onlyBestSeller) params.set('onlyBestSeller', 'true');
+      // polarizado / fotocromatico
+      if (filters.polarizado) params.set('polarizado', 'true');
+      if (filters.fotocromatico) params.set('fotocromatico', 'true');
+      // category/material/color/visibility/stockStatus
+      if (filters.category) params.set('category', String(filters.category));
+      if (filters.material) params.set('material', String(filters.material));
+      if (filters.color) params.set('color', String(filters.color));
+      if (filters.visibility && filters.visibility !== 'all')
+        params.set('visibility', String(filters.visibility));
+      if (filters.stockStatus && filters.stockStatus !== 'all')
+        params.set('stockStatus', String(filters.stockStatus));
       if (sortConfig) {
         params.set('sortKey', String(sortConfig.key));
         params.set('sortDir', sortConfig.direction);
@@ -1073,18 +1105,29 @@ export function ProductsTable({
 
   // Helpers to support multiple possible field names coming from different
   // data sources/migrations (e.g. `bestseller`, `is_bestseller`, `best_seller`).
-  const isBestSeller = (p: any) =>
-    !!(
-      p?.is_best_seller ||
-      p?.best_seller ||
-      p?.is_bestseller ||
-      p?.bestseller
-    );
+  const isBestSeller = (p?: Product | null) =>
+    !!(p?.is_best_seller || (p as any)?.best_seller);
 
-  const isLaunch = (p: any) => !!(p?.is_launch || p?.launch || p?.isNew);
+  const isLaunch = (p?: Product | null) =>
+    !!(p?.is_launch || (p as any)?.launch);
 
-  const isFeatured = (p: any) =>
-    !!(p?.is_destaque || p?.destaque || p?.is_featured || p?.featured);
+  const isFeatured = (p?: Product | null) =>
+    !!(p?.is_destaque || (p as any)?.featured || (p as any)?.is_featured);
+
+  const isPolarized = (p?: Product | null) => {
+    if (!p) return false;
+    const anyP = p as any;
+    const val = anyP?.polarizado ?? anyP?.polarized ?? anyP?.is_polarized;
+    return val === true || String(val).toLowerCase() === 'true';
+  };
+
+  const isPhotochromic = (p?: Product | null) => {
+    if (!p) return false;
+    const anyP = p as any;
+    const val =
+      anyP?.fotocromatico ?? anyP?.photochromic ?? anyP?.is_photochromic;
+    return val === true || String(val).toLowerCase() === 'true';
+  };
 
   const processedProducts = useMemo(() => {
     if (serverMode) return serverProducts;
@@ -1104,6 +1147,15 @@ export function ProductsTable({
           p.barcode || '',
           p.brand || '',
           p.category || '',
+          p.color || '',
+          p.material || '',
+          // diferentes variações possíveis para polarizado
+          p.polarized || '',
+          p.polarizado || '',
+          p.is_polarized ? 'polarizado' : '',
+          // variações para fotocromático / photochromic
+          p.fotocromatico || '',
+          p.photochromic || '',
           p.description || '',
         ]
           .map((f) => (f ? normalize(String(f)) : ''))
@@ -1116,6 +1168,10 @@ export function ProductsTable({
       if (filters.onlyLaunch && !isLaunch(p)) return false;
       if (filters.onlyFeatured && !isFeatured(p)) return false;
       if (filters.onlyBestSeller && !isBestSeller(p)) return false;
+      // Polarizado
+      if (filters.polarizado && !isPolarized(p)) return false;
+      // Fotocromático
+      if (filters.fotocromatico && !isPhotochromic(p)) return false;
       if (
         filters.category &&
         !p.category?.toLowerCase().includes(filters.category.toLowerCase())
@@ -1124,6 +1180,11 @@ export function ProductsTable({
       if (
         filters.brand.length > 0 &&
         (!p.brand || !filters.brand.includes(p.brand))
+      )
+        return false;
+      if (
+        filters.material &&
+        !p.material?.toLowerCase().includes(filters.material.toLowerCase())
       )
         return false;
       if (filters.visibility === 'active' && p.is_active === false)
@@ -1156,10 +1217,7 @@ export function ProductsTable({
                 : false
           ))
       );
-      if (filters.imageOptimization === 'optimized' && !hasStorageImage)
-        return false;
-      if (filters.imageOptimization === 'unoptimized' && hasStorageImage)
-        return false;
+      // imageOptimization client filtering removed
 
       return true;
     });
@@ -1194,9 +1252,7 @@ export function ProductsTable({
       );
 
   const kpis = useMemo(() => {
-    // If we fetched aggregate KPIs from the server, prefer them (they represent
-    // totals across the whole catalog). Otherwise compute from the best available
-    // client-side dataset.
+    // 1. Se estivermos no modo servidor e tivermos os dados agregados da API, usamos eles.
     if (serverMode && kpisState) {
       return {
         total: kpisState.total,
@@ -1207,39 +1263,20 @@ export function ProductsTable({
       };
     }
 
-    // When running client-side (serverMode === false) we must compute KPIs
-    // from the filtered list (`processedProducts`) so the cards reflect the
-    // active filters shown in the table. In serverMode we still prefer
-    // server-provided aggregates or the raw `products` payload when needed.
-    const sourceForCounts = serverMode
-      ? products && products.length > 0
-        ? products
-        : serverProducts && serverProducts.length > 0
-          ? serverProducts
-          : []
-      : processedProducts;
+    // 2. CORREÇÃO: No modo cliente, usamos SEMPRE o 'processedProducts'
+    // Isso garante que os filtros de busca, marca e categoria reflitam nos cards.
+    const sourceForCounts = processedProducts;
 
     const active = sourceForCounts.filter((p) => p.is_active !== false);
-    const totalCount = serverMode
-      ? (initialTotalCount ?? serverMeta?.totalCount ?? sourceForCounts.length)
-      : sourceForCounts.length;
 
     return {
-      total: totalCount,
+      total: sourceForCounts.length,
       brands: new Set(active.map((p) => p.brand).filter(Boolean)).size,
       launch: active.filter((p) => isLaunch(p)).length,
       best: active.filter((p) => isBestSeller(p)).length,
       featured: active.filter((p) => isFeatured(p)).length,
-    } as any;
-  }, [
-    products,
-    serverMode,
-    serverProducts,
-    serverMeta,
-    initialTotalCount,
-    kpisState,
-    processedProducts,
-  ]);
+    };
+  }, [serverMode, kpisState, processedProducts]);
 
   // --- AÇÕES ---
   const toggleSelectOne = (id: string) => {
@@ -1269,8 +1306,7 @@ export function ProductsTable({
           if (userId) params.set('userId', userId);
           params.set('idsOnly', 'true');
           if (serverMode) params.set('includeInactive', 'true');
-          if (filters.imageOptimization && filters.imageOptimization !== 'all')
-            params.set('imageOptimization', String(filters.imageOptimization));
+          // imageOptimization removed — filtering occurs client-side
           if (filters.minPrice)
             params.set('minPrice', String(filters.minPrice));
           if (filters.maxPrice)
@@ -1765,7 +1801,7 @@ export function ProductsTable({
   );
 
   const renderCell = (product: Product, key: DataKey) => {
-    const val = (product as any)[key];
+    const val = (product as unknown as Record<string, any>)[key];
     // Helper para determinar se o produto possui imagem no Storage (otimizada)
     const hasStorageImage = Boolean(
       product.image_path ||
@@ -1792,8 +1828,8 @@ export function ProductsTable({
               // senão tenta `image_variants` e por último `getProductImageUrl`.
               let thumbnailSrc: string | undefined = undefined;
 
-              if ((product as any).thumbnail) {
-                thumbnailSrc = (product as any).thumbnail;
+              if (product.thumbnail) {
+                thumbnailSrc = product.thumbnail;
               } else if (
                 product.image_variants &&
                 Array.isArray(product.image_variants)
@@ -1803,12 +1839,10 @@ export function ProductsTable({
                     (v: any) => v && (v.size === 480 || v.size === '480')
                   ) || product.image_variants[0];
                 const variantPath =
-                  smallVariant?.path ||
-                  (smallVariant as any)?.storage_path ||
-                  null;
+                  smallVariant?.path || smallVariant?.storage_path || null;
                 if (variantPath) thumbnailSrc = formatImageUrl(variantPath);
               } else {
-                const { src, isExternal } = getProductImageUrl(product as any);
+                const { src, isExternal } = getProductImageUrl(product);
                 thumbnailSrc = src || undefined;
 
                 if (isExternal && src) {
@@ -1933,6 +1967,33 @@ export function ProductsTable({
       ) : (
         '-'
       );
+
+    if (key === 'polarizado')
+      return val ? (
+        <div className="flex justify-center" title="Lente Polarizada">
+          <CheckSquare size={18} className="text-blue-600 dark:text-blue-400" />
+        </div>
+      ) : (
+        <span className="text-gray-300">-</span>
+      );
+
+    if (key === 'fotocromatico')
+      return val ? (
+        <div className="flex justify-center" title="Lente Fotocromática">
+          <Zap size={18} className="text-amber-500" />
+        </div>
+      ) : (
+        <span className="text-gray-300">-</span>
+      );
+
+    if (key === 'material' || key === 'color')
+      return val ? (
+        <span className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md text-slate-600 dark:text-slate-300 font-medium">
+          {String(val)}
+        </span>
+      ) : (
+        '-'
+      );
     if (key === 'stock_quantity')
       return (
         <div className="text-sm font-medium text-gray-900 dark:text-slate-200 text-right">
@@ -2041,7 +2102,11 @@ export function ProductsTable({
                 // reset to first page when applying KPI filter
                 setCurrentPage(1);
               }}
-              className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between text-left ${active ? 'border-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800'}`}
+              className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between text-left transition-all ${
+                active
+                  ? 'border-[var(--primary)] bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 ring-1 ring-[var(--primary)]'
+                  : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 hover:border-gray-300'
+              }`}
             >
               <span className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 flex items-center gap-2 mb-2">
                 {(() => {
@@ -2195,18 +2260,26 @@ export function ProductsTable({
 
         {/* Painel de Filtros Expandido */}
         {showFilters && (
-          <div className="pt-4 border-t border-gray-100 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
+          <div className="pt-4 border-t border-gray-100 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2 min-w-0">
             <div className="col-span-2 md:col-span-4 flex items-center justify-end gap-3">
               <label
-                className="flex items-center gap-2 text-sm text-gray-600"
+                className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none"
                 title="Executa filtros, ordenação e paginação no servidor (recomendado para catálogos grandes). Pode devolver 0 resultados se RLS/impersonation ou filtros restritivos estiverem ativos."
               >
                 <input
                   type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-[var(--primary)] focus:ring-[var(--primary)]"
                   checked={serverMode}
-                  onChange={(e) => setServerMode(e.target.checked)}
+                  onChange={(e) => {
+                    console.debug(
+                      'Server Mode alterado para:',
+                      e.target.checked
+                    );
+                    setServerMode(e.target.checked);
+                    setCurrentPage(1);
+                  }}
                 />
-                Buscar no servidor
+                <span className="font-medium">Buscar no servidor</span>
               </label>
             </div>
             <div>
@@ -2215,7 +2288,7 @@ export function ProductsTable({
               </label>
               <input
                 list="brands"
-                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                className="w-full min-w-0 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 value={(filters.brand && filters.brand[0]) || ''}
                 onChange={(e) =>
                   setFilters({
@@ -2245,7 +2318,7 @@ export function ProductsTable({
                   onChange={(e) =>
                     setFilters({ ...filters, minPrice: e.target.value })
                   }
-                  className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                  className="w-1/2 min-w-0 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 />
                 <input
                   type="number"
@@ -2255,7 +2328,7 @@ export function ProductsTable({
                   onChange={(e) =>
                     setFilters({ ...filters, maxPrice: e.target.value })
                   }
-                  className="w-1/2 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                  className="w-1/2 min-w-0 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 />
               </div>
             </div>
@@ -2265,7 +2338,7 @@ export function ProductsTable({
               </label>
               <input
                 list="categories"
-                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                className="w-full min-w-0 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 value={filters.category || ''}
                 onChange={(e) =>
                   setFilters({ ...filters, category: e.target.value })
@@ -2280,10 +2353,23 @@ export function ProductsTable({
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                Material
+              </label>
+              <input
+                className="w-full min-w-0 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                value={filters.material || ''}
+                onChange={(e) =>
+                  setFilters({ ...filters, material: e.target.value })
+                }
+                placeholder="Todas"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
                 Status
               </label>
               <select
-                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                className="w-full min-w-0 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 value={filters.visibility || 'all'}
                 onChange={(e) =>
                   setFilters({ ...filters, visibility: e.target.value })
@@ -2299,7 +2385,7 @@ export function ProductsTable({
                 Estoque
               </label>
               <select
-                className="w-full p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
+                className="w-full min-w-0 p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
                 value={filters.stockStatus || 'all'}
                 onChange={(e) =>
                   setFilters({ ...filters, stockStatus: e.target.value })
@@ -2351,29 +2437,44 @@ export function ProductsTable({
                   />{' '}
                   Best Sellers
                 </label>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
-                  Imagem
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={filters.polarizado}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        polarizado: e.target.checked,
+                      })
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                    className="rounded text-[var(--primary)]"
+                  />{' '}
+                  Polarizado
                 </label>
-                <select
-                  className="p-2 text-sm border rounded bg-white dark:bg-slate-950 dark:border-slate-700 dark:text-white"
-                  value={filters.imageOptimization}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      imageOptimization: e.target.value,
-                    })
-                  }
-                >
-                  <option value="all">Todas</option>
-                  <option value="optimized">Otimizadas (Storage)</option>
-                  <option value="unoptimized">Não otimizadas (Externas)</option>
-                </select>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={filters.fotocromatico}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        fotocromatico: e.target.checked,
+                      })
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                    className="rounded text-[var(--primary)]"
+                  />{' '}
+                  Fotocromático
+                </label>
               </div>
+              {/* filtro de Imagem removido */}
               <button
                 onClick={() =>
                   setFilters({
+                    polarizado: false,
+                    fotocromatico: false,
+                    material: '',
                     minPrice: '',
                     maxPrice: '',
                     onlyLaunch: false,
@@ -2384,7 +2485,6 @@ export function ProductsTable({
                     stockStatus: 'all',
                     visibility: 'all',
                     color: '',
-                    imageOptimization: 'all',
                   })
                 }
                 className="text-xs text-red-500 hover:underline"
@@ -2925,9 +3025,7 @@ export function ProductsTable({
                     product.image_url ||
                     product.external_image_url ? (
                       (() => {
-                        const { src, isExternal } = getProductImageUrl(
-                          product as any
-                        );
+                        const { src, isExternal } = getProductImageUrl(product);
                         if (src) {
                           if (isExternal) {
                             return (

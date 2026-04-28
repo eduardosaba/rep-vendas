@@ -1,37 +1,42 @@
-﻿ 'use client';
+﻿'use client';
 
-import React from 'react';
-import Image from 'next/image';
-import { SmartImage } from '@/components/catalogo/SmartImage';
-import { getProductImageUrl } from '@/lib/imageUtils';
-import { useStore } from '@/components/catalogo/store-context';
-import {
-  Search,
-  ShoppingCart,
-  ChevronLeft,
-  ChevronRight,
-  LayoutGrid,
-  List,
-  SlidersHorizontal,
-  Archive,
-  Heart,
-  Zap,
-  Image as ImageIcon,
-  ImageOff,
-  Star,
-  User,
-  Sun,
-} from 'lucide-react';
-import { LazyProductImage } from '@/components/ui/LazyProductImage';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { PaginationControls } from '@/components/catalogo/PaginationControls';
+import { PriceDisplay } from '@/components/catalogo/PriceDisplay';
 import { ProductCard } from '@/components/catalogo/ProductCard';
 import ProductCardSkeleton from '@/components/catalogo/ProductCardSkeleton';
+import { SmartImage } from '@/components/catalogo/SmartImage';
+import { useStore } from '@/components/catalogo/store-context';
 import { useLayoutStore } from '@/components/catalogo/store-layout';
-import { PriceDisplay } from '@/components/catalogo/PriceDisplay';
-import { PaginationControls } from '@/components/catalogo/PaginationControls';
+import { Button } from '@/components/ui/button';
+import { LazyProductImage } from '@/components/ui/LazyProductImage';
+import { getProductImageUrl } from '@/lib/imageUtils';
 import { Product } from '@/lib/types'; // Importando tipo centralizado
+import {
+  Archive,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Image as ImageIcon,
+  ImageOff,
+  LayoutGrid,
+  List,
+  Search,
+  ShoppingCart,
+  SlidersHorizontal,
+  Star,
+  Sun,
+  User,
+  Zap,
+} from 'lucide-react';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 // --- Interfaces ---
 interface SlideData {
@@ -44,7 +49,9 @@ interface SlideData {
 // Normalization helper used across category/type logic (moved to module scope)
 const normalizeForTypeModule = (x: any) => {
   try {
-    let s = String(x || '').toLowerCase().trim();
+    let s = String(x || '')
+      .toLowerCase()
+      .trim();
 
     // 1. Semantic mapping for Clip-on variants
     if (
@@ -164,7 +171,10 @@ export function CategoryBar() {
       const raw = ((p as any).gender || '').toString().trim();
       if (!raw || ND_PATTERNS.includes(raw.toLowerCase())) continue;
       const upper = raw.toUpperCase();
-      if (!seen.has(upper)) { seen.add(upper); result.push(upper); }
+      if (!seen.has(upper)) {
+        seen.add(upper);
+        result.push(upper);
+      }
     }
     return result;
   }, [initialProducts, selectedBrand]);
@@ -183,9 +193,12 @@ export function CategoryBar() {
         : initialProducts;
     // If there are categories in the dedicated table, merge them with
     // categories derived from products so deleting rows doesn't hide product-backed categories.
-    const tableCats = (categories && categories.length > 0)
-      ? categories.map((c: any) => (typeof c === 'string' ? c : c?.name || String(c)))
-      : [];
+    const tableCats =
+      categories && categories.length > 0
+        ? categories.map((c: any) =>
+            typeof c === 'string' ? c : c?.name || String(c)
+          )
+        : [];
     const ND_PATTERNS = ['n/d', '#n/d', 'nd', 'n.d', 'n.d.', '-', ''];
     const seen = new Set<string>();
     const result: string[] = [];
@@ -193,7 +206,10 @@ export function CategoryBar() {
       const raw = (p.category || '').toString().trim();
       if (!raw || ND_PATTERNS.includes(raw.toLowerCase())) continue;
       const upper = raw.toUpperCase();
-      if (!seen.has(upper)) { seen.add(upper); result.push(upper); }
+      if (!seen.has(upper)) {
+        seen.add(upper);
+        result.push(upper);
+      }
     }
     // Merge table categories and product-derived categories, preserving order: table first
     const merged = [...tableCats.map((t: string) => String(t)), ...result];
@@ -201,7 +217,9 @@ export function CategoryBar() {
     const uniq: string[] = [];
     const seenLower = new Set<string>();
     for (const v of merged) {
-      const k = String(v || '').trim().toLowerCase();
+      const k = String(v || '')
+        .trim()
+        .toLowerCase();
       if (!k) continue;
       if (!seenLower.has(k)) {
         seenLower.add(k);
@@ -209,7 +227,9 @@ export function CategoryBar() {
         const title = String(v)
           .trim()
           .split(/\s+/)
-          .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+          .map((w) =>
+            w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''
+          )
           .join(' ');
         uniq.push(title);
       }
@@ -224,9 +244,10 @@ export function CategoryBar() {
 
     const productsForBrand =
       activeBrand && activeBrand !== 'all'
-        ? initialProducts.filter((p: Product) =>
-            (p.brand || '').toString().trim().toLowerCase() ===
-            (activeBrand || '').toString().trim().toLowerCase()
+        ? initialProducts.filter(
+            (p: Product) =>
+              (p.brand || '').toString().trim().toLowerCase() ===
+              (activeBrand || '').toString().trim().toLowerCase()
           )
         : initialProducts;
 
@@ -259,15 +280,20 @@ export function CategoryBar() {
     return result.sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
   }, [initialProducts, selectedBrand]);
 
-  
-
   const isSelectedType = (t: any) => {
     if (!t) return false;
-    return normalizeForTypeModule(selectedCategory) === normalizeForTypeModule(t);
+    return (
+      normalizeForTypeModule(selectedCategory) === normalizeForTypeModule(t)
+    );
   };
-  const normalizeSimple = (s: any) => String(s || '').trim().toLowerCase();
-  const isSelectedGender = (g: any) => normalizeSimple(selectedGender) === normalizeSimple(g);
-  const isSelectedMaterial = (m: any) => normalizeSimple(selectedMaterial) === normalizeSimple(m);
+  const normalizeSimple = (s: any) =>
+    String(s || '')
+      .trim()
+      .toLowerCase();
+  const isSelectedGender = (g: any) =>
+    normalizeSimple(selectedGender) === normalizeSimple(g);
+  const isSelectedMaterial = (m: any) =>
+    normalizeSimple(selectedMaterial) === normalizeSimple(m);
 
   // Avoid rendering loose category chips — force empty visibleCategories
   const visibleCategories = useMemo(() => [], []);
@@ -281,10 +307,26 @@ export function CategoryBar() {
   const genderBtnRef = useRef<HTMLButtonElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement | null>(null);
   const materialBtnRef = useRef<HTMLButtonElement | null>(null);
-  const [typeMenuRect, setTypeMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
-  const [genderMenuRect, setGenderMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
-  const [materialMenuRect, setMaterialMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
-  const [moreMenuRect, setMoreMenuRect] = useState<null | { left: number; top: number; width: number }>(null);
+  const [typeMenuRect, setTypeMenuRect] = useState<null | {
+    left: number;
+    top: number;
+    width: number;
+  }>(null);
+  const [genderMenuRect, setGenderMenuRect] = useState<null | {
+    left: number;
+    top: number;
+    width: number;
+  }>(null);
+  const [materialMenuRect, setMaterialMenuRect] = useState<null | {
+    left: number;
+    top: number;
+    width: number;
+  }>(null);
+  const [moreMenuRect, setMoreMenuRect] = useState<null | {
+    left: number;
+    top: number;
+    width: number;
+  }>(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
@@ -292,10 +334,8 @@ export function CategoryBar() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-    // (store banner meta is handled in StoreBanners component)
+  // (store banner meta is handled in StoreBanners component)
   const router = useRouter();
-
-  
 
   if (!displayCategories || displayCategories.length === 0) return null;
 
@@ -353,28 +393,31 @@ export function CategoryBar() {
               <div>
                 <h4 className="text-xs font-bold text-gray-700 mb-2">Tipo</h4>
                 <div className="flex flex-col gap-2 pr-2">
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setOpenMoreMenu(false);
+                    }}
+                    className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${selectedCategory === 'all' ? 'font-bold' : ''}`}
+                  >
+                    TODOS OS TIPOS
+                  </button>
+                  {(displayTypes && displayTypes.length
+                    ? displayTypes
+                    : []
+                  ).map((t: string) => (
                     <button
+                      key={t}
                       onClick={() => {
-                        setSelectedCategory('all');
+                        setSelectedCategory(t);
                         setOpenMoreMenu(false);
                       }}
-                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${selectedCategory === 'all' ? 'font-bold' : ''}`}
+                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedType(t) ? 'bg-[var(--primary)] text-white' : ''}`}
                     >
-                      TODOS OS TIPOS
+                      {String(t).toUpperCase()}
                     </button>
-                    {(displayTypes && displayTypes.length ? displayTypes : []).map((t: string) => (
-                      <button
-                        key={t}
-                        onClick={() => {
-                          setSelectedCategory(t);
-                          setOpenMoreMenu(false);
-                        }}
-                        className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedType(t) ? 'bg-[var(--primary)] text-white' : ''}`}
-                      >
-                        {String(t).toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -406,9 +449,11 @@ export function CategoryBar() {
                   ))}
                 </div>
               </div>
-              
+
               <div>
-                <h4 className="text-xs font-bold text-gray-700 mb-2">Material</h4>
+                <h4 className="text-xs font-bold text-gray-700 mb-2">
+                  Material
+                </h4>
                 <div className="flex flex-col space-y-1">
                   <button
                     onClick={() => {
@@ -419,18 +464,20 @@ export function CategoryBar() {
                   >
                     TODOS OS MATERIAIS
                   </button>
-                  {(materials && materials.length ? materials : []).map((m: any) => (
-                    <button
-                      key={m}
-                      onClick={() => {
-                        setSelectedMaterial(m);
-                        setOpenMoreMenu(false);
-                      }}
-                      className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
-                    >
-                      {String(m).toUpperCase()}
-                    </button>
-                  ))}
+                  {(materials && materials.length ? materials : []).map(
+                    (m: any) => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setSelectedMaterial(m);
+                          setOpenMoreMenu(false);
+                        }}
+                        className="text-sm text-left px-2 py-1 rounded hover:bg-gray-50"
+                      >
+                        {String(m).toUpperCase()}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             </div>
@@ -479,7 +526,7 @@ export function CategoryBar() {
               >
                 <Zap size={14} /> Lançamentos
               </button>
-              
+
               <button
                 onClick={() => {
                   const next = !filterPolarizado;
@@ -580,7 +627,9 @@ export function CategoryBar() {
                   aria-expanded={openTypeMenu}
                   className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
                 >
-                  <span className="inline-flex items-center gap-2"><LayoutGrid size={14} /> Tipo ▾</span>
+                  <span className="inline-flex items-center gap-2">
+                    <LayoutGrid size={14} /> Tipo ▾
+                  </span>
                 </button>
               </>
             )}
@@ -606,29 +655,37 @@ export function CategoryBar() {
               aria-expanded={openGenderMenu}
               className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
             >
-              <span className="inline-flex items-center gap-2"><User size={14} /> Gênero ▾</span>
+              <span className="inline-flex items-center gap-2">
+                <User size={14} /> Gênero ▾
+              </span>
             </button>
 
             {materials && materials.length > 0 && (
-            <button
-              ref={materialBtnRef}
-              data-menu-trigger="material"
-              onClick={() => {
-                const next = !openMaterialMenu;
-                setOpenMaterialMenu(next);
-                setOpenTypeMenu(false);
-                setOpenGenderMenu(false);
-                setOpenMoreMenu(false);
-                if (next && materialBtnRef.current) {
-                  const r = materialBtnRef.current.getBoundingClientRect();
-                  setMaterialMenuRect({ left: r.left, top: r.bottom + 8, width: Math.max(220, r.width * 2) });
-                }
-              }}
-              aria-expanded={openMaterialMenu}
-              className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
-            >
-              <span className="inline-flex items-center gap-2"><Archive size={14} /> Material ▾</span>
-            </button>
+              <button
+                ref={materialBtnRef}
+                data-menu-trigger="material"
+                onClick={() => {
+                  const next = !openMaterialMenu;
+                  setOpenMaterialMenu(next);
+                  setOpenTypeMenu(false);
+                  setOpenGenderMenu(false);
+                  setOpenMoreMenu(false);
+                  if (next && materialBtnRef.current) {
+                    const r = materialBtnRef.current.getBoundingClientRect();
+                    setMaterialMenuRect({
+                      left: r.left,
+                      top: r.bottom + 8,
+                      width: Math.max(220, r.width * 2),
+                    });
+                  }
+                }}
+                aria-expanded={openMaterialMenu}
+                className="ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors text-gray-600 border border-gray-200 hover:bg-gray-50"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Archive size={14} /> Material ▾
+                </span>
+              </button>
             )}
 
             {isMobile && (
@@ -664,12 +721,15 @@ export function CategoryBar() {
                   setSelectedCategory(typeof cat === 'string' ? cat : cat?.name)
                 }
                 className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap border ${
-                  selectedCategory === (typeof cat === 'string' ? cat : cat?.name)
+                  selectedCategory ===
+                  (typeof cat === 'string' ? cat : cat?.name)
                     ? 'bg-[var(--primary)] text-white'
                     : 'bg-white text-gray-600 border-gray-200'
                 }`}
               >
-                {(typeof cat === 'string' ? cat : cat?.name || '').toString().toUpperCase()}
+                {(typeof cat === 'string' ? cat : cat?.name || '')
+                  .toString()
+                  .toUpperCase()}
               </button>
             ))}
 
@@ -702,58 +762,58 @@ export function CategoryBar() {
             </button>
 
             {hasBestSellers && (
-            <button
-              onClick={() => {
-                const next = !showOnlyBestsellers;
-                setShowOnlyBestsellers && setShowOnlyBestsellers(next);
-                try {
-                  const params = new URLSearchParams(window.location.search);
-                  if (next) params.set('bs', '1');
-                  else params.delete('bs');
-                  const url = params.toString()
-                    ? `${window.location.pathname}?${params.toString()}`
-                    : window.location.pathname;
-                  router.replace(url);
-                } catch (e) {
-                  // ignore
-                }
-              }}
-              aria-pressed={!!showOnlyBestsellers}
-              className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                showOnlyBestsellers
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              <span className="inline-flex items-center gap-2">
-                <Star size={14} /> Best Sellers
-              </span>
-            </button>
+              <button
+                onClick={() => {
+                  const next = !showOnlyBestsellers;
+                  setShowOnlyBestsellers && setShowOnlyBestsellers(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('bs', '1');
+                    else params.delete('bs');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                aria-pressed={!!showOnlyBestsellers}
+                className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  showOnlyBestsellers
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Star size={14} /> Best Sellers
+                </span>
+              </button>
             )}
 
             {hasPolarizado && (
-            <button
-              onClick={() => {
-                const next = !filterPolarizado;
-                setFilterPolarizado && setFilterPolarizado(next);
-                try {
-                  const params = new URLSearchParams(window.location.search);
-                  if (next) params.set('polarizado', '1');
-                  else params.delete('polarizado');
-                  const url = params.toString()
-                    ? `${window.location.pathname}?${params.toString()}`
-                    : window.location.pathname;
-                  router.replace(url);
-                } catch (e) {
-                  // ignore
-                }
-              }}
-              aria-pressed={!!filterPolarizado}
-              className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                filterPolarizado
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
-              }`}
+              <button
+                onClick={() => {
+                  const next = !filterPolarizado;
+                  setFilterPolarizado && setFilterPolarizado(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('polarizado', '1');
+                    else params.delete('polarizado');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                aria-pressed={!!filterPolarizado}
+                className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  filterPolarizado
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
               >
                 <span className="inline-flex items-center gap-2">
                   <Sun size={14} /> Polarizado
@@ -762,33 +822,33 @@ export function CategoryBar() {
             )}
 
             {hasFotocromatico && (
-            <button
-              onClick={() => {
-                const next = !filterFotocromatico;
-                setFilterFotocromatico && setFilterFotocromatico(next);
-                try {
-                  const params = new URLSearchParams(window.location.search);
-                  if (next) params.set('fotocromatico', '1');
-                  else params.delete('fotocromatico');
-                  const url = params.toString()
-                    ? `${window.location.pathname}?${params.toString()}`
-                    : window.location.pathname;
-                  router.replace(url);
-                } catch (e) {
-                  // ignore
-                }
-              }}
-              aria-pressed={!!filterFotocromatico}
-              className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                filterFotocromatico
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              <span className="inline-flex items-center gap-2">
-                <ImageIcon size={14} /> Fotocromático
-              </span>
-            </button>
+              <button
+                onClick={() => {
+                  const next = !filterFotocromatico;
+                  setFilterFotocromatico && setFilterFotocromatico(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('fotocromatico', '1');
+                    else params.delete('fotocromatico');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                aria-pressed={!!filterFotocromatico}
+                className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  filterFotocromatico
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <ImageIcon size={14} /> Fotocromático
+                </span>
+              </button>
             )}
           </div>
 
@@ -869,7 +929,7 @@ export function CategoryBar() {
                 top: genderMenuRect.top,
                 width: Math.min(genderMenuRect.width, 420),
               }}
-              onMouseDown={(e) => e.stopPropagation()} 
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <div>
                 <div className="w-full flex items-center justify-between text-sm font-bold text-gray-700 mb-2">
@@ -972,18 +1032,20 @@ export function CategoryBar() {
                       </button>
                     )}
                   </div>
-                  {(materials && materials.length ? materials : []).map((m: any) => (
-                    <button
-                      key={m}
-                      onClick={() => {
-                        setSelectedMaterial(m);
-                        setOpenMaterialMenu(false);
-                      }}
-                      className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedMaterial(m) ? 'bg-[var(--primary)] text-white' : ''}`}
-                    >
-                      {String(m).toUpperCase()}
-                    </button>
-                  ))}
+                  {(materials && materials.length ? materials : []).map(
+                    (m: any) => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setSelectedMaterial(m);
+                          setOpenMaterialMenu(false);
+                        }}
+                        className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedMaterial(m) ? 'bg-[var(--primary)] text-white' : ''}`}
+                      >
+                        {String(m).toUpperCase()}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             </div>
@@ -1090,7 +1152,11 @@ interface CarouselProps {
 }
 
 // --- Componente Carrossel ---
-function Carousel({ slides, interval = 5000, bannerMetaOverride = null }: CarouselProps) {
+function Carousel({
+  slides,
+  interval = 5000,
+  bannerMetaOverride = null,
+}: CarouselProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [bannerMeta, setBannerMeta] = useState<any>(null);
@@ -1130,7 +1196,10 @@ function Carousel({ slides, interval = 5000, bannerMetaOverride = null }: Carous
   }, [bannerMetaOverride]);
 
   useEffect(() => {
-    const onResize = () => setIsSmallViewport(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    const onResize = () =>
+      setIsSmallViewport(
+        typeof window !== 'undefined' ? window.innerWidth < 768 : false
+      );
     onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -1154,7 +1223,8 @@ function Carousel({ slides, interval = 5000, bannerMetaOverride = null }: Carous
             className="min-w-full w-full h-full relative flex-shrink-0"
           >
             {(() => {
-              const useFit = bannerMeta && bannerMeta.mode === 'fit' && isSmallViewport;
+              const useFit =
+                bannerMeta && bannerMeta.mode === 'fit' && isSmallViewport;
               if (useFit) {
                 return (
                   // Use plain img for fit-on-mobile so image determines height
@@ -1163,19 +1233,37 @@ function Carousel({ slides, interval = 5000, bannerMetaOverride = null }: Carous
                     alt={slide.altText}
                     className="w-full h-auto object-contain relative"
                     loading={slide.id === 0 ? 'eager' : 'lazy'}
-                    style={bannerMeta && bannerMeta.focusX ? { objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`, transform: `scale(${(bannerMeta.zoom ?? 100) / 100})` } : undefined}
+                    style={
+                      bannerMeta && bannerMeta.focusX
+                        ? {
+                            objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`,
+                            transform: `scale(${(bannerMeta.zoom ?? 100) / 100})`,
+                          }
+                        : undefined
+                    }
                   />
                 );
               }
 
-              return typeof slide.imageUrl === 'string' && slide.imageUrl.startsWith('http') &&
-                !(typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')) ? (
+              return typeof slide.imageUrl === 'string' &&
+                slide.imageUrl.startsWith('http') &&
+                !(
+                  typeof slide.imageUrl === 'string' &&
+                  slide.imageUrl.includes('supabase.co/storage')
+                ) ? (
                 <img
                   src={slide.imageUrl}
                   alt={slide.altText}
                   className={`absolute inset-0 w-full h-full ${bannerMeta?.mode === 'fit' ? 'object-contain' : 'object-cover'}`}
                   loading={slide.id === 0 ? 'eager' : 'lazy'}
-                  style={bannerMeta && bannerMeta.mode !== 'fit' && bannerMeta.focusX ? { objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`, transform: `scale(${(bannerMeta.zoom ?? 100) / 100})` } : undefined}
+                  style={
+                    bannerMeta && bannerMeta.mode !== 'fit' && bannerMeta.focusX
+                      ? {
+                          objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`,
+                          transform: `scale(${(bannerMeta.zoom ?? 100) / 100})`,
+                        }
+                      : undefined
+                  }
                 />
               ) : (
                 <Image
@@ -1183,10 +1271,24 @@ function Carousel({ slides, interval = 5000, bannerMetaOverride = null }: Carous
                   alt={slide.altText}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1920px) 90vw, 1920px"
-                  className={bannerMeta?.mode === 'fit' ? 'object-contain' : 'object-cover'}
+                  className={
+                    bannerMeta?.mode === 'fit'
+                      ? 'object-contain'
+                      : 'object-cover'
+                  }
                   priority={slide.id === 0}
-                  unoptimized={typeof slide.imageUrl === 'string' && slide.imageUrl.includes('supabase.co/storage')}
-                  style={bannerMeta && bannerMeta.mode !== 'fit' && bannerMeta.focusX ? { objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`, transform: `scale(${(bannerMeta.zoom ?? 100) / 100})` } : undefined}
+                  unoptimized={
+                    typeof slide.imageUrl === 'string' &&
+                    slide.imageUrl.includes('supabase.co/storage')
+                  }
+                  style={
+                    bannerMeta && bannerMeta.mode !== 'fit' && bannerMeta.focusX
+                      ? {
+                          objectPosition: `${bannerMeta.focusX}% ${bannerMeta.focusY ?? 50}%`,
+                          transform: `scale(${(bannerMeta.zoom ?? 100) / 100})`,
+                        }
+                      : undefined
+                  }
                 />
               );
             })()}
@@ -1280,15 +1382,18 @@ export function StoreBanners() {
   // Se não houver nenhum banner, não renderiza
   if (!hasBanners && !hasMobileBanners) return null;
   // If a brand is selected, show the brand-specific banner/description instead
-  const hasBrandSelection = Array.isArray(selectedBrand) ? selectedBrand.length > 0 : selectedBrand && selectedBrand !== 'all';
+  const hasBrandSelection = Array.isArray(selectedBrand)
+    ? selectedBrand.length > 0
+    : selectedBrand && selectedBrand !== 'all';
   if (hasBrandSelection) {
     const normalize = (s: unknown) =>
       String(s || '')
         .trim()
         .toLowerCase();
-    const findName = Array.isArray(selectedBrand) && selectedBrand.length > 0
-      ? (selectedBrand[0] as string)
-      : (selectedBrand as string);
+    const findName =
+      Array.isArray(selectedBrand) && selectedBrand.length > 0
+        ? (selectedBrand[0] as string)
+        : (selectedBrand as string);
     const brandObj = (brandsWithLogos || []).find(
       (b: any) => normalize(b.name) === normalize(findName)
     );
@@ -1303,14 +1408,25 @@ export function StoreBanners() {
 
       if (bannerUrl) {
         // Garante que pegamos a string da URL, mesmo que venha como objeto
-        const resolvedBannerUrl = typeof bannerUrl === 'object'
-          ? (bannerUrl.variants?.desktop?.url || bannerUrl.original || bannerUrl.url || null)
-          : bannerUrl;
+        const resolvedBannerUrl =
+          typeof bannerUrl === 'object'
+            ? bannerUrl.variants?.desktop?.url ||
+              bannerUrl.original ||
+              bannerUrl.url ||
+              null
+            : bannerUrl;
         // Try to load saved banner meta from localStorage (client-only, synchronous)
-        let bannerMeta: { mode?: string; focusX?: number; focusY?: number; zoom?: number } | null = null;
+        let bannerMeta: {
+          mode?: string;
+          focusX?: number;
+          focusY?: number;
+          zoom?: number;
+        } | null = null;
         try {
           if (typeof window !== 'undefined') {
-            const raw = window.localStorage.getItem(`brand_banner_meta:${brandObj.id}`);
+            const raw = window.localStorage.getItem(
+              `brand_banner_meta:${brandObj.id}`
+            );
             if (raw) bannerMeta = JSON.parse(raw);
           }
         } catch {
@@ -1321,20 +1437,22 @@ export function StoreBanners() {
           ? bannerMeta.mode === 'fit'
             ? { objectFit: 'contain', objectPosition: '50% 50%' }
             : bannerMeta.mode === 'stretch'
-            ? { objectFit: 'fill', objectPosition: '50% 50%' }
-            : {
-                objectPosition: `${bannerMeta.focusX ?? 50}% ${bannerMeta.focusY ?? 50}%`,
-                transform: `scale(${(bannerMeta.zoom ?? 100) / 100})`,
-              }
+              ? { objectFit: 'fill', objectPosition: '50% 50%' }
+              : {
+                  objectPosition: `${bannerMeta.focusX ?? 50}% ${bannerMeta.focusY ?? 50}%`,
+                  transform: `scale(${(bannerMeta.zoom ?? 100) / 100})`,
+                }
           : {};
 
-        const containerClass = bannerMeta && bannerMeta.mode === 'fit' && isMobile
-          ? 'w-full relative overflow-hidden bg-gray-100 rounded-md'
-          : 'w-full aspect-[4/1] min-h-[160px] md:min-h-[200px] relative overflow-hidden bg-gray-100 rounded-md';
+        const containerClass =
+          bannerMeta && bannerMeta.mode === 'fit' && isMobile
+            ? 'w-full relative overflow-hidden bg-gray-100 rounded-md'
+            : 'w-full aspect-[4/1] min-h-[160px] md:min-h-[200px] relative overflow-hidden bg-gray-100 rounded-md';
 
-        const imgClass = bannerMeta && bannerMeta.mode === 'fit'
-          ? 'object-contain relative inset-0 w-full h-auto'
-          : 'object-cover absolute inset-0 w-full h-full';
+        const imgClass =
+          bannerMeta && bannerMeta.mode === 'fit'
+            ? 'object-contain relative inset-0 w-full h-auto'
+            : 'object-cover absolute inset-0 w-full h-full';
 
         return (
           <div className="w-full">
@@ -1400,8 +1518,14 @@ export function StoreBanners() {
   // - Mobile: prefere `banners_mobile`, senão usa `banners` (fallback)
   // - Desktop: prefere `banners`, mas se estiver vazio tenta `banners_mobile` antes de não renderizar
   const activeBanners = (() => {
-    const desktopBanners = Array.isArray(store.banners) && store.banners.length > 0 ? store.banners : null;
-    const mobileBanners = Array.isArray(store.banners_mobile) && store.banners_mobile.length > 0 ? store.banners_mobile : null;
+    const desktopBanners =
+      Array.isArray(store.banners) && store.banners.length > 0
+        ? store.banners
+        : null;
+    const mobileBanners =
+      Array.isArray(store.banners_mobile) && store.banners_mobile.length > 0
+        ? store.banners_mobile
+        : null;
 
     if (isMobile) return mobileBanners ?? desktopBanners ?? [];
     return desktopBanners ?? mobileBanners ?? [];
@@ -1409,12 +1533,14 @@ export function StoreBanners() {
 
   // Mapeia apenas os banners que foram feitos upload (1, 2, 3... N banners)
   // Não é obrigatório ter 5 banners - renderiza quantos existirem
-  const slides: SlideData[] = (activeBanners || []).map((url: string, index: number) => ({
-    id: index,
-    imageUrl: url, // URL já normalizada pelo store-context
-    linkUrl: '#',
-    altText: `Banner Promocional ${index + 1}`,
-  }));
+  const slides: SlideData[] = (activeBanners || []).map(
+    (url: string, index: number) => ({
+      id: index,
+      imageUrl: url, // URL já normalizada pelo store-context
+      linkUrl: '#',
+      altText: `Banner Promocional ${index + 1}`,
+    })
+  );
 
   // Se não houver slides após o mapeamento, não renderiza
   if (slides.length === 0) return null;
@@ -1423,11 +1549,19 @@ export function StoreBanners() {
     <div className="w-full">
       {storeBannerMeta && storeBannerMeta.mode === 'fit' && isMobile ? (
         <div className="w-full relative overflow-hidden bg-gray-100">
-          <Carousel slides={slides} interval={5000} bannerMetaOverride={storeBannerMeta} />
+          <Carousel
+            slides={slides}
+            interval={5000}
+            bannerMetaOverride={storeBannerMeta}
+          />
         </div>
       ) : (
         <div className="w-full aspect-[3/1] md:aspect-[4/1] lg:aspect-[5/1] min-h-[180px] md:min-h-[220px] relative overflow-hidden bg-gray-100">
-          <Carousel slides={slides} interval={5000} bannerMetaOverride={storeBannerMeta} />
+          <Carousel
+            slides={slides}
+            interval={5000}
+            bannerMetaOverride={storeBannerMeta}
+          />
         </div>
       )}
     </div>
@@ -1490,10 +1624,13 @@ export function ProductGrid() {
   // Detect if the currently selectedCategory is actually a 'type' (class_core)
   const isSelectedCategoryType = React.useMemo(() => {
     try {
-      if (typeof selectedCategory !== 'string' || selectedCategory === 'all') return false;
+      if (typeof selectedCategory !== 'string' || selectedCategory === 'all')
+        return false;
       const selectedNorm = normalizeForTypeModule(selectedCategory);
       return (displayProducts || []).some((p: any) => {
-        const productTypeNorm = normalizeForTypeModule((p as any).class_core || '');
+        const productTypeNorm = normalizeForTypeModule(
+          (p as any).class_core || ''
+        );
         return productTypeNorm === selectedNorm && productTypeNorm !== '';
       });
     } catch (e) {
@@ -1556,13 +1693,20 @@ export function ProductGrid() {
             </button>
           )}
 
-          {typeof selectedCategory === 'string' && selectedCategory !== 'all' && (
+          {typeof selectedCategory === 'string' &&
+            selectedCategory !== 'all' &&
             (() => {
               try {
                 if (isSelectedCategoryType) {
                   return (
-                    <button onClick={() => setSelectedCategory && setSelectedCategory('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
-                      <span className="font-bold">Tipo:</span> {selectedCategory}
+                    <button
+                      onClick={() =>
+                        setSelectedCategory && setSelectedCategory('all')
+                      }
+                      className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+                    >
+                      <span className="font-bold">Tipo:</span>{' '}
+                      {selectedCategory}
                       <span className="ml-2 text-xs text-gray-400">✕</span>
                     </button>
                   );
@@ -1571,47 +1715,70 @@ export function ProductGrid() {
                 // if anything fails, fall back to showing as category
               }
               return (
-                <button onClick={() => setSelectedCategory && setSelectedCategory('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
-                  <span className="font-bold">Categoria:</span> {selectedCategory}
+                <button
+                  onClick={() =>
+                    setSelectedCategory && setSelectedCategory('all')
+                  }
+                  className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+                >
+                  <span className="font-bold">Categoria:</span>{' '}
+                  {selectedCategory}
                   <span className="ml-2 text-xs text-gray-400">✕</span>
                 </button>
               );
-            })()
-          )}
+            })()}
 
           {typeof selectedGender === 'string' && selectedGender !== 'all' && (
-            <button onClick={() => setSelectedGender && setSelectedGender('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+            <button
+              onClick={() => setSelectedGender && setSelectedGender('all')}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
               <span className="font-bold">Gênero:</span> {selectedGender}
               <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
 
           {searchTerm && searchTerm.trim().length > 0 && (
-            <button onClick={() => setSearchTerm && setSearchTerm('')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+            <button
+              onClick={() => setSearchTerm && setSearchTerm('')}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
               Busca: {searchTerm}
               <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
 
           {showOnlyNew && (
-            <button onClick={() => setShowOnlyNew && setShowOnlyNew(false)} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+            <button
+              onClick={() => setShowOnlyNew && setShowOnlyNew(false)}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
               Lançamentos <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
 
           {showOnlyBestsellers && (
-            <button onClick={() => setShowOnlyBestsellers && setShowOnlyBestsellers(false)} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
-              Mais vendidos <span className="ml-2 text-xs text-gray-400">✕</span>
+            <button
+              onClick={() =>
+                setShowOnlyBestsellers && setShowOnlyBestsellers(false)
+              }
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
+              Mais vendidos{' '}
+              <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
 
           {showFavorites && (
-            <button onClick={() => setShowFavorites && setShowFavorites(false)} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
+            <button
+              onClick={() => setShowFavorites && setShowFavorites(false)}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
               Favoritos <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
 
-              {filterPolarizado && (
+          {filterPolarizado && (
             <button
               onClick={() => setFilterPolarizado(false)}
               className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
@@ -1619,33 +1786,45 @@ export function ProductGrid() {
               Polarizado <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
-              {Array.isArray(selectedBrand) && selectedBrand.length > 0 && selectedBrand[0] !== 'all' && (
-                selectedBrand.map((b) => (
-                  <button key={`brand-${b}`} onClick={() => {
-                    const next = Array.isArray(selectedBrand) ? selectedBrand.filter((s) => s !== b) : [];
-                    setSelectedBrand && setSelectedBrand(next.length === 0 ? 'all' : next);
-                  }} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
-                    {b} <span className="ml-2 text-xs text-gray-400">✕</span>
-                  </button>
-                ))
-              )}
-              {typeof selectedBrand === 'string' && selectedBrand !== 'all' && (
-                <button onClick={() => setSelectedBrand && setSelectedBrand('all')} className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2">
-                  {selectedBrand} <span className="ml-2 text-xs text-gray-400">✕</span>
-                </button>
-              )}
+          {Array.isArray(selectedBrand) &&
+            selectedBrand.length > 0 &&
+            selectedBrand[0] !== 'all' &&
+            selectedBrand.map((b) => (
+              <button
+                key={`brand-${b}`}
+                onClick={() => {
+                  const next = Array.isArray(selectedBrand)
+                    ? selectedBrand.filter((s) => s !== b)
+                    : [];
+                  setSelectedBrand &&
+                    setSelectedBrand(next.length === 0 ? 'all' : next);
+                }}
+                className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+              >
+                {b} <span className="ml-2 text-xs text-gray-400">✕</span>
+              </button>
+            ))}
+          {typeof selectedBrand === 'string' && selectedBrand !== 'all' && (
+            <button
+              onClick={() => setSelectedBrand && setSelectedBrand('all')}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
+              {selectedBrand}{' '}
+              <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
 
           {filterFotocromatico && (
             <button
               onClick={() => setFilterFotocromatico(false)}
               className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
             >
-              Fotocromático <span className="ml-2 text-xs text-gray-400">✕</span>
+              Fotocromático{' '}
+              <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
           {/* Botão Limpar filtros na área de resumo */}
-          {(
-            (selectedCategory && selectedCategory !== 'all') ||
+          {((selectedCategory && selectedCategory !== 'all') ||
             (selectedGender && selectedGender !== 'all') ||
             (selectedMaterial && selectedMaterial !== 'all') ||
             !!filterPolarizado ||
@@ -1654,9 +1833,10 @@ export function ProductGrid() {
             !!showOnlyBestsellers ||
             !!showFavorites ||
             (!!searchTerm && String(searchTerm).trim() !== '') ||
-            (Array.isArray(selectedBrand) && selectedBrand.length > 0 && selectedBrand[0] !== 'all') ||
-            (typeof selectedBrand === 'string' && selectedBrand !== 'all')
-          ) && (
+            (Array.isArray(selectedBrand) &&
+              selectedBrand.length > 0 &&
+              selectedBrand[0] !== 'all') ||
+            (typeof selectedBrand === 'string' && selectedBrand !== 'all')) && (
             <button
               onClick={() => {
                 try {
@@ -1678,7 +1858,9 @@ export function ProductGrid() {
                   params.delete('fotocromatico');
                   params.delete('category');
                   params.delete('type');
-                  const url = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+                  const url = params.toString()
+                    ? `${window.location.pathname}?${params.toString()}`
+                    : window.location.pathname;
                   router.replace(url);
                 } catch (e) {
                   // ignore
@@ -1845,7 +2027,7 @@ export function ProductGrid() {
                     ? Array.from({ length: 8 }).map((_, i) => (
                         <ProductCardSkeleton key={`skeleton-${i}`} />
                       ))
-                        : displayProducts.map((product: any) => (
+                    : displayProducts.map((product: any) => (
                         <ProductCard
                           key={product.id}
                           product={product}

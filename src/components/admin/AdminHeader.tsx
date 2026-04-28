@@ -1,22 +1,20 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import Link from 'next/link';
 import {
   Bell,
-  Search,
-  User,
-  Menu,
-  ChevronDown,
   LayoutDashboard,
-  Sun,
-  Moon,
   LogOut,
+  Menu,
+  Moon,
   Settings,
+  Sun,
+  User,
 } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Notification = {
   id: string;
@@ -61,10 +59,13 @@ export default function AdminHeader({
             .select('id, full_name')
             .in('id', userIds as any[]);
           if (Array.isArray(profiles)) {
-            profilesMap = profiles.reduce((acc: any, p: any) => {
-              acc[p.id] = p.full_name || '';
-              return acc;
-            }, {} as Record<string, string>);
+            profilesMap = profiles.reduce(
+              (acc: any, p: any) => {
+                acc[p.id] = p.full_name || '';
+                return acc;
+              },
+              {} as Record<string, string>
+            );
           }
         } catch (e) {
           // ignore and fallback to ids
@@ -141,9 +142,9 @@ export default function AdminHeader({
     try {
       if (typeof window !== 'undefined') {
         if (navigator?.serviceWorker?.getRegistrations) {
-          navigator.serviceWorker.getRegistrations().then((regs) =>
-            regs.forEach((r) => r.unregister())
-          );
+          navigator.serviceWorker
+            .getRegistrations()
+            .then((regs) => regs.forEach((r) => r.unregister()));
         }
       }
     } catch (e) {

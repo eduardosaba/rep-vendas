@@ -1,18 +1,17 @@
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import ExportTriggerButton from '@/components/dashboard/ExportTriggerButton';
+import { ProductsTable } from '@/components/dashboard/ProductsTable';
+import { Button } from '@/components/ui/button'; // Usando nosso componente padronizado
 import { getActiveUserId } from '@/lib/auth-utils';
 import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
-import { ProductsTable } from '@/components/dashboard/ProductsTable';
+import { createClient } from '@/lib/supabase/server';
 import {
+  Box,
+  DollarSign,
   FileSpreadsheet,
   Image as ImageIcon,
-  DollarSign,
-  Plus,
-  Box,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button'; // Usando nosso componente padronizado
-import ExportTriggerButton from '@/components/dashboard/ExportTriggerButton';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 // SyncProgressBanner removido — banner não exibido nesta página
 
 // 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA
@@ -46,11 +45,11 @@ export default async function ProductsPage() {
   const roleStr = (profile?.role || '').toString().toLowerCase();
   const isAdmin = roleStr.includes('master') || roleStr.includes('admin');
 
-  // Informações de autorização (sem debug tag)
-  try {
-    console.log('activeUserId=', activeUserId, 'profileRole=', profile?.role, 'roleStr=', roleStr, 'isAdmin=', isAdmin);
-  } catch (e) {
-    // noop
+  // Debug seguro: apenas em desenvolvimento mostramos informação resumida
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      `[DEBUG] Usuário é Admin: ${isAdmin} | Limite definido: ${maxLimit}`
+    );
   }
 
   if (isAdmin) {
@@ -80,11 +79,6 @@ export default async function ProductsPage() {
     }
   }
 
-  // debug visibility
-  console.log(
-    `[DEBUG] Usuário é Admin: ${isAdmin} | Limite definido: ${maxLimit}`
-  );
-
   // 3. Query de Produtos (usar range sempre para honrar maxLimit)
   // Select only the fields needed for listing to reduce payload and query time
   const query = supabase
@@ -100,7 +94,13 @@ export default async function ProductsPage() {
   const { data: products, error, count } = await query;
 
   if (products && products.length >= maxLimit) {
-    console.warn('produtos retornados (' + products.length + ") >= maxLimit (" + maxLimit + "). Considere paginar.");
+    console.warn(
+      'produtos retornados (' +
+        products.length +
+        ') >= maxLimit (' +
+        maxLimit +
+        '). Considere paginar.'
+    );
   }
 
   if (error) {
@@ -138,7 +138,8 @@ export default async function ProductsPage() {
         if (first?.variants && Array.isArray(first.variants)) {
           const vv = first.variants.find((v: any) => v.size === 480);
           if (vv?.url) return { ...p, thumbnail: vv.url };
-          if (first.variants[0]?.url) return { ...p, thumbnail: ensure480(first.variants[0].url) };
+          if (first.variants[0]?.url)
+            return { ...p, thumbnail: ensure480(first.variants[0].url) };
         }
         if (first?.url) return { ...p, thumbnail: ensure480(first.url) };
       }
@@ -170,7 +171,8 @@ export default async function ProductsPage() {
     (p: any) => p.image_path
   ).length;
   const productsWithExternalImages = safeProducts.filter(
-    (p: any) => !p.image_path && (p.image_url || p.external_image_url || p.images)
+    (p: any) =>
+      !p.image_path && (p.image_url || p.external_image_url || p.images)
   ).length;
   const optimizationRate =
     totalProducts > 0
@@ -188,8 +190,8 @@ export default async function ProductsPage() {
             Produtos
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Gerencie seu catálogo completo ({totalProducts} itens)
-            </p>
+            Gerencie seu catálogo completo ({totalProducts} itens)
+          </p>
         </div>
 
         {/* Barra de Ferramentas */}
@@ -237,7 +239,7 @@ export default async function ProductsPage() {
         </div>
       </div>
       {/* Envolvemos em um container com borda e fundo para o tema */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
         {/* Se o catálogo for grande, ativamos paginação server-side para não carregar milhares de linhas */}
         <ProductsTable
           initialProducts={totalProducts > 1000 ? [] : withThumbnails}

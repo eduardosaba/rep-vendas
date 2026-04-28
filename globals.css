@@ -146,13 +146,21 @@ body {
 
 /* Carousel marquee global styles (stable on mobile) */
 @keyframes rv-marquee-infinite {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 @keyframes progress-stripe {
-  from { background-position: 0 0; }
-  to { background-position: 20px 0; }
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 20px 0;
+  }
 }
 
 .animate-marquee {
@@ -176,8 +184,12 @@ body {
 
 /* Progress bar stripe animation used by the master-sync progress UI */
 @keyframes progress-stripe {
-  from { background-position: 0 0; }
-  to { background-position: 20px 0; }
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 20px 0;
+  }
 }
 
 /* Theme helper utilities used by the ThemeLayout to apply company branding
@@ -210,4 +222,3 @@ body {
 .prose a:hover {
   text-decoration: underline;
 }
-

@@ -43,9 +43,9 @@ export interface Product {
   image_url?: string | null;
   image_path?: string | null; // Caminho no Supabase Storage
   external_image_url?: string | null;
-  images?: string[]; // Galeria adicional
+  images?: any[]; // Galeria adicional (pode conter objetos ou URLs)
   linked_images?: string[]; // URLs vinculadas/importadas (nova coluna)
-  image_variants?: Array<{ size: number; path: string; url?: string }> | null; // Variantes responsivas (480w, 1200w)
+  image_variants?: ImageVariant[] | null; // Variantes responsivas (480w, 1200w)
   sync_status?: 'pending' | 'synced' | 'failed' | null;
   sync_error?: string | null;
   product_images?: { id: string; url: string; sync_status: string }[]; // Nova estrutura de galeria
@@ -55,14 +55,38 @@ export interface Product {
   category_id?: string | null;
   is_active?: boolean;
   is_best_seller?: boolean;
+  // legacy / alternate spellings
+  best_seller?: boolean | null;
+  is_bestseller?: boolean | null;
   // legacy / convenience
   bestseller?: boolean;
   is_launch?: boolean;
+  // alternate / legacy flags
+  launch?: boolean | null;
+  isNew?: boolean | null;
 
   // Dados Técnicos
   technical_specs?: string | Record<string, any> | null;
   stock_quantity?: number;
   color?: string | null;
+  // Óptica / materiais
+  material?: string | null;
+  // Preço de custo/compra
+  cost?: number | null;
+  // Polarização / fotocromático - várias formas possíveis nas bases de dados
+  polarized?: boolean | null;
+  polarizado?: boolean | null;
+  is_polarized?: boolean | null;
+  fotocromatico?: boolean | null;
+  photochromic?: boolean | null;
+  // featured/destaque legacy flags
+  is_featured?: boolean | null;
+  featured?: boolean | null;
+  destaque?: boolean | null;
+  // Indica destaque manual do produto
+  is_destaque?: boolean | null;
+  // Miniatura rápida (pode ser gerada por pipeline de imagens)
+  thumbnail?: string | null;
   gender?: 'feminino' | 'masculino' | 'teen' | 'unisex' | null;
 
   created_at?: string;
@@ -72,8 +96,10 @@ export interface Product {
 // --- IMAGENS / VARIANTES ---
 export interface ImageVariant {
   size: number;
-  url: string;
-  path: string | null;
+  url?: string;
+  path?: string | null;
+  // storage_path used by older sync pipelines
+  storage_path?: string | null;
 }
 
 export interface ImageMetadata {
