@@ -408,6 +408,14 @@ export function ProductsTable({
     fetchAggregateKpis();
   }, [fetchAggregateKpis]);
 
+  // Force an aggregate fetch whenever serverMode becomes active or userId changes.
+  // This ensures KPIs are refreshed immediately after the user enables server-side filtering.
+  useEffect(() => {
+    if (serverMode) {
+      fetchAggregateKpis();
+    }
+  }, [serverMode, userId, fetchAggregateKpis]);
+
   // Seleção e Modais
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
