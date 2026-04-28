@@ -1132,7 +1132,14 @@ export function ProductsTable({
   };
 
   const processedProducts = useMemo(() => {
-    if (serverMode) return serverProducts;
+    // Em serverMode, `serverProducts` contém apenas a página atual.
+    // Para evitar que KPIs sejam calculados sobre uma página vazia
+    // enquanto a agregação do servidor (`kpisState`) não estiver pronta,
+    // preferimos usar o `products` inicial como fallback.
+    if (serverMode)
+      return serverProducts && serverProducts.length > 0
+        ? serverProducts
+        : products;
     const data = products.filter((p) => {
       const search = (searchTerm || '').trim();
 
