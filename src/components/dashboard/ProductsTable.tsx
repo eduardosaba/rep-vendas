@@ -219,7 +219,7 @@ interface ProductsTableProps {
 
 export function ProductsTable({
   initialProducts,
-  serverModeDefault,
+  serverModeDefault = true,
   initialTotalCount,
 }: ProductsTableProps) {
   // Component implementation
@@ -276,7 +276,9 @@ export function ProductsTable({
   }, [filters]);
 
   // Server-side filtering mode
-  const [serverMode, setServerMode] = useState<boolean>(!!serverModeDefault);
+  const [serverMode, setServerMode] = useState<boolean>(
+    Boolean(serverModeDefault)
+  );
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [serverMeta, setServerMeta] = useState<{
     totalCount?: number;

@@ -1,5 +1,6 @@
 ignoredBuiltDependencies:
   - '@firebase/util'
+  - '@sentry/cli'
   - core-js
   - protobufjs
   - puppeteer
