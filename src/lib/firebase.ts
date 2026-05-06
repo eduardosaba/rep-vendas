@@ -37,9 +37,17 @@ function isLikelyValidVapidKey(vapidKey: string): boolean {
 
 // Inicializa o app no cliente (se ainda não inicializado)
 if (typeof window !== 'undefined') {
-  if (!firebaseConfig.projectId) {
+  const requiredKeys = [
+    'apiKey',
+    'projectId',
+    'messagingSenderId',
+    'appId',
+  ];
+
+  const missing = requiredKeys.filter((k) => !firebaseConfig[k as keyof typeof firebaseConfig]);
+  if (missing.length) {
     console.warn(
-      '[firebase] NEXT_PUBLIC_FIREBASE_PROJECT_ID is missing — messaging disabled'
+      `[firebase] missing config: ${missing.join(', ')} — messaging disabled`
     );
   } else {
     try {

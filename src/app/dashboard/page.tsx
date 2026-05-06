@@ -219,7 +219,6 @@ export default async function DashboardPage({
 
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <DateFilter currentRange={range} />
-          {profile.data && !profile.data.notifications_enabled && <NotificationsCTA userId={activeUserId} />}
 
           {settings.data?.catalog_slug && (
             <div className="flex flex-col items-end gap-1">
@@ -240,6 +239,12 @@ export default async function DashboardPage({
           )}
         </div>
       </header>
+
+      {profile.data && (
+        <div className="mb-8">
+          <NotificationsCTA userId={activeUserId} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard

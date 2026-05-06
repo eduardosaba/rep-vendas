@@ -448,48 +448,43 @@ export function StoreProvider({
   // Contador global de imagens pendentes (diagnóstico)
   const [pendingImagesCount, setPendingImagesCount] = useState<number>(0);
 
+  // 1. Otimização da função de Diagnóstico de Imagens
+// 1. Otimização da função de Diagnóstico de Imagens (Refatorada)
   const refreshPendingImages = useCallback(async () => {
     try {
-      // Try to include auth token if available (endpoint may be protected)
-      // Only call diagnostics if we have a session token (avoid 401 noise on public storefront)
-      let session: any = null;
-      try {
-        session = await supabase.auth.getSession();
-      } catch (e) {
-        session = null;
-      }
+      if (!store.user_id) return;
 
-      const token = session?.data?.session?.access_token;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      // Só chama se houver um token (evita ruído no catálogo público)
       if (!token) {
-        // No authenticated session available — skip diagnostics on public storefront
         setPendingImagesCount(0);
         return;
       }
 
-      const headers: any = {
-        'content-type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      };
+      const res = await fetch('/api/pending-external-images', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-      // `/api/pending-external-images` já fornece a lista de imagens externas pendentes
-      const res = await fetch('/api/pending-external-images', { headers });
-      if (!res.ok) {
-        // ignore other errors but don't leave stale counts
-        setPendingImagesCount(0);
-        return;
+      if (res.ok) {
+        const j = await res.json();
+        setPendingImagesCount(Number(j.total_external || 0));
       }
-      const j = await res.json();
-      setPendingImagesCount(Number(j.total_external || 0));
     } catch (e) {
-      // ignore
+      // Falha silenciosa para não travar o log
     }
   }, [store.user_id, supabase]);
 
+  // 2. Efeito de monitoramento
   useEffect(() => {
     refreshPendingImages();
-    const t = setInterval(() => refreshPendingImages(), 1000 * 60 * 5);
+    const t = setInterval(() => refreshPendingImages(), 1000 * 60 * 5); // 5 min
     return () => clearInterval(t);
-  }, [refreshPendingImages, store.user_id]);
+  }, [refreshPendingImages]);
 
   // LOGIN INVISÍVEL: estado para armazenar dados do cliente reconhecido
   const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(

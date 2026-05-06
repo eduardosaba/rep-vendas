@@ -160,7 +160,7 @@ export default function DashboardLayout({
           />
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin">
-            <div className="max-w-7xl mx-auto pb-20">
+            <div className="max-w-7xl mx-auto pb-10">
               {/* Impersonation banner (client-side check) */}
               <div id="impersonate-banner-root" />
               {children}

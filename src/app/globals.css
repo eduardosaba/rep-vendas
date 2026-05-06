@@ -242,3 +242,37 @@ body {
     background-color: var(--secondary) !important;
   }
 }
+
+/* 
+   Utilitários para Carrossel Arrastável (Mobile & Desktop)
+   - Adicione a classe 'scrollbar-hide' ao container flex das marcas
+*/
+
+@layer utilities {
+  /* Esconde a barra de rolagem mas mantém a funcionalidade de scroll/arraste */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE e Edge */
+    scrollbar-width: none;    /* Firefox */
+  }
+
+  /* Melhora a captura do toque horizontal no mobile */
+  .touch-pan-x {
+    touch-action: pan-x;
+  }
+}
+
+/* 
+   Suporte para o efeito de "encaixe" (Scroll Snap)
+   Garante que ao arrastar, a marca pare centralizada/alinhada
+*/
+.snap-x {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-center {
+  scroll-snap-align: center;
+}

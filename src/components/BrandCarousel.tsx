@@ -34,16 +34,25 @@ export function BrandCarousel() {
   if (brands.length === 0) return null;
 
   return (
-    // FIX 1: Removido 'hidden', garantindo visibilidade no Mobile e Desktop
     <div className="w-full py-6 bg-white border-y border-gray-100 mb-6 block">
       <div className="container mx-auto px-4">
         <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-4">
           Nossas Marcas
         </p>
 
-        <div className="flex items-center gap-8 overflow-x-auto pb-2 scrollbar-hide">
-          {brands.map((brand) => (
-            <BrandItem key={brand.name} brand={brand} />
+        {/* 
+            AJUSTES NO CONTAINER:
+            1. snap-x + snap-mandatory: Faz com que a marca "pare" centralizada ao arrastar.
+            2. scroll-smooth: Suaviza o movimento.
+            3. touch-pan-x: Melhora a captura do gesto no mobile.
+        */}
+        <div className="flex items-center gap-8 overflow-x-auto pb-4 scrollbar-hide snap-x snap-proximity touch-pan-x active:cursor-grabbing cursor-grab">
+  {/* Renderizamos as marcas. Dica: se tiver poucas (menos de 5), 
+      pode duplicar a lista [...brands, ...brands] para preencher a tela */}
+  {brands.map((brand, index) => (
+    <div key={`${brand.name}-${index}`} className="snap-center shrink-0">
+      <BrandItem brand={brand} />
+            </div>
           ))}
         </div>
       </div>

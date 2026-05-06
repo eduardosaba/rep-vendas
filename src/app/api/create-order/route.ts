@@ -68,6 +68,26 @@ export async function POST(req: Request) {
       });
       return NextResponse.json(result, { status: 500 });
     }
+    // Fire-and-forget call to Edge Function to notify vendor (non-blocking)
+    // Notificações desativadas temporariamente para garantir estabilidade do banco
+    /*
+    try {
+      const fnUrl = process.env.SEND_ORDER_NOTIFICATION_URL || process.env.SUPABASE_FUNCTIONS_URL || '';
+      const secret = process.env.PROJECT_WEBHOOK_SECRET || '';
+      if (fnUrl) {
+        fetch(fnUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(secret ? { 'x-project-secret': secret } : {}),
+          },
+          body: JSON.stringify({ new: (result as any).order || (result as any).data || result }),
+        }).catch((e) => console.warn('send-order-notification fire-and-forget failed', e));
+      }
+    } catch (e) {
+      console.warn('Failed to trigger send-order-notification (non-blocking)', e);
+    }
+*/
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('create-order route error', { error });

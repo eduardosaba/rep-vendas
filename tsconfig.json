@@ -37,6 +37,8 @@
   ],
   "exclude": [
     "node_modules",
+    "supabase/functions/**",
+    "examples/**",
     ".next",
     "docs/**",
     "scripts/**",

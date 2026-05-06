@@ -5,6 +5,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { mapToDbStatus } from '@/lib/orderStatus';
 import { decreaseStock } from '@/lib/products';
+import { sendOrderNotification } from '@/app/actions/notifications';
 
 export async function createOrder(
   ownerId: string,
@@ -533,6 +534,17 @@ export async function createOrder(
           }
         }
       }
+    }
+
+    // 6. Disparar notificação (não bloqueante)
+    try {
+      void sendOrderNotification(effectiveOwnerId, {
+        cliente: customer.name,
+        valor: String(orderPayload.total_value ?? ''),
+        id: order.id,
+      });
+    } catch (e) {
+      console.error('createOrder - notify error', e);
     }
 
     revalidatePath('/dashboard');

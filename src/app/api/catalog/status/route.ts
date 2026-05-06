@@ -10,9 +10,21 @@ function getAdminSupabase() {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    // 1. Tenta ler o texto primeiro para validar se não está vazio
+    const rawBody = await req.text();
+    
+    if (!rawBody) {
+      console.warn('[catalog/status] Requisição com corpo vazio recebida.');
+      return NextResponse.json({ ok: false, error: 'Empty body' }, { status: 400 });
+    }
+
+    // 2. Agora sim, faz o parse manual
+    const body = JSON.parse(rawBody);
     const userId = body?.userId;
-    if (!userId) return NextResponse.json({ ok: false, error: 'Missing userId' }, { status: 400 });
+    
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: 'Missing userId' }, { status: 400 });
+    }
 
     const admin = getAdminSupabase();
     if (!admin) return NextResponse.json({ ok: false, error: 'Service role not configured' }, { status: 500 });
