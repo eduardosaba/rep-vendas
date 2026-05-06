@@ -46,15 +46,13 @@ export function BrandCarousel() {
             2. scroll-smooth: Suaviza o movimento.
             3. touch-pan-x: Melhora a captura do gesto no mobile.
         */}
-        <div className="flex items-center gap-8 overflow-x-auto pb-4 scrollbar-hide snap-x snap-proximity touch-pan-x active:cursor-grabbing cursor-grab">
-  {/* Renderizamos as marcas. Dica: se tiver poucas (menos de 5), 
-      pode duplicar a lista [...brands, ...brands] para preencher a tela */}
+        <div className="flex items-center gap-8 overflow-x-auto pb-4 scrollbar-hide snap-x snap-proximity touch-pan-x select-none cursor-grab active:cursor-grabbing">
   {brands.map((brand, index) => (
     <div key={`${brand.name}-${index}`} className="snap-center shrink-0">
       <BrandItem brand={brand} />
-            </div>
-          ))}
-        </div>
+    </div>
+  ))}
+</div>
       </div>
     </div>
   );
@@ -65,19 +63,18 @@ function BrandItem({ brand }: { brand: { name: string; logoPath: string } }) {
   const [imageError, setImageError] = useState(false);
 
   return (
-    <div className="flex-shrink-0 group transition-all opacity-60 hover:opacity-100 grayscale hover:grayscale-0">
-      {/* FIX 2: Altura fixa (h-8 mobile / h-12 desktop) para garantir que apareça */}
+    <div className="flex-shrink-0 pointer-events-none"> {/* O segredo está aqui */}
       <div className="h-8 md:h-12 flex items-center justify-center min-w-[80px]">
         {!imageError ? (
           <img
             src={brand.logoPath}
             alt={brand.name}
-            className="h-full w-auto object-contain max-w-[140px]"
+            className="h-full w-auto object-contain max-w-[140px] select-none"
             onError={() => setImageError(true)}
+            draggable={false} // Impede o navegador de tentar arrastar o arquivo da imagem
           />
         ) : (
-          // Fallback: Se a logo não existir, mostra o Nome da Marca estilizado
-          <span className="text-sm md:text-base font-bold text-gray-400 group-hover:text-gray-600 whitespace-nowrap px-2">
+          <span className="text-sm md:text-base font-bold text-gray-400 whitespace-nowrap px-2 select-none">
             {brand.name}
           </span>
         )}
