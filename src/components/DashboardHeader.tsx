@@ -1,482 +1,195 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
-import Link from 'next/link';
 import {
-  Bell,
-  Search,
-  User,
-  Menu,
-  ChevronDown,
-  Sun,
-  Moon,
-  LogOut,
+  BarChart2,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Cpu,
+  CreditCard,
+  HelpCircle,
+  History,
+  Image as ImageIcon,
+  LayoutDashboard,
+  Package,
+  Percent,
+  Rocket,
   Settings,
-  Store,
+  ShieldAlert,
+  ShieldCheck,
+  ShoppingBag,
+  ToggleLeft,
+  Users,
 } from 'lucide-react';
-import DevForceLogout from './DevForceLogout';
-import Image from 'next/image';
-import { SYSTEM_LOGO_URL } from '@/lib/constants';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
 
-// Interface para tipar o pedido corretamente com o JOIN de clientes
-interface NotificationOrder {
-  id: string;
-  client_name_guest?: string;
-  total_value: number;
-  created_at: string;
-  display_id: number;
-  // Adicionado para suportar cliente cadastrado
-  clients?: {
-    name: string;
-  } | null;
+interface AdminSidebarProps {
+  isCollapsed: boolean;
+  setIsCollapsed: (val: boolean) => void;
 }
 
-export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
-  const router = useRouter();
-  const { theme, setTheme } = useTheme();
-
-  // Estados
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [storeName, setStoreName] = useState('Painel de Controle');
-  const [catalogSlug, setCatalogSlug] = useState('');
-  const [storeLogo, setStoreLogo] = useState<string | null>(null);
-
-  // Estado tipado
-  const [notifications, setNotifications] = useState<NotificationOrder[]>([]);
-
-  // UI
+export default function AdminSidebar({
+  isCollapsed,
+  setIsCollapsed,
+}: AdminSidebarProps) {
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-
-  const menuRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
-
+  const [userRole, setUserRole] = useState<string | null>(null);
   const supabase = createClient();
 
-  // Função para buscar notificações do banco (pedidos pendentes)
-  const fetchNotifications = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // CORREÇÃO: Adicionado 'clients(name)' para buscar nome de cadastrados
-    const { data } = await supabase
-      .from('orders')
-      .select(
-        'id, client_name_guest, total_value, created_at, display_id, clients(name)'
-      )
-      .eq('user_id', user.id)
-      .eq('status', 'Pendente')
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (data) setNotifications(data as any);
-  };
-
-  // 1. Carregar Dados Iniciais
   useEffect(() => {
-    let profileChannel: ReturnType<typeof supabase.channel> | null = null;
-    let settingsChannel: ReturnType<typeof supabase.channel> | null = null;
+    setMounted(true);
+  }, []);
 
-    const getData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || '');
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-        // Buscar avatar
         const { data: profile } = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('role')
           .eq('id', user.id)
           .maybeSingle();
 
-        const avatarUrl =
-          profile?.avatar_url || user.user_metadata?.avatar_url || null;
-        setUserAvatar(avatarUrl);
-
-        // Buscar configurações
-        const { data: settings } = await supabase
-          .from('settings')
-          .select('name, catalog_slug, logo_url')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (settings) {
-          if (settings.name) setStoreName(settings.name);
-          if (settings.catalog_slug) setCatalogSlug(settings.catalog_slug);
-          if (settings.logo_url) setStoreLogo(settings.logo_url);
-        }
-
-        fetchNotifications();
-
-        // Listener Profile
-        profileChannel = supabase
-          .channel(`profile-changes-${user.id}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'profiles',
-              filter: `id=eq.${user.id}`,
-            },
-            (payload: { new: { avatar_url?: string | null } }) => {
-              const newAvatarUrl = payload.new?.avatar_url;
-              if (newAvatarUrl !== undefined) {
-                setUserAvatar(newAvatarUrl || null);
-              }
-            }
-          )
-          .subscribe();
-
-        // Listener Settings
-        settingsChannel = supabase
-          .channel(`settings-changes-${user.id}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'settings',
-              filter: `user_id=eq.${user.id}`,
-            },
-            (payload: {
-              new: {
-                logo_url?: string | null;
-                name?: string;
-                catalog_slug?: string;
-              };
-            }) => {
-              if (payload.new?.logo_url !== undefined) {
-                setStoreLogo(payload.new.logo_url || null);
-              }
-              if (payload.new?.name) {
-                setStoreName(payload.new.name);
-              }
-              if (payload.new?.catalog_slug !== undefined) {
-                setCatalogSlug(payload.new.catalog_slug || '');
-              }
-            }
-          )
-          .subscribe();
+        if (isMounted) setUserRole(profile?.role || null);
+      } catch (err) {
+        console.error("Erro ao buscar role:", err);
       }
     };
 
-    setMounted(true);
-    getData();
+    fetchRole();
+    return () => { isMounted = false; };
+  }, [supabase]);
 
-    return () => {
-      if (profileChannel) supabase.removeChannel(profileChannel);
-      if (settingsChannel) supabase.removeChannel(settingsChannel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 3. Listener Realtime para pedidos pendentes
-  useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const setupRealtime = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      channel = supabase
-        .channel('dashboard-orders')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'orders',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            // Ao receber novo pedido, busca novamente para trazer o JOIN atualizado
-            fetchNotifications();
-          }
-        )
-        .subscribe();
-    };
-
-    setupRealtime();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 4. Fechar ao clicar fora
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node))
-        setIsMenuOpen(false);
-      if (notifRef.current && !notifRef.current.contains(event.target as Node))
-        setIsNotifOpen(false);
-    };
-    if (typeof document !== 'undefined') {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () =>
-        document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, []);
-
-  const handleLogout = async () => {
+  const handleOpenDashboard = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
     try {
-      await supabase.auth.signOut();
+      const supResp = await fetch('/api/auth/session').catch(() => null);
+      if (supResp && supResp.ok) {
+        const supJson = await supResp.json().catch(() => ({}));
+        const token = supJson?.access_token || null;
+
+        if (token) {
+          await fetch('/api/admin/impersonate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({}),
+          }).catch(() => null);
+        }
+      }
     } catch (err) {
-      console.error('Logout error', err);
+      console.error('Erro ao processar impersonate:', err);
+    } finally {
+      window.open('/dashboard', '_blank', 'noopener');
     }
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch (e) {
-      /* ignore */
-    }
-    try {
-      if (typeof window !== 'undefined') {
-        if (navigator?.serviceWorker?.getRegistrations) {
-          navigator.serviceWorker.getRegistrations().then((regs) =>
-            regs.forEach((r) => r.unregister())
-          );
-        }
-      }
-    } catch (e) {
-      /* ignore */
-    }
-    if (typeof window !== 'undefined') window.location.href = '/login';
-  };
+  }, []);
 
-  const getInitials = (email: string) =>
-    email ? email.substring(0, 2).toUpperCase() : 'US';
-  const unreadCount = notifications.length;
+  // Lista de itens restaurada (Item 1)
+  const menuItems = [
+    { label: 'Visão Geral', href: '/admin', icon: LayoutDashboard, exact: true },
+    { label: 'Editar Experiência', href: '/admin/configuracoes/catalogo', icon: ImageIcon },
+    { label: 'Usuários', href: '/admin/users', icon: Users },
+    { label: 'Distribuidores', href: '/admin/companies', icon: Users },
+    { label: 'Pedidos B2B', href: '/admin/distribuidora/pedidos', icon: ShoppingBag },
+    { label: 'Assinaturas', href: '/admin/licenses', icon: CreditCard },
+    { label: 'Fechamento Mensal', href: '/admin/financeiro/fechamento', icon: Percent },
+    { label: 'Clonar Catálogo', href: '/admin/clone-user', icon: Copy },
+    { label: 'Auditoria de Sinc.', href: '/admin/sync-logs', icon: History },
+    { label: 'Sincronizador Master', href: '/admin/products/master-sync', icon: ShieldCheck },
+    { label: 'Auditoria Catalogo', href: '/admin/audit', icon: ImageIcon },
+    { label: 'Status Importação', href: '/admin/import-status', icon: BarChart2 },
+    { label: 'Planos & Preços', href: '/admin/plans', icon: Package },
+    { label: 'Matriz de Recursos', href: '/admin/plans/features', icon: ShieldCheck },
+    { label: 'Controle de Features', href: '/admin/features', icon: ToggleLeft },
+    { label: 'Métricas Globais', href: '/admin/metrics', icon: BarChart2 },
+    { label: 'Curadoria de Dados', href: '/admin/curadoria', icon: ShieldCheck },
+    { label: 'Torre de Controle', href: '/admin/clear', icon: Cpu },
+    { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
+    { label: 'Auditoria de Erro', href: '/admin/error-logs', icon: ShieldAlert },
+    { label: 'Novidades', href: '/admin/updates', icon: Rocket },
+    { label: 'Configurações', href: '/admin/settings', icon: Settings },
+  ];
 
-  if (!mounted)
-    return <div className="h-20 border-b bg-white dark:bg-slate-950" />;
+  if (!mounted) return null;
 
   return (
-    <header className="sticky top-0 z-20 flex h-20 w-full items-center justify-between border-b bg-white/80 backdrop-blur-md px-6 transition-colors dark:bg-slate-950/80 dark:border-slate-800">
-      {/* Esquerda: Logo e Título */}
-      <div className="flex items-center gap-4">
-        {/* Botão Hamburger para Mobile */}
-        <button
-          onClick={onMenuClick}
-          className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800 rounded-lg transition-colors"
-        >
-          <Menu size={20} />
-        </button>
-        {/* Logo do usuário ou sistema */}
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-28 relative">
-            <Image
-              src={storeLogo || SYSTEM_LOGO_URL}
-              alt={storeName}
-              width={112}
-              height={40}
-              className="object-contain object-left"
-              style={{ height: 'auto' }}
-              sizes="(max-width: 768px) 100px, 120px"
-              priority
-            />
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-white dark:bg-slate-950 transition-all duration-300 border-r border-gray-200 dark:border-slate-800 lg:relative ${
+        isCollapsed ? '-translate-x-full lg:translate-x-0 lg:w-20' : 'translate-x-0 w-64'
+      }`}
+    >
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="hidden lg:flex absolute -right-3 top-8 h-6 w-6 items-center justify-center rounded-full border shadow-sm z-50 bg-white border-gray-200 text-gray-500 hover:text-primary dark:bg-slate-800 dark:border-gray-700"
+      >
+        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+      </button>
+
+      <div className="flex h-16 items-center justify-center border-b px-4 dark:border-slate-800">
+        {isCollapsed ? (
+          <span className="font-black text-xl text-primary">T</span>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <div className="flex flex-col">
+              <span className="font-black text-lg tracking-tight dark:text-white">TORRE<span className="text-primary">.</span></span>
+              <span className="text-[9px] font-black uppercase text-slate-400">Admin Master</span>
+            </div>
+            <button onClick={handleOpenDashboard} className="text-primary p-1 rounded hover:bg-primary/5">
+              <LayoutDashboard size={18} />
+            </button>
           </div>
-          <h1 className="text-xl font-bold text-gray-800 dark:text-white hidden sm:block truncate max-w-[200px]">
-            {storeName}
-          </h1>
-        </div>
-      </div>
-
-      {/* Direita: Ações */}
-      <div className="flex items-center gap-3">
-        {/* Busca Global */}
-        <div className="hidden md:block relative group mr-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[var(--primary)] transition-colors" />
-          <input
-            type="text"
-            placeholder="Buscar..."
-            className="h-10 w-64 rounded-full border border-gray-200 bg-gray-50 pl-10 pr-4 text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-opacity-20 dark:border-slate-800 dark:bg-slate-900 dark:text-white transition-all"
-          />
-        </div>
-
-        <button
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="p-2 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
-        >
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
-
-        {((process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === 'true') || process.env.NODE_ENV === 'development') && (
-          <DevForceLogout />
         )}
+      </div>
 
-        {/* Notificações (Sininho) */}
-        <div className="relative" ref={notifRef}>
+      <nav className="flex-1 space-y-1 p-3 overflow-y-auto custom-scrollbar">
+        {menuItems.map((item) => {
+          const isActive = item.exact ? pathname === item.href : pathname?.startsWith(item.href);
+          const Icon = item.icon;
+          return (
+            <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'bg-primary/10 text-primary ring-1 ring-primary/10' : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+              <Icon size={18} className={isActive ? 'text-primary' : ''} />
+              {!isCollapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          );
+        })}
+
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 space-y-2">
           <button
-            onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full dark:text-slate-400 dark:hover:bg-slate-800 transition-colors relative"
+            onClick={handleOpenDashboard}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 ${isCollapsed ? 'justify-center' : ''}`}
           >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute top-2 right-2.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-950"></span>
-            )}
+            <LayoutDashboard size={18} />
+            {!isCollapsed && <span>Abrir Dashboard</span>}
           </button>
-
-          {isNotifOpen && (
-            <div className="fixed md:absolute left-4 right-4 md:left-auto md:right-0 top-20 md:top-full mt-0 md:mt-3 w-auto md:w-80 max-w-sm mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top z-50">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
-                <p className="text-sm font-bold text-gray-900 dark:text-white">
-                  Pedidos Pendentes
-                </p>
-                {notifications.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setIsNotifOpen(false);
-                      // Redireciona para a lista de pedidos, que é mais útil que a lista de notificações estática
-                      router.push('/dashboard/orders?status=pending');
-                    }}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Ver todos
-                  </button>
-                )}
-              </div>
-
-              <div className="max-h-[300px] overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-gray-500 dark:text-slate-400">
-                    Nenhum pedido pendente.
-                  </div>
-                ) : (
-                  notifications.map((order) => {
-                    // LÓGICA DE NOME: Prioriza cadastro > Visitante > Padrão
-                    const clientName =
-                      order.clients?.name ||
-                      order.client_name_guest ||
-                      'Cliente';
-
-                    return (
-                      <div
-                        key={order.id}
-                        onClick={() => {
-                          setIsNotifOpen(false);
-                          router.push(`/dashboard/orders/${order.id}`); // Link direto para detalhes
-                        }}
-                        className="px-4 py-3 border-b border-gray-50 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex justify-between items-start mb-1">
-                          <p className="text-sm font-medium text-primary dark:text-primary">
-                            Pedido #{order.display_id}
-                          </p>
-                          <span className="text-[10px] text-gray-400">
-                            {new Date(order.created_at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-700 dark:text-slate-300 font-medium">
-                          {clientName}
-                        </p>
-                        <p className="text-xs text-green-600 dark:text-green-400 font-bold mt-1">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(order.total_value || 0)}
-                        </p>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
         </div>
+      </nav>
 
-        <div className="h-8 w-px bg-gray-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
-
-        {/* User Menu */}
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex items-center gap-3 cursor-pointer group focus:outline-none"
-          >
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-sm font-semibold text-gray-700 dark:text-white">
-                Minha Conta
-              </span>
-              <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate max-w-[100px]">
-                {userEmail}
-              </span>
-            </div>
-            <div className="relative h-10 w-10 rounded-full bg-[var(--primary)] bg-opacity-10 flex items-center justify-center text-[var(--primary)] border border-[var(--primary)] border-opacity-20 dark:bg-opacity-20 overflow-hidden">
-              {userAvatar ? (
-                <Image
-                  src={userAvatar}
-                  alt="Avatar"
-                  width={40}
-                  height={40}
-                  className="object-cover"
-                  style={{ height: 'auto' }}
-                />
-              ) : (
-                <span className="font-bold text-xs">
-                  {getInitials(userEmail)}
-                </span>
-              )}
-            </div>
-            <ChevronDown
-              size={14}
-              className={`text-gray-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {/* Dropdown Menu */}
-          {isMenuOpen && (
-            <div className="fixed md:absolute left-4 right-4 md:left-auto md:right-0 top-20 md:top-full mt-0 md:mt-3 w-auto md:w-56 max-w-sm mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 duration-100 z-50">
-              <div className="p-1">
-                <Link
-                  href="/dashboard/user"
-                  className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                >
-                  <User size={16} /> Meu Perfil
-                </Link>
-                <Link
-                  href="/dashboard/settings"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                >
-                  <Settings size={16} /> Configurações da Loja
-                </Link>
-                {catalogSlug && (
-                  <a
-                    href={`/catalogo/${catalogSlug}`}
-                    target="_blank"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2.5 text-sm text-primary dark:text-primary bg-primary/5 dark:bg-primary/10 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors my-1"
-                  >
-                    <Store size={16} /> Ver Minha Loja
-                  </a>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors"
-                >
-                  <LogOut size={16} /> Sair
-                </button>
-              </div>
+      {/* Rodapé com Logotipo Restaurado (Item 2) */}
+      <div className="border-t p-4 border-gray-100 dark:border-slate-800">
+        <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+          <img
+            src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
+            alt="RepVendas"
+            className="h-6 w-auto object-contain"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/images/default-logo.png'; }}
+          />
+          {!isCollapsed && (
+            <div className="flex flex-col text-[10px] font-bold uppercase text-slate-400">
+              <span className="text-slate-700 dark:text-slate-200">RepVendas</span>
+              <span>v1.0.0</span>
             </div>
           )}
         </div>
       </div>
-    </header>
+    </aside>
   );
 }

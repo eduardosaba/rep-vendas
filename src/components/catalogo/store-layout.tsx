@@ -18,6 +18,7 @@ import {
   Heart,
   Check,
   Home,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -1026,6 +1027,8 @@ export function CarouselBrands() {
   const { brandsWithLogos, selectedBrand, setSelectedBrand, brands } = useStore();
   const [isPaused, setIsPaused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  // ESTADO PARA O DROPDOWN CUSTOMIZADO
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 768);
@@ -1034,24 +1037,22 @@ export function CarouselBrands() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // If we don't have logos from the `brands` table, fall back to rendering
-  // the simple list of brand names from products so the UI remains usable.
   const effectiveBrands =
     brandsWithLogos && brandsWithLogos.length > 0
       ? brandsWithLogos
       : (brands || []).map((b: any) => ({ name: b, logo_url: null }));
+
   const memoBrands = useMemo(
     () => effectiveBrands,
     [JSON.stringify(effectiveBrands.map((b: any) => ({ name: b.name || '', logo: b.logo_url || '' })))]
   );
-  // Ensure toggleBrand hook is declared before any early returns
+
   const toggleBrand = useCallback(
     (brandName: string) => {
       if (brandName === 'all') {
         setSelectedBrand('all');
         return;
       }
-      // Single-selection: clicking a brand selects it, clicking again clears to 'all'
       const current = Array.isArray(selectedBrand)
         ? selectedBrand[0]
         : selectedBrand && selectedBrand !== 'all'
@@ -1084,20 +1085,77 @@ export function CarouselBrands() {
     }
   }
 
-  // Animate on mobile when there are 2 or more brands so movement feels consistent
   const shouldAnimate = isMobile && memoBrands.length >= 2;
-  // On mobile we duplicate/triplicate to ensure continuous loop; on desktop/tablet render once
   const itemsToRender = shouldAnimate
     ? [...memoBrands, ...memoBrands, ...memoBrands]
     : memoBrands;
   const durationSec = Math.max(18, Math.min(90, memoBrands.length * 6));
 
   return (
-    <div className="w-full border-t py-2 overflow-hidden relative bg-white touch-pan-y">
+    /* 1. Removemos o overflow-hidden daqui para o dropdown poder "vazar" para fora */
+    <div className="w-full border-t py-2 relative bg-white touch-pan-y z-[100]">
       <div className="w-full px-4 lg:px-8 flex items-center gap-6">
-        <span className="font-bold uppercase tracking-wide text-xs mr-3 flex-shrink-0">Marcas:</span>
+        
+        {/* TÍTULO COM DROPDOWN PREMIUM */}
+        <div className="relative flex-shrink-0">
+          <button 
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-1.5 bg-gray-50 md:bg-transparent px-2.5 py-1 rounded-full border md:border-0 border-gray-100 transition-all active:scale-95"
+          >
+            <span className="font-bold uppercase tracking-wide text-[10px] md:text-xs text-secondary whitespace-nowrap">
+              Marcas:
+            </span>
+            <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
 
-        <div className="flex-1 overflow-hidden">
+          {/* MENU DROPDOWN CUSTOMIZADO */}
+          {isDropdownOpen && (
+            <>
+              {/* Overlay com z-index alto */}
+              <div className="fixed inset-0 z-[160]" onClick={() => setIsDropdownOpen(false)} />
+              
+              <div className="absolute left-0 mt-3 w-64 max-h-[350px] overflow-y-auto bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 z-[170] py-2 animate-in fade-in zoom-in-95 duration-200 origin-top-left">
+                {/* ... conteúdo do map das marcas (mesmo do código anterior) ... */}
+                <button
+                  onClick={() => { setSelectedBrand('all'); setIsDropdownOpen(false); }}
+                  className="w-full text-left px-4 py-3 text-[11px] font-black uppercase tracking-wider hover:bg-gray-50 border-b border-gray-50 flex items-center justify-between"
+                >
+                  Todas as Marcas
+                  {selectedBrand === 'all' && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                </button>
+
+                {memoBrands.map((brand: any) => {
+                  const active = Array.isArray(selectedBrand) ? selectedBrand.includes(brand.name) : selectedBrand === brand.name;
+                  const logo = normalizeLogoSrc(brand.logo_url);
+                  return (
+                    <button
+                      key={`drop-${brand.name}`}
+                      onClick={() => { 
+                        setSelectedBrand(brand.name); 
+                        setIsDropdownOpen(false); 
+                      }}
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${active ? 'bg-primary/5' : ''}`}
+                    >
+                      <div className="w-10 h-7 flex items-center justify-center bg-white border border-gray-100 rounded-md p-0.5 shrink-0 overflow-hidden">
+                        {logo ? (
+                          <img src={logo} alt={brand.name} className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <span className="text-[7px] font-black text-gray-300 uppercase">{brand.name.substring(0,3)}</span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-bold truncate ${active ? 'text-primary' : 'text-gray-700'}`}>
+                        {brand.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 2. Mantemos o overflow-hidden APENAS aqui para o carrossel não vazar nas laterais */}
+        <div className="flex-1 overflow-hidden pointer-events-auto">
           <div
             className={`${shouldAnimate ? 'animate-marquee' : 'flex items-center gap-3'} ${isPaused ? 'paused' : ''}`}
             onMouseEnter={() => setIsPaused(true)}
@@ -1108,27 +1166,28 @@ export function CarouselBrands() {
           >
             {itemsToRender.map((brand: any, i: number) => {
               const active = Array.isArray(selectedBrand) ? selectedBrand.includes(brand.name) : selectedBrand === brand.name;
-              const src = normalizeLogoSrc(brand.logo_url);
-
-              // no-op
+              const src = brand.logo_url || brand.logoPath || null;
+              const finalSrc = normalizeLogoSrc(src);
 
               return (
                 <button
-                  key={`${brand.name}-${i}`}
+                  key={`brand-marquee-${brand.name}-${i}`}
                   onClick={() => toggleBrand(brand.name)}
                   className={`group relative flex h-12 w-[120px] md:w-[136px] items-center justify-center p-1 mx-3 transition-all duration-200 shrink-0 hover:scale-105 ${
                     active ? 'bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] rounded-lg' : ''
                   }`}
                 >
-                  {src ? (
+                  {finalSrc ? (
                     <img
-                      src={src}
+                      src={finalSrc}
                       alt={brand.name}
-                      loading="lazy"
-                      className="max-h-9 md:max-h-10 w-auto max-w-[92%] object-contain transition-all"
+                      loading="eager" 
+                      className="max-h-9 md:max-h-10 w-auto max-w-[92%] object-contain"
                     />
                   ) : (
-                    <span className={`px-3 text-xs font-bold whitespace-nowrap truncate max-w-full ${active ? 'text-[var(--primary)]' : 'text-gray-700'}`}>{brand.name}</span>
+                    <span className={`px-3 text-[10px] font-bold uppercase whitespace-nowrap ${active ? 'text-[var(--primary)]' : 'text-gray-500'}`}>
+                      {brand.name}
+                    </span>
                   )}
                 </button>
               );

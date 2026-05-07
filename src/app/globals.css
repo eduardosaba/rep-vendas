@@ -270,7 +270,8 @@ body {
    Garante que ao arrastar, a marca pare centralizada/alinhada
 */
 .snap-x {
-  scroll-snap-type: x mandatory;
+  scroll-snap-type: x proximity !important;
+  -webkit-overflow-scrolling: touch; /* Garante scroll com inércia no iOS/Safari */
 }
 
 .snap-center {
