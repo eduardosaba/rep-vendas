@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
         setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-          } catch {}
+          } catch { }
         },
       },
     }
@@ -51,11 +51,19 @@ export async function middleware(request: NextRequest) {
   const withTimeout = async <T,>(p: PromiseLike<T>, ms: number) =>
     Promise.race([p as Promise<T>, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
-  let user: any = null;
+  let user: any = null; // DECLARAÇÃO ÚNICA MANTIDA
+
   try {
-    const res: any = await withTimeout(supabase.auth.getUser(), 2000);
-    user = res?.data?.user || null;
-  } catch {
+    // O getUser() tentará o refresh internamente. 
+    // Se falhar, o catch vai capturar o erro de 'Refresh Token Not Found'
+    const { data, error: authError } = await withTimeout(supabase.auth.getUser(), 2000);
+
+    if (authError) {
+      user = null;
+    } else {
+      user = data?.user || null;
+    }
+  } catch (err) {
     user = null;
   }
 
@@ -133,12 +141,15 @@ export async function middleware(request: NextRequest) {
       const now = new Date();
       const isTrialExpired = trialEnds ? now > trialEnds : false;
 
-      // Permitir acesso ao dashboard para o dono da loja mesmo se bloqueado;
-      // bloqueios aplicam-se principalmente ao frontend público e à finalização de pedidos.
-      const publicPrefixes = ['/dashboard', '/dashboard/billing', '/dashboard/billing/expired', '/support', '/api', '/login'];
+      // Prefixos que NÃO são bloqueados mesmo se o plano expirar
+      const publicPrefixes = ['/dashboard/fatura', '/dashboard/subscription/expired', '/support', '/api', '/login', '/catalogo'];
       const allowed = publicPrefixes.some((p) => pathname.startsWith(p));
+
+      // Regra de Bloqueio: Só redireciona se estiver no /dashboard e NÃO for uma rota permitida
       if ((status === 'blocked') || (status === 'trial' && isTrialExpired)) {
-        if (!allowed) return NextResponse.redirect(new URL('/dashboard/billing/expired', request.url));
+        if (pathname.startsWith('/dashboard') && !allowed) {
+          return NextResponse.redirect(new URL('/dashboard/subscription/expired', request.url));
+        }
       }
     }
   } catch (e) {

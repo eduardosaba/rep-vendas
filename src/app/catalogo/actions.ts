@@ -201,6 +201,8 @@ export async function createOrder(
 
   try {
     // 0. Verificar status do perfil do dono da loja para impedir pedidos quando bloqueado
+    // COMENTE OU REMOVA ESTE BLOCO INTEIRO: 
+    /*
     try {
       const { data: profile } = await (adminSupabase ?? supabase)
         .from('profiles')
@@ -212,6 +214,8 @@ export async function createOrder(
       const trialEnds = (profile as any)?.trial_ends_at ? new Date((profile as any).trial_ends_at) : null;
       const now = new Date();
       const isTrialExpired = trialEnds ? now > trialEnds : false;
+
+// ... toda a lógica de pstatus === 'blocked' e isTrialExpired ...
 
       if (pstatus === 'blocked') {
         return { success: false, error: 'Finalização de pedidos não permitida para esta conta.' };
@@ -231,6 +235,7 @@ export async function createOrder(
     } catch (e) {
       // Se falhar a verificação de status, seguir com cautela (não bloquear por falha de infra)
     }
+      */
     // 1. Busca Configurações da Loja (Estoque e Backorder) - com resiliência .maybeSingle()
     const { data: settings } = await (adminSupabase ?? supabase)
       .from('settings')
