@@ -4,10 +4,10 @@ export async function gerarLinkPagamento(userData: { id: string; name: string; e
   const url = 'https://api.checkout.infinitepay.io/links';
   
   const payload = {
-    handle: "eduardo-saba", // Sua InfiniteTag
+    handle: "repvendas", // <--- CONFIRME SE É EXATAMENTE ISSO
     redirect_url: "https://repvendas.com.br/dashboard/fatura/sucesso",
     webhook_url: "https://repvendas.com.br/api/webhooks/infinitepay",
-    order_nsu: userData.id, // O ID do Supabase vira o rastreador do pagamento
+    order_nsu: userData.id,
     customer: {
       name: userData.name,
       email: userData.email,
@@ -15,8 +15,8 @@ export async function gerarLinkPagamento(userData: { id: string; name: string; e
     items: [
       {
         quantity: 1,
-        price: 5000, // R$ 50,00 (em centavos)
-        description: "Assinatura Mensal RepVendas plano Fundador"
+        price: 5000, 
+        description: "Assinatura Mensal RepVendas Fundador"
       }
     ]
   };
@@ -26,23 +26,23 @@ export async function gerarLinkPagamento(userData: { id: string; name: string; e
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(payload),
-      cache: 'no-store'
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("[InfinitePay API Error]:", errorData);
+      // Isso vai imprimir o erro real no seu terminal do VS Code
+      const errorDetail = await response.text();
+      console.error("ERRO INFINITEPAY:", errorDetail);
       return null;
     }
 
     const data = await response.json();
-    // A API retorna o link no campo 'url'
-    return data.url || null; 
+    return data.url; 
 
   } catch (error) {
-    console.error("[Action Error]:", error);
+    console.error("ERRO NA CHAMADA:", error);
     return null;
   }
 }
