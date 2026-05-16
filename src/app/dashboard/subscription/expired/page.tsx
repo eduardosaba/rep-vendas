@@ -19,7 +19,7 @@ export default function ExpiredPage() {
       if (user) {
         const { data } = await supabase
           .from('profiles')
-          .select('id, full_name, email')
+          .select('id, full_name, email, plan_id')
           .eq('id', user.id)
           .maybeSingle();
         setProfile(data);
@@ -35,7 +35,8 @@ export default function ExpiredPage() {
     const checkoutUrl = await gerarLinkPagamento({
       id: profile.id,
       name: profile.full_name || 'Assinante RepVendas',
-      email: profile.email
+      email: profile.email,
+      plan_id: profile.plan_id // Passa o plan_id para a action buscar o preço correto
     });
 
     if (checkoutUrl) {

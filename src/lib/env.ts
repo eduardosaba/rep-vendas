@@ -80,7 +80,7 @@ export async function checkSupabaseReachability(timeoutMs = 3000) {
   }
 }
 
-// Checagem de autenticação: usa a chave anon para um request ao REST endpoint
+// Checagem de autenticação: valida formato da chave JWT sem fazer chamada ao API
 export async function checkSupabaseAuth(timeoutMs = 3000) {
   const { url, anon } = checkSupabaseEnv();
   if (!url || !anon) return;
@@ -93,28 +93,12 @@ export async function checkSupabaseAuth(timeoutMs = 3000) {
   )
     return;
 
-  const base = String(url).replace(/\/$/, '');
-  const authUrl = `${base}/rest/v1/`;
-
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
-
-    const res = await fetch(authUrl, {
-      method: 'GET',
-      headers: {
-        apikey: String(anon),
-        Authorization: `Bearer ${String(anon)}`,
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(id);
-
-    if (res.status === 401 || res.status === 403) {
+    // Valida apenas o formato da chave JWT (não faz requisição ao API)
+    // Formato: header.payload.signature
+    if (typeof anon !== 'string' || !anon.includes('.')) {
       console.warn(
-        `⚠️ Erro de autenticação ao usar a chave anon com ${authUrl} — status ${res.status}.`
+        `⚠️ NEXT_PUBLIC_SUPABASE_ANON_KEY inválida: esperado formato JWT (header.payload.signature).`
       );
       if (process.env.NODE_ENV === 'development') {
         enableDevSkipActiveChecks();
@@ -122,25 +106,44 @@ export async function checkSupabaseAuth(timeoutMs = 3000) {
       return;
     }
 
-    if (!res.ok) {
+    // Decodifica o payload para validar estrutura
+    const parts = anon.split('.');
+    if (parts.length !== 3) {
       console.warn(
-        `⚠️ Requisição autenticada retornou HTTP ${res.status} ${res.statusText} ao ${authUrl}.`
+        `⚠️ NEXT_PUBLIC_SUPABASE_ANON_KEY inválida: JWT deve ter 3 partes.`
       );
+      if (process.env.NODE_ENV === 'development') {
+        enableDevSkipActiveChecks();
+      }
+      return;
+    }
+
+    // Decodifica payload (não validamos assinatura, apenas estrutura)
+    try {
+      const payloadStr = Buffer.from(parts[1], 'base64').toString('utf-8');
+      const payload = JSON.parse(payloadStr);
+      
+      // Valida que é um token de role "anon"
+      if (payload.role !== 'anon') {
+        console.warn(
+          `⚠️ NEXT_PUBLIC_SUPABASE_ANON_KEY inválida: role é "${payload.role}", esperado "anon".`
+        );
+        if (process.env.NODE_ENV === 'development') {
+          enableDevSkipActiveChecks();
+        }
+        return;
+      }
+    } catch (decodeErr) {
+      console.warn(`⚠️ Erro ao decodificar JWT: ${String(decodeErr)}`);
+      if (process.env.NODE_ENV === 'development') {
+        enableDevSkipActiveChecks();
+      }
+      return;
     }
   } catch (err: unknown) {
-    if (
-      err &&
-      typeof err === 'object' &&
-      'name' in err &&
-      err.name === 'AbortError'
-    ) {
-      console.warn(`⚠️ Timeout ao tentar autenticar contra ${authUrl}.`);
-      if (process.env.NODE_ENV === 'development') enableDevSkipActiveChecks();
-    } else {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`⚠️ Erro ao tentar validar chave anon: ${message}`);
-      if (process.env.NODE_ENV === 'development') enableDevSkipActiveChecks();
-    }
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`⚠️ Erro ao validar chave anon: ${message}`);
+    if (process.env.NODE_ENV === 'development') enableDevSkipActiveChecks();
   }
 }
 

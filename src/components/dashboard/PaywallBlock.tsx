@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { gerarLinkPagamento } from '@/app/dashboard/fatura/actions';
 
 interface PaywallProps {
-  user: { id: string; name: string; email: string };
+  user: { id: string; name: string; email: string; plan_id?: string };
 }
 
 export default function PaywallBlock({ user }: PaywallProps) {
@@ -14,7 +14,12 @@ export default function PaywallBlock({ user }: PaywallProps) {
 
   const handleAssinar = async () => {
     setIsGenerating(true);
-    const checkoutUrl = await gerarLinkPagamento(user);
+    const checkoutUrl = await gerarLinkPagamento({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      plan_id: user.plan_id // Passa o plan_id para a action buscar o preço correto
+    });
 
     if (checkoutUrl) {
       window.location.href = checkoutUrl;

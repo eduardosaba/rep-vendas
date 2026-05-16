@@ -4,21 +4,31 @@ async function getNextCookieStore() {
   try {
     const mod = await import('next/headers');
     if (mod && typeof mod.cookies === 'function') {
-      // cookies() may be async in some Next versions
+      // cookies() pode ser async em versões recentes do Next.js
       return await (mod.cookies as any)();
     }
   } catch (e) {
-    // not available in this runtime (e.g., pages dir or non-server environment)
+    // Não disponível em runtimes específicos (ex: Pages dir)
   }
   return null;
 }
 
+// Cliente padrão para Server Components e Layouts
 export async function createClient() {
   const cookieStore: any = await getNextCookieStore();
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // No build, se as variáveis não existirem, lançamos um erro 
+    // ou retornamos null para evitar o crash 401
+    throw new Error('Supabase variables missing: NEXT_PUBLIC_SUPABASE_URL ou ANON_KEY');
+  }
+
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -26,16 +36,14 @@ export async function createClient() {
             ? cookieStore.getAll()
             : [];
         },
-        setAll(
-          cookiesToSet: Array<{ name: string; value: string; options?: any }>
-        ) {
+        setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               if (cookieStore && typeof cookieStore.set === 'function')
                 cookieStore.set(name, value, options);
             });
           } catch {
-            // ignore
+            // Silencioso em Server Components (onde não se pode setar cookies)
           }
         },
       },
@@ -43,33 +51,36 @@ export async function createClient() {
   );
 }
 
-// Compat shim para rotas API que passam uma função que retorna o store
+// Cliente específico para API Routes (Route Handlers)
 export async function createRouteSupabase(getCookies?: () => any) {
   const cookieStore = getCookies
     ? await getCookies()
     : await getNextCookieStore();
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase variables missing for Route Client');
+  }
+
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
-          return cookieStore && typeof cookieStore.getAll === 'function'
-            ? cookieStore.getAll()
+          return cookieStore && typeof cookieStore.getAll === 'function' 
+            ? cookieStore.getAll() 
             : [];
         },
-        setAll(
-          cookiesToSet: Array<{ name: string; value: string; options?: any }>
-        ) {
+        setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              if (cookieStore && typeof cookieStore.set === 'function')
+              if (cookieStore && typeof cookieStore.set === 'function') 
                 cookieStore.set(name, value, options);
             });
-          } catch {
-            // ignore
-          }
+          } catch { }
         },
       },
     }

@@ -29,7 +29,7 @@ export default function FaturaPage() {
       if (user) {
         const { data } = await supabase
           .from('profiles')
-          .select('id, full_name, email')
+          .select('id, full_name, email, plan_id')
           .eq('id', user.id)
           .maybeSingle();
         setProfile(data);
@@ -46,7 +46,8 @@ export default function FaturaPage() {
     const checkoutUrl = await gerarLinkPagamento({
       id: profile.id,
       name: profile.full_name || 'Assinante RepVendas',
-      email: profile.email
+      email: profile.email,
+      plan_id: profile.plan_id // Passa o plan_id para a action buscar o preço correto
     });
 
     if (checkoutUrl) {
@@ -82,7 +83,7 @@ export default function FaturaPage() {
             </div>
 
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-4">
-              Assinatura <span className="text-primary">RepVendas Pro</span>
+              Assinatura <span className="text-primary">RepVendas Fundador</span>
             </h1>
             
             <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">

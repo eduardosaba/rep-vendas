@@ -8,7 +8,6 @@ export default function BlockedAccountPopup({ onClose }: { onClose?: () => void 
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(true);
 
-  // Se o usuário já fechou nesta sessão, não mostramos novamente para não irritar
   useEffect(() => {
     const isDismissed = sessionStorage.getItem('blocked_popup_dismissed');
     if (isDismissed) {
@@ -22,16 +21,20 @@ export default function BlockedAccountPopup({ onClose }: { onClose?: () => void 
     if (onClose) onClose();
   };
 
+  // Função para fechar o popup E navegar ao mesmo tempo
+  const handleAction = () => {
+    handleClose(); // Fecha o popup e marca como dispensado na sessão
+    router.push('/dashboard/fatura'); // Navega para a fatura
+  };
+
   if (!isVisible) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-      {/* Backdrop com desfoque (blur) para foco total no aviso */}
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleClose} />
       
       <div className="relative max-w-sm w-full bg-white dark:bg-slate-900 rounded-[2rem] p-8 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in duration-300">
         
-        {/* Botão fechar discreto no canto */}
         <button 
           onClick={handleClose}
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
@@ -54,7 +57,7 @@ export default function BlockedAccountPopup({ onClose }: { onClose?: () => void 
           
           <div className="flex flex-col gap-3 w-full">
             <button 
-              onClick={() => router.push('/dashboard/fatura')}
+              onClick={handleAction} // <--- Alterado para handleAction
               className="flex items-center justify-center gap-2 w-full bg-primary text-white py-4 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
             >
               <CreditCard size={18} />
@@ -70,7 +73,6 @@ export default function BlockedAccountPopup({ onClose }: { onClose?: () => void 
           </div>
         </div>
 
-        {/* Detalhe de segurança no rodapé */}
         <p className="mt-6 text-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
           Pagamento Seguro • InfinitePay
         </p>

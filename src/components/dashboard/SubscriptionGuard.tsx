@@ -33,10 +33,10 @@ export default function SubscriptionGuard({
       return;
     }
 
-    // Busca Perfil e Assinatura em paralelo para performance
+    // Busca Perfil (com plan_id) e Assinatura em paralelo para performance
     const [profileRes, subRes] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, email').eq('id', user.id).maybeSingle(),
-      supabase.from('subscriptions').select('current_period_end, status').eq('user_id', user.id).maybeSingle()
+      supabase.from('profiles').select('id, full_name, email, plan_id').eq('id', user.id).maybeSingle(),
+      supabase.from('subscriptions').select('current_period_end, status, plan_id').eq('user_id', user.id).maybeSingle()
     ]);
 
     if (profileRes.data) setUserData(profileRes.data);
@@ -86,7 +86,8 @@ export default function SubscriptionGuard({
       const checkoutUrl = await gerarLinkPagamento({
         id: userData.id,
         name: userData.full_name || 'Assinante RepVendas',
-        email: userData.email
+        email: userData.email,
+        plan_id: userData.plan_id // Passa o plan_id para a action buscar o preço correto
       });
 
       if (checkoutUrl) {
