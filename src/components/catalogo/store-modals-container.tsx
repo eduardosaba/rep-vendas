@@ -77,7 +77,7 @@ export function StoreModals() {
   const [passwordInput, setPasswordInput] = useState('');
   const [loadCodeInput, setLoadCodeInput] = useState('');
   const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
-  
+
   // Pinch-to-zoom state (mobile)
   const [pinchScale, setPinchScale] = useState(1);
   const [isPinching, setIsPinching] = useState(false);
@@ -90,7 +90,7 @@ export function StoreModals() {
   const panVelocityRef = useRef<{ x: number; y: number } | null>(null);
   const lastMoveTimeRef = useRef<number | null>(null);
   const inertiaAnimationRef = useRef<number | null>(null);
-  
+
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
@@ -394,6 +394,7 @@ export function StoreModals() {
     }
 
     if (e.touches.length === 2) {
+      e.preventDefault();
       const d = getDistance(e.touches[0], e.touches[1]);
       const mid = getMidpoint(e.touches[0], e.touches[1]);
       pinchRef.current.initialDistance = d;
@@ -611,7 +612,7 @@ export function StoreModals() {
     if (!el) return;
     try {
       (el as any).inert = !!modals.checkout;
-    } catch (e) {}
+    } catch (e) { }
     if (modals.checkout) el.setAttribute('aria-hidden', 'true');
     else el.removeAttribute('aria-hidden');
   }, [modals.checkout]);
@@ -943,11 +944,11 @@ export function StoreModals() {
                         <p className={`text-gray-500 text-sm md:text-base leading-relaxed text-justify ${(!isDescriptionExpanded && isLongDescription) ? 'line-clamp-3' : ''}`}>
                           {descriptionText}
                         </p>
-                        if (isLongDescription) {
+                        {isLongDescription && (
                           <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="text-primary text-xs font-black uppercase tracking-widest mt-2 hover:underline">
                             {isDescriptionExpanded ? 'Ver menos' : 'Ler descrição completa'}
                           </button>
-                        }
+                        )}
                       </>
                     );
                   })()}
@@ -1068,7 +1069,8 @@ export function StoreModals() {
           {/* --- OVERLAY DE ZOOM FULLSCREEN (1200w) --- */}
           {isImageZoomOpen && (
             <div
-              className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-sm flex items-center justify-center overflow-hidden animate-in fade-in duration-200"
+              className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center overflow-hidden animate-in fade-in duration-200"
+              style={{ zIndex: 999999 }} // Força o overlay de zoom a ficar acima de tudo
               onClick={() => {
                 setPinchScale(1);
                 setPan({ x: 0, y: 0 });
@@ -1076,7 +1078,8 @@ export function StoreModals() {
               }}
             >
               <button
-                className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors z-[310] min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                style={{ zIndex: 1000001 }}
                 onClick={() => {
                   setPinchScale(1);
                   setPan({ x: 0, y: 0 });
@@ -1087,9 +1090,9 @@ export function StoreModals() {
               </button>
 
               {productImages.length > 1 && pinchScale <= 1.01 && (
-                <>
+                <div style={{ zIndex: 1000001 }}>
                   <button
-                    className="absolute left-4 md:left-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] flex"
+                    className="absolute left-4 md:left-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all flex"
                     onClick={(e) => {
                       e.stopPropagation();
                       setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : productImages.length - 1));
@@ -1099,7 +1102,7 @@ export function StoreModals() {
                   </button>
 
                   <button
-                    className="absolute right-4 md:right-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all z-[310] flex"
+                    className="absolute right-4 md:right-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all flex"
                     onClick={(e) => {
                       e.stopPropagation();
                       setCurrentImageIndex((prev) => (prev < productImages.length - 1 ? prev + 1 : 0));
@@ -1107,48 +1110,46 @@ export function StoreModals() {
                   >
                     <ChevronRight size={48} strokeWidth={1.5} />
                   </button>
-                </>
+                </div>
               )}
 
               <div
                 ref={zoomContainerRef}
                 className="relative w-full h-full flex items-center justify-center p-2 md:p-12"
                 onClick={(e) => e.stopPropagation()}
-                style={{ touchAction: 'none' }}
+                style={{ touchAction: 'none', zIndex: 1000000 }}
               >
-                <motion.img
-                  ref={zoomImageRef as any}
-                  onDoubleClick={handleDoubleClick}
-                  src={productImages[currentImageIndex]?.url1200}
-                  alt="Visualização em Alta Resolução"
-                  // Desativa o drag nativo por slide apenas quando o zoom/pinça for maior que 1
-                  drag={pinchScale <= 1.01 ? "x" : false}
-                  dragConstraints={{ left: 0, right: 0 }}
-                  dragElastic={0.12}
-                  onDragEnd={handleImageDragEnd}
-                  whileTap={pinchScale <= 1.01 ? { scale: 0.995 } : {}}
+                {/* TRATAMENTO MOBILE DE HARDWARE: Isolamos completamente o toque do Framer Motion usando listeners nativos */}
+                <div 
+                  className="w-full h-full flex items-center justify-center"
                   onTouchStart={onZoomTouchStart}
                   onTouchMove={onZoomTouchMove}
                   onTouchEnd={onZoomTouchEnd}
-                  style={{
-                    backgroundImage: `url(${productImages[currentImageIndex]?.url480})`,
-                    backgroundSize: 'contain',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center',
-                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${pinchScale})`,
-                    touchAction: 'none',
-                    transformOrigin: 'center center',
-                  }}
-                  className="max-w-full max-h-[80vh] md:max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none cursor-grab active:cursor-grabbing will-change-transform"
-                />
+                >
+                  <img
+                    ref={zoomImageRef as any}
+                    src={productImages[currentImageIndex]?.url1200}
+                    alt="Visualização do Produto"
+                    style={{
+                      backgroundImage: `url(${productImages[currentImageIndex]?.url480})`,
+                      backgroundSize: 'contain',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'center',
+                      transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${pinchScale})`,
+                      touchAction: 'none',
+                      transformOrigin: 'center center',
+                    }}
+                    className="max-w-full max-h-[75vh] md:max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300 select-none will-change-transform"
+                  />
+                </div>
 
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-[310]">
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2" style={{ zIndex: 1000001 }}>
                   <span className="bg-white/10 backdrop-blur-md px-4 py-1 rounded-full text-white text-xs font-medium tracking-widest border border-white/10">
                     {currentImageIndex + 1} / {productImages.length}
                   </span>
                   {pinchScale > 1.01 && (
                     <span className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-xl text-white text-[10px] uppercase font-bold tracking-wider animate-in fade-in">
-                      Arraste com o dedo para mover o produto ampliado
+                      Mova o dedo para navegar nos detalhes do óculos
                     </span>
                   )}
                 </div>
