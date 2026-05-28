@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // 🔥 Injetado para controle nativo de rotas no Next.js
 import { toast } from 'sonner';
 import {
   Eye,
@@ -22,6 +23,7 @@ type ViewState = 'login' | 'forgot_password';
 
 export default function LoginPage() {
   const supabase = createClient();
+  const router = useRouter(); // 🔥 Inicializando o roteador estável do Next.js
   const [view, setView] = useState<ViewState>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,15 +82,16 @@ export default function LoginPage() {
     setIsSubmitting(true);
     setFormError(null);
 
-    // do not request Notification permission during login flow
+    let loginResult = null; // 🔥 Declarado aqui fora para ser visível em todos os blocos
 
     try {
       const formData = new FormData(e.currentTarget);
       const result = await login(null, formData);
+      loginResult = result; // 🔥 Guarda o resultado no escopo externo
 
       if (result?.success) {
         toast.success('Entrando no sistema...');
-        // Tenta configurar notificações antes do redirecionamento (melhor esforço)
+
         try {
           if (typeof window !== 'undefined') {
             if ('serviceWorker' in navigator) {
@@ -98,15 +101,12 @@ export default function LoginPage() {
                 .catch(() => null);
             }
             try {
-              // Protege a chamada getUser com timeout para evitar bloquear o fluxo
               const userPromise = supabase.auth.getUser();
               const timeout = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('supabase.getUser timeout')), 3000)
               );
               const res: any = await Promise.race([userPromise, timeout]);
               const user = res?.data?.user;
-              // do not trigger notification permission or setup during login;
-              // notifications are enabled via the Dashboard CTA instead
             } catch (e) {
               // debug removed
             }
@@ -115,14 +115,21 @@ export default function LoginPage() {
           // ignore
         }
 
-        window.location.href = result.redirectTo;
+        setTimeout(() => {
+          router.push(result.redirectTo || '/dashboard');
+          router.refresh();
+        }, 500);
+
         return;
       }
       setFormError(result?.error || 'Falha na autenticação');
     } catch (err) {
       setFormError('Erro ao processar login');
     } finally {
-      setIsSubmitting(false);
+      // 🔥 Agora o bloco finally consegue validar com segurança usando a variável do escopo correto
+      if (!loginResult?.success) {
+        setIsSubmitting(false);
+      }
     }
   };
 

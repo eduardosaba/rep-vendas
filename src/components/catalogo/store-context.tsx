@@ -1,10 +1,10 @@
- 'use client';
+'use client';
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { useRep } from '@/components/catalogo/RepProvider'
+import { useRep } from '@/components/catalogo/RepProvider';
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
 import type {
   Product,
@@ -98,6 +98,7 @@ export function StoreProvider({
       // ignore
     }
   }, [isCostMode]);
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -138,7 +139,7 @@ export function StoreProvider({
   const router = useRouter();
   const _initialisedRef = React.useRef(false);
 
-  // Inicializa estados de filtros a partir da query string (permitir links compartilháveis)
+  // Inicializa estado de filtros a partir da query string
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -178,11 +179,11 @@ export function StoreProvider({
       const page = params.get('page');
       if (page) setCurrentPage(Number(page) || 1);
     } catch (e) {
-      // ignore if window is not available or parsing fails
+      // ignore
     } finally {
       try {
         _initialisedRef.current = true;
-      } catch (e) {}
+      } catch (e) { }
     }
   }, []);
 
@@ -197,14 +198,11 @@ export function StoreProvider({
       const effective = String(connection.effectiveType || '').toLowerCase();
       const saveData = !!connection.saveData;
       if (saveData || ['2g', '3g'].includes(effective)) {
-        // Prefer table mode and hide images on slow/limited connections
         setViewMode('table');
         setHideImages(true);
         try {
           toast.info('Conexão detectada como lenta — modo compacto ativado.');
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) { }
       }
     } catch (e) {
       // ignore
@@ -213,7 +211,6 @@ export function StoreProvider({
 
   // Sincroniza estado de filtros para a URL (debounced)
   useEffect(() => {
-    // evitar o replace inicial antes de termos lido a query string
     if (!_initialisedRef.current) return;
 
     const t = setTimeout(() => {
@@ -269,7 +266,6 @@ export function StoreProvider({
         else params.delete('page');
 
         const base = window.location.pathname;
-        // Use explicit encodeURIComponent for query values to avoid '+' form-encoding
         const entries = Array.from(params.entries());
         const qs = entries.length > 0 ? entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&') : '';
         const url = qs ? `${base}?${qs}` : base;
@@ -291,36 +287,27 @@ export function StoreProvider({
     currentPage,
     router,
   ]);
-  // Quando a categoria selecionada muda, resetar para a primeira página
+
   useEffect(() => {
     if (!_initialisedRef.current) return;
     try {
       setCurrentPage(1);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
   }, [selectedCategory]);
-  // Quando a marca selecionada mudar (após a montagem inicial), resetar
-  // categoria/gênero para evitar filtros persistentes entre marcas.
-  const _brandMounted = (globalThis as any).__repv_brand_mounted || {
-    value: false,
-  };
+
+  const _brandMounted = (globalThis as any).__repv_brand_mounted || { value: false };
   useEffect(() => {
-    // Evitar override durante a inicialização via query string
     if (!_brandMounted.value) {
       _brandMounted.value = true;
       (globalThis as any).__repv_brand_mounted = _brandMounted;
       return;
     }
     try {
-      // Não resetar categoria/gênero para permitir multi-seleção de marcas
-      // ao trocar de marca — apenas ajustar paginação.
       setCurrentPage(1);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrand]);
+
   const [orderSuccessData, setOrderSuccessData] = useState<any>(null);
   const [loadingStates, setLoadingStates] = useState({
     submitting: false,
@@ -344,7 +331,7 @@ export function StoreProvider({
       : null,
   });
 
-  // Sincroniza o estado do modal de produto com a query string para deep-linking
+  // Sincroniza o estado do modal de produto com a query string
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -362,11 +349,9 @@ export function StoreProvider({
       const base = window.location.pathname;
       const qs = params.toString();
       const url = qs ? `${base}?${qs}` : base;
-      // atualizar sem scroll/recarregar
       try {
         router.replace(url, { scroll: false });
       } catch {
-        // fallback sem options para compatibilidade
         router.replace(url);
       }
     } catch (e) {
@@ -374,59 +359,44 @@ export function StoreProvider({
     }
   }, [modals.product, router]);
 
-  // Ao montar ou quando `initialProducts` ficar disponível, verificar se a URL
-  // contém um parâmetro `p` (deep-link) e abrir o modal do produto correspondente.
   useEffect(() => {
     try {
       if (!initialProducts || initialProducts.length === 0) return;
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get('p') || params.get('productId');
       if (!fromUrl) return;
-      // Se já temos modal aberto, não sobrescrever
       if (modals.product) return;
       const found = initialProducts.find(
         (it: any) => it.slug === fromUrl || it.id === fromUrl
       );
       if (found) setModals((m) => ({ ...m, product: found }));
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProducts]);
 
-  // Se existir uma liberação de preços persistida no localStorage, aplicar na inicialização
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return;
-      const access =
-        typeof window.localStorage?.getItem === 'function'
-          ? window.localStorage.getItem('priceAccessGranted')
-          : null;
-      const expires =
-        typeof window.localStorage?.getItem === 'function'
-          ? window.localStorage.getItem('priceAccessExpiresAt')
-          : null;
+      const access = typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem('priceAccessGranted') : null;
+      const expires = typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem('priceAccessExpiresAt') : null;
       if (access === 'true') {
         if (expires) {
           const exp = new Date(expires);
           if (exp.getTime() > Date.now()) {
             setShowPrices(true);
           } else {
-            // expirado
             try {
               if (typeof window.localStorage?.removeItem === 'function') {
                 window.localStorage.removeItem('priceAccessGranted');
                 window.localStorage.removeItem('priceAccessExpiresAt');
               }
-            } catch {}
+            } catch { }
           }
         } else {
           setShowPrices(true);
         }
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
   }, []);
 
   const [globalControls, setGlobalControls] = useState<{
@@ -436,28 +406,49 @@ export function StoreProvider({
   } | null>(null);
   const [blockedForOrders, setBlockedForOrders] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
-  const [planFeatureMatrix, setPlanFeatureMatrix] = useState<Record<
-    string,
-    Record<string, boolean>
-  > | null>(null);
+  const [planFeatureMatrix, setPlanFeatureMatrix] = useState<Record<string, Record<string, boolean>> | null>(null);
   const [storePlanName, setStorePlanName] = useState<string | null>(null);
-  const [storeSubscriptionStatus, setStoreSubscriptionStatus] = useState<
-    string | null
-  >(null);
+  const [storeSubscriptionStatus, setStoreSubscriptionStatus] = useState<string | null>(null);
 
-  // Contador global de imagens pendentes (diagnóstico)
+  // CORREÇÃO DOS EVENTOS DO SAFARI/IOS EM IPHONE: Estados explícitos de sessão e hidratação
   const [pendingImagesCount, setPendingImagesCount] = useState<number>(0);
+  const [session, setSession] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-  // 1. Otimização da função de Diagnóstico de Imagens
-// 1. Otimização da função de Diagnóstico de Imagens (Refatorada)
+  useEffect(() => {
+    let mounted = true;
+
+    // Recupera a sessão asincrônica inicial de forma controlada
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (!mounted) return;
+      setSession(initialSession);
+      setIsAuthLoading(false);
+    }).catch(() => {
+      if (mounted) setIsAuthLoading(false);
+    });
+
+    // Escuta ativa de gatilhos do iOS (redirecionamento e refresh de token)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      if (!mounted) return;
+      setSession(currentSession);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setIsAuthLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Otimização da função de Diagnóstico de Imagens vinculada ao estado reativo
   const refreshPendingImages = useCallback(async () => {
     try {
       if (!store.user_id) return;
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const token = session?.access_token;
 
-      // Só chama se houver um token (evita ruído no catálogo público)
       if (!token) {
         setPendingImagesCount(0);
         return;
@@ -475,23 +466,19 @@ export function StoreProvider({
         setPendingImagesCount(Number(j.total_external || 0));
       }
     } catch (e) {
-      // Falha silenciosa para não travar o log
+      // fail safe
     }
-  }, [store.user_id, supabase]);
+  }, [store.user_id, session]);
 
-  // 2. Efeito de monitoramento
   useEffect(() => {
+    if (isAuthLoading) return;
     refreshPendingImages();
     const t = setInterval(() => refreshPendingImages(), 1000 * 60 * 5); // 5 min
     return () => clearInterval(t);
-  }, [refreshPendingImages]);
+  }, [refreshPendingImages, isAuthLoading]);
 
-  // LOGIN INVISÍVEL: estado para armazenar dados do cliente reconhecido
-  const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(
-    null
-  );
+  const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(null);
 
-  // Memoização para performance
   const brands = useMemo(() => {
     const raw = (initialProducts || [])
       .map((p) => {
@@ -499,14 +486,11 @@ export function StoreProvider({
         if (v === null || typeof v === 'undefined') return null;
         const s = String(v || '').trim();
         if (!s) return null;
-        // filter out N/D-like values
         if (/^#?\s*n\/?d\s*$/i.test(s) || /^n\/a$/i.test(s)) return null;
         return s;
       })
       .filter(Boolean) as string[];
 
-    // Deduplicate case-insensitively, but return Title Case for UI
-    // collect session-hidden brand names only for the current store user (if any)
     let hiddenNames = new Set<string>();
     try {
       const uid = store?.user_id;
@@ -516,16 +500,13 @@ export function StoreProvider({
         const arr = hiddenObj[uid]?.brand_names;
         if (Array.isArray(arr)) arr.forEach((n: string) => hiddenNames.add(String(n).trim().toLowerCase()));
       }
-    } catch (e) {
-      /* ignore session errors */
-    }
+    } catch (e) { }
 
     const seen = new Map<string, string>();
     for (const b of raw) {
       const key = String(b).trim().toLowerCase();
       if (hiddenNames.has(key)) continue;
       if (!seen.has(key)) {
-        // Title case words
         const title = String(b)
           .trim()
           .split(/\s+/)
@@ -535,7 +516,7 @@ export function StoreProvider({
       }
     }
     return Array.from(seen.values());
-  }, [initialProducts]);
+  }, [initialProducts, store?.user_id]);
 
   const categories = useMemo(() => {
     const raw = (initialProducts || [])
@@ -563,79 +544,63 @@ export function StoreProvider({
     }
     return Array.from(seen.values());
   }, [initialProducts]);
-  const genders = useMemo(
-    () => {
-      const raw = (initialProducts || [])
-        .map((p) => {
-          const v = (p as any).gender;
-          if (v === null || typeof v === 'undefined') return null;
-          const s = String(v || '').trim();
-          if (!s) return null;
-          // filter out N/D-like values early
-          if (/^#?\s*n\/?d\s*$/i.test(s) || /^n\/a$/i.test(s)) return null;
-          return s.toUpperCase();
-        })
-        .filter(Boolean) as string[];
 
-      return Array.from(new Set(raw)).sort();
-    },
-    [initialProducts]
-  );
+  const genders = useMemo(() => {
+    const raw = (initialProducts || [])
+      .map((p) => {
+        const v = (p as any).gender;
+        if (v === null || typeof v === 'undefined') return null;
+        const s = String(v || '').trim();
+        if (!s) return null;
+        if (/^#?\s*n\/?d\s*$/i.test(s) || /^n\/a$/i.test(s)) return null;
+        return s.toUpperCase();
+      })
+      .filter(Boolean) as string[];
 
-  const materials = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          initialProducts
-            .map((p: any) => (p as any).material?.trim())
-            .filter(Boolean) as string[]
-        )
-      ).filter((m) => {
-        const v = String(m || '').trim();
-        return v && !/^#?\s*n\/?d\s*$/i.test(v) && v.toLowerCase() !== 'n/a';
-      }),
+    return Array.from(new Set(raw)).sort();
+  }, [initialProducts]);
+
+  const materials = useMemo(() =>
+    Array.from(
+      new Set(
+        initialProducts
+          .map((p: any) => (p as any).material?.trim())
+          .filter(Boolean) as string[]
+      )
+    ).filter((m) => {
+      const v = String(m || '').trim();
+      return v && !/^#?\s*n\/?d\s*$/i.test(v) && v.toLowerCase() !== 'n/a';
+    }),
     [initialProducts]
   );
 
   const hasPolarizado = useMemo(() => {
     try {
       return initialProducts.some((p: any) => isTruthyFlag((p as any).polarizado));
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }, [initialProducts]);
 
   const hasFotocromatico = useMemo(() => {
     try {
       return initialProducts.some((p: any) => isTruthyFlag((p as any).fotocromatico));
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }, [initialProducts]);
 
-  // Persistência e busca de marcas
   useEffect(() => {
     const fetchLogos = async () => {
-      // if we have specific brand names derived from products, request only them
-      // otherwise fetch all brands for this store so institutional pages still show logos
       const query = supabase.from('brands').select('id, name, logo_url, banner_url, description').eq('user_id', store.user_id);
       if (Array.isArray(brands) && brands.length > 0) {
         query.in('name', brands);
       }
 
       let { data } = await query;
-      // If we attempted to narrow by brand names and got no rows, fall back
-      // to fetching all brands for this user (some DBs may have different
-      // capitalization/formatting and `.in('name', ...)` can miss matches).
       if ((Array.isArray(data) && data.length === 0) && Array.isArray(brands) && brands.length > 0) {
         try {
           const res = await supabase.from('brands').select('id, name, logo_url, banner_url, description').eq('user_id', store.user_id);
           data = res.data;
-        } catch (e) {
-          // ignore and keep original data
-        }
+        } catch { }
       }
-      // normalize a working rows array and apply per-user hidden brands (session-scoped)
+
       let rows: any[] = Array.isArray(data) ? data : [];
       try {
         const uid = store?.user_id;
@@ -647,35 +612,24 @@ export function StoreProvider({
             rows = rows.filter((d: any) => !userHidden.includes(d.id));
           }
         }
-      } catch (e) {
-        // ignore sessionStorage failures — proceed with original rows
-      }
+      } catch (e) { }
+
       if (rows) {
-        // debug removed
-        const PUBLIC_BASE =
-          typeof window !== 'undefined'
-            ? process.env.NEXT_PUBLIC_APP_URL || ''
-            : process.env.NEXT_PUBLIC_APP_URL || '';
+        const PUBLIC_BASE = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_APP_URL || '' : '';
 
         const extractUrl = (raw: any): string | null => {
           if (!raw) return null;
           try {
             let target: any = raw;
-
-            // 1. Se for string, tenta ver se é um JSON stringificado (comum vindo do Supabase)
             if (typeof raw === 'string' && (raw.startsWith('{') || raw.startsWith('['))) {
               try {
                 const parsed = JSON.parse(raw);
                 target = Array.isArray(parsed) ? parsed[0] : parsed;
-              } catch (e) {
-                target = raw;
-              }
+              } catch { target = raw; }
             }
 
-            // 2. Extração de URL de objeto ou string
             let finalPath = '';
             if (typeof target === 'object' && target !== null) {
-              // Prioridade: Variante desktop -> Original -> Chaves Legadas
               finalPath = target.variants?.desktop?.url || target.original || target.publicUrl || target.url || '';
             } else {
               finalPath = String(target);
@@ -684,18 +638,13 @@ export function StoreProvider({
             if (!finalPath || finalPath === '[object Object]') return null;
             if (/^https?:\/\//i.test(finalPath)) return finalPath;
 
-            // 3. Normalização para o Proxy
             let cleanPath = finalPath;
             if (finalPath.includes('/storage/v1/object/public/')) {
               cleanPath = finalPath.split('/storage/v1/object/public/')[1];
             }
-
-            // Remove duplicidade de prefixos
             cleanPath = cleanPath.replace(/^(public\/)+/, '').replace('product-images/public/', 'product-images/');
-
             return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
           } catch (e) {
-            console.error('Erro ao extrair URL da marca:', e);
             return null;
           }
         };
@@ -705,27 +654,15 @@ export function StoreProvider({
           const banner = extractUrl(d.banner_url);
           const resolve = (u: string | null) => {
             if (!u) return null;
-
-            // Se é URL do Supabase Storage, roteia pelo proxy
-            if (
-              u.includes('supabase.co/storage') ||
-              u.includes('/storage/v1/object')
-            ) {
-              // Extrai o path após '/storage/v1/object/public/' ou usa URL completa
+            if (u.includes('supabase.co/storage') || u.includes('/storage/v1/object')) {
               const match = u.match(/\/storage\/v1\/object\/public\/(.+)$/);
               if (match && match[1]) {
                 return `/api/storage-image?path=${encodeURIComponent(match[1])}`;
               }
-              // Fallback: passa URL completa pro proxy
               return `/api/storage-image?path=${encodeURIComponent(u)}`;
             }
-
-            // URLs externas (HTTP/HTTPS não-storage)
             if (typeof u === 'string' && (u.startsWith('http') || u.startsWith('//'))) return u;
-
-            // Paths relativos
             if (typeof u === 'string' && u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
-
             return u;
           };
           return {
@@ -735,23 +672,17 @@ export function StoreProvider({
             description: d.description || null,
           } as any;
         };
+
         const mapped = brands.map((b) => {
           const needle = String(b || '').trim().toLowerCase();
           const found = rows.find((d: any) => String(d.name || '').trim().toLowerCase() === needle);
-          return found
-            ? normalize(found)
-            : {
-                name: b,
-                logo_url: null,
-                banner_url: null,
-                description: null,
-              };
+          return found ? normalize(found) : { name: b, logo_url: null, banner_url: null, description: null };
         });
 
         setBrandsWithLogos(mapped);
-        
       }
     };
+
     const fetchDistinctTypes = async () => {
       try {
         const uid = store?.user_id;
@@ -762,18 +693,13 @@ export function StoreProvider({
         if (!res.ok) return;
         const j = await res.json();
         if (Array.isArray(j.types)) setDistinctTypes(j.types.filter(Boolean));
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) { }
     };
 
     fetchDistinctTypes();
-    // Only attempt to fetch if we have a valid store.user_id
     if (store.user_id) fetchLogos();
-  }, [brands, store.user_id]);
+  }, [brands, store.user_id, supabase]);
 
-  // Fetch categories (with optional image_url) for this store to power
-  // image-backed CategoryBar. Falls back to empty list if not available.
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -800,9 +726,7 @@ export function StoreProvider({
             }
             if (/^https?:\/\//i.test(s)) return s;
             return s;
-          } catch (e) {
-            return null;
-          }
+          } catch { return null; }
         };
 
         setCategoriesWithData(
@@ -815,68 +739,39 @@ export function StoreProvider({
         setCategoriesWithData([]);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [supabase, store.user_id]);
 
-  // Expor `distinctTypes` no `window` para consumo pelo dropdown (evita prop drilling)
   useEffect(() => {
     try {
       (window as any).__rv_distinct_types = Array.isArray(distinctTypes) ? distinctTypes : null;
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
   }, [distinctTypes]);
 
-  // Genders: attempt to fetch a dedicated genders table; otherwise derive
-  // from initial products as simple name-only entries (no images).
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        // Tentativa 1: tabela `genders` (antiga/nova)
         let data: any[] | null = null;
         let error: any = null;
         try {
-          const res = await supabase
-            .from('genders')
-            .select('name, image_url')
-            .eq('user_id', store.user_id)
-            .order('name');
-          // NOTE: result typing may differ across supabase client versions
+          const res = await supabase.from('genders').select('name, image_url').eq('user_id', store.user_id).order('name');
           data = res.data;
-          // NOTE: result typing may differ across supabase client versions
           error = res.error;
-        } catch (err) {
-          data = null;
-          error = err;
-        }
+        } catch (err) { error = err; }
 
-        // Se não temos dados válidos, tentar `product_genders` (admin UI usa esse nome)
         if ((!data || data.length === 0) && !error) {
           try {
-            const res2 = await supabase
-              .from('product_genders')
-              .select('name, image_url')
-              .eq('user_id', store.user_id)
-              .order('name');
-            // NOTE: result typing may differ across supabase client versions
+            const res2 = await supabase.from('product_genders').select('name, image_url').eq('user_id', store.user_id).order('name');
             data = res2.data;
-            // NOTE: result typing may differ across supabase client versions
             error = res2.error;
-          } catch (err2) {
-            // manter error/data como está
-          }
+          } catch { }
         }
 
         if (!mounted) return;
 
         if (error || !data) {
-          // fallback: build from derived `genders` list
-          setGendersWithData(
-            genders.map((g) => ({ name: g, image_url: null }))
-          );
+          setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
           return;
         }
 
@@ -891,9 +786,7 @@ export function StoreProvider({
             }
             if (/^https?:\/\//i.test(s)) return s;
             return s;
-          } catch (e) {
-            return null;
-          }
+          } catch { return null; }
         };
 
         setGendersWithData(
@@ -906,38 +799,25 @@ export function StoreProvider({
         setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [supabase, store.user_id, genders]);
 
   useEffect(() => {
     try {
-      const savedCart =
-        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-          ? window.localStorage.getItem(`cart-${store.name}`)
-          : null;
+      const savedCart = typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem(`cart-${store.name}`) : null;
       if (savedCart) {
-        try {
-          setCart(JSON.parse(savedCart));
-        } catch {}
+        try { setCart(JSON.parse(savedCart)); } catch { }
       }
-
-      // LOGIN INVISÍVEL: carregar dados do cliente salvo para este user/store
-      const savedCustomer =
-        typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function'
-          ? window.localStorage.getItem(`customer-${store.user_id}`)
-          : null;
+      const savedCustomer = typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem(`customer-${store.user_id}`) : null;
       if (savedCustomer) {
         try {
           const parsed = JSON.parse(savedCustomer) as CustomerInfo;
           setCustomerSession(parsed);
-        } catch {}
+        } catch { }
       }
-    } catch {}
+    } catch { }
   }, [store.name, store.user_id]);
 
-  // Load global control flags (from global_config)
   useEffect(() => {
     let mounted = true;
     fetch('/api/global_config')
@@ -951,13 +831,10 @@ export function StoreProvider({
         });
         if (j?.plan_feature_matrix) setPlanFeatureMatrix(j.plan_feature_matrix);
       })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
+      .catch(() => { });
+    return () => { mounted = false; };
   }, []);
 
-  // Check if this store is blocked for orders (public storefront)
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -974,16 +851,11 @@ export function StoreProvider({
           setBlockedForOrders(!!j.blocked);
           setBlockedReason(j.status || null);
         }
-      } catch (e) {
-        // ignore network errors — fail open
-      }
+      } catch (e) { }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [store.user_id]);
 
-  // Load store's subscription/plan info to evaluate matrix rules
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -996,41 +868,23 @@ export function StoreProvider({
         if (!mounted) return;
         setStorePlanName(sub?.plan_name || null);
         setStoreSubscriptionStatus(sub?.status || null);
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) { }
     })();
-    return () => {
-      mounted = false;
-    };
-  }, [store.user_id]);
+    return () => { mounted = false; };
+  }, [store.user_id, supabase]);
 
   const isFeatureAllowed = useMemo(
-    () => (
-      featureKey: 'view_prices' | 'finalize_order' | 'save_cart'
-    ) => {
-      // 1) plan matrix override: if present, honor explicit true/false
+    () => (featureKey: 'view_prices' | 'finalize_order' | 'save_cart') => {
       const plan = storePlanName || (store as any).plan_type || null;
       if (plan && planFeatureMatrix && planFeatureMatrix[plan]) {
         const val = planFeatureMatrix[plan][featureKey];
         if (typeof val === 'boolean') return val;
       }
-
-      // 2) trial-specific global controls: allow if trial and global flags permit
       if (storeSubscriptionStatus === 'trial') {
-        if (featureKey === 'view_prices' && globalControls?.allow_trial_unlock)
-          return true;
-        if (
-          (featureKey === 'finalize_order' || featureKey === 'save_cart') &&
-          globalControls?.allow_trial_checkout
-        )
-          return true;
+        if (featureKey === 'view_prices' && globalControls?.allow_trial_unlock) return true;
+        if ((featureKey === 'finalize_order' || featureKey === 'save_cart') && globalControls?.allow_trial_checkout) return true;
       }
-
-      // 3) default behavior: non-trial users keep existing permissions (allow)
       if (storeSubscriptionStatus !== 'trial') return true;
-
-      // 4) fallback: block
       return false;
     },
     [storePlanName, planFeatureMatrix, storeSubscriptionStatus, globalControls, store]
@@ -1040,7 +894,6 @@ export function StoreProvider({
     localStorage.setItem(`cart-${store.name}`, JSON.stringify(cart));
   }, [cart, store.name]);
 
-  // Lógica de Busca Debounced
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 300);
     return () => clearTimeout(t);
@@ -1061,71 +914,53 @@ export function StoreProvider({
       setIsLoadingSearch(false);
     };
     runSearch();
-  }, [debouncedSearchTerm, store.user_id]);
+  }, [debouncedSearchTerm, store.user_id, supabase]);
 
-  // Ações do Carrinho
   const addToCart = (p: Product | string, qty = 1) => {
-    // Suporta receber o objeto Product ou apenas o product id (string).
     let productObj: Product | undefined;
     if (typeof p === 'string') {
       productObj = initialProducts.find((ip) => ip.id === p);
-    } else {
-      productObj = p;
-    }
+    } else { productObj = p; }
     if (!productObj) {
       toast.error('Produto não encontrado.');
       return;
     }
 
     const normalizeImageForCart = (raw: any) => {
-      // Accept full product objects or raw string values
       try {
         if (!raw && raw !== 0) return null;
-
-        // If caller passed a product-like object, try common fields in order
         if (typeof raw === 'object') {
-          const p = raw as any;
-          const candidate = p.image_url || p.image || p.image_path || p.external_image_url || null;
+          const prodObj = raw as any;
+          const candidate = prodObj.image_url || prodObj.image || prodObj.image_path || prodObj.external_image_url || null;
           if (!candidate) return null;
           raw = candidate;
         }
 
         const s = String(raw || '').trim();
         if (!s) return null;
-
-        // If it's already a full URL or an internal API proxy, keep it
         if (s.startsWith('/api/') || /^https?:\/\//i.test(s)) return s;
 
-        // If it's a Supabase public URL, extract the storage path and use proxy
         if (s.includes('/storage/v1/object/public/')) {
           const path = s.split('/storage/v1/object/public/')[1];
           const clean = String(path || '').replace(/^\/+/, '').replace(/^public\//, '');
           return `/api/storage-image?path=${encodeURIComponent(clean)}`;
         }
 
-        // If it looks like a storage path (starts with public/ or similar) normalize and proxy
         if (/^public\//i.test(s) || s.includes('supabase.co/storage') || s.includes('/storage/v1/object')) {
           const clean = s.replace(/^\/+/, '').replace(/^public\//, '');
           return `/api/storage-image?path=${encodeURIComponent(clean)}`;
         }
 
-        // If it's a relative path (no scheme and not starting with /), proxy it too
         if (!s.startsWith('/')) {
           const clean = s.replace(/^\/+/, '').replace(/^public\//, '');
           return `/api/storage-image?path=${encodeURIComponent(clean)}`;
         }
-
-        // Otherwise, return as-is (absolute path on site)
         return s;
-      } catch (e) {
-        return null;
-      }
+      } catch { return null; }
     };
 
     setCart((prev) => {
       const existsIdx = prev.findIndex((i) => i.id === productObj!.id);
-
-      // Resolve a imagem correta ANTES de salvar
       const correctImageUrl = normalizeImageForCart(productObj as any) || null;
 
       if (existsIdx > -1) {
@@ -1153,38 +988,27 @@ export function StoreProvider({
       const existing = prev.find((i) => i.id === id);
       if (!existing) return prev;
       const newQty = Number(existing.quantity || 0) + Number(delta || 0);
-      if (newQty <= 0) {
-        return prev.filter((i) => i.id !== id);
-      }
+      if (newQty <= 0) return prev.filter((i) => i.id !== id);
       return prev.map((i) => (i.id === id ? { ...i, quantity: newQty } : i));
     });
   };
 
-  /**
-   * FINALIZAÇÃO DE PEDIDO COM UPLOAD DE PDF
-   */
   const handleFinalizeOrder = useCallback(async (customer: CustomerInfo) => {
     setLoadingStates((s) => ({ ...s, submitting: true }));
     try {
-      // Check plan matrix / global controls to allow finalize for trial accounts
       if (!isFeatureAllowed('finalize_order')) {
-        // If not explicitly allowed by matrix or global flags, block
         toast.error('Finalização de pedidos não permitida para esta conta.');
         return false;
       }
       const totalValue = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
-      // If the route is institutional (/empresa), do not attach a sellerId
       let sellerId = (store as any)?.representative_id || rep?.id || null;
       try {
         const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
         const { isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
         if (isInstitutional) sellerId = null;
-      } catch (e) {
-        // ignore
-      }
+      } catch { }
       const ownerIsCompany = Boolean((store as any)?.owner_is_company);
 
-      // Use server-side API to create orders (avoids RLS 403 for public catalogs)
       const payload = {
         storeOwnerId: store.user_id,
         sellerId,
@@ -1213,13 +1037,9 @@ export function StoreProvider({
 
       const result = await res.json();
       if (!res.ok || !result || result.success === false) {
-        console.error('create-order API error', { status: res.status, result });
-        throw new Error(
-          result?.message || result?.error || 'Erro ao criar pedido'
-        );
+        throw new Error(result?.message || result?.error || 'Erro ao criar pedido');
       }
 
-      // 3. Upload do PDF para o Storage (feito no client para gerar o recibo e link)
       let publicUrl: string | null = null;
       try {
         const serverOrder = {
@@ -1259,14 +1079,10 @@ export function StoreProvider({
         total: totalValue,
         pdf_url: publicUrl,
       });
-      // LOGIN INVISÍVEL: grava dados do cliente para próximas visitas
       try {
-        localStorage.setItem(
-          `customer-${store.user_id}`,
-          JSON.stringify(customer)
-        );
+        localStorage.setItem(`customer-${store.user_id}`, JSON.stringify(customer));
         setCustomerSession(customer);
-      } catch {}
+      } catch { }
 
       setCart([]);
       return true;
@@ -1276,17 +1092,12 @@ export function StoreProvider({
     } finally {
       setLoadingStates((s) => ({ ...s, submitting: false }));
     }
-  }, [cart, store, rep?.id, isRichCatalog, isFeatureAllowed, supabase]);
+  }, [cart, store, rep?.id, isRichCatalog, isFeatureAllowed, supabase, showPrices]);
 
-  /**
-   * WHATSAPP COM RESUMO EXECUTIVO E LINK DO PDF
-   */
   const handleSendWhatsApp = async () => {
     if (!orderSuccessData) return;
-    const { customer, items, total, display_id, id, pdf_url } =
-      orderSuccessData;
+    const { customer, items, total, display_id, id, pdf_url } = orderSuccessData;
 
-    // Attempt to resolve representative phone server-side (settings -> public_catalogs)
     let destPhone: string | null = null;
     try {
       const res = await fetch('/api/catalog/representative-contact', {
@@ -1298,20 +1109,11 @@ export function StoreProvider({
         const j = await res.json();
         if (j.ok && j.phone) destPhone = String(j.phone);
       }
-    } catch (e) {
-      console.error('Failed to fetch representative contact', e);
-    }
+    } catch (e) { }
 
-    // Fallback to store.phone if route didn't return a phone
     if (!destPhone) {
-      destPhone =
-        ((store as any)?.representative_whatsapp as string | null) ||
-        (store.phone || null) as string | null;
+      destPhone = ((store as any)?.representative_whatsapp as string | null) || (store.phone || null) as string | null;
     }
-    const phoneRaw = destPhone || '';
-    const phone = (await import('@/lib/format-whatsapp')).formatWhatsAppDigits(phoneRaw);
-
-    // Formatação de Moeda
     const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
     let msg = `🔔 *𝗡𝗢𝗩𝗢 𝗣𝗘𝗗𝗜𝗗𝗢 : #${display_id || id}* 🚀\n`;
@@ -1319,27 +1121,21 @@ export function StoreProvider({
     msg += `📞 *WHATSAPP:* ${customer.phone}\n`;
     msg += `✉️ *EMAIL:* ${customer.email || '—'}\n`;
     msg += `------------------------------------------\n\n`;
-
     msg += ` 🛒*ITENS DO PEDIDO:📦*\n`;
+
     items.slice(0, 15).forEach((i: any) => {
       msg += `▪️ ${i.quantity}x ${i.name} (${fmt.format(i.price)})\n`;
     });
 
-    if (items.length > 15) {
-      msg += `\n_...e outros ${items.length - 15} itens._\n`;
-    }
-
+    if (items.length > 15) msg += `\n_...e outros ${items.length - 15} itens._\n`;
     msg += `\n------------------------------------------\n`;
     msg += `💰 *TOTAL: ${fmt.format(total)}*\n`;
     msg += `------------------------------------------\n`;
 
-    if (pdf_url) {
-      msg += `\n📄 *VER COMPROVANTE (PDF):*\n${pdf_url}\n`;
-    }
+    if (pdf_url) msg += `\n📄 *VER COMPROVANTE (PDF):*\n${pdf_url}\n`;
+    msg += `\n_Gerado por R̳e̳p̳V̳e̳n̳d̳a̳s̳ oasis_`;
 
-    msg += `\n_Gerado por R̳e̳p̳V̳e̳n̳d̳a̳s̳ ⭐_`;
-
-    const waUrl = (await import('@/lib/format-whatsapp')).makeWhatsAppUrl(phoneRaw, msg);
+    const waUrl = (await import('@/lib/format-whatsapp')).makeWhatsAppUrl(destPhone || '', msg);
     if (waUrl) window.open(waUrl, '_blank');
   };
 
@@ -1368,13 +1164,9 @@ export function StoreProvider({
 
       const json = await res.json();
       setLoadingStates((s) => ({ ...s, saving: false }));
-      if (!res.ok || !json || json.error) {
-        console.error('save-cart API error', { status: res.status, json });
-        return null;
-      }
+      if (!res.ok || !json || json.error) return null;
       return json.code || json.short_id || null;
     } catch (err) {
-      console.error('Erro ao salvar carrinho via API:', err);
       setLoadingStates((s) => ({ ...s, saving: false }));
       return null;
     }
@@ -1395,54 +1187,32 @@ export function StoreProvider({
           try {
             const s = String(raw || '').trim();
             if (!s) return null;
-            // If it's a Supabase storage public URL, convert to proxy path
             if (s.includes('/storage/v1/object/public/')) {
               const path = s.split('/storage/v1/object/public/')[1];
               return `/api/storage-image?path=${encodeURIComponent(path)}`;
             }
-            // If it's a full Supabase storage url
-            if (
-              s.includes('supabase.co/storage') ||
-              s.includes('/storage/v1/object')
-            ) {
+            if (s.includes('supabase.co/storage') || s.includes('/storage/v1/object')) {
               return `/api/storage-image?path=${encodeURIComponent(s)}`;
             }
-            // If it's already a proxy path (starts with /api/) or an absolute URL, keep as-is
             if (s.startsWith('/api/') || /^https?:\/\//i.test(s)) return s;
-            // Else return as-is (relative path)
             return s;
-          } catch (e) {
-            return null;
-          }
+          } catch { return null; }
         };
 
         const normalized = (data.items || []).map((it: any, idx: number) => {
-          const id =
-            it.id ||
-            it.product_id ||
-            it.productId ||
-            it.reference_code ||
-            `loaded-${idx}`;
+          const id = it.id || it.product_id || it.productId || it.reference_code || `loaded-${idx}`;
           const imageFromPath = it.image_path || it.path || null;
-          const rawImage =
-            it.image_url ||
-            it.image ||
-            it.image_url_original ||
-            imageFromPath ||
-            null;
-          const resolvedImage = normalizeImage(rawImage);
-          // Produce a fresh object for each item to avoid shared references
+          const rawImage = it.image_url || it.image || it.image_url_original || imageFromPath || null;
           return {
             ...(it || {}),
             id: String(id),
             quantity: Number(it.quantity || 1),
-            image_url: resolvedImage,
+            image_url: normalizeImage(rawImage),
           } as CartItem;
         });
         setCart(normalized);
         return true;
       } catch (e) {
-        console.error('Erro ao normalizar itens carregados:', e);
         return false;
       }
     }
@@ -1455,20 +1225,6 @@ export function StoreProvider({
     try {
       const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const items = orderSuccessData.items || [];
-      const now = new Date();
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 dias
-
-      const payload = {
-        short_id: shortId,
-        items,
-        meta: { order_id: orderSuccessData.id },
-        user_id_owner: store.user_id || null,
-        created_at: now.toISOString(),
-        expires_at: expiresAt.toISOString(),
-      } as any;
-
-      // Use server API to save cart so insertion happens with server privileges
-      // Normalize items to API expected shape: { product_id, quantity }
       const apiItems = (items || []).map((it: any) => ({
         product_id: it.id || it.product_id || null,
         quantity: Number(it.quantity || 1),
@@ -1482,13 +1238,9 @@ export function StoreProvider({
 
       const apiJson = await apiRes.json().catch(() => null);
       setLoadingStates((s) => ({ ...s, saving: false }));
-      if (!apiRes.ok || !apiJson || apiJson.error) {
-        console.error('save-cart API error', { status: apiRes.status, apiJson });
-        return null;
-      }
+      if (!apiRes.ok || !apiJson || apiJson.error) return null;
       return apiJson.code || apiJson.short_id || shortId;
     } catch (err) {
-      console.error('Erro ao salvar pedido como código:', err);
       setLoadingStates((s) => ({ ...s, saving: false }));
       return null;
     }
@@ -1498,16 +1250,12 @@ export function StoreProvider({
     const base = searchResults || initialProducts;
     return base
       .filter((p) => {
-        // Nunca exibir produtos inativos no catálogo público
         if (p.is_active === false) return false;
         if (showFavorites && !favorites.includes(p.id)) return false;
         if (showOnlyNew && !p.is_launch) return false;
         if (showOnlyBestsellers && !p.is_best_seller) return false;
         if (selectedBrand !== 'all') {
-          const normalize = (s: unknown) =>
-            String(s || '')
-              .trim()
-              .toLowerCase();
+          const normalize = (s: unknown) => String(s || '').trim().toLowerCase();
           const productBrand = normalize(p.brand);
           if (Array.isArray(selectedBrand)) {
             const selectedNormalized = selectedBrand.map(normalize);
@@ -1523,10 +1271,7 @@ export function StoreProvider({
           if (categoryNorm !== selectedNorm && typeNorm !== selectedNorm) return false;
         }
         if (selectedGender !== 'all') {
-          const normalize = (s: unknown) =>
-            String(s || '')
-              .trim()
-              .toLowerCase();
+          const normalize = (s: unknown) => String(s || '').trim().toLowerCase();
           if (normalize(p.gender) !== normalize(selectedGender)) return false;
         }
         if (selectedMaterial !== 'all') {
@@ -1545,156 +1290,69 @@ export function StoreProvider({
         if (sortOrder === 'price_asc') return (a.price || 0) - (b.price || 0);
         if (sortOrder === 'price_desc') return (b.price || 0) - (a.price || 0);
         if (sortOrder === 'ref_asc')
-          return String(a.reference_code || '').localeCompare(
-            String(b.reference_code || ''),
-            undefined,
-            { numeric: true, sensitivity: 'base' }
-          );
+          return String(a.reference_code || '').localeCompare(String(b.reference_code || ''), undefined, { numeric: true, sensitivity: 'base' });
         if (sortOrder === 'ref_desc')
-          return String(b.reference_code || '').localeCompare(
-            String(a.reference_code || ''),
-            undefined,
-            { numeric: true, sensitivity: 'base' }
-          );
+          return String(b.reference_code || '').localeCompare(String(a.reference_code || ''), undefined, { numeric: true, sensitivity: 'base' });
         if (sortOrder === 'created_desc')
-          return (
-            (Date.parse(b.created_at as string) || 0) -
-            (Date.parse(a.created_at as string) || 0)
-          );
+          return ((Date.parse(b.created_at as string) || 0) - (Date.parse(a.created_at as string) || 0));
         if (sortOrder === 'created_asc')
-          return (
-            (Date.parse(a.created_at as string) || 0) -
-            (Date.parse(b.created_at as string) || 0)
-          );
+          return ((Date.parse(a.created_at as string) || 0) - (Date.parse(b.created_at as string) || 0));
 
         return a.name.localeCompare(b.name);
       });
-  }, [
-    searchResults,
-    initialProducts,
-    favorites,
-    showFavorites,
-    showOnlyNew,
-    showOnlyBestsellers,
-    selectedBrand,
-    selectedCategory,
-    selectedGender,
-    selectedMaterial,
-    filterPolarizado,
-    filterFotocromatico,
-    sortOrder,
-  ]);
+  }, [searchResults, initialProducts, favorites, showFavorites, showOnlyNew, showOnlyBestsellers, selectedBrand, selectedCategory, selectedGender, selectedMaterial, filterPolarizado, filterFotocromatico, sortOrder]);
 
   const displayProducts = useMemo(() => {
-    // Slice the filtered list so we only render the current page's items
     const start = Math.max(0, (currentPage - 1) * itemsPerPage);
-    // Se itemsPerPage for 999999 (Todos), retorna tudo sem slice
     if (itemsPerPage >= 999999) return filteredProducts;
     return filteredProducts.slice(start, start + itemsPerPage);
   }, [filteredProducts, currentPage, itemsPerPage]);
 
-  // DEBUG TEMPORÁRIO: loga contagens e estado quando mudam (remover após verificação)
-  useEffect(() => {
-    try {
-      // debug removed
-    } catch (e) {}
-  }, [
-    filteredProducts.length,
-    displayProducts.length,
-    currentPage,
-    itemsPerPage,
-    showPrices,
-  ]);
-
-  // ✅ NORMALIZAÇÃO COMPLETA DA STORE (BANNERS, LOGOS E BARRA DE BENEFÍCIOS)
   const normalizedStore = useMemo(() => {
-    // Criamos uma cópia para preservar todas as propriedades originais
     const s: any = { ...store };
 
     const resolveUrl = (u: any, isThumbnail = false) => {
       if (!u && u !== '') return '';
-
-      // Accept objects (new variants format) or strings
       let finalPath = '';
       if (typeof u === 'object' && u !== null) {
-        finalPath = isThumbnail
-          ? (u.variants?.mobile?.url || u.variants?.desktop?.url || u.original || '')
-          : (u.variants?.desktop?.url || u.original || '');
-      } else {
-        finalPath = String(u || '');
-      }
+        finalPath = isThumbnail ? (u.variants?.mobile?.url || u.variants?.desktop?.url || u.original || '') : (u.variants?.desktop?.url || u.original || '');
+      } else { finalPath = String(u || ''); }
 
       if (!finalPath) return '';
-
-      // If it's an external full URL (not Supabase storage), return as-is
       if (/^https?:\/\//i.test(finalPath) && !finalPath.includes('supabase.co/storage')) return finalPath;
 
-      // Normalize Supabase storage paths and remove duplicated 'public/' segments
       let path = finalPath;
       if (finalPath.includes('/storage/v1/object/public/')) {
         path = finalPath.split('/storage/v1/object/public/')[1];
       }
-
-      // Remove leading repeated public/ segments
       let cleanPath = String(path || '').replace(/^(public\/)+/, '');
       cleanPath = cleanPath.replace('product-images/public/', 'product-images/');
-
       const resizeParam = isThumbnail ? '&width=400&quality=75' : '';
       return `/api/storage-image?path=${encodeURIComponent(cleanPath)}${resizeParam}`;
     };
 
-    // 1. Normaliza banners desktop
     if (Array.isArray(s.banners)) {
-      // If there are precomputed variants, prefer desktop variant URLs
       try {
         if ((s as any).banner_variants && (s as any).banner_variants.banners) {
           s.banners = (s as any).banner_variants.banners.map((it: any) => it.variants?.desktop?.url || resolveUrl(it.original || it, false));
-        } else {
-          s.banners = s.banners.map((b: any) => resolveUrl(b, false));
-        }
-      } catch (e) {
-        s.banners = s.banners.map((b: any) => resolveUrl(b, false));
-      }
+        } else { s.banners = s.banners.map((b: any) => resolveUrl(b, false)); }
+      } catch { s.banners = s.banners.map((b: any) => resolveUrl(b, false)); }
     }
 
-    // 2. Normaliza banners mobile
     if (Array.isArray((s as any).banners_mobile)) {
       try {
         if ((s as any).banner_variants && (s as any).banner_variants.banners_mobile) {
           (s as any).banners_mobile = (s as any).banner_variants.banners_mobile.map((it: any) => it.variants?.mobile?.url || resolveUrl(it.original || it, false));
-        } else {
-          (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false));
-        }
-      } catch (e) {
-        (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false));
-      }
+        } else { (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false)); }
+      } catch { (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false)); }
     }
 
-    // 3. Normaliza logo da loja (thumbnail)
-    if (s.logo_url) {
-      s.logo_url = resolveUrl(s.logo_url, true);
-    }
+    if (s.logo_url) s.logo_url = resolveUrl(s.logo_url, true);
+    if (s.top_benefit_image_url) s.top_benefit_image_url = resolveUrl(s.top_benefit_image_url, true);
 
-    // 4. ✅ FIX: Normaliza imagem da barra de benefícios (se houver) - thumbnail
-    if (s.top_benefit_image_url) {
-      s.top_benefit_image_url = resolveUrl(s.top_benefit_image_url, true);
-    }
-
-    // Garantir flags booleanas existam
     s.show_top_benefit_bar = s.show_top_benefit_bar ?? false;
-
-    // Garantir flags de preço e modo de desbloqueio estejam presentes e normalizados
-    try {
-      s.show_cost_price = isTruthyFlag((s as any).show_cost_price);
-    } catch (e) {
-      s.show_cost_price = false;
-    }
-    try {
-      // Por padrão, mostrar preço de venda quando não definido
-      s.show_sale_price = typeof (s as any).show_sale_price !== 'undefined' ? isTruthyFlag((s as any).show_sale_price) : true;
-    } catch (e) {
-      s.show_sale_price = true;
-    }
+    try { s.show_cost_price = isTruthyFlag((s as any).show_cost_price); } catch { s.show_cost_price = false; }
+    try { s.show_sale_price = typeof (s as any).show_sale_price !== 'undefined' ? isTruthyFlag((s as any).show_sale_price) : true; } catch { s.show_sale_price = true; }
 
     s.price_unlock_mode = (s as any).price_unlock_mode || (store as any).price_unlock_mode || 'modal';
     s.price_password_hash = (s as any).price_password_hash || (s as any).price_password || null;
@@ -1703,22 +1361,16 @@ export function StoreProvider({
     return s;
   }, [store]);
 
-  // Função para desbloquear preços (estável via useCallback)
   const unlockPrices = useCallback(
     async (p: string) => {
       const plain = p.trim();
-
-      // ✅ VALIDAÇÃO CRÍTICA: Senha vazia NÃO desbloqueia
       if (!plain || plain.length === 0) {
         toast.error('Digite uma senha válida');
         return false;
       }
 
-      // Verificar se há senha configurada no catálogo
-      const hasPasswordConfigured =
-        (store as any).price_password_hash || (store as any).price_password;
+      const hasPasswordConfigured = (store as any).price_password_hash || (store as any).price_password;
 
-      // Primeiro, se existe hash no sistema (compatibilidade), verifique-o
       if ((store as any).price_password_hash) {
         const hash = await sha256(plain);
         if (hash === (store as any).price_password_hash) {
@@ -1728,54 +1380,36 @@ export function StoreProvider({
               localStorage.setItem('priceAccessGranted', 'true');
               const tomorrow = new Date();
               tomorrow.setDate(tomorrow.getDate() + 1);
-              localStorage.setItem(
-                'priceAccessExpiresAt',
-                tomorrow.toISOString()
-              );
+              localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
             }
-          } catch {}
+          } catch { }
           toast.success('Preços desbloqueados!');
           return true;
         }
       }
 
-      // Em seguida, suporte a senha em texto simples (legado/solicitado)
-      if (
-        (store as any).price_password &&
-        plain === (store as any).price_password
-      ) {
+      if ((store as any).price_password && plain === (store as any).price_password) {
         setShowPrices(true);
         try {
           if (typeof window !== 'undefined') {
             localStorage.setItem('priceAccessGranted', 'true');
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
-            localStorage.setItem(
-              'priceAccessExpiresAt',
-              tomorrow.toISOString()
-            );
+            localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
           }
-        } catch {}
+        } catch { }
         toast.success('Preços desbloqueados!');
         return true;
       }
 
-      // Fallback server-side: se o cliente não tem o hash/plano disponível
-      // (caso de catálogos novos/testes), chamamos uma rota segura que usa
-      // a Service Role para validar a senha contra `settings` ou
-      // `public_catalogs` no servidor.
       try {
         const res = await fetch('/api/catalog/verify-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: (store as any).user_id,
-            password: plain,
-          }),
+          body: JSON.stringify({ userId: (store as any).user_id, password: plain }),
         });
         if (res.ok) {
           const j = await res.json();
-          // If server validated the password, unlock
           if (j.ok) {
             setShowPrices(true);
             try {
@@ -1783,19 +1417,12 @@ export function StoreProvider({
                 localStorage.setItem('priceAccessGranted', 'true');
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
-                localStorage.setItem(
-                  'priceAccessExpiresAt',
-                  tomorrow.toISOString()
-                );
+                localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
               }
-            } catch {}
+            } catch { }
             toast.success('Preços desbloqueados!');
             return true;
           }
-
-          // If server indicates a password is configured remotely, treat
-          // this as an incorrect password attempt and do NOT fall back to
-          // trial bypasses.
           if (j.configured) {
             toast.error('Senha incorreta');
             return false;
@@ -1805,13 +1432,11 @@ export function StoreProvider({
         console.error('verify-password request failed', e);
       }
 
-      // ✅ SE CHEGOU AQUI: Senha foi fornecida mas está INCORRETA
       if (hasPasswordConfigured) {
         toast.error('Senha incorreta');
         return false;
       }
 
-      // Plan matrix override
       if (isFeatureAllowed('view_prices')) {
         setShowPrices(true);
         try {
@@ -1819,12 +1444,9 @@ export function StoreProvider({
             localStorage.setItem('priceAccessGranted', 'true');
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
-            localStorage.setItem(
-              'priceAccessExpiresAt',
-              tomorrow.toISOString()
-            );
+            localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
           }
-        } catch {}
+        } catch { }
         return true;
       }
 
@@ -1841,7 +1463,7 @@ export function StoreProvider({
         localStorage.removeItem('priceAccessGranted');
         localStorage.removeItem('priceAccessExpiresAt');
       }
-    } catch {}
+    } catch { }
     toast.info('Precos ocultados com sucesso.');
   }, []);
 
@@ -1865,15 +1487,12 @@ export function StoreProvider({
         displayProducts,
         totalProducts: filteredProducts.length,
         currentPage,
-        totalPages:
-          itemsPerPage >= 999999
-            ? 1
-            : Math.ceil(filteredProducts.length / itemsPerPage),
+        totalPages: itemsPerPage >= 999999 ? 1 : Math.ceil(filteredProducts.length / itemsPerPage),
         setCurrentPage,
         itemsPerPage,
         setItemsPerPage: (items: number) => {
           setItemsPerPage(items);
-          setCurrentPage(1); // Reset para primeira página ao mudar tamanho
+          setCurrentPage(1);
         },
         viewMode,
         setViewMode,
@@ -1916,22 +1535,17 @@ export function StoreProvider({
         currentBanner,
         modals,
         setModal: (n: string, v: any) => {
-          // Ao abrir modal de produto, buscar variantes do mesmo `reference_id`/`reference_code`
           if (n === 'product') {
-            // fechamento rápido
             if (!v) return setModals((m) => ({ ...m, product: null }));
-
-            // mostrar imediatamente o produto clicado
             setModals((m) => ({ ...m, product: v }));
 
-            // buscar variantes em background (não bloquear UI)
             (async () => {
               try {
-                const supabase = createClient();
+                const client = createClient();
                 const ref = v.reference_id || v.reference_code || null;
                 if (!ref) return;
 
-                let query = supabase.from('products').select('*').eq('user_id', v.user_id).eq('is_active', true);
+                let query = client.from('products').select('*').eq('user_id', v.user_id).eq('is_active', true);
                 if (v.reference_id) query = query.eq('reference_id', v.reference_id);
                 else query = query.eq('reference_code', v.reference_code);
 
@@ -1945,19 +1559,15 @@ export function StoreProvider({
                 console.error('Erro ao carregar variantes do produto:', e);
               }
             })();
-
             return;
           }
-
           setModals((m) => ({ ...m, [n]: v }));
         },
         addToCart,
         removeFromCart: (id: string) => setCart((c: any[]) => c.filter((i: any) => i.id !== id)),
         updateQuantity,
         toggleFavorite: (id: string) =>
-          setFavorites((f: string[]) =>
-            f.includes(id) ? f.filter((x: string) => x !== id) : [...f, id]
-          ),
+          setFavorites((f: string[]) => f.includes(id) ? f.filter((x: string) => x !== id) : [...f, id]),
         unlockPrices,
         handleFinalizeOrder,
         handleSaveCart,
@@ -1993,16 +1603,13 @@ export function StoreProvider({
               URL.revokeObjectURL(url);
             }
           } catch (err) {
-            console.error('Erro ao baixar PDF:', err);
             toast.error('Erro ao gerar/baixar PDF.');
           }
         },
         handleSendWhatsApp,
         customerSession,
         clearCustomerSession: () => {
-          try {
-            localStorage.removeItem(`customer-${store.user_id}`);
-          } catch {}
+          try { localStorage.removeItem(`customer-${store.user_id}`); } catch { }
           setCustomerSession(null);
         },
         hasPolarizado,
