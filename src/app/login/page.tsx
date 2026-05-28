@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // 🔥 Injetado para controle nativo de rotas no Next.js
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Eye,
@@ -23,7 +23,7 @@ type ViewState = 'login' | 'forgot_password';
 
 export default function LoginPage() {
   const supabase = createClient();
-  const router = useRouter(); // 🔥 Inicializando o roteador estável do Next.js
+  const router = useRouter();
   const [view, setView] = useState<ViewState>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,54 +82,47 @@ export default function LoginPage() {
     setIsSubmitting(true);
     setFormError(null);
 
-    let loginResult = null; // 🔥 Declarado aqui fora para ser visível em todos os blocos
+    let loginResult = null;
+    let hasError = false;
 
     try {
       const formData = new FormData(e.currentTarget);
-      const result = await login(null, formData);
-      loginResult = result; // 🔥 Guarda o resultado no escopo externo
-
-      if (result?.success) {
-        toast.success('Entrando no sistema...');
-
-        try {
-          if (typeof window !== 'undefined') {
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker
-                .register('/firebase-messaging-sw.js')
-                .then(() => null)
-                .catch(() => null);
-            }
-            try {
-              const userPromise = supabase.auth.getUser();
-              const timeout = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('supabase.getUser timeout')), 3000)
-              );
-              const res: any = await Promise.race([userPromise, timeout]);
-              const user = res?.data?.user;
-            } catch (e) {
-              // debug removed
-            }
-          }
-        } catch (e) {
-          // ignore
-        }
-
+      loginResult = await login(null, formData);
+    } catch (err) {
+      if (isNextRedirect(err)) {
+        toast.success('Autenticado com sucesso! Entrando...');
         setTimeout(() => {
-          router.push(result.redirectTo || '/dashboard');
+          router.push('/dashboard');
           router.refresh();
         }, 500);
-
         return;
       }
-      setFormError(result?.error || 'Falha na autenticação');
-    } catch (err) {
-      setFormError('Erro ao processar login');
-    } finally {
-      // 🔥 Agora o bloco finally consegue validar com segurança usando a variável do escopo correto
-      if (!loginResult?.success) {
-        setIsSubmitting(false);
-      }
+      
+      hasError = true;
+      setFormError('Erro ao processar login no servidor');
+    }
+
+    if (loginResult && !loginResult.success) {
+      setFormError(loginResult.error || 'Falha na autenticação');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (loginResult?.success) {
+      toast.success('Entrando no sistema...');
+      
+      try {
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => null);
+        }
+      } catch (e) {}
+
+      setTimeout(() => {
+        router.push(loginResult.redirectTo || '/dashboard');
+        router.refresh();
+      }, 500);
+    } else if (hasError || !loginResult) {
+      setIsSubmitting(false);
     }
   };
 
@@ -171,7 +164,7 @@ export default function LoginPage() {
                   onClick={handleGoogleLogin}
                   className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-gray-100 bg-white py-3.5 font-bold text-gray-700 hover:bg-gray-50 transition-all"
                 >
-                  <span className="h-5 w-5 block" aria-hidden>
+                  <span className="h-5 w-5 block" aria-hidden="true">
                     <svg
                       viewBox="0 0 32 32"
                       className="h-5 w-5"

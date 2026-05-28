@@ -16,9 +16,21 @@ export async function login(_arg: unknown, formData: FormData) {
 
   try {
     const supabase = await createClient();
+    
+    // 1. Faz a autenticação normal para validar as credenciais do usuário
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: 'E-mail ou senha incorretos.' };
 
+    // 2. DERRUBADA DE SESSÃO CONCORRENTE: Invalida e desloga imediatamente todas 
+    // as outras instâncias/dispositivos (ex: outro celular Android ou computador)
+    // mantendo viva estritamente a conexão deste dispositivo atual.
+    try {
+      await supabase.auth.signOut({ scope: 'others' });
+    } catch (signOutErr) {
+      console.warn('Aviso: Não foi possível invalidar sessões concorrentes:', signOutErr);
+    }
+
+    // 3. Captura o profile do usuário para prosseguir com o roteamento correto
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
     try { revalidatePath('/', 'layout'); } catch (_) {}
 
