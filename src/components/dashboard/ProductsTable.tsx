@@ -844,7 +844,7 @@ export function ProductsTable({
           throw new Error('Erro ao buscar produtos');
         }
         const json = await res.json();
-        let serverData = json.data || [];
+        const serverData = json.data || [];
         // imageOptimization filtering removed from server flow
         setServerProducts(serverData);
         setServerMeta(json.meta || {});

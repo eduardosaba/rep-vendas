@@ -1,31 +1,29 @@
 'use client';
 
-import React, { useMemo, useEffect, useState } from 'react';
-import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import FeaturedSection from '@/components/catalog/FeaturedSection';
-import { Phone } from 'lucide-react';
-import { StoreProvider, useStore } from './store-context';
-import {
-  StoreTopBar,
-  StoreHeader,
-  StoreSidebar,
-  StoreMobileActionBar,
-  StoreFooter,
-  CarouselBrands,
-} from './store-layout';
-import { StoreBanners, ProductGrid, CategoryBar } from './product-components';
-import { StoreModals } from './store-modals-container';
-import { InstallPrompt } from './InstallPrompt';
-import { FloatingCart } from './FloatingCart';
-import { UnlockPriceActions } from './UnlockPriceActions';
 import CatalogThemeProvider from '@/components/theme/CatalogThemeProvider';
 import { hexToRgb } from '@/lib/colors'; // Importando nossa função utilitária
 import { SYSTEM_FONTS } from '@/lib/fonts';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
+import React, { useEffect, useMemo } from 'react';
+import { FloatingCart } from './FloatingCart';
+import { InstallPrompt } from './InstallPrompt';
+import { CategoryBar, ProductGrid, StoreBanners } from './product-components';
+import { StoreProvider, useStore } from './store-context';
+import {
+  CarouselBrands,
+  StoreFooter,
+  StoreHeader,
+  StoreMobileActionBar,
+  StoreTopBar,
+} from './store-layout';
+import { StoreModals } from './store-modals-container';
+import { UnlockPriceActions } from './UnlockPriceActions';
 
 import type {
   Product,
-  Settings as StoreSettings,
   PublicCatalog,
+  Settings as StoreSettings,
 } from '@/lib/types';
 
 interface StorefrontProps {
@@ -54,8 +52,7 @@ function UnlockPriceActionsBridge() {
 
   const showCostPrice = isTruthyFlag(store?.show_cost_price);
   const showSalePrice = isTruthyFlag(store?.show_sale_price);
-  const hasRestrictedPriceFlow =
-    showCostPrice && !showSalePrice;
+  const hasRestrictedPriceFlow = showCostPrice && !showSalePrice;
 
   if (!hasRestrictedPriceFlow) return null;
 
@@ -146,7 +143,8 @@ export function Storefront({
       show_top_benefit_bar: isTruthyFlag(c['show_top_benefit_bar']),
       show_top_info_bar: isTruthyFlag(c['show_top_info_bar']),
       // Footer colors
-      footer_background_color: (c['footer_background_color'] as string) || undefined,
+      footer_background_color:
+        (c['footer_background_color'] as string) || undefined,
       footer_text_color: (c['footer_text_color'] as string) || undefined,
       // Banners
       banners: (c['banners'] as string[]) || null,
@@ -260,13 +258,15 @@ export function Storefront({
       style.id = id;
       style.innerHTML = `@font-face{font-family:'${familyName}';src: url('${fontUrl}') format('woff2');font-weight:400;font-style:normal;font-display:swap;}`;
       document.head.appendChild(style);
-    } else if (finalSelected && finalSelected.import) {
-      if (
-        !document.querySelector(`link[data-rv-font="${finalSelected.name}"]`)
-      ) {
+    } else if (finalSelected && finalSelected.stylesheetUrl) {
+      const existing = document.querySelector(
+        `link[data-rv-font="${finalSelected.name}"]`
+      );
+
+      if (!existing) {
         const l = document.createElement('link');
         l.setAttribute('rel', 'stylesheet');
-        l.setAttribute('href', finalSelected.import as string);
+        l.setAttribute('href', finalSelected.stylesheetUrl);
         l.setAttribute('data-rv-font', finalSelected.name);
         document.head.appendChild(l);
       }

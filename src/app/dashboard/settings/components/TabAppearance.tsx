@@ -266,7 +266,7 @@ export function TabAppearance(props: any) {
                     setFormData((p: any) => ({
                       ...p,
                       font_family: selectedName,
-                      font_url: preset?.import ?? null,
+                      font_url: preset?.stylesheetUrl ?? null,
                     }));
                     try {
                       if (preset && typeof window !== 'undefined') {

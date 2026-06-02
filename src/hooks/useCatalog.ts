@@ -1,19 +1,26 @@
-import { useState, useEffect, useMemo } from 'react';
+import { isNextRedirect } from '@/lib/isNextRedirect';
 import { createClient } from '@/lib/supabase/client';
 import { Product, Settings } from '@/lib/types';
-import { toast } from 'sonner';
-import { isNextRedirect } from '@/lib/isNextRedirect';
 import { useParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
-export function useCatalog(overrideUserId?: string, initialSettings?: Settings | null) {
+export function useCatalog(
+  overrideUserId?: string,
+  initialSettings?: Settings | null
+) {
   const supabase = createClient();
   const params = useParams();
   const userId = overrideUserId || (params?.slug as string);
 
   // --- ESTADOS DE DADOS ---
   const [products, setProducts] = useState<Product[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(initialSettings || null);
-  const [brandLogos, setBrandLogos] = useState<Record<string, string | null>>({});
+  const [settings, setSettings] = useState<Settings | null>(
+    initialSettings || null
+  );
+  const [brandLogos, setBrandLogos] = useState<Record<string, string | null>>(
+    {}
+  );
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -30,13 +37,23 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const [priceAccessGranted, setPriceAccessGranted] = useState(false);
-  const [pricePasswordHash, setPricePasswordHash] = useState<string | null>(null);
+  const [pricePasswordHash, setPricePasswordHash] = useState<string | null>(
+    null
+  );
 
   // Helper de Normalização para Categorias (Igual ao do Componente Visual)
   const normalizeCategory = (v: string) => {
     if (!v) return '';
-    let s = String(v).toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^opt+/, '');
-    if (s.includes('clipon') || (s.includes('clip') && s.includes('on')) || s.includes('clion')) return 'CLIPON';
+    const s = String(v)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '')
+      .replace(/^opt+/, '');
+    if (
+      s.includes('clipon') ||
+      (s.includes('clip') && s.includes('on')) ||
+      s.includes('clion')
+    )
+      return 'CLIPON';
     return s.toUpperCase();
   };
 
@@ -53,8 +70,10 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
         p.set('per_page', String(itemsPerPage));
 
         if (searchTerm) p.set('q', searchTerm);
-        if (selectedCategory && selectedCategory !== 'all') p.set('category', selectedCategory);
-        if (selectedBrands.length > 0) p.set('brands', selectedBrands.join(','));
+        if (selectedCategory && selectedCategory !== 'all')
+          p.set('category', selectedCategory);
+        if (selectedBrands.length > 0)
+          p.set('brands', selectedBrands.join(','));
         if (sortBy) p.set('sort', sortBy);
         if (sortOrder) p.set('order', sortOrder);
 
@@ -78,7 +97,16 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
     };
 
     fetchProducts();
-  }, [userId, currentPage, itemsPerPage, searchTerm, selectedCategory, selectedBrands, sortBy, sortOrder]);
+  }, [
+    userId,
+    currentPage,
+    itemsPerPage,
+    searchTerm,
+    selectedCategory,
+    selectedBrands,
+    sortBy,
+    sortOrder,
+  ]);
 
   // --- CARREGAMENTO DE CONFIGURAÇÕES E LOGOS ---
   useEffect(() => {
@@ -87,17 +115,26 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
     const loadSettings = async () => {
       try {
         if (!initialSettings) {
-          const { data } = await supabase.from('settings').select('*').eq('user_id', userId).maybeSingle();
+          const { data } = await supabase
+            .from('settings')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
           if (data) {
             setSettings(data);
             setPricePasswordHash(data.price_password_hash);
           }
         }
 
-        const { data: brandsData } = await supabase.from('brands').select('name,logo_url').eq('user_id', userId);
+        const { data: brandsData } = await supabase
+          .from('brands')
+          .select('name,logo_url')
+          .eq('user_id', userId);
         if (brandsData) {
           const map: Record<string, string | null> = {};
-          brandsData.forEach((b: any) => { map[b.name] = b.logo_url || null; });
+          brandsData.forEach((b: any) => {
+            map[b.name] = b.logo_url || null;
+          });
           setBrandLogos(map);
         }
       } catch (err) {
@@ -114,13 +151,16 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
       const savedFavs = localStorage.getItem('favorites');
       if (savedFavs) setFavorites(new Set(JSON.parse(savedFavs)));
 
-      if (localStorage.getItem('priceAccessGranted') === 'true') setPriceAccessGranted(true);
+      if (localStorage.getItem('priceAccessGranted') === 'true')
+        setPriceAccessGranted(true);
     }
   }, [userId]);
 
   // --- LISTAS AUXILIARES PARA FILTROS ---
   const allBrands = useMemo(() => {
-    return [...new Set(products.map((p) => p.brand).filter(Boolean))].sort() as string[];
+    return [
+      ...new Set(products.map((p) => p.brand).filter(Boolean)),
+    ].sort() as string[];
   }, [products]);
 
   useEffect(() => {
@@ -129,7 +169,7 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
 
   const categories = useMemo(() => {
     const set = new Set<string>();
-    products.forEach(p => {
+    products.forEach((p) => {
       if (p.category) set.add(p.category);
     });
     return [...set].sort();
@@ -163,7 +203,9 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const hashHex = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
 
     if (hashHex === pricePasswordHash) {
       setPriceAccessGranted(true);
@@ -203,6 +245,6 @@ export function useCatalog(overrideUserId?: string, initialSettings?: Settings |
     priceAccessGranted,
     requestPriceAccess,
     allBrands,
-    categories
+    categories,
   };
 }

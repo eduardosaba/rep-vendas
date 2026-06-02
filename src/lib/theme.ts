@@ -22,16 +22,13 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
 
   const root = document.documentElement;
 
-  // Build all variable assignments first, then apply in one atomic setProperty loop
   const vars: string[] = [];
 
-  // Only update primary/secondary if explicit values were provided.
-  // This avoids unintentionally reverting theme colors to defaults during
-  // Fast Refresh / HMR when callers don't supply primary/secondary.
   if (typeof colors.primary !== 'undefined' && colors.primary !== null) {
     const primaryColor = colors.primary;
     const primaryRgb = hexToRgb(primaryColor);
     const primaryContrast = getContrastColor(primaryColor);
+
     vars.push(`--primary: ${primaryColor}`);
     vars.push(`--primary-rgb: ${primaryRgb}`);
     vars.push(`--primary-foreground: ${primaryContrast}`);
@@ -41,6 +38,7 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
     const secondaryColor = colors.secondary;
     const secondaryRgb = hexToRgb(secondaryColor);
     const secondaryContrast = getContrastColor(secondaryColor);
+
     vars.push(`--secondary: ${secondaryColor}`);
     vars.push(`--secondary-rgb: ${secondaryRgb}`);
     vars.push(`--secondary-foreground: ${secondaryContrast}`);
@@ -48,6 +46,7 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
 
   if (colors.headerBg) {
     const headerRgb = hexToRgb(colors.headerBg);
+
     vars.push(`--header-bg: ${colors.headerBg}`);
     vars.push(`--header-bg-rgb: ${headerRgb}`);
   }
@@ -64,18 +63,19 @@ export function applyThemeColors(colors: Partial<ThemeColors>) {
     vars.push(`--header-icon-color: ${colors.headerIconColor}`);
   }
 
-  // Apply variables using setProperty to avoid overwriting unrelated inline styles
-  vars.forEach((v) => {
-    const [name, value] = v.split(':').map((s) => s.trim());
+  vars.forEach((variable) => {
+    const [name, ...valueParts] = variable.split(':');
+    const value = valueParts.join(':').trim();
+
     if (name && value !== undefined) {
-      root.style.setProperty(name, value);
+      root.style.setProperty(name.trim(), value);
     }
   });
 }
 
 /**
  * Aplica a fonte ao dashboard via body font-family.
- * IMPORTANTE: Esta função aplica a fonte APENAS ao dashboard (preview).
+ * IMPORTANTE: Esta função aplica a fonte APENAS ao dashboard/preview.
  * A fonte do CATÁLOGO é aplicada pelo componente Storefront.
  */
 export function applyDashboardFont(fontName: string | null) {
@@ -84,98 +84,126 @@ export function applyDashboardFont(fontName: string | null) {
   const body = document.body;
 
   if (!fontName) {
-    // Remove font-family customizada, volta ao padrão do sistema
     body.style.fontFamily = '';
     return;
   }
 
-  const selectedFont = SYSTEM_FONTS.find((f) => f.name === fontName);
+  const selectedFont = SYSTEM_FONTS.find((font) => font.name === fontName);
+
   if (!selectedFont) {
     console.warn(`Fonte "${fontName}" não encontrada em SYSTEM_FONTS`);
     return;
   }
 
-  // Carrega a fonte via Google Fonts se ainda não foi carregada.
-  // Aplicamos `fontFamily` somente após o carregamento bem-sucedido.
-  const linkId = `font-${fontName.replace(/\s+/g, '-')}`;
-  if (!document.getElementById(linkId)) {
-    // When self-hosting fonts we intentionally avoid adding external
-    // preconnects to Google Fonts (fonts.googleapis.com / fonts.gstatic.com)
-    // to prevent accidental external requests in restricted networks.
+  const stylesheetUrl = selectedFont.stylesheetUrl || null;
 
-    // If there is no external import URL for this font (self-hosted),
-    // just apply the family immediately and skip injecting an external link.
-    if (!selectedFont.import) {
-      try {
-        body.style.fontFamily = selectedFont.family;
-      } catch (e) {
-        console.warn('applyDashboardFont: failed to apply self-hosted font-family', e);
-      }
-      return;
+  if (!stylesheetUrl) {
+    try {
+      body.style.fontFamily = selectedFont.family;
+    } catch (error) {
+      console.warn(
+        'applyDashboardFont: failed to apply local/system font-family',
+        error
+      );
     }
 
+    return;
+  }
+
+  const linkId = `font-${fontName.replace(/\s+/g, '-')}`;
+
+  if (!document.getElementById(linkId)) {
     const link = document.createElement('link');
+
     link.id = linkId;
     link.rel = 'stylesheet';
-    link.crossOrigin = 'anonymous';
-    link.href = selectedFont.import;
-    // Only apply the font-family after verifying the font actually loaded
+    link.href = stylesheetUrl;
+
     link.onload = async () => {
       try {
         const loaded = await waitForFontLoad(selectedFont.family, 3000);
+
         if (loaded) {
           body.style.fontFamily = selectedFont.family;
         } else {
-          console.warn(`applyDashboardFont: font ${selectedFont.family} failed to load within timeout`);
+          console.warn(
+            `applyDashboardFont: font ${selectedFont.family} failed to load within timeout`
+          );
+
           try {
             link.remove();
-          } catch (e) {}
+          } catch {
+            // ignore
+          }
         }
-      } catch (e) {
-        console.warn('applyDashboardFont: failed while waiting for font load', e);
+      } catch (error) {
+        console.warn(
+          'applyDashboardFont: failed while waiting for font load',
+          error
+        );
+
         try {
           link.remove();
-        } catch (er) {}
+        } catch {
+          // ignore
+        }
       }
     };
+
     link.onerror = () => {
-      console.warn(`applyDashboardFont: failed to load font ${fontName} from ${selectedFont.import}`);
+      console.warn(
+        `applyDashboardFont: failed to load font ${fontName} from ${stylesheetUrl}`
+      );
+
       try {
         link.remove();
-      } catch (e) {}
+      } catch {
+        // ignore
+      }
     };
+
     document.head.appendChild(link);
   } else {
-    // Already present — apply immediately (likely loaded)
     try {
       body.style.fontFamily = selectedFont.family;
-    } catch (e) {
-      console.warn('applyDashboardFont: apply fallback failed', e);
+    } catch (error) {
+      console.warn('applyDashboardFont: apply fallback failed', error);
     }
   }
 }
 
 /**
- * Waits for a font family to be available via the Font Loading API.
- * Returns true if loaded within timeoutMs, false otherwise.
+ * Espera a fonte ficar disponível usando Font Loading API.
  */
 async function waitForFontLoad(fontFamily: string, timeoutMs = 3000) {
-  if (typeof document === 'undefined' || !(document as any).fonts) return false;
+  if (typeof document === 'undefined' || !(document as any).fonts) {
+    return false;
+  }
 
   const fontFaceSet = (document as any).fonts as FontFaceSet;
 
-  // Try a few common weights to increase chance of detecting availability
+  const primaryFamily = fontFamily.split(',')[0]?.replace(/["']/g, '').trim();
+
+  if (!primaryFamily) {
+    return false;
+  }
+
   const weights = ['400', '700'];
-  const loadPromises = weights.map((w) => fontFaceSet.load(`${w} 16px "${fontFamily}"`));
+
+  const loadPromises = weights.map((weight) =>
+    fontFaceSet.load(`${weight} 16px "${primaryFamily}"`)
+  );
 
   try {
     await Promise.race([
       Promise.all(loadPromises),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), timeoutMs)
+      ),
     ]);
-    // Double-check with check()
-    return fontFaceSet.check(`16px "${fontFamily}"`);
-  } catch (e) {
+
+    return fontFaceSet.check(`16px "${primaryFamily}"`);
+  } catch {
     return false;
   }
 }

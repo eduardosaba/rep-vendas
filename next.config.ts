@@ -27,13 +27,17 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self';",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' *.infinitepay.io *.google.com *.google.com.br applepay.cdn-apple.com *.unico.io *.amplitude.com *.cloudflare.com *.clarity.ms *.onlinemetrix.net *.online-metrix.net *.sentry.io;",
+              // Adicionado 'unsafe-inline' para o Supabase (às vezes necessário para scripts de auth)
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com *.infinitepay.io *.google.com *.google.com.br applepay.cdn-apple.com *.unico.io *.amplitude.com *.cloudflare.com *.clarity.ms *.onlinemetrix.net *.online-metrix.net *.sentry.io;",
               "style-src 'self' 'unsafe-inline' fonts.googleapis.com;",
               "font-src 'self' data: fonts.gstatic.com fonts.googleapis.com *.infinitepay.io;",
               "img-src 'self' data: https: blob:;",
-              "connect-src 'self' *.supabase.co *.infinitepay.io *.amplitude.com *.cloudflare.com *.clarity.ms *.sentry.io *.ingest.sentry.io;",
+              // CORREÇÃO CRÍTICA ABAIXO:
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fcmregistrations.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com *.infinitepay.io *.amplitude.com *.cloudflare.com *.clarity.ms *.sentry.io *.ingest.sentry.io;",
               "frame-src 'self' *.infinitepay.io;",
-              "worker-src 'self' blob:;", // Necessário para alguns scripts de analytics/sentry
+              "media-src 'self' https://res.cloudinary.com;",
+              // Adicionado 'blob:' e 'data:' aqui para suportar workers do Supabase
+              "worker-src 'self' blob: data:;",
             ].join(' '),
           },
         ],
@@ -42,7 +46,7 @@ const nextConfig: NextConfig = {
   },
 
   eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
+  typescript: { ignoreBuildErrors: false },
   productionBrowserSourceMaps: true,
 
   experimental: {
@@ -51,8 +55,8 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  org: "repvendas",
-  project: "javascript-nextjs",
+  org: 'repvendas',
+  project: 'javascript-nextjs',
   silent: !process.env.CI,
   widenClientFileUpload: true,
   webpack: {

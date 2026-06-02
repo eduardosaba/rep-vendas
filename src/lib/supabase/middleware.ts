@@ -1,81 +1,67 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+type SupabaseCookieToSet = {
+  name: string;
+  value: string;
+  options?: Record<string, any>;
+};
+
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll().map((c) => ({
-            ...c,
-            name: c.name.replace(/^__Secure-/, ''),
-          }));
-        },
-        setAll(
-          cookiesToSet: Array<{ name: string; value: string; options?: any }>
-        ) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return response;
+  }
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+      name: 'repvendas-auth-token',
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+    },
+
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
-  );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+      setAll(cookiesToSet: SupabaseCookieToSet[]) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
 
-  const path = request.nextUrl.pathname;
-  const isProtectedRoute =
-    typeof path === 'string' && (path.startsWith('/dashboard') ||
-    path.startsWith('/admin') ||
-    path.startsWith('/onboarding'));
-  const isAuthPage = typeof path === 'string' && (path.startsWith('/login') || path.startsWith('/register'));
+        response = NextResponse.next({
+          request: {
+            headers: request.headers,
+          },
+        });
 
-  let onboardingIncomplete = false;
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, {
+            ...options,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            path: '/',
+          });
+        });
+      },
+    },
+  });
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('onboarding_completed, role')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (!profile?.onboarding_completed) onboardingIncomplete = true;
-
-    // Redireciona logados que completaram onboarding de páginas de auth
-    if (!onboardingIncomplete && isAuthPage) {
-      const target = profile?.role === 'master' ? '/admin' : '/dashboard';
-      return NextResponse.redirect(new URL(target, request.url));
-    }
-  }
-
-  // Não autenticado → login
-  if (!user && isProtectedRoute) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  // Usuário com onboarding incompleto → onboarding
-  // Somente redireciona quando o usuário acessa rotas protegidas (ex: /dashboard, /admin, /onboarding).
-  // Isso evita forçar o onboarding quando o lojista acessa o catálogo público.
-  if (user && onboardingIncomplete && isProtectedRoute && path !== '/onboarding') {
-    return NextResponse.redirect(new URL('/onboarding', request.url));
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    console.warn('[updateSession] Falha ao atualizar sessão:', error);
   }
 
   return response;
 }
-
-export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
-};

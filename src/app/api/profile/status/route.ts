@@ -1,33 +1,90 @@
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
 
-export async function GET(req: Request) {
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function GET() {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        {
+          ok: false,
+          profile: null,
+          error: 'unauthenticated',
+        },
+        {
+          status: 401,
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+          },
+        }
+      );
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('status, trial_ends_at, role, company_id, can_manage_catalog')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          profile: null,
+          error: profileError.message,
+        },
+        {
+          status: 500,
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0',
+          },
+        }
+      );
+    }
+
+    return NextResponse.json(
       {
-        cookies: {
-          getAll() {
-            // @ts-ignore
-            return (req as any).cookies?.getAll?.().map((c: any) => ({ name: c.name, value: c.value })) || [];
-          },
-          setAll() {
-            // noop
-          },
+        ok: true,
+        profile: profile || null,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
         },
       }
     );
+  } catch (error: any) {
+    console.error('[api/profile/status] error:', error);
 
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user || null;
-    if (!user) return NextResponse.json({ ok: false, error: 'unauthenticated' }, { status: 401 });
-
-    const { data: profile } = await supabase.from('profiles').select('status, trial_ends_at').eq('id', user.id).maybeSingle();
-
-    return NextResponse.json({ ok: true, profile: profile || null });
-  } catch (e) {
-    console.error('profile/status error', e);
-    return NextResponse.json({ ok: false, error: 'internal' }, { status: 500 });
+    return NextResponse.json(
+      {
+        ok: false,
+        profile: null,
+        error: error?.message || 'internal',
+      },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    );
   }
 }

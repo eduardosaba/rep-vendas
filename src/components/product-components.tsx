@@ -49,7 +49,7 @@ interface SlideData {
 // Normalization helper used across category/type logic (moved to module scope)
 const normalizeForTypeModule = (x: any) => {
   try {
-    let s = String(x || '')
+    const s = String(x || '')
       .toLowerCase()
       .trim();
 

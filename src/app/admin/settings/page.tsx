@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { toast } from 'sonner';
-import {
-  Save,
-  Upload,
-  Image as ImageIcon,
-  Loader2,
-  Layout,
-  Smartphone,
-} from 'lucide-react';
 import { SYSTEM_FONTS } from '@/lib/fonts';
 import { logger } from '@/lib/logger';
+import { createClient } from '@/lib/supabase/client';
 import { getErrorMessage } from '@/utils/getErrorMessage';
+import {
+  Image as ImageIcon,
+  Layout,
+  Loader2,
+  Save,
+  Smartphone,
+  Upload,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface PlatformSettings {
   system_name: string;
@@ -78,11 +78,11 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     if (!globalFont) return;
     const f = SYSTEM_FONTS.find((x) => x.name === globalFont);
-    if (!f || !f.import) return;
+    if (!f || !f.stylesheetUrl) return;
     if (document.querySelector(`link[data-rv-font="${f.name}"]`)) return;
     const l = document.createElement('link');
     l.rel = 'stylesheet';
-    l.href = f.import as string;
+    l.href = f.stylesheetUrl;
     l.setAttribute('data-rv-font', f.name);
     document.head.appendChild(l);
   }, [globalFont]);

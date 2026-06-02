@@ -1,32 +1,29 @@
-import { notFound, redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
+import { NegotiationPanel } from '@/components/dashboard/NegotiationPanel';
+import { OrderDetailsView } from '@/components/dashboard/OrderDetailsView';
+import { OrderPdfButton } from '@/components/dashboard/OrderPdfButton';
+import OrderStatusControls from '@/components/dashboard/OrderStatusControls';
 import { getActiveUserId } from '@/lib/auth-utils';
-import Link from 'next/link';
+import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
+import { formatDocument } from '@/lib/formatDocument';
+import { getUiStatusKey } from '@/lib/orderStatus';
+import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
+import { createClient } from '@/lib/supabase/server';
 import {
   ArrowLeft,
   Calendar,
-  User,
-  Phone,
-  Package,
   CheckCircle,
-  XCircle,
   Clock,
-  ThumbsUp,
   CreditCard,
-  Mail,
   FileText,
+  Mail,
   MapPin,
-  Hash,
-  Tag,
+  Phone,
+  ThumbsUp,
+  User,
+  XCircle,
 } from 'lucide-react';
-import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
-import OrderStatusControls from '@/components/dashboard/OrderStatusControls';
-import { OrderPdfButton } from '@/components/dashboard/OrderPdfButton';
-import { OrderDetailsView } from '@/components/dashboard/OrderDetailsView';
-import { NegotiationPanel } from '@/components/dashboard/NegotiationPanel';
-import { getUiStatusKey } from '@/lib/orderStatus';
-import { formatDocument } from '@/lib/formatDocument';
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,18 +116,20 @@ export default async function OrderDetailsPage({
       clients (*),
       order_items (
         id,
+        product_id,
         product_name,
         product_reference,
+        brand,
         quantity,
         unit_price,
         image_url,
         external_image_url,
         products (
+          id,
           reference_code,
           image_url,
           external_image_url,
           brand,
-          barcode,
           name,
           image_variants,
           product_images ( id, url, is_primary, optimized_variants )
@@ -318,7 +317,9 @@ export default async function OrderDetailsPage({
                   </div>
                 ) : (
                   <div className="pt-2 border-t border-gray-100 dark:border-slate-800 mt-2 opacity-50">
-                    <span className="text-xs text-gray-400 italic">Documento não informado</span>
+                    <span className="text-xs text-gray-400 italic">
+                      Documento não informado
+                    </span>
                   </div>
                 )}
 
@@ -347,39 +348,74 @@ export default async function OrderDetailsPage({
               />
             ) : null}
 
-            {statusKey !== 'cancelled' && statusKey !== 'delivered' && statusKey !== 'pending_review' && (
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <CheckCircle size={18} className="text-green-600 dark:text-green-400" /> Ações do Pedido
-                </h3>
-                <OrderStatusControls orderId={order.id} statusKey={statusKey} />
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-3 border-t border-gray-100 dark:border-slate-800 mt-4">Ações de status atualizam o estoque e notificam (se configurado).</p>
-              </div>
-            )}
+            {statusKey !== 'cancelled' &&
+              statusKey !== 'delivered' &&
+              statusKey !== 'pending_review' && (
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <CheckCircle
+                      size={18}
+                      className="text-green-600 dark:text-green-400"
+                    />{' '}
+                    Ações do Pedido
+                  </h3>
+                  <OrderStatusControls
+                    orderId={order.id}
+                    statusKey={statusKey}
+                  />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-3 border-t border-gray-100 dark:border-slate-800 mt-4">
+                    Ações de status atualizam o estoque e notificam (se
+                    configurado).
+                  </p>
+                </div>
+              )}
           </div>
 
           {/* Mobile: colapsável */}
           <div className="md:hidden">
             <details className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <summary className="px-4 py-3 flex items-center justify-between cursor-pointer">
-                <div className="flex items-center gap-2"><User size={16} /> Dados do Cliente</div>
+                <div className="flex items-center gap-2">
+                  <User size={16} /> Dados do Cliente
+                </div>
                 <div className="text-sm text-slate-500">Toque para abrir</div>
               </summary>
               <div className="p-4 space-y-4">
                 <div>
-                  <div className="font-medium text-gray-900 dark:text-white">{clientName}</div>
-                  <div className="text-xs text-gray-400">{order.client_id ? 'Cadastrado' : 'Visitante'}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {clientName}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {order.client_id ? 'Cadastrado' : 'Visitante'}
+                  </div>
                 </div>
 
                 {(clientPhone || clientEmail) && (
                   <div className="space-y-2">
-                    {clientPhone && (<a href={makeWhatsAppUrl(clientPhone) || '#'} target="_blank" rel="noreferrer" className="text-sm text-green-600">{clientPhone}</a>)}
-                    {clientEmail && (<div className="text-sm text-gray-700">{clientEmail}</div>)}
+                    {clientPhone && (
+                      <a
+                        href={makeWhatsAppUrl(clientPhone) || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-green-600"
+                      >
+                        {clientPhone}
+                      </a>
+                    )}
+                    {clientEmail && (
+                      <div className="text-sm text-gray-700">{clientEmail}</div>
+                    )}
                   </div>
                 )}
 
-                {clientDoc && (<div className="text-sm font-mono">{formatDocument(clientDoc) || clientDoc}</div>)}
-                {clientAddress && (<div className="text-sm">{clientAddress}</div>)}
+                {clientDoc && (
+                  <div className="text-sm font-mono">
+                    {formatDocument(clientDoc) || clientDoc}
+                  </div>
+                )}
+                {clientAddress && (
+                  <div className="text-sm">{clientAddress}</div>
+                )}
 
                 {statusKey === 'pending_review' ? (
                   <NegotiationPanel
@@ -392,11 +428,16 @@ export default async function OrderDetailsPage({
                   />
                 ) : null}
 
-                {statusKey !== 'cancelled' && statusKey !== 'delivered' && statusKey !== 'pending_review' && (
-                  <div>
-                    <OrderStatusControls orderId={order.id} statusKey={statusKey} />
-                  </div>
-                )}
+                {statusKey !== 'cancelled' &&
+                  statusKey !== 'delivered' &&
+                  statusKey !== 'pending_review' && (
+                    <div>
+                      <OrderStatusControls
+                        orderId={order.id}
+                        statusKey={statusKey}
+                      />
+                    </div>
+                  )}
               </div>
             </details>
           </div>

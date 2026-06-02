@@ -1,43 +1,35 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { ProductVariants } from '@/components/product/ProductVariants';
+import { Button } from '@/components/ui/button';
+import { ensure480w, upgradeTo1200w } from '@/lib/imageHelpers';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 import { createClient } from '@/lib/supabase/client';
-import { useStore } from './store-context';
 import {
-  X,
-  Minus,
-  Plus,
-  Trash2,
-  Send,
+  Barcode as BarcodeIcon,
   CheckCircle,
-  ShoppingCart,
   ChevronLeft,
   ChevronRight,
-  Search,
   Heart,
-  Tag,
   Info,
-  Package,
   Maximize2,
+  Minus,
+  Plus,
+  Send,
+  ShoppingCart,
   Star,
+  Trash2,
+  X,
   Zap,
-  Barcode as BarcodeIcon,
 } from 'lucide-react';
-import { SaveCodeModal, LoadCodeModal } from './modals/SaveLoadModals';
-import { PriceDisplay } from './PriceDisplay';
-import Image from 'next/image';
-import { SmartImage } from './SmartImage';
-import { Button } from '@/components/ui/button';
-import { ProductVariants } from '@/components/product/ProductVariants';
-import Barcode from '../ui/Barcode';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { buildSupabaseImageUrl } from '@/lib/imageUtils';
-import {
-  upgradeTo1200w,
-  ensure480w,
-} from '@/lib/imageHelpers';
+import Barcode from '../ui/Barcode';
 import { PasswordModal } from './modals/PasswordModal';
+import { LoadCodeModal, SaveCodeModal } from './modals/SaveLoadModals';
+import { PriceDisplay } from './PriceDisplay';
+import { SmartImage } from './SmartImage';
+import { useStore } from './store-context';
 
 export function StoreModals() {
   const {
@@ -81,12 +73,19 @@ export function StoreModals() {
   // Pinch-to-zoom state (mobile)
   const [pinchScale, setPinchScale] = useState(1);
   const [isPinching, setIsPinching] = useState(false);
-  const pinchRef = useRef({ initialDistance: 0, initialScale: 1, originX: 0, originY: 0 });
+  const pinchRef = useRef({
+    initialDistance: 0,
+    initialScale: 1,
+    originX: 0,
+    originY: 0,
+  });
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panRef = useRef<{ x: number; y: number } | null>(null);
   const zoomContainerRef = useRef<HTMLDivElement | null>(null);
   const zoomImageRef = useRef<HTMLImageElement | null>(null);
-  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(
+    null
+  );
   const panVelocityRef = useRef<{ x: number; y: number } | null>(null);
   const lastMoveTimeRef = useRef<number | null>(null);
   const inertiaAnimationRef = useRef<number | null>(null);
@@ -123,16 +122,22 @@ export function StoreModals() {
   useEffect(() => {
     if (blockedForOrders) {
       setModal('blocked', {
-        message: 'Este catálogo está temporariamente com pedidos desabilitados. Entre em contato com o lojista para ativar o funcionamento completo.',
+        message:
+          'Este catálogo está temporariamente com pedidos desabilitados. Entre em contato com o lojista para ativar o funcionamento completo.',
         reason: blockedReason || null,
       });
-    } else {
-      setModal('blocked', null);
+      return;
     }
+
+    setModal('blocked', null);
   }, [blockedForOrders, blockedReason, setModal]);
 
-  const getProductImages = (productArg?: any): { url480: string; url1200: string; path: string | null }[] => {
-    const getImageData = (img: any): { thumb: string; full: string; path: string | null } => {
+  const getProductImages = (
+    productArg?: any
+  ): { url480: string; url1200: string; path: string | null }[] => {
+    const getImageData = (
+      img: any
+    ): { thumb: string; full: string; path: string | null } => {
       const placeholder = '/placeholder.png';
       if (!img) return { thumb: placeholder, full: placeholder, path: null };
 
@@ -179,17 +184,28 @@ export function StoreModals() {
     const out: { url480: string; url1200: string; path: string | null }[] = [];
     const addedPaths = new Set<string>();
 
-    if (product.image_variants && Array.isArray(product.image_variants) && product.image_variants.length > 0) {
+    if (
+      product.image_variants &&
+      Array.isArray(product.image_variants) &&
+      product.image_variants.length > 0
+    ) {
       const d = getImageData(product.image_variants);
       out.push({ url480: d.thumb, url1200: d.full, path: d.path });
       if (d.path) addedPaths.add(d.path);
     } else if (product.image_url) {
       const d = getImageData(product.image_url);
-      out.push({ url480: d.thumb, url1200: d.full, path: d.path || product.image_path || null });
+      out.push({
+        url480: d.thumb,
+        url1200: d.full,
+        path: d.path || product.image_path || null,
+      });
       if (d.path) addedPaths.add(d.path || product.image_path || '');
     }
 
-    if (Array.isArray(product.gallery_images) && product.gallery_images.length > 0) {
+    if (
+      Array.isArray(product.gallery_images) &&
+      product.gallery_images.length > 0
+    ) {
       product.gallery_images.forEach((img: any) => {
         if (!img) return;
         const d = getImageData(img);
@@ -212,7 +228,9 @@ export function StoreModals() {
     return out;
   };
 
-  const dedupeImages = (arr: { url480: string; url1200: string; path: string | null }[]) => {
+  const dedupeImages = (
+    arr: { url480: string; url1200: string; path: string | null }[]
+  ) => {
     const seen = new Set<string>();
     const res: typeof arr = [];
     for (const it of arr) {
@@ -225,7 +243,9 @@ export function StoreModals() {
     return res;
   };
 
-  const [activeProduct, setActiveProduct] = useState<any>(modals.product || null);
+  const [activeProduct, setActiveProduct] = useState<any>(
+    modals.product || null
+  );
   const [variantList, setVariantList] = useState<any[]>(
     (modals.product as any)?.variants || []
   );
@@ -246,15 +266,21 @@ export function StoreModals() {
   };
 
   const displayProduct = activeProduct || modals.product || null;
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const prod = modals.product || null;
     setActiveProduct(prod);
-    if (prod && Array.isArray((prod as any).variants) && (prod as any).variants.length > 0) {
+    if (
+      prod &&
+      Array.isArray((prod as any).variants) &&
+      (prod as any).variants.length > 0
+    ) {
       const rawVars = (prod as any).variants as any[];
       const filteredByUser = store?.user_id
-        ? rawVars.filter((v) => String(v.user_id) === String(store.user_id) || !v.user_id)
+        ? rawVars.filter(
+            (v) => String(v.user_id) === String(store.user_id) || !v.user_id
+          )
         : rawVars;
       setVariantList(dedupeById(filteredByUser));
     } else {
@@ -271,14 +297,19 @@ export function StoreModals() {
       if (!p || !p.id) return;
 
       const hasImages = Boolean(
-        p.image_url || p.image_path || (Array.isArray(p.image_variants) && p.image_variants.length > 0) || (Array.isArray(p.gallery_images) && p.gallery_images.length > 0)
+        p.image_url ||
+        p.image_path ||
+        (Array.isArray(p.image_variants) && p.image_variants.length > 0) ||
+        (Array.isArray(p.gallery_images) && p.gallery_images.length > 0)
       );
       if (hasImages) return;
 
       try {
         const { data } = await supabase
           .from('products')
-          .select('id, reference_code, image_url, image_path, color, name, brand, gallery_images, image_variants, is_active')
+          .select(
+            'id, reference_code, image_url, image_path, color, name, brand, gallery_images, image_variants, is_active'
+          )
           .eq('id', p.id)
           .eq('is_active', true)
           .maybeSingle();
@@ -306,11 +337,18 @@ export function StoreModals() {
         const prod = modals.product || activeProduct;
         if (!prod || !prod.reference_id) return;
 
-        if (variantList && variantList.length > 0 && variantList[0]?.reference_id === prod.reference_id) return;
+        if (
+          variantList &&
+          variantList.length > 0 &&
+          variantList[0]?.reference_id === prod.reference_id
+        )
+          return;
 
         const { data, error } = await supabase
           .from('products')
-          .select('id, reference_code, reference_id, image_url, image_path, color, name, brand, gallery_images, image_variants, user_id, is_active')
+          .select(
+            'id, reference_code, reference_id, image_url, image_path, color, name, brand, gallery_images, image_variants, user_id, is_active'
+          )
           .eq('reference_id', prod.reference_id)
           .eq('is_active', true)
           .order('id', { ascending: true });
@@ -329,11 +367,17 @@ export function StoreModals() {
               thumb = ensure480w(s);
             }
           }
-          return { ...p, image_url: thumb || p.image_url || null, image_path: p.image_path || null };
+          return {
+            ...p,
+            image_url: thumb || p.image_url || null,
+            image_path: p.image_path || null,
+          };
         });
 
         const filtered = store?.user_id
-          ? (normalized as any[]).filter((p) => String(p.user_id) === String(store.user_id) || !p.user_id)
+          ? (normalized as any[]).filter(
+              (p) => String(p.user_id) === String(store.user_id) || !p.user_id
+            )
           : (normalized as any[]);
         setVariantList(dedupeById(filtered));
       } catch (e) {
@@ -345,7 +389,11 @@ export function StoreModals() {
     return () => {
       mounted = false;
     };
-  }, [modals.product?.reference_id, activeProduct?.reference_id, store.user_id]);
+  }, [
+    modals.product?.reference_id,
+    activeProduct?.reference_id,
+    store.user_id,
+  ]);
 
   const productImages = useMemo(() => {
     const imgs = getProductImages(displayProduct);
@@ -356,7 +404,11 @@ export function StoreModals() {
   const [techOpen, setTechOpen] = useState(false);
 
   const cartTotal = useMemo(
-    () => cart.reduce((acc: number, item: any) => acc + item.price * item.quantity, 0),
+    () =>
+      cart.reduce(
+        (acc: number, item: any) => acc + item.price * item.quantity,
+        0
+      ),
     [cart]
   );
 
@@ -370,9 +422,13 @@ export function StoreModals() {
   const handleImageDragEnd = (_: any, info: any) => {
     const offsetX = info?.offset?.x || 0;
     if (offsetX > SWIPE_THRESHOLD) {
-      setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : productImages.length - 1));
+      setCurrentImageIndex((prev) =>
+        prev > 0 ? prev - 1 : productImages.length - 1
+      );
     } else if (offsetX < -SWIPE_THRESHOLD) {
-      setCurrentImageIndex((prev) => (prev < productImages.length - 1 ? prev + 1 : 0));
+      setCurrentImageIndex((prev) =>
+        prev < productImages.length - 1 ? prev + 1 : 0
+      );
     }
   };
 
@@ -383,7 +439,10 @@ export function StoreModals() {
   };
 
   const getMidpoint = (t0: any, t1: any) => {
-    return { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
+    return {
+      x: (t0.clientX + t1.clientX) / 2,
+      y: (t0.clientY + t1.clientY) / 2,
+    };
   };
 
   const onZoomTouchStart = (e: React.TouchEvent) => {
@@ -424,7 +483,9 @@ export function StoreModals() {
               const relY = tapY - centerY;
               const newPanX = -relX * (newScale - 1);
               const newPanY = -relY * (newScale - 1);
-              setPan((p) => clampPan({ x: newPanX, y: newPanY }, newScale, container));
+              setPan((p) =>
+                clampPan({ x: newPanX, y: newPanY }, newScale, container)
+              );
               return newScale;
             });
             lastTapRef.current = null;
@@ -445,14 +506,22 @@ export function StoreModals() {
     if (isPinching && e.touches.length === 2) {
       e.preventDefault();
       const d = getDistance(e.touches[0], e.touches[1]);
-      const newScale = Math.max(1, Math.min(4, (pinchRef.current.initialScale * d) / pinchRef.current.initialDistance));
+      const newScale = Math.max(
+        1,
+        Math.min(
+          4,
+          (pinchRef.current.initialScale * d) / pinchRef.current.initialDistance
+        )
+      );
       setPinchScale(newScale);
     } else if (pinchScale > 1 && e.touches.length === 1 && panRef.current) {
       e.preventDefault();
       const dx = e.touches[0].clientX - panRef.current.x;
       const dy = e.touches[0].clientY - panRef.current.y;
       const now = Date.now();
-      const dt = lastMoveTimeRef.current ? Math.max(1, now - lastMoveTimeRef.current) : 16;
+      const dt = lastMoveTimeRef.current
+        ? Math.max(1, now - lastMoveTimeRef.current)
+        : 16;
       panVelocityRef.current = { x: dx / dt, y: dy / dt };
       lastMoveTimeRef.current = now;
       panRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -486,22 +555,34 @@ export function StoreModals() {
     }
   };
 
-  const clampPan = (p: { x: number; y: number }, scale: number, container: HTMLDivElement) => {
+  const clampPan = (
+    p: { x: number; y: number },
+    scale: number,
+    container: HTMLDivElement
+  ) => {
     try {
       const img = zoomImageRef.current;
       const rect = container.getBoundingClientRect();
-      const imgRect = img ? img.getBoundingClientRect() : { width: rect.width, height: rect.height };
+      const imgRect = img
+        ? img.getBoundingClientRect()
+        : { width: rect.width, height: rect.height };
       const scaledW = imgRect.width * scale;
       const scaledH = imgRect.height * scale;
       const maxX = Math.max(0, (scaledW - rect.width) / 2);
       const maxY = Math.max(0, (scaledH - rect.height) / 2);
-      return { x: Math.max(-maxX, Math.min(maxX, p.x)), y: Math.max(-maxY, Math.min(maxY, p.y)) };
+      return {
+        x: Math.max(-maxX, Math.min(maxX, p.x)),
+        y: Math.max(-maxY, Math.min(maxY, p.y)),
+      };
     } catch (e) {
       return p;
     }
   };
 
-  const startInertia = (initialVelocity: { x: number; y: number }, container: HTMLDivElement) => {
+  const startInertia = (
+    initialVelocity: { x: number; y: number },
+    container: HTMLDivElement
+  ) => {
     let vx = initialVelocity.x * 16;
     let vy = initialVelocity.y * 16;
     const friction = 0.92;
@@ -525,13 +606,15 @@ export function StoreModals() {
       }
     };
 
-    if (inertiaAnimationRef.current) cancelAnimationFrame(inertiaAnimationRef.current);
+    if (inertiaAnimationRef.current)
+      cancelAnimationFrame(inertiaAnimationRef.current);
     inertiaAnimationRef.current = requestAnimationFrame(step);
   };
 
   useEffect(() => {
     return () => {
-      if (inertiaAnimationRef.current) cancelAnimationFrame(inertiaAnimationRef.current);
+      if (inertiaAnimationRef.current)
+        cancelAnimationFrame(inertiaAnimationRef.current);
     };
   }, []);
 
@@ -612,7 +695,7 @@ export function StoreModals() {
     if (!el) return;
     try {
       (el as any).inert = !!modals.checkout;
-    } catch (e) { }
+    } catch (e) {}
     if (modals.checkout) el.setAttribute('aria-hidden', 'true');
     else el.removeAttribute('aria-hidden');
   }, [modals.checkout]);
@@ -629,7 +712,8 @@ export function StoreModals() {
           <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
             <div className="flex items-center justify-between border-b p-6">
               <h2 className="flex items-center gap-2 text-xl font-black text-secondary">
-                <ShoppingCart size={24} className="text-primary" /> {isRichCatalog ? 'Seu Orçamento' : 'Meu Carrinho'}
+                <ShoppingCart size={24} className="text-primary" />{' '}
+                {isRichCatalog ? 'Seu Orçamento' : 'Meu Carrinho'}
               </h2>
               <button
                 onClick={() => setModal('cart', false)}
@@ -658,8 +742,10 @@ export function StoreModals() {
                           brand: item.brand,
                           image_url: item.image_url,
                           image_path: item.image_path,
-                          image_variants: item.image_variants || item.variants || [],
-                          external_image_url: (item as any).external_image_url || null,
+                          image_variants:
+                            item.image_variants || item.variants || [],
+                          external_image_url:
+                            (item as any).external_image_url || null,
                         }}
                         initialSrc={item.image_url}
                         variant="thumbnail"
@@ -671,24 +757,44 @@ export function StoreModals() {
 
                     <div className="flex-1 flex flex-col justify-between">
                       <div>
-                        <div className="text-sm font-bold text-gray-900">{item.name}</div>
-                        {item.brand && <div className="text-xs text-gray-500">{item.brand}</div>}
+                        <div className="text-sm font-bold text-gray-900">
+                          {item.name}
+                        </div>
+                        {item.brand && (
+                          <div className="text-xs text-gray-500">
+                            {item.brand}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1">
-                          <button onClick={() => updateQuantity(item.id, -1)} className="p-1">
+                          <button
+                            onClick={() => updateQuantity(item.id, -1)}
+                            className="p-1"
+                          >
                             <Minus size={14} />
                           </button>
-                          <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.id, 1)} className="p-1">
+                          <span className="text-xs font-bold w-4 text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateQuantity(item.id, 1)}
+                            className="p-1"
+                          >
                             <Plus size={14} />
                           </button>
                         </div>
 
                         <div className="flex items-center gap-4">
-                          <PriceDisplay value={item.price * item.quantity} isPricesVisible={isPricesVisible} />
-                          <button onClick={() => removeFromCart(item.id)} className="text-gray-300 hover:text-red-500">
+                          <PriceDisplay
+                            value={item.price * item.quantity}
+                            isPricesVisible={isPricesVisible}
+                          />
+                          <button
+                            onClick={() => removeFromCart(item.id)}
+                            className="text-gray-300 hover:text-red-500"
+                          >
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -702,7 +808,10 @@ export function StoreModals() {
               <div className="border-t p-6 space-y-4">
                 <div className="flex justify-between text-xl font-black text-secondary">
                   <span>Total</span>
-                  <PriceDisplay value={cartTotal} isPricesVisible={isPricesVisible} />
+                  <PriceDisplay
+                    value={cartTotal}
+                    isPricesVisible={isPricesVisible}
+                  />
                 </div>
 
                 <button
@@ -728,11 +837,14 @@ export function StoreModals() {
                   }}
                   className="w-full py-7 text-lg uppercase tracking-tighter"
                 >
-                  {isRichCatalog ? 'Finalizar Pedido Agora - enviar para Representante' : 'Finalizar Pedido Agora'}
+                  {isRichCatalog
+                    ? 'Finalizar Pedido Agora - enviar para Representante'
+                    : 'Finalizar Pedido Agora'}
                 </Button>
                 {isRichCatalog && (
                   <p className="text-[10px] font-bold uppercase tracking-wide text-center text-slate-400 leading-relaxed">
-                    As condições comerciais serão validadas com o representante antes da confirmação.
+                    As condições comerciais serão validadas com o representante
+                    antes da confirmação.
                   </p>
                 )}
               </div>
@@ -744,16 +856,25 @@ export function StoreModals() {
       {/* --- MODAL DETALHES DO PRODUTO (MODERNO/IMERSIVO) --- */}
       {displayProduct && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center p-2 md:p-4">
-          <div className="absolute inset-0 bg-[#0d1b2c]/95 backdrop-blur-xl animate-in fade-in" onClick={() => setModal('product', null)} />
+          <div
+            className="absolute inset-0 bg-[#0d1b2c]/95 backdrop-blur-xl animate-in fade-in"
+            onClick={() => setModal('product', null)}
+          />
 
           <div className="relative w-full max-w-6xl h-full max-h-[95vh] md:max-h-[85vh] bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95">
-            <button onClick={() => setModal('product', null)} className="absolute right-6 top-6 z-[150] p-3 rounded-full bg-black/5 hover:bg-black/10 transition-all">
+            <button
+              onClick={() => setModal('product', null)}
+              className="absolute right-6 top-6 z-[150] p-3 rounded-full bg-black/5 hover:bg-black/10 transition-all"
+            >
               <X size={24} className="text-secondary" />
             </button>
 
             {/* ESQUERDA: Showcase de Imagem */}
             <div className="w-full md:w-1/2 h-[45%] md:h-full bg-white flex flex-col relative border-b md:border-b-0 md:border-r border-gray-100 min-h-0">
-              <div className="flex-1 relative cursor-pointer group flex items-center justify-center p-4 md:p-8 min-h-0 overflow-hidden" onClick={() => setIsImageZoomOpen(true)}>
+              <div
+                className="flex-1 relative cursor-pointer group flex items-center justify-center p-4 md:p-8 min-h-0 overflow-hidden"
+                onClick={() => setIsImageZoomOpen(true)}
+              >
                 {(() => {
                   const current = productImages[currentImageIndex] || {
                     url480: '/images/product-placeholder.svg',
@@ -819,13 +940,21 @@ export function StoreModals() {
                       displayProduct?.single_brand_logo_url ||
                       displayProduct?.brand_logo ||
                       (brandsWithLogos && productBrand
-                        ? (brandsWithLogos.find((b: any) => b.name === productBrand) || {}).logo_url
+                        ? (
+                            brandsWithLogos.find(
+                              (b: any) => b.name === productBrand
+                            ) || {}
+                          ).logo_url
                         : null);
 
                     if (candidateLogo) {
                       return (
                         <div className="flex items-center gap-2">
-                          <img src={candidateLogo} alt={productBrand || 'Marca'} className="h-8 w-auto object-contain rounded-md bg-white p-1" />
+                          <img
+                            src={candidateLogo}
+                            alt={productBrand || 'Marca'}
+                            className="h-8 w-auto object-contain rounded-md bg-white p-1"
+                          />
                         </div>
                       );
                     }
@@ -838,7 +967,9 @@ export function StoreModals() {
                   })()}
 
                   <span className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
-                    REF: {displayProduct?.reference_code || displayProduct?.id?.slice(0, 8)}
+                    REF:{' '}
+                    {displayProduct?.reference_code ||
+                      displayProduct?.id?.slice(0, 8)}
                   </span>
                 </div>
 
@@ -860,93 +991,171 @@ export function StoreModals() {
                     {displayProduct?.name}
                   </h2>
                   <div className="flex items-center gap-3">
-                    <button onClick={copyProductLink} title="Copiar link do produto" className="p-3 rounded-full bg-white shadow-sm hover:shadow-md transition-all text-gray-400 hover:text-primary">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M14 3h7v7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M10 14L21 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M21 21H3V3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    <button
+                      onClick={copyProductLink}
+                      title="Copiar link do produto"
+                      className="p-3 rounded-full bg-white shadow-sm hover:shadow-md transition-all text-gray-400 hover:text-primary"
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M14 3h7v7"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M10 14L21 3"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M21 21H3V3"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     </button>
 
-                    <button onClick={() => displayProduct && toggleFavorite(displayProduct.id)} className="p-4 rounded-full bg-white shadow-sm hover:shadow-md transition-all">
-                      <Heart size={24} className={displayProduct && favorites.includes(displayProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-200'} />
+                    <button
+                      onClick={() =>
+                        displayProduct && toggleFavorite(displayProduct.id)
+                      }
+                      className="p-4 rounded-full bg-white shadow-sm hover:shadow-md transition-all"
+                    >
+                      <Heart
+                        size={24}
+                        className={
+                          displayProduct &&
+                          favorites.includes(displayProduct.id)
+                            ? 'fill-red-500 text-red-500'
+                            : 'text-gray-200'
+                        }
+                      />
                     </button>
                   </div>
                 </div>
 
-                {variantList && Array.isArray(variantList) && variantList.length > 0 && (
-                  <div className="mb-6">
-                    <ProductVariants
-                      currentReferenceId={displayProduct?.reference_id}
-                      variants={variantList}
-                      currentProductId={displayProduct?.id}
-                      onVariantSelect={async (variant) => {
-                        try {
-                          const { data } = await supabase
-                            .from('products')
-                            .select('*, gallery_images, image_variants, is_active')
-                            .eq('id', variant.id)
-                            .eq('is_active', true)
-                            .maybeSingle();
+                {variantList &&
+                  Array.isArray(variantList) &&
+                  variantList.length > 0 && (
+                    <div className="mb-6">
+                      <ProductVariants
+                        currentReferenceId={displayProduct?.reference_id}
+                        variants={variantList}
+                        currentProductId={displayProduct?.id}
+                        onVariantSelect={async (variant) => {
+                          try {
+                            const { data } = await supabase
+                              .from('products')
+                              .select(
+                                '*, gallery_images, image_variants, is_active'
+                              )
+                              .eq('id', variant.id)
+                              .eq('is_active', true)
+                              .maybeSingle();
 
-                          if (data) {
-                            const resolveThumb = (p: any) => {
-                              if (Array.isArray(p.image_variants) && p.image_variants.length > 0) {
-                                const v480 = p.image_variants.find((v: any) => v && Number(v?.size) === 480);
-                                if (v480) {
-                                  if (v480.url) return v480.url;
-                                  if (v480.path) return buildSupabaseImageUrl(v480.path);
+                            if (data) {
+                              const resolveThumb = (p: any) => {
+                                if (
+                                  Array.isArray(p.image_variants) &&
+                                  p.image_variants.length > 0
+                                ) {
+                                  const v480 = p.image_variants.find(
+                                    (v: any) => v && Number(v?.size) === 480
+                                  );
+                                  if (v480) {
+                                    if (v480.url) return v480.url;
+                                    if (v480.path)
+                                      return buildSupabaseImageUrl(v480.path);
+                                  }
+                                  const first = p.image_variants[0];
+                                  if (
+                                    Array.isArray(first?.variants) &&
+                                    first.variants.length
+                                  ) {
+                                    const sub480 = first.variants.find(
+                                      (s: any) => Number(s?.size) === 480
+                                    );
+                                    if (sub480)
+                                      return (
+                                        sub480.url ||
+                                        (sub480.path
+                                          ? buildSupabaseImageUrl(sub480.path)
+                                          : null)
+                                      );
+                                  }
                                 }
-                                const first = p.image_variants[0];
-                                if (Array.isArray(first?.variants) && first.variants.length) {
-                                  const sub480 = first.variants.find((s: any) => Number(s?.size) === 480);
-                                  if (sub480) return sub480.url || (sub480.path ? buildSupabaseImageUrl(sub480.path) : null);
+                                if (p.image_url) {
+                                  try {
+                                    return String(p.image_url).replace(
+                                      '-1200w',
+                                      '-480w'
+                                    );
+                                  } catch (e) {
+                                    return p.image_url;
+                                  }
                                 }
-                              }
-                              if (p.image_url) {
-                                try {
-                                  return String(p.image_url).replace('-1200w', '-480w');
-                                } catch (e) {
-                                  return p.image_url;
-                                }
-                              }
-                              if (p.image_path) return buildSupabaseImageUrl(p.image_path);
-                              return null;
-                            };
+                                if (p.image_path)
+                                  return buildSupabaseImageUrl(p.image_path);
+                                return null;
+                              };
 
-                            const thumb = ensure480w(resolveThumb(data));
-                            const normalized = {
-                              ...data,
-                              image_url: thumb || data.image_url || null,
-                              image_path: data.image_path || null,
-                            };
+                              const thumb = ensure480w(resolveThumb(data));
+                              const normalized = {
+                                ...data,
+                                image_url: thumb || data.image_url || null,
+                                image_path: data.image_path || null,
+                              };
 
-                            setActiveProduct(normalized);
-                            setModal('product', normalized);
-                            setCurrentImageIndex(0);
+                              setActiveProduct(normalized);
+                              setModal('product', normalized);
+                              setCurrentImageIndex(0);
+                            }
+                          } catch (e) {
+                            console.error('Erro ao carregar variante:', e);
                           }
-                        } catch (e) {
-                          console.error('Erro ao carregar variante:', e);
-                        }
-                      }}
-                    />
-                  </div>
-                )}
+                        }}
+                      />
+                    </div>
+                  )}
 
                 <div className="mb-8">
                   {(() => {
-                    const descriptionText = displayProduct?.description || 'Produto de alta qualidade com acabamento impecável, ideal para quem busca estilo e durabilidade.';
+                    const descriptionText =
+                      displayProduct?.description ||
+                      'Produto de alta qualidade com acabamento impecável, ideal para quem busca estilo e durabilidade.';
                     const characterLimit = 160;
-                    const isLongDescription = descriptionText.length > characterLimit;
+                    const isLongDescription =
+                      descriptionText.length > characterLimit;
 
                     return (
                       <>
-                        <p className={`text-gray-500 text-sm md:text-base leading-relaxed text-justify ${(!isDescriptionExpanded && isLongDescription) ? 'line-clamp-3' : ''}`}>
+                        <p
+                          className={`text-gray-500 text-sm md:text-base leading-relaxed text-justify ${!isDescriptionExpanded && isLongDescription ? 'line-clamp-3' : ''}`}
+                        >
                           {descriptionText}
                         </p>
                         {isLongDescription && (
-                          <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="text-primary text-xs font-black uppercase tracking-widest mt-2 hover:underline">
-                            {isDescriptionExpanded ? 'Ver menos' : 'Ler descrição completa'}
+                          <button
+                            onClick={() =>
+                              setIsDescriptionExpanded(!isDescriptionExpanded)
+                            }
+                            className="text-primary text-xs font-black uppercase tracking-widest mt-2 hover:underline"
+                          >
+                            {isDescriptionExpanded
+                              ? 'Ver menos'
+                              : 'Ler descrição completa'}
                           </button>
                         )}
                       </>
@@ -959,7 +1168,9 @@ export function StoreModals() {
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 text-secondary">
                         <Info size={18} />
-                        <h3 className="font-black uppercase text-xs tracking-widest">Ficha Técnica</h3>
+                        <h3 className="font-black uppercase text-xs tracking-widest">
+                          Ficha Técnica
+                        </h3>
                       </div>
                       <button
                         onClick={() => {
@@ -967,7 +1178,10 @@ export function StoreModals() {
                           setTechOpen(willOpen);
                           if (willOpen) {
                             setTimeout(() => {
-                              techRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              techRef.current?.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start',
+                              });
                             }, 120);
                           }
                         }}
@@ -978,18 +1192,27 @@ export function StoreModals() {
                       </button>
                     </div>
 
-                    <div ref={techRef} className={`overflow-hidden transition-[max-height,opacity] duration-300 ${techOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div
+                      ref={techRef}
+                      className={`overflow-hidden transition-[max-height,opacity] duration-300 ${techOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}
+                    >
                       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
                         {(() => {
                           const raw = displayProduct?.technical_specs as any;
                           let specs: Record<string, any> = {};
-                          if (!raw) return <p className="text-sm text-gray-500">Sem especificações técnicas.</p>;
+                          if (!raw)
+                            return (
+                              <p className="text-sm text-gray-500">
+                                Sem especificações técnicas.
+                              </p>
+                            );
                           if (typeof raw === 'object') {
                             specs = raw as Record<string, any>;
                           } else if (typeof raw === 'string') {
                             try {
                               const parsed = JSON.parse(raw);
-                              if (parsed && typeof parsed === 'object') specs = parsed;
+                              if (parsed && typeof parsed === 'object')
+                                specs = parsed;
                               else specs = { Descrição: String(raw) };
                             } catch (e) {
                               specs = { Descrição: String(raw) };
@@ -1001,8 +1224,12 @@ export function StoreModals() {
                               <tbody className="divide-y divide-gray-50">
                                 {Object.entries(specs).map(([key, val], i) => (
                                   <tr key={i} className="group">
-                                    <td className="py-3 font-bold text-gray-400 group-hover:text-primary transition-colors">{key}</td>
-                                    <td className="py-3 text-right text-secondary font-medium">{String(val)}</td>
+                                    <td className="py-3 font-bold text-gray-400 group-hover:text-primary transition-colors">
+                                      {key}
+                                    </td>
+                                    <td className="py-3 text-right text-secondary font-medium">
+                                      {String(val)}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1014,17 +1241,21 @@ export function StoreModals() {
                   </div>
                 )}
 
-                {displayProduct?.barcode && String(displayProduct.barcode).replace(/\D/g, '').length > 0 && (
-                  <div className="p-6 bg-secondary/5 rounded-3xl border border-dashed border-secondary/10 flex flex-col items-center justify-center gap-4 mb-8">
-                    <div className="flex items-center gap-2 text-secondary/40">
-                      <BarcodeIcon size={16} />
-                      <span className="text-[10px] font-bold uppercase">Código de Barras (EAN)</span>
+                {displayProduct?.barcode &&
+                  String(displayProduct.barcode).replace(/\D/g, '').length >
+                    0 && (
+                    <div className="p-6 bg-secondary/5 rounded-3xl border border-dashed border-secondary/10 flex flex-col items-center justify-center gap-4 mb-8">
+                      <div className="flex items-center gap-2 text-secondary/40">
+                        <BarcodeIcon size={16} />
+                        <span className="text-[10px] font-bold uppercase">
+                          Código de Barras (EAN)
+                        </span>
+                      </div>
+                      <div className="bg-white p-4 rounded-xl">
+                        <Barcode value={String(displayProduct?.barcode)} />
+                      </div>
                     </div>
-                    <div className="bg-white p-4 rounded-xl">
-                      <Barcode value={String(displayProduct?.barcode)} />
-                    </div>
-                  </div>
-                )}
+                  )}
               </div>
 
               {/* FOOTER DE AÇÃO FIXO */}
@@ -1032,17 +1263,34 @@ export function StoreModals() {
                 <div className="flex flex-col gap-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 bg-gray-100 p-2 rounded-2xl">
-                      <button onClick={() => setDetailQuantity((q: number) => Math.max(1, q - 1))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm">
+                      <button
+                        onClick={() =>
+                          setDetailQuantity((q: number) => Math.max(1, q - 1))
+                        }
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm"
+                      >
                         <Minus size={18} />
                       </button>
-                      <span className="text-xl font-black w-8 text-center">{detailQuantity}</span>
-                      <button onClick={() => setDetailQuantity((q: number) => q + 1)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm">
+                      <span className="text-xl font-black w-8 text-center">
+                        {detailQuantity}
+                      </span>
+                      <button
+                        onClick={() => setDetailQuantity((q: number) => q + 1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm"
+                      >
                         <Plus size={18} />
                       </button>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Subtotal</span>
-                      <PriceDisplay value={(displayProduct?.price || 0) * detailQuantity} isPricesVisible={isPricesVisible} size="large" className="text-2xl font-black" />
+                      <span className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                        Subtotal
+                      </span>
+                      <PriceDisplay
+                        value={(displayProduct?.price || 0) * detailQuantity}
+                        isPricesVisible={isPricesVisible}
+                        size="large"
+                        className="text-2xl font-black"
+                      />
                     </div>
                   </div>
 
@@ -1059,7 +1307,9 @@ export function StoreModals() {
                     }}
                     className={`w-full py-4 md:py-8 text-xl font-bold uppercase tracking-tighter shadow-2xl rounded-none md:rounded-2xl transition-all active:scale-80 ${isAdded ? 'bg-green-500 hover:bg-green-500' : 'bg-primary shadow-primary/30'}`}
                   >
-                    <strong className="font-bold">{isAdded ? '✓ Adicionado!' : 'Adicionar ao Pedido'}</strong>
+                    <strong className="font-bold">
+                      {isAdded ? '✓ Adicionado!' : 'Adicionar ao Pedido'}
+                    </strong>
                   </Button>
                 </div>
               </div>
@@ -1095,7 +1345,9 @@ export function StoreModals() {
                     className="absolute left-4 md:left-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all flex"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : productImages.length - 1));
+                      setCurrentImageIndex((prev) =>
+                        prev > 0 ? prev - 1 : productImages.length - 1
+                      );
                     }}
                   >
                     <ChevronLeft size={48} strokeWidth={1.5} />
@@ -1105,7 +1357,9 @@ export function StoreModals() {
                     className="absolute right-4 md:right-10 p-3 md:p-4 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all flex"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCurrentImageIndex((prev) => (prev < productImages.length - 1 ? prev + 1 : 0));
+                      setCurrentImageIndex((prev) =>
+                        prev < productImages.length - 1 ? prev + 1 : 0
+                      );
                     }}
                   >
                     <ChevronRight size={48} strokeWidth={1.5} />
@@ -1120,7 +1374,7 @@ export function StoreModals() {
                 style={{ touchAction: 'none', zIndex: 1000000 }}
               >
                 {/* TRATAMENTO MOBILE DE HARDWARE: Isolamos completamente o toque do Framer Motion usando listeners nativos */}
-                <div 
+                <div
                   className="w-full h-full flex items-center justify-center"
                   onTouchStart={onZoomTouchStart}
                   onTouchMove={onZoomTouchMove}
@@ -1143,7 +1397,10 @@ export function StoreModals() {
                   />
                 </div>
 
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2" style={{ zIndex: 1000001 }}>
+                <div
+                  className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+                  style={{ zIndex: 1000001 }}
+                >
                   <span className="bg-white/10 backdrop-blur-md px-4 py-1 rounded-full text-white text-xs font-medium tracking-widest border border-white/10">
                     {currentImageIndex + 1} / {productImages.length}
                   </span>
@@ -1164,7 +1421,9 @@ export function StoreModals() {
         isSaveModalOpen={!!modals.save}
         setIsModalOpen={(v) => setModal('save', v)}
         savedCode={savedCode}
-        copyToClipboard={() => savedCode && navigator.clipboard.writeText(savedCode)}
+        copyToClipboard={() =>
+          savedCode && navigator.clipboard.writeText(savedCode)
+        }
       />
       <LoadCodeModal
         isLoadModalOpen={!!modals.load}
@@ -1213,7 +1472,9 @@ export function StoreModals() {
                 <X size={20} />
               </button>
             </div>
-            <h2 className="text-3xl font-black mb-8 tracking-tighter text-secondary">Identificação</h2>
+            <h2 className="text-3xl font-black mb-8 tracking-tighter text-secondary">
+              Identificação
+            </h2>
             {isRichCatalog && (
               <p className="-mt-5 mb-6 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Você está enviando um orçamento para análise do consultor.
@@ -1225,14 +1486,18 @@ export function StoreModals() {
                 className="w-full p-5 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-primary/20"
                 placeholder="Nome Completo"
                 value={customerInfo.name}
-                onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
+                onChange={(e) =>
+                  setCustomerInfo({ ...customerInfo, name: e.target.value })
+                }
               />
               <input
                 required
                 className="w-full p-5 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-primary/20"
                 placeholder="WhatsApp (DDD + Número)"
                 value={customerInfo.phone}
-                onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                onChange={(e) =>
+                  setCustomerInfo({ ...customerInfo, phone: e.target.value })
+                }
               />
               <input
                 required
@@ -1240,9 +1505,16 @@ export function StoreModals() {
                 placeholder="E-mail"
                 type="email"
                 value={customerInfo.email}
-                onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
+                onChange={(e) =>
+                  setCustomerInfo({ ...customerInfo, email: e.target.value })
+                }
               />
-              <Button type="submit" isLoading={loadingStates.submitting} loadingText="Finalizando..." className="w-full py-7 text-lg uppercase font-black">
+              <Button
+                type="submit"
+                isLoading={loadingStates.submitting}
+                loadingText="Finalizando..."
+                className="w-full py-7 text-lg uppercase font-black"
+              >
                 {isRichCatalog ? 'Enviar para Análise' : 'Confirmar Pedido'}
               </Button>
             </form>
@@ -1258,16 +1530,26 @@ export function StoreModals() {
             <div className="mx-auto mb-8 w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center animate-bounce">
               <CheckCircle size={56} />
             </div>
-            <h2 className="text-4xl font-black mb-4 tracking-tighter">Tudo pronto!</h2>
+            <h2 className="text-4xl font-black mb-4 tracking-tighter">
+              Tudo pronto!
+            </h2>
             <p className="text-gray-500 mb-10 text-lg">
-              {isRichCatalog ? 'Seu orçamento foi enviado para análise com sucesso.' : 'Seu pedido foi processado com sucesso.'}
+              {isRichCatalog
+                ? 'Seu orçamento foi enviado para análise com sucesso.'
+                : 'Seu pedido foi processado com sucesso.'}
             </p>
             <div className="space-y-4">
-              <button onClick={handleSendWhatsApp} className="w-full py-5 bg-[#25D366] text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3">
+              <button
+                onClick={handleSendWhatsApp}
+                className="w-full py-5 bg-[#25D366] text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3"
+              >
                 <Send size={20} /> Chamar no WhatsApp
               </button>
               <div className="grid grid-cols-1 gap-3">
-                <button onClick={async () => await handleDownloadPDF()} className="w-full py-3 bg-white border border-gray-200 rounded-2xl font-bold flex items-center justify-center gap-2">
+                <button
+                  onClick={async () => await handleDownloadPDF()}
+                  className="w-full py-3 bg-white border border-gray-200 rounded-2xl font-bold flex items-center justify-center gap-2"
+                >
                   Gerar PDF
                 </button>
               </div>

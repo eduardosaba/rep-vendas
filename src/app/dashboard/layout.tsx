@@ -5,9 +5,7 @@ import WelcomePopup from '@/components/WelcomePopup';
 import BlockedAccountPopup from '@/components/dashboard/BlockedAccountPopup';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { useWelcomeManager } from '@/hooks/useWelcomeManager';
-import { createClient } from '@/lib/supabase/client';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export default function DashboardLayout({
@@ -15,15 +13,13 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
-  // Estado centralizado do Sidebar
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // No mobile é melhor iniciar recolhido para evitar overlay cobrindo a tela no iOS.
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
-  // Welcome manager hook must be called unconditionally to preserve hooks order
   const {
     shouldShow,
     loading: welcomeLoading,
@@ -34,83 +30,81 @@ export default function DashboardLayout({
   useEffect(() => {
     let mounted = true;
 
-    // Ajuste inicial baseado na largura da tela
-    if (typeof window !== 'undefined') {
-      setIsSidebarCollapsed(window.innerWidth < 1024);
-    }
+    const initializeDashboard = async () => {
+      try {
+        // Pequeno delay para evitar flicker durante hidratação.
+        await new Promise((resolve) => setTimeout(resolve, 150));
 
-    const checkSession = async () => {
-      // Tentativa com retries para evitar falso positivo quando uma sessão
-      // antiga está presa no cliente (ex: logout incompleto, SW cache).
-      const maxAttempts = 3;
-      let resolved = false;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          const supabase = await createClient();
-          const { data: userData, error } = await supabase.auth.getUser();
-          if (!mounted) return;
-          if (error) throw error;
-          if (!userData?.user) {
-            resolved = true;
-            router.replace('/login');
-          } else {
-            resolved = true;
-            setAuthorized(true);
-          }
-          break; // sucesso
-        } catch (error) {
-          console.error(
-            `[dashboard/layout] checkSession attempt ${attempt} failed`,
-            error
-          );
-          if (attempt === maxAttempts) {
-            resolved = true;
-            if (mounted) setConnectionError(true);
-          } else {
-            // aguarda um pouco antes de tentar novamente
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            await new Promise((res) => setTimeout(res, 500 * attempt));
-          }
+        if (!mounted) return;
+
+        setAuthorized(true);
+        setLoading(false);
+      } catch (error) {
+        console.error('[dashboard/layout] Erro na inicialização:', error);
+
+        if (mounted) {
+          setConnectionError(true);
+          setLoading(false);
         }
       }
-
-      if (resolved && mounted) setLoading(false);
     };
 
-    checkSession();
+    initializeDashboard();
+
     return () => {
       mounted = false;
     };
-  }, [router]);
+  }, []);
 
   const [showBlockedPopup, setShowBlockedPopup] = useState(false);
 
   useEffect(() => {
     if (!authorized) return;
+
     let mounted = true;
-    (async () => {
+
+    const checkProfileStatus = async () => {
       try {
-        const res = await fetch('/api/profile/status');
+        const res = await fetch('/api/profile/status', {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+        });
+
         if (!mounted) return;
-        if (!res.ok) return;
-        const j = await res.json();
-        const profile = j?.profile || null;
-        if (profile) {
-          const status = profile.status || null;
-          const trialEnds = profile.trial_ends_at
-            ? new Date(profile.trial_ends_at)
-            : null;
-          const now = new Date();
-          const isTrialExpired = trialEnds ? now > trialEnds : false;
-          if (status === 'blocked' || (status === 'trial' && isTrialExpired)) {
-            setShowBlockedPopup(true);
-          }
+
+        if (!res.ok) {
+          console.warn(
+            '[dashboard/layout] /api/profile/status retornou:',
+            res.status
+          );
+          return;
         }
-      } catch (e) {
-        // ignore
+
+        const json = await res.json();
+        const profile = json?.profile || null;
+
+        if (!profile) return;
+
+        const status = profile.status || null;
+
+        const trialEnds = profile.trial_ends_at
+          ? new Date(profile.trial_ends_at)
+          : null;
+
+        const now = new Date();
+        const isTrialExpired = trialEnds ? now > trialEnds : false;
+
+        if (status === 'blocked' || (status === 'trial' && isTrialExpired)) {
+          setShowBlockedPopup(true);
+        }
+      } catch (error) {
+        console.warn('[dashboard/layout] Falha ao checar status:', error);
       }
-    })();
+    };
+
+    checkProfileStatus();
+
     return () => {
       mounted = false;
     };
@@ -145,10 +139,10 @@ export default function DashboardLayout({
   }
 
   if (!authorized) return null;
+
   return (
     <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
       <div className="flex h-screen w-full overflow-hidden">
-        {/* Sidebar recebe o estado e a função de alteração */}
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
@@ -161,9 +155,10 @@ export default function DashboardLayout({
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin">
             <div className="max-w-7xl mx-auto pb-10">
-              {/* Impersonation banner (client-side check) */}
               <div id="impersonate-banner-root" />
+
               {children}
+
               {!welcomeLoading && shouldShow && (
                 <WelcomePopup
                   version={updateData}
@@ -172,6 +167,7 @@ export default function DashboardLayout({
                   }}
                 />
               )}
+
               {showBlockedPopup && (
                 <BlockedAccountPopup
                   onClose={() => setShowBlockedPopup(false)}
@@ -180,7 +176,6 @@ export default function DashboardLayout({
             </div>
           </main>
 
-          {/* Overlay para fechar no mobile ao clicar fora */}
           {!isSidebarCollapsed && (
             <div
               className="fixed inset-0 bg-black/20 z-40 lg:hidden backdrop-blur-sm"

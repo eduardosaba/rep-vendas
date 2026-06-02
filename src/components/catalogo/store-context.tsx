@@ -1,19 +1,26 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 import { useRep } from '@/components/catalogo/RepProvider';
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
+import { createClient } from '@/lib/supabase/client';
 import type {
-  Product,
-  Settings as StoreSettings,
-  PublicCatalog,
-  CartItem,
   BrandWithLogo,
+  CartItem,
   CustomerInfo,
+  Product,
+  PublicCatalog,
+  Settings as StoreSettings,
 } from '@/lib/types';
+import { useRouter } from 'next/navigation';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import { toast } from 'sonner';
 
 // Constantes de imagem
 const IMAGE_PRIORITY_COUNT = 3;
@@ -37,7 +44,9 @@ async function sha256(input: string) {
 // Função de normalização idêntica à da interface visual para garantir match
 const normalizeForTypeMatch = (x: any) => {
   try {
-    let s = String(x || '').toLowerCase().trim();
+    let s = String(x || '')
+      .toLowerCase()
+      .trim();
     if (
       s.includes('clipon') ||
       (s.includes('clip') && s.includes('on')) ||
@@ -67,7 +76,7 @@ export function StoreProvider({
   startProductId = null,
   children,
 }: StoreProviderProps) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const rep = useRep();
   // PAGINAÇÃO: padrão 24 itens por página. Não persistimos entre usuários.
   const [itemsPerPage, setItemsPerPage] = useState<number>(24);
@@ -183,7 +192,7 @@ export function StoreProvider({
     } finally {
       try {
         _initialisedRef.current = true;
-      } catch (e) { }
+      } catch (e) {}
     }
   }, []);
 
@@ -202,7 +211,7 @@ export function StoreProvider({
         setHideImages(true);
         try {
           toast.info('Conexão detectada como lenta — modo compacto ativado.');
-        } catch (e) { }
+        } catch (e) {}
       }
     } catch (e) {
       // ignore
@@ -225,7 +234,8 @@ export function StoreProvider({
           : selectedBrand && selectedBrand !== 'all';
 
         if (hasBrandSelection) {
-          if (Array.isArray(selectedBrand)) params.set('brand', selectedBrand.join(','));
+          if (Array.isArray(selectedBrand))
+            params.set('brand', selectedBrand.join(','));
           else params.set('brand', selectedBrand as string);
         } else params.delete('brand');
 
@@ -246,7 +256,8 @@ export function StoreProvider({
         if (showFavorites) params.set('fav', '1');
         else params.delete('fav');
 
-        if (selectedMaterial && selectedMaterial !== 'all') params.set('material', String(selectedMaterial));
+        if (selectedMaterial && selectedMaterial !== 'all')
+          params.set('material', String(selectedMaterial));
         else params.delete('material');
 
         if (filterPolarizado) params.set('polarizado', '1');
@@ -267,7 +278,15 @@ export function StoreProvider({
 
         const base = window.location.pathname;
         const entries = Array.from(params.entries());
-        const qs = entries.length > 0 ? entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&') : '';
+        const qs =
+          entries.length > 0
+            ? entries
+                .map(
+                  ([k, v]) =>
+                    `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
+                )
+                .join('&')
+            : '';
         const url = qs ? `${base}?${qs}` : base;
         router.replace(url);
       } catch (e) {
@@ -292,10 +311,12 @@ export function StoreProvider({
     if (!_initialisedRef.current) return;
     try {
       setCurrentPage(1);
-    } catch (e) { }
+    } catch (e) {}
   }, [selectedCategory]);
 
-  const _brandMounted = (globalThis as any).__repv_brand_mounted || { value: false };
+  const _brandMounted = (globalThis as any).__repv_brand_mounted || {
+    value: false,
+  };
   useEffect(() => {
     if (!_brandMounted.value) {
       _brandMounted.value = true;
@@ -304,7 +325,7 @@ export function StoreProvider({
     }
     try {
       setCurrentPage(1);
-    } catch (e) { }
+    } catch (e) {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrand]);
 
@@ -315,7 +336,10 @@ export function StoreProvider({
     loadingCart: false,
   });
   const isRichCatalog = useMemo(
-    () => Boolean((store as any)?.is_rich_catalog || (store as any)?.owner_is_company),
+    () =>
+      Boolean(
+        (store as any)?.is_rich_catalog || (store as any)?.owner_is_company
+      ),
     [store]
   );
 
@@ -326,6 +350,7 @@ export function StoreProvider({
     load: false,
     save: false,
     zoom: false,
+    blocked: null as null | { message: string; reason: string | null },
     product: startProductId
       ? initialProducts.find((p) => p.id === startProductId) || null
       : null,
@@ -370,15 +395,21 @@ export function StoreProvider({
         (it: any) => it.slug === fromUrl || it.id === fromUrl
       );
       if (found) setModals((m) => ({ ...m, product: found }));
-    } catch (e) { }
+    } catch (e) {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProducts]);
 
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return;
-      const access = typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem('priceAccessGranted') : null;
-      const expires = typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem('priceAccessExpiresAt') : null;
+      const access =
+        typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('priceAccessGranted')
+          : null;
+      const expires =
+        typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem('priceAccessExpiresAt')
+          : null;
       if (access === 'true') {
         if (expires) {
           const exp = new Date(expires);
@@ -390,13 +421,13 @@ export function StoreProvider({
                 window.localStorage.removeItem('priceAccessGranted');
                 window.localStorage.removeItem('priceAccessExpiresAt');
               }
-            } catch { }
+            } catch {}
           }
         } else {
           setShowPrices(true);
         }
       }
-    } catch (e) { }
+    } catch (e) {}
   }, []);
 
   const [globalControls, setGlobalControls] = useState<{
@@ -406,9 +437,14 @@ export function StoreProvider({
   } | null>(null);
   const [blockedForOrders, setBlockedForOrders] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
-  const [planFeatureMatrix, setPlanFeatureMatrix] = useState<Record<string, Record<string, boolean>> | null>(null);
+  const [planFeatureMatrix, setPlanFeatureMatrix] = useState<Record<
+    string,
+    Record<string, boolean>
+  > | null>(null);
   const [storePlanName, setStorePlanName] = useState<string | null>(null);
-  const [storeSubscriptionStatus, setStoreSubscriptionStatus] = useState<string | null>(null);
+  const [storeSubscriptionStatus, setStoreSubscriptionStatus] = useState<
+    string | null
+  >(null);
 
   // CORREÇÃO DOS EVENTOS DO SAFARI/IOS EM IPHONE: Estados explícitos de sessão e hidratação
   const [pendingImagesCount, setPendingImagesCount] = useState<number>(0);
@@ -419,16 +455,21 @@ export function StoreProvider({
     let mounted = true;
 
     // Recupera a sessão asincrônica inicial de forma controlada
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      if (!mounted) return;
-      setSession(initialSession);
-      setIsAuthLoading(false);
-    }).catch(() => {
-      if (mounted) setIsAuthLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: initialSession } }) => {
+        if (!mounted) return;
+        setSession(initialSession);
+        setIsAuthLoading(false);
+      })
+      .catch(() => {
+        if (mounted) setIsAuthLoading(false);
+      });
 
     // Escuta ativa de gatilhos do iOS (redirecionamento e refresh de token)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (!mounted) return;
       setSession(currentSession);
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -456,9 +497,9 @@ export function StoreProvider({
 
       const res = await fetch('/api/pending-external-images', {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (res.ok) {
@@ -477,7 +518,9 @@ export function StoreProvider({
     return () => clearInterval(t);
   }, [refreshPendingImages, isAuthLoading]);
 
-  const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(null);
+  const [customerSession, setCustomerSession] = useState<CustomerInfo | null>(
+    null
+  );
 
   const brands = useMemo(() => {
     const raw = (initialProducts || [])
@@ -498,9 +541,12 @@ export function StoreProvider({
         const rawHidden = sessionStorage.getItem('rv_hidden_metadata_v1');
         const hiddenObj = rawHidden ? JSON.parse(rawHidden) : {};
         const arr = hiddenObj[uid]?.brand_names;
-        if (Array.isArray(arr)) arr.forEach((n: string) => hiddenNames.add(String(n).trim().toLowerCase()));
+        if (Array.isArray(arr))
+          arr.forEach((n: string) =>
+            hiddenNames.add(String(n).trim().toLowerCase())
+          );
       }
-    } catch (e) { }
+    } catch (e) {}
 
     const seen = new Map<string, string>();
     for (const b of raw) {
@@ -510,7 +556,9 @@ export function StoreProvider({
         const title = String(b)
           .trim()
           .split(/\s+/)
-          .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+          .map((w) =>
+            w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''
+          )
           .join(' ');
         seen.set(key, title);
       }
@@ -537,7 +585,9 @@ export function StoreProvider({
         const title = String(c)
           .trim()
           .split(/\s+/)
-          .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+          .map((w) =>
+            w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''
+          )
           .join(' ');
         seen.set(key, title);
       }
@@ -560,45 +610,65 @@ export function StoreProvider({
     return Array.from(new Set(raw)).sort();
   }, [initialProducts]);
 
-  const materials = useMemo(() =>
-    Array.from(
-      new Set(
-        initialProducts
-          .map((p: any) => (p as any).material?.trim())
-          .filter(Boolean) as string[]
-      )
-    ).filter((m) => {
-      const v = String(m || '').trim();
-      return v && !/^#?\s*n\/?d\s*$/i.test(v) && v.toLowerCase() !== 'n/a';
-    }),
+  const materials = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          initialProducts
+            .map((p: any) => (p as any).material?.trim())
+            .filter(Boolean) as string[]
+        )
+      ).filter((m) => {
+        const v = String(m || '').trim();
+        return v && !/^#?\s*n\/?d\s*$/i.test(v) && v.toLowerCase() !== 'n/a';
+      }),
     [initialProducts]
   );
 
   const hasPolarizado = useMemo(() => {
     try {
-      return initialProducts.some((p: any) => isTruthyFlag((p as any).polarizado));
-    } catch { return false; }
+      return initialProducts.some((p: any) =>
+        isTruthyFlag((p as any).polarizado)
+      );
+    } catch {
+      return false;
+    }
   }, [initialProducts]);
 
   const hasFotocromatico = useMemo(() => {
     try {
-      return initialProducts.some((p: any) => isTruthyFlag((p as any).fotocromatico));
-    } catch { return false; }
+      return initialProducts.some((p: any) =>
+        isTruthyFlag((p as any).fotocromatico)
+      );
+    } catch {
+      return false;
+    }
   }, [initialProducts]);
 
   useEffect(() => {
     const fetchLogos = async () => {
-      const query = supabase.from('brands').select('id, name, logo_url, banner_url, description').eq('user_id', store.user_id);
+      const query = supabase
+        .from('brands')
+        .select('id, name, logo_url, banner_url, description')
+        .eq('user_id', store.user_id);
       if (Array.isArray(brands) && brands.length > 0) {
         query.in('name', brands);
       }
 
       let { data } = await query;
-      if ((Array.isArray(data) && data.length === 0) && Array.isArray(brands) && brands.length > 0) {
+      if (
+        Array.isArray(data) &&
+        data.length === 0 &&
+        Array.isArray(brands) &&
+        brands.length > 0
+      ) {
         try {
-          const res = await supabase.from('brands').select('id, name, logo_url, banner_url, description').eq('user_id', store.user_id);
+          const res = await supabase
+            .from('brands')
+            .select('id, name, logo_url, banner_url, description')
+            .eq('user_id', store.user_id);
           data = res.data;
-        } catch { }
+        } catch {}
       }
 
       let rows: any[] = Array.isArray(data) ? data : [];
@@ -608,29 +678,46 @@ export function StoreProvider({
           const hiddenRaw = sessionStorage.getItem('rv_hidden_metadata_v1');
           const hidden = hiddenRaw ? JSON.parse(hiddenRaw) : {};
           const userHidden = (hidden[uid] && hidden[uid].brands) || [];
-          if (Array.isArray(userHidden) && userHidden.length > 0 && Array.isArray(rows)) {
+          if (
+            Array.isArray(userHidden) &&
+            userHidden.length > 0 &&
+            Array.isArray(rows)
+          ) {
             rows = rows.filter((d: any) => !userHidden.includes(d.id));
           }
         }
-      } catch (e) { }
+      } catch (e) {}
 
       if (rows) {
-        const PUBLIC_BASE = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_APP_URL || '' : '';
+        const PUBLIC_BASE =
+          typeof window !== 'undefined'
+            ? process.env.NEXT_PUBLIC_APP_URL || ''
+            : '';
 
         const extractUrl = (raw: any): string | null => {
           if (!raw) return null;
           try {
             let target: any = raw;
-            if (typeof raw === 'string' && (raw.startsWith('{') || raw.startsWith('['))) {
+            if (
+              typeof raw === 'string' &&
+              (raw.startsWith('{') || raw.startsWith('['))
+            ) {
               try {
                 const parsed = JSON.parse(raw);
                 target = Array.isArray(parsed) ? parsed[0] : parsed;
-              } catch { target = raw; }
+              } catch {
+                target = raw;
+              }
             }
 
             let finalPath = '';
             if (typeof target === 'object' && target !== null) {
-              finalPath = target.variants?.desktop?.url || target.original || target.publicUrl || target.url || '';
+              finalPath =
+                target.variants?.desktop?.url ||
+                target.original ||
+                target.publicUrl ||
+                target.url ||
+                '';
             } else {
               finalPath = String(target);
             }
@@ -642,7 +729,9 @@ export function StoreProvider({
             if (finalPath.includes('/storage/v1/object/public/')) {
               cleanPath = finalPath.split('/storage/v1/object/public/')[1];
             }
-            cleanPath = cleanPath.replace(/^(public\/)+/, '').replace('product-images/public/', 'product-images/');
+            cleanPath = cleanPath
+              .replace(/^(public\/)+/, '')
+              .replace('product-images/public/', 'product-images/');
             return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
           } catch (e) {
             return null;
@@ -654,15 +743,23 @@ export function StoreProvider({
           const banner = extractUrl(d.banner_url);
           const resolve = (u: string | null) => {
             if (!u) return null;
-            if (u.includes('supabase.co/storage') || u.includes('/storage/v1/object')) {
+            if (
+              u.includes('supabase.co/storage') ||
+              u.includes('/storage/v1/object')
+            ) {
               const match = u.match(/\/storage\/v1\/object\/public\/(.+)$/);
               if (match && match[1]) {
                 return `/api/storage-image?path=${encodeURIComponent(match[1])}`;
               }
               return `/api/storage-image?path=${encodeURIComponent(u)}`;
             }
-            if (typeof u === 'string' && (u.startsWith('http') || u.startsWith('//'))) return u;
-            if (typeof u === 'string' && u.startsWith('/')) return `${PUBLIC_BASE}${u}`;
+            if (
+              typeof u === 'string' &&
+              (u.startsWith('http') || u.startsWith('//'))
+            )
+              return u;
+            if (typeof u === 'string' && u.startsWith('/'))
+              return `${PUBLIC_BASE}${u}`;
             return u;
           };
           return {
@@ -674,9 +771,18 @@ export function StoreProvider({
         };
 
         const mapped = brands.map((b) => {
-          const needle = String(b || '').trim().toLowerCase();
-          const found = rows.find((d: any) => String(d.name || '').trim().toLowerCase() === needle);
-          return found ? normalize(found) : { name: b, logo_url: null, banner_url: null, description: null };
+          const needle = String(b || '')
+            .trim()
+            .toLowerCase();
+          const found = rows.find(
+            (d: any) =>
+              String(d.name || '')
+                .trim()
+                .toLowerCase() === needle
+          );
+          return found
+            ? normalize(found)
+            : { name: b, logo_url: null, banner_url: null, description: null };
         });
 
         setBrandsWithLogos(mapped);
@@ -686,14 +792,17 @@ export function StoreProvider({
     const fetchDistinctTypes = async () => {
       try {
         const uid = store?.user_id;
-        const slug = (store as any)?.catalog_slug || (store as any)?.slug || null;
+        const slug =
+          (store as any)?.catalog_slug || (store as any)?.slug || null;
         if (!uid && !slug) return;
-        const q = uid ? `user_id=${encodeURIComponent(String(uid))}` : `slug=${encodeURIComponent(String(slug))}`;
+        const q = uid
+          ? `user_id=${encodeURIComponent(String(uid))}`
+          : `slug=${encodeURIComponent(String(slug))}`;
         const res = await fetch(`/api/catalog/distinct-types?${q}`);
         if (!res.ok) return;
         const j = await res.json();
         if (Array.isArray(j.types)) setDistinctTypes(j.types.filter(Boolean));
-      } catch (e) { }
+      } catch (e) {}
     };
 
     fetchDistinctTypes();
@@ -726,7 +835,9 @@ export function StoreProvider({
             }
             if (/^https?:\/\//i.test(s)) return s;
             return s;
-          } catch { return null; }
+          } catch {
+            return null;
+          }
         };
 
         setCategoriesWithData(
@@ -739,13 +850,17 @@ export function StoreProvider({
         setCategoriesWithData([]);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [supabase, store.user_id]);
 
   useEffect(() => {
     try {
-      (window as any).__rv_distinct_types = Array.isArray(distinctTypes) ? distinctTypes : null;
-    } catch (e) { }
+      (window as any).__rv_distinct_types = Array.isArray(distinctTypes)
+        ? distinctTypes
+        : null;
+    } catch (e) {}
   }, [distinctTypes]);
 
   useEffect(() => {
@@ -755,23 +870,35 @@ export function StoreProvider({
         let data: any[] | null = null;
         let error: any = null;
         try {
-          const res = await supabase.from('genders').select('name, image_url').eq('user_id', store.user_id).order('name');
+          const res = await supabase
+            .from('genders')
+            .select('name, image_url')
+            .eq('user_id', store.user_id)
+            .order('name');
           data = res.data;
           error = res.error;
-        } catch (err) { error = err; }
+        } catch (err) {
+          error = err;
+        }
 
         if ((!data || data.length === 0) && !error) {
           try {
-            const res2 = await supabase.from('product_genders').select('name, image_url').eq('user_id', store.user_id).order('name');
+            const res2 = await supabase
+              .from('product_genders')
+              .select('name, image_url')
+              .eq('user_id', store.user_id)
+              .order('name');
             data = res2.data;
             error = res2.error;
-          } catch { }
+          } catch {}
         }
 
         if (!mounted) return;
 
         if (error || !data) {
-          setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
+          setGendersWithData(
+            genders.map((g) => ({ name: g, image_url: null }))
+          );
           return;
         }
 
@@ -786,7 +913,9 @@ export function StoreProvider({
             }
             if (/^https?:\/\//i.test(s)) return s;
             return s;
-          } catch { return null; }
+          } catch {
+            return null;
+          }
         };
 
         setGendersWithData(
@@ -799,23 +928,35 @@ export function StoreProvider({
         setGendersWithData(genders.map((g) => ({ name: g, image_url: null })));
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [supabase, store.user_id, genders]);
 
   useEffect(() => {
     try {
-      const savedCart = typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem(`cart-${store.name}`) : null;
+      const savedCart =
+        typeof window !== 'undefined' &&
+        typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem(`cart-${store.name}`)
+          : null;
       if (savedCart) {
-        try { setCart(JSON.parse(savedCart)); } catch { }
+        try {
+          setCart(JSON.parse(savedCart));
+        } catch {}
       }
-      const savedCustomer = typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function' ? window.localStorage.getItem(`customer-${store.user_id}`) : null;
+      const savedCustomer =
+        typeof window !== 'undefined' &&
+        typeof window.localStorage?.getItem === 'function'
+          ? window.localStorage.getItem(`customer-${store.user_id}`)
+          : null;
       if (savedCustomer) {
         try {
           const parsed = JSON.parse(savedCustomer) as CustomerInfo;
           setCustomerSession(parsed);
-        } catch { }
+        } catch {}
       }
-    } catch { }
+    } catch {}
   }, [store.name, store.user_id]);
 
   useEffect(() => {
@@ -831,8 +972,10 @@ export function StoreProvider({
         });
         if (j?.plan_feature_matrix) setPlanFeatureMatrix(j.plan_feature_matrix);
       })
-      .catch(() => { });
-    return () => { mounted = false; };
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -851,9 +994,11 @@ export function StoreProvider({
           setBlockedForOrders(!!j.blocked);
           setBlockedReason(j.status || null);
         }
-      } catch (e) { }
+      } catch (e) {}
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [store.user_id]);
 
   useEffect(() => {
@@ -868,9 +1013,11 @@ export function StoreProvider({
         if (!mounted) return;
         setStorePlanName(sub?.plan_name || null);
         setStoreSubscriptionStatus(sub?.status || null);
-      } catch (e) { }
+      } catch (e) {}
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [store.user_id, supabase]);
 
   const isFeatureAllowed = useMemo(
@@ -881,13 +1028,24 @@ export function StoreProvider({
         if (typeof val === 'boolean') return val;
       }
       if (storeSubscriptionStatus === 'trial') {
-        if (featureKey === 'view_prices' && globalControls?.allow_trial_unlock) return true;
-        if ((featureKey === 'finalize_order' || featureKey === 'save_cart') && globalControls?.allow_trial_checkout) return true;
+        if (featureKey === 'view_prices' && globalControls?.allow_trial_unlock)
+          return true;
+        if (
+          (featureKey === 'finalize_order' || featureKey === 'save_cart') &&
+          globalControls?.allow_trial_checkout
+        )
+          return true;
       }
       if (storeSubscriptionStatus !== 'trial') return true;
       return false;
     },
-    [storePlanName, planFeatureMatrix, storeSubscriptionStatus, globalControls, store]
+    [
+      storePlanName,
+      planFeatureMatrix,
+      storeSubscriptionStatus,
+      globalControls,
+      store,
+    ]
   );
 
   useEffect(() => {
@@ -920,7 +1078,9 @@ export function StoreProvider({
     let productObj: Product | undefined;
     if (typeof p === 'string') {
       productObj = initialProducts.find((ip) => ip.id === p);
-    } else { productObj = p; }
+    } else {
+      productObj = p;
+    }
     if (!productObj) {
       toast.error('Produto não encontrado.');
       return;
@@ -931,7 +1091,12 @@ export function StoreProvider({
         if (!raw && raw !== 0) return null;
         if (typeof raw === 'object') {
           const prodObj = raw as any;
-          const candidate = prodObj.image_url || prodObj.image || prodObj.image_path || prodObj.external_image_url || null;
+          const candidate =
+            prodObj.image_url ||
+            prodObj.image ||
+            prodObj.image_path ||
+            prodObj.external_image_url ||
+            null;
           if (!candidate) return null;
           raw = candidate;
         }
@@ -942,11 +1107,17 @@ export function StoreProvider({
 
         if (s.includes('/storage/v1/object/public/')) {
           const path = s.split('/storage/v1/object/public/')[1];
-          const clean = String(path || '').replace(/^\/+/, '').replace(/^public\//, '');
+          const clean = String(path || '')
+            .replace(/^\/+/, '')
+            .replace(/^public\//, '');
           return `/api/storage-image?path=${encodeURIComponent(clean)}`;
         }
 
-        if (/^public\//i.test(s) || s.includes('supabase.co/storage') || s.includes('/storage/v1/object')) {
+        if (
+          /^public\//i.test(s) ||
+          s.includes('supabase.co/storage') ||
+          s.includes('/storage/v1/object')
+        ) {
           const clean = s.replace(/^\/+/, '').replace(/^public\//, '');
           return `/api/storage-image?path=${encodeURIComponent(clean)}`;
         }
@@ -956,7 +1127,9 @@ export function StoreProvider({
           return `/api/storage-image?path=${encodeURIComponent(clean)}`;
         }
         return s;
-      } catch { return null; }
+      } catch {
+        return null;
+      }
     };
 
     setCart((prev) => {
@@ -993,110 +1166,146 @@ export function StoreProvider({
     });
   };
 
-  const handleFinalizeOrder = useCallback(async (customer: CustomerInfo) => {
-    setLoadingStates((s) => ({ ...s, submitting: true }));
-    try {
-      if (!isFeatureAllowed('finalize_order')) {
-        toast.error('Finalização de pedidos não permitida para esta conta.');
-        return false;
-      }
-      const totalValue = cart.reduce((acc, i) => acc + i.price * i.quantity, 0);
-      let sellerId = (store as any)?.representative_id || rep?.id || null;
+  const handleFinalizeOrder = useCallback(
+    async (customer: CustomerInfo) => {
+      setLoadingStates((s) => ({ ...s, submitting: true }));
       try {
-        const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-        const { isInstitutional } = require('./route-context').getCatalogRouteContext(pathname || '');
-        if (isInstitutional) sellerId = null;
-      } catch { }
-      const ownerIsCompany = Boolean((store as any)?.owner_is_company);
-
-      const payload = {
-        storeOwnerId: store.user_id,
-        sellerId,
-        ownerIsCompany,
-        source: isRichCatalog ? 'client_link' : 'catalogo',
-        customer: {
-          name: customer.name,
-          phone: customer.phone,
-          email: customer.email,
-          cnpj: customer.cnpj,
-        },
-        cartItems: cart.map((it) => ({
-          id: it.id,
-          name: it.name,
-          price: it.price,
-          quantity: it.quantity,
-          reference_code: it.reference_code || null,
-        })),
-      };
-
-      const res = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await res.json();
-      if (!res.ok || !result || result.success === false) {
-        throw new Error(result?.message || result?.error || 'Erro ao criar pedido');
-      }
-
-      let publicUrl: string | null = null;
-      try {
-        const serverOrder = {
-          id: result.id || null,
-          display_id: result.display_id || result.orderId || null,
-        } as any;
-
-        const doc = await generateOrderPDF(
-          { ...serverOrder, customer },
-          store,
-          cart,
-          totalValue,
-          true,
-          showPrices
-        );
-        if (doc instanceof Blob) {
-          const fileName = `pedidos/${serverOrder.id || serverOrder.display_id || 'unknown'}_${Date.now()}.pdf`;
-          const { error: uploadError } = await supabase.storage
-            .from('order-receipts')
-            .upload(fileName, doc);
-          if (!uploadError) {
-            const { data: urlData } = supabase.storage
-              .from('order-receipts')
-              .getPublicUrl(fileName);
-            publicUrl = urlData.publicUrl;
-          }
+        if (!isFeatureAllowed('finalize_order')) {
+          toast.error('Finalização de pedidos não permitida para esta conta.');
+          return false;
         }
-      } catch (pdfErr) {
-        console.error('Erro ao processar PDF para nuvem', pdfErr);
+        const totalValue = cart.reduce(
+          (acc, i) => acc + i.price * i.quantity,
+          0
+        );
+        let sellerId = (store as any)?.representative_id || rep?.id || null;
+        try {
+          const pathname =
+            typeof window !== 'undefined' ? window.location.pathname : '';
+          const { isInstitutional } =
+            require('./route-context').getCatalogRouteContext(pathname || '');
+          if (isInstitutional) sellerId = null;
+        } catch {}
+        const ownerIsCompany = Boolean((store as any)?.owner_is_company);
+
+        const payload = {
+          storeOwnerId: store.user_id,
+          sellerId,
+          ownerIsCompany,
+          source: isRichCatalog ? 'client_link' : 'catalogo',
+          customer: {
+            name: customer.name,
+            phone: customer.phone,
+            email: customer.email,
+            cnpj: customer.cnpj,
+          },
+          cartItems: cart.map((it: any) => ({
+            id: it.id,
+            product_id: it.product_id || it.id,
+
+            name: it.name,
+            product_name: it.product_name || it.name,
+
+            price: Number(it.price || it.unit_price || 0),
+            unit_price: Number(it.unit_price || it.price || 0),
+
+            quantity: Number(it.quantity || 1),
+            reference_code: it.reference_code || null,
+            brand: it.brand || null,
+            color: it.color || null,
+
+            image_url: it.image_url || null,
+            image_path: it.image_path || null,
+            image_variants: it.image_variants || null,
+            external_image_url: it.external_image_url || null,
+            gallery_images: it.gallery_images || null,
+          })),
+        };
+
+        const res = await fetch('/api/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await res.json();
+        if (!res.ok || !result || result.success === false) {
+          throw new Error(
+            result?.message || result?.error || 'Erro ao criar pedido'
+          );
+        }
+
+        let publicUrl: string | null = null;
+        try {
+          const serverOrder = {
+            id: result.id || null,
+            display_id: result.display_id || result.orderId || null,
+          } as any;
+
+          const doc = await generateOrderPDF(
+            { ...serverOrder, customer },
+            store,
+            cart,
+            totalValue,
+            true,
+            showPrices
+          );
+          if (doc instanceof Blob) {
+            const fileName = `pedidos/${serverOrder.id || serverOrder.display_id || 'unknown'}_${Date.now()}.pdf`;
+            const { error: uploadError } = await supabase.storage
+              .from('order-receipts')
+              .upload(fileName, doc);
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage
+                .from('order-receipts')
+                .getPublicUrl(fileName);
+              publicUrl = urlData.publicUrl;
+            }
+          }
+        } catch (pdfErr) {
+          console.error('Erro ao processar PDF para nuvem', pdfErr);
+        }
+
+        setOrderSuccessData({
+          id: result.id || result.orderId || null,
+          display_id: result.display_id || result.orderId || null,
+          customer,
+          items: cart,
+          total: totalValue,
+          pdf_url: publicUrl,
+        });
+        try {
+          localStorage.setItem(
+            `customer-${store.user_id}`,
+            JSON.stringify(customer)
+          );
+          setCustomerSession(customer);
+        } catch {}
+
+        setCart([]);
+        return true;
+      } catch (e) {
+        toast.error('Erro ao processar pedido.');
+        return false;
+      } finally {
+        setLoadingStates((s) => ({ ...s, submitting: false }));
       }
-
-      setOrderSuccessData({
-        id: result.id || result.orderId || null,
-        display_id: result.display_id || result.orderId || null,
-        customer,
-        items: cart,
-        total: totalValue,
-        pdf_url: publicUrl,
-      });
-      try {
-        localStorage.setItem(`customer-${store.user_id}`, JSON.stringify(customer));
-        setCustomerSession(customer);
-      } catch { }
-
-      setCart([]);
-      return true;
-    } catch (e) {
-      toast.error('Erro ao processar pedido.');
-      return false;
-    } finally {
-      setLoadingStates((s) => ({ ...s, submitting: false }));
-    }
-  }, [cart, store, rep?.id, isRichCatalog, isFeatureAllowed, supabase, showPrices]);
+    },
+    [
+      cart,
+      store,
+      rep?.id,
+      isRichCatalog,
+      isFeatureAllowed,
+      supabase,
+      showPrices,
+    ]
+  );
 
   const handleSendWhatsApp = async () => {
     if (!orderSuccessData) return;
-    const { customer, items, total, display_id, id, pdf_url } = orderSuccessData;
+    const { customer, items, total, display_id, id, pdf_url } =
+      orderSuccessData;
 
     let destPhone: string | null = null;
     try {
@@ -1109,12 +1318,17 @@ export function StoreProvider({
         const j = await res.json();
         if (j.ok && j.phone) destPhone = String(j.phone);
       }
-    } catch (e) { }
+    } catch (e) {}
 
     if (!destPhone) {
-      destPhone = ((store as any)?.representative_whatsapp as string | null) || (store.phone || null) as string | null;
+      destPhone =
+        ((store as any)?.representative_whatsapp as string | null) ||
+        ((store.phone || null) as string | null);
     }
-    const fmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    const fmt = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    });
 
     let msg = `🔔 *𝗡𝗢𝗩𝗢 𝗣𝗘𝗗𝗜𝗗𝗢 : #${display_id || id}* 🚀\n`;
     msg += `👤 *CLIENTE:* ${customer.name}\n`;
@@ -1127,7 +1341,8 @@ export function StoreProvider({
       msg += `▪️ ${i.quantity}x ${i.name} (${fmt.format(i.price)})\n`;
     });
 
-    if (items.length > 15) msg += `\n_...e outros ${items.length - 15} itens._\n`;
+    if (items.length > 15)
+      msg += `\n_...e outros ${items.length - 15} itens._\n`;
     msg += `\n------------------------------------------\n`;
     msg += `💰 *TOTAL: ${fmt.format(total)}*\n`;
     msg += `------------------------------------------\n`;
@@ -1135,7 +1350,10 @@ export function StoreProvider({
     if (pdf_url) msg += `\n📄 *VER COMPROVANTE (PDF):*\n${pdf_url}\n`;
     msg += `\n_Gerado por R̳e̳p̳V̳e̳n̳d̳a̳s̳ oasis_`;
 
-    const waUrl = (await import('@/lib/format-whatsapp')).makeWhatsAppUrl(destPhone || '', msg);
+    const waUrl = (await import('@/lib/format-whatsapp')).makeWhatsAppUrl(
+      destPhone || '',
+      msg
+    );
     if (waUrl) window.open(waUrl, '_blank');
   };
 
@@ -1191,18 +1409,33 @@ export function StoreProvider({
               const path = s.split('/storage/v1/object/public/')[1];
               return `/api/storage-image?path=${encodeURIComponent(path)}`;
             }
-            if (s.includes('supabase.co/storage') || s.includes('/storage/v1/object')) {
+            if (
+              s.includes('supabase.co/storage') ||
+              s.includes('/storage/v1/object')
+            ) {
               return `/api/storage-image?path=${encodeURIComponent(s)}`;
             }
             if (s.startsWith('/api/') || /^https?:\/\//i.test(s)) return s;
             return s;
-          } catch { return null; }
+          } catch {
+            return null;
+          }
         };
 
         const normalized = (data.items || []).map((it: any, idx: number) => {
-          const id = it.id || it.product_id || it.productId || it.reference_code || `loaded-${idx}`;
+          const id =
+            it.id ||
+            it.product_id ||
+            it.productId ||
+            it.reference_code ||
+            `loaded-${idx}`;
           const imageFromPath = it.image_path || it.path || null;
-          const rawImage = it.image_url || it.image || it.image_url_original || imageFromPath || null;
+          const rawImage =
+            it.image_url ||
+            it.image ||
+            it.image_url_original ||
+            imageFromPath ||
+            null;
           return {
             ...(it || {}),
             id: String(id),
@@ -1255,7 +1488,10 @@ export function StoreProvider({
         if (showOnlyNew && !p.is_launch) return false;
         if (showOnlyBestsellers && !p.is_best_seller) return false;
         if (selectedBrand !== 'all') {
-          const normalize = (s: unknown) => String(s || '').trim().toLowerCase();
+          const normalize = (s: unknown) =>
+            String(s || '')
+              .trim()
+              .toLowerCase();
           const productBrand = normalize(p.brand);
           if (Array.isArray(selectedBrand)) {
             const selectedNormalized = selectedBrand.map(normalize);
@@ -1268,10 +1504,14 @@ export function StoreProvider({
           const selectedNorm = normalizeForTypeMatch(selectedCategory);
           const categoryNorm = normalizeForTypeMatch((p as any).category || '');
           const typeNorm = normalizeForTypeMatch((p as any).class_core || '');
-          if (categoryNorm !== selectedNorm && typeNorm !== selectedNorm) return false;
+          if (categoryNorm !== selectedNorm && typeNorm !== selectedNorm)
+            return false;
         }
         if (selectedGender !== 'all') {
-          const normalize = (s: unknown) => String(s || '').trim().toLowerCase();
+          const normalize = (s: unknown) =>
+            String(s || '')
+              .trim()
+              .toLowerCase();
           if (normalize(p.gender) !== normalize(selectedGender)) return false;
         }
         if (selectedMaterial !== 'all') {
@@ -1279,10 +1519,26 @@ export function StoreProvider({
           if (mat !== String(selectedMaterial)) return false;
         }
         if (filterPolarizado) {
-          if (!((p as any).polarizado === true || (p as any).polarizado === 'true' || (p as any).polarizado === 1 || (p as any).polarizado === '1')) return false;
+          if (
+            !(
+              (p as any).polarizado === true ||
+              (p as any).polarizado === 'true' ||
+              (p as any).polarizado === 1 ||
+              (p as any).polarizado === '1'
+            )
+          )
+            return false;
         }
         if (filterFotocromatico) {
-          if (!((p as any).fotocromatico === true || (p as any).fotocromatico === 'true' || (p as any).fotocromatico === 1 || (p as any).fotocromatico === '1')) return false;
+          if (
+            !(
+              (p as any).fotocromatico === true ||
+              (p as any).fotocromatico === 'true' ||
+              (p as any).fotocromatico === 1 ||
+              (p as any).fotocromatico === '1'
+            )
+          )
+            return false;
         }
         return true;
       })
@@ -1290,17 +1546,45 @@ export function StoreProvider({
         if (sortOrder === 'price_asc') return (a.price || 0) - (b.price || 0);
         if (sortOrder === 'price_desc') return (b.price || 0) - (a.price || 0);
         if (sortOrder === 'ref_asc')
-          return String(a.reference_code || '').localeCompare(String(b.reference_code || ''), undefined, { numeric: true, sensitivity: 'base' });
+          return String(a.reference_code || '').localeCompare(
+            String(b.reference_code || ''),
+            undefined,
+            { numeric: true, sensitivity: 'base' }
+          );
         if (sortOrder === 'ref_desc')
-          return String(b.reference_code || '').localeCompare(String(a.reference_code || ''), undefined, { numeric: true, sensitivity: 'base' });
+          return String(b.reference_code || '').localeCompare(
+            String(a.reference_code || ''),
+            undefined,
+            { numeric: true, sensitivity: 'base' }
+          );
         if (sortOrder === 'created_desc')
-          return ((Date.parse(b.created_at as string) || 0) - (Date.parse(a.created_at as string) || 0));
+          return (
+            (Date.parse(b.created_at as string) || 0) -
+            (Date.parse(a.created_at as string) || 0)
+          );
         if (sortOrder === 'created_asc')
-          return ((Date.parse(a.created_at as string) || 0) - (Date.parse(b.created_at as string) || 0));
+          return (
+            (Date.parse(a.created_at as string) || 0) -
+            (Date.parse(b.created_at as string) || 0)
+          );
 
         return a.name.localeCompare(b.name);
       });
-  }, [searchResults, initialProducts, favorites, showFavorites, showOnlyNew, showOnlyBestsellers, selectedBrand, selectedCategory, selectedGender, selectedMaterial, filterPolarizado, filterFotocromatico, sortOrder]);
+  }, [
+    searchResults,
+    initialProducts,
+    favorites,
+    showFavorites,
+    showOnlyNew,
+    showOnlyBestsellers,
+    selectedBrand,
+    selectedCategory,
+    selectedGender,
+    selectedMaterial,
+    filterPolarizado,
+    filterFotocromatico,
+    sortOrder,
+  ]);
 
   const displayProducts = useMemo(() => {
     const start = Math.max(0, (currentPage - 1) * itemsPerPage);
@@ -1315,18 +1599,32 @@ export function StoreProvider({
       if (!u && u !== '') return '';
       let finalPath = '';
       if (typeof u === 'object' && u !== null) {
-        finalPath = isThumbnail ? (u.variants?.mobile?.url || u.variants?.desktop?.url || u.original || '') : (u.variants?.desktop?.url || u.original || '');
-      } else { finalPath = String(u || ''); }
+        finalPath = isThumbnail
+          ? u.variants?.mobile?.url ||
+            u.variants?.desktop?.url ||
+            u.original ||
+            ''
+          : u.variants?.desktop?.url || u.original || '';
+      } else {
+        finalPath = String(u || '');
+      }
 
       if (!finalPath) return '';
-      if (/^https?:\/\//i.test(finalPath) && !finalPath.includes('supabase.co/storage')) return finalPath;
+      if (
+        /^https?:\/\//i.test(finalPath) &&
+        !finalPath.includes('supabase.co/storage')
+      )
+        return finalPath;
 
       let path = finalPath;
       if (finalPath.includes('/storage/v1/object/public/')) {
         path = finalPath.split('/storage/v1/object/public/')[1];
       }
       let cleanPath = String(path || '').replace(/^(public\/)+/, '');
-      cleanPath = cleanPath.replace('product-images/public/', 'product-images/');
+      cleanPath = cleanPath.replace(
+        'product-images/public/',
+        'product-images/'
+      );
       const resizeParam = isThumbnail ? '&width=400&quality=75' : '';
       return `/api/storage-image?path=${encodeURIComponent(cleanPath)}${resizeParam}`;
     };
@@ -1334,29 +1632,69 @@ export function StoreProvider({
     if (Array.isArray(s.banners)) {
       try {
         if ((s as any).banner_variants && (s as any).banner_variants.banners) {
-          s.banners = (s as any).banner_variants.banners.map((it: any) => it.variants?.desktop?.url || resolveUrl(it.original || it, false));
-        } else { s.banners = s.banners.map((b: any) => resolveUrl(b, false)); }
-      } catch { s.banners = s.banners.map((b: any) => resolveUrl(b, false)); }
+          s.banners = (s as any).banner_variants.banners.map(
+            (it: any) =>
+              it.variants?.desktop?.url || resolveUrl(it.original || it, false)
+          );
+        } else {
+          s.banners = s.banners.map((b: any) => resolveUrl(b, false));
+        }
+      } catch {
+        s.banners = s.banners.map((b: any) => resolveUrl(b, false));
+      }
     }
 
     if (Array.isArray((s as any).banners_mobile)) {
       try {
-        if ((s as any).banner_variants && (s as any).banner_variants.banners_mobile) {
-          (s as any).banners_mobile = (s as any).banner_variants.banners_mobile.map((it: any) => it.variants?.mobile?.url || resolveUrl(it.original || it, false));
-        } else { (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false)); }
-      } catch { (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) => resolveUrl(b, false)); }
+        if (
+          (s as any).banner_variants &&
+          (s as any).banner_variants.banners_mobile
+        ) {
+          (s as any).banners_mobile = (
+            s as any
+          ).banner_variants.banners_mobile.map(
+            (it: any) =>
+              it.variants?.mobile?.url || resolveUrl(it.original || it, false)
+          );
+        } else {
+          (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) =>
+            resolveUrl(b, false)
+          );
+        }
+      } catch {
+        (s as any).banners_mobile = (s as any).banners_mobile.map((b: any) =>
+          resolveUrl(b, false)
+        );
+      }
     }
 
     if (s.logo_url) s.logo_url = resolveUrl(s.logo_url, true);
-    if (s.top_benefit_image_url) s.top_benefit_image_url = resolveUrl(s.top_benefit_image_url, true);
+    if (s.top_benefit_image_url)
+      s.top_benefit_image_url = resolveUrl(s.top_benefit_image_url, true);
 
     s.show_top_benefit_bar = s.show_top_benefit_bar ?? false;
-    try { s.show_cost_price = isTruthyFlag((s as any).show_cost_price); } catch { s.show_cost_price = false; }
-    try { s.show_sale_price = typeof (s as any).show_sale_price !== 'undefined' ? isTruthyFlag((s as any).show_sale_price) : true; } catch { s.show_sale_price = true; }
+    try {
+      s.show_cost_price = isTruthyFlag((s as any).show_cost_price);
+    } catch {
+      s.show_cost_price = false;
+    }
+    try {
+      s.show_sale_price =
+        typeof (s as any).show_sale_price !== 'undefined'
+          ? isTruthyFlag((s as any).show_sale_price)
+          : true;
+    } catch {
+      s.show_sale_price = true;
+    }
 
-    s.price_unlock_mode = (s as any).price_unlock_mode || (store as any).price_unlock_mode || 'modal';
-    s.price_password_hash = (s as any).price_password_hash || (s as any).price_password || null;
-    s.secondary_color = (s as any).secondary_color || (store as any).secondary_color || '#0f172a';
+    s.price_unlock_mode =
+      (s as any).price_unlock_mode ||
+      (store as any).price_unlock_mode ||
+      'modal';
+    s.price_password_hash =
+      (s as any).price_password_hash || (s as any).price_password || null;
+    s.secondary_color =
+      (s as any).secondary_color || (store as any).secondary_color || '#0f172a';
 
     return s;
   }, [store]);
@@ -1369,7 +1707,8 @@ export function StoreProvider({
         return false;
       }
 
-      const hasPasswordConfigured = (store as any).price_password_hash || (store as any).price_password;
+      const hasPasswordConfigured =
+        (store as any).price_password_hash || (store as any).price_password;
 
       if ((store as any).price_password_hash) {
         const hash = await sha256(plain);
@@ -1380,24 +1719,33 @@ export function StoreProvider({
               localStorage.setItem('priceAccessGranted', 'true');
               const tomorrow = new Date();
               tomorrow.setDate(tomorrow.getDate() + 1);
-              localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
+              localStorage.setItem(
+                'priceAccessExpiresAt',
+                tomorrow.toISOString()
+              );
             }
-          } catch { }
+          } catch {}
           toast.success('Preços desbloqueados!');
           return true;
         }
       }
 
-      if ((store as any).price_password && plain === (store as any).price_password) {
+      if (
+        (store as any).price_password &&
+        plain === (store as any).price_password
+      ) {
         setShowPrices(true);
         try {
           if (typeof window !== 'undefined') {
             localStorage.setItem('priceAccessGranted', 'true');
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
-            localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
+            localStorage.setItem(
+              'priceAccessExpiresAt',
+              tomorrow.toISOString()
+            );
           }
-        } catch { }
+        } catch {}
         toast.success('Preços desbloqueados!');
         return true;
       }
@@ -1406,7 +1754,10 @@ export function StoreProvider({
         const res = await fetch('/api/catalog/verify-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: (store as any).user_id, password: plain }),
+          body: JSON.stringify({
+            userId: (store as any).user_id,
+            password: plain,
+          }),
         });
         if (res.ok) {
           const j = await res.json();
@@ -1417,9 +1768,12 @@ export function StoreProvider({
                 localStorage.setItem('priceAccessGranted', 'true');
                 const tomorrow = new Date();
                 tomorrow.setDate(tomorrow.getDate() + 1);
-                localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
+                localStorage.setItem(
+                  'priceAccessExpiresAt',
+                  tomorrow.toISOString()
+                );
               }
-            } catch { }
+            } catch {}
             toast.success('Preços desbloqueados!');
             return true;
           }
@@ -1444,9 +1798,12 @@ export function StoreProvider({
             localStorage.setItem('priceAccessGranted', 'true');
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
-            localStorage.setItem('priceAccessExpiresAt', tomorrow.toISOString());
+            localStorage.setItem(
+              'priceAccessExpiresAt',
+              tomorrow.toISOString()
+            );
           }
-        } catch { }
+        } catch {}
         return true;
       }
 
@@ -1463,8 +1820,106 @@ export function StoreProvider({
         localStorage.removeItem('priceAccessGranted');
         localStorage.removeItem('priceAccessExpiresAt');
       }
-    } catch { }
+    } catch {}
     toast.info('Precos ocultados com sucesso.');
+  }, []);
+
+  const setModal = useCallback((name: string, value: any) => {
+    if (name === 'product') {
+      if (!value) {
+        setModals((current: any) => {
+          if (!current.product) return current;
+          return { ...current, product: null };
+        });
+        return;
+      }
+
+      setModals((current: any) => {
+        if (current.product?.id === value.id) return current;
+        return { ...current, product: value };
+      });
+
+      (async () => {
+        try {
+          const client = createClient();
+          const ref = value.reference_id || value.reference_code || null;
+          if (!ref) return;
+
+          let query = client
+            .from('products')
+            .select('*')
+            .eq('user_id', value.user_id)
+            .eq('is_active', true);
+
+          if (value.reference_id) {
+            query = query.eq('reference_id', value.reference_id);
+          } else {
+            query = query.eq('reference_code', value.reference_code);
+          }
+
+          const { data } = await query;
+
+          if (data && Array.isArray(data) && data.length > 0) {
+            const variants = data as any[];
+            const active = variants.find((p) => p.id === value.id) || value;
+
+            setModals((current: any) => {
+              if (current.product?.id !== value.id) return current;
+
+              const currentVariants = current.product?.variants;
+              if (
+                Array.isArray(currentVariants) &&
+                currentVariants.length === variants.length
+              ) {
+                const sameVariantIds = currentVariants.every(
+                  (item: any, index: number) => item?.id === variants[index]?.id
+                );
+
+                if (sameVariantIds) return current;
+              }
+
+              return {
+                ...current,
+                product: {
+                  ...active,
+                  variants,
+                },
+              };
+            });
+          }
+        } catch (error) {
+          console.error('Erro ao carregar variantes do produto:', error);
+        }
+      })();
+
+      return;
+    }
+
+    setModals((current: any) => {
+      const currentValue = current[name];
+
+      if (currentValue === value) return current;
+
+      if (
+        typeof currentValue === 'object' &&
+        currentValue !== null &&
+        typeof value === 'object' &&
+        value !== null
+      ) {
+        try {
+          if (JSON.stringify(currentValue) === JSON.stringify(value)) {
+            return current;
+          }
+        } catch {
+          // Se não conseguir comparar, segue com atualização normal.
+        }
+      }
+
+      return {
+        ...current,
+        [name]: value,
+      };
+    });
   }, []);
 
   return (
@@ -1487,7 +1942,10 @@ export function StoreProvider({
         displayProducts,
         totalProducts: filteredProducts.length,
         currentPage,
-        totalPages: itemsPerPage >= 999999 ? 1 : Math.ceil(filteredProducts.length / itemsPerPage),
+        totalPages:
+          itemsPerPage >= 999999
+            ? 1
+            : Math.ceil(filteredProducts.length / itemsPerPage),
         setCurrentPage,
         itemsPerPage,
         setItemsPerPage: (items: number) => {
@@ -1534,40 +1992,15 @@ export function StoreProvider({
         setIsFilterOpen,
         currentBanner,
         modals,
-        setModal: (n: string, v: any) => {
-          if (n === 'product') {
-            if (!v) return setModals((m) => ({ ...m, product: null }));
-            setModals((m) => ({ ...m, product: v }));
-
-            (async () => {
-              try {
-                const client = createClient();
-                const ref = v.reference_id || v.reference_code || null;
-                if (!ref) return;
-
-                let query = client.from('products').select('*').eq('user_id', v.user_id).eq('is_active', true);
-                if (v.reference_id) query = query.eq('reference_id', v.reference_id);
-                else query = query.eq('reference_code', v.reference_code);
-
-                const { data } = await query;
-                if (data && Array.isArray(data) && data.length > 0) {
-                  const variants = data as any[];
-                  const active = variants.find((p) => p.id === v.id) || v;
-                  setModals((m) => ({ ...m, product: { ...active, variants } }));
-                }
-              } catch (e) {
-                console.error('Erro ao carregar variantes do produto:', e);
-              }
-            })();
-            return;
-          }
-          setModals((m) => ({ ...m, [n]: v }));
-        },
+        setModal,
         addToCart,
-        removeFromCart: (id: string) => setCart((c: any[]) => c.filter((i: any) => i.id !== id)),
+        removeFromCart: (id: string) =>
+          setCart((c: any[]) => c.filter((i: any) => i.id !== id)),
         updateQuantity,
         toggleFavorite: (id: string) =>
-          setFavorites((f: string[]) => f.includes(id) ? f.filter((x: string) => x !== id) : [...f, id]),
+          setFavorites((f: string[]) =>
+            f.includes(id) ? f.filter((x: string) => x !== id) : [...f, id]
+          ),
         unlockPrices,
         handleFinalizeOrder,
         handleSaveCart,
@@ -1609,7 +2042,9 @@ export function StoreProvider({
         handleSendWhatsApp,
         customerSession,
         clearCustomerSession: () => {
-          try { localStorage.removeItem(`customer-${store.user_id}`); } catch { }
+          try {
+            localStorage.removeItem(`customer-${store.user_id}`);
+          } catch {}
           setCustomerSession(null);
         },
         hasPolarizado,
