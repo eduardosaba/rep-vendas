@@ -71,6 +71,9 @@ importers:
       lucide-react:
         specifier: ^0.378.0
         version: 0.378.0(react@18.3.1)
+      mercadopago:
+        specifier: ^3.1.0
+        version: 3.1.0
       nanoid:
         specifier: ^5.1.6
         version: 5.1.6
@@ -4579,6 +4582,10 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
+  mercadopago@3.1.0:
+    resolution: {integrity: sha512-3VB8AFpE8eZgm67e22kVbR19k9JC/1j66voLSh7m9tPvkASuRKNH2Y7yb793rO+fIpMtvl+wBj27UY4jIItWYA==}
+    engines: {node: '>=18'}
+
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
 
@@ -8221,7 +8228,7 @@ snapshots:
       '@sentry/bundler-plugin-core': 5.2.0
       '@sentry/core': 10.50.0
       '@sentry/node': 10.50.0(@opentelemetry/exporter-trace-otlp-http@0.212.0(@opentelemetry/api@1.9.0))
-      '@sentry/opentelemetry': 10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)
+      '@sentry/opentelemetry': 10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.40.0)
       '@sentry/react': 10.50.0(react@18.3.1)
       '@sentry/vercel-edge': 10.50.0
       '@sentry/webpack-plugin': 5.2.0(webpack@5.106.2)
@@ -8240,7 +8247,7 @@ snapshots:
   '@sentry/node-core@10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.212.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.214.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)':
     dependencies:
       '@sentry/core': 10.50.0
-      '@sentry/opentelemetry': 10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)
+      '@sentry/opentelemetry': 10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.40.0)
       import-in-the-middle: 3.0.1
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -8281,13 +8288,13 @@ snapshots:
       '@prisma/instrumentation': 7.6.0(@opentelemetry/api@1.9.1)
       '@sentry/core': 10.50.0
       '@sentry/node-core': 10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.212.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.214.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)
-      '@sentry/opentelemetry': 10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)
+      '@sentry/opentelemetry': 10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.40.0)
       import-in-the-middle: 3.0.1
     transitivePeerDependencies:
       - '@opentelemetry/exporter-trace-otlp-http'
       - supports-color
 
-  '@sentry/opentelemetry@10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.40.0)':
+  '@sentry/opentelemetry@10.50.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.7.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.40.0)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.0(@opentelemetry/api@1.9.1)
@@ -11463,6 +11470,8 @@ snapshots:
       tmpl: 1.0.5
 
   math-intrinsics@1.1.0: {}
+
+  mercadopago@3.1.0: {}
 
   merge-stream@2.0.0: {}
 
