@@ -98,6 +98,27 @@ export async function middleware(request: NextRequest) {
       error: authError,
     } = await supabase.auth.getUser();
 
+    if (authError) {
+      const isInvalidRefreshToken =
+        authError.message?.includes('Invalid Refresh Token') ||
+        authError.message?.includes('Refresh Token Not Found') ||
+        (authError as any)?.code === 'refresh_token_not_found';
+
+      if (isInvalidRefreshToken) {
+        request.cookies.getAll().forEach((cookie) => {
+          if (cookie.name.includes('auth') || cookie.name.startsWith('sb-') || cookie.name === 'repvendas-auth-token') {
+            response.cookies.set({
+              name: cookie.name,
+              value: '',
+              path: '/',
+              expires: new Date(0),
+              maxAge: 0,
+            });
+          }
+        });
+      }
+    }
+
     user = authError ? null : authUser || null;
   } catch (error: any) {
     console.warn('[middleware] Falha ao buscar usuário:', error?.message || error);
