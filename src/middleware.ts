@@ -153,7 +153,12 @@ export async function middleware(request: NextRequest) {
     }
 
     if (!user) {
-      return forbidden();
+      if (pathname.startsWith('/api/admin')) {
+        return forbidden();
+      }
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirectTo', pathname);
+      return redirectTo(loginUrl);
     }
     
     // NOTA: As validações de ROLE (master, admin_company) foram movidas 

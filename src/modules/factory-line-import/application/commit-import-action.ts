@@ -40,7 +40,7 @@ export async function commitImportAction(formData: FormData) {
     .eq('id', userId)
     .single();
 
-  if (!profile || !['master', 'admin'].includes(profile.role)) {
+  if (!profile || !['master', 'admin', 'admin_company', 'company_admin'].includes(profile.role)) {
     return { error: 'Acesso negado.' };
   }
 

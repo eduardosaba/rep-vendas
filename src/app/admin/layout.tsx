@@ -39,10 +39,9 @@ export default async function AdminLayout({
     .single();
 
   const role = profile?.role;
-  const isMaster = role === 'master';
-  const isAdminCompany = role === 'admin_company';
+  const isAllowedAdmin = role && ['master', 'admin', 'admin_company', 'company_admin'].includes(role);
 
-  if (!isMaster && !isAdminCompany) {
+  if (!isAllowedAdmin) {
     redirect('/admin/unauthorized');
   }
 

@@ -18,7 +18,7 @@ export async function rollbackImportAction(importId: string) {
     .eq('id', userId)
     .single();
 
-  if (!profile || !['master', 'admin', 'admin_company'].includes(profile.role)) {
+  if (!profile || !['master', 'admin', 'admin_company', 'company_admin'].includes(profile.role)) {
     return { error: 'Acesso negado.' };
   }
 

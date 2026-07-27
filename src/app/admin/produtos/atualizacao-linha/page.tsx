@@ -23,7 +23,7 @@ export default async function FactoryLineImportPage() {
     .eq('id', userId)
     .single();
 
-  if (!profile || !['master', 'admin'].includes(profile.role)) {
+  if (!profile || !['master', 'admin', 'admin_company', 'company_admin'].includes(profile.role)) {
     redirect('/admin/unauthorized');
   }
 
