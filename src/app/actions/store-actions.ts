@@ -44,45 +44,48 @@ export async function saveCartAction(items: CartItem[]) {
   return { success: true, data } as const;
 }
 
-export async function createOrderAction(orderData: {
-  items: CartItem[];
-  total: number;
-  shipping?: any;
-  billing?: any;
-}) {
-  const supabase = await createClient();
-  const activeUserId = await getActiveUserId();
+import { checkoutCommercialOrder } from '@/actions/commercial/orders/create';
 
-  if (!activeUserId) throw new Error('Sessão inválida');
+interface LegacyCreateOrderInput {
+  clientId: string
+  items: Array<{
+    productId: string
+    quantity: number
+  }>
+  paymentMethod: 'boleto' | 'pix' | 'cartao'
+  notes?: string
+}
 
-  const orderPayload = {
-    user_id: activeUserId,
-    items: orderData.items,
-    total: orderData.total,
-    shipping: orderData.shipping || null,
-    billing: orderData.billing || null,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase.from('orders').insert([orderPayload]);
-  if (error) throw error;
-
-  await createAuditLog(
-    'ORDER_CREATE',
-    `Pedido criado para user=${activeUserId} total=${orderData.total}`,
-    { items_count: orderData.items?.length ?? 0, total: orderData.total }
-  );
-
+/**
+ * Adaptador de Compatibilidade do Carrinho / Loja Virtual
+ * Deixa de realizar o .insert() direto na tabela 'orders' e delega a 
+ * responsabilidade para o pipeline transacional atômico da Distribuidora.
+ */
+export async function createOrderAction(input: LegacyCreateOrderInput) {
   try {
-    revalidatePath('/dashboard/orders');
-    revalidatePath('/dashboard/saved-carts');
-  } catch (e) {
-    // ignore
-  }
+    // Validação básica de entrada na borda do adaptador
+    if (!input.clientId || !input.items || input.items.length === 0) {
+      return { success: false, error: 'Dados do carrinho inválidos ou vazios.' }
+    }
 
-  return {
-    success: true,
-    order: Array.isArray(data) ? data[0] : data,
-  } as const;
+    // Encaminha o payload para o ecossistema comercial unificado
+    const result = await checkoutCommercialOrder({
+      clientId: input.clientId,
+      items: input.items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity
+      })),
+      paymentMethod: input.paymentMethod,
+      notes: input.notes
+    })
+
+    return result
+
+  } catch (error: any) {
+    console.error('[Store Action Adapter Crash]:', error.message)
+    return { 
+      success: false, 
+      error: 'Ocorreu uma falha operacional ao processar o checkout do pedido.' 
+    }
+  }
 }

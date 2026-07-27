@@ -6,6 +6,7 @@ import BlockedAccountPopup from '@/components/dashboard/BlockedAccountPopup';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { useWelcomeManager } from '@/hooks/useWelcomeManager';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export default function DashboardLayout({
@@ -19,6 +20,8 @@ export default function DashboardLayout({
 
   // No mobile é melhor iniciar recolhido para evitar overlay cobrindo a tela no iOS.
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const pathname = usePathname();
+  const router = useRouter();
 
   const {
     shouldShow,
@@ -97,6 +100,37 @@ export default function DashboardLayout({
 
         if (status === 'blocked' || (status === 'trial' && isTrialExpired)) {
           setShowBlockedPopup(true);
+        }
+
+        const COMPANY_CATALOG_RESTRICTED_PREFIXES = [
+          '/dashboard/products',
+          '/dashboard/categories',
+          '/dashboard/brands',
+          '/dashboard/marketing',
+          '/dashboard/settings/sync',
+        ];
+
+        const isCompanyMember = Boolean(profile.company_id);
+        const role = String(profile.role || '');
+        const canManageCatalog = Boolean(profile.can_manage_catalog);
+
+        const isCompanyAdminRole =
+          role === 'admin_company' ||
+          role === 'master' ||
+          ((role === 'representative' || role === 'rep') && isCompanyMember);
+
+        const isCatalogRestrictedRoute =
+          COMPANY_CATALOG_RESTRICTED_PREFIXES.some((prefix) =>
+            pathname?.startsWith(prefix)
+          );
+
+        if (
+          isCompanyMember &&
+          !isCompanyAdminRole &&
+          !canManageCatalog &&
+          isCatalogRestrictedRoute
+        ) {
+          router.replace('/admin/unauthorized');
         }
       } catch (error) {
         console.warn('[dashboard/layout] Falha ao checar status:', error);

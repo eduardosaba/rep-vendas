@@ -29,7 +29,8 @@
     "limpar-tudo": "pnpm cache:local && pnpm sincronizar:limpar",
     "reprocessar": "node scripts/reprocess-brand.mjs",
     "backfill:clone-properties": "node ./src/scripts/backfill_clone_properties.cjs",
-    "ts-fix": "node ./scripts/tsc-fixer/fix-tsc.cjs"
+    "ts-fix": "node ./scripts/tsc-fixer/fix-tsc.cjs",
+    "seed": "npx tsx scripts/seed/run-all.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.50.0",

@@ -1,48 +1,50 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import AdminLayoutClient from './AdminLayoutClient';
 
-import React, { useState, useEffect } from 'react';
-import AdminSidebar from '@/components/admin/AdminSidebar';
-import AdminHeader from '@/components/admin/AdminHeader';
-
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const cookieStore = await cookies();
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  // Fecha o menu automaticamente em telas pequenas ao carregar
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setIsSidebarCollapsed(true);
-    }
-  }, []);
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll() {
+        // Ignorado no Server Component render
+      }
+    },
+  });
 
-  return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors overflow-hidden">
-      {/* 1. Sidebar recebe o estado centralizado */}
-      <AdminSidebar 
-        isCollapsed={isSidebarCollapsed} 
-        setIsCollapsed={setIsSidebarCollapsed} 
-      />
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-      {/* 2. Área de Conteúdo Principal */}
-      <div className="flex flex-1 flex-col min-w-0 relative">
-        {/* Header recebe a função de disparar o menu */}
-        <AdminHeader onMenuClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
+  if (!user) {
+    redirect('/login');
+  }
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
-        {/* Overlay para mobile: fecha o menu ao clicar fora dele */}
-        {!isSidebarCollapsed && (
-          <div 
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-sm"
-            onClick={() => setIsSidebarCollapsed(true)}
-          />
-        )}
-      </div>
-    </div>
-  );
+  const role = profile?.role;
+  const isMaster = role === 'master';
+  const isAdminCompany = role === 'admin_company';
+
+  if (!isMaster && !isAdminCompany) {
+    redirect('/admin/unauthorized');
+  }
+
+  return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }

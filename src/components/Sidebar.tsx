@@ -364,6 +364,9 @@ export function Sidebar({
           // Gestão da distribuidora só para administradores da empresa
           if (item.href === '/dashboard/empresa' && !isCompanyAdmin)
             return null;
+          // Equipe e Comunicados apenas para administradores da distribuidora ou master
+          if ((item.href === '/dashboard/equipe' || item.href === '/dashboard/equipe/comunicados') && !isCompanyAdmin && !isMaster)
+            return null;
           const active = item.exact
             ? pathname === item.href
             : pathname?.startsWith(item.href);

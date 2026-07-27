@@ -217,15 +217,10 @@ export function OrderDetailsView({ order }: { order: any }) {
 
   const safeImg = (url: any) => {
     if (!url || typeof url !== 'string') return null;
+    // Se a imagem já é pública do Supabase, retorne direto. 
+    // Isso evita usar o proxy /api/storage-image
     if (url.includes('/storage/v1/object/public/')) {
-      try {
-        const parts = url.split('/storage/v1/object/public/');
-        const path = parts.length > 1 ? parts[1] : parts[0];
-        const cleanPath = path.split('?')[0];
-        return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
-      } catch (e) {
-        return url;
-      }
+      return url;
     }
     return url;
   };
