@@ -1,6 +1,6 @@
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
-export async function createDemoCatalog(supabaseAdmin: ReturnType<typeof createSupabaseAdmin>, companyId: string) {
+export async function createDemoCatalog(supabaseAdmin: any, companyId: string) {
   const products = [
     // Armações
     { sku: 'RV001', name: 'Armação Ray Vision RV001', category: 'Armações', price: 150.00, cost_price: 50.00, stock: 100 },

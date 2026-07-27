@@ -3,9 +3,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
 import * as XLSX from 'xlsx';
-import { ImportSheetType, ParseExcelResult, PreviewRowDetail } from '../domain/types';
+import { ImportSheetType, ParseExcelResult, PreviewRowDetail, BRAND_ALIASES } from '../domain/types';
 import { normalizeProductReference } from '@/shared/utils/normalize-product-reference';
 import { normalizeBrand } from '@/shared/utils/normalize-brand';
+import * as crypto from 'crypto';
 
 // Utility to read excel from a buffer
 function readExcelBuffer(buffer: Buffer) {
@@ -50,6 +51,9 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
 
   const normalizedSelectedBrand = normalizeBrand(brandParam);
   const buffer = Buffer.from(await file.arrayBuffer());
+  
+  // Calculate file hash for idempotency
+  const fileHash = crypto.createHash('sha256').update(buffer).digest('hex');
   
   let rows: any[][];
   try {
@@ -149,20 +153,20 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
     }
   }
 
-  // Fetch products by brand paginated to handle variations in reference_code formatting
+  // Fetch products by brand paginated. We fetch broadly initially to avoid missing matches in SQL.
   let allMatchedProducts: any[] = [];
   const PAGE_SIZE = 1000;
   let hasMore = true;
   let page = 0;
   
-  // Create a base search term from the brand to avoid strict ILIKE missing aliases
-  // We use the first word or the raw brand param as a loose filter in the DB
-  const looseBrandTerm = brandParam.trim().split(' ')[0];
+  // Use controlled aliases instead of just the parameter
+  const officialAliases = BRAND_ALIASES[brandParam] || [normalizedSelectedBrand];
+  const looseBrandTerm = officialAliases[0].split(' ')[0];
 
   while (hasMore) {
     const { data: productsPage, error } = await supabase
       .from('products')
-      .select('id, reference_code, brand, is_active, user_id')
+      .select('id, reference_code, brand, is_active, user_id, company_id')
       .ilike('brand', `%${looseBrandTerm}%`)
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       
@@ -176,10 +180,11 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
       break;
     }
     
-    // Filter by brand exact normalization in memory
+    // STRICT MEMORY FILTER using Official Aliases
     const filteredByBrand = productsPage.filter(p => {
       if (!p.brand) return false;
-      return normalizeBrand(p.brand) === normalizedSelectedBrand;
+      const pBrandNorm = normalizeBrand(p.brand);
+      return officialAliases.includes(pBrandNorm) || pBrandNorm === normalizedSelectedBrand;
     });
     
     allMatchedProducts = allMatchedProducts.concat(filteredByBrand);
@@ -212,6 +217,8 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
   let productsUnchanged = 0;
   let totalProductsAffected = 0;
   const affectedUsers = new Set<string>();
+  const affectedCompanies = new Set<string>();
+  const affectedOrgs = new Set<string>();
 
   const details: PreviewRowDetail[] = [];
 
@@ -221,7 +228,14 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
     
     if (matchCount > 0) {
       foundRefs++;
-      matchedProducts.forEach(p => affectedUsers.add(p.user_id));
+      matchedProducts.forEach(p => {
+        if (p.user_id) affectedUsers.add(p.user_id);
+        // Supabase schema might return company_id / organization_id or they can be deduced.
+        // For Marco 2, since we might just have user_id in basic products schema, 
+        // we conditionally add if they exist.
+        if (p.company_id) affectedCompanies.add(p.company_id);
+        if (p.organization_id) affectedOrgs.add(p.organization_id);
+      });
       totalProductsAffected += matchCount;
     } else {
       notFoundRefs++;
@@ -240,8 +254,6 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
     let simulatedAction: PreviewRowDetail['simulatedAction'] = 'NONE';
     
     if (sheetType === 'FULL_CATALOG') {
-      // If it's in the catalog, it's active. If it's not in the catalog... wait.
-      // The row is IN the catalog, so it should be ACTIVE.
       simulatedAction = 'ACTIVATE';
     } else if (sheetType === 'ONLY_OUT_OF_STOCK') {
       simulatedAction = 'DEACTIVATE';
@@ -263,14 +275,14 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
         simulatedAction = 'KEEP_ACTIVE';
         productsKeptActive += matchCount;
       } else {
-        productsToActivate += matchCount; // Includes mixed, simplified
+        productsToActivate += matchCount; 
       }
     } else if (simulatedAction === 'DEACTIVATE') {
       if (currentSystemStatus === 'INACTIVE') {
         simulatedAction = 'KEEP_INACTIVE';
         productsUnchanged += matchCount;
       } else {
-        productsToDeactivate += matchCount; // Includes mixed
+        productsToDeactivate += matchCount;
       }
     } else {
       productsUnchanged += matchCount;
@@ -284,23 +296,19 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
       normalizedStatus: r.normStatus,
       matchingProductsCount: matchCount,
       affectedRepsCount: new Set(matchedProducts.map(p => p.user_id)).size,
+      affectedCompaniesCount: new Set(matchedProducts.filter(p => p.company_id).map(p => p.company_id)).size,
+      affectedOrgsCount: new Set(matchedProducts.filter(p => p.organization_id).map(p => p.organization_id)).size,
       currentSystemStatus,
       simulatedAction,
       validationMessage: matchCount === 0 ? 'Referência não encontrada no banco' : 'Simulação concluída'
     });
   }
-
-  // Add the ones that are in the database for this brand, but NOT in the "FULL_CATALOG" sheet.
-  // The logic for FULL_CATALOG says: if it's in the DB but not in the sheet, it should be deactivated.
-  // Note: Finding these requires querying all products for the brand. We'll skip for this iteration, 
-  // as the user's prompt says: "Para o tipo 'Linha completa disponível', a prévia pode calcular os produtos ausentes que futuramente seriam desativados, mas deve apenas mostrar o resultado."
-  // To do this, we need a separate query: "SELECT id, reference_code FROM products WHERE brand = X".
-  // This could be huge, so we might just note it as a limitation for Marco 1 or do a Count query.
   
   return {
     brand: brandParam,
     fileName: file.name,
     sheetType,
+    fileHash,
     totalRows: rows.length - 1,
     validRows: validRowsCount,
     invalidRows: invalidRowsCount,
@@ -310,7 +318,8 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
     notFoundReferences: notFoundRefs,
     totalProductsAffected,
     totalUsersAffected: affectedUsers.size,
-    totalOrganizationsAffected: 0, // Need company join to calculate this properly, defaulting 0 for now
+    totalCompaniesAffected: affectedCompanies.size,
+    totalOrganizationsAffected: affectedOrgs.size,
     productsKeptActive,
     productsToActivate,
     productsToDeactivate,

@@ -122,12 +122,9 @@ export default function AdminSidebar({
       icon: ToggleLeft,
     },
     { label: 'Métricas Globais', href: '/admin/metrics', icon: BarChart2 },
-    {
-      label: 'Curadoria de Dados',
-      href: '/admin/curadoria',
-      icon: ShieldCheck,
-    },
+    { label: 'Curadoria de Dados', href: '/admin/curadoria', icon: ShieldCheck },
     { label: 'Torre de Controle', href: '/admin/clear', icon: Cpu },
+    { label: 'Atualização de Fábrica', href: '/admin/produtos/atualizacao-linha', icon: Cpu },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
     {
       label: 'Auditoria de Erro',

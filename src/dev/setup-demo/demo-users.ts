@@ -1,6 +1,6 @@
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
-export async function createDemoUsers(supabaseAdmin: ReturnType<typeof createSupabaseAdmin>, companyId: string) {
+export async function createDemoUsers(supabaseAdmin: any, companyId: string) {
   const defaultPassword = 'password123';
 
   const users = [

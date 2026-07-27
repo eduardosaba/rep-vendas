@@ -4,10 +4,24 @@ export type ImportSheetType =
   | 'ONLY_IN_STOCK'
   | 'STATUS_COLUMN';
 
+export type ImportScope = 'GLOBAL' | 'ORGANIZATION' | 'COMPANY';
+
+export type ImportStatus = 
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'COMPLETED'
+  | 'PARTIALLY_COMPLETED'
+  | 'FAILED'
+  | 'ROLLBACK_PROCESSING'
+  | 'ROLLED_BACK'
+  | 'PARTIALLY_ROLLED_BACK'
+  | 'ROLLBACK_FAILED';
+
 export interface ParseExcelResult {
   brand: string;
   fileName: string;
   sheetType: ImportSheetType;
+  fileHash: string; // for idempotency/validation
   totalRows: number;
   validRows: number;
   invalidRows: number;
@@ -17,6 +31,7 @@ export interface ParseExcelResult {
   notFoundReferences: number;
   totalProductsAffected: number;
   totalUsersAffected: number;
+  totalCompaniesAffected: number;
   totalOrganizationsAffected: number;
   productsKeptActive: number;
   productsToActivate: number;
@@ -34,6 +49,8 @@ export interface PreviewRowDetail {
   normalizedStatus: 'ACTIVE' | 'INACTIVE' | 'UNKNOWN';
   matchingProductsCount: number;
   affectedRepsCount: number;
+  affectedCompaniesCount: number;
+  affectedOrgsCount: number;
   currentSystemStatus: 'ACTIVE' | 'INACTIVE' | 'MIXED' | 'NOT_FOUND';
   simulatedAction: 'KEEP_ACTIVE' | 'KEEP_INACTIVE' | 'ACTIVATE' | 'DEACTIVATE' | 'NONE' | 'ERROR';
   validationMessage: string;
@@ -45,6 +62,13 @@ export interface ProductBatchRecord {
   is_active: boolean;
   user_id: string;
   company_id: string | null;
-  brand_id: string | null;
-  brand_name?: string; // we'll need to join or match this
+  organization_id: string | null;
+  brand: string | null;
 }
+
+export const BRAND_ALIASES: Record<string, string[]> = {
+  'TOMMY HILFIGER': ['TOMMY HILFIGER', 'TOMMY', 'TH'],
+  'CALVIN KLEIN': ['CALVIN KLEIN', 'CK', 'CALVIN'],
+  'OAKLEY': ['OAKLEY', 'OKLY'],
+  // This will be expanded later or fetched from the DB
+};

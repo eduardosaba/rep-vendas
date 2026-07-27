@@ -4,7 +4,7 @@ import { createDemoOrganization } from './demo-organization';
 import { createDemoUsers } from './demo-users';
 import { createDemoCatalog } from './demo-catalog';
 
-const supabaseAdmin = createSupabaseAdmin(
+const supabaseAdmin: any = createSupabaseAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }

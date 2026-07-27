@@ -1,6 +1,6 @@
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
-export async function createDemoOrganization(supabaseAdmin: ReturnType<typeof createSupabaseAdmin>) {
+export async function createDemoOrganization(supabaseAdmin: any) {
   const companyName = 'Distribuidora Alpha';
   const companySlug = 'alpha-demo';
 
