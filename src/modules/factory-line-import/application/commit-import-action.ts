@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
 import * as XLSX from 'xlsx';
 import { ImportSheetType, ImportScope, BRAND_ALIASES } from '../domain/types';
+import { isAdminRole, isCompanyAdmin } from '@/lib/auth/roles';
 import { normalizeProductReference } from '@/shared/utils/normalize-product-reference';
 import { normalizeBrand } from '@/shared/utils/normalize-brand';
 import * as crypto from 'crypto';
@@ -40,8 +41,12 @@ export async function commitImportAction(formData: FormData) {
     .eq('id', userId)
     .single();
 
-  if (!profile || !['master', 'admin', 'admin_company', 'company_admin'].includes(profile.role)) {
+  if (!profile || !isAdminRole(profile.role)) {
     return { error: 'Acesso negado.' };
+  }
+
+  if (isCompanyAdmin(profile.role) && scope !== 'COMPANY') {
+    return { error: 'Acesso negado: Administradores de empresa só podem executar importações no escopo COMPANY.' };
   }
 
   // 1. Idempotency Check

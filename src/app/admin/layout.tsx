@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import AdminLayoutClient from './AdminLayoutClient';
+import { isAdminRole } from '@/lib/auth/roles';
 
 export default async function AdminLayout({
   children,
@@ -39,9 +40,8 @@ export default async function AdminLayout({
     .single();
 
   const role = profile?.role;
-  const isAllowedAdmin = role && ['master', 'admin', 'admin_company', 'company_admin'].includes(role);
 
-  if (!isAllowedAdmin) {
+  if (!isAdminRole(role)) {
     redirect('/admin/unauthorized');
   }
 

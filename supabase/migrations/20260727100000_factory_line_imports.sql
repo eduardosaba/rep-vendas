@@ -1,4 +1,4 @@
-﻿-- 0. Drop existing tables if re-running (safe for homologation)
+-- 0. Drop existing tables if re-running (safe for homologation)
 DROP TABLE IF EXISTS public.factory_line_import_rows CASCADE;
 DROP TABLE IF EXISTS public.factory_line_imports CASCADE;
 
@@ -233,7 +233,7 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM public.profiles 
-    WHERE id = v_uid AND role IN ('master', 'admin', 'admin_company')
+    WHERE id = v_uid AND role IN ('master', 'admin', 'admin_company', 'company_admin')
   ) THEN
     RAISE EXCEPTION 'Acesso negado: Permissao insuficiente';
   END IF;
@@ -249,10 +249,10 @@ BEGIN
     RAISE EXCEPTION 'Importacao nao encontrada';
   END IF;
   
-  -- Verify ownership & scope for admin_company
-  IF v_role = 'admin_company' THEN
+  -- Verify ownership & scope for company admins
+  IF v_role IN ('admin_company', 'company_admin') THEN
     IF v_import.scope != 'COMPANY' THEN
-      RAISE EXCEPTION 'Acesso negado: admin_company nao pode atuar em escopo %', v_import.scope;
+      RAISE EXCEPTION 'Acesso negado: Administrador de empresa nao pode atuar em escopo %', v_import.scope;
     END IF;
     IF v_import.scope_data->>'company_id' != v_user_company_id::text THEN
       RAISE EXCEPTION 'Acesso negado: Importacao pertence a outra empresa';
@@ -416,7 +416,7 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM public.profiles 
-    WHERE id = v_uid AND role IN ('master', 'admin', 'admin_company')
+    WHERE id = v_uid AND role IN ('master', 'admin', 'admin_company', 'company_admin')
   ) THEN
     RAISE EXCEPTION 'Acesso negado: Permissao insuficiente';
   END IF;
@@ -432,10 +432,10 @@ BEGIN
     RAISE EXCEPTION 'Importacao nao encontrada';
   END IF;
   
-  -- Verify ownership & scope for admin_company
-  IF v_role = 'admin_company' THEN
+  -- Verify ownership & scope for company admins
+  IF v_role IN ('admin_company', 'company_admin') THEN
     IF v_import.scope != 'COMPANY' THEN
-      RAISE EXCEPTION 'Acesso negado: admin_company nao pode atuar em escopo %', v_import.scope;
+      RAISE EXCEPTION 'Acesso negado: Administrador de empresa nao pode atuar em escopo %', v_import.scope;
     END IF;
     IF v_import.scope_data->>'company_id' != v_user_company_id::text THEN
       RAISE EXCEPTION 'Acesso negado: Importacao pertence a outra empresa';

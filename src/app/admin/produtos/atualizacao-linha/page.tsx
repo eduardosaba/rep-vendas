@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getActiveUserId } from '@/lib/auth-utils';
 import { createClient } from '@/lib/supabase/server';
 import { FactoryLineImportClient } from './components/FactoryLineImportClient';
+import { isAdminRole } from '@/lib/auth/roles';
 
 export default async function FactoryLineImportPage() {
   const isEnabled = process.env.FACTORY_LINE_IMPORT_ENABLED === 'true';
@@ -23,7 +24,7 @@ export default async function FactoryLineImportPage() {
     .eq('id', userId)
     .single();
 
-  if (!profile || !['master', 'admin', 'admin_company', 'company_admin'].includes(profile.role)) {
+  if (!profile || !isAdminRole(profile.role)) {
     redirect('/admin/unauthorized');
   }
 

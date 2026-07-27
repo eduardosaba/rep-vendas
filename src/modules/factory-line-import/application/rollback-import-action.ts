@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
+import { isAdminRole } from '@/lib/auth/roles';
 
 export async function rollbackImportAction(importId: string) {
   if (process.env.FACTORY_LINE_IMPORT_ENABLED !== 'true') {
@@ -18,7 +19,7 @@ export async function rollbackImportAction(importId: string) {
     .eq('id', userId)
     .single();
 
-  if (!profile || !['master', 'admin', 'admin_company', 'company_admin'].includes(profile.role)) {
+  if (!profile || !isAdminRole(profile.role)) {
     return { error: 'Acesso negado.' };
   }
 
