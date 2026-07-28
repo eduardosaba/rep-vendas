@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveUserId } from '@/lib/auth-utils';
 import * as XLSX from 'xlsx';
 import { ImportSheetType, ParseExcelResult, PreviewRowDetail, BRAND_ALIASES } from '../domain/types';
+import { isAdminRole } from '@/lib/auth/roles';
 import { normalizeProductReference } from '@/shared/utils/normalize-product-reference';
 import { normalizeBrand } from '@/shared/utils/normalize-brand';
 import * as crypto from 'crypto';
@@ -18,6 +19,10 @@ function readExcelBuffer(buffer: Buffer) {
 }
 
 export async function parseExcelAction(formData: FormData): Promise<ParseExcelResult> {
+  if (process.env.FACTORY_LINE_IMPORT_ENABLED !== 'true') {
+    return { error: 'Funcionalidade desativada.' } as ParseExcelResult;
+  }
+
   const file = formData.get('file') as File;
   const brandParam = formData.get('brand') as string;
   const sheetType = formData.get('sheetType') as ImportSheetType;
@@ -45,7 +50,7 @@ export async function parseExcelAction(formData: FormData): Promise<ParseExcelRe
     .eq('id', userId)
     .single();
     
-  if (!profile || !['master', 'admin'].includes(profile.role)) {
+  if (!profile || !isAdminRole(profile.role)) {
     return { error: 'Acesso negado. Apenas administradores podem utilizar esta ferramenta.' } as ParseExcelResult;
   }
 
