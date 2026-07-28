@@ -43,6 +43,11 @@ module.exports = {
           bg: 'rgb(var(--header-bg-rgb) / <alpha-value>)',
           text: 'var(--header-text)',
         },
+        brand: {
+          primary: 'var(--brand-primary)',
+          secondary: 'var(--brand-secondary)',
+          accent: 'var(--brand-accent)',
+        }
       },
     },
   },

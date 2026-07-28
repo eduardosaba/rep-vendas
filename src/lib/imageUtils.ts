@@ -65,7 +65,7 @@ export function normalizeStoragePath(path?: string | null): string | null {
 export function formatImageUrl(path?: string | null) {
   const normalized = normalizeStoragePath(path);
   if (!normalized) return '/placeholder.png';
-  return `/api/storage-image?path=${encodeURIComponent(normalized)}`;
+  return buildSupabaseImageUrl(normalized) || '/placeholder.png';
 }
 
 /**
@@ -233,7 +233,7 @@ export function getProductImageUrl(product: Partial<Product>) {
     const normalizedPath = normalizeStoragePath(product.image_path);
     if (normalizedPath) {
       return {
-        src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+        src: buildSupabaseImageUrl(normalizedPath) || '/placeholder.png',
         isExternal: false,
         isStorage: true,
       };
@@ -252,7 +252,7 @@ export function getProductImageUrl(product: Partial<Product>) {
         const normalizedPath = normalizeStoragePath(path);
         if (normalizedPath) {
           return {
-            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            src: buildSupabaseImageUrl(normalizedPath) || '/placeholder.png',
             isExternal: false,
             isStorage: true,
           };
@@ -286,7 +286,7 @@ export function getProductImageUrl(product: Partial<Product>) {
         const normalizedPath = normalizeStoragePath(firstImg);
         if (normalizedPath) {
           return {
-            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            src: buildSupabaseImageUrl(normalizedPath) || '/placeholder.png',
             isExternal: false,
             isStorage: true,
           };
@@ -309,7 +309,7 @@ export function getProductImageUrl(product: Partial<Product>) {
         const normalizedPath = normalizeStoragePath(path);
         if (normalizedPath) {
           return {
-            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            src: buildSupabaseImageUrl(normalizedPath) || '/placeholder.png',
             isExternal: false,
             isStorage: true,
           };
@@ -324,7 +324,7 @@ export function getProductImageUrl(product: Partial<Product>) {
           const normalizedPath = normalizeStoragePath(url);
           if (normalizedPath) {
             return {
-              src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+              src: buildSupabaseImageUrl(normalizedPath) || '/placeholder.png',
               isExternal: false,
               isStorage: true,
             };
@@ -343,7 +343,7 @@ export function getProductImageUrl(product: Partial<Product>) {
         const normalizedPath = normalizeStoragePath(firstImg);
         if (normalizedPath) {
           return {
-            src: `/api/storage-image?path=${encodeURIComponent(normalizedPath)}`,
+            src: buildSupabaseImageUrl(normalizedPath) || '/placeholder.png',
             isExternal: false,
             isStorage: true,
           };

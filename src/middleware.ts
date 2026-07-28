@@ -90,35 +90,45 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const withTimeout = async <T>(promise: PromiseLike<T>, ms: number) =>
-    Promise.race([
-      promise as Promise<T>,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), ms)
-      ),
-    ]);
-
   let user: any = null;
 
   try {
     const {
       data: { user: authUser },
       error: authError,
-    } = await withTimeout(supabase.auth.getUser(), 5000);
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      const isInvalidRefreshToken =
+        authError.message?.includes('Invalid Refresh Token') ||
+        authError.message?.includes('Refresh Token Not Found') ||
+        (authError as any)?.code === 'refresh_token_not_found';
+
+      if (isInvalidRefreshToken) {
+        request.cookies.getAll().forEach((cookie) => {
+          if (cookie.name.includes('auth') || cookie.name.startsWith('sb-') || cookie.name === 'repvendas-auth-token') {
+            response.cookies.set({
+              name: cookie.name,
+              value: '',
+              path: '/',
+              expires: new Date(0),
+              maxAge: 0,
+            });
+          }
+        });
+      }
+    }
 
     user = authError ? null : authUser || null;
-  } catch (error) {
-    console.warn('[middleware] Falha ao buscar usuário:', error);
+  } catch (error: any) {
+    console.warn('[middleware] Falha ao buscar usuário:', error?.message || error);
+    if (error instanceof Error) {
+      console.warn('[middleware] Name:', error.name);
+      console.warn('[middleware] Cause:', (error as any).cause);
+      console.warn('[middleware] Stack:', error.stack);
+    }
     user = null;
   }
-
-  const COMPANY_CATALOG_RESTRICTED_PREFIXES = [
-    '/dashboard/products',
-    '/dashboard/categories',
-    '/dashboard/brands',
-    '/dashboard/marketing',
-    '/dashboard/settings/sync',
-  ];
 
   /*
     Essa rota é chamada pelo DashboardHeader apenas para saber se existe impersonation ativa.
@@ -143,108 +153,16 @@ export async function middleware(request: NextRequest) {
     }
 
     if (!user) {
-      return forbidden();
-    }
-
-    try {
-      const profileRes: any = await withTimeout(
-        supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle(),
-        5000
-      );
-
-      const profile = profileRes?.data || null;
-      const role = profile?.role;
-
-      const isMaster = role === 'master';
-      const isAdminCompany = role === 'admin_company';
-
-      const allowCompanyConfig =
-        pathname.startsWith('/admin/configuracoes') ||
-        pathname.startsWith('/api/admin/catalogo');
-
-      if (!(isMaster || (isAdminCompany && allowCompanyConfig))) {
+      if (pathname.startsWith('/api/admin')) {
         return forbidden();
       }
-    } catch (error) {
-      console.warn('[middleware] Falha na proteção admin:', error);
-      return forbidden();
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirectTo', pathname);
+      return redirectTo(loginUrl);
     }
-  }
-
-  // --- BLOQUEIO POR STATUS/TRIAL + PERMISSÕES DE CATÁLOGO ---
-  if (user) {
-    try {
-      const profileRes: any = await withTimeout(
-        supabase
-          .from('profiles')
-          .select('status, trial_ends_at, role, company_id, can_manage_catalog')
-          .eq('id', user.id)
-          .maybeSingle(),
-        5000
-      );
-
-      const profile = profileRes?.data || null;
-
-      if (profile) {
-        const isCompanyMember = Boolean(profile.company_id);
-        const role = String(profile.role || '');
-        const canManageCatalog = Boolean(profile.can_manage_catalog);
-
-        const isCompanyAdminRole =
-          role === 'admin_company' ||
-          role === 'master' ||
-          ((role === 'representative' || role === 'rep') && isCompanyMember);
-
-        const isCatalogRestrictedRoute =
-          COMPANY_CATALOG_RESTRICTED_PREFIXES.some((prefix) =>
-            pathname.startsWith(prefix)
-          );
-
-        if (
-          isCompanyMember &&
-          !isCompanyAdminRole &&
-          !canManageCatalog &&
-          isCatalogRestrictedRoute
-        ) {
-          return redirectTo('/admin/unauthorized');
-        }
-
-        const status = profile.status || 'trial';
-
-        const trialEnds = profile.trial_ends_at
-          ? new Date(profile.trial_ends_at)
-          : null;
-
-        const isTrialExpired = trialEnds ? new Date() > trialEnds : false;
-
-        const publicPrefixes = [
-          '/dashboard/fatura',
-          '/dashboard/subscription/expired',
-          '/support',
-          '/api',
-          '/login',
-          '/catalogo',
-        ];
-
-        const isAllowedRoute = publicPrefixes.some((prefix) =>
-          pathname.startsWith(prefix)
-        );
-
-        if (
-          (status === 'blocked' || (status === 'trial' && isTrialExpired)) &&
-          pathname.startsWith('/dashboard') &&
-          !isAllowedRoute
-        ) {
-          return redirectTo('/dashboard/subscription/expired');
-        }
-      }
-    } catch (error) {
-      console.warn('[middleware] Status check failed:', error);
-    }
+    
+    // NOTA: As validações de ROLE (master, admin_company) foram movidas 
+    // para os layouts e páginas server-side.
   }
 
   // --- PROTEÇÃO BÁSICA DO DASHBOARD ---

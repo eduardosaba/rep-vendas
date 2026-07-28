@@ -7,7 +7,9 @@ import { Metadata, ResolvingMetadata } from 'next';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { getPublicCatalog } from '@/lib/catalog';
 import { resolveContext } from '@/lib/resolve-context';
-
+import { RepositoryFactory } from '@/infrastructure/supabase/RepositoryFactory';
+import { ApplicationContextAssembler } from '@/modules/catalog/ApplicationContextAssembler';
+import { ApplicationContextService } from '@/modules/catalog/ApplicationContextService';
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -245,7 +247,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
     }
   }
 
-  // 1) TENTA COMO CATÁLOGO INDIVIDUAL (representante ou catálogo legacy)
+  // 1) RESOLVEDOR LEGADO (Prioridade 1 para não impactar representantes atuais)
   let context = await resolveContext([normalizedCompanySlug], supabase as any);
 
   if (context?.type === 'individual') {
@@ -489,6 +491,42 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         />
       );
     }
+  }
+
+  // 2) DUAL RESOLVER: FALLBACK PARA DISTRIBUIDORA NA NOVA ARQUITETURA (FASE 1.5)
+  const orgRepo = RepositoryFactory.organization(supabase as any);
+  const profileRepo = RepositoryFactory.profile(supabase as any);
+  const brandingRepo = RepositoryFactory.branding(supabase as any);
+
+  const assembler = new ApplicationContextAssembler(orgRepo, profileRepo, brandingRepo);
+  const contextService = new ApplicationContextService(assembler);
+  
+  const repSlug = resolvedSearchParams.rep ? String(resolvedSearchParams.rep) : undefined;
+  const appContext = await contextService.resolve(normalizedCompanySlug, repSlug);
+
+  if (appContext?.organization) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <header className="flex justify-between items-center mb-8 border-b pb-4">
+          {appContext.branding?.logoUrl ? (
+            <img src={appContext.branding.logoUrl} alt={appContext.organization.name} className="h-12 object-contain" />
+          ) : (
+            <h1 className="text-2xl font-bold">{appContext.organization.name}</h1>
+          )}
+          {appContext.representative && (
+            <div className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-medium">
+              Atendimento: {appContext.representative.name}
+            </div>
+          )}
+        </header>
+        <main>
+          <p className="text-sm text-slate-500 mb-4">
+            Catálogo autorizado de {appContext.organization.name} isolado via Multi-tenancy.
+          </p>
+          <p>Módulo de produtos da Distribuidora em construção para Fase 2.</p>
+        </main>
+      </div>
+    );
   }
 
   return notFound();
