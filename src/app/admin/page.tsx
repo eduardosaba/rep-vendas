@@ -26,16 +26,43 @@ export default async function AdminDashboardPage() {
 
   if (!user) redirect('/login');
 
-  const { data: currentUserProfile } = await supabase
+  const {
+    data: currentUserProfile,
+    error: profileError,
+  } = await supabase
     .from('profiles')
-    .select('role')
+    .select('id, role')
     .eq('id', user.id)
     .maybeSingle();
 
-  const isAllowed = isAdminRole(currentUserProfile?.role);
+  if (profileError) {
+    console.error('[admin/page] Erro ao consultar perfil:', {
+      userId: user.id,
+      message: profileError.message,
+      code: profileError.code,
+      details: profileError.details,
+    });
+
+    redirect('/admin/unauthorized?reason=profile_error');
+  }
+
+  if (!currentUserProfile) {
+    console.error('[admin/page] Perfil não encontrado:', {
+      userId: user.id,
+      email: user.email,
+    });
+
+    redirect('/admin/unauthorized?reason=profile_not_found');
+  }
+
+  const isAllowed = isAdminRole(currentUserProfile.role);
 
   if (!isAllowed) {
-    // Redireciona usuários comuns para a área deles
+    console.warn('[admin/page] Role sem permissão:', {
+      userId: user.id,
+      role: currentUserProfile.role,
+    });
+
     redirect('/dashboard');
   }
 

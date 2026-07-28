@@ -56,13 +56,6 @@ export async function middleware(request: NextRequest) {
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookieOptions: {
-      name: 'repvendas-auth-token',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-    },
-
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -80,63 +73,30 @@ export async function middleware(request: NextRequest) {
         });
 
         cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, {
-            ...options,
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-            path: '/',
-          });
+          response.cookies.set(name, value, options);
         });
       },
     },
   });
 
-  let user: any = null;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  try {
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError) {
-      const isInvalidRefreshToken =
-        authError.message?.includes('Invalid Refresh Token') ||
-        authError.message?.includes('Refresh Token Not Found') ||
-        (authError as any)?.code === 'refresh_token_not_found';
-
-      if (isInvalidRefreshToken) {
-        request.cookies.getAll().forEach((cookie) => {
-          if (cookie.name.includes('auth') || cookie.name.startsWith('sb-') || cookie.name === 'repvendas-auth-token') {
-            response.cookies.set({
-              name: cookie.name,
-              value: '',
-              path: '/',
-              expires: new Date(0),
-              maxAge: 0,
-            });
-          }
-        });
-      }
+  // --- IGNORA OUTBOX CRON ---
+  if (pathname === '/api/cron/outbox') {
+    const secret = process.env.CRON_SECRET;
+    const authHeader = request.headers.get('authorization');
+    if (secret && authHeader === `Bearer ${secret}`) {
+      return response;
     }
-
-    user = authError ? null : authUser || null;
-  } catch (error: any) {
-    console.warn('[middleware] Falha ao buscar usuário:', error?.message || error);
-    if (error instanceof Error) {
-      console.warn('[middleware] Name:', error.name);
-      console.warn('[middleware] Cause:', (error as any).cause);
-      console.warn('[middleware] Stack:', error.stack);
-    }
-    user = null;
   }
 
-  /*
-    Essa rota é chamada pelo DashboardHeader apenas para saber se existe impersonation ativa.
-    Se ela ficar dentro da proteção geral de /api/admin, usuários comuns recebem 403 no console.
-    A própria rota ainda deve cuidar para não retornar dados sensíveis.
-  */
-  if (pathname === '/api/admin/impersonate/status') {
+  // --- ROTAS DO WEBHOOK ---
+  if (
+    pathname.startsWith('/api/webhooks/') ||
+    pathname.startsWith('/api/v1/webhooks/')
+  ) {
     return response;
   }
 
@@ -161,9 +121,6 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirectTo', pathname);
       return redirectTo(loginUrl);
     }
-    
-    // NOTA: As validações de ROLE (master, admin_company) foram movidas 
-    // para os layouts e páginas server-side.
   }
 
   // --- PROTEÇÃO BÁSICA DO DASHBOARD ---
@@ -177,21 +134,41 @@ export async function middleware(request: NextRequest) {
   // --- USUÁRIO LOGADO NÃO VOLTA PARA LOGIN ---
   if (pathname === '/login' && user) {
     const searchParams = request.nextUrl?.searchParams || new URL(request.url).searchParams;
-    const requestedRedirect = searchParams?.get('redirectTo') || searchParams?.get('redirectedFrom');
-    const safeRedirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : null;
 
-    if (safeRedirect) {
-      return redirectTo(safeRedirect);
-    }
+    const requestedRedirect =
+      searchParams?.get('redirectTo') ||
+      searchParams?.get('redirectedFrom');
 
-    const { data: profile } = await supabase
+    const safeRedirect =
+      requestedRedirect?.startsWith('/') &&
+      !requestedRedirect.startsWith('//')
+        ? requestedRedirect
+        : null;
+
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .maybeSingle();
 
-    const defaultTarget = isAdminRole(profile?.role) ? '/admin' : '/dashboard';
-    return redirectTo(defaultTarget);
+    if (profileError) {
+      console.error(
+        '[middleware] Erro ao consultar perfil:',
+        profileError.message
+      );
+    }
+
+    const isAdmin = isAdminRole(profile?.role);
+
+    if (safeRedirect?.startsWith('/admin')) {
+      return redirectTo(isAdmin ? safeRedirect : '/dashboard');
+    }
+
+    if (safeRedirect?.startsWith('/dashboard')) {
+      return redirectTo(isAdmin ? '/admin' : safeRedirect);
+    }
+
+    return redirectTo(isAdmin ? '/admin' : '/dashboard');
   }
 
   return response;

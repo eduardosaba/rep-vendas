@@ -18,13 +18,19 @@ export const COMPANY_ADMIN_ROLES = [
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
 export function isAdminRole(role: string | null | undefined): role is AdminRole {
-  return ADMIN_ROLES.includes(role as AdminRole);
+  if (!role) return false;
+  const cleanRole = role.trim().toLowerCase();
+  return ADMIN_ROLES.includes(cleanRole as AdminRole);
 }
 
 export function isGlobalAdmin(role: string | null | undefined) {
-  return GLOBAL_ADMIN_ROLES.includes(role as any);
+  if (!role) return false;
+  const cleanRole = role.trim().toLowerCase();
+  return GLOBAL_ADMIN_ROLES.includes(cleanRole as any);
 }
 
 export function isCompanyAdmin(role: string | null | undefined) {
-  return COMPANY_ADMIN_ROLES.includes(role as any);
+  if (!role) return false;
+  const cleanRole = role.trim().toLowerCase();
+  return COMPANY_ADMIN_ROLES.includes(cleanRole as any);
 }
