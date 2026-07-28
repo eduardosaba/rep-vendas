@@ -95,8 +95,9 @@ export default function LoginPage() {
     } catch (err) {
       if (isNextRedirect(err)) {
         toast.success('Autenticado com sucesso! Entrando...');
+        const fallbackDest = safeRedirect || '/admin';
         setTimeout(() => {
-          router.replace(safeRedirect || '/admin');
+          router.replace(fallbackDest);
           router.refresh();
         }, 500);
         return;
@@ -122,6 +123,12 @@ export default function LoginPage() {
       } catch (e) {}
 
       const destination = safeRedirect || loginResult.redirectTo || '/dashboard';
+
+      console.log('Login redirect:', {
+        safeRedirect,
+        serverRedirectTo: loginResult.redirectTo,
+        destination,
+      });
 
       setTimeout(() => {
         router.replace(destination);
