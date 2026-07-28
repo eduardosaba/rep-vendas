@@ -2,6 +2,7 @@ import React from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { isAdminRole } from '@/lib/auth/roles';
 import {
   Users,
   DollarSign,
@@ -31,9 +32,7 @@ export default async function AdminDashboardPage() {
     .eq('id', user.id)
     .single();
 
-  const isAllowed =
-    currentUserProfile?.role === 'admin' ||
-    currentUserProfile?.role === 'master';
+  const isAllowed = isAdminRole(currentUserProfile?.role);
 
   if (!isAllowed) {
     // Redireciona usuários comuns para a área deles

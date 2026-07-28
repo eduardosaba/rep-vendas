@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Eye,
@@ -24,6 +24,7 @@ type ViewState = 'login' | 'forgot_password';
 export default function LoginPage() {
   const supabase = createClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [view, setView] = useState<ViewState>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,6 +86,9 @@ export default function LoginPage() {
     let loginResult = null;
     let hasError = false;
 
+    const requestedRedirect = searchParams?.get('redirectTo') || searchParams?.get('redirectedFrom');
+    const safeRedirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : null;
+
     try {
       const formData = new FormData(e.currentTarget);
       loginResult = await login(null, formData);
@@ -92,7 +96,7 @@ export default function LoginPage() {
       if (isNextRedirect(err)) {
         toast.success('Autenticado com sucesso! Entrando...');
         setTimeout(() => {
-          router.push('/dashboard');
+          router.replace(safeRedirect || '/admin');
           router.refresh();
         }, 500);
         return;
@@ -117,8 +121,10 @@ export default function LoginPage() {
         }
       } catch (e) {}
 
+      const destination = safeRedirect || loginResult.redirectTo || '/dashboard';
+
       setTimeout(() => {
-        router.push(loginResult.redirectTo || '/dashboard');
+        router.replace(destination);
         router.refresh();
       }, 500);
     } else if (hasError || !loginResult) {
