@@ -2,19 +2,23 @@ import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 
-// MASTER KEY (32 bytes obrigatórios)
-const ENCRYPTION_KEY = process.env.MASTER_ENCRYPTION_KEY!;
-
-if (!ENCRYPTION_KEY) {
-  throw new Error('MASTER_ENCRYPTION_KEY não configurada no ambiente');
+function getEncryptionKey(): Buffer {
+  const encryptionKey = process.env.MASTER_ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    throw new Error('MASTER_ENCRYPTION_KEY não configurada no ambiente');
+  }
+  const keyBuffer = Buffer.from(encryptionKey, 'hex');
+  if (keyBuffer.length !== 32) {
+    throw new Error('MASTER_ENCRYPTION_KEY deve conter 32 bytes em hexadecimal');
+  }
+  return keyBuffer;
 }
-
-const key = Buffer.from(ENCRYPTION_KEY, 'hex');
 
 /**
  * Encrypt (API keys, tokens, secrets)
  */
 export function encrypt(text: string): string {
+  const key = getEncryptionKey();
   const iv = crypto.randomBytes(16);
 
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -34,6 +38,7 @@ export function encrypt(text: string): string {
  * Decrypt (runtime usage only server-side)
  */
 export function deserializeAndDecrypt(payload: string): string {
+  const key = getEncryptionKey();
   const data = Buffer.from(payload, 'base64');
 
   const iv = data.subarray(0, 16);
