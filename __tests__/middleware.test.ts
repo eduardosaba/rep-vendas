@@ -44,14 +44,17 @@ jest.mock('next/server', () => ({
 const { middleware } = require('@/middleware');
 
 function makeRequest(path: string) {
+  const urlObj = new URL(`http://example.com${path}`);
   return {
     nextUrl: {
-      pathname: path,
+      pathname: urlObj.pathname,
+      searchParams: urlObj.searchParams,
       clone() {
         return {
-          pathname: path,
+          pathname: urlObj.pathname,
+          searchParams: urlObj.searchParams,
           toString() {
-            return `http://example.com${path}`;
+            return urlObj.toString();
           },
         };
       },

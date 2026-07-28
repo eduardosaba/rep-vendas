@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isAdminRole } from '@/lib/auth/roles';
 
 type SupabaseCookieToSet = {
   name: string;
@@ -175,7 +176,22 @@ export async function middleware(request: NextRequest) {
 
   // --- USUÁRIO LOGADO NÃO VOLTA PARA LOGIN ---
   if (pathname === '/login' && user) {
-    return redirectTo('/dashboard');
+    const searchParams = request.nextUrl?.searchParams || new URL(request.url).searchParams;
+    const requestedRedirect = searchParams?.get('redirectTo') || searchParams?.get('redirectedFrom');
+    const safeRedirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : null;
+
+    if (safeRedirect) {
+      return redirectTo(safeRedirect);
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const defaultTarget = isAdminRole(profile?.role) ? '/admin' : '/dashboard';
+    return redirectTo(defaultTarget);
   }
 
   return response;

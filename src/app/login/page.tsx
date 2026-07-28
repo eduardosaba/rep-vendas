@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -21,7 +21,7 @@ import { createClient } from '@/lib/supabase/client';
 
 type ViewState = 'login' | 'forgot_password';
 
-export default function LoginPage() {
+function LoginFormContent() {
   const supabase = createClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -358,5 +358,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen w-full items-center justify-center bg-[#0d1b2c] text-white">
+          <Loader2 className="h-8 w-8 animate-spin text-[#b9722e]" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
   );
 }
