@@ -20,24 +20,28 @@ jest.mock('@supabase/ssr', () => ({
   createServerClient: jest.fn(() => mockClient),
 }));
 
+// Provide minimal environment variables for test
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+
 // Import AFTER mocks and polyfills to avoid runtime issues during module init
 jest.mock('next/server', () => ({
   NextResponse: {
     next: (opts: any) => ({
       status: 200,
       headers: new Map(),
-      cookies: { set: jest.fn() },
+      cookies: { set: jest.fn(), getAll: () => [] },
     }),
     redirect: (url: any) => {
       const headers = new Map();
       headers.set('location', url.pathname || url.toString());
-      return { status: 307, headers };
+      return { status: 307, headers, cookies: { getAll: () => [] } };
     },
   },
   NextRequest: class {},
 }));
 
-const { updateSession } = require('@/lib/supabase/middleware');
+const { middleware } = require('@/middleware');
 
 function makeRequest(path: string) {
   return {
@@ -57,10 +61,11 @@ function makeRequest(path: string) {
       getAll: jest.fn(() => []),
       set: jest.fn(),
     },
+    headers: new Map(),
   } as any;
 }
 
-describe('updateSession middleware helper', () => {
+describe('middleware router helper', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -69,7 +74,7 @@ describe('updateSession middleware helper', () => {
     mockClient.auth.getUser.mockResolvedValue({ data: { user: null } });
     const req = makeRequest('/dashboard');
 
-    const res: any = await updateSession(req);
+    const res: any = await middleware(req);
 
     const location = res.headers.get('location') || res.headers.get('Location');
     expect(res.status).toBe(307);
@@ -80,7 +85,7 @@ describe('updateSession middleware helper', () => {
     mockClient.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
     const req = makeRequest('/login');
 
-    const res: any = await updateSession(req);
+    const res: any = await middleware(req);
 
     const location = res.headers.get('location') || res.headers.get('Location');
     expect(res.status).toBe(307);
@@ -91,7 +96,7 @@ describe('updateSession middleware helper', () => {
     mockClient.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
     const req = makeRequest('/some-public');
 
-    const res: any = await updateSession(req);
+    const res: any = await middleware(req);
     expect(res.status).toBe(200);
   });
 });
