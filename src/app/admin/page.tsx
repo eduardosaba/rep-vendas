@@ -30,7 +30,7 @@ export default async function AdminDashboardPage() {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   const isAllowed = isAdminRole(currentUserProfile?.role);
 
