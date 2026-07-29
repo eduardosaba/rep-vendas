@@ -5,7 +5,7 @@ import { getActiveUserId } from '@/lib/auth-utils';
 import { isAdminRole } from '@/lib/auth/roles';
 
 export async function rollbackImportAction(importId: string) {
-  if (process.env.FACTORY_LINE_IMPORT_ENABLED !== 'true') {
+  if (process.env.FACTORY_LINE_IMPORT_ENABLED === 'false') {
     return { error: 'Funcionalidade desativada.' };
   }
 

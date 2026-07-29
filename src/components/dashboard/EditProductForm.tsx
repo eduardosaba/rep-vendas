@@ -217,11 +217,10 @@ const ImageUploader = ({
           return (
             <div
               key={path || url || index}
-              className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${
-                index === 0
-                  ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900'
-                  : 'border-gray-200 dark:border-slate-700'
-              }`}
+              className={`relative aspect-square rounded-lg overflow-hidden border group transition-all bg-gray-50 dark:bg-slate-800 ${index === 0
+                ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900'
+                : 'border-gray-200 dark:border-slate-700'
+                }`}
             >
               <StorageFirstImage
                 storagePath={path}
@@ -281,7 +280,7 @@ const ImageUploader = ({
             className="relative max-w-6xl max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            {}
+            { }
             <img
               src={zoomImage}
               alt="Ampliado"
@@ -517,8 +516,8 @@ export function EditProductForm({ product }: { product: Product }) {
         normalizeAndExplodeImageEntries(
           // Prefer migrated fields: gallery_images, then legacy images, then single image_url
           (product as any).gallery_images ||
-            product.images ||
-            (product.image_url ? [product.image_url] : [])
+          product.images ||
+          (product.image_url ? [product.image_url] : [])
         ).filter(Boolean)
       )
     ),
@@ -603,61 +602,61 @@ export function EditProductForm({ product }: { product: Product }) {
         })),
       ]);
 
-        // 2) For each file, generate 480/1200 variants client-side and upload both
-        for (const entry of tempEntries) {
-          const file = entry.file;
-          const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      // 2) For each file, generate 480/1200 variants client-side and upload both
+      for (const entry of tempEntries) {
+        const file = entry.file;
+        const baseName = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-          let simulated = 0;
-          progressInterval = setInterval(() => {
-            simulated = Math.min(95, simulated + Math.random() * 12 + 5);
-            setUploadProgress(Math.round(simulated));
-          }, 300);
+        let simulated = 0;
+        progressInterval = setInterval(() => {
+          simulated = Math.min(95, simulated + Math.random() * 12 + 5);
+          setUploadProgress(Math.round(simulated));
+        }, 300);
 
-          try {
-            const blob480 = await generateVariant(file, 480).catch(() => null);
-            const blob1200 = await generateVariant(file, 1200).catch(() => null);
+        try {
+          const blob480 = await generateVariant(file, 480).catch(() => null);
+          const blob1200 = await generateVariant(file, 1200).catch(() => null);
 
-            const final1200 = blob1200
-              ? new File([blob1200], `${baseName}-1200w.webp`, { type: 'image/webp' })
-              : file;
-            const final480 = blob480
-              ? new File([blob480], `${baseName}-480w.webp`, { type: 'image/webp' })
-              : final1200;
+          const final1200 = blob1200
+            ? new File([blob1200], `${baseName}-1200w.webp`, { type: 'image/webp' })
+            : file;
+          const final480 = blob480
+            ? new File([blob480], `${baseName}-480w.webp`, { type: 'image/webp' })
+            : final1200;
 
-            const fullPath480 = `${user.id}/products/${baseName}-480w.webp`;
-            const fullPath1200 = `${user.id}/products/${baseName}-1200w.webp`;
+          const fullPath480 = `${user.id}/products/${baseName}-480w.webp`;
+          const fullPath1200 = `${user.id}/products/${baseName}-1200w.webp`;
 
-            // upload 480 then 1200
-            const { error: e480 } = await supabase.storage.from('product-images').upload(fullPath480, final480, { cacheControl: '3600', upsert: true });
-            if (e480) throw e480;
-            const { error: e1200 } = await supabase.storage.from('product-images').upload(fullPath1200, final1200, { cacheControl: '3600', upsert: true });
-            if (e1200) throw e1200;
+          // upload 480 then 1200
+          const { error: e480 } = await supabase.storage.from('product-images').upload(fullPath480, final480, { cacheControl: '3600', upsert: true });
+          if (e480) throw e480;
+          const { error: e1200 } = await supabase.storage.from('product-images').upload(fullPath1200, final1200, { cacheControl: '3600', upsert: true });
+          if (e1200) throw e1200;
 
-            const { data: d1200 } = supabase.storage.from('product-images').getPublicUrl(fullPath1200);
+          const { data: d1200 } = supabase.storage.from('product-images').getPublicUrl(fullPath1200);
 
-            // Replace the tempUrl object in formData.images with the full structured gallery item (with variants)
-            const galleryItem = buildGalleryItem({ url: d1200.publicUrl, path: fullPath1200 });
-            setFormData((prev) => {
-              const imgs = [...(prev.images || [])];
-              const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);
-              if (galleryItem) {
-                if (idx !== -1) imgs[idx] = galleryItem as any;
-                else imgs.push(galleryItem as any);
-              }
-              return { ...prev, images: imgs } as any;
-            });
+          // Replace the tempUrl object in formData.images with the full structured gallery item (with variants)
+          const galleryItem = buildGalleryItem({ url: d1200.publicUrl, path: fullPath1200 });
+          setFormData((prev) => {
+            const imgs = [...(prev.images || [])];
+            const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);
+            if (galleryItem) {
+              if (idx !== -1) imgs[idx] = galleryItem as any;
+              else imgs.push(galleryItem as any);
+            }
+            return { ...prev, images: imgs } as any;
+          });
 
-            setNeedsDetach(true);
-          } catch (err: any) {
-            console.error('Upload failed', err);
-            toast.error('Erro ao enviar imagem: ' + (err?.message || String(err)));
-          } finally {
-            if (progressInterval) clearInterval(progressInterval);
-            setUploadProgress(null);
-            setUploadingImage(false);
-          }
+          setNeedsDetach(true);
+        } catch (err: any) {
+          console.error('Upload failed', err);
+          toast.error('Erro ao enviar imagem: ' + (err?.message || String(err)));
+        } finally {
+          if (progressInterval) clearInterval(progressInterval);
+          setUploadProgress(null);
+          setUploadingImage(false);
         }
+      }
       // If the product was using a shared image (master/shared copy),
       // request a copy-on-write so the product gets its own copy before
       // we persist the user's new upload. This runs async in background.
@@ -870,9 +869,8 @@ export function EditProductForm({ product }: { product: Product }) {
                 className="w-20 flex-none"
               >
                 <div
-                  className={`w-20 h-20 rounded-md overflow-hidden border ${
-                    id === product.id ? 'border-blue-500 ring-1 ring-blue-200' : 'border-gray-200'
-                  }`}
+                  className={`w-20 h-20 rounded-md overflow-hidden border ${id === product.id ? 'border-blue-500 ring-1 ring-blue-200' : 'border-gray-200'
+                    }`}
                 >
                   <img
                     src={thumb || '/images/product-placeholder.svg'}
@@ -1131,7 +1129,7 @@ export function EditProductForm({ product }: { product: Product }) {
     // close modal if open and proceed
     try {
       setIsDuplicateModalOpen(false);
-    } catch (e) {}
+    } catch (e) { }
     setLoading(true);
     try {
       const res = await fetch('/api/products/duplicate', {
@@ -1209,18 +1207,17 @@ export function EditProductForm({ product }: { product: Product }) {
           <button
             onClick={handleSubmit}
             disabled={loading || uploadingImage || !hasChanges}
-            className={`px-6 py-2 text-sm font-bold text-white rounded-lg flex items-center gap-2 shadow-md transition-transform active:scale-95 ${
-              hasChanges ? '' : 'bg-gray-400 cursor-not-allowed opacity-70'
-            }`}
+            className={`px-6 py-2 text-sm font-bold text-white rounded-lg flex items-center gap-2 shadow-md transition-transform active:scale-95 ${hasChanges ? '' : 'bg-gray-400 cursor-not-allowed opacity-70'
+              }`}
             style={
               hasChanges
                 ? {
-                    backgroundColor: 'var(--primary, #2563eb)',
-                    boxShadow:
-                      '0 0 0 4px rgba(var(--primary-rgb, 37, 99, 235), 0.12)',
-                    border:
-                      '1px solid rgba(var(--primary-rgb, 37, 99, 235), 0.18)',
-                  }
+                  backgroundColor: 'var(--primary, #2563eb)',
+                  boxShadow:
+                    '0 0 0 4px rgba(var(--primary-rgb, 37, 99, 235), 0.12)',
+                  border:
+                    '1px solid rgba(var(--primary-rgb, 37, 99, 235), 0.18)',
+                }
                 : undefined
             }
           >
@@ -1302,7 +1299,7 @@ export function EditProductForm({ product }: { product: Product }) {
                     <span className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider font-semibold">
                       EAN-13
                     </span>
-                    {}
+                    { }
                     <img
                       src={`https://bwipjs-api.metafloor.com/?bcid=ean13&text=${formData.barcode}&scale=2&height=10&includetext`}
                       alt={`Barcode ${formData.barcode}`}
@@ -1352,11 +1349,10 @@ export function EditProductForm({ product }: { product: Product }) {
                   <button
                     type="button"
                     onClick={() => updateField('technical_specs_mode', 'text')}
-                    className={`px-2 py-1 rounded-md text-sm ${
-                      formData.technical_specs_mode === 'text'
-                        ? 'text-white'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'text'
+                      ? 'text-white'
+                      : 'bg-gray-100 text-gray-700'
+                      }`}
                     style={
                       formData.technical_specs_mode === 'text'
                         ? { backgroundColor: 'var(--primary)' }
@@ -1368,11 +1364,10 @@ export function EditProductForm({ product }: { product: Product }) {
                   <button
                     type="button"
                     onClick={() => updateField('technical_specs_mode', 'table')}
-                    className={`px-2 py-1 rounded-md text-sm ${
-                      formData.technical_specs_mode === 'table'
-                        ? 'text-white'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}
+                    className={`px-2 py-1 rounded-md text-sm ${formData.technical_specs_mode === 'table'
+                      ? 'text-white'
+                      : 'bg-gray-100 text-gray-700'
+                      }`}
                     style={
                       formData.technical_specs_mode === 'table'
                         ? { backgroundColor: 'var(--primary)' }
@@ -1497,11 +1492,11 @@ export function EditProductForm({ product }: { product: Product }) {
               Array.isArray(formData.images) && formData.images.length > 0;
             const fallbackCover = (product as any)?.image_url
               ? [
-                  {
-                    url: (product as any).image_url,
-                    path: (product as any).image_path || null,
-                  },
-                ]
+                {
+                  url: (product as any).image_url,
+                  path: (product as any).image_path || null,
+                },
+              ]
               : [];
             const imagesForUploader = ensureOptimizedFirst(
               hasImgs ? formData.images : fallbackCover
@@ -1582,7 +1577,7 @@ export function EditProductForm({ product }: { product: Product }) {
                 <option value="">Não especificado</option>
                 <option value="aro_fechado">Aro Total</option>
                 <option value="fio_nylon">Nylon</option>
-                <option value="balgriff">Balgriff ou Parafusado</option>
+                <option value="balgriff">Parafusado / Balgriff</option>
               </select>
             </div>
             <div>
@@ -1671,11 +1666,11 @@ export function EditProductForm({ product }: { product: Product }) {
                 label: 'Best Seller',
                 color: 'text-yellow-600',
               },
-                {
-                  key: 'is_destaque',
-                  label: 'Destaque',
-                  color: 'text-amber-600',
-                },
+              {
+                key: 'is_destaque',
+                label: 'Destaque',
+                color: 'text-amber-600',
+              },
             ].map((item) => (
               <label
                 key={item.key}

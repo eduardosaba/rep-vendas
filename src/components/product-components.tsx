@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
+  HelpCircle,
   Image as ImageIcon,
   ImageOff,
   LayoutGrid,
@@ -81,7 +82,7 @@ const formatTypeLabel = (t: any): string => {
   const raw = String(t || '').trim().toLowerCase();
   if (raw === 'aro_fechado') return 'Aro Total';
   if (raw === 'fio_nylon') return 'Nylon';
-  if (raw === 'balgriff') return 'Balgriff ou Parafusado';
+  if (raw === 'balgriff') return 'Parafusado / Balgriff';
   return String(t || '');
 };
 
@@ -617,10 +618,13 @@ export function CategoryBar() {
                     }
                     setOpenMoreMenu(false);
                   }}
-                  className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
+                  className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex flex-col gap-0.5 mt-2"
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <Archive size={14} /> Balgriff
+                  <span className="inline-flex items-center gap-2 font-medium text-sm text-gray-800">
+                    <Archive size={14} /> Parafusado / Balgriff
+                  </span>
+                  <span className="text-[11px] text-gray-500 pl-5 leading-tight">
+                    Armações sem aro (3 peças) fixadas por parafusos
                   </span>
                 </button>
               )}
@@ -902,33 +906,47 @@ export function CategoryBar() {
             )}
 
             {hasBalgriff && (
-              <button
-                onClick={() => {
-                  const next = !filterBalgriff;
-                  setFilterBalgriff && setFilterBalgriff(next);
-                  try {
-                    const params = new URLSearchParams(window.location.search);
-                    if (next) params.set('balgriff', '1');
-                    else params.delete('balgriff');
-                    const url = params.toString()
-                      ? `${window.location.pathname}?${params.toString()}`
-                      : window.location.pathname;
-                    router.replace(url);
-                  } catch (e) {
-                    // ignore
-                  }
-                }}
-                aria-pressed={!!filterBalgriff}
-                className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                  filterBalgriff
-                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                    : 'text-gray-600 border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Archive size={14} /> Balgriff
-                </span>
-              </button>
+              <div className="relative inline-flex items-center group/tooltip ml-2">
+                <button
+                  onClick={() => {
+                    const next = !filterBalgriff;
+                    setFilterBalgriff && setFilterBalgriff(next);
+                    try {
+                      const params = new URLSearchParams(window.location.search);
+                      if (next) params.set('balgriff', '1');
+                      else params.delete('balgriff');
+                      const url = params.toString()
+                        ? `${window.location.pathname}?${params.toString()}`
+                        : window.location.pathname;
+                      router.replace(url);
+                    } catch (e) {
+                      // ignore
+                    }
+                  }}
+                  aria-pressed={!!filterBalgriff}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border flex items-center gap-1.5 ${
+                    filterBalgriff
+                      ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                      : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <Archive size={14} />
+                  <span>Parafusado / Balgriff</span>
+                </button>
+
+                <div
+                  tabIndex={0}
+                  aria-label="Informação sobre Parafusado / Balgriff"
+                  className="ml-1 p-1 text-gray-400 hover:text-gray-600 cursor-pointer transition-colors focus:outline-none"
+                  title="Armações sem aro (3 peças) fixadas diretamente nas lentes por parafusos ou buchas."
+                >
+                  <HelpCircle size={14} />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block group-focus/tooltip:block w-52 p-2.5 bg-slate-900 text-white text-[11px] font-normal leading-tight rounded-xl shadow-xl z-50 pointer-events-none text-center">
+                    Armações sem aro (3 peças) fixadas diretamente nas lentes por parafusos ou buchas.
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
@@ -1879,7 +1897,7 @@ export function ProductGrid() {
               onClick={() => setFilterBalgriff(false)}
               className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
             >
-              Balgriff <span className="ml-2 text-xs text-gray-400">✕</span>
+              Parafusado / Balgriff <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
           {Array.isArray(selectedBrand) &&

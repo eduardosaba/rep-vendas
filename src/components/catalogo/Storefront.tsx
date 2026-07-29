@@ -8,7 +8,7 @@ import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import React, { useEffect, useMemo } from 'react';
 import { FloatingCart } from './FloatingCart';
 import { InstallPrompt } from './InstallPrompt';
-import { CategoryBar, ProductGrid, StoreBanners } from './product-components';
+import { CategoryBar, ProductGrid, StoreBanners } from '@/components/product-components';
 import { StoreProvider, useStore } from './store-context';
 import {
   CarouselBrands,
