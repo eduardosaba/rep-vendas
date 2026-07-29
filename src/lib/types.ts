@@ -71,6 +71,7 @@ export interface Product {
   color?: string | null;
   // Óptica / materiais
   material?: string | null;
+  tipo_montagem?: 'aro_fechado' | 'fio_nylon' | 'balgriff' | string | null;
   // Preço de custo/compra
   cost?: number | null;
   // Polarização / fotocromático - várias formas possíveis nas bases de dados

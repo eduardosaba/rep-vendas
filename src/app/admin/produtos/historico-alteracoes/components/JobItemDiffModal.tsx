@@ -15,6 +15,7 @@ export function JobItemDiffModal({ jobId, onClose }: JobItemDiffModalProps) {
   const [job, setJob] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'applied' | 'rolled_back' | 'conflict'>('all');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!jobId) return;

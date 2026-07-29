@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { PaginationControls } from '@/components/catalogo/PaginationControls';
 import { PriceDisplay } from '@/components/catalogo/PriceDisplay';
@@ -77,6 +77,14 @@ const normalizeForTypeModule = (x: any) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const normalizeForType: (x: any) => string = normalizeForTypeModule as any;
 
+const formatTypeLabel = (t: any): string => {
+  const raw = String(t || '').trim().toLowerCase();
+  if (raw === 'aro_fechado') return 'Aro Total';
+  if (raw === 'fio_nylon') return 'Nylon';
+  if (raw === 'balgriff') return 'Balgriff ou Parafusado';
+  return String(t || '');
+};
+
 function OutsideCloseEffect({
   openType,
   openGender,
@@ -135,6 +143,9 @@ export function CategoryBar() {
     setFilterPolarizado,
     filterFotocromatico,
     setFilterFotocromatico,
+    filterBalgriff,
+    setFilterBalgriff,
+    hasBalgriff,
   } = useStore();
   // prod: removed debug logs
   const { genders = [], selectedGender, setSelectedGender } = useStore();
@@ -276,6 +287,17 @@ export function CategoryBar() {
       }
     });
 
+    // 3) Include tipo_montagem entries (de-duplicated)
+    productsForBrand.forEach((p: any) => {
+      const montagem = String((p as any).tipo_montagem || '').trim();
+      if (!montagem) return;
+      const key = montagem.toUpperCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(montagem);
+      }
+    });
+
     // Sort for deterministic order
     return result.sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
   }, [initialProducts, selectedBrand]);
@@ -382,7 +404,7 @@ export function CategoryBar() {
 
           <div className="text-sm text-gray-600">
             {selectedCategory && selectedCategory !== 'all'
-              ? `Categoria: ${selectedCategory}`
+              ? `Categoria: ${formatTypeLabel(selectedCategory)}`
               : 'Filtros'}
           </div>
         </div>
@@ -414,7 +436,7 @@ export function CategoryBar() {
                       }}
                       className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedType(t) ? 'bg-[var(--primary)] text-white' : ''}`}
                     >
-                      {String(t).toUpperCase()}
+                      {formatTypeLabel(t).toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -551,29 +573,57 @@ export function CategoryBar() {
                 </span>
               </button>
 
-              <button
-                onClick={() => {
-                  const next = !filterFotocromatico;
-                  setFilterFotocromatico && setFilterFotocromatico(next);
-                  try {
-                    const params = new URLSearchParams(window.location.search);
-                    if (next) params.set('fotocromatico', '1');
-                    else params.delete('fotocromatico');
-                    const url = params.toString()
-                      ? `${window.location.pathname}?${params.toString()}`
-                      : window.location.pathname;
-                    router.replace(url);
-                  } catch (e) {
-                    // ignore
-                  }
-                  setOpenMoreMenu(false);
-                }}
-                className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <ImageIcon size={14} /> Fotocromático
-                </span>
-              </button>
+              {hasFotocromatico && (
+                <button
+                  onClick={() => {
+                    const next = !filterFotocromatico;
+                    setFilterFotocromatico && setFilterFotocromatico(next);
+                    try {
+                      const params = new URLSearchParams(window.location.search);
+                      if (next) params.set('fotocromatico', '1');
+                      else params.delete('fotocromatico');
+                      const url = params.toString()
+                        ? `${window.location.pathname}?${params.toString()}`
+                        : window.location.pathname;
+                      router.replace(url);
+                    } catch (e) {
+                      // ignore
+                    }
+                    setOpenMoreMenu(false);
+                  }}
+                  className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <ImageIcon size={14} /> Fotocromático
+                  </span>
+                </button>
+              )}
+
+              {hasBalgriff && (
+                <button
+                  onClick={() => {
+                    const next = !filterBalgriff;
+                    setFilterBalgriff && setFilterBalgriff(next);
+                    try {
+                      const params = new URLSearchParams(window.location.search);
+                      if (next) params.set('balgriff', '1');
+                      else params.delete('balgriff');
+                      const url = params.toString()
+                        ? `${window.location.pathname}?${params.toString()}`
+                        : window.location.pathname;
+                      router.replace(url);
+                    } catch (e) {
+                      // ignore
+                    }
+                    setOpenMoreMenu(false);
+                  }}
+                  className="w-full text-left px-2 py-2 rounded hover:bg-gray-50 flex items-center gap-2 mt-2"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Archive size={14} /> Balgriff
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -850,6 +900,36 @@ export function CategoryBar() {
                 </span>
               </button>
             )}
+
+            {hasBalgriff && (
+              <button
+                onClick={() => {
+                  const next = !filterBalgriff;
+                  setFilterBalgriff && setFilterBalgriff(next);
+                  try {
+                    const params = new URLSearchParams(window.location.search);
+                    if (next) params.set('balgriff', '1');
+                    else params.delete('balgriff');
+                    const url = params.toString()
+                      ? `${window.location.pathname}?${params.toString()}`
+                      : window.location.pathname;
+                    router.replace(url);
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                aria-pressed={!!filterBalgriff}
+                className={`ml-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  filterBalgriff
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Archive size={14} /> Balgriff
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Fixed overlays for Tipo and Gênero - rendered as fixed so they overlay content */}
@@ -910,7 +990,7 @@ export function CategoryBar() {
                       }}
                       className={`text-sm text-left px-2 py-1 rounded hover:bg-gray-50 ${isSelectedType(t) ? 'bg-[var(--primary)] text-white' : ''}`}
                     >
-                      {String(t)}
+                      {formatTypeLabel(t)}
                     </button>
                   ))}
                 </div>
@@ -1604,6 +1684,8 @@ export function ProductGrid() {
     setFilterPolarizado,
     filterFotocromatico,
     setFilterFotocromatico,
+    filterBalgriff,
+    setFilterBalgriff,
     sortOrder,
     setSortOrder,
     store,
@@ -1621,7 +1703,7 @@ export function ProductGrid() {
 
   const router = useRouter();
 
-  // Detect if the currently selectedCategory is actually a 'type' (class_core)
+  // Detect if the currently selectedCategory is actually a 'type' (class_core or tipo_montagem)
   const isSelectedCategoryType = React.useMemo(() => {
     try {
       if (typeof selectedCategory !== 'string' || selectedCategory === 'all')
@@ -1631,7 +1713,13 @@ export function ProductGrid() {
         const productTypeNorm = normalizeForTypeModule(
           (p as any).class_core || ''
         );
-        return productTypeNorm === selectedNorm && productTypeNorm !== '';
+        const productMontagemNorm = normalizeForTypeModule(
+          (p as any).tipo_montagem || ''
+        );
+        return (
+          (productTypeNorm === selectedNorm && productTypeNorm !== '') ||
+          (productMontagemNorm === selectedNorm && productMontagemNorm !== '')
+        );
       });
     } catch (e) {
       return false;
@@ -1706,7 +1794,7 @@ export function ProductGrid() {
                       className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
                     >
                       <span className="font-bold">Tipo:</span>{' '}
-                      {selectedCategory}
+                      {formatTypeLabel(selectedCategory)}
                       <span className="ml-2 text-xs text-gray-400">✕</span>
                     </button>
                   );
@@ -1722,7 +1810,7 @@ export function ProductGrid() {
                   className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
                 >
                   <span className="font-bold">Categoria:</span>{' '}
-                  {selectedCategory}
+                  {formatTypeLabel(selectedCategory)}
                   <span className="ml-2 text-xs text-gray-400">✕</span>
                 </button>
               );
@@ -1786,6 +1874,14 @@ export function ProductGrid() {
               Polarizado <span className="ml-2 text-xs text-gray-400">✕</span>
             </button>
           )}
+          {filterBalgriff && (
+            <button
+              onClick={() => setFilterBalgriff(false)}
+              className="px-3 py-1 rounded-full bg-gray-100 text-sm text-gray-700 flex items-center gap-2"
+            >
+              Balgriff <span className="ml-2 text-xs text-gray-400">✕</span>
+            </button>
+          )}
           {Array.isArray(selectedBrand) &&
             selectedBrand.length > 0 &&
             selectedBrand[0] !== 'all' &&
@@ -1829,6 +1925,7 @@ export function ProductGrid() {
             (selectedMaterial && selectedMaterial !== 'all') ||
             !!filterPolarizado ||
             !!filterFotocromatico ||
+            !!filterBalgriff ||
             !!showOnlyNew ||
             !!showOnlyBestsellers ||
             !!showFavorites ||
@@ -1845,6 +1942,7 @@ export function ProductGrid() {
                   setSelectedMaterial && setSelectedMaterial('all');
                   setFilterPolarizado && setFilterPolarizado(false);
                   setFilterFotocromatico && setFilterFotocromatico(false);
+                  setFilterBalgriff && setFilterBalgriff(false);
                   setShowOnlyNew && setShowOnlyNew(false);
                   setShowOnlyBestsellers && setShowOnlyBestsellers(false);
                   setShowFavorites && setShowFavorites(false);
@@ -1856,6 +1954,7 @@ export function ProductGrid() {
                   params.delete('new');
                   params.delete('polarizado');
                   params.delete('fotocromatico');
+                  params.delete('balgriff');
                   params.delete('category');
                   params.delete('type');
                   const url = params.toString()

@@ -77,6 +77,13 @@ export const UPDATE_FIELD_REGISTRY: Record<TargetLayer, Record<string, AllowedFi
       critical: false,
       label: 'Marca (Global)',
     },
+    tipo_montagem: {
+      table: 'products',
+      column: 'tipo_montagem',
+      type: 'text',
+      critical: false,
+      label: 'Tipo de Montagem / Armação (tipo_montagem)',
+    },
   },
 
   company: {},

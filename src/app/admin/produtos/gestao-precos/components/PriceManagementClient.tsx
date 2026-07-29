@@ -4,8 +4,18 @@ import React, { useState } from 'react';
 import { Tag, TrendingUp, Percent, DollarSign, ArrowLeft, ArrowRight, Zap, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
+export type PricePreset = 'increase_pct' | 'discount_pct' | 'markup_cost' | 'margin_cost' | 'round_90';
+
+const PRESET_LABELS: Record<PricePreset, string> = {
+  increase_pct: 'Reajuste Percentual (+%)',
+  discount_pct: 'Desconto sobre Tabela (-%)',
+  markup_cost: 'Markup sobre Custo (Preço = Custo × (1 + %))',
+  margin_cost: 'Margem Bruta sobre Custo (Preço = Custo ÷ (1 - %))',
+  round_90: 'Arredondamento Comercial Opcional (.90)',
+};
+
 export function PriceManagementClient() {
-  const [selectedPreset, setSelectedPreset] = useState<'increase_pct' | 'discount_pct' | 'round_90' | 'margin_cost'>('increase_pct');
+  const [selectedPreset, setSelectedPreset] = useState<PricePreset>('increase_pct');
   const [targetBrand, setTargetBrand] = useState('');
   const [adjustmentValue, setAdjustmentValue] = useState('5');
 
@@ -80,7 +90,7 @@ export function PriceManagementClient() {
           return (
             <div
               key={preset.id}
-              onClick={() => setSelectedPreset(preset.id as any)}
+              onClick={() => setSelectedPreset(preset.id as PricePreset)}
               className={`p-4 border rounded-2xl cursor-pointer transition-all ${
                 isSelected
                   ? 'border-indigo-600 ring-2 ring-indigo-600/20 bg-indigo-50/20 dark:bg-indigo-950/20 shadow-sm'
@@ -101,7 +111,7 @@ export function PriceManagementClient() {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
         <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
           <h3 className="text-base font-bold text-slate-900 dark:text-white">
-            Estratégia: {selectedPreset === 'increase_pct' ? 'Reajuste Percentual (+%)' : selectedPreset === 'discount_pct' ? 'Desconto sobre Tabela (-%)' : selectedPreset === 'markup_cost' ? 'Markup sobre Custo (Preço = Custo × (1 + %))' : selectedPreset === 'margin_cost' ? 'Margem Bruta sobre Custo (Preço = Custo ÷ (1 - %))' : 'Arredondamento Comercial Opcional (.90)'}
+            Estratégia: {PRESET_LABELS[selectedPreset]}
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Defina o filtro e parâmetros. A alteração passará obrigatoriamente pela análise e preview antes de qualquer gravação.

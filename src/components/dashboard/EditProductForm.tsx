@@ -499,6 +499,7 @@ export function EditProductForm({ product }: { product: Product }) {
 
     brand: product.brand || '',
     category: product.category || '',
+    tipo_montagem: (product as any)?.tipo_montagem || '',
     gender: (product as any).gender || null,
     description: product.description || '',
     technical_specs_mode: techSpecs.mode,
@@ -1072,6 +1073,7 @@ export function EditProductForm({ product }: { product: Product }) {
         is_destaque: formData.is_destaque || false,
         technical_specs,
         class_core: formData.class_core || null,
+        tipo_montagem: (formData as any).tipo_montagem || null,
         is_active: formData.is_active,
         updated_at: new Date().toISOString(),
       };
@@ -1559,7 +1561,7 @@ export function EditProductForm({ product }: { product: Product }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Classe (opcional)
+                Classe Comercial (class_core)
               </label>
               <input
                 value={formData.class_core || ''}
@@ -1567,6 +1569,21 @@ export function EditProductForm({ product }: { product: Product }) {
                 placeholder="Ex: Classe A"
                 className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Tipo de Montagem / Armação (tipo_montagem)
+              </label>
+              <select
+                value={(formData as any).tipo_montagem || ''}
+                onChange={(e) => updateField('tipo_montagem' as any, e.target.value || null)}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer text-sm"
+              >
+                <option value="">Não especificado</option>
+                <option value="aro_fechado">Aro Total</option>
+                <option value="fio_nylon">Nylon</option>
+                <option value="balgriff">Balgriff ou Parafusado</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

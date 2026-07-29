@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
 
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
-  productionBrowserSourceMaps: true,
+  productionBrowserSourceMaps: false,
 
   experimental: {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],

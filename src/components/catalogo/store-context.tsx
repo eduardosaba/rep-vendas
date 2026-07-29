@@ -120,6 +120,7 @@ export function StoreProvider({
   const [selectedMaterial, setSelectedMaterial] = useState('all');
   const [filterPolarizado, setFilterPolarizado] = useState(false);
   const [filterFotocromatico, setFilterFotocromatico] = useState(false);
+  const [filterBalgriff, setFilterBalgriff] = useState(false);
   const [sortOrder, setSortOrder] = useState<
     | 'name'
     | 'price_asc'
@@ -177,6 +178,7 @@ export function StoreProvider({
 
       setFilterPolarizado(params.get('polarizado') === '1');
       setFilterFotocromatico(params.get('fotocromatico') === '1');
+      setFilterBalgriff(params.get('balgriff') === '1');
 
       const sort = params.get('sort');
       if (sort) setSortOrder(sort as any);
@@ -266,6 +268,9 @@ export function StoreProvider({
         if (filterFotocromatico) params.set('fotocromatico', '1');
         else params.delete('fotocromatico');
 
+        if (filterBalgriff) params.set('balgriff', '1');
+        else params.delete('balgriff');
+
         if (sortOrder) params.set('sort', String(sortOrder));
         else params.delete('sort');
 
@@ -301,6 +306,9 @@ export function StoreProvider({
     showOnlyNew,
     showOnlyBestsellers,
     showFavorites,
+    filterPolarizado,
+    filterFotocromatico,
+    filterBalgriff,
     sortOrder,
     viewMode,
     currentPage,
@@ -640,6 +648,17 @@ export function StoreProvider({
       return initialProducts.some((p: any) =>
         isTruthyFlag((p as any).fotocromatico)
       );
+    } catch {
+      return false;
+    }
+  }, [initialProducts]);
+
+  const hasBalgriff = useMemo(() => {
+    try {
+      return initialProducts.some((p: any) => {
+        const montagemNorm = normalizeForTypeMatch((p as any).tipo_montagem || '');
+        return montagemNorm === 'balgriff';
+      });
     } catch {
       return false;
     }
@@ -1504,7 +1523,8 @@ export function StoreProvider({
           const selectedNorm = normalizeForTypeMatch(selectedCategory);
           const categoryNorm = normalizeForTypeMatch((p as any).category || '');
           const typeNorm = normalizeForTypeMatch((p as any).class_core || '');
-          if (categoryNorm !== selectedNorm && typeNorm !== selectedNorm)
+          const montagemNorm = normalizeForTypeMatch((p as any).tipo_montagem || '');
+          if (categoryNorm !== selectedNorm && typeNorm !== selectedNorm && montagemNorm !== selectedNorm)
             return false;
         }
         if (selectedGender !== 'all') {
@@ -1539,6 +1559,10 @@ export function StoreProvider({
             )
           )
             return false;
+        }
+        if (filterBalgriff) {
+          const montagemNorm = normalizeForTypeMatch((p as any).tipo_montagem || '');
+          if (montagemNorm !== 'balgriff') return false;
         }
         return true;
       })
@@ -1980,6 +2004,8 @@ export function StoreProvider({
         setFilterPolarizado,
         filterFotocromatico,
         setFilterFotocromatico,
+        filterBalgriff,
+        setFilterBalgriff,
         sortOrder,
         setSortOrder,
         showOnlyNew,
@@ -2049,6 +2075,7 @@ export function StoreProvider({
         },
         hasPolarizado,
         hasFotocromatico,
+        hasBalgriff,
       }}
     >
       {children}
