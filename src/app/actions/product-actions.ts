@@ -67,15 +67,27 @@ export async function updateProductAction(productId: string, formData: any) {
     if (!activeUserId)
       return { success: false, status: 401, error: 'Não autorizado' };
 
-    // Prevent unique constraint violation on (user_id, reference_code)
-    if (formData?.reference_code) {
-      const qc = await supabase
+    // Prevent unique constraint violation on (user_id, brand, reference_code) for another product
+    const normalizedRefCode = typeof formData?.reference_code === 'string'
+      ? formData.reference_code.trim()
+      : formData?.reference_code;
+    const normalizedBrand = typeof formData?.brand === 'string'
+      ? formData.brand.trim()
+      : formData?.brand;
+
+    if (normalizedRefCode) {
+      let query = supabase
         .from('products')
         .select('id')
         .eq('user_id', activeUserId)
-        .eq('reference_code', formData.reference_code)
-        .neq('id', productId)
-        .limit(1);
+        .eq('reference_code', normalizedRefCode)
+        .neq('id', productId);
+
+      if (normalizedBrand) {
+        query = query.eq('brand', normalizedBrand);
+      }
+
+      const qc = await query.limit(1);
 
       if (qc.error) {
         return {
@@ -88,34 +100,7 @@ export async function updateProductAction(productId: string, formData: any) {
         return {
           success: false,
           status: 409,
-          error: 'Código de referência (reference_code) já existe para este usuário.',
-        };
-      }
-    }
-
-    // Prevent duplicate model reference + color variant for the same user
-    if (formData?.reference_id && formData?.color) {
-      const qv = await supabase
-        .from('products')
-        .select('id')
-        .eq('user_id', activeUserId)
-        .eq('reference_id', formData.reference_id)
-        .eq('color', formData.color)
-        .neq('id', productId)
-        .limit(1);
-
-      if (qv.error) {
-        return {
-          success: false,
-          status: 500,
-          error: qv.error.message || String(qv.error),
-        };
-      }
-      if (qv.data && qv.data.length > 0) {
-        return {
-          success: false,
-          status: 409,
-          error: 'Esta combinação de referência de modelo e cor já existe para este usuário.',
+          error: 'Código de referência (reference_code) já existe para este usuário e marca.',
         };
       }
     }
