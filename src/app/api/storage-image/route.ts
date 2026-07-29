@@ -37,14 +37,27 @@ export async function GET(request: Request) {
   }
 
   // 2. Normalização do Path e Bucket
-  // Remove barras iniciais e espaços
-  let effectivePath = filePath.replace(/^\/+/, '').trim();
-  let effectiveBucket = bucketParam || 'product-images';
+  let rawPath = filePath.trim();
+  const marker = '/storage/v1/object/public/';
+  if (rawPath.includes(marker)) {
+    rawPath = rawPath.split(marker).pop() || rawPath;
+  }
+  rawPath = rawPath.replace(/^\/+/, '').replace(/^public\//, '');
 
-  // Lógica de Legado: Se o path vier como "product-images/diretorio/foto.jpg"
-  if (!bucketParam && typeof effectivePath === 'string' && effectivePath.startsWith('product-images/')) {
-    effectiveBucket = 'product-images';
-    effectivePath = effectivePath.replace(/^product-images\/?/, '');
+  const knownBuckets = ['brands', 'product-images', 'public_catalogs', 'company-assets', 'banners', 'receipts'];
+  const firstSegment = rawPath.split('/')[0]?.toLowerCase();
+
+  let effectiveBucket = bucketParam || '';
+  let effectivePath = rawPath;
+
+  if (!effectiveBucket) {
+    if (knownBuckets.includes(firstSegment)) {
+      effectiveBucket = rawPath.split('/')[0];
+      effectivePath = rawPath.split('/').slice(1).join('/');
+    } else {
+      effectiveBucket = 'product-images';
+      effectivePath = rawPath;
+    }
   }
 
   try {

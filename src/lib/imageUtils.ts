@@ -167,6 +167,40 @@ export const prepareProductGallery = (items: any[]) => {
  * Constrói uma URL pública do Supabase Storage ou retorna a URL absoluta.
  * Suporta strings (paths) ou objetos (formato novo {url, path}).
  */
+/**
+ * Extrai de forma precisa o bucket do Supabase Storage e o caminho do objeto.
+ * Suporta buckets conhecidos ('brands', 'product-images', etc.) e URLs completas.
+ */
+export function parseStoragePath(inputPath?: string | null): { bucket: string; objectPath: string } | null {
+  if (!inputPath) return null;
+  let s = String(inputPath).trim();
+  try {
+    s = decodeURIComponent(s);
+  } catch (e) {}
+
+  const marker = '/storage/v1/object/public/';
+  if (s.includes(marker)) {
+    s = s.split(marker).pop() || s;
+  }
+  s = s.replace(/^\/+/, '').replace(/^public\//, '');
+  if (!s) return null;
+
+  const knownBuckets = ['brands', 'product-images', 'public_catalogs', 'company-assets', 'banners', 'receipts'];
+  const firstSegment = s.split('/')[0]?.toLowerCase();
+
+  if (knownBuckets.includes(firstSegment)) {
+    const bucket = s.split('/')[0];
+    const objectPath = s.split('/').slice(1).join('/');
+    return { bucket, objectPath };
+  }
+
+  return { bucket: 'product-images', objectPath: s };
+}
+
+/**
+ * Constrói uma URL pública do Supabase Storage ou retorna a URL absoluta.
+ * Suporta strings (paths) ou objetos (formato novo {url, path}).
+ */
 export function buildSupabaseImageUrl(
   img?: any | null,
   opts?: { width?: number; height?: number; resize?: string }
@@ -193,37 +227,24 @@ export function buildSupabaseImageUrl(
     return trimmed;
   }
 
-  // 3. Se for um path do Storage, constrói a URL pública
+  // 3. Extrai bucket e caminho do objeto usando parseStoragePath
+  const parsed = parseStoragePath(trimmed);
+  if (!parsed) return '/placeholder.png';
+
   const SUPA = SUPABASE_URL.replace(/\/$/, '');
-  let objectPath = trimmed;
+  let { bucket, objectPath } = parsed;
 
-  // Se o valor já contém um caminho completo do Supabase (/storage/v1/object/public/...),
-  // extraímos apenas a parte após esse segmento para evitar duplicações (ex: public/public/...)
-  const marker = '/storage/v1/object/public/';
-  if (trimmed.includes(marker)) {
-    objectPath = trimmed.split(marker).pop() || '';
-  } else if (trimmed.includes('/product-images/')) {
-    // Compatibilidade antiga: remove o prefixo de product-images se presente
-    const parts = trimmed.split('/product-images/');
-    objectPath = parts[parts.length - 1];
-  }
-
-  // Remova barras iniciais e possíveis prefixos redundantes "public/"
-  objectPath = objectPath.replace(/^\/+/, '').replace(/^public\//, '');
-
-  // NOVIDADE: se for solicitado width 480, force o sufixo -480w.webp quando ausente
-  if (opts && opts.width === 480 && !objectPath.includes('-480w.webp')) {
+  // Se for solicitado width 480 e for variante, force sufixo -480w.webp
+  if (opts && opts.width === 480 && !objectPath.includes('-480w.webp') && /-(1200w)\.webp$/i.test(objectPath)) {
     objectPath = objectPath.replace(/\.[a-zA-Z0-9]+$/, '') + '-480w.webp';
   }
 
-  // Agora construímos a URL pública usando o bucket/prefix que veio no próprio path
-  // (não forçamos mais "product-images" como bucket estático)
   // Encode each path segment separately to avoid encoding slashes
-  const encoded = objectPath
+  const encodedPath = objectPath
     .split('/')
     .map((seg) => encodeURIComponent(seg))
     .join('/');
-  const base = `${SUPA}/storage/v1/object/public/${encoded}`;
+  const base = `${SUPA}/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodedPath}`;
 
   // 4. Aplica transformações se solicitado (Supabase Image Transformation)
   if (opts && (opts.width || opts.height || opts.resize)) {
