@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Eye,
@@ -21,9 +21,10 @@ import { createClient } from '@/lib/supabase/client';
 
 type ViewState = 'login' | 'forgot_password';
 
-export default function LoginPage() {
+function LoginFormContent() {
   const supabase = createClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [view, setView] = useState<ViewState>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,14 +86,18 @@ export default function LoginPage() {
     let loginResult = null;
     let hasError = false;
 
+    const requestedRedirect = searchParams?.get('redirectTo') || searchParams?.get('redirectedFrom');
+    const safeRedirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : null;
+
     try {
       const formData = new FormData(e.currentTarget);
       loginResult = await login(null, formData);
     } catch (err) {
       if (isNextRedirect(err)) {
         toast.success('Autenticado com sucesso! Entrando...');
+        const fallbackDest = safeRedirect || '/admin';
         setTimeout(() => {
-          router.push('/dashboard');
+          router.replace(fallbackDest);
           router.refresh();
         }, 500);
         return;
@@ -117,8 +122,16 @@ export default function LoginPage() {
         }
       } catch (e) {}
 
+      const destination = safeRedirect || loginResult.redirectTo || '/dashboard';
+
+      console.log('Login redirect:', {
+        safeRedirect,
+        serverRedirectTo: loginResult.redirectTo,
+        destination,
+      });
+
       setTimeout(() => {
-        router.push(loginResult.redirectTo || '/dashboard');
+        router.replace(destination);
         router.refresh();
       }, 500);
     } else if (hasError || !loginResult) {
@@ -345,5 +358,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen w-full items-center justify-center bg-[#0d1b2c] text-white">
+          <Loader2 className="h-8 w-8 animate-spin text-[#b9722e]" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
   );
 }

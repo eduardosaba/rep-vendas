@@ -32,14 +32,19 @@ export const dynamic = 'force-dynamic';
 
 export default async function LandingPage() {
   // Verifica se já está logado para redirecionar ao Dashboard
-  const supabase = await createClient();
   let user: any = null;
   try {
+    const supabase = await createClient();
     const res: any = await supabase.auth.getUser();
     user = res?.data?.user ?? null;
   } catch (err: any) {
-    // Se o refresh token for inválido, apenas não redirecionamos
-    console.warn('LandingPage: supabase.auth.getUser() failed', err?.message || err);
+    // Se a requisição de rede ou auth falhar, apenas não redirecionamos
+    console.warn('LandingPage: auth check failed gracefully', err?.message || err);
+    if (err instanceof Error) {
+      console.warn('Name:', err.name);
+      console.warn('Cause:', (err as any).cause);
+      console.warn('Stack:', err.stack);
+    }
     user = null;
   }
 

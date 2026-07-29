@@ -2,6 +2,7 @@ import React from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { isAdminRole } from '@/lib/auth/roles';
 import {
   Users,
   DollarSign,
@@ -18,26 +19,61 @@ export const dynamic = 'force-dynamic';
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
-  // 1. SEGURANÇA: Verificar se é Admin/Master
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) redirect('/login');
+  console.log('[ADMIN PAGE] Auth:', {
+    userId: user?.id,
+    email: user?.email,
+    userError: userError?.message,
+  });
 
-  const { data: currentUserProfile } = await supabase
+  if (userError || !user) {
+    console.error('[ADMIN PAGE] Usuário sem sessão válida.');
+    redirect('/login?redirectTo=/admin');
+  }
+
+  const {
+    data: currentUserProfile,
+    error: profileError,
+  } = await supabase
     .from('profiles')
-    .select('role')
+    .select('id, email, role')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
-  const isAllowed =
-    currentUserProfile?.role === 'admin' ||
-    currentUserProfile?.role === 'master';
+  console.log('[ADMIN PAGE] Perfil:', {
+    profile: currentUserProfile,
+    error: profileError?.message,
+    code: profileError?.code,
+    details: profileError?.details,
+  });
+
+  if (profileError) {
+    console.error('[ADMIN PAGE] Erro ao consultar profiles:', profileError);
+    redirect('/admin/unauthorized?reason=profile_error');
+  }
+
+  if (!currentUserProfile) {
+    console.error('[ADMIN PAGE] Perfil não encontrado para:', user.id);
+    redirect('/admin/unauthorized?reason=profile_not_found');
+  }
+
+  const isAllowed = isAdminRole(currentUserProfile.role);
+
+  console.log('[ADMIN PAGE] Autorização:', {
+    role: currentUserProfile.role,
+    isAllowed,
+  });
 
   if (!isAllowed) {
-    // Redireciona usuários comuns para a área deles
-    redirect('/dashboard');
+    redirect(
+      `/admin/unauthorized?reason=invalid_role&role=${encodeURIComponent(
+        currentUserProfile.role || 'null'
+      )}`
+    );
   }
 
   // 2. BUSCAR DADOS (Em paralelo para performance)

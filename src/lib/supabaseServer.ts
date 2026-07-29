@@ -13,6 +13,12 @@ export async function createClient() {
     String(url ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''),
     String(anon ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''),
     {
+      cookieOptions: {
+        name: 'repvendas-auth-token',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -26,7 +32,12 @@ export async function createClient() {
         ) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, {
+                ...options,
+                sameSite: 'lax',
+                secure: process.env.NODE_ENV === 'production',
+                path: '/',
+              })
             );
           } catch {
             // O método setAll pode falhar em alguns contextos (ex: Server Component).
@@ -44,6 +55,12 @@ export function createRouteSupabase(cookieStoreFactory: () => any) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: {
+        name: 'repvendas-auth-token',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+      },
       cookies: {
         getAll() {
           const store = cookieStoreFactory();
@@ -65,7 +82,12 @@ export function createRouteSupabase(cookieStoreFactory: () => any) {
             const store = cookieStoreFactory();
             if (store && typeof store.then === 'function') return;
             cookiesToSet.forEach(({ name, value, options }) =>
-              store.set(name, value, options)
+              store.set(name, value, {
+                ...options,
+                sameSite: 'lax',
+                secure: process.env.NODE_ENV === 'production',
+                path: '/',
+              })
             );
           } catch {
             // ignorar se não for possível setar aqui

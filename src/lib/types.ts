@@ -328,3 +328,134 @@ export interface ProductCardProps {
   userId?: string;
   formatPrice: (price: number) => string;
 }
+
+// --- 6. PAGAMENTO (MULTI-TENANT) ---
+
+export type PaymentProvider = 'mercadopago' | 'stripe' | 'pagarme';
+export type PaymentStatus =
+  | 'pending'
+  | 'approved'
+  | 'failed'
+  | 'refunded'
+  | 'cancelled';
+export type PaymentMethod =
+  | 'credit_card'
+  | 'pix'
+  | 'boleto'
+  | 'debit_card'
+  | 'digital_wallet';
+
+/**
+ * Configuração de Gateway de Pagamento
+ * Armazenada no Supabase Vault (chaves criptografadas)
+ */
+export interface PaymentGateway {
+  id: string;
+  company_id?: string;
+  user_id: string;
+  provider: PaymentProvider;
+  api_key_encrypted?: string; // Sensível - nunca expor ao cliente
+  webhook_secret_encrypted?: string; // Sensível
+  is_active: boolean;
+  is_configured: boolean;
+  metadata?: Record<string, any>; // shop_id, public_key, etc
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Transação de Pagamento
+ * Rastreia o histórico de transações associadas a pedidos
+ */
+export interface PaymentTransaction {
+  id: string;
+  order_id: string;
+  gateway_id: string;
+  provider: PaymentProvider;
+  provider_transaction_id?: string; // ID da transação no gateway (ex: payment_id do MP)
+  amount: number; // em centavos ou decimal, conforme provider
+  currency: string; // BRL, USD, etc
+  status: PaymentStatus;
+  payment_method?: PaymentMethod;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  approved_at?: string;
+}
+
+/**
+ * Requisição de Pagamento (enviada do checkout)
+ * Cliente reenvia isso quando tenta pagar
+ */
+export interface PaymentRequest {
+  order_id: string;
+  amount: number;
+  currency: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  payment_method?: PaymentMethod;
+  redirect_url: string; // URL para retorno após pagamento (checkout)
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Resposta de Pagamento (retornada pela Server Action)
+ * Sucesso: contém init_point ou payment_url
+ * Erro: contém mensagem de erro
+ */
+export interface PaymentResponse {
+  success: boolean;
+  transaction_id?: string;
+  provider_transaction_id?: string;
+  init_point?: string; // URL de checkout do Mercado Pago
+  payment_url?: string; // URL genérica de pagamento
+  status?: PaymentStatus;
+  error?: string;
+  message?: string;
+}
+
+/**
+ * Webhook do Mercado Pago (IPN - Instant Payment Notification)
+ */
+export interface MercadoPagoWebhookData {
+  id: string;
+  type: 'payment' | 'plan' | 'subscription' | 'invoice';
+  resource: {
+    id: string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
+/**
+ * Payload da Preferência de Pagamento (Mercado Pago)
+ */
+export interface MercadoPagoPreference {
+  items: Array<{
+    title: string;
+    quantity: number;
+    unit_price: number;
+    currency_id: string;
+  }>;
+  payer?: {
+    name?: string;
+    email?: string;
+    phone?: {
+      area_code?: string;
+      number?: string;
+    };
+  };
+  back_urls?: {
+    success: string;
+    failure: string;
+    pending: string;
+  };
+  auto_return?: 'approved' | 'all';
+  external_reference?: string; // order_id para rastrear
+  metadata?: Record<string, any>;
+  notification_url?: string;
+}

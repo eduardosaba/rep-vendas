@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
+import { isAdminRole } from '@/lib/auth/roles';
 
 function extractMissingColumn(msg: unknown) {
   const s = String((msg as any)?.message || msg || '');
@@ -34,7 +35,7 @@ export async function login(_arg: unknown, formData: FormData) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
     try { revalidatePath('/', 'layout'); } catch (_) {}
 
-    return { success: true, redirectTo: profile?.role === 'master' ? '/admin' : '/dashboard' };
+    return { success: true, redirectTo: isAdminRole(profile?.role) ? '/admin' : '/dashboard' };
   } catch (err: unknown) {
     console.error('Erro na Server Action login:', err);
     return { error: 'Erro interno no servidor.' };

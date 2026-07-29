@@ -29,7 +29,8 @@
     "limpar-tudo": "pnpm cache:local && pnpm sincronizar:limpar",
     "reprocessar": "node scripts/reprocess-brand.mjs",
     "backfill:clone-properties": "node ./src/scripts/backfill_clone_properties.cjs",
-    "ts-fix": "node ./scripts/tsc-fixer/fix-tsc.cjs"
+    "ts-fix": "node ./scripts/tsc-fixer/fix-tsc.cjs",
+    "seed": "npx tsx scripts/seed/run-all.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.50.0",
@@ -53,6 +54,7 @@
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.378.0",
+    "mercadopago": "^3.1.0",
     "nanoid": "^5.1.6",
     "next": "15.3.8",
     "next-themes": "^0.3.0",

@@ -90,6 +90,49 @@ export async function resolveContext(
   // First try settings.catalog_slug (saved from dashboard)
   let catalog: any = null;
   let foundSettings: any = null;
+  
+  // -------------------------------------------------------------
+  // NOVA REGRA B2B (Distribuidoras multi-tenant via organizations)
+  // Se o repSlug (que pode ser o ID da organização) for um UUID, busca na tabela organizations
+  // -------------------------------------------------------------
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(repSlug);
+  if (isUuid) {
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', repSlug)
+      .maybeSingle();
+      
+    if (orgData) {
+      return {
+        type: 'distributor',
+        companySlug: repSlug,
+        repSlug: repSlug,
+        catalogSlug: repSlug,
+        company: orgData,
+        pathPrefix: `/catalogo/${repSlug}`,
+      };
+    }
+  } else {
+    // NOVA REGRA B2B (Slug amigável da Distribuidora)
+    const { data: orgDataBySlug } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('slug', repSlug.toLowerCase())
+      .maybeSingle();
+
+    if (orgDataBySlug) {
+      return {
+        type: 'distributor',
+        companySlug: repSlug,
+        repSlug: repSlug,
+        catalogSlug: repSlug,
+        company: orgDataBySlug,
+        pathPrefix: `/catalogo/${repSlug}`,
+      };
+    }
+  }
+
   try {
     const { data: settingsRow } = await supabase
       .from('settings')
