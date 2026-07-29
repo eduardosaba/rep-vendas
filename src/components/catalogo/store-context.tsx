@@ -194,7 +194,7 @@ export function StoreProvider({
     } finally {
       try {
         _initialisedRef.current = true;
-      } catch (e) {}
+      } catch (e) { }
     }
   }, []);
 
@@ -213,7 +213,7 @@ export function StoreProvider({
         setHideImages(true);
         try {
           toast.info('Conexão detectada como lenta — modo compacto ativado.');
-        } catch (e) {}
+        } catch (e) { }
       }
     } catch (e) {
       // ignore
@@ -286,11 +286,11 @@ export function StoreProvider({
         const qs =
           entries.length > 0
             ? entries
-                .map(
-                  ([k, v]) =>
-                    `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
-                )
-                .join('&')
+              .map(
+                ([k, v]) =>
+                  `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
+              )
+              .join('&')
             : '';
         const url = qs ? `${base}?${qs}` : base;
         router.replace(url);
@@ -319,7 +319,7 @@ export function StoreProvider({
     if (!_initialisedRef.current) return;
     try {
       setCurrentPage(1);
-    } catch (e) {}
+    } catch (e) { }
   }, [selectedCategory]);
 
   const _brandMounted = (globalThis as any).__repv_brand_mounted || {
@@ -333,7 +333,7 @@ export function StoreProvider({
     }
     try {
       setCurrentPage(1);
-    } catch (e) {}
+    } catch (e) { }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrand]);
 
@@ -403,7 +403,7 @@ export function StoreProvider({
         (it: any) => it.slug === fromUrl || it.id === fromUrl
       );
       if (found) setModals((m) => ({ ...m, product: found }));
-    } catch (e) {}
+    } catch (e) { }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProducts]);
 
@@ -429,13 +429,13 @@ export function StoreProvider({
                 window.localStorage.removeItem('priceAccessGranted');
                 window.localStorage.removeItem('priceAccessExpiresAt');
               }
-            } catch {}
+            } catch { }
           }
         } else {
           setShowPrices(true);
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   const [globalControls, setGlobalControls] = useState<{
@@ -554,7 +554,7 @@ export function StoreProvider({
             hiddenNames.add(String(n).trim().toLowerCase())
           );
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const seen = new Map<string, string>();
     for (const b of raw) {
@@ -687,7 +687,7 @@ export function StoreProvider({
             .select('id, name, logo_url, banner_url, description')
             .eq('user_id', store.user_id);
           data = res.data;
-        } catch {}
+        } catch { }
       }
 
       let rows: any[] = Array.isArray(data) ? data : [];
@@ -705,7 +705,7 @@ export function StoreProvider({
             rows = rows.filter((d: any) => !userHidden.includes(d.id));
           }
         }
-      } catch (e) {}
+      } catch (e) { }
 
       if (rows) {
         const PUBLIC_BASE =
@@ -821,7 +821,7 @@ export function StoreProvider({
         if (!res.ok) return;
         const j = await res.json();
         if (Array.isArray(j.types)) setDistinctTypes(j.types.filter(Boolean));
-      } catch (e) {}
+      } catch (e) { }
     };
 
     fetchDistinctTypes();
@@ -879,7 +879,7 @@ export function StoreProvider({
       (window as any).__rv_distinct_types = Array.isArray(distinctTypes)
         ? distinctTypes
         : null;
-    } catch (e) {}
+    } catch (e) { }
   }, [distinctTypes]);
 
   useEffect(() => {
@@ -909,7 +909,7 @@ export function StoreProvider({
               .order('name');
             data = res2.data;
             error = res2.error;
-          } catch {}
+          } catch { }
         }
 
         if (!mounted) return;
@@ -956,26 +956,26 @@ export function StoreProvider({
     try {
       const savedCart =
         typeof window !== 'undefined' &&
-        typeof window.localStorage?.getItem === 'function'
+          typeof window.localStorage?.getItem === 'function'
           ? window.localStorage.getItem(`cart-${store.name}`)
           : null;
       if (savedCart) {
         try {
           setCart(JSON.parse(savedCart));
-        } catch {}
+        } catch { }
       }
       const savedCustomer =
         typeof window !== 'undefined' &&
-        typeof window.localStorage?.getItem === 'function'
+          typeof window.localStorage?.getItem === 'function'
           ? window.localStorage.getItem(`customer-${store.user_id}`)
           : null;
       if (savedCustomer) {
         try {
           const parsed = JSON.parse(savedCustomer) as CustomerInfo;
           setCustomerSession(parsed);
-        } catch {}
+        } catch { }
       }
-    } catch {}
+    } catch { }
   }, [store.name, store.user_id]);
 
   useEffect(() => {
@@ -991,7 +991,7 @@ export function StoreProvider({
         });
         if (j?.plan_feature_matrix) setPlanFeatureMatrix(j.plan_feature_matrix);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       mounted = false;
     };
@@ -1013,7 +1013,7 @@ export function StoreProvider({
           setBlockedForOrders(!!j.blocked);
           setBlockedReason(j.status || null);
         }
-      } catch (e) {}
+      } catch (e) { }
     })();
     return () => {
       mounted = false;
@@ -1032,7 +1032,7 @@ export function StoreProvider({
         if (!mounted) return;
         setStorePlanName(sub?.plan_name || null);
         setStoreSubscriptionStatus(sub?.status || null);
-      } catch (e) {}
+      } catch (e) { }
     })();
     return () => {
       mounted = false;
@@ -1204,7 +1204,7 @@ export function StoreProvider({
           const { isInstitutional } =
             require('./route-context').getCatalogRouteContext(pathname || '');
           if (isInstitutional) sellerId = null;
-        } catch {}
+        } catch { }
         const ownerIsCompany = Boolean((store as any)?.owner_is_company);
 
         const payload = {
@@ -1299,7 +1299,7 @@ export function StoreProvider({
             JSON.stringify(customer)
           );
           setCustomerSession(customer);
-        } catch {}
+        } catch { }
 
         setCart([]);
         return true;
@@ -1337,7 +1337,7 @@ export function StoreProvider({
         const j = await res.json();
         if (j.ok && j.phone) destPhone = String(j.phone);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     if (!destPhone) {
       destPhone =
@@ -1625,9 +1625,9 @@ export function StoreProvider({
       if (typeof u === 'object' && u !== null) {
         finalPath = isThumbnail
           ? u.variants?.mobile?.url ||
-            u.variants?.desktop?.url ||
-            u.original ||
-            ''
+          u.variants?.desktop?.url ||
+          u.original ||
+          ''
           : u.variants?.desktop?.url || u.original || '';
       } else {
         finalPath = String(u || '');
@@ -1748,7 +1748,7 @@ export function StoreProvider({
                 tomorrow.toISOString()
               );
             }
-          } catch {}
+          } catch { }
           toast.success('Preços desbloqueados!');
           return true;
         }
@@ -1769,7 +1769,7 @@ export function StoreProvider({
               tomorrow.toISOString()
             );
           }
-        } catch {}
+        } catch { }
         toast.success('Preços desbloqueados!');
         return true;
       }
@@ -1797,7 +1797,7 @@ export function StoreProvider({
                   tomorrow.toISOString()
                 );
               }
-            } catch {}
+            } catch { }
             toast.success('Preços desbloqueados!');
             return true;
           }
@@ -1827,7 +1827,7 @@ export function StoreProvider({
               tomorrow.toISOString()
             );
           }
-        } catch {}
+        } catch { }
         return true;
       }
 
@@ -1844,7 +1844,7 @@ export function StoreProvider({
         localStorage.removeItem('priceAccessGranted');
         localStorage.removeItem('priceAccessExpiresAt');
       }
-    } catch {}
+    } catch { }
     toast.info('Precos ocultados com sucesso.');
   }, []);
 
@@ -2070,7 +2070,7 @@ export function StoreProvider({
         clearCustomerSession: () => {
           try {
             localStorage.removeItem(`customer-${store.user_id}`);
-          } catch {}
+          } catch { }
           setCustomerSession(null);
         },
         hasPolarizado,
