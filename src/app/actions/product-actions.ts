@@ -74,7 +74,9 @@ export async function updateProductAction(productId: string, formData: any) {
         .select('id')
         .eq('user_id', activeUserId)
         .eq('reference_code', formData.reference_code)
+        .neq('id', productId)
         .limit(1);
+
       if (qc.error) {
         return {
           success: false,
@@ -82,37 +84,38 @@ export async function updateProductAction(productId: string, formData: any) {
           error: qc.error.message || String(qc.error),
         };
       }
-      const conflict =
-        qc.data && qc.data.length > 0 && qc.data[0].id !== productId;
-      if (conflict) {
+      if (qc.data && qc.data.length > 0) {
         return {
           success: false,
           status: 409,
-          error: 'Código de referência já existe para este usuário.',
+          error: 'Código de referência (reference_code) já existe para este usuário.',
         };
       }
     }
-    // Prevent unique constraint violation on reference_id (grouping) if provided
-    if (formData?.reference_id) {
-      const qrid = await supabase
+
+    // Prevent duplicate model reference + color variant for the same user
+    if (formData?.reference_id && formData?.color) {
+      const qv = await supabase
         .from('products')
         .select('id')
         .eq('user_id', activeUserId)
         .eq('reference_id', formData.reference_id)
+        .eq('color', formData.color)
+        .neq('id', productId)
         .limit(1);
-      if (qrid.error) {
+
+      if (qv.error) {
         return {
           success: false,
           status: 500,
-          error: qrid.error.message || String(qrid.error),
+          error: qv.error.message || String(qv.error),
         };
       }
-      const conflictId = qrid.data && qrid.data.length > 0 && qrid.data[0].id !== productId;
-      if (conflictId) {
+      if (qv.data && qv.data.length > 0) {
         return {
           success: false,
           status: 409,
-          error: 'Model code (reference_id) já existe para este usuário.',
+          error: 'Esta combinação de referência de modelo e cor já existe para este usuário.',
         };
       }
     }

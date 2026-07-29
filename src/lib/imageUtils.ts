@@ -378,30 +378,26 @@ export function ensure480w(url: string | null | undefined): string {
   if (!isLikelyInternal(s) && !s.includes('supabase.co')) return s;
 
   // Already 480w
-  if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) return s;
+  if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) return formatImageUrl(s);
 
-  // If it's 1200w, replace
+  // If it's 1200w, replace with 480w
   if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) {
-    return s.replace(/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-480w$1$2');
+    const candidate = s.replace(/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-480w$1$2');
+    return formatImageUrl(candidate);
   }
 
-  // Remove query params and extension then add -480w.webp
-  const clean = s.split('?')[0].replace(/(\.[a-zA-Z0-9]+)$/, '');
-  const path480 = `${clean}-480w.webp`;
-  // Use proxy URL so browser requests go to /api/storage-image which handles buckets/encoding
-  return formatImageUrl(path480);
+  // If the path does not have variant suffixes (-1200w / -480w), return as-is via formatImageUrl
+  return formatImageUrl(s);
 }
 
 export function upgradeTo1200w(url: string | null | undefined): string {
   if (!url) return '/placeholder.png';
   const s = String(url);
   if (!isLikelyInternal(s) && !s.includes('supabase.co')) return s;
-  if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) return s;
+  if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) return formatImageUrl(s);
   if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(s)) {
     const candidate = s.replace(/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-1200w$1$2');
     return formatImageUrl(candidate);
   }
-  const clean = s.split('?')[0].replace(/(\.[a-zA-Z0-9]+)$/, '');
-  const path1200 = `${clean}-1200w.webp`;
-  return formatImageUrl(path1200);
+  return formatImageUrl(s);
 }
