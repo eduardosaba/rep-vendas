@@ -17,7 +17,7 @@ function readExcelBuffer(buffer: Buffer) {
 }
 
 export async function commitImportAction(formData: FormData) {
-  if (process.env.FACTORY_LINE_IMPORT_ENABLED !== 'true') {
+  if (process.env.FACTORY_LINE_IMPORT_ENABLED === 'false') {
     return { error: 'Funcionalidade desativada.' };
   }
 

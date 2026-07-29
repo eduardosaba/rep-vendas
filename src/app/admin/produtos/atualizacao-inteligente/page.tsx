@@ -5,7 +5,7 @@ import { isAdminRole } from '@/lib/auth/roles';
 import { SmartUpdateClient } from './components/SmartUpdateClient';
 
 export default async function SmartUpdatePage() {
-  const isEnabled = process.env.FACTORY_LINE_IMPORT_ENABLED === 'true';
+  const isEnabled = process.env.FACTORY_LINE_IMPORT_ENABLED !== 'false';
 
   if (!isEnabled) {
     notFound();
