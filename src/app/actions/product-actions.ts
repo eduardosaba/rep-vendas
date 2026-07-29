@@ -67,13 +67,16 @@ export async function updateProductAction(productId: string, formData: any) {
     if (!activeUserId)
       return { success: false, status: 401, error: 'Não autorizado' };
 
-    // Prevent unique constraint violation on (user_id, brand, reference_code) for another product
+    // Prevent unique constraint violation on (user_id, brand, reference_code, color) for another product
     const normalizedRefCode = typeof formData?.reference_code === 'string'
       ? formData.reference_code.trim()
       : formData?.reference_code;
     const normalizedBrand = typeof formData?.brand === 'string'
       ? formData.brand.trim()
       : formData?.brand;
+    const normalizedColor = typeof formData?.color === 'string'
+      ? formData.color.trim()
+      : formData?.color;
 
     if (normalizedRefCode) {
       let query = supabase
@@ -85,6 +88,10 @@ export async function updateProductAction(productId: string, formData: any) {
 
       if (normalizedBrand) {
         query = query.eq('brand', normalizedBrand);
+      }
+
+      if (normalizedColor) {
+        query = query.eq('color', normalizedColor);
       }
 
       const qc = await query.limit(1);
@@ -100,7 +107,7 @@ export async function updateProductAction(productId: string, formData: any) {
         return {
           success: false,
           status: 409,
-          error: 'Código de referência (reference_code) já existe para este usuário e marca.',
+          error: 'Código de referência e cor já existem para este usuário e marca.',
         };
       }
     }

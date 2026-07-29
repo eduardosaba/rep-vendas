@@ -112,25 +112,39 @@ export const buildGalleryItem = (img: any) => {
 
     const baseUrl = cleanBase(url) || '';
     const basePath = cleanBase(path) || null;
-    return { url: `${baseUrl}-1200w.webp`, path: basePath ? `${basePath}-1200w.webp` : null, variants: normalizedVariants };
+    const isVarUrl = /-(480w|1200w)\.webp(\?.*)?$/i.test(url);
+    return {
+      url: isVarUrl ? `${baseUrl}-1200w.webp` : url,
+      path: (basePath && isVarUrl) ? `${basePath}-1200w.webp` : path,
+      variants: normalizedVariants,
+    };
   }
 
-  // Caso contrário, construímos variantes garantidas quando for interno
+  // Se o URL ou path original possui sufixo de variante (-480w ou -1200w), reconstruímos as variantes responsivas
+  const isVariant = /-(480w|1200w)\.webp(\?.*)?$/i.test(url) || (path && /-(480w|1200w)\.webp(\?.*)?$/i.test(path));
   const baseUrlClean = cleanBase(url) || '';
   const basePathClean = cleanBase(path) || null;
   const internal = isLikelyInternal(url) || isLikelyInternal(path);
 
-  const variants = internal && basePathClean
-    ? [
-        { size: 480, url: `${baseUrlClean}-480w.webp`, path: `${basePathClean}-480w.webp` },
-        { size: 1200, url: `${baseUrlClean}-1200w.webp`, path: `${basePathClean}-1200w.webp` },
-      ]
-    : [
-        { size: 480, url: url, path: path },
-        { size: 1200, url: url, path: path },
-      ];
+  if (internal && isVariant && basePathClean) {
+    const variants = [
+      { size: 480, url: `${baseUrlClean}-480w.webp`, path: `${basePathClean}-480w.webp` },
+      { size: 1200, url: `${baseUrlClean}-1200w.webp`, path: `${basePathClean}-1200w.webp` },
+    ];
+    return {
+      url: `${baseUrlClean}-1200w.webp`,
+      path: `${basePathClean}-1200w.webp`,
+      variants,
+    };
+  }
 
-  return { url: internal ? `${baseUrlClean}-1200w.webp` : url, path: internal && basePathClean ? `${basePathClean}-1200w.webp` : path, variants };
+  // Imagens originais sem variantes geradas (.jpg, .png, etc.): PRESERVA URL/PATH ORIGINAIS
+  const variants = [
+    { size: 480, url: url, path: path },
+    { size: 1200, url: url, path: path },
+  ];
+
+  return { url: url, path: path, variants };
 };
 
 /**
