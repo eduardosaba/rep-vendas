@@ -19,7 +19,7 @@ export default function DashboardLayout({
   const [connectionError, setConnectionError] = useState(false);
 
   // No mobile é melhor iniciar recolhido para evitar overlay cobrindo a tela no iOS.
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 

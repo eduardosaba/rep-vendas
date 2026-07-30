@@ -35,7 +35,7 @@ import {
   dedupePreferOptimized,
   ensureOptimizedFirst,
 } from '@/lib/imageHelpers';
-import { formatImageUrl, buildGalleryItem } from '@/lib/imageUtils';
+import getProductImageUrl, { formatImageUrl, buildGalleryItem } from '@/lib/imageUtils';
 
 // Remove arquivos de storage associados a uma imagem (inclui variantes)
 const deleteImageFromStorage = async (supabaseClient: any, imagePath: string | null) => {
@@ -794,7 +794,7 @@ export function EditProductForm({ product }: { product: Product }) {
 
           const { data } = await supabase
             .from('products')
-            .select('id, reference_code, name, image_url, image_path, gallery_images')
+            .select('id, reference_code, name, image_url, image_path, gallery_images, image_variants, images, external_image_url')
             .eq('user_id', user.id)
             .eq('is_active', true)
             .order('updated_at', { ascending: false })
@@ -844,24 +844,8 @@ export function EditProductForm({ product }: { product: Product }) {
             const id = it.id as string;
             const ref = it.reference_code || it.name || 'S/Ref';
 
-            // Prefer path (via proxy) when available, fallback to gallery variants or external URL
-            let thumb: string | null = null;
-            try {
-              if (it.image_path) {
-                thumb = formatImageUrl(it.image_path as string) as string;
-              }
-
-              if (!thumb && Array.isArray(it.gallery_images) && it.gallery_images.length > 0) {
-                const first = it.gallery_images[0];
-                const v = Array.isArray(first?.variants)
-                  ? first.variants.find((x: any) => x.size === 480)
-                  : null;
-                thumb = thumb || v?.url || first?.url || null;
-              }
-            } catch (e) {
-              // ignore
-            }
-            if (!thumb && it.image_url) thumb = it.image_url;
+            const imgObj = getProductImageUrl(it);
+            const thumb = imgObj?.src || '/images/product-placeholder.svg';
 
             return (
               <Link
