@@ -358,7 +358,7 @@ export function StoreModals() {
         const normalized = data.map((p: any) => {
           let thumb: string | null = null;
           if (p.image_path) {
-            thumb = `/api/storage-image?path=${encodeURIComponent(p.image_path)}&format=webp&q=80&w=480`;
+            thumb = `/api/storage-image?path=${encodeURIComponent(p.image_path)}&format=webp&q=80`;
           } else if (p.image_url) {
             const s = String(p.image_url);
             if (s.startsWith('/api/storage-image') || s.includes('?path=')) {

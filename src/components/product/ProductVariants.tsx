@@ -42,14 +42,14 @@ export const ProductVariants: React.FC<ProductVariantsProps> = ({
         }
         if (chosen.path) {
           // Prefer proxy for consistent caching/formatting
-          return `/api/storage-image?path=${encodeURIComponent(chosen.path)}&format=webp&q=80&w=480`;
+          return `/api/storage-image?path=${encodeURIComponent(chosen.path)}&format=webp&q=80`;
         }
       }
     }
 
-    // 2) image_path direto -> monta URL pública e força 480w
+    // 2) image_path direto -> monta URL pública
     if (p.image_path) {
-      return `/api/storage-image?path=${encodeURIComponent(p.image_path)}&format=webp&q=80&w=480`;
+      return `/api/storage-image?path=${encodeURIComponent(p.image_path)}&format=webp&q=80`;
     }
 
     // 3) image_url legado

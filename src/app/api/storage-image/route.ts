@@ -38,20 +38,27 @@ export async function GET(request: Request) {
 
   // 2. Normalização do Path e Bucket
   let rawPath = filePath.trim();
+  try {
+    rawPath = decodeURIComponent(rawPath);
+  } catch (e) {}
+
   const marker = '/storage/v1/object/public/';
   if (rawPath.includes(marker)) {
     rawPath = rawPath.split(marker).pop() || rawPath;
   }
-  rawPath = rawPath.replace(/^\/+/, '').replace(/^public\//, '');
+  rawPath = rawPath.replace(/^\/+/, '');
+  if (rawPath.toLowerCase().startsWith('product-images/')) {
+    rawPath = rawPath.slice('product-images/'.length);
+  }
 
-  const knownBuckets = ['brands', 'product-images', 'public_catalogs', 'company-assets', 'banners', 'receipts'];
+  const validBuckets = ['product-images', 'public_catalogs', 'catalogs', 'company-assets', 'companies', 'banners', 'receipts'];
   const firstSegment = rawPath.split('/')[0]?.toLowerCase();
 
   let effectiveBucket = bucketParam || '';
   let effectivePath = rawPath;
 
   if (!effectiveBucket) {
-    if (knownBuckets.includes(firstSegment)) {
+    if (validBuckets.includes(firstSegment)) {
       effectiveBucket = rawPath.split('/')[0];
       effectivePath = rawPath.split('/').slice(1).join('/');
     } else {
@@ -111,18 +118,52 @@ export async function GET(request: Request) {
 
     // Construir candidatos de buckets e paths para tentar cobrir formatos divergentes
     const candidateBuckets = Array.from(
-      new Set([effectiveBucket, 'product-images'])
+      new Set([effectiveBucket, 'product-images'].filter(Boolean))
     );
-    const candidatePaths = Array.from(
-      new Set([
-        effectivePath,
-        effectivePath.replace(/^public\//, ''),
-        effectivePath.replace(/^product-images\//, ''),
-        effectivePath.replace(/^product-images\/public\//, ''),
-        effectivePath.replace('/public/', '/'),
-        `public/${effectivePath}`,
-      ])
-    );
+
+    const buildImageCandidates = (p: string): string[] => {
+      if (!p) return [];
+      const raw = p.trim().replace(/\\/g, '/');
+      const clean = raw.replace(/^(public\/)+/i, 'public/');
+      const withoutPublic = clean.replace(/^public\//i, '');
+      const withPublic = clean.startsWith('public/') ? clean : `public/${clean}`;
+
+      const basePaths = Array.from(new Set([clean, withPublic, withoutPublic].filter(Boolean)));
+      const results: string[] = [];
+
+      for (const bp of basePaths) {
+        results.push(bp);
+
+        // 1. Swap 480w <-> 1200w
+        if (bp.includes('-480w.')) {
+          results.push(bp.replace('-480w.', '-1200w.'));
+        } else if (bp.includes('-1200w.')) {
+          results.push(bp.replace('-1200w.', '-480w.'));
+        }
+
+        // 2. Swap -main- <-> -00-
+        if (bp.includes('-main-')) {
+          results.push(bp.replace('-main-', '-00-'));
+          if (bp.includes('-480w.')) results.push(bp.replace('-main-', '-00-').replace('-480w.', '-1200w.'));
+        } else if (bp.includes('-00-')) {
+          results.push(bp.replace('-00-', '-main-'));
+          if (bp.includes('-480w.')) results.push(bp.replace('-00-', '-main-').replace('-480w.', '-1200w.'));
+        }
+
+        // 3. Strip resolution suffix (-480w / -1200w) and test extensions
+        if (/(?:-(480w|1200w)\.[^.]+)$/i.test(bp)) {
+          const stripped = bp.replace(/-(480w|1200w)\.[^.]+$/i, '');
+          results.push(`${stripped}.jpg`);
+          results.push(`${stripped}.jpeg`);
+          results.push(`${stripped}.webp`);
+          results.push(`${stripped}.png`);
+        }
+      }
+
+      return Array.from(new Set(results.filter(Boolean)));
+    };
+
+    const candidatePaths = buildImageCandidates(effectivePath);
 
     // try candidates but with early bailouts and diagnostic logging
 
@@ -183,9 +224,15 @@ export async function GET(request: Request) {
           { status: 404 }
         );
       }
-      return returnPlaceholderSvg(effectivePath, 404, {
-        'Cache-Control': 'public, max-age=60',
-      });
+      return NextResponse.json(
+        { error: 'Image not found', requested: filePath },
+        {
+          status: 404,
+          headers: {
+            'Cache-Control': 'public, max-age=60',
+          },
+        }
+      );
     }
 
     // 4. Processamento do Buffer

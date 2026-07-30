@@ -79,7 +79,7 @@ export function ProductCard({
   } else if (product.image_path) {
     // 2. BACKUP: Se não houver array de variantes mas houver path principal
     const path = String(product.image_path).replace(/^\/+/, '');
-    displayImage = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=75&w=480`;
+    displayImage = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=80`;
   } else if (isPending && product.external_image_url) {
     // 3. PENDENTE: Mostra URL externa enquanto o script não processa
     displayImage = product.external_image_url;

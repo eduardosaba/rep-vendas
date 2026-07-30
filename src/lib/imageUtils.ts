@@ -51,10 +51,11 @@ export function normalizeStoragePath(path?: string | null): string | null {
   }
   // remove barras iniciais
   s = s.replace(/^\/+/, '');
-  // remover repetidos 'public/' no início
-  while (s.toLowerCase().startsWith('public/')) {
-    s = s.slice(7);
+  if (s.toLowerCase().startsWith('product-images/')) {
+    s = s.slice('product-images/'.length);
   }
+  // reduz duplicações de public/
+  s = s.replace(/^(public\/)+/i, 'public/');
   return s || null;
 }
 
@@ -169,7 +170,7 @@ export const prepareProductGallery = (items: any[]) => {
  */
 /**
  * Extrai de forma precisa o bucket do Supabase Storage e o caminho do objeto.
- * Suporta buckets conhecidos ('brands', 'product-images', etc.) e URLs completas.
+ * Suporta buckets conhecidos ('product-images', 'public_catalogs', etc.) e URLs completas.
  */
 export function parseStoragePath(inputPath?: string | null): { bucket: string; objectPath: string } | null {
   if (!inputPath) return null;
@@ -182,13 +183,17 @@ export function parseStoragePath(inputPath?: string | null): { bucket: string; o
   if (s.includes(marker)) {
     s = s.split(marker).pop() || s;
   }
-  s = s.replace(/^\/+/, '').replace(/^public\//, '');
+  s = s.replace(/^\/+/, '');
+  if (s.toLowerCase().startsWith('product-images/')) {
+    s = s.slice('product-images/'.length);
+  }
+  s = s.replace(/^(public\/)+/i, 'public/');
   if (!s) return null;
 
-  const knownBuckets = ['brands', 'product-images', 'public_catalogs', 'company-assets', 'banners', 'receipts'];
+  const validBuckets = ['product-images', 'public_catalogs', 'catalogs', 'company-assets', 'companies', 'banners', 'receipts'];
   const firstSegment = s.split('/')[0]?.toLowerCase();
 
-  if (knownBuckets.includes(firstSegment)) {
+  if (validBuckets.includes(firstSegment)) {
     const bucket = s.split('/')[0];
     const objectPath = s.split('/').slice(1).join('/');
     return { bucket, objectPath };
