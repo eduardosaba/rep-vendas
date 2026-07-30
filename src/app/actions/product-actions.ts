@@ -67,14 +67,35 @@ export async function updateProductAction(productId: string, formData: any) {
     if (!activeUserId)
       return { success: false, status: 401, error: 'Não autorizado' };
 
-    // Prevent unique constraint violation on (user_id, reference_code)
-    if (formData?.reference_code) {
-      const qc = await supabase
+    // Prevent unique constraint violation on (user_id, brand, reference_code, color) for another product
+    const normalizedRefCode = typeof formData?.reference_code === 'string'
+      ? formData.reference_code.trim()
+      : formData?.reference_code;
+    const normalizedBrand = typeof formData?.brand === 'string'
+      ? formData.brand.trim()
+      : formData?.brand;
+    const normalizedColor = typeof formData?.color === 'string'
+      ? formData.color.trim()
+      : formData?.color;
+
+    if (normalizedRefCode) {
+      let query = supabase
         .from('products')
         .select('id')
         .eq('user_id', activeUserId)
-        .eq('reference_code', formData.reference_code)
-        .limit(1);
+        .eq('reference_code', normalizedRefCode)
+        .neq('id', productId);
+
+      if (normalizedBrand) {
+        query = query.eq('brand', normalizedBrand);
+      }
+
+      if (normalizedColor) {
+        query = query.eq('color', normalizedColor);
+      }
+
+      const qc = await query.limit(1);
+
       if (qc.error) {
         return {
           success: false,
@@ -82,37 +103,11 @@ export async function updateProductAction(productId: string, formData: any) {
           error: qc.error.message || String(qc.error),
         };
       }
-      const conflict =
-        qc.data && qc.data.length > 0 && qc.data[0].id !== productId;
-      if (conflict) {
+      if (qc.data && qc.data.length > 0) {
         return {
           success: false,
           status: 409,
-          error: 'Código de referência já existe para este usuário.',
-        };
-      }
-    }
-    // Prevent unique constraint violation on reference_id (grouping) if provided
-    if (formData?.reference_id) {
-      const qrid = await supabase
-        .from('products')
-        .select('id')
-        .eq('user_id', activeUserId)
-        .eq('reference_id', formData.reference_id)
-        .limit(1);
-      if (qrid.error) {
-        return {
-          success: false,
-          status: 500,
-          error: qrid.error.message || String(qrid.error),
-        };
-      }
-      const conflictId = qrid.data && qrid.data.length > 0 && qrid.data[0].id !== productId;
-      if (conflictId) {
-        return {
-          success: false,
-          status: 409,
-          error: 'Model code (reference_id) já existe para este usuário.',
+          error: 'Código de referência e cor já existem para este usuário e marca.',
         };
       }
     }
