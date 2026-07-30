@@ -859,7 +859,15 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                             : 'bg-rose-100 text-rose-800'
                         }`}
                       >
-                        {det.status}
+                        {det.status === 'READY'
+                          ? 'PRONTO'
+                          : det.status === 'SKIPPED_FILTER'
+                          ? 'IGNORADO (FILTRO)'
+                          : det.status === 'NOT_FOUND'
+                          ? 'NÃO ENCONTRADO'
+                          : det.status === 'ERROR'
+                          ? 'ERRO'
+                          : det.status}
                       </span>
                     </td>
                     <td className="p-3">

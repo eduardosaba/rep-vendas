@@ -136,6 +136,7 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       const { data: pageData, error: pageErr } = await supabase
         .from('products')
         .select('id, reference_code, brand, name, price, stock, is_active, colecao, user_id, company_id, organization_id')
+        .order('id', { ascending: true })
         .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
 
       if (pageErr || !pageData || pageData.length === 0) {
@@ -195,15 +196,15 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
         continue;
       }
 
-      // Match product
-      const matchedProd = productsList.find((p) => {
+      // Match products (can match multiple records across users)
+      const matchedProds = productsList.filter((p) => {
         return config.identifier.mappings.every((m) => {
           const dbVal = applyStringNormalizations(p[m.dbField as keyof typeof p], config.identifier.normalizations);
           return dbVal === normIdentValues[m.dbField];
         });
       });
 
-      if (!matchedProd) {
+      if (matchedProds.length === 0) {
         notFoundCount++;
         if (sampleDetails.length < 50) {
           sampleDetails.push({
@@ -219,29 +220,31 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
         continue;
       }
 
-      matchedCount++;
+      matchedCount += matchedProds.length;
 
-      // Compute proposed changes
+      // Compute proposed changes for all matched product records
       const proposed: PreviewRowDetail['proposedChanges'] = [];
-      for (const act of config.actions) {
-        const fieldDef = getFieldDefinition(act.targetLayer, act.targetField)!;
-        const currentDbVal = matchedProd[fieldDef.column as keyof typeof matchedProd];
-        const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
+      for (const matchedProd of matchedProds) {
+        for (const act of config.actions) {
+          const fieldDef = getFieldDefinition(act.targetLayer, act.targetField)!;
+          const currentDbVal = matchedProd[fieldDef.column as keyof typeof matchedProd];
+          const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
 
-        const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
+          const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
 
-        if (newVal !== currentDbVal) {
-          changedCount++;
-          if (fieldDef.critical || act.operation === 'percentage_decrease' || (act.targetField === 'is_active' && newVal === false)) {
-            criticalFlag = true;
+          if (newVal !== currentDbVal) {
+            changedCount++;
+            if (fieldDef.critical || act.operation === 'percentage_decrease' || (act.targetField === 'is_active' && newVal === false)) {
+              criticalFlag = true;
+            }
+            proposed.push({
+              targetLayer: act.targetLayer,
+              targetField: act.targetField,
+              oldValue: currentDbVal,
+              newValue: newVal,
+              actionType: act.operation,
+            });
           }
-          proposed.push({
-            targetLayer: act.targetLayer,
-            targetField: act.targetField,
-            oldValue: currentDbVal,
-            newValue: newVal,
-            actionType: act.operation,
-          });
         }
       }
 
@@ -250,11 +253,11 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
           rowNumber: idx + 1,
           rawIdentifierValues: rawIdentValues,
           normalizedIdentifierValues: normIdentValues,
-          matchedProductId: matchedProd.id,
-          matchedProductName: matchedProd.name,
           filterMatched: true,
+          matchedProductName: matchedProds[0]?.name || matchedProds[0]?.reference_code,
           proposedChanges: proposed,
-          status: 'READY',
+          status: proposed.length > 0 ? 'READY' : 'SKIPPED_FILTER',
+          message: `${matchedProds.length} produto(s) correspondente(s) localizado(s).`,
         });
       }
     }
@@ -345,6 +348,7 @@ export async function processBatchChunkAction(
       const { data: pageData, error: pageErr } = await supabase
         .from('products')
         .select('id, reference_code, brand, name, price, stock, is_active, colecao, user_id, company_id, organization_id')
+        .order('id', { ascending: true })
         .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
 
       if (pageErr || !pageData || pageData.length === 0) {
@@ -378,20 +382,20 @@ export async function processBatchChunkAction(
         continue;
       }
 
-      // Match product
+      // Match products (can match multiple records across users)
       const normIdentValues: Record<string, string> = {};
       for (const m of config.identifier.mappings) {
         normIdentValues[m.dbField] = applyStringNormalizations(row[m.spreadsheetColumn], config.identifier.normalizations);
       }
 
-      const matchedProd = productsList.find((p) => {
+      const matchedProds = productsList.filter((p) => {
         return config.identifier.mappings.every((m) => {
           const dbVal = applyStringNormalizations(p[m.dbField as keyof typeof p], config.identifier.normalizations);
           return dbVal === normIdentValues[m.dbField];
         });
       });
 
-      if (!matchedProd) {
+      if (matchedProds.length === 0) {
         failed++;
         await supabase.from('product_update_job_items').insert({
           job_id: jobId,
@@ -407,56 +411,58 @@ export async function processBatchChunkAction(
         continue;
       }
 
-      // Apply actions
-      for (const act of config.actions) {
-        const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
-        if (!fieldDef) continue;
+      // Apply actions to all matched product records across users
+      for (const matchedProd of matchedProds) {
+        for (const act of config.actions) {
+          const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
+          if (!fieldDef) continue;
 
-        const currentDbVal = matchedProd[fieldDef.column as keyof typeof matchedProd];
-        const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
-        const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
+          const currentDbVal = matchedProd[fieldDef.column as keyof typeof matchedProd];
+          const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
+          const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
 
-        if (newVal !== currentDbVal) {
-          const { error: updateErr } = await supabase
-            .from('products')
-            .update({ [fieldDef.column]: newVal })
-            .eq('id', matchedProd.id);
+          if (newVal !== currentDbVal) {
+            const { error: updateErr } = await supabase
+              .from('products')
+              .update({ [fieldDef.column]: newVal })
+              .eq('id', matchedProd.id);
 
-          if (updateErr) {
-            failed++;
-            await supabase.from('product_update_job_items').insert({
-              job_id: jobId,
-              row_number: actualRowIndex,
-              product_id: matchedProd.id,
-              target_layer: act.targetLayer,
-              target_table: fieldDef.table,
-              target_record_id: matchedProd.id,
-              target_field: fieldDef.column,
-              old_value: currentDbVal as any,
-              new_value: newVal as any,
-              action_type: act.operation,
-              status: 'failed',
-              error_message: updateErr.message,
-            });
+            if (updateErr) {
+              failed++;
+              await supabase.from('product_update_job_items').insert({
+                job_id: jobId,
+                row_number: actualRowIndex,
+                product_id: matchedProd.id,
+                target_layer: act.targetLayer,
+                target_table: fieldDef.table,
+                target_record_id: matchedProd.id,
+                target_field: fieldDef.column,
+                old_value: currentDbVal as any,
+                new_value: newVal as any,
+                action_type: act.operation,
+                status: 'failed',
+                error_message: updateErr.message,
+              });
+            } else {
+              applied++;
+              await supabase.from('product_update_job_items').insert({
+                job_id: jobId,
+                row_number: actualRowIndex,
+                product_id: matchedProd.id,
+                target_layer: act.targetLayer,
+                target_table: fieldDef.table,
+                target_record_id: matchedProd.id,
+                target_field: fieldDef.column,
+                old_value: currentDbVal as any,
+                new_value: newVal as any,
+                action_type: act.operation,
+                status: 'applied',
+                applied_at: new Date().toISOString(),
+              });
+            }
           } else {
-            applied++;
-            await supabase.from('product_update_job_items').insert({
-              job_id: jobId,
-              row_number: actualRowIndex,
-              product_id: matchedProd.id,
-              target_layer: act.targetLayer,
-              target_table: fieldDef.table,
-              target_record_id: matchedProd.id,
-              target_field: fieldDef.column,
-              old_value: currentDbVal as any,
-              new_value: newVal as any,
-              action_type: act.operation,
-              status: 'applied',
-              applied_at: new Date().toISOString(),
-            });
+            skipped++;
           }
-        } else {
-          skipped++;
         }
       }
     }

@@ -25,7 +25,7 @@ export function parsePortugueseCurrencyOrNumber(val: any): number {
 
 export function applyStringNormalizations(val: any, rules: NormalizerRule[]): string {
   if (val === null || val === undefined) return '';
-  let str = String(val);
+  let str = String(val).replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ').replace(/\s+/g, ' ').trim();
 
   for (const rule of rules) {
     switch (rule) {
