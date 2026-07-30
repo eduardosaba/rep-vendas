@@ -111,12 +111,12 @@ export default async function ProductsPage() {
   const safeProducts = products || [];
   const totalCount = typeof count === 'number' ? count : safeProducts.length;
 
-  // Gera thumbnail 480w para listagem administrativa (evita carregar 1200w)
+  // Gera thumbnail 480w para listagem administrativa somente se houver variante 1200w
   const ensure480 = (u: string | null | undefined) => {
     if (!u) return '/placeholder.png';
     try {
       if (/-1200w(\.|$)/.test(u)) return u.replace(/-1200w(\.|$)/, '-480w$1');
-      return u.replace(/(\.[a-z0-9]+)(\?|$)/i, '-480w$1');
+      return u;
     } catch (e) {
       return u;
     }

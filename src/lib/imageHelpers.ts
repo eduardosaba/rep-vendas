@@ -106,7 +106,7 @@ export function ensure480w(url: string): string {
   if (!url) return url;
   if (/-480w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(url)) return url;
   if (/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/.test(url)) return url.replace(/-1200w(\.[a-zA-Z0-9]+)(\?.*)?$/, '-480w$1$2');
-  return url.replace(/(\.[a-zA-Z0-9]+)(\?.*)?$/, '-480w$1$2');
+  return url;
 }
 
 export function normalizeImageForDB(img: any) {
