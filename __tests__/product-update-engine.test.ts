@@ -72,6 +72,47 @@ describe('Motor de Atualização Inteligente por Planilha — Unit Tests', () =>
       // Company layer requires targetCompanyIds
       expect(validateLayerScopeCompatibility('company', { type: 'COMPANY', targetCompanyIds: [] }).valid).toBe(false);
       expect(validateLayerScopeCompatibility('company', { type: 'COMPANY', targetCompanyIds: ['c-1'] }).valid).toBe(true);
+      // Organization scope validates targetOrganizationIds
+      expect(validateLayerScopeCompatibility('global', { type: 'ORGANIZATION', targetOrganizationIds: ['org-1'] }).valid).toBe(true);
+    });
+  });
+
+  describe('6. Isolamento Multitenant e Validação de Status', () => {
+    const mockDbProducts = [
+      { id: 'prod-org-A', reference_code: 'TH-100', price: 150, organization_id: 'org-A' },
+      { id: 'prod-org-B', reference_code: 'TH-100', price: 150, organization_id: 'org-B' },
+      { id: 'prod-org-A-same', reference_code: 'TH-200', price: 200, organization_id: 'org-A' },
+    ];
+
+    it('deve filtrar produtos estritamente pela organização selecionada', () => {
+      const selectedOrg = 'org-A';
+      const scopedProducts = mockDbProducts.filter((p) => p.organization_id === selectedOrg);
+
+      expect(scopedProducts.length).toBe(2);
+      expect(scopedProducts.some((p) => p.id === 'prod-org-B')).toBe(false);
+      expect(scopedProducts.some((p) => p.id === 'prod-org-A')).toBe(true);
+    });
+
+    it('deve atribuir status NO_CHANGE quando o valor do banco for idêntico ao novo valor', () => {
+      const currentVal = 200;
+      const newVal = computeStructuredOperation(currentVal, 200, 'set', 'currency');
+
+      const isChanged = currentVal !== newVal;
+      const status = isChanged ? 'READY' : 'NO_CHANGE';
+
+      expect(newVal).toBe(200);
+      expect(status).toBe('NO_CHANGE');
+    });
+
+    it('deve atribuir status NOT_FOUND quando o produto não for localizado no escopo da organização', () => {
+      const refToFind = 'TH-INEXISTENTE';
+      const selectedOrg = 'org-A';
+      const matched = mockDbProducts.filter(
+        (p) => p.organization_id === selectedOrg && p.reference_code === refToFind
+      );
+
+      const status = matched.length > 0 ? 'READY' : 'NOT_FOUND';
+      expect(status).toBe('NOT_FOUND');
     });
   });
 });

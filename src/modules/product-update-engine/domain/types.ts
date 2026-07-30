@@ -109,14 +109,18 @@ export interface PreviewRowDetail {
     newValue: any;
     actionType: StructuredOperationType;
   }[];
-  status: 'READY' | 'SKIPPED_FILTER' | 'NOT_FOUND' | 'ERROR';
+  status: 'READY' | 'SKIPPED_FILTER' | 'NO_CHANGE' | 'NOT_FOUND' | 'ERROR';
   message?: string;
 }
 
 export interface PreviewEngineResult {
+  fileHash?: string;
   totalRows: number;
   matchedRows: number;
+  matchedProducts?: number;
   changedRows: number;
+  changedProducts?: number;
+  changedFields?: number;
   skippedRows: number;
   notFoundRows: number;
   criticalConfirmationRequired: boolean;

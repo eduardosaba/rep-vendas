@@ -44,9 +44,22 @@ interface SmartUpdateClientProps {
 
 export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartUpdateClientProps) {
   const [step, setStep] = useState<number>(1);
+  const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeData, setAnalyzeData] = useState<AnalyzeSpreadsheetResult | null>(null);
+
+  const advanceToStep = (nextStep: number) => {
+    setMaxUnlockedStep((current) => Math.max(current, nextStep));
+    setStep(nextStep);
+  };
+
+  const handleStepClick = (targetStep: number) => {
+    if (isExecuting) return;
+    if (targetStep <= maxUnlockedStep) {
+      setStep(targetStep);
+    }
+  };
 
   // Step 2 Configuration State
   const [selectedSheet, setSelectedSheet] = useState<string>('');
@@ -79,7 +92,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
   ]);
 
   // Step 5 Scope State
-  const [scopeType, setScopeType] = useState<'GLOBAL' | 'COMPANY' | 'USER'>('GLOBAL');
+  const [scopeType, setScopeType] = useState<'GLOBAL' | 'ORGANIZATION' | 'ORGANIZATION_LIST' | 'USER_AUTHORSHIP' | 'COMPANY' | 'USER'>('GLOBAL');
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
@@ -122,7 +135,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
     if (res.columns.length > 0) {
       setIdentifierMappings([{ spreadsheetColumn: res.columns[0].name, dbField: 'reference_code' }]);
     }
-    setStep(2);
+    advanceToStep(2);
   };
 
   // Build current EngineConfiguration object
@@ -137,9 +150,10 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
         connective: filterConnective,
         conditions: filterConditions,
       },
-      actions: actions.map((a) => ({ ...a, targetLayer })),
+      actions: actions.map((a) => ({ ...a })),
       scope: {
-        type: scopeType,
+        type: scopeType as any,
+        targetOrganizationIds: selectedCompanies,
         targetCompanyIds: selectedCompanies,
         targetUserIds: selectedUsers,
       },
@@ -163,7 +177,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
     }
 
     setPreviewResult(res);
-    setStep(6);
+    advanceToStep(6);
   };
 
   // Run Batch Execution
@@ -174,11 +188,11 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
       return;
     }
 
-    setStep(7);
+    advanceToStep(7);
     setIsExecuting(true);
 
     const configStr = JSON.stringify(getEngineConfig());
-    const createRes = await createJobAction(file.name, selectedSheet, previewResult.totalRows, configStr);
+    const createRes = await createJobAction(file.name, selectedSheet, previewResult.totalRows, configStr, previewResult.fileHash);
 
     if (createRes.error || !createRes.jobId) {
       alert(createRes.error || 'Erro ao criar job de atualização.');
@@ -194,6 +208,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
     let totalApplied = 0;
     let totalSkipped = 0;
     let totalFailed = 0;
+    let executionFailed = false;
 
     for (let rowIndex = 0; rowIndex < previewResult.totalRows; rowIndex += chunkSize) {
       const fd = new FormData();
@@ -202,6 +217,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
       const chunkRes = await processBatchChunkAction(currentJobId, rowIndex, chunkSize, fd);
       if (chunkRes.error) {
         alert(`Erro no lote ${rowIndex}: ${chunkRes.error}`);
+        executionFailed = true;
         break;
       }
 
@@ -217,8 +233,14 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
     }
 
     setIsExecuting(false);
+
+    if (executionFailed) {
+      setIsCompleted(false);
+      return;
+    }
+
     setIsCompleted(true);
-    setStep(8);
+    advanceToStep(8);
   };
 
   // Handle Rollback
@@ -248,21 +270,33 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             { id: 6, name: 'Preview' },
             { id: 7, name: 'Execução' },
             { id: 8, name: 'Resultado' },
-          ].map((s) => (
-            <div
-              key={s.id}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${
-                step === s.id
-                  ? 'bg-indigo-600 text-white'
-                  : step > s.id
-                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-              }`}
-            >
-              <span>{s.id}.</span>
-              <span>{s.name}</span>
-            </div>
-          ))}
+          ].map((s) => {
+            const isCurrent = step === s.id;
+            const isCompleted = s.id < step;
+            const isUnlocked = s.id <= maxUnlockedStep;
+
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleStepClick(s.id)}
+                disabled={isExecuting || !isUnlocked}
+                aria-current={isCurrent ? 'step' : undefined}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors whitespace-nowrap text-xs font-semibold ${
+                  isCurrent
+                    ? 'bg-indigo-600 text-white'
+                    : isCompleted
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                    : isUnlocked
+                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 cursor-pointer'
+                    : 'cursor-not-allowed bg-slate-100 text-slate-400 opacity-50 dark:bg-slate-900'
+                }`}
+              >
+                <span>{s.id}.</span>
+                <span>{s.name}</span>
+              </button>
+            );
+          })}
         </div>
 
         <button
@@ -421,7 +455,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             <button onClick={() => setStep(1)} className="px-4 py-2 text-slate-600 text-sm hover:underline">
               Voltar
             </button>
-            <button onClick={() => setStep(3)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
+            <button onClick={() => advanceToStep(3)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
               Avançar para Filtros <ArrowRight size={16} />
             </button>
           </div>
@@ -534,7 +568,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             <button onClick={() => setStep(2)} className="px-4 py-2 text-slate-600 text-sm hover:underline">
               Voltar
             </button>
-            <button onClick={() => setStep(4)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
+            <button onClick={() => advanceToStep(4)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
               Avançar para Ações <ArrowRight size={16} />
             </button>
           </div>
@@ -720,7 +754,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             <button onClick={() => setStep(3)} className="px-4 py-2 text-slate-600 text-sm hover:underline">
               Voltar
             </button>
-            <button onClick={() => setStep(5)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
+            <button onClick={() => advanceToStep(5)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
               Avançar para Escopo <ArrowRight size={16} />
             </button>
           </div>
@@ -854,6 +888,8 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                         className={`px-2 py-0.5 rounded text-[10px] ${
                           det.status === 'READY'
                             ? 'bg-emerald-100 text-emerald-800'
+                            : det.status === 'NO_CHANGE'
+                            ? 'bg-blue-100 text-blue-800'
                             : det.status === 'SKIPPED_FILTER'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-rose-100 text-rose-800'
@@ -861,6 +897,8 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                       >
                         {det.status === 'READY'
                           ? 'PRONTO'
+                          : det.status === 'NO_CHANGE'
+                          ? 'SEM ALTERAÇÃO'
                           : det.status === 'SKIPPED_FILTER'
                           ? 'IGNORADO (FILTRO)'
                           : det.status === 'NOT_FOUND'
