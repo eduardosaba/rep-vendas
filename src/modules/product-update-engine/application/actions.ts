@@ -448,13 +448,27 @@ export async function processBatchChunkAction(
 
     const selectColumns = getDynamicProductSelectColumns(config.actions);
 
-    const chunkIdentValues: string[] = [];
+    const chunkIdentValuesSet = new Set<string>();
     for (const row of chunkData) {
       for (const m of config.identifier.mappings) {
-        const val = applyStringNormalizations(row[m.spreadsheetColumn], config.identifier.normalizations);
-        if (val) chunkIdentValues.push(val);
+        const rawVal = row[m.spreadsheetColumn];
+        if (rawVal !== undefined && rawVal !== null) {
+          const strRaw = String(rawVal).trim();
+          if (strRaw) {
+            chunkIdentValuesSet.add(strRaw);
+            chunkIdentValuesSet.add(strRaw.toUpperCase());
+            chunkIdentValuesSet.add(strRaw.toLowerCase());
+          }
+          const normVal = applyStringNormalizations(rawVal, config.identifier.normalizations);
+          if (normVal) {
+            chunkIdentValuesSet.add(normVal);
+            chunkIdentValuesSet.add(normVal.toUpperCase());
+            chunkIdentValuesSet.add(normVal.toLowerCase());
+          }
+        }
       }
     }
+    const chunkIdentValues = Array.from(chunkIdentValuesSet);
 
     let productsQuery = supabase.from('products').select(selectColumns);
     productsQuery = applyScopeToQuery(productsQuery, config.scope, profile.organization_id);
@@ -464,9 +478,19 @@ export async function processBatchChunkAction(
       productsQuery = productsQuery.in('reference_code', chunkIdentValues);
     }
 
-    const { data: matchedDbProducts, error: dbErr } = await (productsQuery as any);
+    let { data: matchedDbProducts, error: dbErr } = await (productsQuery as any);
     if (dbErr) {
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: dbErr.message };
+    }
+
+    // Fallback: If no products were returned via .in() but chunkData has rows, fetch scoped products using pagination
+    if ((!matchedDbProducts || matchedDbProducts.length === 0) && chunkData.length > 0) {
+      let fallbackQuery = supabase.from('products').select(selectColumns);
+      fallbackQuery = applyScopeToQuery(fallbackQuery, config.scope, profile.organization_id);
+      const { data: scopedProds } = await (fallbackQuery as any);
+      if (scopedProds && scopedProds.length > 0) {
+        matchedDbProducts = scopedProds;
+      }
     }
 
     const productsList: any[] = matchedDbProducts || [];
