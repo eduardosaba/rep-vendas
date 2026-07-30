@@ -845,8 +845,9 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {previewResult.sampleDetails.map((det, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                    <td className="p-3 font-mono">#{det.rowNumber}</td>
-                    <td className="p-3">{JSON.stringify(det.rawIdentifierValues)}</td>
+                    <td className="p-3 font-mono font-medium text-slate-700 dark:text-slate-200">
+                      {Object.values(det.rawIdentifierValues).filter(Boolean).join(' - ') || '-'}
+                    </td>
                     <td className="p-3 font-medium">{det.matchedProductName || '-'}</td>
                     <td className="p-3 font-bold">
                       <span

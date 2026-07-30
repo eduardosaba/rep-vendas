@@ -126,9 +126,28 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
     const worksheet = workbook.Sheets[config.sheetName || workbook.SheetNames[0]];
     const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-    // Fetch existing products from database for matching
-    const { data: existingProducts } = await supabase.from('products').select('id, reference_code, brand, name, price, stock, is_active, colecao, user_id');
-    const productsList = existingProducts || [];
+    // Fetch all existing products from database for matching (paginated to bypass Supabase 1000-row limit)
+    let productsList: any[] = [];
+    let pageIndex = 0;
+    const PAGE_LIMIT = 1000;
+    let keepFetching = true;
+
+    while (keepFetching) {
+      const { data: pageData, error: pageErr } = await supabase
+        .from('products')
+        .select('id, reference_code, brand, name, price, stock, is_active, colecao, user_id, company_id, organization_id')
+        .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
+
+      if (pageErr || !pageData || pageData.length === 0) {
+        keepFetching = false;
+        break;
+      }
+      productsList = productsList.concat(pageData);
+      if (pageData.length < PAGE_LIMIT) {
+        keepFetching = false;
+      }
+      pageIndex++;
+    }
 
     let matchedCount = 0;
     let changedCount = 0;
@@ -317,8 +336,27 @@ export async function processBatchChunkAction(
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: true };
     }
 
-    const { data: existingProducts } = await supabase.from('products').select('id, reference_code, brand, name, price, stock, is_active, colecao, user_id');
-    const productsList = existingProducts || [];
+    let productsList: any[] = [];
+    let pageIndex = 0;
+    const PAGE_LIMIT = 1000;
+    let keepFetching = true;
+
+    while (keepFetching) {
+      const { data: pageData, error: pageErr } = await supabase
+        .from('products')
+        .select('id, reference_code, brand, name, price, stock, is_active, colecao, user_id, company_id, organization_id')
+        .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
+
+      if (pageErr || !pageData || pageData.length === 0) {
+        keepFetching = false;
+        break;
+      }
+      productsList = productsList.concat(pageData);
+      if (pageData.length < PAGE_LIMIT) {
+        keepFetching = false;
+      }
+      pageIndex++;
+    }
 
     let applied = 0;
     let skipped = 0;
