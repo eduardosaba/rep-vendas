@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-wrapper.mjs",
-    "build": "node scripts/check-env.js && node scripts/check-assets.js && next build",
+    "build": "node scripts/check-env.js && node scripts/check-assets.js && node --max-old-space-size=8192 node_modules/next/dist/bin/next build",
     "start": "next start",
     "e2e:internalize": "node scripts/e2e-internalize-test.mjs",
     "lint": "next lint",

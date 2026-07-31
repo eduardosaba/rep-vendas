@@ -18,6 +18,31 @@ export interface ScopeConfig {
   createMissingRelations?: boolean; // Default false in V1
 }
 
+// Which target layers each scope is allowed to touch.
+export const LAYER_SCOPE_MATRIX: Record<ScopeType, TargetLayer[]> = {
+  PLATFORM_GLOBAL: ['global', 'company', 'user'],
+  GLOBAL: ['global'],
+  ORGANIZATION: ['company', 'user'],
+  ORGANIZATION_LIST: ['company', 'user'],
+  COMPANY: ['company'],
+  USER: ['user'],
+  USER_AUTHORSHIP: ['user'],
+};
+
+export const SCOPE_LABELS: Record<ScopeType, string> = {
+  PLATFORM_GLOBAL: 'Plataforma Global (Master)',
+  GLOBAL: 'Global (Base do Sistema)',
+  ORGANIZATION: 'Organização Específica',
+  ORGANIZATION_LIST: 'Lista de Organizações',
+  COMPANY: 'Empresa Específica',
+  USER: 'Usuário Específico',
+  USER_AUTHORSHIP: 'Usuário (Autor dos Registros)',
+};
+
+export function allowedLayersForScope(scope: ScopeConfig): TargetLayer[] {
+  return LAYER_SCOPE_MATRIX[scope.type] || [];
+}
+
 export function validateLayerScopeCompatibility(layer: TargetLayer, scope: ScopeConfig): { valid: boolean; reason?: string } {
   if (layer === 'global' && (scope.type === 'USER' || scope.type === 'USER_AUTHORSHIP')) {
     return { valid: false, reason: 'Camada Global não permite escopo por Usuário.' };

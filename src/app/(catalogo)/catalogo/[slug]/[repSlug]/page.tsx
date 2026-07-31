@@ -3,8 +3,9 @@ import { notFound } from 'next/navigation';
 import CatalogRichLayout from '@/components/catalogo/CatalogRichLayout';
 import CatalogStandardLayout from '@/components/catalogo/CatalogStandardLayout';
 import { getPublicCatalog } from '@/lib/catalog';
-import { resolveContext } from '@/lib/resolve-context';
+import { normalizeCatalogSlug, resolvePublicCatalogContext } from '@/lib/resolve-context';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -26,7 +27,7 @@ async function getCompanyCatalogPublicSettings(companySlug: string) {
     const { data } = await admin
       .from('public_catalogs')
       .select('user_id,logo_url,show_cost_price,show_sale_price,price_unlock_mode,price_password_hash,top_benefit_mode,top_benefit_bg_color,top_benefit_text_color,top_benefit_speed,top_benefit_animation,header_background_color,header_text_color,header_icon_bg_color,header_icon_color,banners,banners_mobile,share_banner_url,gallery_urls,gallery_title,gallery_subtitle,gallery_title_color,gallery_subtitle_color,show_headline_overlay,cover_headline_position,headline_text_color,cover_headline_font_size,cover_headline_offset_x,cover_headline_offset_y,cover_headline_z_index,cover_headline_wrap,cover_headline_force_two_lines')
-      .eq('catalog_slug', companySlug)
+      .ilike('catalog_slug', companySlug)
       .maybeSingle();
 
     return data || null;
@@ -98,24 +99,19 @@ interface PageProps {
 
 export default async function Page({ params }: PageProps) {
   const { slug, repSlug } = await params;
-  const normalizedCompanySlug = String(slug || '').trim().toLowerCase();
-  const normalizedRepSlug = String(repSlug || '').trim().toLowerCase();
+  const normalizedCompanySlug = normalizeCatalogSlug(slug);
+  const normalizedRepSlug = normalizeCatalogSlug(repSlug);
   const supabase = await createClient();
-  let context = await resolveContext([normalizedCompanySlug, normalizedRepSlug], supabase as any);
 
-  // Fallback para rotas públicas: se RLS bloquear leitura de profiles/companies no client público,
-  // usa service role apenas para resolver o contexto de URL.
-  if (!context?.company || !context?.representative) {
-    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (adminKey && supabaseUrl) {
-      const admin = createSupabaseAdmin(String(supabaseUrl), String(adminKey), {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const adminContext = await resolveContext([normalizedCompanySlug, normalizedRepSlug], admin as any);
-      if (adminContext) context = adminContext;
-    }
-  }
+  const headersList = await headers();
+  const userAgent = headersList.get('user-agent') || undefined;
+
+  const { context } = await resolvePublicCatalogContext(
+    [normalizedCompanySlug, normalizedRepSlug],
+    supabase as any,
+    buildSupabaseAdmin,
+    { userAgent, pathname: `/catalogo/${normalizedCompanySlug}/${normalizedRepSlug}` }
+  );
 
   const company = context?.company || null;
   const representative = context?.representative || null;

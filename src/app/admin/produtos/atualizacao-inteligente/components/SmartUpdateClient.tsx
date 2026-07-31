@@ -40,9 +40,10 @@ import {
 interface SmartUpdateClientProps {
   availableCompanies: { id: string; name: string }[];
   availableUsers: { id: string; email: string; full_name?: string }[];
+  availableScopes?: string[];
 }
 
-export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartUpdateClientProps) {
+export function SmartUpdateClient({ availableCompanies, availableUsers, availableScopes = ['PLATFORM_GLOBAL', 'GLOBAL', 'ORGANIZATION', 'COMPANY'] }: SmartUpdateClientProps) {
   const [step, setStep] = useState<number>(1);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
   const [file, setFile] = useState<File | null>(null);
@@ -93,7 +94,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
   ]);
 
   // Step 5 Scope State
-  const [scopeType, setScopeType] = useState<'PLATFORM_GLOBAL' | 'GLOBAL' | 'ORGANIZATION' | 'ORGANIZATION_LIST' | 'USER_AUTHORSHIP' | 'COMPANY' | 'USER'>('PLATFORM_GLOBAL');
+  const [scopeType, setScopeType] = useState<'PLATFORM_GLOBAL' | 'GLOBAL' | 'ORGANIZATION' | 'ORGANIZATION_LIST' | 'USER_AUTHORSHIP' | 'COMPANY' | 'USER'>(availableScopes[0] as any || 'PLATFORM_GLOBAL');
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
@@ -763,19 +764,69 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
       {step === 5 && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
           <div className="pb-4 border-b border-slate-100 dark:border-slate-800">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 5: Escopo Global da Torre de Controle</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 5: Escopo da Atualização</h3>
             <p className="text-xs text-slate-500">
-              Escopo selecionado: <strong className="uppercase text-indigo-600">PLATFORM_GLOBAL</strong> (Exclusivo Master).
+              Selecione o escopo de impacto. As opções exibidas dependem da sua permissão.
             </p>
           </div>
 
-          <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
-            <div className="font-bold flex items-center gap-1">
-              <CheckCircle2 size={16} /> Escopo Plataforma Global Ativo
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {availableScopes.includes('PLATFORM_GLOBAL') && (
+              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                <input type="radio" name="scope" value="PLATFORM_GLOBAL" checked={scopeType === 'PLATFORM_GLOBAL'} onChange={() => setScopeType('PLATFORM_GLOBAL')} className="mt-0.5 text-indigo-600" />
+                <span>
+                  <span className="block font-semibold text-sm">Plataforma Global (Master/Admin)</span>
+                  <span className="block text-xs text-slate-500">Localiza todas as cópias dos produtos em todas as organizações ativas.</span>
+                </span>
+              </label>
+            )}
+            {availableScopes.includes('GLOBAL') && (
+              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                <input type="radio" name="scope" value="GLOBAL" checked={scopeType === 'GLOBAL'} onChange={() => setScopeType('GLOBAL')} className="mt-0.5 text-indigo-600" />
+                <span>
+                  <span className="block font-semibold text-sm">Global (Base do Sistema)</span>
+                  <span className="block text-xs text-slate-500">Atualiza o catálogo base de todos os produtos.</span>
+                </span>
+              </label>
+            )}
+            {availableScopes.includes('ORGANIZATION') && (
+              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                <input type="radio" name="scope" value="ORGANIZATION" checked={scopeType === 'ORGANIZATION'} onChange={() => setScopeType('ORGANIZATION')} className="mt-0.5 text-indigo-600" />
+                <span>
+                  <span className="block font-semibold text-sm">Organização Específica</span>
+                  <span className="block text-xs text-slate-500">Atualiza apenas os produtos da organização selecionada.</span>
+                </span>
+              </label>
+            )}
+            {availableScopes.includes('COMPANY') && (
+              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                <input type="radio" name="scope" value="COMPANY" checked={scopeType === 'COMPANY'} onChange={() => setScopeType('COMPANY')} className="mt-0.5 text-indigo-600" />
+                <span>
+                  <span className="block font-semibold text-sm">Empresa Específica (Company Admin)</span>
+                  <span className="block text-xs text-slate-500">Atualiza apenas os produtos da sua empresa.</span>
+                </span>
+              </label>
+            )}
+          </div>
+
+          {(scopeType === 'ORGANIZATION' || scopeType === 'COMPANY') && (
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-500">Selecione a {scopeType === 'ORGANIZATION' ? 'Organização' : 'Empresa'}</label>
+              <select
+                value={selectedCompanies[0] || ''}
+                onChange={(e) => setSelectedCompanies(e.target.value ? [e.target.value] : [])}
+                className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 dark:bg-slate-800"
+              >
+                <option value="">Selecione...</option>
+                {availableCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
-            <p>
-              O motor de atualização irá localizar todas as cópias dos produtos em todas as organizações ativas no banco de dados utilizando a chave de busca normalizada <code className="font-mono bg-white dark:bg-slate-900 px-1 rounded">MARCA|REFERÊNCIA</code>.
-            </p>
+          )}
+
+          <div className="p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs text-indigo-900 dark:text-indigo-300">
+            <strong className="font-bold">Regra da Torre de Controle:</strong> a busca global utiliza a chave <code className="font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">MARCA|REFERENCIA</code> normalizada para localizar todas as cópias do produto.
           </div>
 
           <div className="flex justify-between pt-4">
@@ -784,10 +835,10 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             </button>
             <button
               onClick={handleRunPreview}
-              disabled={isPreviewing}
+              disabled={isPreviewing || ((scopeType === 'ORGANIZATION' || scopeType === 'COMPANY') && selectedCompanies.length === 0)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2"
             >
-              {isPreviewing ? <RefreshCw size={16} className="animate-spin" /> : 'Gerar Preview Global'}
+              {isPreviewing ? <RefreshCw size={16} className="animate-spin" /> : 'Gerar Preview'}
             </button>
           </div>
         </div>

@@ -2,15 +2,16 @@
 
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/server';
-import { isAdminRole } from '@/lib/auth/roles';
 import { getActiveUserId } from '@/lib/auth-utils';
 import { getFieldDefinition } from '../domain/field-registry';
 import { validateLayerScopeCompatibility } from '../domain/layer-scope-matrix';
 import {
   AnalyzeSpreadsheetResult,
   EngineConfiguration,
+  OrganizationPreviewItem,
   PreviewEngineResult,
   PreviewRowDetail,
+  PreviewStatus,
   SpreadsheetColumn,
 } from '../domain/types';
 import {
@@ -22,7 +23,7 @@ import {
   normalizeLookupValue,
 } from './parser-utils';
 
-async function requireProductUpdateMaster() {
+async function requireProductUpdateAccess() {
   const userId = await getActiveUserId();
   if (!userId) {
     throw new Error('Usuário não autenticado.');
@@ -31,15 +32,77 @@ async function requireProductUpdateMaster() {
   const supabase = await createClient();
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, role, organization_id')
+    .select('id, role, organization_id, company_id')
     .eq('id', userId)
     .maybeSingle();
 
-  if (error || !profile || profile.role !== 'master') {
-    throw new Error('Acesso negado. Apenas o usuário master da Torre de Controle pode executar atualizações de plataforma.');
+  if (error || !profile) {
+    throw new Error('Perfil não encontrado.');
   }
 
-  return { userId, supabase, profile };
+  const role = profile.role as string;
+  const isMaster = role === 'master';
+  const isAdmin = role === 'admin';
+  const isCompanyAdmin = ['company_admin', 'admin_company'].includes(role);
+
+  if (!isMaster && !isAdmin && !isCompanyAdmin) {
+    throw new Error('Acesso negado. Apenas master, admin ou administrador de empresa.');
+  }
+
+  return { userId, supabase, profile, isMaster, isAdmin, isCompanyAdmin };
+}
+
+async function requireProductUpdateMaster() {
+  const ctx = await requireProductUpdateAccess();
+  if (!ctx.isMaster) {
+    throw new Error('Acesso negado. Apenas o usuário master da Torre de Controle pode executar atualizações de plataforma.');
+  }
+  return ctx;
+}
+
+const requireProductUpdateAdmin = requireProductUpdateAccess;
+
+function validateCompanyAdminScope(profile: any, scope: any): void {
+  const isCompanyAdmin = ['company_admin', 'admin_company'].includes(profile.role);
+  if (!isCompanyAdmin) return;
+
+  const scopeType = scope?.type || 'GLOBAL';
+  const targetOrgs = scope?.targetOrganizationIds || [];
+  const targetCompanies = scope?.targetCompanyIds || [];
+
+  if (scopeType !== 'COMPANY' && scopeType !== 'ORGANIZATION') {
+    throw new Error('Acesso negado: Administradores de empresa só podem executar no escopo COMPANY ou ORGANIZATION.');
+  }
+
+  if (scopeType === 'COMPANY') {
+    if (!profile.company_id || !targetCompanies.includes(profile.company_id)) {
+      throw new Error('Acesso negado: Empresa fora do seu escopo.');
+    }
+  }
+
+  if (scopeType === 'ORGANIZATION') {
+    if (!profile.organization_id || !targetOrgs.includes(profile.organization_id)) {
+      throw new Error('Acesso negado: Organização fora do seu escopo.');
+    }
+  }
+}
+
+function applyBrandFilterToQuery(query: any, spreadsheetBrands: any[], brandColumn: string): any {
+  const terms = Array.from(
+    new Set(
+      spreadsheetBrands.flatMap((b) => {
+        const raw = String(b ?? '').trim();
+        const norm = normalizeLookupValue(raw);
+        return [raw, norm].filter((t) => t.length >= 2);
+      })
+    )
+  );
+
+  // Fallback to full scan when too many distinct brands (avoid oversized OR clauses)
+  if (terms.length === 0 || terms.length > 15) return query;
+
+  const orClauses = terms.map((t) => `${brandColumn}.ilike.%${t}%`).join(',');
+  return query.or(orClauses);
 }
 
 async function calculateFileHash(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -101,7 +164,7 @@ function applyScopeToQuery(query: any, scope: EngineConfiguration['scope'], defa
 
 export async function analyzeSpreadsheetAction(formData: FormData): Promise<AnalyzeSpreadsheetResult> {
   try {
-    await requireProductUpdateMaster();
+    await requireProductUpdateAccess();
 
     const file = formData.get('file') as File | null;
     if (!file) return { fileName: '', fileHash: '', sheets: [], selectedSheet: '', columns: [], sampleRows: [], totalRows: 0, error: 'Nenhum arquivo enviado.' };
@@ -167,12 +230,10 @@ export async function analyzeSpreadsheetAction(formData: FormData): Promise<Anal
 
 export async function previewEngineAction(formData: FormData, configJsonStr: string): Promise<PreviewEngineResult> {
   try {
-    const { supabase } = await requireProductUpdateMaster();
+    const { supabase, profile } = await requireProductUpdateAccess();
     const config: EngineConfiguration = JSON.parse(configJsonStr);
 
-    if (config.scope.type !== 'PLATFORM_GLOBAL') {
-      return { totalRows: 0, matchedRows: 0, changedRows: 0, skippedRows: 0, notFoundRows: 0, criticalConfirmationRequired: false, sampleDetails: [], error: 'A Atualização Inteligente da Torre de Controle exige escopo PLATFORM_GLOBAL.' };
-    }
+    validateCompanyAdminScope(profile, config.scope);
 
     for (const act of config.actions) {
       const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
@@ -197,7 +258,7 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
         notFoundRows: 0,
         criticalConfirmationRequired: false,
         sampleDetails: [],
-        error: 'No modo de atualização PLATFORM_GLOBAL, é obrigatório mapear a Marca e a Referência.',
+        error: 'É obrigatório mapear a Marca e a Referência.',
       };
     }
 
@@ -214,6 +275,8 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
 
     const selectColumns = getDynamicProductSelectColumns(config.actions);
 
+    const spreadsheetBrands = rawData.map((row) => row[brandMapping.spreadsheetColumn]);
+
     let productsList: any[] = [];
     let pageIndex = 0;
     const PAGE_LIMIT = 1000;
@@ -223,9 +286,12 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       let query = supabase
         .from('products')
         .select(selectColumns)
-        .not('organization_id', 'is', null)
-        .order('id', { ascending: true })
-        .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
+        .not('organization_id', 'is', null);
+
+      query = applyScopeToQuery(query, config.scope);
+      query = applyBrandFilterToQuery(query, spreadsheetBrands, 'brand');
+
+      query = query.order('id', { ascending: true }).range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
 
       const { data: pageData, error: pageErr } = await (query as any);
 
@@ -587,8 +653,9 @@ export async function createJobAction(
   metrics?: Record<string, any>
 ): Promise<{ jobId?: string; error?: string }> {
   try {
-    const { userId, supabase } = await requireProductUpdateMaster();
+    const { userId, supabase, profile } = await requireProductUpdateAccess();
     const config: EngineConfiguration = JSON.parse(configJsonStr);
+    validateCompanyAdminScope(profile, config.scope);
     const configHash = computeConfigHash(config);
     config.configHash = configHash;
 
@@ -626,7 +693,7 @@ export async function processBatchChunkAction(
   formData: FormData
 ): Promise<{ processed: number; applied: number; skipped: number; failed: number; isCompleted: boolean; error?: string }> {
   try {
-    const { userId, supabase, profile } = await requireProductUpdateMaster();
+    const { userId, supabase, profile } = await requireProductUpdateAccess();
 
     const { data: job, error: jobErr } = await supabase
       .from('product_update_jobs')
@@ -638,14 +705,12 @@ export async function processBatchChunkAction(
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Job não encontrado.' };
     }
 
-    if (job.created_by !== userId && profile.role !== 'master') {
+    if (job.created_by !== userId && !['master', 'admin'].includes(profile.role)) {
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Acesso negado. Apenas o criador ou admin master pode executar este job.' };
     }
 
     const config: EngineConfiguration = job.configuration as any;
-    if (config.scope.type !== 'PLATFORM_GLOBAL') {
-      return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Apenas escopo PLATFORM_GLOBAL é permitido nesta ação.' };
-    }
+    validateCompanyAdminScope(profile, config.scope);
 
     const file = formData.get('file') as File | null;
     if (!file) {
@@ -683,6 +748,8 @@ export async function processBatchChunkAction(
     const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
     const chunkData = rawData.slice(chunkRowIndex, chunkRowIndex + chunkSize);
+    const isCompleted = chunkRowIndex + chunkSize >= rawData.length;
+
     if (chunkData.length === 0) {
       await supabase.from('product_update_jobs').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', jobId);
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: true };
@@ -696,6 +763,7 @@ export async function processBatchChunkAction(
     }
 
     const selectColumns = getDynamicProductSelectColumns(config.actions);
+    const chunkBrands = chunkData.map((row) => row[brandMapping.spreadsheetColumn]);
 
     let productsList: any[] = [];
     let pageIndex = 0;
@@ -703,10 +771,15 @@ export async function processBatchChunkAction(
     let keepFetching = true;
 
     while (keepFetching) {
-      const { data: pageData, error: pageErr } = await supabase
+      let query = supabase
         .from('products')
         .select(selectColumns)
-        .not('organization_id', 'is', null)
+        .not('organization_id', 'is', null);
+
+      query = applyScopeToQuery(query, config.scope);
+      query = applyBrandFilterToQuery(query, chunkBrands, 'brand');
+
+      const { data: pageData, error: pageErr } = await query
         .order('id', { ascending: true })
         .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
 
@@ -728,9 +801,9 @@ export async function processBatchChunkAction(
       }
     }
 
-    let applied = 0;
-    let skipped = 0;
-    let failed = 0;
+    let skippedRows = 0;
+    let noChangeCount = 0;
+    const rpcRows: any[] = [];
 
     for (let idx = 0; idx < chunkData.length; idx++) {
       const row = chunkData[idx];
@@ -743,7 +816,7 @@ export async function processBatchChunkAction(
       }
 
       if (!passFilter) {
-        skipped++;
+        skippedRows++;
         continue;
       }
 
@@ -752,13 +825,13 @@ export async function processBatchChunkAction(
       const lookupKey = buildProductLookupKey(rawBrand, rawRef);
 
       if (!lookupKey) {
-        failed++;
+        skippedRows++;
         continue;
       }
 
       const allMatched = lookupMap.get(lookupKey) || [];
       if (allMatched.length === 0) {
-        skipped++;
+        skippedRows++;
         continue;
       }
 
@@ -770,14 +843,14 @@ export async function processBatchChunkAction(
       }
 
       const validProds: any[] = [];
-      for (const [_, prods] of orgProdsMap.entries()) {
+      for (const [, prods] of orgProdsMap.entries()) {
         if (prods.length === 1) {
           validProds.push(prods[0]);
         }
       }
 
       if (validProds.length === 0) {
-        skipped++;
+        skippedRows++;
         continue;
       }
 
@@ -790,68 +863,94 @@ export async function processBatchChunkAction(
           const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
           const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
 
-          if (newVal !== currentDbVal) {
-            const { error: updateErr } = await supabase
-              .from(fieldDef.table as any)
-              .update({ [fieldDef.column]: newVal })
-              .eq('id', matchedProd.id);
-
-            if (updateErr) {
-              failed++;
-              await supabase.from('product_update_job_items').insert({
-                job_id: jobId,
-                row_number: actualRowIndex,
-                product_id: matchedProd.id,
-                company_id: matchedProd.company_id || matchedProd.organization_id,
-                user_id: matchedProd.user_id,
-                target_layer: act.targetLayer,
-                target_table: fieldDef.table,
-                target_record_id: matchedProd.id,
-                target_field: fieldDef.column,
-                old_value: currentDbVal as any,
-                new_value: newVal as any,
-                action_type: act.operation,
-                status: 'failed',
-                error_message: updateErr.message,
-              });
-            } else {
-              applied++;
-              await supabase.from('product_update_job_items').insert({
-                job_id: jobId,
-                row_number: actualRowIndex,
-                product_id: matchedProd.id,
-                company_id: matchedProd.company_id || matchedProd.organization_id,
-                user_id: matchedProd.user_id,
-                target_layer: act.targetLayer,
-                target_table: fieldDef.table,
-                target_record_id: matchedProd.id,
-                target_field: fieldDef.column,
-                old_value: currentDbVal as any,
-                new_value: newVal as any,
-                action_type: act.operation,
-                status: 'applied',
-                applied_at: new Date().toISOString(),
-              });
-            }
-          } else {
-            skipped++;
+          if (newVal === currentDbVal) {
+            noChangeCount++;
+            continue;
           }
+
+          // Pre-create pending job item so the RPC can apply it atomically
+          const { data: jobItem, error: itemErr } = await supabase
+            .from('product_update_job_items')
+            .insert({
+              job_id: jobId,
+              row_number: actualRowIndex,
+              product_id: matchedProd.id,
+              company_id: matchedProd.company_id || matchedProd.organization_id,
+              user_id: matchedProd.user_id,
+              target_layer: act.targetLayer,
+              target_table: fieldDef.table,
+              target_record_id: matchedProd.id,
+              target_field: fieldDef.column,
+              old_value: currentDbVal as any,
+              new_value: newVal as any,
+              action_type: act.operation,
+              status: 'pending',
+            })
+            .select('id')
+            .single();
+
+          if (itemErr || !jobItem) {
+            skippedRows++;
+            continue;
+          }
+
+          const scopeType = config.scope?.type || 'GLOBAL';
+          rpcRows.push({
+            job_item_id: jobItem.id,
+            product_id: matchedProd.id,
+            target_table: fieldDef.table,
+            target_field: fieldDef.column,
+            target_type: fieldDef.type,
+            old_value: currentDbVal,
+            new_value: newVal,
+            organization_id: matchedProd.organization_id || (scopeType === 'ORGANIZATION' ? matchedProd.company_id : undefined),
+            company_id: matchedProd.company_id || (scopeType === 'COMPANY' ? matchedProd.organization_id : undefined),
+            user_id: matchedProd.user_id,
+          });
         }
       }
     }
 
-    const isCompleted = chunkRowIndex + chunkSize >= rawData.length;
-    await supabase
-      .from('product_update_jobs')
-      .update({
-        status: isCompleted ? 'completed' : 'processing',
-        changed_rows: (job.changed_rows || 0) + applied,
-        failed_rows: (job.failed_rows || 0) + failed,
-        completed_at: isCompleted ? new Date().toISOString() : null,
-      })
-      .eq('id', jobId);
+    let applied = 0;
+    let unchanged = 0;
+    let conflicts = 0;
+    let failed = 0;
 
-    return { processed: chunkData.length, applied, skipped, failed, isCompleted };
+    if (rpcRows.length > 0) {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('apply_product_update_batch', {
+        p_job_id: jobId,
+        p_rows: rpcRows,
+      });
+
+      if (rpcError) {
+        console.error('RPC apply_product_update_batch error:', rpcError);
+        // Mark all pre-created pending items as failed so the job is not stuck
+        const pendingIds = rpcRows.map((r) => r.job_item_id);
+        await supabase
+          .from('product_update_job_items')
+          .update({ status: 'failed', error_message: rpcError.message })
+          .in('id', pendingIds);
+        await supabase.from('product_update_jobs').update({ status: 'failed', error_message: rpcError.message, completed_at: new Date().toISOString() }).eq('id', jobId);
+        return { processed: chunkData.length, applied: 0, skipped: 0, failed: rpcRows.length, isCompleted: true, error: rpcError.message };
+      }
+
+      applied = rpcResult?.applied || 0;
+      unchanged = rpcResult?.unchanged || 0;
+      conflicts = rpcResult?.conflicts || 0;
+      failed = rpcResult?.failed || 0;
+    }
+
+    if (isCompleted) {
+      const totalErrors = conflicts + failed;
+      const status = totalErrors > 0 ? (applied > 0 ? 'partially_completed' : 'failed') : 'completed';
+      await supabase
+        .from('product_update_jobs')
+        .update({ status, completed_at: new Date().toISOString() })
+        .eq('id', jobId);
+    }
+
+    const skipped = skippedRows + noChangeCount + unchanged;
+    return { processed: chunkData.length, applied, skipped, failed: conflicts + failed, isCompleted };
   } catch (err: any) {
     console.error('Erro em processBatchChunkAction:', err);
     return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: err.message || 'Erro no lote.' };
@@ -860,72 +959,55 @@ export async function processBatchChunkAction(
 
 export async function rollbackJobAction(jobId: string): Promise<{ success: boolean; rolledBack: number; conflicts: number; errors: string[] }> {
   try {
-    const { userId, supabase, profile } = await requireProductUpdateMaster();
+    const { userId, supabase, profile } = await requireProductUpdateAccess();
 
     const { data: job } = await supabase.from('product_update_jobs').select('*').eq('id', jobId).single();
     if (!job) return { success: false, rolledBack: 0, conflicts: 0, errors: ['Job não encontrado.'] };
-    if (job.created_by !== userId && profile.role !== 'master') {
+    if (job.created_by !== userId && !['master', 'admin'].includes(profile.role)) {
       return { success: false, rolledBack: 0, conflicts: 0, errors: ['Acesso negado. Se você não é o criador deste job, não pode desfazê-lo.'] };
     }
 
+    const config: EngineConfiguration = job.configuration as any;
+    validateCompanyAdminScope(profile, config.scope);
+
+    // Fetch only applied items that have not been rolled back yet
     const { data: items } = await supabase
       .from('product_update_job_items')
-      .select('*')
+      .select('id')
       .eq('job_id', jobId)
-      .eq('status', 'applied');
+      .eq('status', 'applied')
+      .is('rollback_status', null);
 
     if (!items || items.length === 0) {
       return { success: true, rolledBack: 0, conflicts: 0, errors: ['Nenhum item elegível para rollback.'] };
     }
 
+    const itemIds = items.map((i: any) => i.id);
     let rolledBack = 0;
     let conflicts = 0;
     const errors: string[] = [];
 
-    for (const item of items) {
-      const { data: currentProd } = await supabase
-        .from(item.target_table as any)
-        .select(item.target_field)
-        .eq('id', item.target_record_id)
-        .single();
+    const BATCH_SIZE = 200;
+    for (let i = 0; i < itemIds.length; i += BATCH_SIZE) {
+      const batchIds = itemIds.slice(i, i + BATCH_SIZE);
 
-      if (!currentProd) {
-        errors.push(`Registro ${item.target_record_id} não encontrado no rollback.`);
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('rollback_product_update_batch', {
+        p_job_id: jobId,
+        p_item_ids: batchIds,
+      });
+
+      if (rpcError) {
+        console.error('RPC rollback_product_update_batch error:', rpcError);
+        errors.push(`Falha no lote de rollback ${i / BATCH_SIZE + 1}: ${rpcError.message}`);
         continue;
       }
 
-      const currentVal = (currentProd as any)[item.target_field];
-      const expectedNewVal = item.new_value;
-
-      if (JSON.stringify(currentVal) !== JSON.stringify(expectedNewVal)) {
-        conflicts++;
-        await supabase.from('product_update_job_items').update({
-          status: 'conflict',
-          error_message: 'Valor atual no banco foi alterado por terceiros após a importação.',
-        }).eq('id', item.id);
-        continue;
-      }
-
-      const { error: restoreErr } = await supabase
-        .from(item.target_table as any)
-        .update({ [item.target_field]: item.old_value })
-        .eq('id', item.target_record_id);
-
-      if (restoreErr) {
-        errors.push(`Falha ao restaurar item ${item.id}: ${restoreErr.message}`);
-      } else {
-        rolledBack++;
-        await supabase.from('product_update_job_items').update({
-          status: 'rolled_back',
-          rolled_back_at: new Date().toISOString(),
-        }).eq('id', item.id);
+      rolledBack += rpcResult?.restored || 0;
+      conflicts += rpcResult?.conflicts || 0;
+      if ((rpcResult?.failed || 0) > 0) {
+        errors.push(`${rpcResult.failed} itens falharam no rollback do lote ${i / BATCH_SIZE + 1}.`);
       }
     }
-
-    await supabase.from('product_update_jobs').update({
-      status: conflicts > 0 ? 'partially_rolled_back' : 'rolled_back',
-      rolled_back_at: new Date().toISOString(),
-    }).eq('id', jobId);
 
     return { success: true, rolledBack, conflicts, errors };
   } catch (err: any) {
@@ -1003,8 +1085,8 @@ export async function getExecutiveDashboardStatsAction(): Promise<{
     const activeProducts = products.filter((p: any) => p.is_active !== false).length;
     const inactiveProducts = totalProducts - activeProducts;
 
-    const prices = products.map((p: any) => Number(p.price) || 0).filter((p) => p > 0);
-    const averagePrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+    const prices = products.map((p: any) => Number(p.price) || 0).filter((p: number) => p > 0);
+    const averagePrice = prices.length > 0 ? prices.reduce((a: number, b: number) => a + b, 0) / prices.length : 0;
     const totalStockQuantity = products.reduce((acc: number, p: any) => acc + (Number(p.stock) || 0), 0);
 
     const { data: jobs } = await supabase

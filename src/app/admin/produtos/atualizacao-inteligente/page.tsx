@@ -5,7 +5,7 @@ import { isAdminRole } from '@/lib/auth/roles';
 import { SmartUpdateClient } from './components/SmartUpdateClient';
 
 export default async function SmartUpdatePage() {
-  const isEnabled = process.env.FACTORY_LINE_IMPORT_ENABLED !== 'false';
+  const isEnabled = process.env.PRODUCT_UPDATE_ENGINE_ENABLED !== 'false';
 
   if (!isEnabled) {
     notFound();
@@ -32,6 +32,16 @@ export default async function SmartUpdatePage() {
   const { data: companies } = await supabase.from('companies').select('id, name').order('name');
   const { data: users } = await supabase.from('profiles').select('id, email, full_name').order('email');
 
+  // Determine allowed scopes based on the user's role
+  const role = profile?.role;
+  const isMasterOrAdmin = role === 'master' || role === 'admin';
+  const isCompanyAdmin = role === 'company_admin' || role === 'admin_company';
+  const availableScopes = isMasterOrAdmin
+    ? ['PLATFORM_GLOBAL', 'GLOBAL', 'ORGANIZATION', 'COMPANY']
+    : isCompanyAdmin
+    ? ['ORGANIZATION', 'COMPANY']
+    : [];
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -44,6 +54,7 @@ export default async function SmartUpdatePage() {
       <SmartUpdateClient
         availableCompanies={companies || []}
         availableUsers={users || []}
+        availableScopes={availableScopes}
       />
     </div>
   );

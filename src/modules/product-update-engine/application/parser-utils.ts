@@ -1,19 +1,15 @@
 import * as crypto from 'crypto';
 import { EngineConfiguration, FilterOperator, NormalizerRule, StructuredOperationType } from '../domain/types';
+import { normalizeProductKey, buildProductLookupKey as buildKey } from '@/shared/utils/normalize-product-key';
+
+export { normalizeProductKey } from '@/shared/utils/normalize-product-key';
 
 export function normalizeLookupValue(value: unknown): string {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
+  return normalizeProductKey(value as string | null | undefined);
 }
 
 export function buildProductLookupKey(brand: unknown, referenceCode: unknown): string {
-  const normBrand = normalizeLookupValue(brand);
-  const normRef = normalizeLookupValue(referenceCode);
-  if (!normBrand || !normRef) return '';
-  return `${normBrand}|${normRef}`;
+  return buildKey(brand as string | null | undefined, referenceCode as string | null | undefined);
 }
 
 export function computeConfigHash(config: EngineConfiguration): string {
@@ -46,45 +42,7 @@ export function parsePortugueseCurrencyOrNumber(val: any): number {
 }
 
 export function applyStringNormalizations(val: any, rules: NormalizerRule[]): string {
-  if (val === null || val === undefined) return '';
-  let str = String(val).replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ').replace(/\s+/g, ' ').trim();
-
-  for (const rule of rules) {
-    switch (rule) {
-      case 'trim':
-        str = str.trim();
-        break;
-      case 'uppercase':
-        str = str.toUpperCase();
-        break;
-      case 'lowercase':
-        str = str.toLowerCase();
-        break;
-      case 'remove_accents':
-        str = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        break;
-      case 'remove_hyphens':
-        str = str.replace(/-/g, '');
-        break;
-      case 'remove_dots':
-        str = str.replace(/\./g, '');
-        break;
-      case 'remove_invisible':
-        str = str.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ');
-        break;
-      case 'remove_spaces':
-        str = str.replace(/\s+/g, '');
-        break;
-      case 'remove_slashes':
-        str = str.replace(/[\/\\]/g, '');
-        break;
-      case 'alphanumeric_only':
-        str = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '');
-        break;
-    }
-  }
-
-  return str;
+  return normalizeProductKey(val, { rules });
 }
 
 export function evaluateFilterCondition(rowValue: any, operator: FilterOperator, targetValue: any): boolean {
