@@ -1,4 +1,26 @@
-import { FilterOperator, NormalizerRule, StructuredOperationType } from '../domain/types';
+import * as crypto from 'crypto';
+import { EngineConfiguration, FilterOperator, NormalizerRule, StructuredOperationType } from '../domain/types';
+
+export function normalizeLookupValue(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+export function buildProductLookupKey(brand: unknown, referenceCode: unknown): string {
+  const normBrand = normalizeLookupValue(brand);
+  const normRef = normalizeLookupValue(referenceCode);
+  if (!normBrand || !normRef) return '';
+  return `${normBrand}|${normRef}`;
+}
+
+export function computeConfigHash(config: EngineConfiguration): string {
+  const cleanConfig = { ...config };
+  delete cleanConfig.configHash;
+  return crypto.createHash('sha256').update(JSON.stringify(cleanConfig)).digest('hex');
+}
 
 export function parsePortugueseCurrencyOrNumber(val: any): number {
   if (val === null || val === undefined || val === '') return 0;
@@ -49,6 +71,15 @@ export function applyStringNormalizations(val: any, rules: NormalizerRule[]): st
         break;
       case 'remove_invisible':
         str = str.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ');
+        break;
+      case 'remove_spaces':
+        str = str.replace(/\s+/g, '');
+        break;
+      case 'remove_slashes':
+        str = str.replace(/[\/\\]/g, '');
+        break;
+      case 'alphanumeric_only':
+        str = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '');
         break;
     }
   }

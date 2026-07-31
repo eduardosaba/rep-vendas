@@ -115,4 +115,74 @@ describe('Motor de Atualização Inteligente por Planilha — Unit Tests', () =>
       expect(status).toBe('NOT_FOUND');
     });
   });
+
+  describe('7. Torre de Controle — Busca Global por MARCA|REFERÊNCIA e Multitenant', () => {
+    const { buildProductLookupKey, normalizeLookupValue } = require('../src/modules/product-update-engine/application/parser-utils');
+
+    it('deve normalizar marca e referência para formar a chave técnica única sem alterar valores originais', () => {
+      expect(normalizeLookupValue('Moschino')).toBe('MOSCHINO');
+      expect(normalizeLookupValue('MOS652 807')).toBe('MOS652807');
+      expect(normalizeLookupValue('MOS652-807')).toBe('MOS652807');
+      expect(normalizeLookupValue('MOS176/S 086')).toBe('MOS176S086');
+
+      expect(buildProductLookupKey('Moschino', 'MOS652 807')).toBe('MOSCHINO|MOS652807');
+      expect(buildProductLookupKey('MOSCHINO', 'MOS652-807')).toBe('MOSCHINO|MOS652807');
+      expect(buildProductLookupKey('moschino', 'MOS652/807')).toBe('MOSCHINO|MOS652807');
+      expect(buildProductLookupKey('', 'MOS652807')).toBe('');
+    });
+
+    it('deve agrupar e identificar cópias legítimas do mesmo produto em múltiplas organizações', () => {
+      const globalMockDb = [
+        { id: 'p-1', organization_id: 'org-bahia', brand: 'Moschino', reference_code: 'MOS652-807' },
+        { id: 'p-2', organization_id: 'org-sergipe', brand: 'MOSCHINO', reference_code: 'MOS652807' },
+        { id: 'p-3', organization_id: 'org-pernambuco', brand: 'Moschino', reference_code: 'MOS652/807' },
+        { id: 'p-4', organization_id: 'org-bahia', brand: 'Boss', reference_code: 'BOSS-100' },
+      ];
+
+      const lookupMap = new Map<string, any[]>();
+      for (const p of globalMockDb) {
+        const key = buildProductLookupKey(p.brand, p.reference_code);
+        if (!lookupMap.has(key)) lookupMap.set(key, []);
+        lookupMap.get(key)!.push(p);
+      }
+
+      const targetKey = buildProductLookupKey('Moschino', 'MOS652 807');
+      const matched = lookupMap.get(targetKey) || [];
+
+      expect(matched.length).toBe(3);
+      const uniqueOrgs = new Set(matched.map((p) => p.organization_id));
+      expect(uniqueOrgs.size).toBe(3);
+    });
+
+    it('deve identificar ambiguidade apenas quando a mesma organização possuir duplicatas', () => {
+      const dbWithAmbiguity = [
+        { id: 'p-1', organization_id: 'org-A', brand: 'Moschino', reference_code: 'MOS652 807' },
+        { id: 'p-2', organization_id: 'org-A', brand: 'Moschino', reference_code: 'MOS652-807' }, // Duplicata na org A!
+        { id: 'p-3', organization_id: 'org-B', brand: 'Moschino', reference_code: 'MOS652807' },  // Válida na org B
+      ];
+
+      const orgMap = new Map<string, any[]>();
+      for (const p of dbWithAmbiguity) {
+        const orgId = p.organization_id;
+        if (!orgMap.has(orgId)) orgMap.set(orgId, []);
+        orgMap.get(orgId)!.push(p);
+      }
+
+      const validOrgs: any[] = [];
+      let ambiguousOrgsCount = 0;
+
+      for (const [orgId, prods] of orgMap.entries()) {
+        if (prods.length > 1) {
+          ambiguousOrgsCount++;
+        } else {
+          validOrgs.push(prods[0]);
+        }
+      }
+
+      expect(ambiguousOrgsCount).toBe(1); // org-A é ambígua
+      expect(validOrgs.length).toBe(1);    // org-B é válida
+      expect(validOrgs[0].organization_id).toBe('org-B');
+    });
+  });
 });
+

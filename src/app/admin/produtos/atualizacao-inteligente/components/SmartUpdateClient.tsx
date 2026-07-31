@@ -64,9 +64,10 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
   // Step 2 Configuration State
   const [selectedSheet, setSelectedSheet] = useState<string>('');
   const [identifierMappings, setIdentifierMappings] = useState<{ spreadsheetColumn: string; dbField: any }[]>([
+    { spreadsheetColumn: '', dbField: 'brand' },
     { spreadsheetColumn: '', dbField: 'reference_code' },
   ]);
-  const [normalizations, setNormalizations] = useState<NormalizerRule[]>(['trim', 'uppercase']);
+  const [normalizations, setNormalizations] = useState<NormalizerRule[]>(['trim', 'uppercase', 'alphanumeric_only']);
 
   // Step 3 Filters State
   const [filterConnective, setFilterConnective] = useState<'AND' | 'OR'>('AND');
@@ -87,12 +88,12 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
       targetField: 'is_active',
       operation: 'set',
       valueSource: 'fixed',
-      fixedValue: true,
+      fixedValue: false,
     },
   ]);
 
   // Step 5 Scope State
-  const [scopeType, setScopeType] = useState<'GLOBAL' | 'ORGANIZATION' | 'ORGANIZATION_LIST' | 'USER_AUTHORSHIP' | 'COMPANY' | 'USER'>('GLOBAL');
+  const [scopeType, setScopeType] = useState<'PLATFORM_GLOBAL' | 'GLOBAL' | 'ORGANIZATION' | 'ORGANIZATION_LIST' | 'USER_AUTHORSHIP' | 'COMPANY' | 'USER'>('PLATFORM_GLOBAL');
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
@@ -100,6 +101,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewResult, setPreviewResult] = useState<PreviewEngineResult | null>(null);
   const [confirmationInput, setConfirmationInput] = useState('');
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   // Step 7 Execution State
   const [jobId, setJobId] = useState<string | null>(null);
@@ -133,7 +135,13 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
     setAnalyzeData(res);
     setSelectedSheet(res.selectedSheet || res.sheets[0] || '');
     if (res.columns.length > 0) {
-      setIdentifierMappings([{ spreadsheetColumn: res.columns[0].name, dbField: 'reference_code' }]);
+      const brandCol = res.columns.find((c) => /marca|brand|fabricante/i.test(c.name))?.name || res.columns[0].name;
+      const refCol = res.columns.find((c) => /ref|codigo|sku|item|modelo/i.test(c.name))?.name || (res.columns[1]?.name || res.columns[0].name);
+
+      setIdentifierMappings([
+        { spreadsheetColumn: brandCol, dbField: 'brand' },
+        { spreadsheetColumn: refCol, dbField: 'reference_code' },
+      ]);
     }
     advanceToStep(2);
   };
@@ -163,6 +171,15 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
   // Run Preview
   const handleRunPreview = async () => {
     if (!file) return;
+
+    const brandMapped = identifierMappings.some((m) => m.dbField === 'brand');
+    const refMapped = identifierMappings.some((m) => m.dbField === 'reference_code');
+
+    if (!brandMapped || !refMapped) {
+      alert('É obrigatório mapear a Marca (brand) e a Referência (reference_code) para atualizações na Torre de Controle.');
+      return;
+    }
+
     setIsPreviewing(true);
     const fd = new FormData();
     fd.append('file', file);
@@ -192,7 +209,25 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
     setIsExecuting(true);
 
     const configStr = JSON.stringify(getEngineConfig());
-    const createRes = await createJobAction(file.name, selectedSheet, previewResult.totalRows, configStr, previewResult.fileHash);
+    const metrics = {
+      matchedProducts: previewResult.matchedProducts || 0,
+      affectedOrganizations: previewResult.affectedOrganizations || 0,
+      changedProducts: previewResult.changedProducts || 0,
+      noChangeProducts: previewResult.noChangeProducts || 0,
+      notFoundRows: previewResult.notFoundRows || 0,
+      invalidRows: previewResult.invalidRows || 0,
+      ambiguousOrganizationsRows: previewResult.ambiguousOrganizationsRows || 0,
+      brandsIncluded: previewResult.brandsIncluded || [],
+    };
+
+    const createRes = await createJobAction(
+      file.name,
+      selectedSheet,
+      previewResult.totalRows,
+      configStr,
+      previewResult.fileHash,
+      metrics
+    );
 
     if (createRes.error || !createRes.jobId) {
       alert(createRes.error || 'Erro ao criar job de atualização.');
@@ -348,8 +383,8 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
           <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 2: Mapeamento do Identificador</h3>
-              <p className="text-xs text-slate-500">Escolha a(s) coluna(s) que identificam o produto no catálogo.</p>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 2: Mapeamento da Chave de Identificação</h3>
+              <p className="text-xs text-slate-500">Mapeie as colunas de Marca e Referência da planilha para a busca global multitenant.</p>
             </div>
             {analyzeData.sheets.length > 1 && (
               <select
@@ -366,9 +401,13 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             )}
           </div>
 
+          <div className="p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs text-indigo-900 dark:text-indigo-300">
+            <strong className="font-bold">Regra Global da Torre de Controle:</strong> Na busca global, o sistema utiliza a chave <code className="font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">MARCA|REFERENCIA</code> para localizar todas as cópias registradas em todas as organizações. É obrigatório mapear a Marca e a Referência.
+          </div>
+
           {/* Mappings */}
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Colunas Identificadoras</h4>
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Mapeamento Obrigatório</h4>
             {identifierMappings.map((m, i) => (
               <div key={i} className="flex items-center gap-3">
                 <select
@@ -380,6 +419,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                   }}
                   className="flex-1 text-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 dark:bg-slate-800"
                 >
+                  <option value="">Selecione a coluna da planilha...</option>
                   {analyzeData.columns.map((c) => (
                     <option key={c.name} value={c.name}>
                       Coluna Planilha: {c.name} ({c.inferredType})
@@ -387,7 +427,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                   ))}
                 </select>
 
-                <span className="text-xs font-bold text-slate-400">=</span>
+                <span className="text-xs font-bold text-slate-400">&rarr;</span>
 
                 <select
                   value={m.dbField}
@@ -398,14 +438,11 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                   }}
                   className="flex-1 text-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 dark:bg-slate-800"
                 >
-                  <option value="reference_code">Campo Banco: Referência (reference_code)</option>
                   <option value="brand">Campo Banco: Marca (brand)</option>
-                  <option value="name">Campo Banco: Nome do Produto (name)</option>
-                  <option value="color_nome">Campo Banco: Cor (color_nome)</option>
-                  <option value="colecao">Campo Banco: Coleção (colecao)</option>
+                  <option value="reference_code">Campo Banco: Referência (reference_code)</option>
                 </select>
 
-                {identifierMappings.length > 1 && (
+                {identifierMappings.length > 2 && (
                   <button
                     onClick={() => setIdentifierMappings(identifierMappings.filter((_, idx) => idx !== i))}
                     className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-lg"
@@ -415,26 +452,22 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                 )}
               </div>
             ))}
-
-            <button
-              onClick={() => setIdentifierMappings([...identifierMappings, { spreadsheetColumn: analyzeData.columns[0]?.name || '', dbField: 'brand' }])}
-              className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:underline"
-            >
-              <Plus size={14} /> Adicionar Identificador Composto (ex: MARCA + REFERENCIA)
-            </button>
           </div>
 
           {/* Normalizations */}
           <div className="space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Regras de Normalização</h4>
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Regras de Normalização Técinica (em Memória)</h4>
+            <p className="text-xs text-slate-400">Usadas apenas para comparação durante o PROCV. Os textos originais salvos no banco de dados não serão modificados.</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
               {[
+                { id: 'alphanumeric_only', label: 'Limpeza Alfanumérica (Recomendado)' },
                 { id: 'trim', label: 'Remover Espaços Nas Pontas' },
                 { id: 'uppercase', label: 'Converter Maiúsculas' },
-                { id: 'remove_accents', label: 'Remover Acentos' },
+                { id: 'remove_spaces', label: 'Remover Todos Espaços' },
+                { id: 'remove_slashes', label: 'Remover Barras (/ e \\)' },
                 { id: 'remove_hyphens', label: 'Remover Hífens (-)' },
+                { id: 'remove_accents', label: 'Remover Acentos' },
                 { id: 'remove_dots', label: 'Remover Pontos (.)' },
-                { id: 'remove_invisible', label: 'Remover Caracteres Invisíveis' },
               ].map((r) => (
                 <label key={r.id} className="flex items-center gap-2 p-2 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
                   <input
@@ -455,7 +488,18 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             <button onClick={() => setStep(1)} className="px-4 py-2 text-slate-600 text-sm hover:underline">
               Voltar
             </button>
-            <button onClick={() => advanceToStep(3)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
+            <button
+              onClick={() => {
+                const brandMapped = identifierMappings.some((m) => m.dbField === 'brand' && Boolean(m.spreadsheetColumn));
+                const refMapped = identifierMappings.some((m) => m.dbField === 'reference_code' && Boolean(m.spreadsheetColumn));
+                if (!brandMapped || !refMapped) {
+                  alert('Selecione as colunas de Marca e Referência da planilha para avançar.');
+                  return;
+                }
+                advanceToStep(3);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2"
+            >
               Avançar para Filtros <ArrowRight size={16} />
             </button>
           </div>
@@ -583,64 +627,21 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             <p className="text-xs text-slate-500">Escolha a camada de destino e quais campos da Whitelist serão modificados.</p>
           </div>
 
-          {/* Layer Selection */}
-          <div className="flex flex-col md:flex-row gap-4">
-            {[
-              { id: 'global', info: LAYER_AVAILABILITY.global },
-              { id: 'company', info: LAYER_AVAILABILITY.company },
-              { id: 'user', info: LAYER_AVAILABILITY.user },
-            ].map((l) => {
-              const isEnabled = l.info.enabled;
-              return (
-                <label
-                  key={l.id}
-                  className={`flex-1 p-4 border rounded-xl transition-colors ${
-                    !isEnabled
-                      ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'
-                      : targetLayer === l.id
-                      ? 'border-indigo-600 bg-indigo-50/30 dark:bg-indigo-950/20 cursor-pointer'
-                      : 'border-slate-200 dark:border-slate-800 cursor-pointer'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="layer"
-                    disabled={!isEnabled}
-                    checked={targetLayer === l.id}
-                    onChange={() => {
-                      if (!isEnabled) return;
-                      setTargetLayer(l.id as TargetLayer);
-                      if (l.id === 'global') setScopeType('GLOBAL');
-                    }}
-                    className="hidden"
-                  />
-                  <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center justify-between">
-                    <span>{l.info.label}</span>
-                    {!isEnabled && <span className="text-[10px] bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded font-normal">Em breve</span>}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">{l.info.description}</div>
-                </label>
-              );
-            })}
-          </div>
-
-          {/* Actions List */}
-          <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="space-y-4">
             {actions.map((act, idx) => (
-              <div key={idx} className="p-4 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase text-slate-400">Ação #{idx + 1}</span>
+              <div key={idx} className="p-4 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3 bg-slate-50/50 dark:bg-slate-800/40">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Ação #{idx + 1}</span>
                   {actions.length > 1 && (
-                    <button onClick={() => setActions(actions.filter((_, i) => i !== idx))} className="text-rose-500 text-xs hover:underline">
-                      Remover
+                    <button onClick={() => setActions(actions.filter((_, i) => i !== idx))} className="text-rose-500 hover:underline text-xs">
+                      Remover Ação
                     </button>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* Field whitelist dropdown */}
                   <div>
-                    <label className="text-xs font-medium text-slate-500">Campo de Destino</label>
+                    <label className="text-xs font-medium text-slate-500">Campo Alvo (Whitelist)</label>
                     <select
                       value={act.targetField}
                       onChange={(e) => {
@@ -658,7 +659,6 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                     </select>
                   </div>
 
-                  {/* Operation */}
                   <div>
                     <label className="text-xs font-medium text-slate-500">Operação Estruturada</label>
                     <select
@@ -679,7 +679,6 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                     </select>
                   </div>
 
-                  {/* Value Source */}
                   <div>
                     <label className="text-xs font-medium text-slate-500">Origem do Valor</label>
                     <select
@@ -691,13 +690,12 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                       }}
                       className="w-full text-sm border rounded-xl p-2.5 dark:bg-slate-800 dark:border-slate-700"
                     >
-                      <option value="spreadsheet">Usar Coluna da Planilha</option>
                       <option value="fixed">Valor Fixo</option>
+                      <option value="spreadsheet">Usar Coluna da Planilha</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Source Column or Fixed Value */}
                 {act.valueSource === 'spreadsheet' ? (
                   <div>
                     <label className="text-xs font-medium text-slate-500">Coluna Origem da Planilha</label>
@@ -723,7 +721,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
                     <label className="text-xs font-medium text-slate-500">Valor Fixo</label>
                     <input
                       type="text"
-                      placeholder="Ex: 399.90 ou true"
+                      placeholder="Ex: false (para inativar) ou 399.90"
                       value={act.fixedValue ?? ''}
                       onChange={(e) => {
                         const newA = [...actions];
@@ -742,7 +740,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
             onClick={() =>
               setActions([
                 ...actions,
-                { targetLayer, targetField: 'sale_price', operation: 'set', valueSource: 'spreadsheet' },
+                { targetLayer, targetField: 'is_active', operation: 'set', valueSource: 'fixed', fixedValue: false },
               ])
             }
             className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:underline"
@@ -765,55 +763,20 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
       {step === 5 && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
           <div className="pb-4 border-b border-slate-100 dark:border-slate-800">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 5: Escopo do Público Afetado</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 5: Escopo Global da Torre de Controle</h3>
             <p className="text-xs text-slate-500">
-              Camada atual: <strong className="uppercase">{targetLayer}</strong>. Selecione quais empresas ou usuários receberão a atualização nos vínculos existentes.
+              Escopo selecionado: <strong className="uppercase text-indigo-600">PLATFORM_GLOBAL</strong> (Exclusivo Master).
             </p>
           </div>
 
-          {targetLayer === 'global' && (
-            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 rounded-xl text-sm flex items-center gap-2">
-              <AlertTriangle size={18} />
-              <span>A camada Global afeta o produto-base para todo o ecossistema do sistema.</span>
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+            <div className="font-bold flex items-center gap-1">
+              <CheckCircle2 size={16} /> Escopo Plataforma Global Ativo
             </div>
-          )}
-
-          {targetLayer === 'company' && (
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Empresa(s) Alvo</label>
-              <select
-                multiple
-                value={selectedCompanies}
-                onChange={(e) => setSelectedCompanies(Array.from(e.target.selectedOptions, (o) => o.value))}
-                className="w-full h-40 text-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 dark:bg-slate-800"
-              >
-                {availableCompanies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-slate-400">Segure Ctrl (ou Cmd) para selecionar múltiplas empresas.</p>
-            </div>
-          )}
-
-          {targetLayer === 'user' && (
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Usuário(s) / Representante(s) Alvo</label>
-              <select
-                multiple
-                value={selectedUsers}
-                onChange={(e) => setSelectedUsers(Array.from(e.target.selectedOptions, (o) => o.value))}
-                className="w-full h-40 text-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 dark:bg-slate-800"
-              >
-                {availableUsers.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.full_name || u.email} ({u.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+            <p>
+              O motor de atualização irá localizar todas as cópias dos produtos em todas as organizações ativas no banco de dados utilizando a chave de busca normalizada <code className="font-mono bg-white dark:bg-slate-900 px-1 rounded">MARCA|REFERÊNCIA</code>.
+            </p>
+          </div>
 
           <div className="flex justify-between pt-4">
             <button onClick={() => setStep(4)} className="px-4 py-2 text-slate-600 text-sm hover:underline">
@@ -824,7 +787,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
               disabled={isPreviewing}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2"
             >
-              {isPreviewing ? <RefreshCw size={16} className="animate-spin" /> : 'Gerar Preview e Simular'}
+              {isPreviewing ? <RefreshCw size={16} className="animate-spin" /> : 'Gerar Preview Global'}
             </button>
           </div>
         </div>
@@ -835,93 +798,185 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
           <div className="pb-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 6: Preview e Simulação de Impacto</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 6: Preview e Simulação de Impacto Global</h3>
               <p className="text-xs text-slate-500">Nenhuma alteração foi realizada no banco ainda.</p>
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
             <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
-              <div className="text-xs text-slate-400 font-bold uppercase">Total Linhas</div>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{previewResult.totalRows}</div>
+              <div className="text-[10px] text-slate-400 font-bold uppercase">Linhas Planilha</div>
+              <div className="text-xl font-bold text-slate-900 dark:text-white">{previewResult.totalRows}</div>
             </div>
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl">
-              <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold uppercase">Localizados</div>
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{previewResult.matchedRows}</div>
+              <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase">Produtos No Banco</div>
+              <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{previewResult.matchedProducts || 0}</div>
+            </div>
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl">
+              <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase">Orgs Afetadas</div>
+              <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{previewResult.affectedOrganizations || 0}</div>
             </div>
             <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl">
-              <div className="text-xs text-indigo-600 dark:text-indigo-400 font-bold uppercase">Alterações</div>
-              <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{previewResult.changedRows}</div>
+              <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase">Produtos Alterar</div>
+              <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{previewResult.changedProducts || 0}</div>
+            </div>
+            <div className="p-3 bg-cyan-50 dark:bg-cyan-950/30 rounded-xl">
+              <div className="text-[10px] text-cyan-600 dark:text-cyan-400 font-bold uppercase">Sem Alteração</div>
+              <div className="text-xl font-bold text-cyan-600 dark:text-cyan-400">{previewResult.noChangeProducts || 0}</div>
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl">
-              <div className="text-xs text-amber-600 dark:text-amber-400 font-bold uppercase">Ignorados (Filtro)</div>
-              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{previewResult.skippedRows}</div>
+              <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase">Ignorados / Filtro</div>
+              <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{previewResult.skippedRows}</div>
             </div>
             <div className="p-3 bg-rose-50 dark:bg-rose-950/30 rounded-xl">
-              <div className="text-xs text-rose-600 dark:text-rose-400 font-bold uppercase">Não Encontrados</div>
-              <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{previewResult.notFoundRows}</div>
+              <div className="text-[10px] text-rose-600 dark:text-rose-400 font-bold uppercase">Não Encontrados</div>
+              <div className="text-xl font-bold text-rose-600 dark:text-rose-400">{previewResult.notFoundRows}</div>
             </div>
           </div>
 
-          {/* Sample Table */}
+          {/* Brand Breakdown */}
+          {previewResult.brandBreakdown && previewResult.brandBreakdown.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <h4 className="text-xs font-bold text-slate-500 uppercase">Resumo Por Marca Identificada na Planilha</h4>
+              <div className="flex flex-wrap gap-2">
+                {previewResult.brandBreakdown.map((b, i) => (
+                  <div key={i} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs flex items-center gap-2">
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{b.brand}:</span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      {b.referenceCount} refs &bull; {b.matchedProductsCount} prods &bull; {b.affectedOrganizationsCount} orgs ({b.changedProductsCount} alterar)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Table */}
           <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500">
                 <tr>
                   <th className="p-3">Linha</th>
-                  <th className="p-3">Identificador</th>
-                  <th className="p-3">Produto Banco</th>
+                  <th className="p-3">Marca / Referência</th>
+                  <th className="p-3">Alcance Global</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Proposta de Alteração</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {previewResult.sampleDetails.map((det, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                    <td className="p-3 font-mono font-medium text-slate-700 dark:text-slate-200">
-                      {Object.values(det.rawIdentifierValues).filter(Boolean).join(' - ') || '-'}
-                    </td>
-                    <td className="p-3 font-medium">{det.matchedProductName || '-'}</td>
-                    <td className="p-3 font-bold">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] ${
-                          det.status === 'READY'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : det.status === 'NO_CHANGE'
-                            ? 'bg-blue-100 text-blue-800'
-                            : det.status === 'SKIPPED_FILTER'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {det.status === 'READY'
-                          ? 'PRONTO'
-                          : det.status === 'NO_CHANGE'
-                          ? 'SEM ALTERAÇÃO'
-                          : det.status === 'SKIPPED_FILTER'
-                          ? 'IGNORADO (FILTRO)'
-                          : det.status === 'NOT_FOUND'
-                          ? 'NÃO ENCONTRADO'
-                          : det.status === 'ERROR'
-                          ? 'ERRO'
-                          : det.status}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      {det.proposedChanges.length === 0 ? (
-                        <span className="text-slate-400">Sem alterações</span>
-                      ) : (
-                        det.proposedChanges.map((ch, i) => (
-                          <div key={i} className="text-[11px]">
-                            <span className="font-semibold">{ch.targetField}:</span> {String(ch.oldValue)} &rarr;{' '}
-                            <span className="font-bold text-indigo-600 dark:text-indigo-400">{String(ch.newValue)}</span>
-                          </div>
-                        ))
+                {previewResult.sampleDetails.map((det, idx) => {
+                  const isExpanded = expandedRow === idx;
+                  return (
+                    <React.Fragment key={idx}>
+                      <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                        <td className="p-3 font-mono font-bold text-slate-400">#{det.rowNumber}</td>
+                        <td className="p-3 font-mono font-medium text-slate-700 dark:text-slate-200">
+                          {det.brand || '-'} / {det.reference || '-'}
+                        </td>
+                        <td className="p-3 font-medium">
+                          {det.matchedProductsCount > 0 ? (
+                            <button
+                              onClick={() => setExpandedRow(isExpanded ? null : idx)}
+                              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1"
+                            >
+                              {det.matchedProductsCount} produto(s) em {det.affectedOrganizationsCount} org(s)
+                            </button>
+                          ) : (
+                            <span className="text-slate-400">Nenhum</span>
+                          )}
+                        </td>
+                        <td className="p-3 font-bold">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] ${
+                              det.status === 'READY'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : det.status === 'PARTIAL_CHANGE'
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : det.status === 'NO_CHANGE'
+                                ? 'bg-cyan-100 text-cyan-800'
+                                : det.status === 'PARTIAL_AMBIGUITY'
+                                ? 'bg-amber-100 text-amber-800'
+                                : det.status === 'AMBIGUOUS_IN_ORGANIZATION'
+                                ? 'bg-purple-100 text-purple-800'
+                                : det.status === 'INVALID_IDENTIFIER'
+                                ? 'bg-rose-100 text-rose-800'
+                                : det.status === 'SKIPPED_FILTER'
+                                ? 'bg-slate-100 text-slate-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {det.status === 'READY'
+                              ? 'PRONTO'
+                              : det.status === 'PARTIAL_CHANGE'
+                              ? 'ALTERAÇÃO PARCIAL'
+                              : det.status === 'NO_CHANGE'
+                              ? 'SEM ALTERAÇÃO'
+                              : det.status === 'PARTIAL_AMBIGUITY'
+                              ? 'AMBIGUIDADE PARCIAL'
+                              : det.status === 'AMBIGUOUS_IN_ORGANIZATION'
+                              ? 'AMBÍGUO NA ORG'
+                              : det.status === 'INVALID_IDENTIFIER'
+                              ? 'ID INVÁLIDO'
+                              : det.status === 'SKIPPED_FILTER'
+                              ? 'IGNORADO (FILTRO)'
+                              : det.status === 'NOT_FOUND'
+                              ? 'NÃO ENCONTRADO'
+                              : det.status}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          {det.proposedChanges.length === 0 ? (
+                            <span className="text-slate-400">{det.message || 'Sem alterações'}</span>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                {det.changedCount} alterar, {det.noChangeCount} sem mudança
+                              </span>
+                              {det.proposedChanges.slice(0, 2).map((ch, i) => (
+                                <div key={i} className="text-[10px] text-slate-500">
+                                  {ch.targetField}: {String(ch.oldValue)} &rarr; <strong className="text-indigo-600">{String(ch.newValue)}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Expandable Org Details */}
+                      {isExpanded && det.organizationBreakdown && (
+                        <tr className="bg-slate-50/80 dark:bg-slate-800/80">
+                          <td colSpan={5} className="p-4">
+                            <div className="space-y-2 text-xs">
+                              <div className="font-bold text-slate-700 dark:text-slate-300">
+                                Detalhamento por Organização (Exibindo até 20):
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {det.organizationBreakdown.map((ob, i) => (
+                                  <div key={i} className="p-2 border rounded-lg bg-white dark:bg-slate-900 flex justify-between items-center">
+                                    <div>
+                                      <div className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                                        Org ID: {ob.organizationId.slice(0, 8)}...
+                                      </div>
+                                      <div className="text-[10px] text-slate-400">{ob.productName}</div>
+                                    </div>
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                        ob.status === 'READY' ? 'bg-emerald-100 text-emerald-800' : 'bg-cyan-100 text-cyan-800'
+                                      }`}
+                                    >
+                                      {ob.status === 'READY' ? 'ALTERAR' : 'SEM ALTERAÇÃO'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                  </tr>
-                ))}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -957,7 +1012,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers }: SmartU
               disabled={previewResult.criticalConfirmationRequired && confirmationInput.trim().toUpperCase() !== 'ATUALIZAR'}
               className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium px-6 py-2.5 rounded-xl text-sm flex items-center gap-2 shadow-sm"
             >
-              <CheckCircle2 size={16} /> Confirmar e Executar Importação
+              <CheckCircle2 size={16} /> Confirmar e Executar Importação Global
             </button>
           </div>
         </div>

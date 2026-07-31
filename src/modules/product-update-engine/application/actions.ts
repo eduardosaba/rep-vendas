@@ -17,9 +17,12 @@ import {
   applyStringNormalizations,
   computeStructuredOperation,
   evaluateFilterCondition,
+  computeConfigHash,
+  buildProductLookupKey,
+  normalizeLookupValue,
 } from './parser-utils';
 
-async function requireProductUpdateAdmin() {
+async function requireProductUpdateMaster() {
   const userId = await getActiveUserId();
   if (!userId) {
     throw new Error('Usuário não autenticado.');
@@ -32,8 +35,8 @@ async function requireProductUpdateAdmin() {
     .eq('id', userId)
     .maybeSingle();
 
-  if (error || !profile || !isAdminRole(profile.role)) {
-    throw new Error('Acesso negado. Apenas administradores autorizados podem executar atualizações.');
+  if (error || !profile || profile.role !== 'master') {
+    throw new Error('Acesso negado. Apenas o usuário master da Torre de Controle pode executar atualizações de plataforma.');
   }
 
   return { userId, supabase, profile };
@@ -63,6 +66,7 @@ function getDynamicProductSelectColumns(actions: EngineConfiguration['actions'])
     'colecao',
     'user_id',
     'organization_id',
+    'company_id',
   ];
 
   return Array.from(new Set([...baseCols, ...actionCols])).join(', ');
@@ -73,14 +77,19 @@ function applyScopeToQuery(query: any, scope: EngineConfiguration['scope'], defa
   const targetOrgs = scope?.targetOrganizationIds || scope?.targetCompanyIds || [];
   const targetUsers = scope?.targetUserIds || [];
 
+  if (scopeType === 'PLATFORM_GLOBAL' || scopeType === 'GLOBAL') {
+    return query.not('organization_id', 'is', null);
+  }
+
   if (scopeType === 'ORGANIZATION' || scopeType === 'COMPANY') {
     const orgId = targetOrgs[0] || defaultOrgId;
     if (orgId) {
-      return query.eq('organization_id', orgId);
+      return query.or(`organization_id.eq.${orgId},company_id.eq.${orgId},user_id.eq.${orgId}`);
     }
   } else if (scopeType === 'ORGANIZATION_LIST') {
     if (targetOrgs.length > 0) {
-      return query.in('organization_id', targetOrgs);
+      const listStr = targetOrgs.join(',');
+      return query.or(`organization_id.in.(${listStr}),company_id.in.(${listStr}),user_id.in.(${listStr})`);
     }
   } else if (scopeType === 'USER' || scopeType === 'USER_AUTHORSHIP') {
     if (targetUsers.length > 0) {
@@ -92,7 +101,7 @@ function applyScopeToQuery(query: any, scope: EngineConfiguration['scope'], defa
 
 export async function analyzeSpreadsheetAction(formData: FormData): Promise<AnalyzeSpreadsheetResult> {
   try {
-    await requireProductUpdateAdmin();
+    await requireProductUpdateMaster();
 
     const file = formData.get('file') as File | null;
     if (!file) return { fileName: '', fileHash: '', sheets: [], selectedSheet: '', columns: [], sampleRows: [], totalRows: 0, error: 'Nenhum arquivo enviado.' };
@@ -158,10 +167,13 @@ export async function analyzeSpreadsheetAction(formData: FormData): Promise<Anal
 
 export async function previewEngineAction(formData: FormData, configJsonStr: string): Promise<PreviewEngineResult> {
   try {
-    const { supabase, profile } = await requireProductUpdateAdmin();
+    const { supabase } = await requireProductUpdateMaster();
     const config: EngineConfiguration = JSON.parse(configJsonStr);
 
-    // Whitelist & Scope compatibility validation for each action
+    if (config.scope.type !== 'PLATFORM_GLOBAL') {
+      return { totalRows: 0, matchedRows: 0, changedRows: 0, skippedRows: 0, notFoundRows: 0, criticalConfirmationRequired: false, sampleDetails: [], error: 'A Atualização Inteligente da Torre de Controle exige escopo PLATFORM_GLOBAL.' };
+    }
+
     for (const act of config.actions) {
       const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
       if (!fieldDef) {
@@ -173,11 +185,29 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       }
     }
 
+    const brandMapping = config.identifier.mappings.find((m) => m.dbField === 'brand');
+    const refMapping = config.identifier.mappings.find((m) => m.dbField === 'reference_code');
+
+    if (!brandMapping || !refMapping) {
+      return {
+        totalRows: 0,
+        matchedRows: 0,
+        changedRows: 0,
+        skippedRows: 0,
+        notFoundRows: 0,
+        criticalConfirmationRequired: false,
+        sampleDetails: [],
+        error: 'No modo de atualização PLATFORM_GLOBAL, é obrigatório mapear a Marca e a Referência.',
+      };
+    }
+
     const file = formData.get('file') as File | null;
     if (!file) return { totalRows: 0, matchedRows: 0, changedRows: 0, skippedRows: 0, notFoundRows: 0, criticalConfirmationRequired: false, sampleDetails: [], error: 'Arquivo ausente.' };
 
     const arrayBuffer = await file.arrayBuffer();
     const fileHash = await calculateFileHash(arrayBuffer);
+    const configHash = computeConfigHash(config);
+
     const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
     const worksheet = workbook.Sheets[config.sheetName || workbook.SheetNames[0]];
     const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
@@ -193,10 +223,9 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       let query = supabase
         .from('products')
         .select(selectColumns)
+        .not('organization_id', 'is', null)
         .order('id', { ascending: true })
         .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
-
-      query = applyScopeToQuery(query, config.scope, profile.organization_id);
 
       const { data: pageData, error: pageErr } = await (query as any);
 
@@ -211,14 +240,30 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       pageIndex++;
     }
 
+    const lookupMap = new Map<string, any[]>();
+    for (const p of productsList) {
+      const key = buildProductLookupKey(p.brand, p.reference_code);
+      if (key) {
+        if (!lookupMap.has(key)) lookupMap.set(key, []);
+        lookupMap.get(key)!.push(p);
+      }
+    }
+
     let matchedSpreadsheetRows = 0;
-    let matchedProductsCount = 0;
+    let totalMatchedProducts = 0;
     let changedSpreadsheetRows = 0;
-    const changedProductsSet = new Set<string>();
-    let changedFieldsCount = 0;
-    let skippedCount = 0;
+    let totalChangedProducts = 0;
+    let totalNoChangeProducts = 0;
+    let totalFieldsChangedCount = 0;
+    let skippedFilterCount = 0;
     let notFoundCount = 0;
+    let invalidCount = 0;
+    let ambiguousOrgRowsCount = 0;
     let criticalFlag = false;
+
+    const affectedOrgsSet = new Set<string>();
+    const brandsSet = new Set<string>();
+    const brandStatsMap = new Map<string, { brand: string; refCount: number; matchedCount: number; orgsSet: Set<string>; changedCount: number }>();
 
     const sampleDetails: PreviewRowDetail[] = [];
 
@@ -233,24 +278,81 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
         normIdentValues[m.dbField] = applyStringNormalizations(val, config.identifier.normalizations);
       }
 
-      // Filter evaluation
-      let passFilter = true;
-      if (config.filters && config.filters.conditions && config.filters.conditions.length > 0) {
-        const results = config.filters.conditions.map((cond) => evaluateFilterCondition(row[cond.column], cond.operator, cond.value));
-        if (config.filters.connective === 'OR') {
-          passFilter = results.some(Boolean);
-        } else {
-          passFilter = results.every(Boolean);
-        }
-      }
+      const rawBrand = row[brandMapping.spreadsheetColumn];
+      const rawRef = row[refMapping.spreadsheetColumn];
+      const normBrand = normalizeLookupValue(rawBrand);
+      const normRef = normalizeLookupValue(rawRef);
 
-      if (!passFilter) {
-        skippedCount++;
+      if (!normBrand || !normRef) {
+        invalidCount++;
+        let invalidReason: PreviewRowDetail['invalidReason'] = 'MISSING_BRAND_AND_REFERENCE';
+        if (!normBrand && normRef) invalidReason = 'MISSING_BRAND';
+        if (normBrand && !normRef) invalidReason = 'MISSING_REFERENCE';
+
         if (sampleDetails.length < 50) {
           sampleDetails.push({
             rowNumber: idx + 1,
+            brand: String(rawBrand || ''),
+            reference: String(rawRef || ''),
+            lookupKey: '',
             rawIdentifierValues: rawIdentValues,
             normalizedIdentifierValues: normIdentValues,
+            matchedProductsCount: 0,
+            affectedOrganizationsCount: 0,
+            changedCount: 0,
+            noChangeCount: 0,
+            ambiguousOrganizationsCount: 0,
+            invalidReason,
+            filterMatched: true,
+            proposedChanges: [],
+            status: 'INVALID_IDENTIFIER',
+            message:
+              invalidReason === 'MISSING_BRAND_AND_REFERENCE'
+                ? 'Marca e referência ausentes'
+                : invalidReason === 'MISSING_BRAND'
+                ? 'Marca ausente'
+                : 'Referência ausente',
+          });
+        }
+        continue;
+      }
+
+      const lookupKey = `${normBrand}|${normRef}`;
+      brandsSet.add(rawBrand);
+
+      if (!brandStatsMap.has(normBrand)) {
+        brandStatsMap.set(normBrand, {
+          brand: String(rawBrand).trim(),
+          refCount: 0,
+          matchedCount: 0,
+          orgsSet: new Set<string>(),
+          changedCount: 0,
+        });
+      }
+      const bStat = brandStatsMap.get(normBrand)!;
+      bStat.refCount++;
+
+      let passFilter = true;
+      if (config.filters && config.filters.conditions && config.filters.conditions.length > 0) {
+        const results = config.filters.conditions.map((cond) => evaluateFilterCondition(row[cond.column], cond.operator, cond.value));
+        passFilter = config.filters.connective === 'OR' ? results.some(Boolean) : results.every(Boolean);
+      }
+
+      if (!passFilter) {
+        skippedFilterCount++;
+        if (sampleDetails.length < 50) {
+          sampleDetails.push({
+            rowNumber: idx + 1,
+            brand: String(rawBrand),
+            reference: String(rawRef),
+            lookupKey,
+            rawIdentifierValues: rawIdentValues,
+            normalizedIdentifierValues: normIdentValues,
+            matchedProductsCount: 0,
+            affectedOrganizationsCount: 0,
+            changedCount: 0,
+            noChangeCount: 0,
+            ambiguousOrganizationsCount: 0,
             filterMatched: false,
             proposedChanges: [],
             status: 'SKIPPED_FILTER',
@@ -260,79 +362,179 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
         continue;
       }
 
-      // Match products in current scoped productsList
-      const matchedProds = productsList.filter((p) => {
-        return config.identifier.mappings.every((m) => {
-          const dbVal = applyStringNormalizations(p[m.dbField as keyof typeof p], config.identifier.normalizations);
-          return dbVal === normIdentValues[m.dbField];
-        });
-      });
+      const allMatchedProds = lookupMap.get(lookupKey) || [];
 
-      if (matchedProds.length === 0) {
+      if (allMatchedProds.length === 0) {
         notFoundCount++;
         if (sampleDetails.length < 50) {
           sampleDetails.push({
             rowNumber: idx + 1,
+            brand: String(rawBrand),
+            reference: String(rawRef),
+            lookupKey,
             rawIdentifierValues: rawIdentValues,
             normalizedIdentifierValues: normIdentValues,
+            matchedProductsCount: 0,
+            affectedOrganizationsCount: 0,
+            changedCount: 0,
+            noChangeCount: 0,
+            ambiguousOrganizationsCount: 0,
             filterMatched: true,
             proposedChanges: [],
             status: 'NOT_FOUND',
-            message: 'Produto não localizado no banco.',
+            message: 'Nenhum produto global encontrado para a chave.',
+          });
+        }
+        continue;
+      }
+
+      const orgProdsMap = new Map<string, any[]>();
+      for (const p of allMatchedProds) {
+        const orgId = p.organization_id || 'unknown';
+        if (!orgProdsMap.has(orgId)) orgProdsMap.set(orgId, []);
+        orgProdsMap.get(orgId)!.push(p);
+      }
+
+      const validOrgProds: any[] = [];
+      let ambiguousOrgsCount = 0;
+
+      for (const [orgId, prods] of orgProdsMap.entries()) {
+        if (prods.length > 1) {
+          ambiguousOrgsCount++;
+        } else {
+          validOrgProds.push(prods[0]);
+        }
+      }
+
+      if (validOrgProds.length === 0 && ambiguousOrgsCount > 0) {
+        ambiguousOrgRowsCount++;
+        if (sampleDetails.length < 50) {
+          sampleDetails.push({
+            rowNumber: idx + 1,
+            brand: String(rawBrand),
+            reference: String(rawRef),
+            lookupKey,
+            rawIdentifierValues: rawIdentValues,
+            normalizedIdentifierValues: normIdentValues,
+            matchedProductsCount: allMatchedProds.length,
+            affectedOrganizationsCount: orgProdsMap.size,
+            changedCount: 0,
+            noChangeCount: 0,
+            ambiguousOrganizationsCount: ambiguousOrgsCount,
+            filterMatched: true,
+            proposedChanges: [],
+            status: 'AMBIGUOUS_IN_ORGANIZATION',
+            message: 'Todas as organizações encontradas possuem duplicidade interna do produto.',
           });
         }
         continue;
       }
 
       matchedSpreadsheetRows++;
-      matchedProductsCount += matchedProds.length;
+      totalMatchedProducts += validOrgProds.length;
+      bStat.matchedCount += validOrgProds.length;
 
-      const proposed: PreviewRowDetail['proposedChanges'] = [];
-      let rowHasChanges = false;
+      const proposedList: PreviewRowDetail['proposedChanges'] = [];
+      const orgBreakdown: PreviewRowDetail['organizationBreakdown'] = [];
 
-      for (const matchedProd of matchedProds) {
+      let lineChangedCount = 0;
+      let lineNoChangeCount = 0;
+
+      for (const prod of validOrgProds) {
+        const orgId = prod.organization_id || 'unknown';
+        affectedOrgsSet.add(orgId);
+        bStat.orgsSet.add(orgId);
+
+        const prodChanges: OrganizationPreviewItem['proposedChanges'] = [];
+        let prodHasChange = false;
+
         for (const act of config.actions) {
           const fieldDef = getFieldDefinition(act.targetLayer, act.targetField)!;
-          const currentDbVal = matchedProd[fieldDef.column as keyof typeof matchedProd];
+          const currentDbVal = prod[fieldDef.column as keyof typeof prod];
           const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
-
           const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
 
           if (newVal !== currentDbVal) {
-            rowHasChanges = true;
-            changedFieldsCount++;
-            changedProductsSet.add(matchedProd.id);
+            prodHasChange = true;
+            totalFieldsChangedCount++;
 
             if (fieldDef.critical || act.operation === 'percentage_decrease' || (act.targetField === 'is_active' && newVal === false)) {
               criticalFlag = true;
             }
-            proposed.push({
+
+            const changeItem = {
               targetLayer: act.targetLayer,
               targetField: act.targetField,
               oldValue: currentDbVal,
               newValue: newVal,
               actionType: act.operation,
-            });
+            };
+
+            prodChanges.push(changeItem);
+            proposedList.push(changeItem);
           }
+        }
+
+        if (prodHasChange) {
+          lineChangedCount++;
+          totalChangedProducts++;
+          bStat.changedCount++;
+        } else {
+          lineNoChangeCount++;
+          totalNoChangeProducts++;
+        }
+
+        if (orgBreakdown.length < 20) {
+          orgBreakdown.push({
+            organizationId: orgId,
+            productId: prod.id,
+            productName: prod.name || prod.reference_code,
+            status: prodHasChange ? 'READY' : 'NO_CHANGE',
+            proposedChanges: prodChanges,
+          });
         }
       }
 
-      if (rowHasChanges) {
+      if (lineChangedCount > 0) {
         changedSpreadsheetRows++;
+      }
+
+      let rowStatus: PreviewStatus = 'READY';
+      if (ambiguousOrgsCount > 0) {
+        rowStatus = 'PARTIAL_AMBIGUITY';
+      } else if (lineChangedCount > 0 && lineNoChangeCount > 0) {
+        rowStatus = 'PARTIAL_CHANGE';
+      } else if (lineChangedCount === 0 && lineNoChangeCount > 0) {
+        rowStatus = 'NO_CHANGE';
       }
 
       if (sampleDetails.length < 50) {
         sampleDetails.push({
           rowNumber: idx + 1,
+          brand: String(rawBrand),
+          reference: String(rawRef),
+          lookupKey,
           rawIdentifierValues: rawIdentValues,
           normalizedIdentifierValues: normIdentValues,
+          matchedProductId: validOrgProds[0]?.id,
+          matchedProductName: `${String(rawBrand)} / ${String(rawRef)}`,
+          matchedProductsCount: validOrgProds.length,
+          affectedOrganizationsCount: orgProdsMap.size,
+          changedCount: lineChangedCount,
+          noChangeCount: lineNoChangeCount,
+          ambiguousOrganizationsCount: ambiguousOrgsCount,
           filterMatched: true,
-          matchedProductName: matchedProds[0]?.name || matchedProds[0]?.reference_code,
-          proposedChanges: proposed,
-          status: proposed.length > 0 ? 'READY' : 'NO_CHANGE',
-          message: proposed.length > 0
-            ? `${matchedProds.length} produto(s) correspondente(s) localizado(s).`
-            : `Produto localizado, mas sem alteração de valor.`,
+          proposedChanges: proposedList,
+          organizationBreakdown: orgBreakdown,
+          status: rowStatus,
+          message:
+            rowStatus === 'READY'
+              ? `${validOrgProds.length} produto(s) em ${orgProdsMap.size} organização(ões).`
+              : rowStatus === 'PARTIAL_CHANGE'
+              ? `${lineChangedCount} produto(s) a alterar, ${lineNoChangeCount} sem alteração.`
+              : rowStatus === 'PARTIAL_AMBIGUITY'
+              ? `${validOrgProds.length} produto(s) válidos (${ambiguousOrgsCount} orgs ambíguas ignoradas).`
+              : 'Produtos localizados já estão atualizados.',
         });
       }
     }
@@ -341,16 +543,31 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       criticalFlag = true;
     }
 
+    const brandBreakdownStats = Array.from(brandStatsMap.values()).map((b) => ({
+      brand: b.brand,
+      referenceCount: b.refCount,
+      matchedProductsCount: b.matchedCount,
+      affectedOrganizationsCount: b.orgsSet.size,
+      changedProductsCount: b.changedCount,
+    }));
+
     return {
       fileHash,
+      configHash,
       totalRows: rawData.length,
       matchedRows: matchedSpreadsheetRows,
-      matchedProducts: matchedProductsCount,
+      matchedProducts: totalMatchedProducts,
+      affectedOrganizations: affectedOrgsSet.size,
       changedRows: changedSpreadsheetRows,
-      changedProducts: changedProductsSet.size,
-      changedFields: changedFieldsCount,
-      skippedRows: skippedCount,
+      changedProducts: totalChangedProducts,
+      changedFields: totalFieldsChangedCount,
+      noChangeProducts: totalNoChangeProducts,
+      skippedRows: skippedFilterCount,
       notFoundRows: notFoundCount,
+      invalidRows: invalidCount,
+      ambiguousOrganizationsRows: ambiguousOrgRowsCount,
+      brandsIncluded: Array.from(brandsSet),
+      brandBreakdown: brandBreakdownStats,
       criticalConfirmationRequired: criticalFlag,
       criticalReason: criticalFlag ? 'Esta operação altera dados críticos ou mais de 30% das linhas da planilha.' : undefined,
       sampleDetails: JSON.parse(JSON.stringify(sampleDetails)),
@@ -366,11 +583,20 @@ export async function createJobAction(
   sheetName: string,
   totalRows: number,
   configJsonStr: string,
-  fileHash?: string
+  fileHash?: string,
+  metrics?: Record<string, any>
 ): Promise<{ jobId?: string; error?: string }> {
   try {
-    const { userId, supabase } = await requireProductUpdateAdmin();
+    const { userId, supabase } = await requireProductUpdateMaster();
     const config: EngineConfiguration = JSON.parse(configJsonStr);
+    const configHash = computeConfigHash(config);
+    config.configHash = configHash;
+
+    const fullConfiguration = {
+      ...config,
+      metrics: metrics || {},
+      previewGeneratedAt: new Date().toISOString(),
+    };
 
     const { data: job, error: jobErr } = await supabase
       .from('product_update_jobs')
@@ -379,7 +605,7 @@ export async function createJobAction(
         file_hash: fileHash || '',
         sheet_name: sheetName,
         total_rows: totalRows,
-        configuration: config as any,
+        configuration: fullConfiguration as any,
         status: 'pending',
         created_by: userId,
       })
@@ -400,7 +626,7 @@ export async function processBatchChunkAction(
   formData: FormData
 ): Promise<{ processed: number; applied: number; skipped: number; failed: number; isCompleted: boolean; error?: string }> {
   try {
-    const { userId, supabase, profile } = await requireProductUpdateAdmin();
+    const { userId, supabase, profile } = await requireProductUpdateMaster();
 
     const { data: job, error: jobErr } = await supabase
       .from('product_update_jobs')
@@ -417,6 +643,10 @@ export async function processBatchChunkAction(
     }
 
     const config: EngineConfiguration = job.configuration as any;
+    if (config.scope.type !== 'PLATFORM_GLOBAL') {
+      return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Apenas escopo PLATFORM_GLOBAL é permitido nesta ação.' };
+    }
+
     const file = formData.get('file') as File | null;
     if (!file) {
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Arquivo não enviado.' };
@@ -436,6 +666,18 @@ export async function processBatchChunkAction(
       };
     }
 
+    const expectedConfigHash = computeConfigHash(config);
+    if (config.configHash && expectedConfigHash !== config.configHash) {
+      return {
+        processed: 0,
+        applied: 0,
+        skipped: 0,
+        failed: 0,
+        isCompleted: false,
+        error: 'A configuração do job divergiu da prévia aprovada.',
+      };
+    }
+
     const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
     const worksheet = workbook.Sheets[config.sheetName || workbook.SheetNames[0]];
     const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
@@ -446,54 +688,46 @@ export async function processBatchChunkAction(
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: true };
     }
 
+    const brandMapping = config.identifier.mappings.find((m) => m.dbField === 'brand');
+    const refMapping = config.identifier.mappings.find((m) => m.dbField === 'reference_code');
+
+    if (!brandMapping || !refMapping) {
+      return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Mapeamento de marca e referência ausente.' };
+    }
+
     const selectColumns = getDynamicProductSelectColumns(config.actions);
 
-    const chunkIdentValuesSet = new Set<string>();
-    for (const row of chunkData) {
-      for (const m of config.identifier.mappings) {
-        const rawVal = row[m.spreadsheetColumn];
-        if (rawVal !== undefined && rawVal !== null) {
-          const strRaw = String(rawVal).trim();
-          if (strRaw) {
-            chunkIdentValuesSet.add(strRaw);
-            chunkIdentValuesSet.add(strRaw.toUpperCase());
-            chunkIdentValuesSet.add(strRaw.toLowerCase());
-          }
-          const normVal = applyStringNormalizations(rawVal, config.identifier.normalizations);
-          if (normVal) {
-            chunkIdentValuesSet.add(normVal);
-            chunkIdentValuesSet.add(normVal.toUpperCase());
-            chunkIdentValuesSet.add(normVal.toLowerCase());
-          }
-        }
+    let productsList: any[] = [];
+    let pageIndex = 0;
+    const PAGE_LIMIT = 1000;
+    let keepFetching = true;
+
+    while (keepFetching) {
+      const { data: pageData, error: pageErr } = await supabase
+        .from('products')
+        .select(selectColumns)
+        .not('organization_id', 'is', null)
+        .order('id', { ascending: true })
+        .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
+
+      if (pageErr || !pageData || pageData.length === 0) {
+        keepFetching = false;
+        break;
       }
-    }
-    const chunkIdentValues = Array.from(chunkIdentValuesSet);
-
-    let productsQuery = supabase.from('products').select(selectColumns);
-    productsQuery = applyScopeToQuery(productsQuery, config.scope, profile.organization_id);
-
-    const primaryMapping = config.identifier.mappings[0];
-    if (primaryMapping && primaryMapping.dbField === 'reference_code' && chunkIdentValues.length > 0) {
-      productsQuery = productsQuery.in('reference_code', chunkIdentValues);
+      productsList = productsList.concat(pageData);
+      if (pageData.length < PAGE_LIMIT) keepFetching = false;
+      pageIndex++;
     }
 
-    let { data: matchedDbProducts, error: dbErr } = await (productsQuery as any);
-    if (dbErr) {
-      return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: dbErr.message };
-    }
-
-    // Fallback: If no products were returned via .in() but chunkData has rows, fetch scoped products using pagination
-    if ((!matchedDbProducts || matchedDbProducts.length === 0) && chunkData.length > 0) {
-      let fallbackQuery = supabase.from('products').select(selectColumns);
-      fallbackQuery = applyScopeToQuery(fallbackQuery, config.scope, profile.organization_id);
-      const { data: scopedProds } = await (fallbackQuery as any);
-      if (scopedProds && scopedProds.length > 0) {
-        matchedDbProducts = scopedProds;
+    const lookupMap = new Map<string, any[]>();
+    for (const p of productsList) {
+      const key = buildProductLookupKey(p.brand, p.reference_code);
+      if (key) {
+        if (!lookupMap.has(key)) lookupMap.set(key, []);
+        lookupMap.get(key)!.push(p);
       }
     }
 
-    const productsList: any[] = matchedDbProducts || [];
     let applied = 0;
     let skipped = 0;
     let failed = 0;
@@ -513,35 +747,41 @@ export async function processBatchChunkAction(
         continue;
       }
 
-      const normIdentValues: Record<string, string> = {};
-      for (const m of config.identifier.mappings) {
-        normIdentValues[m.dbField] = applyStringNormalizations(row[m.spreadsheetColumn], config.identifier.normalizations);
-      }
+      const rawBrand = row[brandMapping.spreadsheetColumn];
+      const rawRef = row[refMapping.spreadsheetColumn];
+      const lookupKey = buildProductLookupKey(rawBrand, rawRef);
 
-      const matchedProds = productsList.filter((p) => {
-        return config.identifier.mappings.every((m) => {
-          const dbVal = applyStringNormalizations(p[m.dbField as keyof typeof p], config.identifier.normalizations);
-          return dbVal === normIdentValues[m.dbField];
-        });
-      });
-
-      if (matchedProds.length === 0) {
+      if (!lookupKey) {
         failed++;
-        await supabase.from('product_update_job_items').insert({
-          job_id: jobId,
-          row_number: actualRowIndex,
-          target_layer: config.actions[0]?.targetLayer || 'global',
-          target_table: 'products',
-          target_record_id: '00000000-0000-0000-0000-000000000000',
-          target_field: 'none',
-          action_type: 'none',
-          status: 'failed',
-          error_message: 'Produto não localizado no banco para este escopo.',
-        });
         continue;
       }
 
-      for (const matchedProd of matchedProds) {
+      const allMatched = lookupMap.get(lookupKey) || [];
+      if (allMatched.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      const orgProdsMap = new Map<string, any[]>();
+      for (const p of allMatched) {
+        const orgId = p.organization_id || 'unknown';
+        if (!orgProdsMap.has(orgId)) orgProdsMap.set(orgId, []);
+        orgProdsMap.get(orgId)!.push(p);
+      }
+
+      const validProds: any[] = [];
+      for (const [_, prods] of orgProdsMap.entries()) {
+        if (prods.length === 1) {
+          validProds.push(prods[0]);
+        }
+      }
+
+      if (validProds.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      for (const matchedProd of validProds) {
         for (const act of config.actions) {
           const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
           if (!fieldDef) continue;
@@ -562,6 +802,8 @@ export async function processBatchChunkAction(
                 job_id: jobId,
                 row_number: actualRowIndex,
                 product_id: matchedProd.id,
+                company_id: matchedProd.company_id || matchedProd.organization_id,
+                user_id: matchedProd.user_id,
                 target_layer: act.targetLayer,
                 target_table: fieldDef.table,
                 target_record_id: matchedProd.id,
@@ -578,6 +820,8 @@ export async function processBatchChunkAction(
                 job_id: jobId,
                 row_number: actualRowIndex,
                 product_id: matchedProd.id,
+                company_id: matchedProd.company_id || matchedProd.organization_id,
+                user_id: matchedProd.user_id,
                 target_layer: act.targetLayer,
                 target_table: fieldDef.table,
                 target_record_id: matchedProd.id,
@@ -597,12 +841,15 @@ export async function processBatchChunkAction(
     }
 
     const isCompleted = chunkRowIndex + chunkSize >= rawData.length;
-    await supabase.from('product_update_jobs').update({
-      status: isCompleted ? 'completed' : 'processing',
-      changed_rows: (job.changed_rows || 0) + applied,
-      failed_rows: (job.failed_rows || 0) + failed,
-      completed_at: isCompleted ? new Date().toISOString() : null,
-    }).eq('id', jobId);
+    await supabase
+      .from('product_update_jobs')
+      .update({
+        status: isCompleted ? 'completed' : 'processing',
+        changed_rows: (job.changed_rows || 0) + applied,
+        failed_rows: (job.failed_rows || 0) + failed,
+        completed_at: isCompleted ? new Date().toISOString() : null,
+      })
+      .eq('id', jobId);
 
     return { processed: chunkData.length, applied, skipped, failed, isCompleted };
   } catch (err: any) {
@@ -613,7 +860,7 @@ export async function processBatchChunkAction(
 
 export async function rollbackJobAction(jobId: string): Promise<{ success: boolean; rolledBack: number; conflicts: number; errors: string[] }> {
   try {
-    const { userId, supabase, profile } = await requireProductUpdateAdmin();
+    const { userId, supabase, profile } = await requireProductUpdateMaster();
 
     const { data: job } = await supabase.from('product_update_jobs').select('*').eq('id', jobId).single();
     if (!job) return { success: false, rolledBack: 0, conflicts: 0, errors: ['Job não encontrado.'] };
