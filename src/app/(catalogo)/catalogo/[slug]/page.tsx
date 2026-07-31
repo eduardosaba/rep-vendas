@@ -297,6 +297,27 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       }
     }
 
+    if (!catalog && (context.representative || settingsFallback)) {
+      catalog = {
+        id: context.representative?.id || settingsFallback?.user_id || 'default',
+        user_id: context.representative?.id || settingsFallback?.user_id || 'default',
+        store_name:
+          settingsFallback?.name ||
+          settingsFallback?.representative_name ||
+          context.representative?.full_name ||
+          'Catálogo Virtual',
+        catalog_slug: normalizedCompanySlug,
+        logo_url: settingsFallback?.logo_url || null,
+        primary_color: settingsFallback?.primary_color || '#2563eb',
+        secondary_color: settingsFallback?.secondary_color || '#0f172a',
+        is_active: true,
+        show_cost_price: settingsFallback?.show_cost_price ?? false,
+        show_sale_price: settingsFallback?.show_sale_price ?? true,
+        price_unlock_mode: settingsFallback?.price_unlock_mode || 'modal',
+        price_password_hash: settingsFallback?.price_password_hash || null,
+      };
+    }
+
     if (catalog) {
       if (settingsFallback) {
         catalog = {

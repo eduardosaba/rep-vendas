@@ -54,7 +54,7 @@ export async function resolvePublicCatalogContext(
   // 1. Resolução via cliente SSR normal (público)
   try {
     const context = await resolveContext(slugParts, supabase);
-    if (context && (context.company || context.catalog || context.settings)) {
+    if (context) {
       return { context, resolvedBy: 'SSR' };
     }
   } catch (err: any) {
@@ -206,43 +206,6 @@ export async function resolveContext(
 
   let catalog: any = null;
   let foundSettings: any = null;
-  
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normRep);
-  if (isUuid) {
-    const { data: orgData } = await supabase
-      .from('organizations')
-      .select('id, name, slug')
-      .eq('id', normRep)
-      .maybeSingle();
-      
-    if (orgData) {
-      return {
-        type: 'distributor',
-        companySlug: normRep,
-        repSlug: normRep,
-        catalogSlug: normRep,
-        company: orgData,
-        pathPrefix: `/catalogo/${normRep}`,
-      };
-    }
-  } else {
-    const { data: orgDataBySlug } = await supabase
-      .from('organizations')
-      .select('id, name, slug')
-      .ilike('slug', escapeIlikePattern(normRep))
-      .maybeSingle();
-
-    if (orgDataBySlug) {
-      return {
-        type: 'distributor',
-        companySlug: normRep,
-        repSlug: normRep,
-        catalogSlug: normRep,
-        company: orgDataBySlug,
-        pathPrefix: `/catalogo/${normRep}`,
-      };
-    }
-  }
 
   try {
     const { data: settingsRow } = await supabase
@@ -285,27 +248,78 @@ export async function resolveContext(
     .ilike('catalog_slug', escapeIlikePattern(normRep))
     .maybeSingle();
 
-  if (!catalog && !publicCatalog) return null;
+  if (publicCatalog) {
+    catalog = publicCatalog;
+    let settings: any = foundSettings ?? null;
+    if (!settings && catalog?.user_id) {
+      const { data } = await supabase
+        .from('settings')
+        .select('user_id, name, representative_name, catalog_slug, logo_url, primary_color, secondary_color, banners, banners_mobile, footer_message, phone, show_top_benefit_bar, show_top_info_bar, top_benefit_text, top_benefit_mode, top_benefit_speed, top_benefit_animation, top_benefit_bg_color, top_benefit_text_color, top_benefit_height, top_benefit_text_size, top_benefit_image_url, show_cost_price, show_sale_price, price_unlock_mode, price_password_hash')
+        .eq('user_id', catalog.user_id)
+        .maybeSingle();
+      settings = data;
+    }
 
-  if (!catalog && publicCatalog) catalog = publicCatalog;
-
-  let settings: any = foundSettings ?? null;
-  if (!settings && catalog?.user_id) {
-    const { data } = await supabase
-      .from('settings')
-      .select('user_id, name, representative_name, catalog_slug, logo_url, primary_color, secondary_color, banners, banners_mobile, footer_message, phone, show_top_benefit_bar, show_top_info_bar, top_benefit_text, top_benefit_mode, top_benefit_speed, top_benefit_animation, top_benefit_bg_color, top_benefit_text_color, top_benefit_height, top_benefit_text_size, top_benefit_image_url, show_cost_price, show_sale_price, price_unlock_mode, price_password_hash')
-      .eq('user_id', catalog.user_id)
-      .maybeSingle();
-    settings = data;
+    return {
+      type: 'individual',
+      repSlug: normRep,
+      catalogSlug: normRep,
+      representative: null,
+      catalog,
+      settings,
+      pathPrefix: `/catalogo/${normRep}`,
+    };
   }
 
-  return {
-    type: 'individual',
-    repSlug: normRep,
-    catalogSlug: normRep,
-    representative: null,
-    catalog,
-    settings,
-    pathPrefix: `/catalogo/${normRep}`,
-  };
+  if (foundSettings) {
+    return {
+      type: 'individual',
+      repSlug: normRep,
+      catalogSlug: normRep,
+      representative: null,
+      catalog: null,
+      settings: foundSettings,
+      pathPrefix: `/catalogo/${normRep}`,
+    };
+  }
+
+  // 4. Apenas se NÃO for catálogo de representante/settings/public_catalogs, tenta organizações (distribuidora)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normRep);
+  if (isUuid) {
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('id, name, slug')
+      .eq('id', normRep)
+      .maybeSingle();
+      
+    if (orgData) {
+      return {
+        type: 'distributor',
+        companySlug: normRep,
+        repSlug: normRep,
+        catalogSlug: normRep,
+        company: orgData,
+        pathPrefix: `/catalogo/${normRep}`,
+      };
+    }
+  } else {
+    const { data: orgDataBySlug } = await supabase
+      .from('organizations')
+      .select('id, name, slug')
+      .ilike('slug', escapeIlikePattern(normRep))
+      .maybeSingle();
+
+    if (orgDataBySlug) {
+      return {
+        type: 'distributor',
+        companySlug: normRep,
+        repSlug: normRep,
+        catalogSlug: normRep,
+        company: orgDataBySlug,
+        pathPrefix: `/catalogo/${normRep}`,
+      };
+    }
+  }
+
+  return null;
 }
