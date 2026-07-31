@@ -11,6 +11,20 @@ type SupabaseCookieToSet = {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // --- BYPASS COMPLETO PARA CATÁLOGO PÚBLICO ---
+  // Não criar cliente Supabase, não validar sessão, não ler cookies de auth
+  const isPublicCatalog =
+    pathname === '/catalogo' ||
+    pathname.startsWith('/catalogo/');
+
+  if (isPublicCatalog) {
+    console.log('[middleware] Public catalog route, skipping auth check:', {
+      pathname,
+      authCheckSkipped: true,
+    });
+    return NextResponse.next();
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

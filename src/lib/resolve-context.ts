@@ -54,7 +54,7 @@ export async function resolvePublicCatalogContext(
   // 1. Resolução via cliente SSR normal (público)
   try {
     const context = await resolveContext(slugParts, supabase);
-    if (context) {
+    if (context && (context.company || context.catalog || context.settings)) {
       return { context, resolvedBy: 'SSR' };
     }
   } catch (err: any) {
@@ -174,11 +174,32 @@ export async function resolveContext(
     .maybeSingle();
 
   if (representative) {
+    let catalog: any = null;
+    let settings: any = null;
+    try {
+      const { data: pc } = await supabase
+        .from('public_catalogs')
+        .select('*, price_password_hash')
+        .eq('user_id', representative.id)
+        .maybeSingle();
+      if (pc) catalog = pc;
+    } catch (_) {}
+    try {
+      const { data: st } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('user_id', representative.id)
+        .maybeSingle();
+      if (st) settings = st;
+    } catch (_) {}
+
     return {
       type: 'individual',
       repSlug: normRep,
       catalogSlug: normRep,
       representative,
+      catalog,
+      settings,
       pathPrefix: `/catalogo/${normRep}`,
     };
   }

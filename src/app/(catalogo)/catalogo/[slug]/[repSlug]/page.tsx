@@ -134,7 +134,8 @@ export default async function Page({ params }: PageProps) {
   const ownerSettings = ownerSettingsData?.settings || null;
   const ownerUserId = ownerSettingsData?.ownerUserId || null;
   const publicCatalogSettings = await getCompanyCatalogPublicSettings(normalizedCompanySlug);
-  const { data: companyPages } = await supabase
+  const admin = buildSupabaseAdmin();
+  const { data: companyPages } = await (admin || supabase)
     .from('company_pages')
     .select('id,title,slug')
     .eq('company_id', company.id)

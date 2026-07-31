@@ -230,9 +230,12 @@ export default async function CatalogPage({ params, searchParams }: Props) {
     });
   };
 
+  const admin = buildAdminClient();
+  const clientToUse = admin || supabase;
+
   // Prioriza slug de distribuidora para evitar colisão com slug de perfil/legado.
   // Se existir company com este slug, esta rota base sempre aponta para /empresa.
-  const { data: companyBySlugFirst } = await supabase
+  const { data: companyBySlugFirst } = await clientToUse
     .from('companies')
     .select('slug,type')
     .ilike('slug', escapeIlikePattern(normalizedCompanySlug))
@@ -240,20 +243,6 @@ export default async function CatalogPage({ params, searchParams }: Props) {
 
   if (companyBySlugFirst?.slug && String((companyBySlugFirst as any).type || '').toLowerCase() === 'distribuidora') {
     redirect(`/catalogo/${normalizedCompanySlug}/empresa`);
-  }
-
-  // Fallback com service role caso RLS impeça leitura pública em companies.
-  const admin = buildAdminClient();
-  if (admin) {
-    const { data: companyBySlugAdminFirst } = await admin
-      .from('companies')
-      .select('slug,type')
-      .ilike('slug', escapeIlikePattern(normalizedCompanySlug))
-      .maybeSingle();
-
-    if (companyBySlugAdminFirst?.slug && String((companyBySlugAdminFirst as any).type || '').toLowerCase() === 'distribuidora') {
-      redirect(`/catalogo/${normalizedCompanySlug}/empresa`);
-    }
   }
 
   // Resolução do contexto do catálogo público com fallback de Service Role
@@ -272,7 +261,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       // Quando resolveContext identifica profile por slug, tenta resolver public_catalog associado.
       const representativeId = context.representative?.id;
       if (representativeId) {
-        const { data: catalogByUser } = await supabase
+        const { data: catalogByUser } = await clientToUse
           .from('public_catalogs')
           .select('*, price_password_hash')
           .eq('user_id', representativeId)
@@ -280,7 +269,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         catalog = catalogByUser || null;
 
         if (representativeId) {
-          const { data: settingsByUser } = await supabase
+          const { data: settingsByUser } = await clientToUse
             .from('settings')
             .select('*')
             .eq('user_id', representativeId)
@@ -290,7 +279,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       }
 
       if (!catalog) {
-        const { data: catalogBySlug } = await supabase
+        const { data: catalogBySlug } = await clientToUse
           .from('public_catalogs')
           .select('*, price_password_hash')
           .eq('catalog_slug', normalizedCompanySlug)
@@ -298,7 +287,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         catalog = catalogBySlug || null;
 
         if (catalog?.user_id) {
-          const { data: settingsByCatalogUser } = await supabase
+          const { data: settingsByCatalogUser } = await clientToUse
             .from('settings')
             .select('*')
             .eq('user_id', catalog.user_id)
@@ -384,14 +373,14 @@ export default async function CatalogPage({ params, searchParams }: Props) {
 
       let maxLimit = 5000;
       try {
-        const { data: sub } = await supabase
+        const { data: sub } = await clientToUse
           .from('subscriptions')
           .select('plan_id, plan_name')
           .eq('user_id', catalog.user_id)
           .maybeSingle();
 
         if (sub?.plan_id) {
-          const { data: plan } = await supabase
+          const { data: plan } = await clientToUse
             .from('plans')
             .select('product_limit, max_products')
             .eq('id', sub.plan_id)
@@ -401,7 +390,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
             maxLimit = plan.product_limit || plan.max_products || maxLimit;
           }
         } else if (sub?.plan_name) {
-          const { data: plan } = await supabase
+          const { data: plan } = await clientToUse
             .from('plans')
             .select('product_limit, max_products')
             .eq('name', sub.plan_name)
@@ -421,7 +410,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       const representativeCompanyId = context?.representative?.company_id || null;
       const ownerUserId = representativeId || catalog.user_id;
 
-      let productsQuery = supabase
+      let productsQuery = clientToUse
         .from('products')
         .select('*, linked_images, product_images(url, is_primary)')
         .eq('is_active', true)
