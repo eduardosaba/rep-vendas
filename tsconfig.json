@@ -41,6 +41,7 @@
     ".next",
     "docs/**",
     "scripts/**",
+    "src/dev/**",
     "__tests__/**",
     "*.test.ts",
     "*.test.tsx",

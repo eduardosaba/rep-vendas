@@ -2,6 +2,7 @@
 
 import ImpersonateBanner from '@/components/dashboard/ImpersonateBanner';
 import NotificationDropdown from '@/components/NotificationDropdown';
+import { OrganizationSelector } from '@/components/organization/OrganizationSelector';
 import { createClient } from '@/lib/supabase/client';
 import { ChevronDown, LogOut, Menu, Moon, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
@@ -204,6 +205,9 @@ export default function DashboardHeader({
         </button>
 
         {isImpersonating && <ImpersonateBanner />}
+
+        {/* Organization Selector */}
+        <OrganizationSelector />
 
         {/* Notificações (componente reutilizável) */}
         <NotificationDropdown userId={userId} />

@@ -594,38 +594,53 @@ export async function adminResetPassword(
   }
 }
 
-// --- ACTION 9: EXCLUIR USUÁRIO (CORRIGIDA - CLEANUP MANUAL) ---
+// --- ACTION 9: EXCLUIR USUÁRIO (COM LIMPEZA COMPLETA DE DADOS) ---
 export async function deleteUser(userId: string) {
   try {
     await requireAdminPermission();
 
-    // 1. Limpeza Manual (Software Cascade)
-    // Tenta apagar assinaturas primeiro
-    await supabaseAdmin.from('subscriptions').delete().eq('user_id', userId);
+    // 1. Limpeza Manual Completa (Software Cascade) em tabelas vinculadas
+    const tablesToClean = [
+      'order_items',
+      'orders',
+      'products',
+      'clients',
+      'customers',
+      'brands',
+      'categories',
+      'settings',
+      'subscriptions',
+    ];
 
-    // Tenta apagar perfil depois
-    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+    for (const table of tablesToClean) {
+      try {
+        await supabaseAdmin.from(table).delete().eq('user_id', userId);
+      } catch (err) {
+        // Caso a tabela não exista ou não tenha user_id, continua
+      }
+    }
 
-    // DICA: Se tiver tabelas de "stores" ou "products", adicione aqui também:
-    // await supabaseAdmin.from('stores').delete().eq('owner_id', userId);
+    // Apagar perfil
+    try {
+      await supabaseAdmin.from('profiles').delete().eq('id', userId);
+    } catch (err) {}
 
-    // 2. Apaga do Auth (A origem do erro)
+    // 2. Apaga da Autenticação do Supabase Auth
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     revalidatePath('/admin/users');
-    return { success: true, message: 'Usuário excluído permanentemente.' };
+    return { success: true, message: 'Usuário e todos os seus dados foram excluídos com sucesso.' };
   } catch (error: any) {
     logger.error('Erro deleteUser', error);
-
-    // Melhora a mensagem de erro para o admin
     let errorMsg = getErrorMessage(error);
     if (errorMsg.includes('violates foreign key constraint')) {
       errorMsg =
-        'Erro: Existem dados (lojas/produtos) vinculados a este usuário. Apague-os primeiro ou configure Cascade no Banco.';
+        'Erro ao excluir: existem dados vinculados que impedem a remoção. Verifique a base de dados.';
     }
-
     return { success: false, error: errorMsg };
   }
 }

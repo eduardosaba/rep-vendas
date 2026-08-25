@@ -8,6 +8,7 @@ import { useWelcomeManager } from '@/hooks/useWelcomeManager';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { OrganizationProvider } from '@/modules/organization-context/OrganizationProvider';
 
 export default function DashboardLayout({
   children,
@@ -18,8 +19,22 @@ export default function DashboardLayout({
   const [authorized, setAuthorized] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
-  // No mobile é melhor iniciar recolhido para evitar overlay cobrindo a tela no iOS.
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  // No desktop inicia expandida (false) por padrão, no mobile inicia colapsada (true)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sidebar_collapsed');
+      if (saved !== null) return saved === 'true';
+      return window.innerWidth < 1024;
+    }
+    return false;
+  });
+
+  const handleSetSidebarCollapsed = (collapsed: boolean) => {
+    setIsSidebarCollapsed(collapsed);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebar_collapsed', String(collapsed));
+    }
+  };
   const pathname = usePathname();
   const router = useRouter();
 
@@ -175,49 +190,51 @@ export default function DashboardLayout({
   if (!authorized) return null;
 
   return (
-    <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
-      <div className="flex h-screen w-full overflow-hidden">
-        <Sidebar
-          isCollapsed={isSidebarCollapsed}
-          setIsCollapsed={setIsSidebarCollapsed}
-        />
-
-        <div className="flex-1 flex flex-col h-full min-w-0 relative">
-          <DashboardHeader
-            onMenuClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+    <OrganizationProvider>
+      <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
+        <div className="flex h-screen w-full overflow-hidden">
+          <Sidebar
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={handleSetSidebarCollapsed}
           />
 
-          <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin">
-            <div className="max-w-7xl mx-auto pb-10">
-              <div id="impersonate-banner-root" />
-
-              {children}
-
-              {!welcomeLoading && shouldShow && (
-                <WelcomePopup
-                  version={updateData}
-                  onConfirm={async () => {
-                    await markAsSeen();
-                  }}
-                />
-              )}
-
-              {showBlockedPopup && (
-                <BlockedAccountPopup
-                  onClose={() => setShowBlockedPopup(false)}
-                />
-              )}
-            </div>
-          </main>
-
-          {!isSidebarCollapsed && (
-            <div
-              className="fixed inset-0 bg-black/20 z-40 lg:hidden backdrop-blur-sm"
-              onClick={() => setIsSidebarCollapsed(true)}
+          <div className="flex-1 flex flex-col h-full min-w-0 relative">
+            <DashboardHeader
+              onMenuClick={() => handleSetSidebarCollapsed(!isSidebarCollapsed)}
             />
-          )}
+
+            <main className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin">
+              <div className="max-w-7xl mx-auto pb-10">
+                <div id="impersonate-banner-root" />
+
+                {children}
+
+                {!welcomeLoading && shouldShow && (
+                  <WelcomePopup
+                    version={updateData}
+                    onConfirm={async () => {
+                      await markAsSeen();
+                    }}
+                  />
+                )}
+
+                {showBlockedPopup && (
+                  <BlockedAccountPopup
+                    onClose={() => setShowBlockedPopup(false)}
+                  />
+                )}
+              </div>
+            </main>
+
+            {!isSidebarCollapsed && (
+              <div
+                className="fixed inset-0 bg-black/20 z-40 lg:hidden backdrop-blur-sm"
+                onClick={() => setIsSidebarCollapsed(true)}
+              />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </OrganizationProvider>
   );
 }

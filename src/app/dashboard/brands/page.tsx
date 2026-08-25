@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   Edit2,
   X,
+  Check,
   RefreshCw,
   AlertTriangle, // Novo ícone para o modal
 } from 'lucide-react';
@@ -60,75 +61,104 @@ const BrandCard = ({
   brand,
   isEditing,
   onEdit,
-  onRequestDelete, // Nome atualizado para clareza
+  onRequestDelete,
+  onToggleProductsStatus,
+  isToggling,
 }: {
   brand: Brand;
   isEditing: boolean;
   onEdit: (b: Brand) => void;
   onRequestDelete: (id: string) => void;
+  onToggleProductsStatus: (brandId: string, brandName: string, active: boolean) => void;
+  isToggling?: boolean;
 }) => {
   const [logoFailed, setLogoFailed] = useState(false);
 
   return (
     <div
-      className={`bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm relative group hover:shadow-md transition-all ${
+      className={`bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm relative group hover:shadow-md transition-all flex flex-col justify-between ${
         isEditing
           ? 'border-primary ring-1 ring-primary'
           : 'border-gray-200 dark:border-slate-800 hover:border-primary/50'
       }`}
     >
-      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg p-0.5 z-10 border border-gray-100 dark:border-slate-700">
-        <button
-          onClick={() => onEdit(brand)}
-          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-          title="Editar"
-        >
-          <Edit2 size={14} />
-        </button>
-        <button
-          onClick={() => onRequestDelete(brand.id)}
-          className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-          title="Excluir"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
+      <div>
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg p-0.5 z-10 border border-gray-100 dark:border-slate-700">
+          <button
+            onClick={() => onEdit(brand)}
+            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+            title="Editar"
+          >
+            <Edit2 size={14} />
+          </button>
+          <button
+            onClick={() => onRequestDelete(brand.id)}
+            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+            title="Excluir Marca"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
 
-      <div className="h-20 w-full flex items-center justify-center mb-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 overflow-hidden group-hover:border-primary/20 transition-colors">
-        {brand.logo_url && !logoFailed ? (
-          <Image
-            src={brand.logo_url}
-            alt={brand.name}
-            width={160}
-            height={80}
-            className="w-full h-full object-contain p-2"
-            onError={() => setLogoFailed(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-transparent">
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 select-none">
-              {brand.name}
+        <div className="h-20 w-full flex items-center justify-center mb-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 overflow-hidden group-hover:border-primary/20 transition-colors">
+          {brand.logo_url && !logoFailed ? (
+            <Image
+              src={brand.logo_url}
+              alt={brand.name}
+              width={160}
+              height={80}
+              className="w-full h-full object-contain p-2"
+              onError={() => setLogoFailed(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-transparent">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 select-none">
+                {brand.name}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <h4
+          className="font-bold text-center text-gray-800 dark:text-gray-200 truncate px-1"
+          title={brand.name}
+        >
+          {brand.name}
+        </h4>
+
+        {brand.commission_percent > 0 ? (
+          <div className="mt-2 text-center">
+            <span className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-[10px] px-2 py-1 rounded-full font-bold border border-green-100 dark:border-green-900/30 inline-flex items-center gap-1">
+              <Percent size={10} /> {brand.commission_percent}% Comis.
             </span>
           </div>
+        ) : (
+          <div className="mt-2 h-5"></div>
         )}
       </div>
 
-      <h4
-        className="font-bold text-center text-gray-800 dark:text-gray-200 truncate px-1"
-        title={brand.name}
-      >
-        {brand.name}
-      </h4>
-
-      {brand.commission_percent > 0 ? (
-        <div className="mt-3 text-center">
-          <span className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-[10px] px-2 py-1 rounded-full font-bold border border-green-100 dark:border-green-900/30 inline-flex items-center gap-1">
-            <Percent size={10} /> {brand.commission_percent}% Comis.
-          </span>
-        </div>
-      ) : (
-        <div className="mt-3 h-6"></div>
-      )}
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+        <button
+          type="button"
+          onClick={() => onToggleProductsStatus(brand.id, brand.name, false)}
+          disabled={isToggling}
+          className="flex-1 px-2 py-1 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+          title="Inativar todos os produtos desta marca"
+        >
+          <X size={12} />
+          Inativar
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggleProductsStatus(brand.id, brand.name, true)}
+          disabled={isToggling}
+          className="flex-1 px-2 py-1 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 rounded text-[11px] font-semibold transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+          title="Ativar todos os produtos desta marca"
+        >
+          <Check size={12} />
+          Ativar
+        </button>
+      </div>
     </div>
   );
 };
@@ -151,12 +181,57 @@ export default function BrandsPage() {
   // Estado para o Modal de Exclusão
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [togglingBrand, setTogglingBrand] = useState<string | null>(null);
 
   // Estados do Formulário
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [formData, setFormData] = useState<BrandFormData>(INITIAL_FORM_DATA);
 
   // --- AÇÕES ---
+
+  const handleToggleBrandProducts = async (
+    brandId: string,
+    brandName: string,
+    active: boolean
+  ) => {
+    const actionText = active ? 'ATIVAR' : 'INATIVAR';
+    if (
+      !confirm(
+        `Deseja realmente ${actionText} todos os PRODUTOS vinculados à marca "${brandName}"?`
+      )
+    ) {
+      return;
+    }
+
+    setTogglingBrand(brandId);
+    const toastId = toast.loading(
+      `Atualizando produtos da marca ${brandName}...`
+    );
+
+    try {
+      const res = await fetch('/api/products/bulk-update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId, brandName, is_active: active }),
+      });
+
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || 'Erro ao atualizar produtos da marca');
+
+      toast.success(
+        data.message || `Produtos da marca ${brandName} foram atualizados!`,
+        { id: toastId }
+      );
+    } catch (error: any) {
+      console.error('Erro ao alternar produtos da marca:', error);
+      toast.error(error.message || 'Erro ao atualizar produtos da marca', {
+        id: toastId,
+      });
+    } finally {
+      setTogglingBrand(null);
+    }
+  };
 
   const fetchBrands = useCallback(async () => {
     try {
@@ -789,6 +864,8 @@ export default function BrandsPage() {
                   isEditing={editingBrand?.id === brand.id}
                   onEdit={handleEdit}
                   onRequestDelete={handleDeleteRequest}
+                  onToggleProductsStatus={handleToggleBrandProducts}
+                  isToggling={togglingBrand === brand.name}
                 />
               ))}
             </div>

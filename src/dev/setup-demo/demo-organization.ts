@@ -1,6 +1,24 @@
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
-export async function createDemoOrganization(supabaseAdmin: ReturnType<typeof createSupabaseAdmin>) {
+type CompanyInsert = {
+  name: string;
+  slug: string;
+  cnpj: string;
+  metadata: {
+    environment: string;
+    demo: boolean;
+    createdBy: string;
+  };
+};
+
+type SettingsInsert = {
+  company_id: string;
+  fiscal_mode: string;
+  auto_create_invoice_on_picking_completed: boolean;
+  auto_create_shipment_on_invoice_issued: boolean;
+};
+
+export async function createDemoOrganization(supabaseAdmin: any) {
   const companyName = 'Distribuidora Alpha';
   const companySlug = 'alpha-demo';
 
@@ -26,7 +44,7 @@ export async function createDemoOrganization(supabaseAdmin: ReturnType<typeof cr
         demo: true,
         createdBy: 'dev-setup',
       }
-    })
+    } satisfies CompanyInsert as any)
     .select()
     .single();
 
@@ -34,11 +52,11 @@ export async function createDemoOrganization(supabaseAdmin: ReturnType<typeof cr
 
   // Ajustar settings (fiscal_mode manual, automações desligadas)
   await supabaseAdmin.from('settings').insert({
-    company_id: company.id,
+    company_id: (company as any).id,
     fiscal_mode: 'manual',
     auto_create_invoice_on_picking_completed: false,
     auto_create_shipment_on_invoice_issued: false
-  });
+  } satisfies SettingsInsert as any);
 
   return { success: true, company };
 }

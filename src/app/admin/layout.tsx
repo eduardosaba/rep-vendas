@@ -38,11 +38,12 @@ export default async function AdminLayout({
     .eq('id', user.id)
     .single();
 
-  const role = profile?.role;
+  const role = String(profile?.role || '').toLowerCase();
   const isMaster = role === 'master';
+  const isAdmin = role === 'admin';
   const isAdminCompany = role === 'admin_company';
 
-  if (!isMaster && !isAdminCompany) {
+  if (!isMaster && !isAdmin && !isAdminCompany) {
     redirect('/admin/unauthorized');
   }
 

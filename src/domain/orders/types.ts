@@ -1,58 +1,69 @@
 export enum CommercialStatus {
   DRAFT = 'draft',
-  PENDING_APPROVAL = 'pending_approval',
+  SUBMITTED = 'pending_approval',
+  UNDER_REVIEW = 'pending_approval',
   APPROVED = 'approved',
   REJECTED = 'rejected',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
 }
 
 export enum OperationalStatus {
-  PENDING = 'pending',
-  PICKING = 'picking',
-  SEPARATED = 'separated',
-  INVOICED = 'invoiced',
+  PENDING_FULFILLMENT = 'pending',
+  PROCESSING = 'picking',
   SHIPPED = 'shipped',
   DELIVERED = 'delivered',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
 }
 
 export enum OrderEventType {
+  // Commercial events
   ORDER_CREATED = 'ORDER_CREATED',
-  APPROVAL_REQUESTED = 'APPROVAL_REQUESTED',
+  SUBMITTED_FOR_APPROVAL = 'SUBMITTED_FOR_APPROVAL',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
-  
-  // Fulfillment & Logistics Events
+  CANCELLED = 'CANCELLED',
+  COMMERCIAL_STATUS_CHANGED = 'COMMERCIAL_STATUS_CHANGED',
+
+  // Operational events
+  OPERATIONAL_STATUS_CHANGED = 'OPERATIONAL_STATUS_CHANGED',
+  FULFILLMENT_STARTED = 'FULFILLMENT_STARTED',
+  SHIPPED = 'SHIPPED',
+  DELIVERED = 'DELIVERED',
+
+  // Fulfillment & Picking events
   PICKING_ASSIGNED = 'PICKING_ASSIGNED',
   PICKING_STARTED = 'PICKING_STARTED',
   ITEM_PICKED = 'ITEM_PICKED',
-  PICKING_COMPLETED = 'PICKING_COMPLETED',
   PICKING_EXCEPTION_CREATED = 'PICKING_EXCEPTION_CREATED',
   PICKING_EXCEPTION_APPROVED = 'PICKING_EXCEPTION_APPROVED',
-  PICKING_CANCELLED = 'PICKING_CANCELLED',
+  PICKING_COMPLETED = 'PICKING_COMPLETED',
+
+  // Invoice & Shipment events
   INVOICE_CREATED = 'INVOICE_CREATED',
   INVOICE_SUBMITTED_TO_PROVIDER = 'INVOICE_SUBMITTED_TO_PROVIDER',
-  INVOICE_AUTHORIZED = 'INVOICE_AUTHORIZED',
-  INVOICE_REJECTED = 'INVOICE_REJECTED',
   INVOICE_ISSUED = 'INVOICE_ISSUED',
-  INVOICE_CANCELLED = 'INVOICE_CANCELLED',
-  SHIPMENT_CREATED = 'SHIPMENT_CREATED',
+  INVOICE_REJECTED = 'INVOICE_REJECTED',
   SHIPMENT_READY = 'SHIPMENT_READY',
-  SHIPMENT_PICKED_UP = 'SHIPMENT_PICKED_UP',
-  SHIPMENT_DISPATCHED = 'SHIPMENT_DISPATCHED',
-  SHIPMENT_DELIVERED = 'SHIPMENT_DELIVERED',
-  SHIPMENT_FAILED = 'SHIPMENT_FAILED',
-  ORDER_SHIPPED = 'ORDER_SHIPPED',
-  SHIPPED = 'SHIPPED',
-  ORDER_DELIVERED = 'ORDER_DELIVERED',
-  DELIVERED = 'DELIVERED',
-  CANCELLED = 'CANCELLED'
 }
 
 export interface OrderTransitionResult {
-  commercialStatus: CommercialStatus;
-  operationalStatus: OperationalStatus;
+  commercialStatus: CommercialStatus | null;
+  operationalStatus: OperationalStatus | null;
   eventType: OrderEventType;
   expectedVersion: number;
   reason?: string;
+}
+
+export interface OrderStatusHistoryEntry {
+  id: string;
+  order_id: string;
+  status_domain: 'commercial' | 'operational';
+  from_status: string | null;
+  to_status: string;
+  changed_by_user_id: string;
+  organization_id: string | null;
+  order_version: number;
+  reason: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
 }

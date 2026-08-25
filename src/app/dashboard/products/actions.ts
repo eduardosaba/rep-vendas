@@ -77,27 +77,25 @@ export async function bulkUpdatePrice(
     if (mode === 'fixed') {
       const { error } = await supabase
         .from('products')
-        .update({ cost: value })
-        .in('id', ids)
-        .eq('user_id', user.id);
+        .update({ price: value })
+        .in('id', ids);
 
       if (error) return { error: error.message } as any;
     } else {
       const { data: currentProducts, error } = await supabase
         .from('products')
-        .select('id, cost')
-        .in('id', ids)
-        .eq('user_id', user.id);
+        .select('id, price')
+        .in('id', ids);
 
       if (error) return { error: error.message } as any;
       if (currentProducts) {
         const updates = currentProducts.map((prod: any) => {
-          const newPrice = (prod.cost || 0) * (1 + value / 100);
+          const currentVal = Number(prod.price || 0);
+          const newPrice = currentVal * (1 + value / 100);
           return supabase
             .from('products')
-            .update({ cost: newPrice })
-            .eq('id', prod.id)
-            .eq('user_id', user.id);
+            .update({ price: Math.round(newPrice * 100) / 100 })
+            .eq('id', prod.id);
         });
         await Promise.all(updates);
       }

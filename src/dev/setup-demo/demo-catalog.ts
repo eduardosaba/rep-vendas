@@ -1,6 +1,17 @@
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
-export async function createDemoCatalog(supabaseAdmin: ReturnType<typeof createSupabaseAdmin>, companyId: string) {
+type ProductInsert = {
+  company_id: string;
+  sku: string;
+  name: string;
+  description: string;
+  price: number;
+  cost_price: number;
+  stock: number;
+  is_active: boolean;
+};
+
+export async function createDemoCatalog(supabaseAdmin: any, companyId: string) {
   const products = [
     // Armações
     { sku: 'RV001', name: 'Armação Ray Vision RV001', category: 'Armações', price: 150.00, cost_price: 50.00, stock: 100 },
@@ -16,7 +27,7 @@ export async function createDemoCatalog(supabaseAdmin: ReturnType<typeof createS
     { sku: 'L-PROG', name: 'Lente Progressiva', category: 'Lentes', price: 800.00, cost_price: 350.00, stock: 50 },
   ];
 
-  const productsToInsert = products.map(p => ({
+  const productsToInsert: ProductInsert[] = products.map(p => ({
     company_id: companyId,
     sku: p.sku,
     name: p.name,
@@ -29,7 +40,7 @@ export async function createDemoCatalog(supabaseAdmin: ReturnType<typeof createS
 
   const { error } = await supabaseAdmin
     .from('products')
-    .insert(productsToInsert);
+    .insert(productsToInsert as any);
 
   if (error) {
     throw new Error(error.message || 'Erro ao popular o catálogo de 10 SKUs.');

@@ -31,9 +31,11 @@ export default async function AdminDashboardPage() {
     .eq('id', user.id)
     .single();
 
+  const role = String(currentUserProfile?.role || '').toLowerCase();
   const isAllowed =
-    currentUserProfile?.role === 'admin' ||
-    currentUserProfile?.role === 'master';
+    role === 'admin' ||
+    role === 'master' ||
+    role === 'admin_company';
 
   if (!isAllowed) {
     // Redireciona usuários comuns para a área deles
