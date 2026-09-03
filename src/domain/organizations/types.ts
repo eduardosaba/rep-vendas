@@ -5,8 +5,39 @@ export type OrganizationType =
   | 'catalog_template';
 
 export type MemberRole = 'owner' | 'admin' | 'sales_rep' | 'buyer' | 'operator';
+export type OrganizationRole = MemberRole;
 
 export type MemberStatus = 'active' | 'invited' | 'suspended';
+
+export interface UserOrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  organization_type: OrganizationType;
+  role: OrganizationRole;
+  status: MemberStatus;
+  logo_url: string | null;
+}
+
+export interface ActiveOrganizationContext {
+  id: string;
+  name: string;
+  slug: string;
+  organization_type: OrganizationType;
+  role: OrganizationRole;
+  is_active: boolean;
+  is_public: boolean;
+  can_sell: boolean;
+  can_buy: boolean;
+  can_receive_orders: boolean;
+  is_template_catalog: boolean;
+}
+
+export interface OrganizationMembershipValidationResult {
+  isValid: boolean;
+  reason?: string;
+  organization?: ActiveOrganizationContext;
+}
 
 export type OrganizationStatus = 'active' | 'suspended' | 'inactive';
 

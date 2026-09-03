@@ -1,4 +1,3 @@
-'use me' // Note: standard 'use server' directive below
 'use server';
 
 import { cookies } from 'next/headers';
