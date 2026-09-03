@@ -109,14 +109,74 @@ export async function POST(req: Request) {
       return !!existingMap[key];
     });
 
+    let lastError: string | null = null;
+
     // Insert new products
     if (toInsert.length > 0) {
-      const { data: inserted, error: insertErr } = await supabase
+      const normalizeTipoMontagem = (val: any) => {
+        if (!val) return null;
+        const s = String(val).toLowerCase().trim();
+        if (s.includes('fechad') || s.includes('full') || s.includes('aro_fechado')) return 'aro_fechado';
+        if (s.includes('nylon') || s.includes('fio') || s.includes('semi')) return 'fio_nylon';
+        if (s.includes('balgriff') || s.includes('parafus') || s.includes('flutu') || s.includes('rimless') || s.includes('3_pec') || s.includes('tres_pec')) return 'balgriff';
+        return null;
+      };
+
+      const cleanedToInsert = toInsert.map((item) => {
+        const cleaned = { ...item };
+        delete cleaned.profile_id;
+        if (cleaned.company_id === null || cleaned.company_id === undefined) {
+          delete cleaned.company_id;
+        }
+        if (cleaned.tipo_montagem !== undefined) {
+          cleaned.tipo_montagem = normalizeTipoMontagem(cleaned.tipo_montagem);
+        }
+        return cleaned;
+      });
+
+      let { data: inserted, error: insertErr } = await supabase
         .from('products')
-        .insert(toInsert)
+        .insert(cleanedToInsert)
         .select('id, external_image_url, reference_id, reference_code');
+
+      if (insertErr) {
+        console.error('[import-products-chunk] Primary insert error:', insertErr);
+
+        const fallbackItems = cleanedToInsert.map((item) => {
+          const copy = { ...item };
+          delete copy.company_id;
+          delete copy.profile_id;
+          return copy;
+        });
+
+        // Try single-item insert fallback so one duplicate reference_code doesn't fail the whole batch
+        const singleInsertedList: any[] = [];
+        let singleFailures = 0;
+
+        for (const item of fallbackItems) {
+          const { data: singleData, error: singleErr } = await supabase
+            .from('products')
+            .insert([item])
+            .select('id, external_image_url, reference_id, reference_code');
+
+          if (!singleErr && singleData && singleData.length > 0) {
+            singleInsertedList.push(singleData[0]);
+          } else if (singleErr) {
+            singleFailures++;
+            console.warn('[import-products-chunk] Single item insert skipped:', item.reference_code, singleErr.message);
+            lastError = singleErr.message;
+          }
+        }
+
+        if (singleInsertedList.length > 0) {
+          inserted = singleInsertedList;
+          insertErr = null;
+        }
+      }
+
       if (insertErr) {
         errorCount += toInsert.length;
+        lastError = insertErr.message;
       } else if (inserted && Array.isArray(inserted)) {
         inserted.forEach((p: any) => {
           const key = p.reference_id || p.reference_code;
@@ -142,7 +202,9 @@ export async function POST(req: Request) {
           else query = query.eq('reference_code', itm.reference_code);
           const { data: updated, error: updErr } = await query.select('id, external_image_url, reference_id, reference_code');
           if (updErr) {
+            console.error('[import-products-chunk] Update error:', updErr);
             errorCount += 1;
+            lastError = updErr.message;
           } else if (updated && Array.isArray(updated)) {
             updated.forEach((p: any) => {
               const key = p.reference_id || p.reference_code;
@@ -150,8 +212,9 @@ export async function POST(req: Request) {
             });
             totalUpdated += updated.length;
           }
-        } catch (e) {
+        } catch (e: any) {
           errorCount += 1;
+          lastError = e?.message || String(e);
         }
       }
     }
@@ -204,7 +267,13 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ inserted: totalInserted, updated: totalUpdated, galleryInserted, errors: errorCount });
+    return NextResponse.json({
+      inserted: totalInserted,
+      updated: totalUpdated,
+      galleryInserted,
+      errors: errorCount,
+      ...(lastError ? { lastError } : {}),
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
   }

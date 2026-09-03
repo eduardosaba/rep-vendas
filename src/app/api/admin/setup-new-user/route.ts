@@ -51,11 +51,16 @@ export async function POST(req: Request) {
 
     const authHeader = req.headers.get('authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    if (!token || token === 'undefined' || token === 'null')
-      return NextResponse.json({ error: 'Missing auth' }, { status: 401 });
 
-    const { data: userResp } = await supabase.auth.getUser(token as any);
-    const user = userResp?.user;
+    let user: any = null;
+    if (token && token !== 'undefined' && token !== 'null') {
+      const { data: userResp } = await supabase.auth.getUser(token as any);
+      user = userResp?.user;
+    } else {
+      const { getServerUserFallback } = await import('@/lib/supabase/getServerUserFallback');
+      user = await getServerUserFallback();
+    }
+
     if (!user) return NextResponse.json({ error: 'Invalid auth' }, { status: 401 });
 
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();

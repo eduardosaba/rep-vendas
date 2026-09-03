@@ -21,13 +21,9 @@ export async function PATCH(request: NextRequest) {
         .update({ is_active, updated_at: new Date().toISOString() })
         .eq('user_id', user.id);
 
-      if (brandId && brandName) {
-        // Tenta associar tanto por UUID (brand_id) quanto por Nome da Marca (brand)
-        query = query.or(`brand_id.eq.${brandId},brand.ilike.${brandName}`);
-      } else if (brandId) {
-        query = query.eq('brand_id', brandId);
-      } else if (brandName) {
-        query = query.ilike('brand', brandName);
+      const targetBrand = brandName || brandId;
+      if (targetBrand) {
+        query = query.ilike('brand', targetBrand);
       }
 
       const { data, error } = await query.select('id');

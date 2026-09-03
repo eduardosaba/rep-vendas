@@ -4,9 +4,7 @@ import fetch from 'node-fetch';
 import sharp from 'sharp';
 import { createClient } from '@supabase/supabase-js';
 import https from 'https';
-import fs from 'fs';
 import pLimit from 'p-limit';
-import notifier from 'node-notifier';
 
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -20,16 +18,13 @@ const SIZE_OPTIONS = {
   480: { width: 480, quality: 70 },
   1200: { width: 1200, quality: 85 },
 };
-// Com 400mb de internet, podemos subir para 15 ou 20
 const MAX_CONCURRENT = 15;
-
 const limit = pLimit(MAX_CONCURRENT);
 
 function splitUrls(input) {
   if (!input) return [];
   if (Array.isArray(input)) return input.flatMap((i) => splitUrls(i));
   if (typeof input === 'object') {
-    // common fields that may hold a url inside gallery objects
     return splitUrls(input.url || input.src || input.path || input.publicUrl || input.public_url || '');
   }
   return String(input)
@@ -38,13 +33,29 @@ function splitUrls(input) {
     .filter((u) => u.startsWith('http'));
 }
 
+async function fetchWithRetry(url, agent, retries = 3) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+  };
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, { agent, headers, timeout: 15000 });
+      if (res.ok) return res;
+      if (res.status === 404) throw new Error(`HTTP 404 (Imagem não encontrada)`);
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw new Error(`Falha ao baixar imagem após ${retries} tentativas`);
+}
+
 async function processImage(url, storageBase, agent) {
-  // Timeout agressivo de 10s para não travar a fila
-  const res = await fetch(url, { agent, timeout: 10000 });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const res = await fetchWithRetry(url, agent);
   const buffer = Buffer.from(await res.arrayBuffer());
 
-  // Processa todas as variantes (480 e 1200) em paralelo para o mesmo arquivo
   return Promise.all(
     RESPONSIVE_SIZES.map(async (size) => {
       const outBuf = await sharp(buffer)
@@ -65,7 +76,6 @@ async function processImage(url, storageBase, agent) {
 }
 
 async function syncFullCatalog() {
-  // Aumentamos maxSockets para o 4G de 400mb respirar
   const agent = new https.Agent({
     rejectUnauthorized: false,
     keepAlive: true,
@@ -73,7 +83,6 @@ async function syncFullCatalog() {
     scheduling: 'lifo',
   });
 
-  // CLI args: [brandFilter] or flags: --dry-run, --ids=id1,id2
   const rawArgs = process.argv.slice(2);
   let brandFilter = null;
   let dryRun = false;
@@ -86,176 +95,160 @@ async function syncFullCatalog() {
   const startTime = Date.now();
 
   console.log(
-    `\n🚀 [RepVendas] MODO TURBO ATIVADO (Concorrência: ${MAX_CONCURRENT})`.bold
+    `\n🚀 [RepVendas Turbo v2] MODO INTELIGENTE ATIVADO (Concorrência: ${MAX_CONCURRENT})`
   );
 
-  let query;
-  if (targetIds && targetIds.length) {
-    query = supabase.from('products').select('id, reference_code, image_url, external_image_url, images, brand, color, gallery_images').in('id', targetIds);
-  } else {
-    query = supabase
-      .from('products')
-      .select('id, reference_code, image_url, external_image_url, images, brand, color, gallery_images')
-      .or('sync_status.eq.pending,sync_status.eq.failed');
+  let totalProcessedInRun = 0;
 
-    if (brandFilter) query = query.ilike('brand', `%${brandFilter}%`);
-  }
+  while (true) {
+    let query;
+    if (targetIds && targetIds.length) {
+      query = supabase.from('products').select('id, reference_code, image_url, external_image_url, images, brand, color, gallery_images').in('id', targetIds);
+    } else {
+      // Query inteligente: pega pendentes, failed OU qualquer item com image_path NULL que possua URLs externas
+      query = supabase
+        .from('products')
+        .select('id, reference_code, image_url, external_image_url, images, brand, color, gallery_images')
+        .is('image_path', null)
+        .or('external_image_url.not.is.null,image_url.not.is.null,images.not.is.null');
 
-  const { data, error } = await query.limit(1000);
-  if (error || !data) {
-    console.error('❌ Erro Supabase:', error?.message);
-    return;
-  }
+      if (brandFilter) query = query.ilike('brand', `%${brandFilter}%`);
+    }
 
-  console.log(`📦 Processando lote de ${data.length} itens...`);
+    const { data, error } = await query.limit(500);
+    if (error) {
+      console.error('❌ Erro Supabase:', error?.message);
+      break;
+    }
 
-  let processed = 0;
+    if (!data || data.length === 0) {
+      if (totalProcessedInRun === 0) {
+        console.log(`✨ Nenhum produto pendente para sincronizar ${brandFilter ? `na marca "${brandFilter}"` : ''}.`);
+      } else {
+        console.log(`\n🏆 Todos os lotes foram processados com sucesso! Total: ${totalProcessedInRun} produtos.`);
+      }
+      break;
+    }
 
-  const tasks = data.map((product) =>
-    limit(async () => {
-      const brand = product.brand || 'Geral';
-      const ref = product.reference_code || product.id;
-      const color = product.color || '';
-      const refSafe = String(ref).replace(/[^a-zA-Z0-9]/g, '_');
-      const colorSlugRaw = String(color || '').toString().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      // Avoid duplicating color if it's already part of the reference_code
-      const refNorm = refSafe.toLowerCase().replace(/[_]+/g, '-');
-      const includeColor = colorSlugRaw && !refNorm.endsWith('-' + colorSlugRaw) && !refNorm.endsWith(colorSlugRaw);
-      const brandSlug = String(brand || 'geral').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const fileBase = includeColor
-        ? `public/brands/${brandSlug}/${refSafe}-${colorSlugRaw}`
-        : `public/brands/${brandSlug}/${refSafe}`;
+    console.log(`📦 Processando lote de ${data.length} itens...`);
+    let processedInBatch = 0;
 
-      try {
-        // Recolhe todas as URLs candidatas: capa, external, images array e gallery_images
-        const urls = [
-          ...new Set([
-            ...splitUrls(product.image_url),
-            ...splitUrls(product.external_image_url),
-            ...splitUrls(product.images),
-            ...splitUrls(product.gallery_images),
-          ]),
-        ];
+    const tasks = data.map((product) =>
+      limit(async () => {
+        const brand = product.brand || 'Geral';
+        const ref = product.reference_code || product.id;
+        const color = product.color || '';
+        const refSafe = String(ref).replace(/[^a-zA-Z0-9]/g, '_');
+        const colorSlugRaw = String(color || '').toString().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const refNorm = refSafe.toLowerCase().replace(/[_]+/g, '-');
+        const includeColor = colorSlugRaw && !refNorm.endsWith('-' + colorSlugRaw) && !refNorm.endsWith(colorSlugRaw);
+        const brandSlug = String(brand || 'geral').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const fileBase = includeColor
+          ? `public/brands/${brandSlug}/${refSafe}-${colorSlugRaw}`
+          : `public/brands/${brandSlug}/${refSafe}`;
 
-        if (urls.length > 0) {
-          if (dryRun) {
-            // In dry-run we only check availability of the URLs and record results
-            const checks = await Promise.all(
-              urls.map(async (u) => {
+        try {
+          const urls = [
+            ...new Set([
+              ...splitUrls(product.image_url),
+              ...splitUrls(product.external_image_url),
+              ...splitUrls(product.images),
+              ...splitUrls(product.gallery_images),
+            ]),
+          ];
+
+          if (urls.length > 0) {
+            if (dryRun) {
+              processedInBatch++;
+              totalProcessedInRun++;
+              process.stdout.write(`\r[D-RUN] Verificados: ${totalProcessedInRun} | Atual: ${ref}          `);
+              return;
+            }
+
+            // 1. Processa Capa
+            const mainVariants = await processImage(urls[0], fileBase, agent);
+            const main1200Path = mainVariants.find((v) => v.size === 1200).path;
+
+            // 2. Processa Galeria
+            const gallery = [];
+            const galleryUrls = urls.slice(1);
+            await Promise.all(
+              galleryUrls.map(async (gUrl, idx) => {
                 try {
-                  const r = await fetch(u, { agent, timeout: 10000 });
-                  return { url: u, ok: r.ok, status: r.status };
-                } catch (e) {
-                  return { url: u, ok: false, error: e.message };
-                }
+                  const indexPad = String(idx + 1).padStart(2, '0');
+                  const v = await processImage(gUrl, `${fileBase}-${indexPad}`, agent);
+                  gallery.push({
+                    url: v.find((img) => img.size === 1200).url,
+                    path: v.find((img) => img.size === 1200).path,
+                    variants: v,
+                  });
+                } catch (e) {}
               })
             );
-            // store dry-run info globally to write file after the run
-            if (!global.__dryRunReport) global.__dryRunReport = [];
-            global.__dryRunReport.push({ id: product.id, reference: ref, checks });
-            processed++;
-            process.stdout.write(
-              `\r[D-RUN] Verificados: ${processed}/${data.length} | Atual: ${ref}          `
-            );
-            return;
-          }
-          // Processa Capa -> filename: <refSafe>-<color>-480w.webp / -1200w.webp
-          const mainVariants = await processImage(urls[0], fileBase, agent);
 
-          // Processa Galeria em lote interno também
-          const gallery = [];
-          const galleryUrls = urls.slice(1);
-          await Promise.all(
-            galleryUrls.map(async (gUrl, idx) => {
-              try {
-                // Gallery images: filename: <refSafe>-<color>-1-480w.webp, etc.
-                const indexPad = String(idx + 1).padStart(2, '0');
-                const v = await processImage(gUrl, `${fileBase}-${indexPad}`, agent);
-                gallery.push({
-                  url: v.find((img) => img.size === 1200).url,
-                  path: v.find((img) => img.size === 1200).path,
-                  variants: v,
-                });
-              } catch (e) {}
-            })
-          );
-
-          await supabase
-            .from('products')
-            .update({
+            const updatePayload = {
               sync_status: 'synced',
-              image_path: mainVariants.find((v) => v.size === 1200).path,
+              image_path: main1200Path,
               image_variants: mainVariants,
               gallery_images: gallery,
               image_url: null,
               external_image_url: null,
               images: null,
               image_optimized: true,
+              sync_error: null,
               updated_at: new Date().toISOString(),
-            })
-            .eq('id', product.id);
-        } else {
+            };
+
+            // 3. Atualiza produto modelo/template
+            await supabase.from('products').update(updatePayload).eq('id', product.id);
+
+            // 4. Replica instantaneamente para todos os produtos clonados em outras contas
+            await supabase
+              .from('products')
+              .update(updatePayload)
+              .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
+
+          } else {
+            await supabase
+              .from('products')
+              .update({ sync_status: 'synced', sync_error: 'Sem URLs externas' })
+              .eq('id', product.id);
+          }
+
+          processedInBatch++;
+          totalProcessedInRun++;
+          process.stdout.write(
+            `\r✅ Processados: ${totalProcessedInRun} | Atual: ${ref}          `
+          );
+        } catch (err) {
+          processedInBatch++;
+          totalProcessedInRun++;
+          console.error(`\n❌ Erro em ${ref}: ${err.message}`);
           await supabase
             .from('products')
-            .update({ sync_status: 'synced', sync_error: 'Sem URLs' })
+            .update({ sync_status: 'failed', sync_error: err.message })
             .eq('id', product.id);
         }
+      })
+    );
 
-        processed++;
-        // Log minimalista para não travar o buffer do terminal
-        process.stdout.write(
-          `\r✅ Processados: ${processed}/${data.length} | Atual: ${ref}          `
-        );
-      } catch (err) {
-        processed++;
-        console.error(`\n❌ Erro em ${ref}: ${err.message}`);
-        await supabase
-          .from('products')
-          .update({ sync_status: 'failed', sync_error: err.message })
-          .eq('id', product.id);
-      }
-    })
-  );
+    await Promise.all(tasks);
 
-  await Promise.all(tasks);
-
-  // If we ran in dry-run mode, dump the report and exit before doing RPC/notifications
-  if (dryRun) {
-    const outPath = `./sync-dryrun-report-${Date.now()}.json`;
-    try {
-      fs.writeFileSync(outPath, JSON.stringify(global.__dryRunReport || [], null, 2));
-      console.log(`\n✅ Dry-run report salvo em ${outPath}`);
-    } catch (e) {
-      console.error('❌ Falha ao salvar dry-run report:', e.message || e);
-    }
-    return;
+    // Se estivermos em targetIds específico ou dry-run, rodar 1 única vez
+    if (targetIds && targetIds.length) break;
   }
 
-  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n\n🏆 Finalizado! ${processed} itens em ${duration}s.`);
-  process.stdout.write('\x07');
-  // Limpeza de metadados (Gênero/Tipo) via RPC - permite reindexar filtros após o sync
-  const USER_ID = process.env.USER_ID || process.env.SUPABASE_USER_ID || null;
-  console.log('🧹 Limpando metadados (Gênero/Tipo)...');
+  const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`\n\n🏆 Finalizado! ${totalProcessedInRun} itens em ${durationSec}s.`);
+
+  // Sincronizar filtros RPC
   try {
-    const { data: rpcData, error: rpcError } = await supabase.rpc(
-      'sync_all_product_filters',
-      { p_user_id: USER_ID }
-    );
-    if (rpcError)
-      console.error('❌ RPC sync_all_product_filters falhou:', rpcError);
-    else console.log('✅ RPC sync_all_product_filters concluído');
+    console.log('🧹 Limpando metadados e sincronizando filtros (Gênero/Tipo)...');
+    await supabase.rpc('sync_all_product_filters');
+    console.log('✅ RPC sync_all_product_filters concluído com sucesso!');
   } catch (e) {
-    console.error(
-      '❌ Erro ao chamar RPC sync_all_product_filters:',
-      e.message || e
-    );
+    console.warn('Aviso RPC:', e.message);
   }
-
-  notifier.notify({
-    title: 'RepVendas Turbo',
-    message: `Concluído em ${duration}s.`,
-  });
 }
 
-syncFullCatalog().catch(console.error);
+syncFullCatalog();

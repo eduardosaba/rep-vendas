@@ -8,11 +8,24 @@ export const runtime = 'nodejs';
  * Versão aprimorada de /api/admin/sync-images com logs em tempo real
  */
 export async function POST(request: Request) {
-  // Autenticação
-  const authHeader = request.headers.get('authorization');
+  // Autenticação (CRON_SECRET ou Sessão de Usuário no Navegador)
+  const authHeader = request.headers.get('authorization') || '';
   const cronSecret = process.env.CRON_SECRET || '';
 
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  let isAuthed = false;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    isAuthed = true;
+  } else {
+    try {
+      const { getServerUserFallback } = await import('@/lib/supabase/getServerUserFallback');
+      const user = await getServerUserFallback();
+      if (user) isAuthed = true;
+    } catch (e) {
+      // ignore fallback error
+    }
+  }
+
+  if (!isAuthed) {
     return new Response('Não autorizado', { status: 401 });
   }
 
@@ -75,11 +88,21 @@ export async function POST(request: Request) {
             `📦 Processando ${product_ids.length} produtos específicos`,
             'info'
           );
-        } else {
-          query = query.eq('sync_status', 'pending');
+          if (!force) {
+            query = query.or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null');
+          } else {
+            query = query.or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null');
+          }
           if (brand_id) {
-            query = query.eq('brand_id', brand_id);
-            sendLog(`🏷️ Filtrando por marca ID: ${brand_id}`, 'info');
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(brand_id);
+            if (isUuid) {
+              const { data: bObj } = await supabase.from('brands').select('name').eq('id', brand_id).maybeSingle();
+              if (bObj?.name) query = query.ilike('brand', `%${bObj.name}%`);
+              else query = query.ilike('brand', `%${brand_id}%`);
+            } else {
+              query = query.ilike('brand', `%${brand_id}%`);
+            }
+            sendLog(`🏷️ Filtrando por marca: ${brand_id}`, 'info');
           }
         }
 
@@ -336,18 +359,29 @@ export async function POST(request: Request) {
               }
             }
 
-            // 5. Atualiza produto
+            // 5. Atualiza produto modelo
+            const updatePayload = {
+              image_path: imagePath || product.image_path,
+              image_variants: imageVariants || product.image_variants,
+              image_url: null,
+              external_image_url: null,
+              images: null,
+              image_optimized: !!imagePath,
+              sync_status: 'synced',
+              sync_error: null,
+              updated_at: new Date().toISOString(),
+            };
+
             await supabase
               .from('products')
-              .update({
-                image_path: imagePath || product.image_path,
-                image_url: imageUrl || product.image_url,
-                image_variants: imageVariants || product.image_variants,
-                image_optimized: !!imagePath,
-                sync_status: 'synced',
-                sync_error: null,
-              })
+              .update(updatePayload)
               .eq('id', product.id);
+
+            // 6. Replica para produtos clonados de outros usuários
+            await supabase
+              .from('products')
+              .update(updatePayload)
+              .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
 
             sendLog(`   ✅ Produto sincronizado com sucesso!`, 'success');
             results.success++;

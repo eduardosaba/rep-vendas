@@ -66,7 +66,21 @@ export class ProductRepository {
       query = query.or(`name.ilike.%${filters.search}%,reference_code.ilike.%${filters.search}%,brand.ilike.%${filters.search}%`);
     }
     if (filters.brand_id) {
-      query = query.eq('brand_id', filters.brand_id);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.brand_id);
+      if (isUuid) {
+        const { data: brandObj } = await supabase
+          .from('brands')
+          .select('name')
+          .eq('id', filters.brand_id)
+          .maybeSingle();
+        if (brandObj?.name) {
+          query = query.eq('brand', brandObj.name);
+        } else {
+          query = query.eq('brand', filters.brand_id);
+        }
+      } else {
+        query = query.eq('brand', filters.brand_id);
+      }
     }
     if (filters.category_id) {
       query = query.eq('category_id', filters.category_id);
