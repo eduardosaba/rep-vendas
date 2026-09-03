@@ -79,7 +79,7 @@ export async function POST(request: Request) {
         let query = supabase
           .from('products')
           .select(
-            'id, image_url, external_image_url, images, image_path, image_variants, name, reference_code, sync_error, sync_status, created_at, brand:brands(name, slug)'
+            'id, image_url, external_image_url, images, image_path, image_variants, name, reference_code, brand, sync_error, sync_status, created_at'
           );
 
         if (product_ids.length > 0) {
@@ -88,6 +88,7 @@ export async function POST(request: Request) {
             `📦 Processando ${product_ids.length} produtos específicos`,
             'info'
           );
+        } else {
           if (!force) {
             query = query.or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null');
           } else {
@@ -135,7 +136,7 @@ export async function POST(request: Request) {
         // 2. Processa cada produto
         for (let i = 0; i < products.length; i++) {
           const product = products[i];
-          const brandName = (product as any).brand?.name || 'Sem marca';
+          const brandName = typeof product.brand === 'string' ? product.brand : 'Sem marca';
 
           sendEvent('progress', {
             current: i + 1,
@@ -214,7 +215,7 @@ export async function POST(request: Request) {
 
                 // Cria variantes otimizadas
                 sendLog(`   🎨 Gerando variantes (480w, 1200w)...`, 'info');
-                const brandSlug = (product as any).brand?.slug || 'default';
+                const brandSlug = typeof product.brand === 'string' ? product.brand.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'default';
                 const refCode = (product.reference_code || product.id)
                   .trim()
                   .replace(/[^a-zA-Z0-9-_]/g, '_')
@@ -313,7 +314,7 @@ export async function POST(request: Request) {
                   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                   const buffer = Buffer.from(await response.arrayBuffer());
-                  const brandSlug = (product as any).brand?.slug || 'default';
+                  const brandSlug = typeof product.brand === 'string' ? product.brand.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'default';
                   const variants = [];
 
                   for (const size of [320, 640, 1000]) {
