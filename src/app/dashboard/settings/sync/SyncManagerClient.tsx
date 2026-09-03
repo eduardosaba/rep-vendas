@@ -126,18 +126,11 @@ export default function SyncManagerClient({
       const payload: any = {
         limit: syncLimit,
         force: forceSync,
+        brand_id: selectedBrand || undefined,
       };
 
       if (selectedBrand) {
-        // Encontra brand_id baseado no nome
-        const brand = stats?.pendingByBrand.find(
-          (b) => b.brand === selectedBrand
-        );
-        if (brand) {
-          // Nota: precisaríamos do brand_id aqui, não apenas o nome
-          // Por simplicidade, vamos filtrar apenas pelo limite
-          addLog(`🏷️ Filtro de marca selecionado: ${selectedBrand}`, 'info');
-        }
+        addLog(`🏷️ Filtrando sincronização para a marca: ${selectedBrand}`, 'info');
       }
 
       addLog('🚀 Iniciando conexão com servidor...', 'info');
@@ -427,7 +420,7 @@ export default function SyncManagerClient({
             {!isSyncing ? (
               <button
                 onClick={startSync}
-                disabled={!stats || stats.stats.pending === 0}
+                disabled={!stats || (!forceSync && (stats.stats.pending === 0 && (stats.stats.failed === 0)))}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
               >
                 <Play className="w-5 h-5" />

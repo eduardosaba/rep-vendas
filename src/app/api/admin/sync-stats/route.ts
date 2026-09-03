@@ -27,6 +27,14 @@ export async function GET(request: Request) {
   );
 
   try {
+    // 0. Destrava produtos estagnados em 'processing' há mais de 5 minutos
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    await supabase
+      .from('products')
+      .update({ sync_status: 'pending' })
+      .eq('sync_status', 'processing')
+      .lt('updated_at', fiveMinAgo);
+
     // 1. Estatísticas gerais por sync_status
     const statusQuery = supabase
       .from('products')
