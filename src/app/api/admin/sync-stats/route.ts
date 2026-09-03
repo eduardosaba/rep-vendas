@@ -27,6 +27,14 @@ export async function GET(request: Request) {
   );
 
   try {
+    // 0. Destrava produtos estagnados em 'processing' há mais de 5 minutos
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    await supabase
+      .from('products')
+      .update({ sync_status: 'pending' })
+      .eq('sync_status', 'processing')
+      .lt('updated_at', fiveMinAgo);
+
     // 1. Estatísticas gerais por sync_status
     const statusQuery = supabase
       .from('products')
@@ -53,7 +61,7 @@ export async function GET(request: Request) {
     const recentErrorsQuery = supabase
       .from('products')
       .select(
-        'id, name, reference_code, sync_error, sync_status, updated_at, brand:brands(name)'
+        'id, name, reference_code, sync_error, sync_status, updated_at, brand'
       )
       .eq('sync_status', 'failed')
       .order('updated_at', { ascending: false })
@@ -64,14 +72,14 @@ export async function GET(request: Request) {
     // 3. Produtos pendentes por marca
     const pendingByBrandQuery = supabase
       .from('products')
-      .select('brand:brands(name)', { count: 'exact' })
+      .select('brand', { count: 'exact' })
       .eq('sync_status', 'pending');
     if (!isAdmin) pendingByBrandQuery.eq('user_id', user.id);
     const { data: pendingByBrand } = await pendingByBrandQuery;
 
     const brandCounts: Record<string, number> = {};
     pendingByBrand?.forEach((p: any) => {
-      const brandName = p.brand?.name || 'Sem marca';
+      const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
       brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
     });
 
@@ -81,7 +89,7 @@ export async function GET(request: Request) {
 
     const recentPendingQuery = supabase
       .from('products')
-      .select('id, name, reference_code, created_at, brand:brands(name)')
+      .select('id, name, reference_code, created_at, brand')
       .eq('sync_status', 'pending')
       .gte('created_at', yesterday.toISOString())
       .order('created_at', { ascending: false })

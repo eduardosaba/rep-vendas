@@ -3,16 +3,41 @@ import sharp from 'sharp';
 
 export const runtime = 'nodejs';
 
+function splitUrls(input: any): string[] {
+  if (!input) return [];
+  if (Array.isArray(input)) return input.flatMap((i) => splitUrls(i));
+  if (typeof input === 'object') {
+    return splitUrls(input.url || input.src || input.path || input.publicUrl || input.public_url || '');
+  }
+  return String(input)
+    .split(/[;,]/)
+    .map((u) => u.trim())
+    .filter((u) => u.startsWith('http'));
+}
+
 /**
  * API de Sincronização com Streaming (SSE)
  * Versão aprimorada de /api/admin/sync-images com logs em tempo real
  */
 export async function POST(request: Request) {
-  // Autenticação
-  const authHeader = request.headers.get('authorization');
+  // Autenticação (CRON_SECRET ou Sessão de Usuário no Navegador)
+  const authHeader = request.headers.get('authorization') || '';
   const cronSecret = process.env.CRON_SECRET || '';
 
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  let isAuthed = false;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    isAuthed = true;
+  } else {
+    try {
+      const { getServerUserFallback } = await import('@/lib/supabase/getServerUserFallback');
+      const user = await getServerUserFallback();
+      if (user) isAuthed = true;
+    } catch (e) {
+      // ignore fallback error
+    }
+  }
+
+  if (!isAuthed) {
     return new Response('Não autorizado', { status: 401 });
   }
 
@@ -66,7 +91,7 @@ export async function POST(request: Request) {
         let query = supabase
           .from('products')
           .select(
-            'id, image_url, external_image_url, images, image_path, image_variants, name, reference_code, sync_error, sync_status, created_at, brand:brands(name, slug)'
+            'id, image_url, external_image_url, images, image_path, image_variants, gallery_images, name, reference_code, brand, sync_error, sync_status, created_at'
           );
 
         if (product_ids.length > 0) {
@@ -76,10 +101,21 @@ export async function POST(request: Request) {
             'info'
           );
         } else {
-          query = query.eq('sync_status', 'pending');
+          if (!force) {
+            query = query.or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null');
+          } else {
+            query = query.or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null');
+          }
           if (brand_id) {
-            query = query.eq('brand_id', brand_id);
-            sendLog(`🏷️ Filtrando por marca ID: ${brand_id}`, 'info');
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(brand_id);
+            if (isUuid) {
+              const { data: bObj } = await supabase.from('brands').select('name').eq('id', brand_id).maybeSingle();
+              if (bObj?.name) query = query.ilike('brand', `%${bObj.name}%`);
+              else query = query.ilike('brand', `%${brand_id}%`);
+            } else {
+              query = query.ilike('brand', `%${brand_id}%`);
+            }
+            sendLog(`🏷️ Filtrando por marca: ${brand_id}`, 'info');
           }
         }
 
@@ -112,7 +148,7 @@ export async function POST(request: Request) {
         // 2. Processa cada produto
         for (let i = 0; i < products.length; i++) {
           const product = products[i];
-          const brandName = (product as any).brand?.name || 'Sem marca';
+          const brandName = typeof product.brand === 'string' ? product.brand : 'Sem marca';
 
           sendEvent('progress', {
             current: i + 1,
@@ -135,28 +171,27 @@ export async function POST(request: Request) {
               continue;
             }
 
-            // Extrai URLs para processar
-            const coverUrl = product.external_image_url || product.image_url;
-            const galleryUrls: string[] = [];
+            // Extrai URLs para processar (trata ponto-e-vírgula e arrays de imagens)
+            const urls = [
+              ...new Set([
+                ...splitUrls(product.external_image_url),
+                ...splitUrls(product.image_url),
+                ...splitUrls(product.images),
+                ...splitUrls(product.gallery_images),
+              ]),
+            ];
 
-            if (Array.isArray(product.images)) {
-              product.images.forEach((img: any) => {
-                if (typeof img === 'string' && img.startsWith('http')) {
-                  galleryUrls.push(img);
-                } else if (img?.url && typeof img.url === 'string' && img.url.startsWith('http')) {
-                  galleryUrls.push(img.url);
-                }
-              });
-            }
-
-            if (!coverUrl && galleryUrls.length === 0) {
+            if (urls.length === 0) {
               sendLog(`   ⚠️ Nenhuma URL externa encontrada`, 'warning');
               results.skipped++;
               continue;
             }
 
+            const coverUrl = urls[0];
+            const galleryUrls = urls.slice(1);
+
             sendLog(
-              `   📸 Cover: ${coverUrl ? 'Sim' : 'Não'} | Galeria: ${galleryUrls.length} imagens`,
+              `   📸 Capa Principal: Sim | Imagens de Galeria: ${galleryUrls.length}`,
               'info'
             );
 
@@ -166,10 +201,18 @@ export async function POST(request: Request) {
               .update({ sync_status: 'processing' })
               .eq('id', product.id);
 
-            // 3. Processa capa (se houver)
+            // 3. Processa Capa Principal (se houver)
             let imagePath = null;
             let imageUrl = null;
             let imageVariants = null;
+
+            const brandSlug = typeof product.brand === 'string' 
+              ? product.brand.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') 
+              : 'default';
+            const refCode = (product.reference_code || product.id)
+              .trim()
+              .replace(/[^a-zA-Z0-9-_]/g, '_')
+              .substring(0, 100);
 
             if (coverUrl) {
               sendLog(`   📥 Baixando capa...`, 'info');
@@ -177,6 +220,9 @@ export async function POST(request: Request) {
               try {
                 const response = await fetch(coverUrl, {
                   signal: AbortSignal.timeout(30000),
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  },
                 });
 
                 if (!response.ok) {
@@ -189,13 +235,8 @@ export async function POST(request: Request) {
                   'success'
                 );
 
-                // Cria variantes otimizadas
-                sendLog(`   🎨 Gerando variantes (480w, 1200w)...`, 'info');
-                const brandSlug = (product as any).brand?.slug || 'default';
-                const refCode = (product.reference_code || product.id)
-                  .trim()
-                  .replace(/[^a-zA-Z0-9-_]/g, '_')
-                  .substring(0, 100);
+                // Cria variantes otimizadas da Capa (480w, 1200w)
+                sendLog(`   🎨 Gerando variantes da capa (480w, 1200w)...`, 'info');
                 const variants = [];
 
                 for (const size of [480, 1200]) {
@@ -209,7 +250,6 @@ export async function POST(request: Request) {
 
                   const path = `public/brands/${brandSlug}/products/${refCode}/main-${size}w.webp`;
 
-                  // Upload para storage
                   const { error: uploadError } = await supabase.storage
                     .from('product-images')
                     .upload(path, webpBuffer, {
@@ -253,7 +293,8 @@ export async function POST(request: Request) {
               }
             }
 
-            // 4. Processa galeria
+            // 4. Processa imagens de Galeria (se houver)
+            const gallery: any[] = [];
             if (galleryUrls.length > 0) {
               sendLog(
                 `   🖼️ Processando ${galleryUrls.length} imagens da galeria...`,
@@ -261,40 +302,28 @@ export async function POST(request: Request) {
               );
 
               for (let j = 0; j < galleryUrls.length; j++) {
-                const url = galleryUrls[j];
+                const gUrl = galleryUrls[j];
+                const indexPad = String(j + 1).padStart(2, '0');
                 sendLog(
-                  `      [${j + 1}/${galleryUrls.length}] ${url.substring(0, 60)}...`,
+                  `      [${j + 1}/${galleryUrls.length}] Baixando galeria ${j + 1}...`,
                   'info'
                 );
 
                 try {
-                  // Busca registro em product_images
-                  const { data: imgRecord } = await supabase
-                    .from('product_images')
-                    .select('id')
-                    .eq('product_id', product.id)
-                    .eq('url', url)
-                    .single();
-
-                  if (!imgRecord) {
-                    sendLog(
-                      `      ⚠️ Registro não encontrado em product_images`,
-                      'warning'
-                    );
-                    continue;
-                  }
-
-                  const response = await fetch(url, {
+                  const gRes = await fetch(gUrl, {
                     signal: AbortSignal.timeout(30000),
+                    headers: {
+                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    },
                   });
-                  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-                  const buffer = Buffer.from(await response.arrayBuffer());
-                  const brandSlug = (product as any).brand?.slug || 'default';
-                  const variants = [];
+                  if (!gRes.ok) throw new Error(`HTTP ${gRes.status}`);
 
-                  for (const size of [320, 640, 1000]) {
-                    const webpBuffer = await sharp(buffer)
+                  const gBuffer = Buffer.from(await gRes.arrayBuffer());
+                  const gVariants: any[] = [];
+
+                  for (const size of [480, 1200]) {
+                    const webpBuf = await sharp(gBuffer)
                       .resize(size, size, {
                         fit: 'inside',
                         withoutEnlargement: true,
@@ -302,52 +331,67 @@ export async function POST(request: Request) {
                       .webp({ quality: 75 })
                       .toBuffer();
 
-                    const path = `public/brands/${brandSlug}/products/${product.id}/gallery/${imgRecord.id}-${size}w.webp`;
+                    const path = `public/brands/${brandSlug}/products/${refCode}/gallery-${indexPad}-${size}w.webp`;
 
                     await supabase.storage
                       .from('product-images')
-                      .upload(path, webpBuffer, {
+                      .upload(path, webpBuf, {
                         upsert: true,
                         contentType: 'image/webp',
                       });
 
-                    const { data: publicUrl } = supabase.storage
+                    const { data: pUrl } = supabase.storage
                       .from('product-images')
                       .getPublicUrl(path);
 
-                    variants.push({ size, url: publicUrl.publicUrl, path });
+                    gVariants.push({
+                      size,
+                      url: pUrl.publicUrl,
+                      path,
+                    });
                   }
 
-                  // Atualiza product_images
-                  await supabase
-                    .from('product_images')
-                    .update({
-                      optimized_url: variants[variants.length - 1].url,
-                      storage_path: variants[variants.length - 1].path,
-                      optimized_variants: variants,
-                      sync_status: 'synced',
-                    })
-                    .eq('id', imgRecord.id);
-
-                  sendLog(`      ✅ Processada com sucesso`, 'success');
-                } catch (err: any) {
-                  sendLog(`      ❌ Erro: ${err.message}`, 'error');
+                  if (gVariants.length > 0) {
+                    gallery.push({
+                      url: gVariants[gVariants.length - 1].url,
+                      path: gVariants[gVariants.length - 1].path,
+                      variants: gVariants,
+                    });
+                    sendLog(`      ✅ Galeria ${j + 1} convertida e salva!`, 'success');
+                  }
+                } catch (gErr: any) {
+                  sendLog(
+                    `      ⚠️ Erro ao processar imagem de galeria ${j + 1}: ${gErr.message}`,
+                    'warning'
+                  );
                 }
               }
             }
 
-            // 5. Atualiza produto
+            // 5. Atualiza produto modelo
+            const updatePayload = {
+              image_path: imagePath || product.image_path,
+              image_variants: imageVariants || product.image_variants,
+              gallery_images: gallery.length > 0 ? gallery : product.gallery_images,
+              image_url: null,
+              external_image_url: null,
+              images: null,
+              image_optimized: !!imagePath,
+              sync_status: 'synced',
+              sync_error: null,
+              updated_at: new Date().toISOString(),
+            };
+
             await supabase
               .from('products')
-              .update({
-                image_path: imagePath || product.image_path,
-                image_url: imageUrl || product.image_url,
-                image_variants: imageVariants || product.image_variants,
-                image_optimized: !!imagePath,
-                sync_status: 'synced',
-                sync_error: null,
-              })
+              .update(updatePayload)
               .eq('id', product.id);
+
+            // 6. Replica para produtos clonados de outros usuários
+            await supabase
+              .from('products')
+              .update(updatePayload)
+              .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
 
             sendLog(`   ✅ Produto sincronizado com sucesso!`, 'success');
             results.success++;

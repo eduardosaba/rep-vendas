@@ -20,6 +20,8 @@ import {
   ArrowDown,
   X,
   History,
+  Users,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../../../components/ui/button';
@@ -122,6 +124,29 @@ function cleanAndDedupeImages(raw: unknown[] | string | undefined, mainImageUrl?
   return arr;
 }
 
+// --- NORMALIZADOR DE TIPO DE MONTAGEM (Constraint PostgreSQL: 'aro_fechado', 'fio_nylon', 'balgriff') ---
+function normalizeTipoMontagem(val: any): 'aro_fechado' | 'fio_nylon' | 'balgriff' | null {
+  if (!val) return null;
+  const s = String(val).toLowerCase().trim();
+  if (s.includes('fechad') || s.includes('full') || s.includes('aro_fechado')) {
+    return 'aro_fechado';
+  }
+  if (s.includes('nylon') || s.includes('fio') || s.includes('semi')) {
+    return 'fio_nylon';
+  }
+  if (
+    s.includes('balgriff') ||
+    s.includes('parafus') ||
+    s.includes('flutu') ||
+    s.includes('rimless') ||
+    s.includes('3_pec') ||
+    s.includes('tres_pec')
+  ) {
+    return 'balgriff';
+  }
+  return null;
+}
+
 // --- GERADOR DE DESCRIÇÃO ---
 function generateAutoDescription(data: {
   name: string;
@@ -192,6 +217,7 @@ export default function ImportMassaPage() {
     ean?: string;
     category?: string;
     color?: string;
+    tipo_montagem?: string;
     desc?: string;
     model_code?: string;
     techSpecColumns?: string[];
@@ -201,6 +227,7 @@ export default function ImportMassaPage() {
     {}
   );
   const [groupByReference, setGroupByReference] = useState<boolean>(true);
+  const [markAsLaunch, setMarkAsLaunch] = useState<boolean>(true);
   const [stats, setStats] = useState<Stats>({
     total: 0,
     inserted: 0,
@@ -208,10 +235,163 @@ export default function ImportMassaPage() {
     errors: 0,
   });
   const [externalPreviews, setExternalPreviews] = useState<string[]>([]);
+  const [isMaster, setIsMaster] = useState<boolean>(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [targetUsersList, setTargetUsersList] = useState<
+    Array<{ user_id: string; full_name: string; email: string; role: string; total_products: number }>
+  >([]);
+  const [selectedTargetUserIds, setSelectedTargetUserIds] = useState<string[]>([]);
+  const [lastImportedBrand, setLastImportedBrand] = useState<string>('');
+
+  // Sincronização de Imagens pelo Navegador (Frontend SSE Streaming)
+  const [isSyncingImages, setIsSyncingImages] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [syncLogs, setSyncLogs] = useState<string[]>([]);
+  const [syncResults, setSyncResults] = useState<{ success: number; failed: number; skipped: number } | null>(null);
 
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  const handleStartFrontendSync = async () => {
+    setIsSyncingImages(true);
+    setSyncLogs(['🚀 Conectando ao servidor para otimização de imagens...']);
+    setSyncResults(null);
+    setSyncProgress({ current: 0, total: 0 });
+
+    let totalSuccess = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+
+    try {
+      // 1. Busca contagem real de pendentes para exibir a barra de progresso perfeita
+      let totalPendingQuery = supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .is('image_path', null)
+        .or('external_image_url.not.is.null,image_url.not.is.null,images.not.is.null');
+
+      if (lastImportedBrand) {
+        totalPendingQuery = totalPendingQuery.ilike('brand', `%${lastImportedBrand}%`);
+      }
+
+      const { count: grandTotalCount } = await totalPendingQuery;
+      const grandTotal = grandTotalCount || 0;
+      setSyncProgress({ current: 0, total: grandTotal });
+
+      let hasMore = true;
+      let batchCount = 0;
+
+      while (hasMore) {
+        batchCount++;
+        const response = await fetch('/api/admin/sync-stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            brand_id: lastImportedBrand || undefined,
+            limit: 25,
+            force: false,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro de resposta do servidor (HTTP ${response.status})`);
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let batchProcessed = 0;
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.substring(6));
+                  if (data.type === 'log') {
+                    setSyncLogs((prev) => [
+                      ...prev.slice(-100),
+                      `[${data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}] ${data.message}`,
+                    ]);
+                  } else if (data.type === 'progress') {
+                    const currentTotal = totalSuccess + totalFailed + data.current;
+                    setSyncProgress({
+                      current: currentTotal,
+                      total: Math.max(grandTotal, currentTotal),
+                    });
+                  } else if (data.type === 'complete') {
+                    batchProcessed = data.success + data.failed;
+                    totalSuccess += data.success;
+                    totalFailed += data.failed;
+                    totalSkipped += data.skipped;
+                  }
+                } catch (e) {
+                  // parse error
+                }
+              }
+            }
+          }
+        }
+
+        // Se o lote não processou nenhum item ou menos de 25, finalizamos
+        if (batchProcessed === 0) {
+          hasMore = false;
+        }
+      }
+
+      setSyncResults({ success: totalSuccess, failed: totalFailed, skipped: totalSkipped });
+    } catch (e: any) {
+      setSyncLogs((prev) => [...prev, `❌ Erro na sincronização: ${e?.message || String(e)}`]);
+      toast.error(`Falha na sincronização: ${e?.message || String(e)}`);
+    } finally {
+      setIsSyncingImages(false);
+    }
+  };
+
+  useEffect(() => {
+    async function loadMasterUserContext() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
+        if (!user) return;
+        setCurrentUserId(user.id);
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const userRole = profile?.role;
+        if (userRole === 'master' || userRole === 'admin') {
+          setIsMaster(true);
+          const token = session.access_token;
+          const res = await fetch('/api/admin/users-catalog-stats', {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.data)) {
+              setTargetUsersList(data.data);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load master user context:', err);
+      }
+    }
+    loadMasterUserContext();
+  }, []);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -320,16 +500,17 @@ export default function ImportMassaPage() {
       return col;
     };
 
+    map.model_code = findCol(/model_code|modelcode|codigo.*modelo|model_name|modelname|model/);
     map.name = findCol(/nome|name|produto|title/);
     map.sku = findCol(/sku|codigo|code/);
     map.price = findCol(/preco|price|valor/);
     map.sale_price = findCol(/precovenda|preco.?venda|sale|sale_price/);
     map.brand = findCol(/marca|brand|fornecedor/);
     map.ref = findCol(/referencia|ref|reference/);
-    map.model_code = findCol(/model|model_code|modelcode|codigo.*modelo|reference_id/);
     map.ean = findCol(/ean|barcode|codigo de barras|gtin/);
     map.category = findCol(/categoria|category/);
     map.color = findCol(/cor|color/);
+    map.tipo_montagem = findCol(/montagem|tipo.*montagem|tipo_montagem|tipo.?de.?montagem|mount/);
     // Não auto-mapear `genero` para o campo principal — preferimos tratá-lo
     // como ficha técnica por padrão. Usuário pode mapear manualmente se desejar.
     map.desc = findCol(/descricao|desc|description/);
@@ -470,6 +651,7 @@ export default function ImportMassaPage() {
         const gender = getField(row, mapping.gender)
           ? String(getField(row, mapping.gender))
           : null;
+        const tipoMontagem = normalizeTipoMontagem(getField(row, mapping.tipo_montagem));
 
         // Imagem (Processamento Safilo: P00=Capa, Remove P13/P14)
         let coverUrl: string | null = null;
@@ -614,7 +796,6 @@ export default function ImportMassaPage() {
         const productObj = {
           user_id: isCompany ? null : user.id,
           company_id: isCompany ? companyId : null,
-          profile_id: isCompany ? null : user.id,
           name: String(name),
           reference_code: refCode,
           reference_id: referenceId,
@@ -626,7 +807,9 @@ export default function ImportMassaPage() {
           category,
           color,
           gender,
+          tipo_montagem: tipoMontagem,
           description: finalDescription,
+          is_launch: markAsLaunch,
           // Garantir que o importador NÃO marque como otimizada por omissão.
           // `image_path` deve ser null quando a imagem ainda não foi internalizada.
           image_path: null,
@@ -802,22 +985,38 @@ export default function ImportMassaPage() {
       else if (detectedBrands.size > 1)
         brandSummary = `Várias (${detectedBrands.size} marcas)`;
 
-      const { data: historyData, error: historyError } = await supabase
+      const historyPayload: Record<string, any> = {
+        user_id: user.id,
+        total_items: productsToInsert.length,
+        brand_summary: brandSummary,
+        file_name: fileName || 'Importação Manual',
+      };
+
+      if (isCompany && companyId) {
+        historyPayload.company_id = companyId;
+      }
+
+      let { data: historyData, error: historyError } = await supabase
         .from('import_history')
-        .insert({
-          user_id: isCompany ? null : user.id,
-          company_id: isCompany ? companyId : null,
-          total_items: productsToInsert.length,
-          brand_summary: brandSummary,
-          file_name: fileName || 'Importação Manual',
-        })
+        .insert(historyPayload)
         .select()
         .maybeSingle();
+
+      if (historyError && historyPayload.company_id) {
+        delete historyPayload.company_id;
+        const retry = await supabase
+          .from('import_history')
+          .insert(historyPayload)
+          .select()
+          .maybeSingle();
+        historyData = retry.data;
+        historyError = retry.error;
+      }
 
       if (historyError)
         throw new Error('Erro ao criar histórico: ' + historyError.message);
 
-      const historyId = historyData.id;
+      const historyId = historyData?.id;
       addLog(`Histórico criado: ${historyId}`, 'success');
 
       const finalBatch = productsToInsert.map((p) => ({
@@ -942,6 +1141,9 @@ export default function ImportMassaPage() {
             const data = await res.json();
             totalInserted += data.inserted || 0;
             totalUpdated += data.updated || 0;
+            if (data.lastError) {
+              addLog(`Aviso no lote ${batchNum}: ${data.lastError}`, 'error');
+            }
             addLog(`Lote ${batchNum} processado: ${data.inserted || 0} inseridos, ${data.updated || 0} atualizados`, 'success');
             processed = true;
           } catch (e: any) {
@@ -981,20 +1183,75 @@ export default function ImportMassaPage() {
       }
 
       // Atualiza o histórico com a quantidade real de inserções (para o desfazer funcionar corretamente)
-      try {
-        await supabase
-          .from('import_history')
-          .update({ total_items: totalInserted })
-          .eq('id', historyId);
+      if (historyId) {
+        try {
+          await supabase
+            .from('import_history')
+            .update({ total_items: totalInserted })
+            .eq('id', historyId);
+          addLog(
+            `Histórico atualizado: ${totalInserted} inseridos, ${totalUpdated} atualizados.`,
+            'success'
+          );
+        } catch (e: any) {
+          addLog(
+            `Falha ao atualizar histórico: ${e?.message || String(e)}`,
+            'error'
+          );
+        }
+      }
+
+      // 🚀 SE FOR MASTER E HOUVER USUÁRIOS DESTINO SELECIONADOS: REPLICAR LANÇAMENTOS
+      if (isMaster && selectedTargetUserIds.length > 0) {
+        const detectedBrandsList = Array.from(detectedBrands);
         addLog(
-          `Histórico atualizado: ${totalInserted} inseridos, ${totalUpdated} atualizados.`,
-          'success'
+          `🚀 Replicando lançamentos para ${selectedTargetUserIds.length} usuário(s) selecionado(s)...`,
+          'info'
         );
-      } catch (e: any) {
-        addLog(
-          `Falha ao atualizar histórico: ${e?.message || String(e)}`,
-          'error'
-        );
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        for (const targetId of selectedTargetUserIds) {
+          const targetUserObj = targetUsersList.find((u) => u.user_id === targetId);
+          const targetName = targetUserObj?.full_name || targetUserObj?.email || targetId;
+
+          addLog(`🔄 Replicando catálogo/lançamentos para: ${targetName}...`, 'info');
+
+          try {
+            const resp = await fetch('/api/admin/setup-new-user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                sourceUserId: currentUserId || user.id,
+                targetUserId: targetId,
+                brands: detectedBrandsList.length > 0 ? detectedBrandsList : null,
+              }),
+            });
+
+            if (resp.ok) {
+              const resData = await resp.json();
+              addLog(
+                `✅ Lançamentos replicados para ${targetName} (${resData.totalProcessed || 'Concluído'})`,
+                'success'
+              );
+            } else {
+              const errData = await resp.json();
+              addLog(
+                `⚠️ Aviso ao replicar para ${targetName}: ${errData.error || 'Erro na API'}`,
+                'error'
+              );
+            }
+          } catch (cloneErr: any) {
+            addLog(
+              `❌ Erro ao replicar para ${targetName}: ${cloneErr?.message || String(cloneErr)}`,
+              'error'
+            );
+          }
+        }
       }
 
       addLog('--- PROCESSO FINALIZADO ---');
@@ -1124,6 +1381,7 @@ export default function ImportMassaPage() {
                 { k: 'ean', l: 'EAN / Barcode' },
                 { k: 'category', l: 'Categoria' },
                 { k: 'color', l: 'Cor' },
+                { k: 'tipo_montagem', l: 'Tipo de Montagem' },
                 { k: 'desc', l: 'Descrição' }, // Mantive label simples aqui
               ].map((field) => {
                 // Lógica de texto da opção padrão
@@ -1155,19 +1413,116 @@ export default function ImportMassaPage() {
                   </div>
                 );
               })}
-              <div className="md:col-span-3">
-                <label className="inline-flex items-center gap-2 text-sm">
+              <div className="md:col-span-3 flex flex-col sm:flex-row sm:items-center gap-4 pt-2 border-t dark:border-slate-800 mt-2">
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={groupByReference}
                     onChange={(e) => setGroupByReference(e.target.checked)}
-                    className="rounded text-primary"
+                    className="rounded text-primary focus:ring-primary h-4 w-4"
                   />
-                  <span className="text-gray-600">Agrupar por Reference ID (mesmas referências → 1 produto)</span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">Agrupar por Reference ID (mesmas referências → 1 produto)</span>
+                </label>
+
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-3 py-1.5 rounded-lg transition-colors hover:bg-amber-100/60">
+                  <input
+                    type="checkbox"
+                    checked={markAsLaunch}
+                    onChange={(e) => setMarkAsLaunch(e.target.checked)}
+                    className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
+                  />
+                  <span className="text-amber-900 dark:text-amber-200 font-medium flex items-center gap-1">
+                    🚀 Marcar estes produtos como <strong>Lançamento</strong> (<code className="text-xs bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-mono">is_launch = true</code>)
+                  </span>
                 </label>
               </div>
             </div>
           </div>
+
+          {/* 👥 Painel Master: Seleção de Usuários para Replicação de Lançamentos */}
+          {isMaster && (
+            <div className="bg-indigo-50/70 dark:bg-indigo-950/40 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800/60 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h3 className="font-semibold text-indigo-950 dark:text-indigo-200 flex items-center gap-2 text-base">
+                  <Users size={20} className="text-indigo-600 dark:text-indigo-400" />
+                  Replicar Lançamentos para Outros Usuários (Painel Master)
+                </h3>
+                <span className="text-xs font-semibold bg-indigo-100 dark:bg-indigo-900/70 text-indigo-800 dark:text-indigo-200 px-3 py-1 rounded-full w-fit">
+                  {selectedTargetUserIds.length} selecionado(s)
+                </span>
+              </div>
+              <p className="text-xs text-indigo-800 dark:text-indigo-300">
+                Ao importar esta planilha no usuário template, os produtos também serão duplicados na tabela <code>products</code> para os usuários marcados abaixo, <strong>compartilhando exatamente as mesmas imagens</strong> no storage.
+              </p>
+
+              {targetUsersList.filter((u) => u.user_id !== currentUserId).length === 0 ? (
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 italic">Carregando lista de usuários ou nenhum outro usuário cadastrado...</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOtherIds = targetUsersList
+                          .filter((u) => u.user_id !== currentUserId)
+                          .map((u) => u.user_id);
+                        if (selectedTargetUserIds.length === allOtherIds.length) {
+                          setSelectedTargetUserIds([]);
+                        } else {
+                          setSelectedTargetUserIds(allOtherIds);
+                        }
+                      }}
+                      className="text-indigo-700 dark:text-indigo-300 hover:underline font-semibold"
+                    >
+                      {selectedTargetUserIds.length === targetUsersList.filter((u) => u.user_id !== currentUserId).length
+                        ? 'Desmarcar Todos'
+                        : 'Selecionar Todos os Usuários'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-2 border rounded-lg bg-white dark:bg-slate-900 border-indigo-200/80 dark:border-indigo-800/50">
+                    {targetUsersList
+                      .filter((u) => u.user_id !== currentUserId)
+                      .map((u) => {
+                        const isChecked = selectedTargetUserIds.includes(u.user_id);
+                        return (
+                          <label
+                            key={u.user_id}
+                            className={`flex items-center gap-2.5 p-2.5 rounded-lg text-xs cursor-pointer border transition-all ${
+                              isChecked
+                                ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-400 dark:border-indigo-600 text-indigo-950 dark:text-indigo-100 font-medium shadow-sm'
+                                : 'hover:bg-gray-50 dark:hover:bg-slate-800 border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedTargetUserIds([...selectedTargetUserIds, u.user_id]);
+                                } else {
+                                  setSelectedTargetUserIds(selectedTargetUserIds.filter((id) => id !== u.user_id));
+                                }
+                              }}
+                              className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 shrink-0"
+                            />
+                            <div className="truncate min-w-0 flex-1">
+                              <div className="font-semibold truncate">{u.full_name || u.email}</div>
+                              <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{u.email}</div>
+                              {u.role && (
+                                <span className="inline-block mt-0.5 text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 border">
+                                  {u.role}
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border shadow-sm">
             <h3 className="font-semibold mb-2 text-gray-800 flex items-center gap-2">
@@ -1369,6 +1724,67 @@ export default function ImportMassaPage() {
               </div>
             </div>
           )}
+          {/* PAINEL DE SINCRONIZAÇÃO DE IMAGENS NO NAVEGADOR */}
+          <div className="mt-6 p-6 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-amber-500/30 rounded-2xl text-left shadow-md">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl shadow">
+                <RefreshCw className={`w-6 h-6 ${isSyncingImages ? 'animate-spin' : ''}`} />
+              </div>
+              <div>
+                <h4 className="font-bold text-base text-gray-900">
+                  Sincronização de Imagens pelo Navegador
+                </h4>
+                <p className="text-xs text-gray-600">
+                  Baixe as imagens externas da Safilo, converta para WebP (480w/1200w) e salve no Supabase Storage sem precisar do terminal!
+                </p>
+              </div>
+            </div>
+
+            {!isSyncingImages && syncResults === null && (
+              <button
+                onClick={handleStartFrontendSync}
+                className="w-full mt-4 py-3.5 px-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+              >
+                <Play size={18} fill="currentColor" />
+                ⚡ Processar e Otimizar Imagens Externas Agora pelo Navegador
+              </button>
+            )}
+
+            {isSyncingImages && (
+              <div className="mt-4 space-y-3">
+                <div className="flex justify-between text-xs font-bold text-gray-700">
+                  <span>Sincronizando produtos... {syncProgress.current} / {syncProgress.total}</span>
+                  <span>{Math.round((syncProgress.current / (syncProgress.total || 1)) * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 h-3 rounded-full overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-amber-500 to-orange-600 h-full transition-all duration-300"
+                    style={{ width: `${Math.round((syncProgress.current / (syncProgress.total || 1)) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {syncLogs.length > 0 && (
+              <div className="bg-gray-900 text-amber-400 p-4 rounded-xl text-xs font-mono max-h-48 overflow-y-auto mt-4 border border-gray-800 shadow-inner">
+                <div className="text-gray-500 font-bold mb-1 border-b border-gray-800 pb-1 flex items-center gap-2">
+                  <Terminal size={12} /> STREAMING DE SINCRONIZAÇÃO EM TEMPO REAL
+                </div>
+                {syncLogs.map((log, idx) => (
+                  <div key={idx} className="py-0.5 border-b border-gray-800/40 last:border-0 truncate font-mono">
+                    {log}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {syncResults && (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-900 rounded-xl flex items-center justify-between text-xs font-bold shadow-xs">
+                <span>✅ Sincronização concluída com sucesso! Sucesso: {syncResults.success} | Falhas: {syncResults.failed} | Pulados: {syncResults.skipped}</span>
+              </div>
+            )}
+          </div>
+
           {externalPreviews.length > 0 && (
             <div className="mt-6 text-left">
               <h4 className="font-semibold text-sm text-gray-700 mb-3">Pré-visualização de Imagens Externas</h4>
@@ -1393,7 +1809,7 @@ export default function ImportMassaPage() {
               </div>
             </div>
           )}
-          <div className="space-y-3">
+          <div className="space-y-3 mt-6">
             <Button
               onClick={() => {
                 trackEvent('click_import_visual', { from: 'import-massa' });

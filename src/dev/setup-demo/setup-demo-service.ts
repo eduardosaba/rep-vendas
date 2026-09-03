@@ -1,4 +1,4 @@
-import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
+import { createClient as createSupabaseAdmin, SupabaseClient } from '@supabase/supabase-js';
 import { assertDevelopmentEnvironment } from '../safety-guard';
 import { createDemoOrganization } from './demo-organization';
 import { createDemoUsers } from './demo-users';
@@ -8,7 +8,7 @@ const supabaseAdmin: any = createSupabaseAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
-);
+) as SupabaseClient<any>;
 
 interface SetupDemoResult {
   success: boolean;

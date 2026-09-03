@@ -4,10 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import {
-  updateProductAction,
-  syncProductGallery,
-} from '@/app/actions/product-actions';
 import { toast } from 'sonner';
 import { Product } from '@/lib/types';
 import {
@@ -712,9 +708,14 @@ export function EditProductForm({ product }: { product: Product }) {
       };
 
       // 3) Persiste alteração (somente campos no produto)
-      const res: any = await updateProductAction(product.id, updateData);
-      if (!res || !res.success) {
-        console.warn('removeImage: updateProductAction failed', res);
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+      const resJson = await res.json();
+      if (!res.ok || !resJson.success) {
+        console.warn('removeImage: API failed', resJson);
         toast.error('Falha ao persistir remoção da imagem');
         return;
       }
@@ -747,15 +748,20 @@ export function EditProductForm({ product }: { product: Product }) {
     const imagePath = gallery.length > 0 ? gallery[0].path : null;
 
     try {
-      const res: any = await updateProductAction(product.id, {
-        gallery_images: gallery,
-        image_variants: imageVariants,
-        image_url: imageUrl,
-        image_path: imagePath,
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gallery_images: gallery,
+          image_variants: imageVariants,
+          image_url: imageUrl,
+          image_path: imagePath,
+        }),
       });
+      const resJson = await res.json();
 
-      if (!res || !res.success) {
-        console.warn('setAsCover: updateProductAction failed', res);
+      if (!res.ok || !resJson.success) {
+        console.warn('setAsCover: API failed', resJson);
         toast.error('Falha ao definir capa');
         return;
       }
@@ -1078,12 +1084,21 @@ export function EditProductForm({ product }: { product: Product }) {
       }
 
       // 7. PERSISTÊNCIA
-      const result: any = await updateProductAction(product.id, payload);
-      if (!result || !result.success) throw new Error(result?.error || 'Erro no update');
+      const result = await fetch(`/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const resultJson = await result.json();
+      if (!result.ok || !resultJson.success) throw new Error(resultJson?.error || 'Erro no update');
 
       // 8. SINCRONIZAÇÃO AUXILIAR (Protegida)
       if (syncUrls && syncUrls.length > 0) {
-        await syncProductGallery(product.id, syncUrls);
+        await fetch(`/api/products/${product.id}/gallery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: syncUrls }),
+        });
       }
 
       // 9. COPY-ON-WRITE

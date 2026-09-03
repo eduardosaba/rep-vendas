@@ -70,7 +70,7 @@ export default function ProductSyncPage() {
       if (!user) return;
       const { data } = await supabase
         .from('products')
-        .select('id, name, reference_code, barcode, price, sale_price, cost, stock_quantity, description, category, color, technical_specs')
+        .select('id, name, reference_code, barcode, price, sale_price, cost, stock_quantity, description, category, color, technical_specs, is_active')
         .eq('user_id', user.id);
       if (data) setProducts(data);
     }
@@ -99,7 +99,20 @@ export default function ProductSyncPage() {
     addLog(`🔍 Analisando divergências em [${dbTargetCol}]...`);
     const results: SyncPreview[] = fileData.map((row) => {
       const excelKey = String(row[matchCol] || '');
-      const excelValue = row[valueCol];
+      let excelValue = row[valueCol];
+
+      // Tratamento especial para coluna booleana (is_active)
+      if (dbTargetCol === 'is_active') {
+        const strVal = String(excelValue ?? '').trim();
+        if (/^(false|0|inativo|inativa|desativado|desativada|nao|não|f)$/i.test(strVal)) {
+          excelValue = false;
+        } else if (/^(true|1|ativo|ativa|ativado|ativada|sim|s|t)$/i.test(strVal)) {
+          excelValue = true;
+        } else {
+          excelValue = Boolean(excelValue);
+        }
+      }
+
       const dbProduct = products.find((p) =>
         matchCol.toLowerCase().includes('ean')
           ? p.barcode === excelKey
@@ -109,12 +122,12 @@ export default function ProductSyncPage() {
         return {
           key: excelKey,
           newValue: excelValue,
-          displayValue: excelValue,
+          displayValue: String(excelValue),
           currentValue: null,
           productName: 'Não encontrado',
           status: 'not_found',
         };
-      const currentDbValue = dbProduct[dbTargetCol] || 0;
+      const currentDbValue = dbProduct[dbTargetCol] ?? (dbTargetCol === 'is_active' ? true : 0);
       
       // Truncar textos longos para display (description, technical_specs)
       let displayVal = excelValue;
@@ -476,6 +489,7 @@ export default function ProductSyncPage() {
                   <option value="sale_price">🏷️ Preços de Venda</option>
                   <option value="cost">📊 Custo Real</option>
                   <option value="stock_quantity">📦 Estoque (Quantidade)</option>
+                  <option value="is_active">⚡ Status Ativo / Inativo (is_active)</option>
                   <option value="image_url">🖼️ URL Imagens</option>
                   <option value="barcode">🔢 Código de Barras (EAN)</option>
                   <option value="description">📝 Descrição</option>

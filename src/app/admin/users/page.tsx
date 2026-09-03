@@ -11,6 +11,8 @@ import {
   X,
   Save,
   Edit,
+  Mail,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/utils/getErrorMessage';
@@ -348,9 +350,23 @@ export default function AdminUsersPage() {
                           {user.email?.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {user.email}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {user.email}
+                            </span>
+                            {user.created_at &&
+                              Math.ceil(
+                                Math.abs(
+                                  new Date().getTime() -
+                                    new Date(user.created_at).getTime()
+                                ) /
+                                  (1000 * 60 * 60 * 24)
+                              ) <= 7 && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                  <Sparkles size={10} /> Novo
+                                </span>
+                              )}
+                          </div>
                           <span
                             className="text-[10px] text-gray-400 font-mono"
                             title={user.id}
@@ -386,9 +402,17 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-right sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
                       <div className="flex justify-end gap-2">
+                        <a
+                          href={`mailto:${user.email}?subject=Boas-vindas%20ao%20RepVendas&body=Ol%C3%A1!%20Vi%20que%20voc%C3%AA%20se%20cadastrou%20no%20RepVendas.%20Como%20posso%20te%20ajudar%20a%20configurar%20seu%20cat%C3%A1logo%3F`}
+                          className="p-2 text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-all"
+                          title="Enviar E-mail de Boas-Vindas"
+                        >
+                          <Mail size={16} />
+                        </a>
                         <Link
                           href={`/admin/users/${user.id}`}
                           className="p-2 text-indigo-600 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
+                          title="Editar Perfil"
                         >
                           <Edit size={16} />
                         </Link>
@@ -396,6 +420,7 @@ export default function AdminUsersPage() {
                           onClick={() => confirmAddTrial(user.id, user.email)}
                           disabled={updatingUser === user.id}
                           className="p-2 text-green-600 bg-green-50 border border-green-200 hover:bg-green-100 rounded-lg transition-all disabled:opacity-50"
+                          title="Adicionar 30 dias de teste"
                         >
                           {updatingUser === user.id ? (
                             <Loader2 size={16} className="animate-spin" />
@@ -406,6 +431,7 @@ export default function AdminUsersPage() {
                         <button
                           onClick={() => handleImpersonate(user.email)}
                           className="p-2 text-gray-400 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"
+                          title="Acessar como usuário"
                         >
                           <LogIn size={16} />
                         </button>

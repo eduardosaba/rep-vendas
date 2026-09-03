@@ -1,14 +1,28 @@
 import { redirect } from 'next/navigation';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import AdminLayoutClient from './AdminLayoutClient';
-import { isAdminRole } from '@/lib/auth/roles';
-import { createClient } from '@/lib/supabase/server';
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
+  const cookieStore = await cookies();
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll() {
+        // Ignorado no Server Component render
+      }
+    },
+  });
 
   const {
     data: { user },
@@ -24,9 +38,12 @@ export default async function AdminLayout({
     .eq('id', user.id)
     .single();
 
-  const role = profile?.role;
+  const role = String(profile?.role || '').toLowerCase();
+  const isMaster = role === 'master';
+  const isAdmin = role === 'admin';
+  const isAdminCompany = role === 'admin_company';
 
-  if (!isAdminRole(role)) {
+  if (!isMaster && !isAdmin && !isAdminCompany) {
     redirect('/admin/unauthorized');
   }
 

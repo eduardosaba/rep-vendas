@@ -1,5 +1,5 @@
 import ExportTriggerButton from '@/components/dashboard/ExportTriggerButton';
-import { ProductsTable } from '@/components/dashboard/ProductsTable';
+import { ProductsTable } from '@/components/dashboard/ProductsTableV2';
 import { Button } from '@/components/ui/button'; // Usando nosso componente padronizado
 import { getActiveUserId } from '@/lib/auth-utils';
 import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
@@ -9,10 +9,10 @@ import {
   DollarSign,
   FileSpreadsheet,
   Image as ImageIcon,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-// SyncProgressBanner removido — banner não exibido nesta página
 
 // 🚀 OBRIGA O NEXT.JS A NÃO FAZER CACHE DESTA PÁGINA
 export const dynamic = 'force-dynamic';
@@ -31,154 +31,6 @@ export default async function ProductsPage() {
     }
   }
 
-  // 2. Busca de Produtos Otimizada
-  let maxLimit = 500; // fallback seguro para usuários comuns (reduzido para evitar timeouts)
-
-  // 2.1 Verifica o cargo do usuário para definir o limite
-  // Use activeUserId (impersonation-aware) to fetch the profile server-side
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, email')
-    .eq('id', activeUserId)
-    .maybeSingle();
-
-  const roleStr = (profile?.role || '').toString().toLowerCase();
-  const isAdmin = roleStr.includes('master') || roleStr.includes('admin');
-
-  // Debug seguro: apenas em desenvolvimento mostramos informação resumida
-  if (process.env.NODE_ENV === 'development') {
-    console.log(
-      `[DEBUG] Usuário é Admin: ${isAdmin} | Limite definido: ${maxLimit}`
-    );
-  }
-
-  if (isAdmin) {
-    maxLimit = 5000;
-  } else {
-    // Busca limite do plano para usuários comuns
-    try {
-      const { data: sub } = await supabase
-        .from('subscriptions')
-        .select('plan_id, plan_name')
-        .eq('user_id', activeUserId)
-        .maybeSingle();
-
-      if (sub?.plan_id) {
-        const { data: plan } = await supabase
-          .from('plans')
-          .select('product_limit, max_products')
-          .eq('id', sub.plan_id)
-          .maybeSingle();
-
-        if (plan) {
-          maxLimit = plan.product_limit || plan.max_products || 5000;
-        }
-      }
-    } catch (e) {
-      console.error('Erro ao recuperar limite do plano:', e);
-    }
-  }
-
-  // 3. Query de Produtos (usar range sempre para honrar maxLimit)
-  // Select only the fields needed for listing to reduce payload and query time
-  const query = supabase
-    .from('products')
-    .select(
-      'id, reference_code, name, brand, price, sale_price, image_variants, image_url, image_path, gallery_images, is_active, created_at',
-      { count: 'planned' }
-    )
-    .eq('user_id', activeUserId)
-    .order('created_at', { ascending: false })
-    .range(0, maxLimit);
-
-  const { data: products, error, count } = await query;
-
-  if (products && products.length >= maxLimit) {
-    console.warn(
-      'produtos retornados (' +
-        products.length +
-        ') >= maxLimit (' +
-        maxLimit +
-        '). Considere paginar.'
-    );
-  }
-
-  if (error) {
-    console.error('Erro ao carregar produtos:', error);
-  }
-
-  // Fallback seguro se der erro
-  const safeProducts = products || [];
-  const totalCount = typeof count === 'number' ? count : safeProducts.length;
-
-  // Gera thumbnail 480w para listagem administrativa somente se houver variante 1200w
-  const ensure480 = (u: string | null | undefined) => {
-    if (!u) return '/placeholder.png';
-    try {
-      if (/-1200w(\.|$)/.test(u)) return u.replace(/-1200w(\.|$)/, '-480w$1');
-      return u;
-    } catch (e) {
-      return u;
-    }
-  };
-
-  const withThumbnails = (safeProducts || []).map((p: any) => {
-    try {
-      // 1. Prioriza image_variants
-      if (Array.isArray(p.image_variants) && p.image_variants.length > 0) {
-        const v480 = p.image_variants.find((v: any) => v.size === 480);
-        if (v480?.url) return { ...p, thumbnail: v480.url };
-        const vAny = p.image_variants[0];
-        if (vAny?.url) return { ...p, thumbnail: ensure480(vAny.url) };
-      }
-
-      // 2. Usa primeira imagem da galeria
-      if (Array.isArray(p.gallery_images) && p.gallery_images.length > 0) {
-        const first = p.gallery_images[0];
-        if (first?.variants && Array.isArray(first.variants)) {
-          const vv = first.variants.find((v: any) => v.size === 480);
-          if (vv?.url) return { ...p, thumbnail: vv.url };
-          if (first.variants[0]?.url)
-            return { ...p, thumbnail: ensure480(first.variants[0].url) };
-        }
-        if (first?.url) return { ...p, thumbnail: ensure480(first.url) };
-      }
-
-      // 3. Fallback para image_url
-      if (typeof p.image_url === 'string' && p.image_url) {
-        return { ...p, thumbnail: ensure480(p.image_url) };
-      }
-
-      // 4. fallback final
-      return { ...p, thumbnail: '/placeholder.png' };
-    } catch (e) {
-      return { ...p, thumbnail: '/placeholder.png' };
-    }
-  });
-
-  // Mostrar painel de diagnóstico somente para usuários master/template
-  const allowedDiagnosticEmails = [
-    'eduardopedro.fsa@gmail.com',
-    'template-otica@repvendas.com.br',
-  ];
-  const showDiagnosticPanel = Boolean(
-    profile && allowedDiagnosticEmails.includes(profile.email || '')
-  );
-
-  // Estatísticas de otimização de imagens
-  const totalProducts = totalCount;
-  const productsWithInternalImages = safeProducts.filter(
-    (p: any) => p.image_path
-  ).length;
-  const productsWithExternalImages = safeProducts.filter(
-    (p: any) =>
-      !p.image_path && (p.image_url || p.external_image_url || p.images)
-  ).length;
-  const optimizationRate =
-    totalProducts > 0
-      ? Math.round((productsWithInternalImages / totalProducts) * 100)
-      : 0;
-
   return (
     <div className="p-4 md:p-6 space-y-6 pb-24 animate-in fade-in duration-500">
       {/* HEADER DE AÇÕES: Responsivo */}
@@ -189,9 +41,6 @@ export default async function ProductsPage() {
             <Box size={24} className="text-[var(--primary)]" />
             Produtos
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gerencie seu catálogo completo ({totalProducts} itens)
-          </p>
         </div>
 
         {/* Barra de Ferramentas */}
@@ -205,6 +54,18 @@ export default async function ProductsPage() {
               leftIcon={<FileSpreadsheet size={16} />}
             >
               Importar Excel
+            </Button>
+          </Link>
+
+          {/* Botão Sincronizar Imagens */}
+          <Link href="/dashboard/settings/sync" className="contents">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto justify-center border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+              leftIcon={<RefreshCw size={16} />}
+            >
+              Sincronizar Imagens
             </Button>
           </Link>
 
@@ -233,20 +94,10 @@ export default async function ProductsPage() {
               Atualizar Preços
             </Button>
           </Link>
-
-          {/* Painel de Diagnóstico desativado temporariamente */}
-          {/* Tabela de Dados */}
         </div>
       </div>
-      {/* Envolvemos em um container com borda e fundo para o tema */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
-        {/* Se o catálogo for grande, ativamos paginação server-side para não carregar milhares de linhas */}
-        <ProductsTable
-          initialProducts={totalProducts > 1000 ? [] : withThumbnails}
-          serverModeDefault={totalProducts > 1000}
-          initialTotalCount={totalProducts}
-        />
-      </div>
+      {/* Tabela de Dados - Nova versão client-side com API */}
+      <ProductsTable />
     </div>
   );
 }

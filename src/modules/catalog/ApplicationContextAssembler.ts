@@ -1,8 +1,9 @@
 import { OrganizationRepository } from '@/modules/core/organizations/OrganizationRepository';
 import { ProfileRepository } from '@/modules/core/auth/ProfileRepository';
 import { BrandingRepository } from '@/infrastructure/supabase/repositories/SupabaseBrandingRepository';
-import { ApplicationContext } from '@/shared/types/application';
+import { ApplicationContext, OrganizationContextV2, OrganizationContext } from '@/shared/types/application';
 import { FeatureRegistry } from '@/shared/features/FeatureRegistry';
+import type { Organization } from '@/domain/organizations/types';
 
 export class ApplicationContextAssembler {
   constructor(
@@ -58,10 +59,26 @@ export class ApplicationContextAssembler {
       features.forEach(f => permissions.push(`can_${f}`));
     }
 
+    // Get full organization data with organization_type
+    const fullOrg = organization as unknown as Organization;
+
+    // Build OrganizationContextV2 for new org context system
+    const organizationV2: OrganizationContextV2 = {
+      organizationId: organization.id,
+      organization: fullOrg,
+      organizationType: fullOrg.organization_type,
+      memberRole: representative ? 'sales_rep' : 'owner',
+      memberStatus: 'active',
+      permissions,
+      memberships: [],
+      fallback: 'membership',
+    };
+
     // Assemble final context
     return {
       tenant,
       organization,
+      organizationV2,
       branding,
       modules,
       features,

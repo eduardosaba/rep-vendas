@@ -356,7 +356,7 @@ export function Sidebar({
           const showTools = showCatalogOps;
           // Additional legacy guards that depend on company linkage or master flag
           // If the top-level item itself points to the sync settings page, hide it for non-master
-          if (item.href === '/dashboard/settings/sync' && !isMaster)
+          if (item.href === '/dashboard/settings/sync' && !showCatalogOps)
             return null;
           // Area de fila B2B da distribuidora apenas para membros vinculados
           if (item.href === '/dashboard/distribuidora' && !isCompanyMember)
@@ -527,9 +527,8 @@ export function Sidebar({
                     );
                     // hide 'Saúde dos Dados' and sync settings page for non-master users
                     if (
-                      (child.title === 'Saúde dos Dados' ||
-                        child.href === '/dashboard/settings/sync') &&
-                      !isMaster
+                      (child.title === 'Saúde dos Dados' && !isMaster) ||
+                      (child.href === '/dashboard/settings/sync' && !showCatalogOps)
                     ) {
                       return null;
                     }
