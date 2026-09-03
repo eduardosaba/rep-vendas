@@ -9,6 +9,7 @@ import {
   DollarSign,
   FileSpreadsheet,
   Image as ImageIcon,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -53,6 +54,18 @@ export default async function ProductsPage() {
               leftIcon={<FileSpreadsheet size={16} />}
             >
               Importar Excel
+            </Button>
+          </Link>
+
+          {/* Botão Sincronizar Imagens */}
+          <Link href="/dashboard/settings/sync" className="contents">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto justify-center border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+              leftIcon={<RefreshCw size={16} />}
+            >
+              Sincronizar Imagens
             </Button>
           </Link>
 
