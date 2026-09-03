@@ -429,6 +429,8 @@ export function StoreSidebar() {
     setShowOnlyNew,
     showOnlyBestsellers,
     setShowOnlyBestsellers,
+    selectedTipoMontagem,
+    setSelectedTipoMontagem,
   } = useStore();
   const { isSidebarOpen, toggleSidebar } = useLayoutStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -569,6 +571,24 @@ export function StoreSidebar() {
                 )}
               </button>
             </div>
+
+            {!isCollapsed && (
+              <div className="pt-2">
+                <h3 className="font-bold text-sm uppercase tracking-wider mb-2 text-gray-900">
+                  Tipo de Montagem
+                </h3>
+                <select
+                  value={selectedTipoMontagem || 'all'}
+                  onChange={(e) => setSelectedTipoMontagem && setSelectedTipoMontagem(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                >
+                  <option value="all">Todos os tipos</option>
+                  <option value="aro_fechado">Aro Fechado (Full Rim)</option>
+                  <option value="fio_nylon">Fio de Nylon (Semi-Rimless)</option>
+                  <option value="balgriff">Balgriff / Parafuso (Rimless)</option>
+                </select>
+              </div>
+            )}
 
             <hr className="border-gray-200" />
 
