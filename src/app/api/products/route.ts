@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const polarizado = url.searchParams.get('polarizado') ? url.searchParams.get('polarizado') === 'true' : undefined;
     const is_active = url.searchParams.get('is_active') ? url.searchParams.get('is_active') === 'true' : undefined;
     const is_launch = url.searchParams.get('is_launch') ? url.searchParams.get('is_launch') === 'true' : undefined;
+    const tipo_montagem = url.searchParams.get('tipo_montagem') || undefined;
     const is_destaque = url.searchParams.get('is_destaque') ? url.searchParams.get('is_destaque') === 'true' : undefined;
     const min_price = url.searchParams.get('min_price') ? parseFloat(url.searchParams.get('min_price')!) : undefined;
     const max_price = url.searchParams.get('max_price') ? parseFloat(url.searchParams.get('max_price')!) : undefined;
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
       polarizado,
       is_active,
       is_launch,
+      tipo_montagem,
       is_destaque,
       min_price,
       max_price,

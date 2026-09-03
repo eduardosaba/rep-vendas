@@ -776,6 +776,19 @@ export function ProductsTable() {
               </select>
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Montagem</label>
+              <select
+                value={(filters as any).tipo_montagem || ''}
+                onChange={e => handleFilterChange('tipo_montagem' as any, e.target.value || undefined)}
+                className="w-full p-2 border rounded-md text-sm bg-white dark:bg-gray-900"
+              >
+                <option value="">Todos os tipos</option>
+                <option value="aro_fechado">Aro Fechado</option>
+                <option value="fio_nylon">Fio de Nylon</option>
+                <option value="balgriff">Balgriff / Parafuso</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
               <select
                 value={filters.is_active?.toString() || ''}
@@ -811,7 +824,16 @@ export function ProductsTable() {
                 />
               </div>
             </div>
-            <div className="flex gap-4 pt-4">
+            <div className="flex flex-wrap gap-4 pt-4 lg:col-span-4 border-t border-gray-200 dark:border-gray-700">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800">
+                <input
+                  type="checkbox"
+                  checked={(filters as any).is_launch === true}
+                  onChange={e => handleFilterChange('is_launch' as any, e.target.checked ? true : undefined)}
+                  className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                />
+                🚀 Apenas Lançamentos
+              </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"

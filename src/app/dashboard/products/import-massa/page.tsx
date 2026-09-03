@@ -264,6 +264,21 @@ export default function ImportMassaPage() {
     let totalSkipped = 0;
 
     try {
+      // 1. Busca contagem real de pendentes para exibir a barra de progresso perfeita
+      let totalPendingQuery = supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .is('image_path', null)
+        .or('external_image_url.not.is.null,image_url.not.is.null,images.not.is.null');
+
+      if (lastImportedBrand) {
+        totalPendingQuery = totalPendingQuery.ilike('brand', `%${lastImportedBrand}%`);
+      }
+
+      const { count: grandTotalCount } = await totalPendingQuery;
+      const grandTotal = grandTotalCount || 0;
+      setSyncProgress({ current: 0, total: grandTotal });
+
       let hasMore = true;
       let batchCount = 0;
 
@@ -309,7 +324,11 @@ export default function ImportMassaPage() {
                       `[${data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}] ${data.message}`,
                     ]);
                   } else if (data.type === 'progress') {
-                    setSyncProgress({ current: totalSuccess + totalFailed + data.current, total: data.total });
+                    const currentTotal = totalSuccess + totalFailed + data.current;
+                    setSyncProgress({
+                      current: currentTotal,
+                      total: Math.max(grandTotal, currentTotal),
+                    });
                   } else if (data.type === 'complete') {
                     batchProcessed = data.success + data.failed;
                     totalSuccess += data.success;
@@ -481,13 +500,13 @@ export default function ImportMassaPage() {
       return col;
     };
 
+    map.model_code = findCol(/model_code|modelcode|codigo.*modelo|model_name|modelname|model/);
     map.name = findCol(/nome|name|produto|title/);
     map.sku = findCol(/sku|codigo|code/);
     map.price = findCol(/preco|price|valor/);
     map.sale_price = findCol(/precovenda|preco.?venda|sale|sale_price/);
     map.brand = findCol(/marca|brand|fornecedor/);
     map.ref = findCol(/referencia|ref|reference/);
-    map.model_code = findCol(/model|model_code|modelcode|codigo.*modelo|reference_id/);
     map.ean = findCol(/ean|barcode|codigo de barras|gtin/);
     map.category = findCol(/categoria|category/);
     map.color = findCol(/cor|color/);

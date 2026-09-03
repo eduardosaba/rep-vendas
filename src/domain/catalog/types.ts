@@ -184,6 +184,7 @@ export interface ProductFilters {
   polarizado?: boolean;
   is_active?: boolean;
   is_launch?: boolean;
+  tipo_montagem?: string;
   is_destaque?: boolean;
   min_price?: number;
   max_price?: number;

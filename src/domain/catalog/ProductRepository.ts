@@ -100,6 +100,9 @@ export class ProductRepository {
     if (filters.is_launch !== undefined) {
       query = query.eq('is_launch', filters.is_launch);
     }
+    if (filters.tipo_montagem) {
+      query = query.eq('tipo_montagem', filters.tipo_montagem);
+    }
     if (filters.is_destaque !== undefined) {
       query = query.eq('is_destaque', filters.is_destaque);
     }
