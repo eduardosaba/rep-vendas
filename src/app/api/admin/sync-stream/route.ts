@@ -1,13 +1,53 @@
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import https from 'https';
 
 export const runtime = 'nodejs';
+
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+async function downloadImageBuffer(url: string): Promise<Buffer> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(30000),
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Referer: 'https://commportal-images.safilo.com/',
+      },
+      // @ts-ignore
+      agent: httpsAgent,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  } catch (err: any) {
+    const nodeFetch = (await import('node-fetch')).default;
+    const res = await (nodeFetch as any)(url, {
+      agent: httpsAgent,
+      timeout: 30000,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Referer: 'https://commportal-images.safilo.com/',
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+}
 
 function splitUrls(input: any): string[] {
   if (!input) return [];
   if (Array.isArray(input)) return input.flatMap((i) => splitUrls(i));
   if (typeof input === 'object') {
-    return splitUrls(input.url || input.src || input.path || input.publicUrl || input.public_url || '');
+    return splitUrls(
+      input.url ||
+        input.src ||
+        input.path ||
+        input.publicUrl ||
+        input.public_url ||
+        ''
+    );
   }
   return String(input)
     .split(/[;,]/)
@@ -17,7 +57,7 @@ function splitUrls(input: any): string[] {
 
 /**
  * API de Sincronização com Streaming (SSE)
- * Versão aprimorada de /api/admin/sync-images com logs em tempo real
+ * Versão resiliente com bypass TLS de CDN e suporte a URLs de galeria
  */
 export async function POST(request: Request) {
   // Autenticação (CRON_SECRET ou Sessão de Usuário no Navegador)
@@ -29,7 +69,9 @@ export async function POST(request: Request) {
     isAuthed = true;
   } else {
     try {
-      const { getServerUserFallback } = await import('@/lib/supabase/getServerUserFallback');
+      const { getServerUserFallback } = await import(
+        '@/lib/supabase/getServerUserFallback'
+      );
       const user = await getServerUserFallback();
       if (user) isAuthed = true;
     } catch (e) {
@@ -56,18 +98,10 @@ export async function POST(request: Request) {
 
   const { product_ids = [], brand_id, limit = 20, force = false } = body;
 
-  // TLS handling: do NOT mutate `NODE_TLS_REJECT_UNAUTHORIZED` here.
-  if (process.env.ALLOW_INSECURE_TLS === '1') {
-    console.warn(
-      'ALLOW_INSECURE_TLS set: do NOT change NODE_TLS_REJECT_UNAUTHORIZED in source. Use only for local debug via your shell.'
-    );
-  }
-
   // Cria encoder para SSE
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      // Helper para enviar eventos
       const sendEvent = (type: string, data: any) => {
         const message = `data: ${JSON.stringify({ type, ...data })}\n\n`;
         controller.enqueue(encoder.encode(message));
@@ -101,15 +135,21 @@ export async function POST(request: Request) {
             'info'
           );
         } else {
-          if (!force) {
-            query = query.or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null');
-          } else {
-            query = query.or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null');
-          }
+          query = query.or(
+            'sync_status.eq.pending,sync_status.eq.failed,sync_status.is.null,image_path.is.null,external_image_url.ilike.http%,image_url.ilike.http%'
+          );
+
           if (brand_id) {
-            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(brand_id);
+            const isUuid =
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                brand_id
+              );
             if (isUuid) {
-              const { data: bObj } = await supabase.from('brands').select('name').eq('id', brand_id).maybeSingle();
+              const { data: bObj } = await supabase
+                .from('brands')
+                .select('name')
+                .eq('id', brand_id)
+                .maybeSingle();
               if (bObj?.name) query = query.ilike('brand', `%${bObj.name}%`);
               else query = query.ilike('brand', `%${brand_id}%`);
             } else {
@@ -148,7 +188,8 @@ export async function POST(request: Request) {
         // 2. Processa cada produto
         for (let i = 0; i < products.length; i++) {
           const product = products[i];
-          const brandName = typeof product.brand === 'string' ? product.brand : 'Sem marca';
+          const brandName =
+            typeof product.brand === 'string' ? product.brand : 'Sem marca';
 
           sendEvent('progress', {
             current: i + 1,
@@ -164,15 +205,8 @@ export async function POST(request: Request) {
           );
 
           try {
-            // Verifica se já tem image_path
-            if (product.image_path && !force) {
-              sendLog(`   ⏭️ Já possui image_path, pulando`, 'warning');
-              results.skipped++;
-              continue;
-            }
-
             // Extrai URLs para processar (trata ponto-e-vírgula e arrays de imagens)
-            const urls = [
+            const rawUrls = [
               ...new Set([
                 ...splitUrls(product.external_image_url),
                 ...splitUrls(product.image_url),
@@ -181,17 +215,30 @@ export async function POST(request: Request) {
               ]),
             ];
 
-            if (urls.length === 0) {
-              sendLog(`   ⚠️ Nenhuma URL externa encontrada`, 'warning');
+            const externalUrls = rawUrls.filter(
+              (u) => u.startsWith('http') && !u.includes('.supabase.co')
+            );
+
+            // Se não for force, e já possuir image_path e nenhuma URL externa pendente, pula
+            if (product.image_path && externalUrls.length === 0 && !force) {
+              sendLog(`   ⏭️ Imagem já internalizada em Storage, pulando`, 'warning');
               results.skipped++;
               continue;
             }
 
-            const coverUrl = urls[0];
-            const galleryUrls = urls.slice(1);
+            if (rawUrls.length === 0 && !product.image_path) {
+              sendLog(`   ⚠️ Nenhuma URL de imagem encontrada`, 'warning');
+              results.skipped++;
+              continue;
+            }
+
+            const coverUrl = externalUrls[0] || rawUrls[0];
+            const galleryUrls = (externalUrls.length > 1 ? externalUrls.slice(1) : rawUrls.slice(1)).filter(
+              (u) => u !== coverUrl
+            );
 
             sendLog(
-              `   📸 Capa Principal: Sim | Imagens de Galeria: ${galleryUrls.length}`,
+              `   📸 Capa Principal: ${coverUrl ? 'Sim' : 'Não'} | Imagens de Galeria: ${galleryUrls.length}`,
               'info'
             );
 
@@ -201,35 +248,28 @@ export async function POST(request: Request) {
               .update({ sync_status: 'processing' })
               .eq('id', product.id);
 
-            // 3. Processa Capa Principal (se houver)
-            let imagePath = null;
+            // 3. Processa Capa Principal (se houver URL externa)
+            let imagePath = product.image_path || null;
             let imageUrl = null;
-            let imageVariants = null;
+            let imageVariants = product.image_variants || null;
 
-            const brandSlug = typeof product.brand === 'string' 
-              ? product.brand.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') 
-              : 'default';
+            const brandSlug =
+              typeof product.brand === 'string'
+                ? product.brand
+                    .toLowerCase()
+                    .replace(/\s+/g, '-')
+                    .replace(/[^a-z0-9-]/g, '')
+                : 'default';
             const refCode = (product.reference_code || product.id)
               .trim()
               .replace(/[^a-zA-Z0-9-_]/g, '_')
               .substring(0, 100);
 
-            if (coverUrl) {
+            if (coverUrl && coverUrl.startsWith('http') && !coverUrl.includes('.supabase.co')) {
               sendLog(`   📥 Baixando capa...`, 'info');
 
               try {
-                const response = await fetch(coverUrl, {
-                  signal: AbortSignal.timeout(30000),
-                  headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                  },
-                });
-
-                if (!response.ok) {
-                  throw new Error(`HTTP ${response.status}`);
-                }
-
-                const buffer = Buffer.from(await response.arrayBuffer());
+                const buffer = await downloadImageBuffer(coverUrl);
                 sendLog(
                   `   ✅ Download concluído (${(buffer.length / 1024).toFixed(1)} KB)`,
                   'success'
@@ -293,8 +333,11 @@ export async function POST(request: Request) {
               }
             }
 
-            // 4. Processa imagens de Galeria (se houver)
-            const gallery: any[] = [];
+            // 4. Processa imagens de Galeria (se houver URLs externas)
+            const gallery: any[] = Array.isArray(product.gallery_images)
+              ? product.gallery_images.filter((g: any) => typeof g === 'object' && g?.path && !g.path.startsWith('http'))
+              : [];
+
             if (galleryUrls.length > 0) {
               sendLog(
                 `   🖼️ Processando ${galleryUrls.length} imagens da galeria...`,
@@ -303,6 +346,8 @@ export async function POST(request: Request) {
 
               for (let j = 0; j < galleryUrls.length; j++) {
                 const gUrl = galleryUrls[j];
+                if (!gUrl.startsWith('http') || gUrl.includes('.supabase.co')) continue;
+
                 const indexPad = String(j + 1).padStart(2, '0');
                 sendLog(
                   `      [${j + 1}/${galleryUrls.length}] Baixando galeria ${j + 1}...`,
@@ -310,16 +355,7 @@ export async function POST(request: Request) {
                 );
 
                 try {
-                  const gRes = await fetch(gUrl, {
-                    signal: AbortSignal.timeout(30000),
-                    headers: {
-                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    },
-                  });
-
-                  if (!gRes.ok) throw new Error(`HTTP ${gRes.status}`);
-
-                  const gBuffer = Buffer.from(await gRes.arrayBuffer());
+                  const gBuffer = await downloadImageBuffer(gUrl);
                   const gVariants: any[] = [];
 
                   for (const size of [480, 1200]) {
@@ -361,15 +397,15 @@ export async function POST(request: Request) {
                   }
                 } catch (gErr: any) {
                   sendLog(
-                    `      ⚠️ Erro ao processar imagem de galeria ${j + 1}: ${gErr.message}`,
+                    `      ⚠️ Erro ao processar galeria ${j + 1}: ${gErr.message}`,
                     'warning'
                   );
                 }
               }
             }
 
-            // 5. Atualiza produto modelo
-            const updatePayload = {
+            // 5. Atualiza produto no banco de dados
+            const updatePayload: any = {
               image_path: imagePath || product.image_path,
               image_variants: imageVariants || product.image_variants,
               gallery_images: gallery.length > 0 ? gallery : product.gallery_images,

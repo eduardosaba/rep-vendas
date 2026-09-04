@@ -35,76 +35,101 @@ export async function GET(request: Request) {
       .eq('sync_status', 'processing')
       .lt('updated_at', fiveMinAgo);
 
-    // 1. Estatísticas gerais por sync_status
-    const statusQuery = supabase
+    // 1. Busca produtos que necessitam de sincronização
+    // (pendentes, com falha, sem image_path ou com URLs externas brutas não internalizadas)
+    let query = supabase
       .from('products')
-      .select('sync_status', { count: 'exact' });
-    if (!isAdmin) statusQuery.eq('user_id', user.id);
-    const { data: statusCounts } = await statusQuery;
+      .select('id, brand, sync_status, image_path, external_image_url, image_url, images, gallery_images');
+    if (!isAdmin) query = query.eq('user_id', user.id);
 
-    const stats = {
-      pending: 0,
-      processing: 0,
-      synced: 0,
-      failed: 0,
-      total: statusCounts?.length || 0,
-    };
+    const { data: allProducts, error: fetchErr } = await query;
 
-    statusCounts?.forEach((p: { sync_status: string | null }) => {
-      const status = p.sync_status || 'pending';
-      if (status in stats) {
-        stats[status as keyof typeof stats]++;
+    if (fetchErr) {
+      console.error('[sync-stats] Erro ao buscar produtos:', fetchErr);
+    }
+
+    const brandCounts: Record<string, number> = {};
+    let pendingCount = 0;
+    let failedCount = 0;
+    let syncedCount = 0;
+    let processingCount = 0;
+
+    (allProducts || []).forEach((p: any) => {
+      const st = p.sync_status || 'pending';
+      const isPendingStatus = st === 'pending' || st === 'failed';
+      const isMissingPath = !p.image_path;
+
+      const allUrls: string[] = [];
+      if (p.external_image_url) allUrls.push(...String(p.external_image_url).split(/[;,]/));
+      if (p.image_url) allUrls.push(...String(p.image_url).split(/[;,]/));
+      if (Array.isArray(p.images)) allUrls.push(...p.images.map(String));
+      else if (typeof p.images === 'string') allUrls.push(...p.images.split(/[;,]/));
+
+      if (Array.isArray(p.gallery_images)) {
+        for (const item of p.gallery_images) {
+          if (typeof item === 'string') allUrls.push(item);
+          else if (item?.url) allUrls.push(item.url);
+        }
+      }
+
+      const hasExternalUnsynced = allUrls.some((u) => u.trim().startsWith('http') && !u.includes('.supabase.co'));
+
+      if (st === 'processing') {
+        processingCount++;
+      } else if (st === 'failed') {
+        failedCount++;
+        pendingCount++;
+        const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
+        brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
+      } else if (isPendingStatus || isMissingPath || hasExternalUnsynced) {
+        pendingCount++;
+        const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
+        brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
+      } else {
+        syncedCount++;
       }
     });
 
+    const stats = {
+      pending: pendingCount,
+      processing: processingCount,
+      synced: syncedCount,
+      failed: failedCount,
+      total: allProducts?.length || 0,
+    };
+
     // 2. Produtos com erro recente (últimos 20)
-    const recentErrorsQuery = supabase
+    let recentErrorsQuery = supabase
       .from('products')
-      .select(
-        'id, name, reference_code, sync_error, sync_status, updated_at, brand'
-      )
+      .select('id, name, reference_code, sync_error, sync_status, updated_at, brand')
       .eq('sync_status', 'failed')
       .order('updated_at', { ascending: false })
       .limit(20);
-    if (!isAdmin) recentErrorsQuery.eq('user_id', user.id);
+    if (!isAdmin) recentErrorsQuery = recentErrorsQuery.eq('user_id', user.id);
     const { data: recentErrors } = await recentErrorsQuery;
 
-    // 3. Produtos pendentes por marca
-    const pendingByBrandQuery = supabase
-      .from('products')
-      .select('brand', { count: 'exact' })
-      .eq('sync_status', 'pending');
-    if (!isAdmin) pendingByBrandQuery.eq('user_id', user.id);
-    const { data: pendingByBrand } = await pendingByBrandQuery;
-
-    const brandCounts: Record<string, number> = {};
-    pendingByBrand?.forEach((p: any) => {
-      const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
-      brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
-    });
-
-    // 4. Produtos recém-importados (últimas 24h) ainda pendentes
+    // 3. Produtos recém-importados (últimas 24h) ainda pendentes
     const yesterday = new Date();
     yesterday.setHours(yesterday.getHours() - 24);
 
-    const recentPendingQuery = supabase
+    let recentPendingQuery = supabase
       .from('products')
       .select('id, name, reference_code, created_at, brand')
-      .eq('sync_status', 'pending')
+      .or('sync_status.eq.pending,sync_status.eq.failed,image_path.is.null')
       .gte('created_at', yesterday.toISOString())
       .order('created_at', { ascending: false })
       .limit(50);
-    if (!isAdmin) recentPendingQuery.eq('user_id', user.id);
+    if (!isAdmin) recentPendingQuery = recentPendingQuery.eq('user_id', user.id);
     const { data: recentPending } = await recentPendingQuery;
 
-    // 5. Estatísticas de storage (opcional - pode ser pesado)
-    const storageQuery = supabase
+    // 4. Estatísticas de storage (amostra)
+    let storageQuery = supabase
       .from('products')
       .select('image_path, image_variants')
       .eq('sync_status', 'synced')
       .not('image_path', 'is', null)
-      .limit(1000); // Sample para cálculo
-    if (!isAdmin) storageQuery.eq('user_id', user.id);
+      .limit(1000);
+    if (!isAdmin) storageQuery = storageQuery.eq('user_id', user.id);
     const { data: storageStats } = await storageQuery;
 
     let totalVariants = 0;
@@ -118,10 +143,9 @@ export async function GET(request: Request) {
       success: true,
       stats,
       recentErrors: recentErrors || [],
-      pendingByBrand: Object.entries(brandCounts).map(([brand, count]) => ({
-        brand,
-        count,
-      })),
+      pendingByBrand: Object.entries(brandCounts)
+        .map(([brand, count]) => ({ brand, count }))
+        .sort((a, b) => b.count - a.count),
       recentPending: recentPending || [],
       storage: {
         syncedProducts: storageStats?.length || 0,
