@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { formatProductPrice } from '@/lib/utils/price';
 import {
   Heart,
   ShoppingCart,
@@ -24,6 +25,7 @@ interface Product {
   reference_code?: string;
   description?: string;
   price: number;
+  price_on_request?: boolean | null;
   sale_price?: number; // Adicionado para cálculo de desconto
   image_url?: string;
   external_image_url?: string;
@@ -247,7 +249,9 @@ export default function FavoritesPage() {
               const imgUrl = getImageUrl(product);
               // Cálculo simples de desconto visual se houver sale_price e for menor que price
               const hasDiscount =
-                product.sale_price && product.sale_price < product.price;
+                !product.price_on_request &&
+                product.sale_price &&
+                product.sale_price < product.price;
               const discountPercent = hasDiscount
                 ? Math.round(
                     ((product.price - (product.sale_price as number)) /
@@ -330,14 +334,15 @@ export default function FavoritesPage() {
                         <div className="flex flex-col">
                           {hasDiscount && (
                             <span className="text-xs text-gray-400 line-through decoration-red-400">
-                              {formatCurrency(product.price)}
+                              {formatProductPrice(product.price)}
                             </span>
                           )}
                           <span className="text-lg font-bold text-gray-900 dark:text-white">
-                            {formatCurrency(
+                            {formatProductPrice(
                               hasDiscount
                                 ? (product.sale_price as number)
-                                : product.price
+                                : product.price,
+                              product.price_on_request
                             )}
                           </span>
                         </div>

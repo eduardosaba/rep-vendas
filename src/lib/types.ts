@@ -35,6 +35,7 @@ export interface Product {
 
   // Preços
   price: number; // Preço Base / Custo
+  price_on_request?: boolean | null;
   sale_price?: number | null; // Preço de Venda Sugerido
   original_price?: number | null; // Preço "De" para promoções
   track_stock?: boolean;

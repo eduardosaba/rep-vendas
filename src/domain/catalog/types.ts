@@ -6,6 +6,7 @@ export interface Product {
   brand: string | null;
   brand_id: string | null;
   price: number | null;
+  price_on_request?: boolean | null;
   sale_price: number | null;
   cost: number | null;
   image_url: string | null;
@@ -71,6 +72,7 @@ export interface ProductInsert {
   brand?: string;
   brand_id?: string;
   price?: number;
+  price_on_request?: boolean;
   sale_price?: number;
   cost?: number;
   image_url?: string;

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter, useParams } from 'next/navigation';
+import { formatProductPrice } from '@/lib/utils/price';
 import {
   Heart,
   ShoppingCart,
@@ -37,6 +38,9 @@ interface Product {
   reference_code?: string;
   description?: string;
   price: number;
+  price_on_request?: boolean | null;
+  sale_price?: number | null;
+  original_price?: number | null;
   images?: string[];
   gallery_images?: { url: string; path: string }[]; // ✨ NOVO v1.3: Galeria dedicada
   product_images?: {
@@ -723,28 +727,29 @@ export default function ProductDetailPage() {
             {/* Price */}
             <div className="space-y-2">
               {(() => {
-                const salePrice = (product as any).sale_price ?? null;
-                const originalPrice = (product as any).original_price ?? null;
+                const salePrice = product.sale_price ?? null;
+                const originalPrice = product.original_price ?? null;
                 const currentPrice = salePrice ?? product.price ?? 0;
+                const isPriceOnRequest = product.price_on_request === true;
 
                 return (
                   <>
                     <div className="flex items-baseline space-x-3">
                       <span className="text-4xl font-bold text-gray-900 dark:text-white">
-                        R$ {formatPrice(currentPrice)}
+                        {formatProductPrice(currentPrice, isPriceOnRequest)}
                       </span>
-                      {settings?.show_old_price && originalPrice && (
+                      {!isPriceOnRequest && settings?.show_old_price && originalPrice && (
                         <span className="text-xl text-gray-500 line-through">
                           R$ {formatPrice(originalPrice)}
                         </span>
                       )}
-                      {settings?.show_discount && (
+                      {!isPriceOnRequest && settings?.show_discount && (
                         <span className="text-lg font-medium text-green-600">
                           17% OFF
                         </span>
                       )}
                     </div>
-                    {settings?.show_installments && currentPrice > 0 && (
+                    {!isPriceOnRequest && settings?.show_installments && currentPrice > 0 && (
                       <div className="text-green-600">
                         12x de R$ {formatPrice(currentPrice / 12)} sem juros
                       </div>

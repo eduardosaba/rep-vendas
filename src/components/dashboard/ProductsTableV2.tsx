@@ -32,6 +32,7 @@ interface Product {
   brand: string | null;
   brand_id: string | null;
   price: number | null;
+  price_on_request?: boolean | null;
   sale_price: number | null;
   cost: number | null;
   image_url: string | null;

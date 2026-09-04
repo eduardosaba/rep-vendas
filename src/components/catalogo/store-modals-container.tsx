@@ -812,6 +812,7 @@ export function StoreModals() {
                         <div className="flex items-center gap-4">
                           <PriceDisplay
                             value={item.price * item.quantity}
+                            priceOnRequest={item.price_on_request}
                             isPricesVisible={isPricesVisible}
                           />
                           <button
@@ -1310,6 +1311,7 @@ export function StoreModals() {
                       </span>
                       <PriceDisplay
                         value={(displayProduct?.price || 0) * detailQuantity}
+                        priceOnRequest={displayProduct?.price_on_request}
                         isPricesVisible={isPricesVisible}
                         size="large"
                         className="text-2xl font-black"

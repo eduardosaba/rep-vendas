@@ -57,6 +57,7 @@ describe('ProductRepository', () => {
     reference_code: 'REF-001',
     brand: 'Test Brand',
     price: 100,
+    price_on_request: false,
     organization_id: 'org-1',
     user_id: 'user-1',
     is_active: true,

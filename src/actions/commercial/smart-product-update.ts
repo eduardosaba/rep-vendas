@@ -142,7 +142,7 @@ export async function previewControlTowerUpdateAction(
   });
 
   // 2. Busca Global em Lotes Otimizados (apenas colunas necessárias)
-  const selectColumns = 'id, organization_id, user_id, brand, reference_code, name, is_active, price';
+  const selectColumns = 'id, organization_id, user_id, brand, reference_code, name, is_active, price, price_on_request';
   let query = adminClient.from('products').select(selectColumns);
 
   if (brandsSet.size > 0) {

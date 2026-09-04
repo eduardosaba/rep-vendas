@@ -150,8 +150,8 @@ export default function FeaturedCarousel({ products }: { products: any[] }) {
                     <div className="flex items-baseline gap-3">
                       {isPricesVisible ? (
                         <div className="hidden md:flex items-baseline gap-3">
-                          <PriceDisplay value={product.price} isPricesVisible={isPricesVisible} className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white font-mono" />
-                          {product.original_price > product.price && (
+                          <PriceDisplay value={product.price} priceOnRequest={product.price_on_request} isPricesVisible={isPricesVisible} className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white font-mono" />
+                          {!product.price_on_request && product.original_price > product.price && (
                             <span className="text-sm md:text-lg text-slate-400 line-through font-semibold">R$ {Number(product.original_price).toLocaleString('pt-BR')}</span>
                           )}
                         </div>

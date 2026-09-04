@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Heart, X } from 'lucide-react';
 import { ProductCardProps } from '@/lib/types';
+import { formatProductPrice } from '@/lib/utils/price';
 import ProductImage from './ProductImage';
 import { Button } from '@/components/ui/button';
 
@@ -149,20 +150,21 @@ export const ProductCardList: React.FC<ProductCardListProps> = ({
                   <>
                     <div className="mb-1 flex items-baseline space-x-2">
                       <span className="text-xl font-bold text-gray-900">
-                        R$ {formatPrice(salePrice)}
+                        {formatProductPrice(salePrice, product.price_on_request)}
                       </span>
-                      {settings?.show_old_price && (
+                      {!product.price_on_request && settings?.show_old_price && (
                         <span className="text-sm text-gray-500 line-through">
                           R$ {formatPrice(salePrice * 1.2)}
                         </span>
                       )}
-                      {settings?.show_discount && (
+                      {!product.price_on_request && settings?.show_discount && (
                         <span className="text-xs font-medium text-green-600">
                           17% OFF
                         </span>
                       )}
                     </div>
-                    {settings?.show_installments &&
+                    {!product.price_on_request &&
+                      settings?.show_installments &&
                       settings?.show_sale_price && (
                         <div className="mt-1 text-xs text-green-600">
                           12x de R$ {formatPrice(salePrice / 12)} sem juros
