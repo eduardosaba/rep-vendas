@@ -28,6 +28,7 @@ export function createClient(): SupabaseClient {
       detectSessionInUrl: true,
       storageKey: 'repvendas-auth-token',
       flowType: 'pkce',
+      lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => await fn(),
     },
     cookieOptions: {
       name: 'repvendas-auth-token',

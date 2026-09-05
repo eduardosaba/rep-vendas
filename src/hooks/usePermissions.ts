@@ -45,15 +45,15 @@ const FALLBACK_PERMISSIONS: Record<string, RolePerms> = {
   },
   rep: {
     allowed_tabs: ['geral', 'appearance', 'display', 'estoque', 'perfil'],
-    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Produtos', 'Marketing', 'Clientes', 'Configurações', 'Ajuda'],
+    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Produtos', 'Marketing', 'Ferramentas', 'Clientes', 'Configurações', 'Ajuda'],
   },
   representative: {
     allowed_tabs: ['geral', 'perfil'],
-    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Distribuidora', 'Clientes', 'Configurações', 'Ajuda'],
+    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Distribuidora', 'Ferramentas', 'Clientes', 'Configurações', 'Ajuda'],
   },
   template: {
     allowed_tabs: ALL_TABS,
-    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Produtos', 'Marketing', 'Clientes', 'Configurações', 'Ajuda'],
+    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Produtos', 'Marketing', 'Ferramentas', 'Clientes', 'Configurações', 'Ajuda'],
   },
 };
 

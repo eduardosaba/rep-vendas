@@ -12,6 +12,23 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Auto-reload se for um erro de carregamento de chunk (ChunkLoadError ou falha de rede ao baixar scripts JS)
+    if (
+      typeof window !== 'undefined' &&
+      (error?.name === 'ChunkLoadError' ||
+        error?.message?.includes('ChunkLoadError') ||
+        error?.message?.includes('Loading chunk') ||
+        error?.message?.includes('ERR_INSUFFICIENT_RESOURCES'))
+    ) {
+      const reloadedKey = 'chunk_error_reloaded';
+      const lastReload = sessionStorage.getItem(reloadedKey);
+      if (!lastReload || Date.now() - Number(lastReload) > 10000) {
+        sessionStorage.setItem(reloadedKey, String(Date.now()));
+        window.location.reload();
+        return;
+      }
+    }
+
     // Envia o erro para a Torre de Controle via API interna
     const send = async () => {
       try {
