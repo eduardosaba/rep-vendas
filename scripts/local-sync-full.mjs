@@ -209,10 +209,24 @@ async function syncFullCatalog() {
               .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
 
           } else {
+            const noUrlPayload = {
+              sync_status: 'synced',
+              sync_error: 'Sem URLs externas',
+              image_url: null,
+              external_image_url: null,
+              images: null,
+              gallery_images: null,
+              updated_at: new Date().toISOString(),
+            };
             await supabase
               .from('products')
-              .update({ sync_status: 'synced', sync_error: 'Sem URLs externas' })
+              .update(noUrlPayload)
               .eq('id', product.id);
+
+            await supabase
+              .from('products')
+              .update(noUrlPayload)
+              .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
           }
 
           processedInBatch++;
