@@ -56,8 +56,6 @@ export async function GET(request: Request) {
 
     (allProducts || []).forEach((p: any) => {
       const st = p.sync_status || 'pending';
-      const isPendingStatus = st === 'pending' || st === 'failed';
-      const isMissingPath = !p.image_path;
 
       const allUrls: string[] = [];
       if (p.external_image_url) allUrls.push(...String(p.external_image_url).split(/[;,]/));
@@ -72,21 +70,28 @@ export async function GET(request: Request) {
         }
       }
 
-      const hasExternalUnsynced = allUrls.some((u) => u.trim().startsWith('http') && !u.includes('.supabase.co'));
+      // Apenas produtos que possuem URLs externas HTTP (fora do Supabase Storage) entram na fila de sincronização
+      const hasExternalUnsynced = allUrls.some(
+        (u) => typeof u === 'string' && u.trim().startsWith('http') && !u.includes('.supabase.co')
+      );
 
-      if (st === 'processing') {
-        processingCount++;
-      } else if (st === 'failed') {
-        failedCount++;
-        pendingCount++;
-        const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
-        brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
-      } else if (isPendingStatus || isMissingPath || hasExternalUnsynced) {
-        pendingCount++;
-        const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
-        brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
+      if (hasExternalUnsynced) {
+        if (st === 'processing') {
+          processingCount++;
+        } else if (st === 'failed') {
+          failedCount++;
+          pendingCount++;
+          const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
+          if (brandName) brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
+        } else {
+          pendingCount++;
+          const brandName = typeof p.brand === 'string' ? p.brand : p.brand?.name || 'Sem marca';
+          if (brandName) brandCounts[brandName] = (brandCounts[brandName] || 0) + 1;
+        }
       } else {
-        syncedCount++;
+        if (p.image_path || allUrls.length > 0) {
+          syncedCount++;
+        }
       }
     });
 

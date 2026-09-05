@@ -136,7 +136,7 @@ export async function POST(request: Request) {
           );
         } else {
           query = query.or(
-            'sync_status.eq.pending,sync_status.eq.failed,sync_status.is.null,image_path.is.null,external_image_url.ilike.http%,image_url.ilike.http%'
+            'external_image_url.ilike.http%,image_url.ilike.http%'
           );
 
           if (brand_id) {

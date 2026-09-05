@@ -274,7 +274,7 @@ export default function ImportMassaPage() {
           .from('products')
           .select('id', { count: 'exact', head: true })
           .is('image_path', null)
-          .or('external_image_url.not.is.null,image_url.not.is.null,images.not.is.null');
+          .or('external_image_url.ilike.http%,image_url.ilike.http%');
 
         if (lastImportedBrand) {
           q = q.ilike('brand', `%${lastImportedBrand}%`);
