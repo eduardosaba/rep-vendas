@@ -431,9 +431,16 @@ export default function ImportMassaPage() {
 
   const addLog = (
     message: string,
-    type: 'info' | 'error' | 'success' = 'info'
+    type: 'info' | 'error' | 'success' | 'warning' = 'info'
   ) => {
-    const icon = type === 'error' ? '❌ ' : type === 'success' ? '✅ ' : 'ℹ️ ';
+    const icon =
+      type === 'error'
+        ? '❌ '
+        : type === 'success'
+        ? '✅ '
+        : type === 'warning'
+        ? '⚠️ '
+        : 'ℹ️ ';
     setLogs((prev) => [...prev, `${icon}${message}`]);
   };
 
