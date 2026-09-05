@@ -603,7 +603,7 @@ export default function ImportMassaPage() {
     const currentTotal = usage.current;
     const maxLimit = usage.max;
 
-    if (!limitLoading && currentTotal + totalNewItems > maxLimit) {
+    if (!limitLoading && !isMaster && maxLimit > 0 && maxLimit < 999999 && currentTotal + totalNewItems > maxLimit) {
       toast.error('Limite do Plano Excedido!', {
         description: `Seu plano permite ${maxLimit} produtos. Você tem ${currentTotal} e está tentando importar mais ${totalNewItems}.`,
         duration: 8000,
