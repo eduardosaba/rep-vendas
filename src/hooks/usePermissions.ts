@@ -7,14 +7,41 @@ type RolePerms = {
   [k: string]: any;
 };
 
+import { isAdminRole } from '@/lib/auth/roles';
+
+const ALL_SIDEBAR_ITEMS = [
+  'Visão Geral',
+  'Pedidos',
+  'Distribuidora',
+  'Gestão da Distribuidora',
+  'Produtos',
+  'Marketing',
+  'Ferramentas',
+  'Clientes',
+  'Equipe',
+  'Comunicados',
+  'Configurações',
+  'Ajuda',
+];
+
+const ALL_TABS = ['geral', 'appearance', 'display', 'institucional', 'pages', 'estoque', 'perfil'];
+
 const FALLBACK_PERMISSIONS: Record<string, RolePerms> = {
   master: {
-    allowed_tabs: ['geral', 'appearance', 'display', 'institucional', 'pages', 'estoque', 'perfil'],
-    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Distribuidora', 'Gestão da Distribuidora', 'Produtos', 'Marketing', 'Ferramentas', 'Clientes', 'Equipe', 'Comunicados', 'Configurações', 'Ajuda'],
+    allowed_tabs: ALL_TABS,
+    allowed_sidebar: ALL_SIDEBAR_ITEMS,
+  },
+  admin: {
+    allowed_tabs: ALL_TABS,
+    allowed_sidebar: ALL_SIDEBAR_ITEMS,
   },
   admin_company: {
-    allowed_tabs: ['geral', 'appearance', 'display', 'institucional', 'pages', 'estoque', 'perfil'],
-    allowed_sidebar: ['Visão Geral', 'Pedidos', 'Distribuidora', 'Gestão da Distribuidora', 'Produtos', 'Marketing', 'Clientes', 'Equipe', 'Comunicados', 'Configurações', 'Ajuda'],
+    allowed_tabs: ALL_TABS,
+    allowed_sidebar: ALL_SIDEBAR_ITEMS,
+  },
+  company_admin: {
+    allowed_tabs: ALL_TABS,
+    allowed_sidebar: ALL_SIDEBAR_ITEMS,
   },
   rep: {
     allowed_tabs: ['geral', 'appearance', 'display', 'estoque', 'perfil'],
@@ -25,7 +52,7 @@ const FALLBACK_PERMISSIONS: Record<string, RolePerms> = {
     allowed_sidebar: ['Visão Geral', 'Pedidos', 'Distribuidora', 'Clientes', 'Configurações', 'Ajuda'],
   },
   template: {
-    allowed_tabs: ['geral', 'appearance', 'display', 'institucional', 'pages', 'estoque', 'perfil'],
+    allowed_tabs: ALL_TABS,
     allowed_sidebar: ['Visão Geral', 'Pedidos', 'Produtos', 'Marketing', 'Clientes', 'Configurações', 'Ajuda'],
   },
 };
@@ -114,7 +141,8 @@ export function usePermissions() {
   const active = useMemo(() => {
     if (dbPerms) return dbPerms;
     if (role && (FALLBACK_PERMISSIONS as any)[role]) return (FALLBACK_PERMISSIONS as any)[role];
-    return { allowed_tabs: [], allowed_sidebar: [] } as RolePerms;
+    if (isAdminRole(role)) return FALLBACK_PERMISSIONS.admin;
+    return FALLBACK_PERMISSIONS.rep;
   }, [dbPerms, role]);
 
   function hasTab(id: string) {

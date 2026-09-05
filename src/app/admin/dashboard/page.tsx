@@ -1,16 +1,17 @@
 import { createClient } from '@/lib/supabase/server';
 import CatalogHealth from '@/components/admin/CatalogHealth';
 import { redirect } from 'next/navigation';
+import { isAdminRole } from '@/lib/auth/roles';
 
 export default async function Page() {
   const supabase = await createClient();
 
-  // valida role do usuário (apenas master pode acessar a torre de controle)
+  // valida role do usuário
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return redirect('/auth');
+  if (!user) return redirect('/login');
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -18,9 +19,8 @@ export default async function Page() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const role = profile?.role || null;
-  if (role !== 'master') {
-    // redireciona para área admin padrão
+  const role = profile?.role;
+  if (!isAdminRole(role)) {
     return redirect('/admin');
   }
 

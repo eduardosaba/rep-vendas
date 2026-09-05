@@ -2,6 +2,7 @@
 
 import { usePermissions } from '@/hooks/usePermissions';
 import { createClient } from '@/lib/supabase/client';
+import { isAdminRole } from '@/lib/auth/roles';
 import type { Settings } from '@/lib/types';
 import {
   Box,
@@ -221,10 +222,9 @@ export function Sidebar({
           const profile = profileRes?.data as any | null;
           if (profile) {
             const role = profile?.role || '';
-            const isCompanyAdminRole =
-              role === 'admin_company' || role === 'master';
+            const isCompanyAdminRole = isAdminRole(role);
             const hasCompanyLink = Boolean(profile?.company_id);
-            setIsCompanyAdmin(Boolean(isCompanyAdminRole) && hasCompanyLink);
+            setIsCompanyAdmin(Boolean(isCompanyAdminRole));
             setIsCompanyMember(hasCompanyLink);
             setCanManageCatalog(Boolean(profile?.can_manage_catalog));
           }
@@ -347,8 +347,8 @@ export function Sidebar({
       {/* Navegação */}
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
         {MENU_ITEMS.map((item) => {
-          // If permissions loaded and this item is not allowed, hide it (allow master to bypass)
-          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster)
+          // If permissions loaded and this item is not allowed, hide it (allow master & admin roles to bypass)
+          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster && !isCompanyAdmin)
             return null;
           // company users: catalog operations are restricted unless explicitly allowed
           const showCatalogOps =

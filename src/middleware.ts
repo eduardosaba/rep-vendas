@@ -181,7 +181,7 @@ export async function middleware(request: NextRequest) {
     }
 
     const userRole = String(profile?.role || '').toLowerCase();
-    const isControlTowerUser = userRole === 'master' || userRole === 'template';
+    const isControlTowerUser = isAdminRole(userRole);
 
     if (safeRedirect?.startsWith('/admin')) {
       return redirectTo(isControlTowerUser ? safeRedirect : '/dashboard');

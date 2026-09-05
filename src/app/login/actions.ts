@@ -36,7 +36,7 @@ export async function login(_arg: unknown, formData: FormData) {
     try { revalidatePath('/', 'layout'); } catch (_) {}
 
     const userRole = String(profile?.role || '').toLowerCase();
-    const isControlTowerUser = userRole === 'master' || userRole === 'template';
+    const isControlTowerUser = isAdminRole(userRole);
 
     return { success: true, redirectTo: isControlTowerUser ? '/admin' : '/dashboard' };
   } catch (err: unknown) {

@@ -2,6 +2,7 @@ import React from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { isAdminRole } from '@/lib/auth/roles';
 import {
   Users,
   DollarSign,
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
-  // 1. SEGURANÇA: Verificar se é Master ou Template (Torre de Controle exclusiva)
+  // 1. SEGURANÇA: Verificar se possui role de administração (Torre de Controle)
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -31,11 +32,10 @@ export default async function AdminDashboardPage() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const role = String(currentUserProfile?.role || '').toLowerCase();
-  const isMasterOrTemplate = role === 'master' || role === 'template';
+  const role = currentUserProfile?.role;
 
-  if (!isMasterOrTemplate) {
-    // Usuários 'admin', 'admin_company' ou outros não acessam a Torre de Controle -> Redireciona para o Dashboard
+  if (!isAdminRole(role)) {
+    // Usuários sem role de admin não acessam a Torre de Controle -> Redireciona para o Dashboard
     redirect('/dashboard');
   }
 
