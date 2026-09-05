@@ -182,19 +182,19 @@ body {
 .bg-blue-700,
 .hover\:bg-blue-700:hover {
   /* slightly darker hover using rgba over rgb var when available */
-  background-color: rgba(var(--primary-rgb), 0.92) !important;
+  background-color: rgba(var(--primary-rgb, 185, 114, 46), 0.92) !important;
 }
 .bg-blue-50 {
-  background-color: rgba(var(--primary-rgb), 0.06) !important;
+  background-color: rgba(var(--primary-rgb, 185, 114, 46), 0.06) !important;
 }
 .bg-blue-100 {
-  background-color: rgba(var(--primary-rgb), 0.12) !important;
+  background-color: rgba(var(--primary-rgb, 185, 114, 46), 0.12) !important;
 }
 .border-blue-100 {
-  border-color: rgba(var(--primary-rgb), 0.12) !important;
+  border-color: rgba(var(--primary-rgb, 185, 114, 46), 0.12) !important;
 }
 .group-hover\:bg-blue-50:hover {
-  background-color: rgba(var(--primary-rgb), 0.06) !important;
+  background-color: rgba(var(--primary-rgb, 185, 114, 46), 0.06) !important;
 }
 .hover\:text-blue-600:hover {
   color: var(--primary) !important;
@@ -203,10 +203,10 @@ body {
   color: var(--primary) !important;
 }
 .ring-blue-200 {
-  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 185, 114, 46), 0.12) !important;
 }
 .focus\:ring-blue-500:focus {
-  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.14) !important;
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb, 185, 114, 46), 0.14) !important;
 }
 
 /* Utility: usar cor primária como background e cor secundária como texto
@@ -216,7 +216,7 @@ body {
   background-color: var(--primary) !important;
 }
 .bg-brand-primary\/5 {
-  background-color: rgba(var(--primary-rgb), 0.05) !important;
+  background-color: rgba(var(--primary-rgb, 185, 114, 46), 0.05) !important;
 }
 .text-brand-secondary {
   color: var(--secondary) !important;

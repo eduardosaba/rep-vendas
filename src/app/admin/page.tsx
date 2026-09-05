@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
-  // 1. SEGURANÇA: Verificar se é Admin/Master
+  // 1. SEGURANÇA: Verificar se é Master ou Template (Torre de Controle exclusiva)
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -29,51 +29,53 @@ export default async function AdminDashboardPage() {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   const role = String(currentUserProfile?.role || '').toLowerCase();
-  const isAllowed =
-    role === 'admin' ||
-    role === 'master' ||
-    role === 'admin_company';
+  const isMasterOrTemplate = role === 'master' || role === 'template';
 
-  if (!isAllowed) {
-    // Redireciona usuários comuns para a área deles
+  if (!isMasterOrTemplate) {
+    // Usuários 'admin', 'admin_company' ou outros não acessam a Torre de Controle -> Redireciona para o Dashboard
     redirect('/dashboard');
   }
 
-  // 2. BUSCAR DADOS (Em paralelo para performance)
-  const [usersReq, productsReq, subscriptionsReq, recentUsersReq] =
-    await Promise.all([
-      // Contagem de Usuários
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
+  // 2. BUSCAR DADOS (Resiliente contra falhas com Promise.allSettled para evitar tela em branco)
+  let usersCount = 0;
+  let productsCount = 0;
+  let mrr = 0;
+  let recentUsers: any[] = [];
 
-      // Contagem de Produtos
-      supabase.from('products').select('*', { count: 'exact', head: true }),
+  try {
+    const [usersReq, productsReq, subscriptionsReq, recentUsersReq] =
+      await Promise.allSettled([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('products').select('*', { count: 'exact', head: true }),
+        supabase.from('subscriptions').select('price').eq('status', 'active'),
+        supabase
+          .from('profiles')
+          .select('id, email, created_at, role, full_name')
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ]);
 
-      // Cálculo de Receita (MRR) - Apenas assinaturas ativas
-      supabase.from('subscriptions').select('price').eq('status', 'active'),
-
-      // Lista de Usuários Recentes
-      supabase
-        .from('profiles')
-        .select('id, email, created_at, role, full_name')
-        .order('created_at', { ascending: false })
-        .limit(5),
-    ]);
-
-  // 3. PROCESSAR DADOS
-  const usersCount = usersReq.count || 0;
-  const productsCount = productsReq.count || 0;
-
-  // Calcula o MRR somando os preços das assinaturas ativas
-  const mrr =
-    subscriptionsReq.data?.reduce(
-      (acc, sub) => acc + (Number(sub.price) || 0),
-      0
-    ) || 0;
-
-  const recentUsers = recentUsersReq.data || [];
+    if (usersReq.status === 'fulfilled' && typeof usersReq.value.count === 'number') {
+      usersCount = usersReq.value.count;
+    }
+    if (productsReq.status === 'fulfilled' && typeof productsReq.value.count === 'number') {
+      productsCount = productsReq.value.count;
+    }
+    if (subscriptionsReq.status === 'fulfilled' && Array.isArray(subscriptionsReq.value.data)) {
+      mrr = subscriptionsReq.value.data.reduce(
+        (acc: number, sub: any) => acc + (Number(sub.price) || 0),
+        0
+      );
+    }
+    if (recentUsersReq.status === 'fulfilled' && Array.isArray(recentUsersReq.value.data)) {
+      recentUsers = recentUsersReq.value.data;
+    }
+  } catch (err) {
+    console.error('[AdminDashboardPage] Erro ao carregar dados:', err);
+  }
 
   return (
     <div className="p-6 md:p-8 animate-in fade-in duration-500 min-h-screen space-y-8">

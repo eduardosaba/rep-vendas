@@ -42,8 +42,9 @@ export default async function AdminLayout({
   const isMaster = role === 'master';
   const isAdmin = role === 'admin';
   const isAdminCompany = role === 'admin_company';
+  const isTemplate = role === 'template';
 
-  if (!isMaster && !isAdmin && !isAdminCompany) {
+  if (!isMaster && !isAdmin && !isAdminCompany && !isTemplate) {
     redirect('/admin/unauthorized');
   }
 

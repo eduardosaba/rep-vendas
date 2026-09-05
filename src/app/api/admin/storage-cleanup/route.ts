@@ -11,48 +11,95 @@ export async function GET() {
     if (!user)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 1. Buscar todos os arquivos na pasta de repair do usuário (limite seguro)
-    const { data: files, error: storageError } = await supabase.storage
-      .from('product-images')
-      .list(`${user.id}/repair`, { limit: 1000 });
+    // 1. Listagem recursiva de TODOS os arquivos do bucket product-images
+    async function listRecursive(prefix = ''): Promise<any[]> {
+      const { data, error } = await supabase.storage
+        .from('product-images')
+        .list(prefix, { limit: 1000 });
+      if (error) return [];
+      const result: any[] = [];
+      for (const item of data || []) {
+        if (item.name === '.emptyFolderPlaceholder') continue;
+        const currentPath = prefix ? `${prefix}/${item.name}` : item.name;
+        // Se item não possui metadata ou ID e não tem extensão, trata como diretório
+        if (!item.id && !item.name.includes('.')) {
+          const sub = await listRecursive(currentPath);
+          result.push(...sub);
+        } else {
+          result.push({
+            ...item,
+            path: currentPath,
+          });
+        }
+      }
+      return result;
+    }
 
-    if (storageError) throw storageError;
+    const allStorageFiles = await listRecursive('');
 
-    // 2. Buscar todas as URLs de imagens no banco de dados (apenas campos necessários)
+    // 2. Buscar todas as referências de imagem em uso no banco de dados (de TODOS os produtos)
     const { data: products } = await supabase
       .from('products')
-      .select('image_url, images')
-      .eq('user_id', user.id);
+      .select('image_path, image_variants, gallery_images, image_url, images');
 
-    // Criar um set de URLs em uso
     const urlsInUse = new Set<string>();
     (products || []).forEach((p: any) => {
+      if (p.image_path) {
+        urlsInUse.add(String(p.image_path));
+        urlsInUse.add(String(p.image_path).replace(/^public\//, ''));
+      }
+      if (Array.isArray(p.image_variants)) {
+        p.image_variants.forEach((v: any) => {
+          if (v?.path) {
+            urlsInUse.add(String(v.path));
+            urlsInUse.add(String(v.path).replace(/^public\//, ''));
+          }
+          if (v?.url) urlsInUse.add(String(v.url));
+        });
+      }
+      if (Array.isArray(p.gallery_images)) {
+        p.gallery_images.forEach((g: any) => {
+          if (typeof g === 'string') {
+            urlsInUse.add(g);
+          } else if (g?.path) {
+            urlsInUse.add(String(g.path));
+            urlsInUse.add(String(g.path).replace(/^public\//, ''));
+          } else if (g?.url) {
+            urlsInUse.add(String(g.url));
+          }
+        });
+      }
       if (p.image_url) urlsInUse.add(String(p.image_url));
-      if (Array.isArray(p.images))
-        p.images.forEach((img: string) => img && urlsInUse.add(String(img)));
+      if (Array.isArray(p.images)) {
+        p.images.forEach((img: any) => img && urlsInUse.add(String(img)));
+      }
     });
 
-    // 3. Identificar órfãos comparando URLs públicas
+    // 3. Identificar órfãos (arquivos no Storage sem produto associado no DB)
     const orphans: any[] = [];
-    for (const file of files || []) {
-      const filePath = `${user.id}/repair/${file.name}`;
-      const { data: publicData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(filePath);
-      const publicUrl = publicData?.publicUrl || '';
+    for (const file of allStorageFiles) {
+      const path = file.path;
+      const cleanPath = path.replace(/^public\//, '');
+      const hasMatch = Array.from(urlsInUse).some(
+        (u) => u === path || u === cleanPath || u.endsWith(path) || u.endsWith(cleanPath)
+      );
 
-      if (!urlsInUse.has(publicUrl)) {
+      if (!hasMatch) {
+        const { data: publicData } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(path);
+
         orphans.push({
           name: file.name,
-          path: filePath,
-          size_kb: ((file.metadata?.size || 0) / 1024).toFixed(2),
-          public_url: publicUrl,
+          path,
+          size_kb: ((file.metadata?.size || file.size || 0) / 1024).toFixed(2),
+          public_url: publicData?.publicUrl || '',
         });
       }
     }
 
     return NextResponse.json({
-      total_files: (files || []).length,
+      total_files: allStorageFiles.length,
       orphan_count: orphans.length,
       orphans,
     });

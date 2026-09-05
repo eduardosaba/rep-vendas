@@ -9,7 +9,7 @@ const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 async function downloadImageBuffer(url: string): Promise<Buffer> {
   try {
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(12000),
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -24,7 +24,7 @@ async function downloadImageBuffer(url: string): Promise<Buffer> {
     const nodeFetch = (await import('node-fetch')).default;
     const res = await (nodeFetch as any)(url, {
       agent: httpsAgent,
-      timeout: 30000,
+      timeout: 12000,
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
         let query = supabase
           .from('products')
           .select(
-            'id, image_url, external_image_url, images, image_path, image_variants, gallery_images, name, reference_code, brand, sync_error, sync_status, created_at'
+            'id, image_url, external_image_url, images, image_path, image_variants, gallery_images, name, reference_code, brand, sync_error, sync_status, created_at, source_product_id, original_product_id'
           );
 
         if (product_ids.length > 0) {
@@ -241,6 +241,74 @@ export async function POST(request: Request) {
               `   📸 Capa Principal: ${coverUrl ? 'Sim' : 'Não'} | Imagens de Galeria: ${galleryUrls.length}`,
               'info'
             );
+
+            // 2.5. Tenta herdar imagens de produto já sincronizado no sistema (template, clone pai ou por código de referência)
+            let inheritedFrom: any = null;
+
+            if (!force) {
+              const parentId = (product as any).source_product_id || (product as any).original_product_id;
+              if (parentId) {
+                const { data: parentProd } = await supabase
+                  .from('products')
+                  .select('image_path, image_variants, gallery_images')
+                  .eq('id', parentId)
+                  .eq('sync_status', 'synced')
+                  .not('image_path', 'is', null)
+                  .maybeSingle();
+
+                if (parentProd?.image_path) {
+                  inheritedFrom = parentProd;
+                }
+              }
+
+              if (!inheritedFrom && product.reference_code && product.brand) {
+                const brandName = typeof product.brand === 'string' ? product.brand : (product.brand as any)?.name || '';
+                if (brandName) {
+                  const { data: matchProd } = await supabase
+                    .from('products')
+                    .select('image_path, image_variants, gallery_images')
+                    .eq('reference_code', product.reference_code)
+                    .ilike('brand', `%${brandName}%`)
+                    .eq('sync_status', 'synced')
+                    .not('image_path', 'is', null)
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (matchProd?.image_path) {
+                    inheritedFrom = matchProd;
+                  }
+                }
+              }
+            }
+
+            if (inheritedFrom) {
+              sendLog(`   ✨ Imagem herdada de produto já sincronizado (${product.reference_code}) sem rebaixar!`, 'success');
+              const inheritPayload = {
+                image_path: inheritedFrom.image_path,
+                image_variants: inheritedFrom.image_variants,
+                gallery_images: inheritedFrom.gallery_images,
+                image_url: null,
+                external_image_url: null,
+                images: null,
+                image_optimized: true,
+                sync_status: 'synced',
+                sync_error: null,
+                updated_at: new Date().toISOString(),
+              };
+
+              await supabase.from('products').update(inheritPayload).eq('id', product.id);
+
+              // Replica para outros clones que possam existir deste produto
+              try {
+                await supabase
+                  .from('products')
+                  .update(inheritPayload)
+                  .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
+              } catch (e) {}
+
+              results.success++;
+              continue;
+            }
 
             // Marca como processing
             await supabase
@@ -423,13 +491,45 @@ export async function POST(request: Request) {
               .update(updatePayload)
               .eq('id', product.id);
 
-            // 6. Replica para produtos clonados de outros usuários
-            await supabase
-              .from('products')
-              .update(updatePayload)
-              .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
+            // 6. Replica para produtos clonados de outros usuários (por original_product_id, source_product_id, catalog_clones e reference_code + brand)
+            try {
+              // 6a. Por original_product_id ou source_product_id
+              await supabase
+                .from('products')
+                .update(updatePayload)
+                .or(`original_product_id.eq.${product.id},source_product_id.eq.${product.id}`);
 
-            sendLog(`   ✅ Produto sincronizado com sucesso!`, 'success');
+              // 6b. Por tabela de catalog_clones
+              const { data: cloneRows } = await supabase
+                .from('catalog_clones')
+                .select('cloned_product_id')
+                .eq('source_product_id', product.id);
+
+              if (Array.isArray(cloneRows) && cloneRows.length > 0) {
+                const cloneIds = cloneRows.map((r: any) => r.cloned_product_id).filter(Boolean);
+                if (cloneIds.length > 0) {
+                  await supabase
+                    .from('products')
+                    .update(updatePayload)
+                    .in('id', cloneIds as any[]);
+                }
+              }
+
+              // 6c. Por reference_code + brand em todo o sistema
+              const brandName = typeof product.brand === 'string' ? product.brand : (product.brand as any)?.name || '';
+              if (product.reference_code && brandName) {
+                await supabase
+                  .from('products')
+                  .update(updatePayload)
+                  .eq('reference_code', product.reference_code)
+                  .ilike('brand', `%${brandName}%`)
+                  .neq('id', product.id);
+              }
+            } catch (replErr) {
+              console.warn('[sync-stream] Erro na replicação de clones:', replErr);
+            }
+
+            sendLog(`   ✅ Produto e todos os seus clones sincronizados com sucesso!`, 'success');
             results.success++;
           } catch (error: any) {
             sendLog(`   ❌ Erro fatal: ${error.message}`, 'error');

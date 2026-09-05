@@ -31,6 +31,11 @@ import {
   processSafiloImages,
   getProductImage,
 } from '@/lib/utils/image-logic';
+import {
+  deriveReferenceId,
+  isCategoricalValue,
+  cleanReferenceId,
+} from '@/lib/utils/reference-logic';
 import { trackEvent } from '@/lib/analytics';
 
 type Stats = {
@@ -264,26 +269,44 @@ export default function ImportMassaPage() {
     let totalSkipped = 0;
 
     try {
-      // 1. Busca contagem real de pendentes para exibir a barra de progresso perfeita
-      let totalPendingQuery = supabase
-        .from('products')
-        .select('id', { count: 'exact', head: true })
-        .is('image_path', null)
-        .or('external_image_url.not.is.null,image_url.not.is.null,images.not.is.null');
+      const getPendingQuery = () => {
+        let q = supabase
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .is('image_path', null)
+          .or('external_image_url.not.is.null,image_url.not.is.null,images.not.is.null');
 
-      if (lastImportedBrand) {
-        totalPendingQuery = totalPendingQuery.ilike('brand', `%${lastImportedBrand}%`);
-      }
+        if (lastImportedBrand) {
+          q = q.ilike('brand', `%${lastImportedBrand}%`);
+        }
+        return q;
+      };
 
-      const { count: grandTotalCount } = await totalPendingQuery;
+      const { count: grandTotalCount } = await getPendingQuery();
       const grandTotal = grandTotalCount || 0;
       setSyncProgress({ current: 0, total: grandTotal });
 
       let hasMore = true;
       let batchCount = 0;
+      let consecutiveEmptyBatches = 0;
 
       while (hasMore) {
         batchCount++;
+
+        const { count: remainingCount } = await getPendingQuery();
+        const currentRemaining = remainingCount || 0;
+
+        if (currentRemaining === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const currentProcessed = Math.max(0, grandTotal - currentRemaining);
+        setSyncProgress({
+          current: currentProcessed,
+          total: grandTotal,
+        });
+
         const response = await fetch('/api/admin/sync-stream', {
           method: 'POST',
           headers: {
@@ -291,7 +314,7 @@ export default function ImportMassaPage() {
           },
           body: JSON.stringify({
             brand_id: lastImportedBrand || undefined,
-            limit: 25,
+            limit: 5, // Lotes seguros de 5 produtos por vez para não exceder timeout do servidor
             force: false,
           }),
         });
@@ -303,7 +326,7 @@ export default function ImportMassaPage() {
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let batchProcessed = 0;
+        let batchItemsHandled = 0;
 
         if (reader) {
           while (true) {
@@ -324,13 +347,13 @@ export default function ImportMassaPage() {
                       `[${data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}] ${data.message}`,
                     ]);
                   } else if (data.type === 'progress') {
-                    const currentTotal = totalSuccess + totalFailed + data.current;
+                    const currentTotal = Math.min(grandTotal, currentProcessed + data.current);
                     setSyncProgress({
                       current: currentTotal,
-                      total: Math.max(grandTotal, currentTotal),
+                      total: grandTotal,
                     });
                   } else if (data.type === 'complete') {
-                    batchProcessed = data.success + data.failed;
+                    batchItemsHandled = data.success + data.failed + data.skipped;
                     totalSuccess += data.success;
                     totalFailed += data.failed;
                     totalSkipped += data.skipped;
@@ -343,13 +366,22 @@ export default function ImportMassaPage() {
           }
         }
 
-        // Se o lote não processou nenhum item ou menos de 25, finalizamos
-        if (batchProcessed === 0) {
-          hasMore = false;
+        // Se o lote não tratou nenhum item (ou server fechou limpo sem pendentes), incrementa trava
+        if (batchItemsHandled === 0) {
+          consecutiveEmptyBatches++;
+          if (consecutiveEmptyBatches >= 2) {
+            hasMore = false;
+          }
+        } else {
+          consecutiveEmptyBatches = 0;
         }
+
+        await new Promise((r) => setTimeout(r, 200));
       }
 
+      setSyncProgress({ current: grandTotal, total: grandTotal });
       setSyncResults({ success: totalSuccess, failed: totalFailed, skipped: totalSkipped });
+      toast.success('Sincronização de imagens concluída!');
     } catch (e: any) {
       setSyncLogs((prev) => [...prev, `❌ Erro na sincronização: ${e?.message || String(e)}`]);
       toast.error(`Falha na sincronização: ${e?.message || String(e)}`);
@@ -500,15 +532,16 @@ export default function ImportMassaPage() {
       return col;
     };
 
-    map.model_code = findCol(/model_code|modelcode|codigo.*modelo|model_name|modelname|model/);
+    // Prioriza captura de REF/Referência para evitar que colunas de categoria (ex: MODELO) sobrescrevam REF
+    map.ref = findCol(/referencia|ref|reference/);
+    map.model_code = findCol(/model_code|modelcode|codigo.*modelo|model_name|modelname/);
     map.name = findCol(/nome|name|produto|title/);
     map.sku = findCol(/sku|codigo|code/);
     map.price = findCol(/preco|price|valor/);
     map.sale_price = findCol(/precovenda|preco.?venda|sale|sale_price/);
     map.brand = findCol(/marca|brand|fornecedor/);
-    map.ref = findCol(/referencia|ref|reference/);
     map.ean = findCol(/ean|barcode|codigo de barras|gtin/);
-    map.category = findCol(/categoria|category/);
+    map.category = findCol(/categoria|category|tipo/);
     map.color = findCol(/cor|color/);
     map.tipo_montagem = findCol(/montagem|tipo.*montagem|tipo_montagem|tipo.?de.?montagem|mount/);
     // Não auto-mapear `genero` para o campo principal — preferimos tratá-lo
@@ -750,7 +783,7 @@ export default function ImportMassaPage() {
             ? String(sku)
             : `AUTO-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-        // Slugify helper (to normalize reference_id/model_code)
+        // Slugify helper para slugs de URLs
         const slugify = (s: string) =>
           s
             .toLowerCase()
@@ -761,9 +794,21 @@ export default function ImportMassaPage() {
             .replace(/\s+/g, '-')
             .replace(/-+/g, '-');
 
-        // Determine grouping id (reference_id) — prefer explicit model_code, fallback to refCode
-        const referenceIdRaw = modelCodeVal ? String(modelCodeVal) : refCode;
-        const referenceId = slugify(referenceIdRaw);
+        // Derivar reference_id seguro com proteção estrita contra termos categóricos (ex: sunglasses, receituario, opt-clip-on)
+        const referenceId = deriveReferenceId({
+          ref: ref ? String(ref) : null,
+          modelCode: modelCodeVal ? String(modelCodeVal) : null,
+          refCode,
+          name: name ? String(name) : null,
+        });
+
+        // Alerta visual no console se um valor categórico foi rejeitado
+        if (modelCodeVal && isCategoricalValue(String(modelCodeVal))) {
+          addLog(
+            `⚠️ Alerta: Valor categórico '${modelCodeVal}' rejeitado para reference_id. Utilizado '${referenceId}'.`,
+            'warning'
+          );
+        }
 
         const slugBase = slugify(String(name) || 'produto');
 

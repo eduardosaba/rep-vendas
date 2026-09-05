@@ -35,7 +35,10 @@ export async function login(_arg: unknown, formData: FormData) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
     try { revalidatePath('/', 'layout'); } catch (_) {}
 
-    return { success: true, redirectTo: isAdminRole(profile?.role) ? '/admin' : '/dashboard' };
+    const userRole = String(profile?.role || '').toLowerCase();
+    const isControlTowerUser = userRole === 'master' || userRole === 'template';
+
+    return { success: true, redirectTo: isControlTowerUser ? '/admin' : '/dashboard' };
   } catch (err: unknown) {
     console.error('Erro na Server Action login:', err);
     return { error: 'Erro interno no servidor.' };

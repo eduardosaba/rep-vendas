@@ -180,17 +180,18 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    const isAdmin = isAdminRole(profile?.role);
+    const userRole = String(profile?.role || '').toLowerCase();
+    const isControlTowerUser = userRole === 'master' || userRole === 'template';
 
     if (safeRedirect?.startsWith('/admin')) {
-      return redirectTo(isAdmin ? safeRedirect : '/dashboard');
+      return redirectTo(isControlTowerUser ? safeRedirect : '/dashboard');
     }
 
     if (safeRedirect?.startsWith('/dashboard')) {
-      return redirectTo(isAdmin ? '/admin' : safeRedirect);
+      return redirectTo(isControlTowerUser ? '/admin' : safeRedirect);
     }
 
-    return redirectTo(isAdmin ? '/admin' : '/dashboard');
+    return redirectTo(isControlTowerUser ? '/admin' : '/dashboard');
   }
 
   return response;

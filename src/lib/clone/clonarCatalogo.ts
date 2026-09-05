@@ -98,6 +98,8 @@ export async function clonarCatalogo(
 
     return {
       ...productData,
+      source_product_id: product.id,
+      original_product_id: product.original_product_id || product.id,
       // mantemos o campo brand como veio do source
       brand: productData.brand,
       user_id: targetUserId,

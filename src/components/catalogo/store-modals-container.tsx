@@ -332,14 +332,37 @@ export function StoreModals() {
   useEffect(() => {
     let mounted = true;
 
+    const getBaseModelPrefix = (refCode: string, brandName: string): string => {
+      if (!refCode) return '';
+      const cleanRef = refCode.trim();
+      const cleanBrand = (brandName || '').trim();
+
+      let refWithoutBrand = cleanRef;
+      if (cleanBrand && cleanRef.toLowerCase().startsWith(cleanBrand.toLowerCase())) {
+        refWithoutBrand = cleanRef.slice(cleanBrand.length).trim();
+      }
+
+      const parts = refWithoutBrand.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return cleanRef;
+
+      const modelPart = parts[0];
+
+      if (cleanBrand && cleanRef.toLowerCase().startsWith(cleanBrand.toLowerCase())) {
+        const brandPrefix = cleanRef.slice(0, cleanBrand.length).trim();
+        return `${brandPrefix} ${modelPart}`;
+      }
+
+      return modelPart;
+    };
+
     const loadVariants = async () => {
       try {
         const prod = modals.product || activeProduct;
         if (!prod) return;
 
         const refCode = String(prod.reference_code || prod.name || '').trim();
-        const refParts = refCode.split(/\s+/);
-        const baseModelPrefix = refParts.length > 1 ? refParts.slice(0, -1).join(' ') : refCode;
+        const brandName = typeof prod.brand === 'string' ? prod.brand : (prod.brand as any)?.name || '';
+        const baseModelPrefix = getBaseModelPrefix(refCode, brandName);
 
         if (
           variantList &&
@@ -370,8 +393,8 @@ export function StoreModals() {
           return;
         }
 
-        if (prod.brand) {
-          query = query.ilike('brand', `%${prod.brand}%`);
+        if (brandName) {
+          query = query.ilike('brand', `%${brandName}%`);
         }
 
         const { data, error } = await query.order('id', { ascending: true });

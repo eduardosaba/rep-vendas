@@ -3,6 +3,7 @@ export const ADMIN_ROLES = [
   'admin',
   'admin_company',
   'company_admin',
+  'template',
 ] as const;
 
 export const GLOBAL_ADMIN_ROLES = [
