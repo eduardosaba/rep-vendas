@@ -221,15 +221,20 @@ export function Sidebar({
             .maybeSingle();
           const profile = profileRes?.data as any | null;
           if (profile) {
-            const role = profile?.role || '';
+            const role = String(profile?.role || '').toLowerCase();
+            if (role === 'master' || role === 'template' || masterDetected) {
+              setIsMaster(true);
+            }
             const isCompanyAdminRole = isAdminRole(role);
             const hasCompanyLink = Boolean(profile?.company_id);
             setIsCompanyAdmin(Boolean(isCompanyAdminRole));
             setIsCompanyMember(hasCompanyLink);
             setCanManageCatalog(Boolean(profile?.can_manage_catalog));
+          } else if (masterDetected) {
+            setIsMaster(true);
           }
         } catch (e) {
-          // ignore profile fetch failures
+          if (masterDetected) setIsMaster(true);
         }
 
         const settingsRes = await supabase
