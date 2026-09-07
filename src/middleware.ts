@@ -17,13 +17,23 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // --- BYPASS COMPLETO PARA CATÁLOGO PÚBLICO ---
-  // Não criar cliente Supabase, não validar sessão, não ler cookies de auth
-  const isPublicCatalog =
-    pathname === '/catalogo' ||
-    pathname.startsWith('/catalogo/');
+  // 1. ISENÇÃO TOTAL DE CONSULTA DE PROFILES PARA CATÁLOGO PÚBLICO E ASSETS ESTATÍSTICOS
+  const isPublicCatalog = pathname === '/catalogo' || pathname.startsWith('/catalogo/');
+  const isPublicAuthRoute =
+    pathname === '/recuperar-senha' ||
+    pathname === '/esqueci-senha' ||
+    pathname.startsWith('/auth/callback') ||
+    pathname.startsWith('/api/auth');
+  const isAssetOrSystem =
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/_next/static') ||
+    pathname.startsWith('/_next/image') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/firebase-messaging-sw.js' ||
+    pathname === '/admin/unauthorized' ||
+    pathname.includes('.');
 
-  if (isPublicCatalog) {
+  if (isPublicCatalog || isPublicAuthRoute || isAssetOrSystem) {
     return response;
   }
 
@@ -31,20 +41,6 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.next();
-  }
-
-  // Ignorar arquivos estáticos, service workers e rotas de sistema
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/_next/static') ||
-    pathname.startsWith('/_next/image') ||
-    pathname.startsWith('/api/auth') ||
-    pathname === '/favicon.ico' ||
-    pathname === '/firebase-messaging-sw.js' ||
-    pathname === '/admin/unauthorized' ||
-    pathname.includes('.')
-  ) {
     return NextResponse.next();
   }
 
@@ -105,7 +101,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // --- IGNORA OUTBOX CRON ---
+  // --- IGNORA OUTBOX CRON E WEBHOOKS ---
   if (pathname === '/api/cron/outbox') {
     const secret = process.env.CRON_SECRET;
     const authHeader = request.headers.get('authorization');
@@ -114,7 +110,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // --- ROTAS DO WEBHOOK ---
   if (
     pathname.startsWith('/api/webhooks/') ||
     pathname.startsWith('/api/v1/webhooks/')
@@ -122,15 +117,15 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // --- PROTEÇÃO ÁREA ADMIN ---
-  const isAdminRoute =
-    pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+  // --- PROTEÇÃO DE ROTAS PRIVADAS (ADMIN E DASHBOARD) ---
+  const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+  const isDashboardRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/api/dashboard');
+  const isPrivateApiRoute = pathname.startsWith('/api/') && !pathname.startsWith('/api/public/');
 
   if (isAdminRoute) {
     const secret = process.env.INTERNAL_MIDDLEWARE_SECRET;
     const header = request.headers.get('x-internal-secret');
 
-    // Permite chamadas internas autorizadas
     if (secret && header === secret) {
       return response;
     }
@@ -145,53 +140,56 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // --- PROTEÇÃO BÁSICA DO DASHBOARD ---
-  if (pathname.startsWith('/dashboard') && !user) {
+  if (isDashboardRoute && !user) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirectedFrom', pathname);
-
     return redirectTo(loginUrl);
   }
 
-  // --- USUÁRIO LOGADO NÃO VOLTA PARA LOGIN ---
-  if (pathname === '/login' && user) {
-    const searchParams = request.nextUrl?.searchParams || new URL(request.url).searchParams;
-
-    const requestedRedirect =
-      searchParams?.get('redirectTo') ||
-      searchParams?.get('redirectedFrom');
-
-    const safeRedirect =
-      requestedRedirect?.startsWith('/') &&
-      !requestedRedirect.startsWith('//')
-        ? requestedRedirect
-        : null;
-
+  // --- VERIFICAÇÃO DE IS_ACTIVE NAS ROTAS PROTEGEDAS E /LOGIN ---
+  if (user && (isAdminRoute || isDashboardRoute || isPrivateApiRoute || pathname === '/login')) {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', user.id)
       .maybeSingle();
 
     if (profileError) {
-      console.error(
-        '[middleware] Erro ao consultar perfil:',
-        profileError.message
-      );
+      console.error('[middleware] Erro ao consultar perfil:', profileError.message);
     }
 
-    const userRole = String(profile?.role || '').toLowerCase();
-    const isControlTowerUser = isAdminRole(userRole);
-
-    if (safeRedirect?.startsWith('/admin')) {
-      return redirectTo(isControlTowerUser ? safeRedirect : '/dashboard');
+    if (profile && profile.is_active === false) {
+      if (pathname.startsWith('/api')) {
+        return forbidden();
+      }
+      if (pathname !== '/login') {
+        const disabledUrl = new URL('/login', request.url);
+        disabledUrl.searchParams.set('error', 'account_disabled');
+        return redirectTo(disabledUrl);
+      }
+      // Se já está na página de login, permite a exibição do alerta sem loop
+      return response;
     }
 
-    if (safeRedirect?.startsWith('/dashboard')) {
-      return redirectTo(isControlTowerUser ? '/admin' : safeRedirect);
-    }
+    // Se o usuário está ativo e acessando /login, redireciona para a home da sua role
+    if (pathname === '/login') {
+      const searchParams = request.nextUrl?.searchParams || new URL(request.url).searchParams;
+      const requestedRedirect = searchParams?.get('redirectTo') || searchParams?.get('redirectedFrom');
+      const safeRedirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : null;
 
-    return redirectTo(isControlTowerUser ? '/admin' : '/dashboard');
+      const userRole = String(profile?.role || '').toLowerCase();
+      const isControlTowerUser = isAdminRole(userRole);
+
+      if (safeRedirect?.startsWith('/admin')) {
+        return redirectTo(isControlTowerUser ? safeRedirect : '/dashboard');
+      }
+
+      if (safeRedirect?.startsWith('/dashboard')) {
+        return redirectTo(isControlTowerUser ? '/admin' : safeRedirect);
+      }
+
+      return redirectTo(isControlTowerUser ? '/admin' : '/dashboard');
+    }
   }
 
   return response;

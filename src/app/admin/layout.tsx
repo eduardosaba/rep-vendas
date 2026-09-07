@@ -14,17 +14,32 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
+  console.log('[ADMIN AUTH]', {
+    hasUser: !!user,
+    userId: user?.id,
+  });
+
   if (!user) {
     redirect('/login');
   }
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, is_active')
     .eq('id', user.id)
     .maybeSingle();
 
+  if (profile && profile.is_active === false) {
+    redirect('/login?error=account_disabled');
+  }
+
   const role = profile?.role;
+
+  console.log('[ADMIN ROLE]', {
+    userId: user?.id,
+    role: profile?.role,
+    isAdmin: isAdminRole(profile?.role),
+  });
 
   if (!isAdminRole(role)) {
     redirect('/dashboard');

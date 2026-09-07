@@ -90,7 +90,7 @@ function runScript(cmd, args = []) {
     // Start Next.js dev with a clean env and preload the localStorage shim
     // Preloading via `--require` ensures `globalThis.localStorage` is available
     // during server-side rendering in dev mode.
-    const childArgs = ['--require', shimPath, nextBin, 'dev', '--port', port];
+    const childArgs = ['--max-old-space-size=8192', '--require', shimPath, nextBin, 'dev', '--port', port];
     const child = spawn(process.execPath, childArgs, {
       stdio: 'inherit',
       cwd,

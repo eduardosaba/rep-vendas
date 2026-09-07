@@ -1,20 +1,41 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let _supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+/**
+ * Retorna o cliente administrativo (Service Role) inicializado no servidor.
+ * Valida estritamente as variáveis de ambiente sem ocultar erros.
+ */
+export function getSupabaseAdmin() {
+  if (typeof window !== 'undefined') {
+    throw new Error('Erro de Segurança: getSupabaseAdmin() não pode ser executado no navegador.');
+  }
+
+  if (!_supabaseAdminInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Configuração de Supabase URL ou Service Role Key ausente no ambiente do servidor.');
+    }
+
+    _supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+
+  return _supabaseAdminInstance;
 }
 
 /**
- * Admin client bypassing RLS.
- * USE ONLY FOR: crons, webhooks, jobs, migrations, and Mercado Pago integrations.
- * NEVER USE IN UI OR STANDARD SERVICES.
+ * Proxy de retrocompatibilidade para chamadas existentes no servidor.
  */
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_, prop) {
+    return (getSupabaseAdmin() as any)[prop];
   },
 });
+
