@@ -781,5 +781,40 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       expect(mockDelete).not.toHaveBeenCalled();
       expect(supabaseAdmin.auth.admin.deleteUser).toHaveBeenCalledWith('clean-user');
     });
+
+    it('deve consultar a tabela saved_carts pelo campo user_id_owner e draft_orders por created_by', async () => {
+      setupMockUser('master-1', 'master', true, 'master@demo.com');
+
+      const eqCalls: { table: string; col: string; val: any }[] = [];
+
+      (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
+        const queryBuilder: any = {
+          select: jest.fn().mockImplementation(() => queryBuilder),
+          eq: jest.fn().mockImplementation((col: string, val: any) => {
+            eqCalls.push({ table, col, val });
+            return queryBuilder;
+          }),
+          in: jest.fn().mockImplementation(() => queryBuilder),
+          single: jest.fn().mockResolvedValue({
+            data: { id: 'user-schema-check', email: 'schemacheck@demo.com', role: 'rep', is_active: false },
+            error: null,
+          }),
+          then: (resolve: any) => resolve({ count: 0, data: [], error: null }),
+        };
+        return queryBuilder;
+      });
+
+      await getUserDeletionImpact('user-schema-check');
+
+      const savedCartsEq = eqCalls.find((c) => c.table === 'saved_carts');
+      expect(savedCartsEq).toBeDefined();
+      expect(savedCartsEq?.col).toBe('user_id_owner');
+      expect(savedCartsEq?.val).toBe('user-schema-check');
+
+      const draftOrdersEq = eqCalls.find((c) => c.table === 'draft_orders');
+      expect(draftOrdersEq).toBeDefined();
+      expect(draftOrdersEq?.col).toBe('created_by');
+      expect(draftOrdersEq?.val).toBe('user-schema-check');
+    });
   });
 });

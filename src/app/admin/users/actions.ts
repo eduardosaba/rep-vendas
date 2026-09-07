@@ -869,7 +869,7 @@ export async function getUserDeletionImpact(targetUserId: string) {
     const { count: cartsCount, error: savedCartsError } = await (supabaseAdmin as any)
       .from('saved_carts')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', targetUserId);
+      .eq('user_id_owner', targetUserId);
 
     if (savedCartsError) {
       logger.error('Erro ao consultar saved_carts', savedCartsError);
@@ -881,7 +881,7 @@ export async function getUserDeletionImpact(targetUserId: string) {
     const { count: draftsCount, error: draftOrdersError } = await (supabaseAdmin as any)
       .from('draft_orders')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', targetUserId);
+      .eq('created_by', targetUserId);
 
     if (draftOrdersError) {
       logger.error('Erro ao consultar draft_orders', draftOrdersError);
