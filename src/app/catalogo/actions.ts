@@ -200,18 +200,25 @@ export async function createOrder(
       }
     }
 
+    const { data: ownerProfileData } = await (adminSupabase ?? supabase)
+      .from('profiles')
+      .select('company_id, is_active')
+      .eq('id', effectiveOwnerId)
+      .maybeSingle();
+
+    if (ownerProfileData && (ownerProfileData as any).is_active === false) {
+      return {
+        success: false,
+        error: 'Esta conta / catálogo está desativada. Novos pedidos não podem ser efetuados.',
+      };
+    }
+
     let companyId: string | null = companyIdFromPayload || resolvedCompanyId;
 
     if (!companyId && ownerIsCompany) {
       companyId = ownerId;
     } else if (!companyId) {
-      const { data: ownerProfile } = await (adminSupabase ?? supabase)
-        .from('profiles')
-        .select('company_id')
-        .eq('id', effectiveOwnerId)
-        .maybeSingle();
-
-      companyId = (ownerProfile as any)?.company_id ?? null;
+      companyId = (ownerProfileData as any)?.company_id ?? null;
     }
 
     if (companyId) {
@@ -345,6 +352,9 @@ export async function createOrder(
       .insert(orderItems);
 
     if (itemsError) {
+      try {
+        await insertClient.from('orders').delete().eq('id', order.id);
+      } catch (e) {}
       throw new Error(`Erro ao inserir itens do pedido: ${itemsError.message}`);
     }
 

@@ -669,14 +669,15 @@ export async function deactivateUser(targetUserId: string, reason?: string) {
     try {
       await (supabaseAdmin as any).from('activity_logs').insert({
         user_id: caller.userId,
-        action: 'user_deactivated',
-        details: JSON.stringify({
+        action_type: 'user_deactivated',
+        description: `Usuário ${targetProfile.email} foi desativado`,
+        metadata: {
           target_user_id: targetUserId,
           target_email: targetProfile.email,
           executor_email: caller.email,
           reason: reason || 'Nenhuma justificativa fornecida',
           auth_warning: authWarning,
-        }),
+        },
       });
     } catch (auditErr) {
       logger.error('Erro ao salvar log de auditoria de desativação', auditErr);
@@ -750,12 +751,13 @@ export async function reactivateUser(targetUserId: string) {
     try {
       await (supabaseAdmin as any).from('activity_logs').insert({
         user_id: caller.userId,
-        action: 'user_reactivated',
-        details: JSON.stringify({
+        action_type: 'user_reactivated',
+        description: `Usuário ${targetProfile.email} foi reativado`,
+        metadata: {
           target_user_id: targetUserId,
           target_email: targetProfile.email,
           executor_email: caller.email,
-        }),
+        },
       });
     } catch (err) {
       logger.error('Erro ao salvar log de auditoria de reativação', err);
@@ -785,15 +787,37 @@ export async function getUserDeletionImpact(targetUserId: string) {
       return { success: false, error: fetchError ? `Erro ao buscar perfil: ${fetchError.message}` : 'Usuário não encontrado.' };
     }
 
+    const formatDbError = (err: any) => {
+      if (!err) return 'contagem nula (sem objeto de erro)';
+      if (typeof err === 'string') return err;
+
+      const code = err.code || err.statusCode || err.status;
+      const message = err.message || err.error_description || err.msg;
+      const details = err.details || err.detail;
+      const hint = err.hint;
+
+      const parts = [code, message, details, hint].filter(Boolean);
+      if (parts.length > 0) {
+        return parts.join(' - ');
+      }
+
+      try {
+        const jsonStr = JSON.stringify(err);
+        if (jsonStr && jsonStr !== '{}') return jsonStr;
+      } catch {}
+
+      return String(err) || 'Erro no banco';
+    };
+
     // 1. Contar produtos pertencentes ao usuário (Autorizados para remoção via CASCADE)
     const { count: productsCount, data: userProducts, error: productsError } = await (supabaseAdmin as any)
       .from('products')
       .select('id', { count: 'exact' })
       .eq('user_id', targetUserId);
 
-    if (productsError) {
+    if (productsError || productsCount === null) {
       logger.error('Erro ao consultar tabela products', productsError);
-      return { success: false, error: `Não foi possível verificar a tabela products: ${productsError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela products: ${formatDbError(productsError)}` };
     }
 
     // 2. Contar clientes pertencentes ao usuário (Bloqueante: clients possui ON DELETE CASCADE)
@@ -802,114 +826,128 @@ export async function getUserDeletionImpact(targetUserId: string) {
       .select('id', { count: 'exact' })
       .eq('user_id', targetUserId);
 
-    if (clientsError) {
+    if (clientsError || clientsCount === null) {
       logger.error('Erro ao consultar tabela clients', clientsError);
-      return { success: false, error: `Não foi possível verificar a tabela clients: ${clientsError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela clients: ${formatDbError(clientsError)}` };
     }
 
     // 3. Contar pedidos por user_id e client_id
     const { count: directOrdersCount, error: directOrdersError } = await (supabaseAdmin as any)
       .from('orders')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('user_id', targetUserId);
 
-    if (directOrdersError) {
+    if (directOrdersError || directOrdersCount === null) {
       logger.error('Erro ao consultar orders por user_id', directOrdersError);
-      return { success: false, error: `Não foi possível verificar a tabela orders (user_id): ${directOrdersError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela orders (user_id): ${formatDbError(directOrdersError)}` };
     }
 
     let ordersCount = directOrdersCount || 0;
 
-    const clientIds = (userClients || []).map((c: any) => c.id);
+    const clientIds = (userClients || [])
+      .map((c: any) => c?.id)
+      .filter((id: any) => typeof id === 'string' && id.trim().length > 0);
+
     if (clientIds.length > 0) {
-      const { count: clientOrdersCount, error: clientOrdersError } = await (supabaseAdmin as any)
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .in('client_id', clientIds);
+      const chunkSize = 50;
+      for (let i = 0; i < clientIds.length; i += chunkSize) {
+        const chunk = clientIds.slice(i, i + chunkSize);
+        const { count: clientOrdersCount, error: clientOrdersError } = await (supabaseAdmin as any)
+          .from('orders')
+          .select('id', { count: 'exact' })
+          .in('client_id', chunk);
 
-      if (clientOrdersError) {
-        logger.error('Erro ao consultar orders por client_id', clientOrdersError);
-        return { success: false, error: `Não foi possível verificar a tabela orders (client_id): ${clientOrdersError.message}` };
+        if (clientOrdersError || clientOrdersCount === null) {
+          logger.error('Erro ao consultar orders por client_id', clientOrdersError);
+          return { success: false, error: `Não foi possível verificar a tabela orders (client_id): ${formatDbError(clientOrdersError)}` };
+        }
+
+        ordersCount += clientOrdersCount || 0;
       }
-
-      ordersCount += clientOrdersCount || 0;
     }
 
     // 4. Contar pedidos onde o usuário figura como rep_user_id
     let ordersAsRepresentativeCount = 0;
     const { count: repOrdersCount, error: repOrdersError } = await (supabaseAdmin as any)
       .from('orders')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('rep_user_id', targetUserId);
 
-    if (repOrdersError) {
+    if (repOrdersError || repOrdersCount === null) {
       logger.error('Erro ao consultar orders por rep_user_id', repOrdersError);
-      return { success: false, error: `Não foi possível verificar a tabela orders (rep_user_id): ${repOrdersError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela orders (rep_user_id): ${formatDbError(repOrdersError)}` };
     }
     ordersAsRepresentativeCount = repOrdersCount || 0;
 
     // 5. Contar itens de pedido vinculados aos produtos do usuário
     let orderItemsCount = 0;
-    const productIds = (userProducts || []).map((p: any) => p.id);
+    const productIds = (userProducts || [])
+      .map((p: any) => p?.id)
+      .filter((id: any) => typeof id === 'string' && id.trim().length > 0);
+
     if (productIds.length > 0) {
-      const { count: itemsCount, error: orderItemsError } = await (supabaseAdmin as any)
-        .from('order_items')
-        .select('id', { count: 'exact', head: true })
-        .in('product_id', productIds);
+      const chunkSize = 50;
+      for (let i = 0; i < productIds.length; i += chunkSize) {
+        const chunk = productIds.slice(i, i + chunkSize);
+        const { count: itemsCount, error: orderItemsError } = await (supabaseAdmin as any)
+          .from('order_items')
+          .select('id', { count: 'exact' })
+          .in('product_id', chunk);
 
-      if (orderItemsError) {
-        logger.error('Erro ao consultar order_items', orderItemsError);
-        return { success: false, error: `Não foi possível verificar a tabela order_items: ${orderItemsError.message}` };
+        if (orderItemsError || itemsCount === null) {
+          logger.error('Erro ao consultar order_items', orderItemsError);
+          return { success: false, error: `Não foi possível verificar a tabela order_items: ${formatDbError(orderItemsError)}` };
+        }
+
+        orderItemsCount += itemsCount || 0;
       }
-
-      orderItemsCount = itemsCount || 0;
     }
 
     // 6. Contar carrinhos salvos (saved_carts)
     const { count: cartsCount, error: savedCartsError } = await (supabaseAdmin as any)
       .from('saved_carts')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('user_id_owner', targetUserId);
 
-    if (savedCartsError) {
+    if (savedCartsError || cartsCount === null) {
       logger.error('Erro ao consultar saved_carts', savedCartsError);
-      return { success: false, error: `Não foi possível verificar a tabela saved_carts: ${savedCartsError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela saved_carts: ${formatDbError(savedCartsError)}` };
     }
     const savedCartsCount = cartsCount || 0;
 
     // 7. Contar rascunhos de pedidos (draft_orders)
     const { count: draftsCount, error: draftOrdersError } = await (supabaseAdmin as any)
       .from('draft_orders')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('created_by', targetUserId);
 
-    if (draftOrdersError) {
+    if (draftOrdersError || draftsCount === null) {
       logger.error('Erro ao consultar draft_orders', draftOrdersError);
-      return { success: false, error: `Não foi possível verificar a tabela draft_orders: ${draftOrdersError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela draft_orders: ${formatDbError(draftOrdersError)}` };
     }
     const draftOrdersCount = draftsCount || 0;
 
-    // 8. Contar configurações (settings)
+    // 8. Contar configurações (settings) - PK é user_id (não possui coluna id)
     const { count: sCount, error: settingsError } = await (supabaseAdmin as any)
       .from('settings')
-      .select('id', { count: 'exact', head: true })
+      .select('user_id', { count: 'exact' })
       .eq('user_id', targetUserId);
 
-    if (settingsError) {
+    if (settingsError || sCount === null) {
       logger.error('Erro ao consultar settings', settingsError);
-      return { success: false, error: `Não foi possível verificar a tabela settings: ${settingsError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela settings: ${formatDbError(settingsError)}` };
     }
     const settingsCount = sCount || 0;
 
-    // 9. Contar preferências (user_preferences)
+    // 9. Contar preferências (user_preferences) - PK composta (não possui coluna id)
     const { count: prefCount, error: userPreferencesError } = await (supabaseAdmin as any)
       .from('user_preferences')
-      .select('id', { count: 'exact', head: true })
+      .select('user_id', { count: 'exact' })
       .eq('user_id', targetUserId);
 
-    if (userPreferencesError) {
+    if (userPreferencesError || prefCount === null) {
       logger.error('Erro ao consultar user_preferences', userPreferencesError);
-      return { success: false, error: `Não foi possível verificar a tabela user_preferences: ${userPreferencesError.message}` };
+      return { success: false, error: `Não foi possível verificar a tabela user_preferences: ${formatDbError(userPreferencesError)}` };
     }
     const userPreferencesCount = prefCount || 0;
 
@@ -938,6 +976,16 @@ export async function getUserDeletionImpact(targetUserId: string) {
       ? `A exclusão foi bloqueada pois a conta possui dependências não autorizadas para exclusão em cascata: ${reasons.join(', ')}. Utilize a opção "Desativar Acesso" para suspender logins preservando os dados.`
       : null;
 
+    const blockingCount =
+      (clientsCount || 0) +
+      ordersCount +
+      ordersAsRepresentativeCount +
+      orderItemsCount +
+      savedCartsCount +
+      draftOrdersCount +
+      settingsCount +
+      userPreferencesCount;
+
     return {
       success: true,
       impact: {
@@ -951,6 +999,7 @@ export async function getUserDeletionImpact(targetUserId: string) {
         draftOrdersCount,
         settingsCount,
         userPreferencesCount,
+        blockingCount,
         isBlocked,
         blockReason,
       },
@@ -1021,27 +1070,21 @@ export async function permanentlyDeleteUser(targetUserId: string, confirmationEm
       };
     }
 
-    // 2. Regra 3: Auditoria attempted OBRIGATÓRIA pré-exclusão
-    const { error: auditAttemptError } = await (supabaseAdmin as any).from('activity_logs').insert({
-      user_id: caller.userId,
-      action: 'user_permanent_deletion_attempted',
-      details: JSON.stringify({
+    // 2. Regra 3: Auditoria attempted OBRIGATÓRIA pré-exclusão na tabela public.user_hard_delete_audit
+    const auditLogId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `audit-${Date.now()}`;
+
+    const { error: auditAttemptError } = await (supabaseAdmin as any)
+      .from('user_hard_delete_audit')
+      .insert({
+        id: auditLogId,
         target_user_id: targetUserId,
-        target_email: canonicalEmail,
+        typed_email_snapshot: confirmationEmail,
         executor_id: caller.userId,
-        executor_email: caller.email,
-        products_count: impactRes.impact.productsCount,
-        clients_count: impactRes.impact.clientsCount,
-        orders_count: impactRes.impact.ordersCount,
-        orders_as_rep_count: impactRes.impact.ordersAsRepresentativeCount,
-        order_items_count: impactRes.impact.orderItemsCount,
-        saved_carts_count: impactRes.impact.savedCartsCount,
-        draft_orders_count: impactRes.impact.draftOrdersCount,
-        settings_count: impactRes.impact.settingsCount,
-        user_preferences_count: impactRes.impact.userPreferencesCount,
+        executor_email_snapshot: caller.email,
         status: 'attempted',
-      }),
-    });
+        blocking_count: impactRes.impact.blockingCount,
+        dependency_snapshot: impactRes.impact,
+      });
 
     if (auditAttemptError) {
       logger.error('Erro ao registrar auditoria de tentativa de exclusão', auditAttemptError);
@@ -1056,18 +1099,14 @@ export async function permanentlyDeleteUser(targetUserId: string, confirmationEm
     if (authDeleteError) {
       logger.error('Erro ao excluir no Supabase Auth', authDeleteError);
 
-      const { error: auditFailedError } = await (supabaseAdmin as any).from('activity_logs').insert({
-        user_id: caller.userId,
-        action: 'user_permanent_deletion_failed',
-        details: JSON.stringify({
-          target_user_id: targetUserId,
-          target_email: canonicalEmail,
-          executor_id: caller.userId,
-          executor_email: caller.email,
-          error_message: authDeleteError.message,
+      const { error: auditFailedError } = await (supabaseAdmin as any)
+        .from('user_hard_delete_audit')
+        .update({
           status: 'failed',
-        }),
-      });
+          error_message: authDeleteError.message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', auditLogId);
 
       if (auditFailedError) {
         logger.error('Erro ao registrar log de auditoria de falha do Auth', auditFailedError);
@@ -1088,7 +1127,7 @@ export async function permanentlyDeleteUser(targetUserId: string, confirmationEm
 
     const { count: remainingProducts, error: productsCheckError } = await (supabaseAdmin as any)
       .from('products')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('user_id', targetUserId);
 
     const hasResidues =
@@ -1103,21 +1142,14 @@ export async function permanentlyDeleteUser(targetUserId: string, confirmationEm
         productsCheckError,
       });
 
-      const { error: auditInconsistentError } = await (supabaseAdmin as any).from('activity_logs').insert({
-        user_id: caller.userId,
-        action: 'user_permanent_deletion_failed',
-        details: JSON.stringify({
-          target_user_id: targetUserId,
-          target_email: canonicalEmail,
-          executor_id: caller.userId,
-          executor_email: caller.email,
-          reason: 'O Auth foi removido, mas a limpeza em cascata não foi confirmada. É necessária verificação administrativa.',
-          is_auth_present: isAuthStillExists,
-          is_profile_present: !!profileCheck,
-          remaining_products_count: remainingProducts || 0,
+      const { error: auditInconsistentError } = await (supabaseAdmin as any)
+        .from('user_hard_delete_audit')
+        .update({
           status: 'inconsistent',
-        }),
-      });
+          error_message: 'O Auth foi removido, mas a limpeza em cascata não foi confirmada. É necessária verificação administrativa.',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', auditLogId);
 
       if (auditInconsistentError) {
         logger.error('Erro ao registrar log de auditoria inconsistente', auditInconsistentError);
@@ -1130,18 +1162,13 @@ export async function permanentlyDeleteUser(targetUserId: string, confirmationEm
     }
 
     // 5. Log de Auditoria pós-exclusão concluída (status = completed) apenas após 3 confirmações
-    const { error: auditCompletedError } = await (supabaseAdmin as any).from('activity_logs').insert({
-      user_id: caller.userId,
-      action: 'user_permanently_deleted',
-      details: JSON.stringify({
-        target_user_id: targetUserId,
-        target_email: canonicalEmail,
-        executor_id: caller.userId,
-        executor_email: caller.email,
-        products_deleted: impactRes.impact.productsCount,
+    const { error: auditCompletedError } = await (supabaseAdmin as any)
+      .from('user_hard_delete_audit')
+      .update({
         status: 'completed',
-      }),
-    });
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', auditLogId);
 
     if (auditCompletedError) {
       logger.error('Erro ao registrar log pós-exclusão completed', auditCompletedError);

@@ -345,6 +345,7 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
           eq: jest.fn().mockImplementation(() => queryBuilder),
           in: jest.fn().mockImplementation(() => queryBuilder),
           insert: jest.fn().mockImplementation(() => ({ error: null })),
+          update: jest.fn().mockImplementation(() => queryBuilder),
           maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
           single: jest.fn().mockResolvedValue({
             data: { id: 'mismatched-user', email: 'outdated-profile@demo.com', role: 'rep', is_active: false },
@@ -457,14 +458,19 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       });
 
       const insertedLogs: any[] = [];
+      const updatedLogs: any[] = [];
       (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
         const queryBuilder: any = {
           select: jest.fn().mockImplementation(() => queryBuilder),
           eq: jest.fn().mockImplementation(() => queryBuilder),
           in: jest.fn().mockImplementation(() => queryBuilder),
           insert: jest.fn().mockImplementation((payload: any) => {
-            insertedLogs.push(payload);
+            if (table === 'user_hard_delete_audit') insertedLogs.push(payload);
             return { error: null };
+          }),
+          update: jest.fn().mockImplementation((payload: any) => {
+            if (table === 'user_hard_delete_audit') updatedLogs.push(payload);
+            return queryBuilder;
           }),
           single: jest.fn().mockResolvedValue({
             data: { id: 'user-auth-err', email: 'autherr@demo.com', role: 'rep', is_active: false },
@@ -479,9 +485,12 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       expect(res.success).toBe(false);
       expect(res.error).toContain('Erro ao excluir usuário no Supabase Auth');
 
-      const failedLog = insertedLogs.find((l) => l.action === 'user_permanent_deletion_failed');
+      const attemptedLog = insertedLogs.find((l) => l.status === 'attempted');
+      expect(attemptedLog).toBeDefined();
+
+      const failedLog = updatedLogs.find((l) => l.status === 'failed');
       expect(failedLog).toBeDefined();
-      expect(failedLog.details).toContain('failed');
+      expect(failedLog.error_message).toContain('Auth delete rejected');
     });
 
     it('deve impedir retorno de sucesso e registrar status = inconsistent se houver resíduos no profile', async () => {
@@ -492,14 +501,19 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       (supabaseAdmin.auth.admin.deleteUser as jest.Mock).mockResolvedValue({ data: {}, error: null });
 
       const insertedLogs: any[] = [];
+      const updatedLogs: any[] = [];
       (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
         const queryBuilder: any = {
           select: jest.fn().mockImplementation(() => queryBuilder),
           eq: jest.fn().mockImplementation(() => queryBuilder),
           in: jest.fn().mockImplementation(() => queryBuilder),
           insert: jest.fn().mockImplementation((payload: any) => {
-            insertedLogs.push(payload);
+            if (table === 'user_hard_delete_audit') insertedLogs.push(payload);
             return { error: null };
+          }),
+          update: jest.fn().mockImplementation((payload: any) => {
+            if (table === 'user_hard_delete_audit') updatedLogs.push(payload);
+            return queryBuilder;
           }),
           single: jest.fn().mockResolvedValue({
             data: { id: 'user-residue-prof', email: 'profres@demo.com', role: 'rep', is_active: false },
@@ -515,9 +529,8 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       expect(res.success).toBe(false);
       expect(res.error).toContain('limpeza em cascata não foi confirmada');
 
-      const incLog = insertedLogs.find((l) => l.action === 'user_permanent_deletion_failed');
+      const incLog = updatedLogs.find((l) => l.status === 'inconsistent');
       expect(incLog).toBeDefined();
-      expect(incLog.details).toContain('inconsistent');
     });
 
     it('deve impedir retorno de sucesso se o Auth ainda retornar o usuário após deleteUser', async () => {
@@ -534,6 +547,7 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
           eq: jest.fn().mockImplementation(() => queryBuilder),
           in: jest.fn().mockImplementation(() => queryBuilder),
           insert: jest.fn().mockImplementation(() => ({ error: null })),
+          update: jest.fn().mockImplementation(() => queryBuilder),
           single: jest.fn().mockResolvedValue({
             data: { id: 'user-auth-persists', email: 'authpers@demo.com', role: 'rep', is_active: false },
             error: null,
@@ -557,14 +571,19 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       (supabaseAdmin.auth.admin.deleteUser as jest.Mock).mockResolvedValue({ data: {}, error: null });
 
       const insertedLogs: any[] = [];
+      const updatedLogs: any[] = [];
       (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
         const queryBuilder: any = {
           select: jest.fn().mockImplementation(() => queryBuilder),
           eq: jest.fn().mockImplementation(() => queryBuilder),
           in: jest.fn().mockImplementation(() => queryBuilder),
           insert: jest.fn().mockImplementation((payload: any) => {
-            insertedLogs.push(payload);
+            if (table === 'user_hard_delete_audit') insertedLogs.push(payload);
             return { error: null };
+          }),
+          update: jest.fn().mockImplementation((payload: any) => {
+            if (table === 'user_hard_delete_audit') updatedLogs.push(payload);
+            return queryBuilder;
           }),
           single: jest.fn().mockResolvedValue({
             data: { id: 'clean-3-checks', email: 'clean3@demo.com', role: 'rep', is_active: false },
@@ -579,9 +598,18 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       const res = await permanentlyDeleteUser('clean-3-checks', 'clean3@demo.com');
       expect(res.success).toBe(true);
 
-      const completedLog = insertedLogs.find((l) => l.action === 'user_permanently_deleted');
+      const attemptedLog = insertedLogs.find((l) => l.status === 'attempted');
+      expect(attemptedLog).toBeDefined();
+      expect(attemptedLog.target_user_id).toBe('clean-3-checks');
+      expect(attemptedLog.typed_email_snapshot).toBe('clean3@demo.com');
+      expect(attemptedLog.executor_id).toBe('master-1');
+      expect(attemptedLog.executor_email_snapshot).toBe('master@demo.com');
+      expect(attemptedLog.blocking_count).toBe(0);
+      expect(attemptedLog.dependency_snapshot).toBeDefined();
+
+      const completedLog = updatedLogs.find((l) => l.status === 'completed');
       expect(completedLog).toBeDefined();
-      expect(completedLog.details).toContain('completed');
+      expect(completedLog.updated_at).toBeDefined();
     });
 
     it('deve bloquear a exclusão se o usuário tiver clientes cadastrados (evitando apagar clientes via CASCADE)', async () => {
@@ -767,6 +795,7 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
           in: jest.fn().mockImplementation(() => queryBuilder),
           delete: mockDelete,
           insert: jest.fn().mockImplementation(() => queryBuilder),
+          update: jest.fn().mockImplementation(() => queryBuilder),
           single: jest.fn().mockResolvedValue({ data: { id: 'clean-user', email: 'clean@demo.com', role: 'rep', is_active: false }, error: null }),
           maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
           then: (resolve: any) => resolve({ count: 0, data: [], error: null }),
@@ -782,14 +811,18 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
       expect(supabaseAdmin.auth.admin.deleteUser).toHaveBeenCalledWith('clean-user');
     });
 
-    it('deve consultar a tabela saved_carts pelo campo user_id_owner e draft_orders por created_by', async () => {
+    it('deve consultar cada tabela da matriz usando os campos reais do schema (sem usar coluna id inexistente em settings/user_preferences)', async () => {
       setupMockUser('master-1', 'master', true, 'master@demo.com');
 
+      const selectCalls: { table: string; column: string }[] = [];
       const eqCalls: { table: string; col: string; val: any }[] = [];
 
       (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
         const queryBuilder: any = {
-          select: jest.fn().mockImplementation(() => queryBuilder),
+          select: jest.fn().mockImplementation((col: string) => {
+            selectCalls.push({ table, column: col });
+            return queryBuilder;
+          }),
           eq: jest.fn().mockImplementation((col: string, val: any) => {
             eqCalls.push({ table, col, val });
             return queryBuilder;
@@ -806,15 +839,56 @@ describe('Governança de Usuários V1: Desativação, Reativação e Matriz de S
 
       await getUserDeletionImpact('user-schema-check');
 
+      // 1. saved_carts: eq user_id_owner
       const savedCartsEq = eqCalls.find((c) => c.table === 'saved_carts');
       expect(savedCartsEq).toBeDefined();
       expect(savedCartsEq?.col).toBe('user_id_owner');
       expect(savedCartsEq?.val).toBe('user-schema-check');
 
+      // 2. draft_orders: eq created_by
       const draftOrdersEq = eqCalls.find((c) => c.table === 'draft_orders');
       expect(draftOrdersEq).toBeDefined();
       expect(draftOrdersEq?.col).toBe('created_by');
       expect(draftOrdersEq?.val).toBe('user-schema-check');
+
+      // 3. settings: select user_id (não possui coluna id)
+      const settingsSelect = selectCalls.find((s) => s.table === 'settings');
+      expect(settingsSelect).toBeDefined();
+      expect(settingsSelect?.column).not.toBe('id');
+      expect(settingsSelect?.column).toBe('user_id');
+
+      // 4. user_preferences: select user_id (não possui coluna id)
+      const userPrefSelect = selectCalls.find((s) => s.table === 'user_preferences');
+      expect(userPrefSelect).toBeDefined();
+      expect(userPrefSelect?.column).not.toBe('id');
+      expect(userPrefSelect?.column).toBe('user_id');
+    });
+
+    it('deve definir orderItemsCount = 0 sem consultar a tabela order_items quando o usuário não possui produtos', async () => {
+      setupMockUser('master-1', 'master', true, 'master@demo.com');
+
+      const queriedTables: string[] = [];
+
+      (supabaseAdmin.from as jest.Mock).mockImplementation((table: string) => {
+        queriedTables.push(table);
+        const queryBuilder: any = {
+          select: jest.fn().mockImplementation(() => queryBuilder),
+          eq: jest.fn().mockImplementation(() => queryBuilder),
+          in: jest.fn().mockImplementation(() => queryBuilder),
+          single: jest.fn().mockResolvedValue({
+            data: { id: 'user-no-products', email: 'noproducts@demo.com', role: 'rep', is_active: false },
+            error: null,
+          }),
+          then: (resolve: any) => resolve({ count: 0, data: [], error: null }),
+        };
+        return queryBuilder;
+      });
+
+      const res = await getUserDeletionImpact('user-no-products');
+      expect(res.success).toBe(true);
+      expect(res.impact?.productsCount).toBe(0);
+      expect(res.impact?.orderItemsCount).toBe(0);
+      expect(queriedTables).not.toContain('order_items');
     });
   });
 });

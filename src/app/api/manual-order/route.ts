@@ -112,8 +112,12 @@ export async function POST(req: any) {
     const { error: itemsError } = await supabase
       .from('order_items')
       .insert(itemsPayload);
-    if (itemsError)
+    if (itemsError) {
+      try {
+        await supabase.from('orders').delete().eq('id', orderData.id);
+      } catch (e) {}
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
