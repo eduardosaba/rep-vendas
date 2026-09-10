@@ -17,6 +17,7 @@
  */
 
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
+import { cache } from 'react';
 
 function buildAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -156,10 +157,11 @@ function merge(base: any, override: any): any {
  * @param ownerUserId  - user_id do dono do catálogo (rep ou admin_company)
  * @param companyId    - company_id vinculado ao dono (pode ser null)
  */
-export async function resolveCatalogBranding(
-  ownerUserId: string,
-  companyId?: string | null
-): Promise<CatalogBranding> {
+export const resolveCatalogBranding = cache(
+  async (
+    ownerUserId: string,
+    companyId?: string | null
+  ): Promise<CatalogBranding> => {
   const admin = buildAdmin();
   if (!admin) return { ...DEFAULTS };
 
@@ -267,4 +269,4 @@ export async function resolveCatalogBranding(
   if (publicIndex?.price_password_hash) result.price_password_hash = publicIndex.price_password_hash;
 
   return result;
-}
+});

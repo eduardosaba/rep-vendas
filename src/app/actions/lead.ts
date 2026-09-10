@@ -75,7 +75,23 @@ export async function captureLeadAction(
         '127.0.0.1';
       const ipHash = crypto.createHash('sha256').update(clientIp).digest('hex');
 
-      if (!checkRateLimit(ipHash)) {
+      // First try persistent RPC rate limiter in Supabase, fallback to in-memory sliding window
+      let rateLimitAllowed = true;
+      try {
+        const { data: rpcAllowed, error: rpcErr } = await (createAdminClient() as any).rpc(
+          'check_and_increment_lead_rate_limit',
+          { p_ip_hash: ipHash, p_max_attempts: 5, p_window_seconds: 600 }
+        );
+        if (!rpcErr && typeof rpcAllowed === 'boolean') {
+          rateLimitAllowed = rpcAllowed;
+        } else {
+          rateLimitAllowed = checkRateLimit(ipHash);
+        }
+      } catch (_rpcErr) {
+        rateLimitAllowed = checkRateLimit(ipHash);
+      }
+
+      if (!rateLimitAllowed) {
         return {
           success: false,
           error: 'Muitas tentativas. Por favor, aguarde alguns minutos antes de tentar novamente.',
@@ -92,6 +108,12 @@ export async function captureLeadAction(
     const company_name = typeof input.company_name === 'string' ? input.company_name.trim() : '';
     const acting_type = input.acting_type;
     const submission_id = typeof input.submission_id === 'string' ? input.submission_id.trim() : undefined;
+
+    // Validate submission_id is a valid UUID if provided
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (submission_id && !uuidRegex.test(submission_id)) {
+      return { success: false, error: 'Identificador de submissão inválido.' };
+    }
 
     if (!name || name.length < 2 || name.length > 150) {
       return { success: false, error: 'Por favor, informe seu nome completo.' };
@@ -198,10 +220,32 @@ export async function captureLeadAction(
         .single();
 
       if (insertErr) {
-        console.error('[lead-capture:error]', { message: insertErr.message, code: insertErr.code });
-        return { success: false, error: 'Erro ao registrar dados comerciais.' };
+        // Handle Postgres error 23505 (unique constraint violation on submission_id during concurrent inserts)
+        if (
+          (insertErr as any)?.code === '23505' ||
+          insertErr.message?.includes('submission_id') ||
+          insertErr.message?.includes('duplicate key')
+        ) {
+          if (submission_id) {
+            const { data: conflLead } = await supabaseAdmin
+              .from('leads')
+              .select('id')
+              .eq('submission_id', submission_id)
+              .maybeSingle();
+
+            if (conflLead?.id) {
+              leadId = conflLead.id;
+            }
+          }
+        }
+
+        if (!leadId) {
+          console.error('[lead-capture:error]', { message: insertErr.message, code: insertErr.code });
+          return { success: false, error: 'Erro ao registrar dados comerciais.' };
+        }
+      } else {
+        leadId = insertedLead?.id ?? null;
       }
-      leadId = insertedLead?.id ?? null;
     }
 
     if (leadId) {

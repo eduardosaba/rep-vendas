@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
+import { cache } from 'react';
 
 export type CatalogContext = {
   type: 'distributor' | 'individual';
@@ -11,6 +13,19 @@ export type CatalogContext = {
   settings?: any;
   pathPrefix: string;
 };
+
+export const getMemoizedCatalogContext = cache(
+  async (normalizedSlug: string): Promise<CatalogContext | null> => {
+    if (!normalizedSlug) return null;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceKey) return null;
+    const admin = createSupabaseAdmin(String(supabaseUrl), String(serviceKey), {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    return resolveContext(normalizedSlug.split('/').filter(Boolean), admin);
+  }
+);
 
 export function normalizeCatalogSlug(value: string): string {
   if (!value) return '';
@@ -51,7 +66,15 @@ export async function resolvePublicCatalogContext(
     return { context: null };
   }
 
-  // 1. Resolução via cliente SSR normal (público)
+  // 1. Resolução memoizada por requisição (React.cache)
+  if (normalizedSlug) {
+    const cachedContext = await getMemoizedCatalogContext(normalizedSlug);
+    if (cachedContext) {
+      return { context: cachedContext, resolvedBy: 'ADMIN_FALLBACK' };
+    }
+  }
+
+  // 2. Resolução via cliente SSR normal (público)
   try {
     const context = await resolveContext(slugParts, supabase);
     if (context) {

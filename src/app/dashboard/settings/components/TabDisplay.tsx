@@ -259,12 +259,63 @@ export function TabDisplay(props: any) {
       </div>
       <div className="bg-white dark:bg-slate-900 p-5 md:p-8 rounded-[2.5rem] border border-gray-200 shadow-sm space-y-8">
         <h3 className="font-black text-sm uppercase tracking-widest text-slate-400 flex items-center gap-2"><DollarSign size={18} /> Preços e Negócio</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-          <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
-            <ToggleSetting label="Preço Sugerido" name="show_sale_price" description="Exibe o valor final para o consumidor." checked={catalogSettings.show_sale_price} onChange={(e: any) => { setCatalogSettings((p: any) => ({ ...p, show_sale_price: e.target.checked, show_cost_price: !e.target.checked })); }} icon={DollarSign} />
-          </div>
-          <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
-            <ToggleSetting label="Preço de Custo" name="show_cost_price" description="Exibe o valor para o lojista." checked={catalogSettings.show_cost_price} onChange={(e: any) => { setCatalogSettings((p: any) => ({ ...p, show_cost_price: e.target.checked, show_sale_price: !e.target.checked })); }} icon={ImageIcon} />
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Escolha qual preço será exibido no catálogo:</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+            <label
+              className={`p-4 md:p-6 rounded-3xl cursor-pointer transition-all border-2 ${
+                safeCatalog.show_sale_price
+                  ? 'bg-primary/5 border-[var(--primary)] ring-1 ring-[var(--primary)]/20 shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="price_display_mode"
+                  checked={!!safeCatalog.show_sale_price}
+                  onChange={() => {
+                    setCatalogSettings((p: any) => ({
+                      ...p,
+                      show_sale_price: true,
+                      show_cost_price: false,
+                    }));
+                  }}
+                  className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--primary)]"
+                />
+                <div>
+                  <span className="font-medium text-gray-900 dark:text-white">Preço sugerido / venda</span>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Exibe o valor final para o consumidor.</p>
+                </div>
+              </div>
+            </label>
+            <label
+              className={`p-4 md:p-6 rounded-3xl cursor-pointer transition-all border-2 ${
+                safeCatalog.show_cost_price
+                  ? 'bg-primary/5 border-[var(--primary)] ring-1 ring-[var(--primary)]/20 shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="price_display_mode"
+                  checked={!!safeCatalog.show_cost_price}
+                  onChange={() => {
+                    setCatalogSettings((p: any) => ({
+                      ...p,
+                      show_sale_price: false,
+                      show_cost_price: true,
+                    }));
+                  }}
+                  className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--primary)]"
+                />
+                <div>
+                  <span className="font-medium text-gray-900 dark:text-white">Preço de custo</span>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Exibe o valor para o lojista.</p>
+                </div>
+              </div>
+            </label>
           </div>
         </div>
 

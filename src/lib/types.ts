@@ -131,6 +131,8 @@ export interface BaseStoreSettings {
   footer_message?: string;
   phone?: string;
   email?: string;
+  support_email?: string;
+  support_phone?: string;
   icon_color?: string;
 
   // Regras de Exibição

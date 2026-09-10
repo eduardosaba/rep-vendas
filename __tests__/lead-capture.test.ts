@@ -43,6 +43,20 @@ describe('Lead Capture & Funnel Security', () => {
       expect(res.error).toContain('como você atua');
     });
 
+    it('rejects malformed submission_id values that are not valid UUIDs', async () => {
+      const payload: CaptureLeadInput = {
+        name: 'Carlos Silva',
+        email: 'carlos@example.com',
+        phone: '11999998888',
+        acting_type: 'representante',
+        submission_id: 'invalid-uuid-string-123',
+      };
+
+      const res = await captureLeadAction(payload);
+      expect(res.success).toBe(false);
+      expect(res.error).toContain('submissão inválido');
+    });
+
     it('normalizes Brazilian phone numbers correctly', () => {
       expect(normalizePhone('(11) 99999-8888')).toBe('+5511999998888');
       expect(normalizePhone('11999998888')).toBe('+5511999998888');

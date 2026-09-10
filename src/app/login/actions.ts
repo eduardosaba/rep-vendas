@@ -63,8 +63,22 @@ export async function signup(formData: FormData) {
     const supabase = await createClient();
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
+    const fullName = (formData.get('fullName') as string) || (formData.get('name') as string) || '';
+    const rawPhone = (formData.get('phone') as string) || '';
 
-    const { data: _data, error } = await supabase.auth.signUp({ email, password });
+    const { normalizePhone } = await import('@/lib/phone');
+    const normalizedPhone = normalizePhone(rawPhone);
+
+    const { data: _data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName || null,
+          phone: normalizedPhone || null,
+        },
+      },
+    });
     if (error) return { error: (error as { message?: string })?.message || 'Erro' };
 
     const userId = (_data as any)?.user?.id;
@@ -78,16 +92,102 @@ export async function signup(formData: FormData) {
       const missingCols = new Set<string>();
 
       try {
+        const { normalizePhone } = await import('@/lib/phone');
+        const normalizedPhone = normalizePhone(rawPhone);
         const estados = formData.getAll('estados') as string[] | [];
-        if (estados && estados.length > 0) {
-          const { error: profileErr } = await supabaseAdmin.from('profiles').upsert({ id: userId, estados, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-          if (profileErr) {
-            const c = extractMissingColumn(profileErr);
-            if (c) missingCols.add(c);
-            console.error('signup: failed to upsert profiles', profileErr);
-          }
+
+        const profilePayload: Record<string, any> = {
+          id: userId,
+          email,
+          full_name: fullName || null,
+          phone: normalizedPhone || null,
+          updated_at: new Date().toISOString(),
+        };
+        if (estados && estados.length > 0) profilePayload.estados = estados;
+
+        const { error: profileErr } = await supabaseAdmin.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+        if (profileErr) {
+          const c = extractMissingColumn(profileErr);
+          if (c) missingCols.add(c);
+          console.error('signup: failed to upsert profiles', profileErr);
         }
-      } catch (err) { console.warn('Não foi possível gravar campo opcional estados no profile:', err); }
+
+        // --- SECURE LEAD LINKAGE LOGIC ---
+        try {
+          const { cookies } = await import('next/headers');
+          const cookieStore = await cookies();
+          const cookieLeadId = cookieStore.get('rep_lead_id')?.value || null;
+          const formLeadId = (formData.get('lead_id') as string) || null;
+          const targetLeadId = formLeadId || cookieLeadId;
+
+          const normalizedAuthEmail = email.trim().toLowerCase();
+          let matchedLead: any = null;
+
+          if (targetLeadId) {
+            const { data: leadData } = await supabaseAdmin
+              .from('leads')
+              .select('*')
+              .eq('id', targetLeadId)
+              .maybeSingle();
+
+            // Strict security check: lead email MUST match auth email, and user_id MUST be null or already match current user
+            if (
+              leadData &&
+              leadData.email.trim().toLowerCase() === normalizedAuthEmail &&
+              (leadData.user_id === null || leadData.user_id === userId)
+            ) {
+              matchedLead = leadData;
+            }
+          }
+
+          // Fallback linkage by normalized email if targetLeadId mismatch or absent
+          if (!matchedLead) {
+            const { data: fallbackLeads } = await supabaseAdmin
+              .from('leads')
+              .select('*')
+              .eq('email', normalizedAuthEmail)
+              .is('user_id', null)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+            if (Array.isArray(fallbackLeads) && fallbackLeads.length > 0) {
+              matchedLead = fallbackLeads[0];
+            }
+          }
+
+          if (matchedLead) {
+            await supabaseAdmin
+              .from('leads')
+              .update({
+                user_id: userId,
+                status: 'account_created',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', matchedLead.id);
+
+            // Populate company_name into settings.name if present
+            if (matchedLead.company_name) {
+              await supabaseAdmin.from('settings').upsert(
+                {
+                  user_id: userId,
+                  name: matchedLead.company_name,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'user_id' }
+              );
+            }
+
+            // Clear rep_lead_id cookie after successful linkage
+            try {
+              cookieStore.delete('rep_lead_id');
+            } catch (e) {
+              // ignore
+            }
+          }
+        } catch (leadErr) {
+          console.error('[signup:lead-linkage:error]', { message: (leadErr as any)?.message });
+        }
+      } catch (err) { console.warn('Não foi possível gravar perfil no signup:', err); }
 
       try {
         const { data: plans, error: plansErr } = await supabaseAdmin.from('plans').select('id, name, price').order('price', { ascending: true }).limit(1);

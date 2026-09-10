@@ -140,6 +140,269 @@ export async function getUsersWithSubscriptions() {
   }
 }
 
+// --- FUNÇÃO AUXILIAR: GERAR SLUG ÚNICO PARA ORGANIZAÇÃO ---
+async function generateUniqueOrgSlug(client: any, baseText: string): Promise<string> {
+  const baseSlug = String(baseText || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'org';
+
+  for (let i = 0; i < 10; i++) {
+    const testSlug = i === 0 ? baseSlug : `${baseSlug}-${i + 1}`;
+    const { data: exists } = await client
+      .from('organizations')
+      .select('id')
+      .eq('slug', testSlug)
+      .maybeSingle();
+
+    if (!exists) return testSlug;
+  }
+
+  return `${baseSlug}-${Date.now().toString(36)}`;
+}
+
+// --- FUNÇÃO AUXILIAR: PROVISIONAMENTO ORGANIZACIONAL IDEMPOTENTE ---
+export async function provisionUserOrganization(params: {
+  userId: string;
+  email: string;
+  fullName?: string | null;
+  companyId?: string | null;
+}) {
+  const { userId, email, fullName, companyId } = params;
+  let organizationCreatedNow = false;
+  let createdOrgId: string | null = null;
+  let membershipCreatedNow = false;
+  let previousMembershipState: { role: string; status: string; updated_at: string } | null = null;
+  let previousProfileOrgId: string | null = null;
+  let profileOrgUpdatedNow = false;
+  let targetOrgId: string | null = null;
+
+  try {
+    if (companyId) {
+      // 1. Busca por vínculo explícito com a empresa em metadata
+      const { data: orgByMeta } = await (supabaseAdmin as any)
+        .from('organizations')
+        .select('id')
+        .filter('metadata->>company_id', 'eq', companyId)
+        .maybeSingle();
+
+      if (orgByMeta?.id) {
+        targetOrgId = orgByMeta.id;
+      } else {
+        // Fallback legado por ID
+        const { data: orgById } = await (supabaseAdmin as any)
+          .from('organizations')
+          .select('id')
+          .eq('id', companyId)
+          .maybeSingle();
+
+        if (orgById?.id) {
+          targetOrgId = orgById.id;
+        }
+      }
+
+      // Se a empresa ainda não tiver organização vinculada, cria uma do tipo distributor
+      if (!targetOrgId) {
+        let companyName = 'Distribuidora';
+        let companySlug = 'company';
+        const { data: companyData } = await (supabaseAdmin as any)
+          .from('companies')
+          .select('name, slug')
+          .eq('id', companyId)
+          .maybeSingle();
+
+        if (companyData?.name) companyName = companyData.name;
+        if (companyData?.slug) companySlug = companyData.slug;
+
+        const baseSlug = `dist-${companySlug}`;
+        const uniqueSlug = await generateUniqueOrgSlug(supabaseAdmin, baseSlug);
+
+        const { data: newOrg, error: orgErr } = await (supabaseAdmin as any)
+          .from('organizations')
+          .insert({
+            name: companyName,
+            slug: uniqueSlug,
+            organization_type: 'distributor',
+            owner_user_id: null,
+            status: 'active',
+            is_active: true,
+            metadata: { company_id: companyId },
+          })
+          .select('id')
+          .single();
+
+        if (orgErr || !newOrg?.id) {
+          throw new Error(`Falha ao criar organização da distribuidora: ${orgErr?.message || 'erro desconhecido'}`);
+        }
+
+        targetOrgId = newOrg.id;
+        organizationCreatedNow = true;
+        createdOrgId = newOrg.id;
+      }
+    } else {
+      // Rep Independente: buscar organização por owner_user_id
+      const { data: existingOrg } = await (supabaseAdmin as any)
+        .from('organizations')
+        .select('id')
+        .eq('owner_user_id', userId)
+        .maybeSingle();
+
+      if (existingOrg?.id) {
+        targetOrgId = existingOrg.id;
+      } else {
+        const userName = fullName || email.split('@')[0];
+        const baseSlug = `rep-${userName}-${userId.slice(0, 8)}`;
+        const uniqueSlug = await generateUniqueOrgSlug(supabaseAdmin, baseSlug);
+        const orgName = `${userName.charAt(0).toUpperCase() + userName.slice(1)} Representações`;
+
+        const { data: newOrg, error: orgErr } = await (supabaseAdmin as any)
+          .from('organizations')
+          .insert({
+            name: orgName,
+            slug: uniqueSlug,
+            organization_type: 'independent_representative',
+            owner_user_id: userId,
+            status: 'active',
+            is_active: true,
+          })
+          .select('id')
+          .single();
+
+        if (orgErr || !newOrg?.id) {
+          throw new Error(`Falha ao criar organização do representante: ${orgErr?.message || 'erro desconhecido'}`);
+        }
+
+        targetOrgId = newOrg.id;
+        organizationCreatedNow = true;
+        createdOrgId = newOrg.id;
+      }
+    }
+
+    if (!targetOrgId) {
+      throw new Error('Não foi possível determinar a organização do usuário.');
+    }
+
+    // 2. Validação de `profiles.organization_id` antes da mutação de membro
+    const { data: currentProfile } = await (supabaseAdmin as any)
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    previousProfileOrgId = currentProfile?.organization_id ?? null;
+
+    if (previousProfileOrgId !== null && previousProfileOrgId !== targetOrgId) {
+      throw new Error(
+        `Inconsistência de organização: o perfil do usuário já está vinculado a outra organização (${previousProfileOrgId}). Operação abortada para evitar vínculos contraditórios.`
+      );
+    }
+
+    // 3. Provisionar membership (capturando estado anterior se já existia)
+    const { data: existingMember } = await (supabaseAdmin as any)
+      .from('organization_members')
+      .select('id, role, status')
+      .eq('organization_id', targetOrgId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingMember) {
+      previousMembershipState = {
+        role: existingMember.role,
+        status: existingMember.status,
+      };
+    } else {
+      membershipCreatedNow = true;
+    }
+
+    const memberRole = companyId ? 'sales_rep' : 'owner';
+    const { error: memberErr } = await (supabaseAdmin as any)
+      .from('organization_members')
+      .upsert(
+        {
+          organization_id: targetOrgId,
+          user_id: userId,
+          role: memberRole,
+          status: 'active',
+        },
+        { onConflict: 'organization_id,user_id' }
+      );
+
+    if (memberErr) {
+      throw new Error(`Falha ao vincular membro na organização: ${memberErr.message}`);
+    }
+
+    // 4. Última mutação relevante: Atualizar `profiles.organization_id` se for NULL
+    if (previousProfileOrgId === null) {
+      const { error: profUpdateErr } = await (supabaseAdmin as any)
+        .from('profiles')
+        .update({ organization_id: targetOrgId, updated_at: new Date().toISOString() })
+        .eq('id', userId);
+
+      if (profUpdateErr) {
+        throw new Error(`Falha ao atualizar perfil com a organização: ${profUpdateErr.message}`);
+      }
+      profileOrgUpdatedNow = true;
+    }
+
+    return { success: true, organizationId: targetOrgId };
+  } catch (err: any) {
+    // Executa compensação específica do provisionamento de organização se falhar
+    logger.error('Erro no provisionamento organizacional, iniciando compensação', { userId, err });
+
+    if (profileOrgUpdatedNow) {
+      try {
+        await (supabaseAdmin as any)
+          .from('profiles')
+          .update({ organization_id: previousProfileOrgId })
+          .eq('id', userId);
+      } catch (cErr) {
+        logger.error('Falha na compensação: erro ao reverter profiles.organization_id', { userId, cErr });
+      }
+    }
+
+    if (previousMembershipState && targetOrgId) {
+      try {
+        await (supabaseAdmin as any)
+          .from('organization_members')
+          .update({
+            role: previousMembershipState.role,
+            status: previousMembershipState.status,
+          })
+          .eq('organization_id', targetOrgId)
+          .eq('user_id', userId);
+      } catch (cErr) {
+        logger.error('Falha na compensação: erro ao restaurar estado do membro pré-existente', { userId, cErr });
+      }
+    } else if (membershipCreatedNow && targetOrgId) {
+      try {
+        await (supabaseAdmin as any)
+          .from('organization_members')
+          .delete()
+          .eq('organization_id', targetOrgId)
+          .eq('user_id', userId);
+      } catch (cErr) {
+        logger.error('Falha na compensação: erro ao deletar membro recém-criado', { userId, cErr });
+      }
+    }
+
+    if (organizationCreatedNow && createdOrgId) {
+      try {
+        await (supabaseAdmin as any)
+          .from('organizations')
+          .delete()
+          .eq('id', createdOrgId);
+      } catch (cErr) {
+        logger.error('Falha na compensação: erro ao deletar organização recém-criada', { createdOrgId, cErr });
+      }
+    }
+
+    throw err;
+  }
+}
+
 // --- ACTION 4: CRIAR USUÁRIO MANUALMENTE ---
 export async function createManualUser(data: {
   email: string;
@@ -148,6 +411,11 @@ export async function createManualUser(data: {
   planName: string;
   company_id?: string | null;
 }) {
+  let authCreatedUserId: string | null = null;
+  let profileCreatedNow = false;
+  let subscriptionCreatedNow = false;
+  let settingsCreatedNow = false;
+
   try {
     await requireAdminPermission();
 
@@ -183,7 +451,6 @@ export async function createManualUser(data: {
     const mapRoleToDb = (role: string) => {
       const r = (role || '').toString().toLowerCase();
       if (r === 'master' || r === 'admin') return 'master';
-      // Preserve company roles when supported by the database role model.
       if (r === 'admin_company') return 'admin_company';
       if (r === 'rep_company') return 'rep_company';
       if (r === 'representante' || r === 'representative') return 'representative';
@@ -221,7 +488,7 @@ export async function createManualUser(data: {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     });
 
-    // 1. Auth - Tentativa 1: Usar admin.createUser (método preferido)
+    // 1. Auth: Criar usuário no Supabase Auth
     let authData: any;
     let userId: string;
 
@@ -244,6 +511,7 @@ export async function createManualUser(data: {
       }
 
       userId = authData.user.id;
+      authCreatedUserId = userId;
       logger.info('Usuário criado com sucesso via admin API', {
         userId,
         email: data.email,
@@ -257,12 +525,12 @@ export async function createManualUser(data: {
         email: data.email,
       });
 
-      // Mensagens de erro mais específicas
       if (
+        authError?.code === 'email_exists' ||
         authError?.message?.includes('already registered') ||
         authError?.message?.includes('already exists')
       ) {
-        throw new Error('Este email já está cadastrado no sistema');
+        return { success: false, error: 'Este e-mail já está cadastrado no sistema.' };
       }
 
       if (
@@ -310,7 +578,7 @@ export async function createManualUser(data: {
         email: data.email,
         full_name: data.email.split('@')[0],
         role: candidateRole,
-        plan_id: planId, // Sincronizar plan_id
+        plan_id: planId,
         updated_at: new Date().toISOString(),
       };
       if (data.company_id) profileUpsert.company_id = data.company_id;
@@ -321,6 +589,7 @@ export async function createManualUser(data: {
 
       if (!profileError) {
         selectedRole = candidateRole;
+        profileCreatedNow = true;
         break;
       }
 
@@ -362,8 +631,9 @@ export async function createManualUser(data: {
         `Erro Assinatura: ${subError.message || 'Erro desconhecido'}`
       );
     }
+    subscriptionCreatedNow = true;
 
-    // 5. Settings (criar com plan_type sincronizado)
+    // 5. Settings
     const { error: settingsError } = await (supabaseAdmin as any)
       .from('settings')
       .upsert({
@@ -372,13 +642,58 @@ export async function createManualUser(data: {
         updated_at: new Date().toISOString(),
       });
 
-    if (settingsError)
+    if (settingsError) {
       console.warn('Aviso ao criar settings:', settingsError.message);
+    } else {
+      settingsCreatedNow = true;
+    }
+
+    // 6. Provisionamento Organizacional Idempotente e Seguro
+    await provisionUserOrganization({
+      userId,
+      email: data.email,
+      fullName: data.email.split('@')[0],
+      companyId: data.company_id ?? null,
+    });
 
     revalidatePath('/admin/users');
     return { success: true };
   } catch (error: unknown) {
-    logger.error('Erro createManualUser', error);
+    logger.error('Erro no createManualUser. Iniciando compensação...', error);
+
+    // Rollback compensatório das tabelas públicas em caso de erro
+    if (settingsCreatedNow && authCreatedUserId) {
+      try {
+        await (supabaseAdmin as any).from('settings').delete().eq('user_id', authCreatedUserId);
+      } catch (cErr) {
+        logger.error('Falha no rollback compensatório de settings', cErr);
+      }
+    }
+
+    if (subscriptionCreatedNow && authCreatedUserId) {
+      try {
+        await (supabaseAdmin as any).from('subscriptions').delete().eq('user_id', authCreatedUserId);
+      } catch (cErr) {
+        logger.error('Falha no rollback compensatório de subscriptions', cErr);
+      }
+    }
+
+    if (profileCreatedNow && authCreatedUserId) {
+      try {
+        await (supabaseAdmin as any).from('profiles').delete().eq('id', authCreatedUserId);
+      } catch (cErr) {
+        logger.error('Falha no rollback compensatório de profile', cErr);
+      }
+    }
+
+    if (authCreatedUserId) {
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authCreatedUserId);
+      } catch (cErr) {
+        logger.error('Falha no rollback compensatório de auth user', cErr);
+      }
+    }
+
     return { success: false, error: getErrorMessage(error) };
   }
 }

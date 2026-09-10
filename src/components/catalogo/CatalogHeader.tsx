@@ -63,38 +63,63 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
           style={{ color: settings?.icon_color || '#4B5563' }}
         >
           <div className="flex items-center space-x-4">
-            {(settings?.phone || settings?.email) && (
-              <div className="flex items-center gap-3">
-                {settings?.phone &&
-                  (() => {
-                    const raw = String(settings.phone || '');
-                    const display = normalizePhone(settings.phone);
-                    const href = makeWhatsAppUrl(raw) || '#';
-                    return (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Chamar no WhatsApp ${display}`}
-                        className="flex items-center gap-2 hover:underline"
-                      >
-                        <Phone size={16} />
-                        <span className="hidden sm:inline">{display}</span>
-                      </a>
-                    );
-                  })()}
-                {settings?.email && (
-                  <a
-                    href={`mailto:${settings.email}`}
-                    aria-label={`Enviar email para ${settings.email}`}
-                    className="flex items-center gap-2 hover:underline"
-                  >
-                    <Mail size={16} />
-                    <span className="hidden sm:inline">{settings.email}</span>
-                  </a>
-                )}
-              </div>
-            )}
+            {(() => {
+              // Canonical fallback chain for catalog contact info
+              const phoneCandidates = [
+                (settings as any)?.support_phone,
+                settings?.phone,
+                (settings as any)?.profile_phone,
+              ];
+              const emailCandidates = [
+                (settings as any)?.support_email,
+                settings?.email,
+                (settings as any)?.profile_email,
+              ];
+
+              const catalogPhone =
+                phoneCandidates
+                  .map((p) => (typeof p === 'string' ? p.trim() : ''))
+                  .find((p) => p.length > 0) || null;
+
+              const catalogEmail =
+                emailCandidates
+                  .map((e) => (typeof e === 'string' ? e.trim() : ''))
+                  .find((e) => e.length > 0) || null;
+
+              if (!catalogPhone && !catalogEmail) return null;
+
+              return (
+                <div className="flex items-center gap-3">
+                  {catalogPhone &&
+                    (() => {
+                      const display = normalizePhone(catalogPhone);
+                      const href = makeWhatsAppUrl(catalogPhone) || '#';
+                      return (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Chamar no WhatsApp ${display}`}
+                          className="flex items-center gap-2 hover:underline"
+                        >
+                          <Phone size={16} />
+                          <span className="hidden sm:inline">{display}</span>
+                        </a>
+                      );
+                    })()}
+                  {catalogEmail && (
+                    <a
+                      href={`mailto:${catalogEmail}`}
+                      aria-label={`Enviar email para ${catalogEmail}`}
+                      className="flex items-center gap-2 hover:underline"
+                    >
+                      <Mail size={16} />
+                      <span className="hidden sm:inline">{catalogEmail}</span>
+                    </a>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
 

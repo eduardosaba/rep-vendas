@@ -120,6 +120,8 @@ export async function POST(req: Request) {
       // contact
       phone,
       email,
+      support_email,
+      support_phone,
 
       // social/contact handles
       instagram_handle,
@@ -234,9 +236,11 @@ export async function POST(req: Request) {
           cover_image_position: cover_image_position || null,
           cover_image_offset_x: typeof cover_image_offset_x !== 'undefined' ? Number(cover_image_offset_x) : null,
           cover_image_offset_y: typeof cover_image_offset_y !== 'undefined' ? Number(cover_image_offset_y) : null,
-      name: name || null,
-      phone: phone || null,
-      email: email || null,
+      name: name !== undefined ? (name || null) : undefined,
+      phone: phone !== undefined ? (phone || null) : undefined,
+      email: email !== undefined ? (email || null) : undefined,
+      support_email: support_email !== undefined ? (support_email || null) : undefined,
+      support_phone: support_phone !== undefined ? (support_phone || null) : undefined,
       primary_color: primary_color || null,
       secondary_color: secondary_color || null,
       // header_background_color and header_text_color intentionally omitted
@@ -324,11 +328,12 @@ export async function POST(req: Request) {
       cash_price_discount_percent: cash_price_discount_percent
         ? Number(cash_price_discount_percent)
         : null,
+      // Enforce mutually exclusive rule server-side
       enable_stock_management:
         typeof enable_stock_management === 'boolean'
           ? enable_stock_management
           : !!manage_stock,
-      global_allow_backorder: !!global_allow_backorder,
+      global_allow_backorder: typeof global_allow_backorder === 'boolean' ? global_allow_backorder : false,
       font_family: font_family || null,
       font_url: font_url || null,
       // grid_cols removed — frontend uses fixed defaults
@@ -405,6 +410,15 @@ export async function POST(req: Request) {
       // surface settings upsert failures as a server error
       console.error('[settings/save] settings upsert failed', e);
       return NextResponse.json({ error: e?.message || String(e) }, { status: 500 });
+    }
+
+    // Verify that the upsert returned data (at least 1 row affected)
+    if (!settingsUpsertResult) {
+      console.warn('[settings/save] upsert succeeded but returned no data — 0 rows affected');
+      return NextResponse.json(
+        { error: 'Nenhuma linha foi atualizada. Verifique se o usuário existe.' },
+        { status: 500 }
+      );
     }
 
     // Upsert profile whatsapp fallback
