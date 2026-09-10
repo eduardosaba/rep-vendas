@@ -17,7 +17,9 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // 1. ISENÇÃO TOTAL DE CONSULTA DE PROFILES PARA CATÁLOGO PÚBLICO E ASSETS ESTATÍSTICOS
+  // 1. ISENÇÃO TOTAL DE CONSULTA DE PROFILES PARA CATÁLOGO PÚBLICO, HOME, PROXY DE IMAGENS E ASSETS ESTATÍSTICOS
+  const isHomePage = pathname === '/';
+  const isPublicStorageImage = pathname === '/api/storage-image';
   const isPublicCatalog = pathname === '/catalogo' || pathname.startsWith('/catalogo/');
   const isPublicAuthRoute =
     pathname === '/recuperar-senha' ||
@@ -33,7 +35,28 @@ export async function middleware(request: NextRequest) {
     pathname === '/admin/unauthorized' ||
     pathname.includes('.');
 
-  if (isPublicCatalog || isPublicAuthRoute || isAssetOrSystem) {
+  // 2. ISENÇÃO CONDICIONAL DE /LOGIN SE NÃO HOUVER COOKIE DE AUTENTICAÇÃO
+  const isLoginRoute = pathname === '/login';
+  const hasAuthCookie = request.cookies.getAll().some((c) => {
+    const name = c.name.toLowerCase();
+    return (
+      name.startsWith('sb-') ||
+      name.includes('repvendas-auth-token') ||
+      name.includes('auth-token') ||
+      name.includes('access-token')
+    );
+  });
+
+  const isAnonymousLoginRequest = isLoginRoute && !hasAuthCookie;
+
+  if (
+    isHomePage ||
+    isPublicStorageImage ||
+    isPublicCatalog ||
+    isPublicAuthRoute ||
+    isAssetOrSystem ||
+    isAnonymousLoginRequest
+  ) {
     return response;
   }
 

@@ -55,7 +55,7 @@ jest.mock('next/server', () => ({
 
 const { middleware } = require('@/middleware');
 
-function makeRequest(path: string) {
+function makeRequest(path: string, cookiesList: any[] = []) {
   const urlObj = new URL(`http://example.com${path}`);
   return {
     nextUrl: {
@@ -73,7 +73,7 @@ function makeRequest(path: string) {
     },
     url: `http://example.com${path}`,
     cookies: {
-      getAll: jest.fn(() => []),
+      getAll: jest.fn(() => cookiesList),
       set: jest.fn(),
     },
     headers: new Map(),
@@ -104,7 +104,7 @@ describe('middleware router helper', () => {
       maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'rep', is_active: true } }),
     });
 
-    const req = makeRequest('/login');
+    const req = makeRequest('/login', [{ name: 'sb-access-token', value: 'mock-token' }]);
     const res: any = await middleware(req);
 
     const location = res.headers.get('location') || res.headers.get('Location');
