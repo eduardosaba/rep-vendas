@@ -15,6 +15,7 @@ export interface ScopeConfig {
   targetCompanyIds?: string[];
   targetUserIds?: string[];
   brandFilter?: string;
+  selectedBrandId?: string;
   createMissingRelations?: boolean; // Default false in V1
 }
 

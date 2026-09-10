@@ -40,10 +40,26 @@ import {
 interface SmartUpdateClientProps {
   availableCompanies: { id: string; name: string }[];
   availableUsers: { id: string; email: string; full_name?: string }[];
+  availableBrands?: { id: string; name: string }[];
   availableScopes?: string[];
+  userRole?: string;
+  currentUserId?: string;
 }
 
-export function SmartUpdateClient({ availableCompanies, availableUsers, availableScopes = ['PLATFORM_GLOBAL', 'GLOBAL', 'ORGANIZATION', 'COMPANY'] }: SmartUpdateClientProps) {
+export function SmartUpdateClient({
+  availableCompanies,
+  availableUsers,
+  availableBrands = [],
+  availableScopes = ['PLATFORM_GLOBAL', 'GLOBAL', 'ORGANIZATION', 'COMPANY'],
+  userRole = 'representative',
+  currentUserId = '',
+}: SmartUpdateClientProps) {
+  const isMasterOrAdmin = userRole === 'master' || userRole === 'admin' || userRole === 'admin_company' || userRole === 'company_admin';
+  const [updateMode, setUpdateMode] = useState<'operacional' | 'global'>(isMasterOrAdmin ? 'global' : 'operacional');
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('');
+  const [brandUserMode, setBrandUserMode] = useState<'all_users' | 'selected_users'>('all_users');
+  const [searchKeyType, setSearchKeyType] = useState<'reference_code' | 'barcode'>('reference_code');
+
   const [step, setStep] = useState<number>(1);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
   const [file, setFile] = useState<File | null>(null);
@@ -94,9 +110,11 @@ export function SmartUpdateClient({ availableCompanies, availableUsers, availabl
   ]);
 
   // Step 5 Scope State
-  const [scopeType, setScopeType] = useState<'PLATFORM_GLOBAL' | 'GLOBAL' | 'ORGANIZATION' | 'ORGANIZATION_LIST' | 'USER_AUTHORSHIP' | 'COMPANY' | 'USER'>(availableScopes[0] as any || 'PLATFORM_GLOBAL');
+  const [scopeType, setScopeType] = useState<'PLATFORM_GLOBAL' | 'GLOBAL' | 'ORGANIZATION' | 'ORGANIZATION_LIST' | 'USER_AUTHORSHIP' | 'COMPANY' | 'USER'>(
+    updateMode === 'operacional' ? 'USER' : (availableScopes[0] as any || 'PLATFORM_GLOBAL')
+  );
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>(currentUserId ? [currentUserId] : []);
 
   // Step 6 Preview State
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -149,6 +167,10 @@ export function SmartUpdateClient({ availableCompanies, availableUsers, availabl
 
   // Build current EngineConfiguration object
   const getEngineConfig = (): EngineConfiguration => {
+    const isUserScoped = updateMode === 'operacional';
+    const effectiveScopeType = isUserScoped ? 'USER' : scopeType;
+    const effectiveTargetUserIds = isUserScoped ? [currentUserId] : (brandUserMode === 'selected_users' ? selectedUsers : []);
+
     return {
       sheetName: selectedSheet,
       identifier: {
@@ -161,10 +183,11 @@ export function SmartUpdateClient({ availableCompanies, availableUsers, availabl
       },
       actions: actions.map((a) => ({ ...a })),
       scope: {
-        type: scopeType as any,
+        type: effectiveScopeType as any,
         targetOrganizationIds: selectedCompanies,
         targetCompanyIds: selectedCompanies,
-        targetUserIds: selectedUsers,
+        targetUserIds: effectiveTargetUserIds,
+        selectedBrandId: selectedBrandId || undefined,
       },
     };
   };
@@ -173,11 +196,16 @@ export function SmartUpdateClient({ availableCompanies, availableUsers, availabl
   const handleRunPreview = async () => {
     if (!file) return;
 
-    const brandMapped = identifierMappings.some((m) => m.dbField === 'brand');
-    const refMapped = identifierMappings.some((m) => m.dbField === 'reference_code');
+    const brandMapped = identifierMappings.some((m) => m.dbField === 'brand') || Boolean(selectedBrandId);
+    const refMapped = identifierMappings.some((m) => m.dbField === 'reference_code' || m.dbField === 'barcode');
 
-    if (!brandMapped || !refMapped) {
-      alert('É obrigatório mapear a Marca (brand) e a Referência (reference_code) para atualizações na Torre de Controle.');
+    if (!refMapped) {
+      alert('É obrigatório mapear o Identificador (Referência ou Código de Barras / EAN) da planilha.');
+      return;
+    }
+
+    if (updateMode === 'global' && !brandMapped) {
+      alert('Para atualizações na Torre de Controle, selecione uma Marca no dropdown de filtro ou mapeie a coluna de Marca da planilha.');
       return;
     }
 
@@ -294,6 +322,40 @@ export function SmartUpdateClient({ availableCompanies, availableUsers, availabl
 
   return (
     <div className="space-y-6">
+      {/* MODE SWITCHER TABS */}
+      {isMasterOrAdmin && (
+        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl max-w-md">
+          <button
+            type="button"
+            onClick={() => {
+              setUpdateMode('operacional');
+              setScopeType('USER');
+            }}
+            className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+              updateMode === 'operacional'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+            }`}
+          >
+            Meus Produtos (Operacional)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setUpdateMode('global');
+              setScopeType('PLATFORM_GLOBAL');
+            }}
+            className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+              updateMode === 'global'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+            }`}
+          >
+            Torre de Controle (Global)
+          </button>
+        </div>
+      )}
+
       {/* STEPPER HEADER */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         <div className="flex items-center gap-2 overflow-x-auto text-xs font-semibold scrollbar-none py-1">
@@ -764,69 +826,113 @@ export function SmartUpdateClient({ availableCompanies, availableUsers, availabl
       {step === 5 && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-sm">
           <div className="pb-4 border-b border-slate-100 dark:border-slate-800">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Passo 5: Escopo da Atualização</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              Passo 5: Escopo da Atualização {updateMode === 'global' ? '(Torre de Controle)' : '(Operacional)'}
+            </h3>
             <p className="text-xs text-slate-500">
-              Selecione o escopo de impacto. As opções exibidas dependem da sua permissão.
+              {updateMode === 'global'
+                ? 'Selecione a Marca e os usuários da marca que serão afetados pela atualização.'
+                : 'Atualização restrita aos produtos sob a sua autoria/representação.'}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {availableScopes.includes('PLATFORM_GLOBAL') && (
-              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
-                <input type="radio" name="scope" value="PLATFORM_GLOBAL" checked={scopeType === 'PLATFORM_GLOBAL'} onChange={() => setScopeType('PLATFORM_GLOBAL')} className="mt-0.5 text-indigo-600" />
-                <span>
-                  <span className="block font-semibold text-sm">Plataforma Global (Master/Admin)</span>
-                  <span className="block text-xs text-slate-500">Localiza todas as cópias dos produtos em todas as organizações ativas.</span>
-                </span>
-              </label>
-            )}
-            {availableScopes.includes('GLOBAL') && (
-              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
-                <input type="radio" name="scope" value="GLOBAL" checked={scopeType === 'GLOBAL'} onChange={() => setScopeType('GLOBAL')} className="mt-0.5 text-indigo-600" />
-                <span>
-                  <span className="block font-semibold text-sm">Global (Base do Sistema)</span>
-                  <span className="block text-xs text-slate-500">Atualiza o catálogo base de todos os produtos.</span>
-                </span>
-              </label>
-            )}
-            {availableScopes.includes('ORGANIZATION') && (
-              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
-                <input type="radio" name="scope" value="ORGANIZATION" checked={scopeType === 'ORGANIZATION'} onChange={() => setScopeType('ORGANIZATION')} className="mt-0.5 text-indigo-600" />
-                <span>
-                  <span className="block font-semibold text-sm">Organização Específica</span>
-                  <span className="block text-xs text-slate-500">Atualiza apenas os produtos da organização selecionada.</span>
-                </span>
-              </label>
-            )}
-            {availableScopes.includes('COMPANY') && (
-              <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
-                <input type="radio" name="scope" value="COMPANY" checked={scopeType === 'COMPANY'} onChange={() => setScopeType('COMPANY')} className="mt-0.5 text-indigo-600" />
-                <span>
-                  <span className="block font-semibold text-sm">Empresa Específica (Company Admin)</span>
-                  <span className="block text-xs text-slate-500">Atualiza apenas os produtos da sua empresa.</span>
-                </span>
-              </label>
-            )}
-          </div>
+          {updateMode === 'global' ? (
+            <div className="space-y-4">
+              {/* Brand Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Marca da Torre de Controle (Filtro por UUID da Marca)
+                </label>
+                <select
+                  value={selectedBrandId}
+                  onChange={(e) => setSelectedBrandId(e.target.value)}
+                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 dark:bg-slate-800"
+                >
+                  <option value="">Todas as Marcas (ou detectadas por coluna na planilha)</option>
+                  {availableBrands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} (UUID: {b.id.slice(0, 8)}...)
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  Quando uma Marca é selecionada, a busca no banco é feita por igualdade direta de UUID (<code className="font-mono">products.brand_id = selectedBrandId</code>).
+                </p>
+              </div>
 
-          {(scopeType === 'ORGANIZATION' || scopeType === 'COMPANY') && (
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-500">Selecione a {scopeType === 'ORGANIZATION' ? 'Organização' : 'Empresa'}</label>
-              <select
-                value={selectedCompanies[0] || ''}
-                onChange={(e) => setSelectedCompanies(e.target.value ? [e.target.value] : [])}
-                className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 dark:bg-slate-800"
-              >
-                <option value="">Selecione...</option>
-                {availableCompanies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              {/* Brand User Scope */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Usuários Afetados da Marca
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <input
+                      type="radio"
+                      name="brandUserMode"
+                      value="all_users"
+                      checked={brandUserMode === 'all_users'}
+                      onChange={() => {
+                        setBrandUserMode('all_users');
+                        setSelectedUsers([]);
+                      }}
+                      className="mt-0.5 text-indigo-600"
+                    />
+                    <span>
+                      <span className="block font-semibold text-sm">Todos os Usuários da Marca</span>
+                      <span className="block text-xs text-slate-500">Aplica o update em todos os produtos vinculados a esta marca em todas as contas.</span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <input
+                      type="radio"
+                      name="brandUserMode"
+                      value="selected_users"
+                      checked={brandUserMode === 'selected_users'}
+                      onChange={() => setBrandUserMode('selected_users')}
+                      className="mt-0.5 text-indigo-600"
+                    />
+                    <span>
+                      <span className="block font-semibold text-sm">Usuários Selecionados</span>
+                      <span className="block text-xs text-slate-500">Restringe a atualização apenas aos produtos dos usuários marcados abaixo.</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {brandUserMode === 'selected_users' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500">Selecione os Usuários Alvo</label>
+                  <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1.5 bg-slate-50/50 dark:bg-slate-800/40">
+                    {availableUsers.map((u) => (
+                      <label key={u.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedUsers.includes(u.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedUsers([...selectedUsers, u.id]);
+                            else setSelectedUsers(selectedUsers.filter((id) => id !== u.id));
+                          }}
+                        />
+                        <span>{u.full_name || u.email} ({u.email})</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-900 dark:text-emerald-300 space-y-1">
+              <strong className="font-bold block">Escopo Operacional Ativo:</strong>
+              <p>
+                Você está no modo Operacional. As alterações serão aplicadas <strong>exclusivamente nos seus produtos</strong> (vinculados ao seu id de usuário). Produtos de outros representantes ou distribuidoras não serão modificados.
+              </p>
             </div>
           )}
 
           <div className="p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs text-indigo-900 dark:text-indigo-300">
-            <strong className="font-bold">Regra da Torre de Controle:</strong> a busca global utiliza a chave <code className="font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">MARCA|REFERENCIA</code> normalizada para localizar todas as cópias do produto.
+            <strong className="font-bold">Regra de Segurança Server-Side:</strong> A rota de atualização executa em nível de servidor com auditoria completa. Nenhuma chave primária de autoria (`user_id`, `company_id`) é mutada no processo.
           </div>
 
           <div className="flex justify-between pt-4">
@@ -835,7 +941,7 @@ export function SmartUpdateClient({ availableCompanies, availableUsers, availabl
             </button>
             <button
               onClick={handleRunPreview}
-              disabled={isPreviewing || ((scopeType === 'ORGANIZATION' || scopeType === 'COMPANY') && selectedCompanies.length === 0)}
+              disabled={isPreviewing}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm flex items-center gap-2"
             >
               {isPreviewing ? <RefreshCw size={16} className="animate-spin" /> : 'Gerar Preview'}

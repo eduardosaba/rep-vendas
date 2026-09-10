@@ -66,7 +66,11 @@ export function TabDisplay(props: any) {
                   <select
                     name="top_benefit_mode"
                     value={safeTopBenefitMode}
-                    onChange={handleCatalogSettingsChange}
+                    onChange={(e: any) => {
+                      const val = e.target.value;
+                      if (setCatalogSettings) setCatalogSettings((p: any) => ({ ...p, top_benefit_mode: val }));
+                      if (handleCatalogSettingsChange) handleCatalogSettingsChange({ target: { name: 'top_benefit_mode', value: val } } as any);
+                    }}
                     disabled={props.loading}
                     className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none font-bold text-sm focus:ring-2 focus:ring-primary"
                   >
@@ -76,14 +80,18 @@ export function TabDisplay(props: any) {
                   <p className="text-xs text-slate-500">No modo animado, o texto rola continuamente no estilo letreiro.</p>
                 </div>
 
-                {catalogSettings.top_benefit_mode === 'marquee' ? (
+                {safeTopBenefitMode === 'marquee' ? (
                   <>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Tipo de animação</label>
                       <select
                         name="top_benefit_animation"
                         value={safeTopBenefitAnimation}
-                        onChange={handleCatalogSettingsChange}
+                        onChange={(e: any) => {
+                          const val = e.target.value;
+                          if (setCatalogSettings) setCatalogSettings((p: any) => ({ ...p, top_benefit_animation: val }));
+                          if (handleCatalogSettingsChange) handleCatalogSettingsChange({ target: { name: 'top_benefit_animation', value: val } } as any);
+                        }}
                         disabled={props.loading}
                         className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none font-bold text-sm focus:ring-2 focus:ring-primary"
                       >
@@ -98,7 +106,11 @@ export function TabDisplay(props: any) {
                       <select
                         name="top_benefit_speed"
                         value={safeTopBenefitSpeed}
-                        onChange={handleCatalogSettingsChange}
+                        onChange={(e: any) => {
+                          const val = e.target.value;
+                          if (setCatalogSettings) setCatalogSettings((p: any) => ({ ...p, top_benefit_speed: val }));
+                          if (handleCatalogSettingsChange) handleCatalogSettingsChange({ target: { name: 'top_benefit_speed', value: val } } as any);
+                        }}
                         disabled={props.loading}
                         className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none font-bold text-sm focus:ring-2 focus:ring-primary"
                       >
@@ -275,11 +287,17 @@ export function TabDisplay(props: any) {
                   name="price_display_mode"
                   checked={!!safeCatalog.show_sale_price}
                   onChange={() => {
-                    setCatalogSettings((p: any) => ({
-                      ...p,
-                      show_sale_price: true,
-                      show_cost_price: false,
-                    }));
+                    if (setCatalogSettings) {
+                      setCatalogSettings((p: any) => ({
+                        ...p,
+                        show_sale_price: true,
+                        show_cost_price: false,
+                      }));
+                    }
+                    if (handleCatalogSettingsChange) {
+                      handleCatalogSettingsChange({ target: { name: 'show_sale_price', value: true, checked: true, type: 'checkbox' } } as any);
+                      handleCatalogSettingsChange({ target: { name: 'show_cost_price', value: false, checked: false, type: 'checkbox' } } as any);
+                    }
                   }}
                   className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--primary)]"
                 />
@@ -302,11 +320,17 @@ export function TabDisplay(props: any) {
                   name="price_display_mode"
                   checked={!!safeCatalog.show_cost_price}
                   onChange={() => {
-                    setCatalogSettings((p: any) => ({
-                      ...p,
-                      show_sale_price: false,
-                      show_cost_price: true,
-                    }));
+                    if (setCatalogSettings) {
+                      setCatalogSettings((p: any) => ({
+                        ...p,
+                        show_sale_price: false,
+                        show_cost_price: true,
+                      }));
+                    }
+                    if (handleCatalogSettingsChange) {
+                      handleCatalogSettingsChange({ target: { name: 'show_sale_price', value: false, checked: false, type: 'checkbox' } } as any);
+                      handleCatalogSettingsChange({ target: { name: 'show_cost_price', value: true, checked: true, type: 'checkbox' } } as any);
+                    }
                   }}
                   className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--primary)]"
                 />
@@ -321,7 +345,16 @@ export function TabDisplay(props: any) {
 
         <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700">
           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Modo de desbloqueio de preços</label>
-          <select name="price_unlock_mode" value={catalogSettings.price_unlock_mode} onChange={(e: any) => setCatalogSettings((p: any) => ({ ...p, price_unlock_mode: e.target.value }))} className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-medium">
+          <select
+            name="price_unlock_mode"
+            value={safePriceUnlockMode}
+            onChange={(e: any) => {
+              const val = e.target.value;
+              if (setCatalogSettings) setCatalogSettings((p: any) => ({ ...p, price_unlock_mode: val }));
+              if (handleCatalogSettingsChange) handleCatalogSettingsChange({ target: { name: 'price_unlock_mode', value: val } } as any);
+            }}
+            className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-sm font-medium"
+          >
             <option value="none">Apenas botão nos produtos</option>
             <option value="modal">Popup ao entrar (centralizado)</option>
             <option value="fab">Botão flutuante (canto da tela)</option>

@@ -138,12 +138,14 @@ export class OrganizationContextService {
 
       const org = await this.getOrganizationById(profile.organization_id);
       if (org) {
+        const isOrgOwner = profile.role === 'master' || profile.role === 'rep' || org.owner_user_id === userId || !profile.company_id;
+        const computedRole: MemberRole = isOrgOwner ? 'owner' : 'sales_rep';
         // Auto-cura: Cria a linha em organization_members para sincronizar a RLS e o contexto
         try {
           await supabase.from('organization_members').upsert({
             organization_id: org.id,
             user_id: userId,
-            role: profile.role === 'master' ? 'owner' : 'sales_rep',
+            role: computedRole,
             status: 'active',
           }, { onConflict: 'organization_id,user_id' });
         } catch (_) {}
@@ -152,9 +154,9 @@ export class OrganizationContextService {
           organizationId: org.id,
           organization: org,
           organizationType: org.organization_type as OrganizationType,
-          memberRole: profile.role === 'master' ? 'owner' : 'sales_rep',
+          memberRole: computedRole,
           memberStatus: 'active',
-          permissions: this.getPermissionsForRole(profile.role === 'master' ? 'owner' : 'sales_rep', org.organization_type as OrganizationType),
+          permissions: this.getPermissionsForRole(computedRole, org.organization_type as OrganizationType),
           memberships: [],
           fallback: 'profile_org',
         };
@@ -165,11 +167,13 @@ export class OrganizationContextService {
     if (profile?.company_id) {
       const org = await this.getOrganizationById(profile.company_id);
       if (org) {
+        const isOrgOwner = profile.role === 'master' || org.owner_user_id === userId;
+        const computedRole: MemberRole = isOrgOwner ? 'owner' : 'sales_rep';
         try {
           await supabase.from('organization_members').upsert({
             organization_id: org.id,
             user_id: userId,
-            role: profile.role === 'master' ? 'owner' : 'sales_rep',
+            role: computedRole,
             status: 'active',
           }, { onConflict: 'organization_id,user_id' });
           await supabase.from('profiles').update({ organization_id: org.id }).eq('id', userId);
@@ -179,9 +183,9 @@ export class OrganizationContextService {
           organizationId: org.id,
           organization: org,
           organizationType: org.organization_type as OrganizationType,
-          memberRole: profile.role === 'master' ? 'owner' : 'sales_rep',
+          memberRole: computedRole,
           memberStatus: 'active',
-          permissions: this.getPermissionsForRole(profile.role === 'master' ? 'owner' : 'sales_rep', org.organization_type as OrganizationType),
+          permissions: this.getPermissionsForRole(computedRole, org.organization_type as OrganizationType),
           memberships: [],
           fallback: 'legacy_company',
         };

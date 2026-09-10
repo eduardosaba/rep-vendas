@@ -106,7 +106,10 @@ export async function POST(req: Request) {
         await new Promise((r) => setTimeout(r, 100));
       }
 
-      return NextResponse.json({ success: true, data: { total_processed: totalProcessed } });
+      // Guarantee target user's cloned products have organization_id populated
+    await ensureTargetProductsOrganizationId(supabase, body.targetUserId);
+
+    return NextResponse.json({ success: true, data: { total_processed: totalProcessed } });
     } catch (batchErr) {
       console.warn('clone_catalog_batch failed, falling back to clone_catalog_smart', batchErr);
     }
@@ -127,9 +130,49 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'RPC failed', detail: legacyErr.message || String(legacyErr) }, { status: 500 });
     }
 
+    await ensureTargetProductsOrganizationId(supabase, body.targetUserId);
+
     return NextResponse.json({ success: true, data: legacyData });
   } catch (err: any) {
     console.error('[setup-new-user] error', err);
     return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+  }
+}
+
+async function ensureTargetProductsOrganizationId(supabase: any, targetUserId: string) {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id, company_id')
+      .eq('id', targetUserId)
+      .maybeSingle();
+
+    let targetOrgId = profile?.organization_id || null;
+    let targetCompId = profile?.company_id || null;
+
+    if (!targetOrgId) {
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', targetUserId)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (member?.organization_id) {
+        targetOrgId = member.organization_id;
+      }
+    }
+
+    if (targetOrgId) {
+      await supabase
+        .from('products')
+        .update({
+          organization_id: targetOrgId,
+          ...(targetCompId ? { company_id: targetCompId } : {}),
+        })
+        .eq('user_id', targetUserId)
+        .is('organization_id', null);
+    }
+  } catch (err) {
+    console.warn('[setup-new-user] Failed to backfill organization_id on cloned products:', err);
   }
 }

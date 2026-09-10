@@ -87,11 +87,13 @@ export interface CatalogBranding {
   [key: string]: any;
 }
 
+import { SYSTEM_LOGO_URL } from './constants';
+
 const DEFAULTS: CatalogBranding = {
   store_name: 'Catálogo Virtual',
   primary_color: '#b9722e',
   secondary_color: null,
-  logo_url: null,
+  logo_url: SYSTEM_LOGO_URL,
   font_family: null,
   font_url: null,
   cover_image: null,
@@ -267,6 +269,10 @@ export const resolveCatalogBranding = cache(
   if (publicIndex?.catalog_slug) result.catalog_slug = publicIndex.catalog_slug;
   if (typeof publicIndex?.is_active === 'boolean') result.is_active = publicIndex.is_active;
   if (publicIndex?.price_password_hash) result.price_password_hash = publicIndex.price_password_hash;
+
+  if (!result.logo_url) {
+    result.logo_url = SYSTEM_LOGO_URL;
+  }
 
   return result;
 });

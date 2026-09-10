@@ -175,7 +175,7 @@ export async function provisionUserOrganization(params: {
   let organizationCreatedNow = false;
   let createdOrgId: string | null = null;
   let membershipCreatedNow = false;
-  let previousMembershipState: { role: string; status: string; updated_at: string } | null = null;
+  let previousMembershipState: { role: string; status: string; updated_at?: string } | null = null;
   let previousProfileOrgId: string | null = null;
   let profileOrgUpdatedNow = false;
   let targetOrgId: string | null = null;
@@ -448,13 +448,15 @@ export async function createManualUser(data: {
       return { success: false, error: 'Email já cadastrado' };
     }
 
-    const mapRoleToDb = (role: string) => {
+    const mapRoleToDb = (role: string, companyId?: string | null) => {
       const r = (role || '').toString().toLowerCase();
       if (r === 'master' || r === 'admin') return 'master';
-      if (r === 'admin_company') return 'admin_company';
-      if (r === 'rep_company') return 'rep_company';
-      if (r === 'representante' || r === 'representative') return 'representative';
-      return 'rep';
+      if (r === 'admin_company' || r === 'company_admin') return 'admin_company';
+      if (r === 'rep_company') return 'representative';
+      if (r === 'representative') return companyId ? 'representative' : 'rep';
+      if (r === 'representante') return companyId ? 'representative' : 'rep';
+      if (r === 'rep') return companyId ? 'representative' : 'rep';
+      return companyId ? 'representative' : 'rep';
     };
 
     const isRoleConstraintError = (err: any) => {
@@ -471,14 +473,14 @@ export async function createManualUser(data: {
     const buildRoleCandidates = (baseRole: string) => {
       const r = (baseRole || '').toLowerCase();
       if (r === 'master' || r === 'admin') return ['master'];
-      if (r === 'admin_company') return ['admin_company', 'representative', 'rep'];
-      if (r === 'rep_company') return ['rep_company', 'representative', 'rep'];
-      if (r === 'representante' || r === 'representative') return ['representative', 'rep'];
-      if (r === 'rep') return ['rep'];
-      return ['rep'];
+      if (r === 'admin_company') return ['admin_company', 'rep', 'representative'];
+      if (r === 'rep_company') return ['representative', 'rep'];
+      if (r === 'rep') return ['rep', 'representative'];
+      if (r === 'representative') return ['representative', 'rep'];
+      return ['rep', 'representative'];
     };
 
-    const dbRole = mapRoleToDb(data.role);
+    const dbRole = mapRoleToDb(data.role, data.company_id);
     const roleCandidates = buildRoleCandidates(dbRole);
 
     logger.info('Tentando criar usuário no Auth', {
@@ -579,6 +581,8 @@ export async function createManualUser(data: {
         full_name: data.email.split('@')[0],
         role: candidateRole,
         plan_id: planId,
+        is_active: true,
+        can_manage_catalog: !data.company_id,
         updated_at: new Date().toISOString(),
       };
       if (data.company_id) profileUpsert.company_id = data.company_id;

@@ -87,7 +87,11 @@ function validateCompanyAdminScope(profile: any, scope: any): void {
   }
 }
 
-function applyBrandFilterToQuery(query: any, spreadsheetBrands: any[], brandColumn: string): any {
+function applyBrandFilterToQuery(query: any, spreadsheetBrands: any[], brandColumn: string, brandId?: string): any {
+  if (brandId && brandId.trim()) {
+    // ⚡ Regra de Marca (Ponto 3): Igualdade exata por UUID para brand_id (NUNCA aplicar TRIM ou UPPER em UUID)
+    return query.eq('brand_id', brandId.trim());
+  }
   const terms = Array.from(
     new Set(
       spreadsheetBrands.flatMap((b) => {
@@ -121,11 +125,13 @@ function getDynamicProductSelectColumns(actions: EngineConfiguration['actions'])
     'id',
     'reference_code',
     'brand',
+    'brand_id',
     'name',
     'color_nome',
     'price',
-    'stock',
+    'stock_quantity',
     'is_active',
+    'is_launch',
     'colecao',
     'user_id',
     'organization_id',

@@ -26,35 +26,6 @@ export interface CaptureLeadResult {
   error?: string;
 }
 
-// In-memory sliding window rate limiter for public lead captures (hashed IP, max 5 attempts / 10 minutes)
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ipHash: string): boolean {
-  const now = Date.now();
-  const windowMs = 10 * 60 * 1000; // 10 minutes
-  const maxAttempts = 5;
-
-  // Periodic cleanup of expired entries
-  if (rateLimitMap.size > 1000) {
-    for (const [key, val] of rateLimitMap.entries()) {
-      if (val.resetAt < now) rateLimitMap.delete(key);
-    }
-  }
-
-  const record = rateLimitMap.get(ipHash);
-  if (!record || record.resetAt < now) {
-    rateLimitMap.set(ipHash, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-
-  if (record.count >= maxAttempts) {
-    return false;
-  }
-
-  record.count += 1;
-  return true;
-}
-
 export async function captureLeadAction(
   input: CaptureLeadInput
 ): Promise<CaptureLeadResult> {
@@ -65,30 +36,51 @@ export async function captureLeadAction(
       return { success: true, lead_id: 'hp-filtered' };
     }
 
-    // 2. Server-side Rate Limiting (hashed client IP, no raw PII stored)
-    try {
+    // 2. Server-side Rate Limiting — FAIL-CLOSED
+    //    Uses persistent RPC in Supabase (shared across all serverless instances).
+    //    If the RPC fails for any reason, the request is BLOCKED (fail-closed).
+    //    The in-memory fallback is intentionally absent to prevent bypass.
+    {
       const headerStore = await headers();
       const clientIp =
-        headerStore.get('x-forwarded-for')?.split(',')[0] ||
+        headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() ||
         headerStore.get('x-real-ip') ||
         headerStore.get('cf-connecting-ip') ||
         '127.0.0.1';
+      // Hash the IP — raw IP is NEVER persisted or sent to any external storage
       const ipHash = crypto.createHash('sha256').update(clientIp).digest('hex');
 
-      // First try persistent RPC rate limiter in Supabase, fallback to in-memory sliding window
-      let rateLimitAllowed = true;
+      let rateLimitAllowed = false; // fail-closed default
       try {
-        const { data: rpcAllowed, error: rpcErr } = await (createAdminClient() as any).rpc(
+        const supabaseAdmin = createAdminClient();
+        const { data: rpcAllowed, error: rpcErr } = await supabaseAdmin.rpc(
           'check_and_increment_lead_rate_limit',
           { p_ip_hash: ipHash, p_max_attempts: 5, p_window_seconds: 600 }
         );
-        if (!rpcErr && typeof rpcAllowed === 'boolean') {
-          rateLimitAllowed = rpcAllowed;
-        } else {
-          rateLimitAllowed = checkRateLimit(ipHash);
+        if (rpcErr) {
+          // Log sanitized error (no raw IP, no PII)
+          console.error('[lead-capture:rate-limit:error]', {
+            message: rpcErr.message,
+            code: rpcErr.code,
+            hint: 'RPC failed — fail-closed, lead NOT inserted',
+          });
+          return {
+            success: false,
+            error: 'Serviço temporariamente indisponível. Por favor, tente novamente em alguns instantes.',
+          };
         }
-      } catch (_rpcErr) {
-        rateLimitAllowed = checkRateLimit(ipHash);
+        if (typeof rpcAllowed === 'boolean') {
+          rateLimitAllowed = rpcAllowed;
+        }
+      } catch (rpcCatchErr: any) {
+        console.error('[lead-capture:rate-limit:error]', {
+          message: rpcCatchErr?.message || String(rpcCatchErr),
+          hint: 'RPC exception — fail-closed, lead NOT inserted',
+        });
+        return {
+          success: false,
+          error: 'Serviço temporariamente indisponível. Por favor, tente novamente em alguns instantes.',
+        };
       }
 
       if (!rateLimitAllowed) {
@@ -97,9 +89,8 @@ export async function captureLeadAction(
           error: 'Muitas tentativas. Por favor, aguarde alguns minutos antes de tentar novamente.',
         };
       }
-    } catch (_e) {
-      // Non-blocking rate limit fallback
     }
+
 
     // 3. Server-side normalization & validation
     const name = typeof input.name === 'string' ? input.name.trim() : '';

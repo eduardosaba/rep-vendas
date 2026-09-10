@@ -665,10 +665,10 @@ export default function AdminUsersPage() {
                     }
                     className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
-                    <option value="representante">Representante</option>
-                    <option value="representative">Representante (vinculado a empresa)</option>
-                    <option value="rep">Admin Empresa (Distribuidora)</option>
-                    <option value="master">Master</option>
+                    <option value="rep">Representante Autônomo (Organização Própria)</option>
+                    <option value="representative">Representante Vinculado (a Distribuidora)</option>
+                    <option value="admin_company">Admin de Distribuidora</option>
+                    <option value="master">Master (Gestor da Plataforma)</option>
                   </select>
                 </div>
               {['representative', 'rep'].includes(formData.role) && (

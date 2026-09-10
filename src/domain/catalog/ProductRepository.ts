@@ -63,7 +63,8 @@ export class ProductRepository {
 
     // Aplicar filtros
     if (filters.search) {
-      query = query.or(`name.ilike.%${filters.search}%,reference_code.ilike.%${filters.search}%,brand.ilike.%${filters.search}%`);
+      const term = `%${filters.search.trim()}%`;
+      query = query.or(`name.ilike.${term},reference_code.ilike.${term},brand.ilike.${term},sku.ilike.${term},short_id.ilike.${term},category.ilike.${term}`);
     }
     if (filters.brand_id) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.brand_id);
@@ -83,7 +84,21 @@ export class ProductRepository {
       }
     }
     if (filters.category_id) {
-      query = query.eq('category_id', filters.category_id);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.category_id);
+      if (isUuid) {
+        const { data: catObj } = await supabase
+          .from('categories')
+          .select('name')
+          .eq('id', filters.category_id)
+          .maybeSingle();
+        if (catObj?.name) {
+          query = query.or(`category.eq."${catObj.name}",category_id.eq."${filters.category_id}"`);
+        } else {
+          query = query.or(`category.eq."${filters.category_id}",category_id.eq."${filters.category_id}"`);
+        }
+      } else {
+        query = query.or(`category.eq."${filters.category_id}",category_id.eq."${filters.category_id}"`);
+      }
     }
     if (filters.material) {
       query = query.eq('material', filters.material);
@@ -322,7 +337,34 @@ export class ProductRepository {
 
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+
+    const dbBrands: Brand[] = data || [];
+    const dbBrandNames = new Set(dbBrands.map(b => b.name.toLowerCase()));
+
+    // Incluir marcas distintas da tabela de produtos do usuário
+    const { data: prodBrands } = await supabase
+      .from('products')
+      .select('brand')
+      .eq('organization_id', organizationId)
+      .not('brand', 'is', null);
+
+    if (prodBrands && prodBrands.length > 0) {
+      const uniqueProdBrands = [...new Set(prodBrands.map(p => p.brand).filter((b): b is string => !!b))];
+      for (const brandName of uniqueProdBrands) {
+        if (!dbBrandNames.has(brandName.toLowerCase())) {
+          dbBrands.push({
+            id: brandName,
+            name: brandName,
+            logo_url: null,
+            organization_id: organizationId,
+            created_at: new Date().toISOString(),
+          } as Brand);
+          dbBrandNames.add(brandName.toLowerCase());
+        }
+      }
+    }
+
+    return dbBrands.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async createBrand(brand: BrandInsert): Promise<Brand> {
@@ -388,7 +430,33 @@ export class ProductRepository {
       .order('name', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+
+    const dbCategories: Category[] = data || [];
+    const dbCatNames = new Set(dbCategories.map(c => c.name.toLowerCase()));
+
+    // Incluir categorias distintas da tabela de produtos do usuário
+    const { data: prodCats } = await supabase
+      .from('products')
+      .select('category')
+      .eq('organization_id', organizationId)
+      .not('category', 'is', null);
+
+    if (prodCats && prodCats.length > 0) {
+      const uniqueProdCats = [...new Set(prodCats.map(p => p.category).filter((c): c is string => !!c))];
+      for (const catName of uniqueProdCats) {
+        if (!dbCatNames.has(catName.toLowerCase())) {
+          dbCategories.push({
+            id: catName,
+            name: catName,
+            organization_id: organizationId,
+            created_at: new Date().toISOString(),
+          } as Category);
+          dbCatNames.add(catName.toLowerCase());
+        }
+      }
+    }
+
+    return dbCategories.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async createCategory(category: CategoryInsert): Promise<Category> {

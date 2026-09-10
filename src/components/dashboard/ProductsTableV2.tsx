@@ -1,13 +1,14 @@
 'use client';
 
-import { ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Copy, DollarSign, Edit2, Eye, EyeOff, FileText, Filter, Loader2, Plus, Search, SlidersHorizontal, Star, Tag, Trash2, X } from 'lucide-react';
+import { ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Copy, DollarSign, Edit2, Eye, EyeOff, FileText, Filter, Image as ImageIcon, Loader2, Plus, Search, SlidersHorizontal, Star, Tag, Trash2, X } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useOrganization } from '@/modules/organization-context/OrganizationProvider';
-import { formatImageUrl } from '@/lib/imageUtils';
+import { formatImageUrl, getProductImageUrl } from '@/lib/imageUtils';
 import { bulkUpdatePrice } from '@/app/dashboard/products/actions';
 
 const ALL_COLUMNS = [
@@ -146,6 +147,9 @@ export function ProductsTable() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [viewProduct, setViewProduct] = useState<Product | null>(null);
+  const [viewImageFailed, setViewImageFailed] = useState(false);
+  const [hoveredPreview, setHoveredPreview] = useState<{ src: string; alt: string; x: number; y: number; isExternal: boolean } | null>(null);
 
   // Ref e evento para fechar Seletor de Colunas ao clicar fora
   const columnSelectorRef = useRef<HTMLDivElement>(null);
@@ -920,19 +924,45 @@ export function ProductsTable() {
                     </td>
                     {visibleColumns.image_url !== false && (
                       <td className="px-4 py-3">
-                        {product.image_url ? (
-                          <Image
-                            src={formatImageUrl(product.image_url)}
-                            alt={product.name}
-                            width={50}
-                            height={50}
-                            className="rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                            <Tag className="h-6 w-6 text-gray-400" />
-                          </div>
-                        )}
+                        {(() => {
+                          const { src, isExternal } = getProductImageUrl(product as any);
+                          const finalSrc = src ? (isExternal ? src : formatImageUrl(src)) : null;
+
+                          return finalSrc && finalSrc !== '/placeholder.png' ? (
+                            <div
+                              onClick={() => { setViewImageFailed(false); setViewProduct(product); }}
+                              onMouseEnter={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                let x = rect.right + 16;
+                                if (x + 268 > window.innerWidth) {
+                                  x = Math.max(16, rect.left - 272);
+                                }
+                                let y = rect.top - 100;
+                                if (y < 16) y = 16;
+                                if (y + 268 > window.innerHeight - 16) {
+                                  y = Math.max(16, window.innerHeight - 280);
+                                }
+                                setHoveredPreview({ src: finalSrc, alt: product.name, x, y, isExternal: !!isExternal });
+                              }}
+                              onMouseLeave={() => setHoveredPreview(null)}
+                              className="relative cursor-pointer inline-block"
+                              title="Clique para ampliar / passe o mouse para zoom 3x"
+                            >
+                              <Image
+                                src={finalSrc}
+                                alt={product.name}
+                                width={50}
+                                height={50}
+                                className="rounded-lg object-cover w-12 h-12 transition-all duration-200 border border-gray-200 dark:border-gray-700 hover:scale-105 hover:shadow-md"
+                                unoptimized={isExternal}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                              <Tag className="h-6 w-6 text-gray-400" />
+                            </div>
+                          );
+                        })()}
                       </td>
                     )}
                     {visibleColumns.reference_code !== false && (
@@ -940,7 +970,13 @@ export function ProductsTable() {
                     )}
                     {visibleColumns.name !== false && (
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
+                        <div
+                          onClick={() => { setViewImageFailed(false); setViewProduct(product); }}
+                          className="font-medium text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 transition-colors"
+                          title="Clique para ver detalhes do produto"
+                        >
+                          {product.name}
+                        </div>
                         {product.sku && <div className="text-xs text-gray-500">SKU: {product.sku}</div>}
                       </td>
                     )}
@@ -955,9 +991,9 @@ export function ProductsTable() {
                         <div className="font-medium text-gray-900 dark:text-white">
                           {product.price ? `R$ ${product.price.toFixed(2).replace('.', ',')}` : '-'}
                         </div>
-                        {product.cost && (
+                        {typeof product.cost === 'number' && product.cost > 0 ? (
                           <div className="text-xs text-gray-500">Custo: R$ {product.cost.toFixed(2).replace('.', ',')}</div>
-                        )}
+                        ) : null}
                       </td>
                     )}
                     {visibleColumns.sale_price !== false && (
@@ -1071,6 +1107,108 @@ export function ProductsTable() {
           </>
         )}
       </div>
+
+      {/* MODAL VIEW DE IMAGEM & DETALHES DO PRODUTO */}
+      {viewProduct && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="relative h-72 bg-gray-100 dark:bg-slate-800 flex items-center justify-center p-4">
+              {(() => {
+                const { src, isExternal } = getProductImageUrl(viewProduct as any);
+                const modalSrc = src ? (isExternal ? src : formatImageUrl(src)) : null;
+
+                if (!modalSrc || modalSrc === '/placeholder.png' || viewImageFailed) {
+                  return <ImageIcon size={48} className="text-gray-300" />;
+                }
+
+                return (
+                  <Image
+                    key={modalSrc}
+                    src={modalSrc}
+                    alt={viewProduct.name}
+                    fill
+                    className="object-contain p-4"
+                    unoptimized={isExternal}
+                    onError={() => setViewImageFailed(true)}
+                  />
+                );
+              })()}
+
+              <button
+                onClick={() => setViewProduct(null)}
+                className="absolute top-4 right-4 bg-black/30 hover:bg-black/50 text-white rounded-full p-2 transition-all z-10"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {viewProduct.name}
+                </h2>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {viewProduct.brand && (
+                    <span className="bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold">
+                      {viewProduct.brand}
+                    </span>
+                  )}
+                  {(viewProduct.reference_code || viewProduct.short_id) && (
+                    <span className="bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold">
+                      Ref: {viewProduct.reference_code || viewProduct.short_id}
+                    </span>
+                  )}
+                  {viewProduct.category && (
+                    <span className="bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold">
+                      {viewProduct.category}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(viewProduct.price || 0)}
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <Link
+                  href={`/dashboard/products/${encodeURIComponent(viewProduct.id)}`}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-center transition-all"
+                >
+                  Editar Produto
+                </Link>
+                <button
+                  onClick={() => setViewProduct(null)}
+                  className="flex-1 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 py-3 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-all"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hover 3x Zoom Floating Popover */}
+      {hoveredPreview && (
+        <div
+          className="pointer-events-none fixed z-[9999] bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-64 h-64 flex items-center justify-center animate-in fade-in zoom-in-95"
+          style={{ top: `${hoveredPreview.y}px`, left: `${hoveredPreview.x}px` }}
+        >
+          <div className="relative w-full h-full">
+            <Image
+              src={hoveredPreview.src}
+              alt={hoveredPreview.alt}
+              fill
+              className="object-contain rounded-xl p-1"
+              unoptimized={hoveredPreview.isExternal}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

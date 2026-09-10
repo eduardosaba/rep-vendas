@@ -66,26 +66,13 @@ export default function UserProfilePage() {
 
   const supabase = useMemo(() => createClient(), []);
 
-  // --- LÓGICA DE RENOVAÇÃO ---
-  const handleRenewSubscription = async () => {
-    setIsRedirecting(true);
-    try {
-      const checkoutUrl = await gerarLinkPagamento({
-        id: userId,
-        name: formData.full_name || 'Assinante RepVendas',
-        email: formData.email
-      });
-
-      if (checkoutUrl) {
-        window.location.href = checkoutUrl;
-      } else {
-        toast.error('Erro ao gerar link de pagamento.');
-        setIsRedirecting(false);
-      }
-    } catch (error) {
-      toast.error('Ocorreu um erro ao processar sua solicitação.');
-      setIsRedirecting(false);
-    }
+  // --- LÓGICA DE RENOVAÇÃO VIA WHATSAPP (PIX) ---
+  const handleRenewSubscription = () => {
+    const name = formData.full_name || 'Assinante RepVendas';
+    const email = formData.email || 'Não informado';
+    const message = `Olá! Gostaria de solicitar o PIX para renovar minha assinatura no RepVendas.\n\n📋 *Dados do Assinante:*\n- Nome: ${name}\n- E-mail: ${email}`;
+    const whatsappUrl = `https://wa.me/5575981272323?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   // --- MÁSCARA DE TELEFONE ---
@@ -451,7 +438,7 @@ export default function UserProfilePage() {
                     Renovar Assinatura Agora
                   </Button>
                   <p className="mt-4 text-xs text-center md:text-left text-gray-500 dark:text-gray-400">
-                    Ao clicar, você será redirecionado para o checkout seguro da InfinitePay.
+                    Ao clicar, você será redirecionado para o atendimento via WhatsApp para renovação via PIX.
                   </p>
                 </div>
               </div>

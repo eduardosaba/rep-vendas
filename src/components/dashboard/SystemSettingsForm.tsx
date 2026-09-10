@@ -10,6 +10,7 @@ import PageBuilder from '@/components/dashboard/company/PageBuilder';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
 import { createClient } from '@/lib/supabase/client';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import {
   normalizeSettingsRow,
   computeSettingsDiff,
@@ -114,9 +115,14 @@ export default function SystemSettingsForm({
   const handleCatalogSettingsChange = (e: any) => {
     if (e?.target) {
       const { name, value, checked, type } = e.target;
+      const val = type === 'checkbox' ? checked : value;
       setCatalogSettings((p: any) => ({
         ...p,
-        [name]: type === 'checkbox' ? checked : value,
+        [name]: val,
+      }));
+      setFormData((p: any) => ({
+        ...p,
+        [name]: val,
       }));
     }
   };
@@ -982,44 +988,15 @@ export default function SystemSettingsForm({
           supabase
             .from('companies')
             .update(sanitizeEmptyStrings(companyPayload))
-            .eq('id', companyId) as any
+            .eq('id', companyId)
+            .select() as any
         );
       }
 
-      // --- CENÁRIO B: representante / rep ---
-      // settings é a personalização individual — salva sempre para todos os roles
-      const settingsPayload: any = {
-        user_id: actingUser.id,
-        ...mergedCatalog,
-        // campos de identidade
-        name: formData.name || null,
-        phone: formData.phone || null,
-        email: formData.email || null,
-        catalog_slug: formData.catalog_slug || null,
-        is_active: formData.is_active ?? true,
-        representative_name:
-          formData.representative_name || formData.name || null,
-        whatsapp_url: formData.whatsapp_url || null,
-        footer_message: formData.footer_message || null,
-        updated_at: now,
-      };
-      // sanitize before upsert: convert empty strings to null to avoid Postgres integer parse errors
-      const settingsPayloadSanitized = sanitizeEmptyStrings({
-        ...settingsPayload,
-      });
-
-      // remove campos técnicos antes de salvar em settings (aplica na cópia sanitizada)
-      delete settingsPayloadSanitized.header_background_color;
-      delete settingsPayloadSanitized.header_text_color;
-      tasks.push(
-        supabase
-          .from('settings')
-          .upsert([settingsPayloadSanitized], { onConflict: 'user_id' }) as any
-      );
-
-      // public_catalogs agora é sincronizado automaticamente por um TRIGGER
-      // no banco (sync_settings_to_catalogs). Não é necessário upsert manual
-      // daqui para frente — o banco garante atomicidade e consistência.
+      // --- CENÁRIO B: representante / rep & configurações do sistema ---
+      // Executa quickSave com scope 'full' que faz o salvamento via API (/api/settings/save),
+      // garantindo sincronização com profiles, triggers do banco (sync_settings_to_catalogs) e eventos Inngest.
+      tasks.push(quickSave(mergedCatalog, 'full') as any);
 
       // -------------------------------------------------------
       // 3. Executar e avaliar resultados
@@ -1036,8 +1013,8 @@ export default function SystemSettingsForm({
       const noRowsAffected = results.some((r) => {
         if (r.status === 'fulfilled') {
           const val = (r as any).value;
-          // Supabase returns { data: null, error: null } when no row matched
-          if (val && !val.error && val.data === null) return true;
+          // Supabase returns { data: null, error: null } when no row matched (only check DB query results, not API responses)
+          if (val && !val.error && Object.prototype.hasOwnProperty.call(val, 'data') && val.data === null) return true;
         }
         return false;
       });
@@ -1158,28 +1135,31 @@ export default function SystemSettingsForm({
       const fields = getFieldsForTab(activeTab);
       const partial: any = {};
       fields.forEach((f) => {
-        // For robust detection, prefer explicit user edits in formData,
-        // then catalogSettings, then fall back to originalData.
+        // Prioritize explicit catalogSettings or formData edits over initial originalData
+        let val: any = undefined;
         if (
-          formData &&
-          Object.prototype.hasOwnProperty.call(formData, f) &&
-          formData[f] !== undefined
-        ) {
-          partial[f] = formData[f];
-        } else if (
           catalogSettings &&
           Object.prototype.hasOwnProperty.call(catalogSettings, f) &&
           (catalogSettings as any)[f] !== undefined
         ) {
-          partial[f] = (catalogSettings as any)[f];
-        } else if (
+          val = (catalogSettings as any)[f];
+        }
+        if (
+          val === undefined &&
+          formData &&
+          Object.prototype.hasOwnProperty.call(formData, f) &&
+          formData[f] !== undefined
+        ) {
+          val = formData[f];
+        }
+        if (
+          val === undefined &&
           originalData &&
           Object.prototype.hasOwnProperty.call(originalData, f)
         ) {
-          partial[f] = originalData[f];
-        } else {
-          partial[f] = undefined;
+          val = originalData[f];
         }
+        partial[f] = val;
       });
 
       // Include display-specific local states not stored in formData/catalogSettings
@@ -1349,7 +1329,7 @@ export default function SystemSettingsForm({
             logoPreview={
               formData.logo_url ||
               (catalogSettings && catalogSettings.logo_url) ||
-              null
+              SYSTEM_LOGO_URL
             }
             supabase={supabase}
             setLogoPreview={(url: string | null) => {
