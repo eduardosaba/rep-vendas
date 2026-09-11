@@ -440,12 +440,14 @@ export async function POST(req: Request) {
     }
 
     // Determine final price password hash only if provided explicitly
-    let finalPricePasswordHash: string | undefined;
+    let finalPricePasswordHash: string | null | undefined;
     if (typeof price_password_hash === 'string' && price_password_hash.trim()) {
       finalPricePasswordHash = price_password_hash.trim();
     } else if (typeof price_password === 'string' && price_password.trim()) {
       // server-side hash using sha256 to match client behaviour
-      finalPricePasswordHash = crypto.createHash('sha256').update(price_password).digest('hex');
+      finalPricePasswordHash = crypto.createHash('sha256').update(price_password.trim()).digest('hex');
+    } else if (price_password === '' || price_password_hash === '' || price_password === null || price_password_hash === null) {
+      finalPricePasswordHash = null;
     }
 
     if (typeof finalPricePasswordHash !== 'undefined') {
@@ -504,88 +506,58 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: profileError?.message || String(profileError) }, { status: 500 });
     }
 
-    // Enfileira processamento de imagens de branding via Inngest (se houver uma marca)
-    try {
-      const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-        const svc = createSvcClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Enfileira processamento de imagens de branding via Inngest de forma não-bloqueante (Background)
+    (async () => {
+      try {
+        const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+          const svc = createSvcClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-        // tenta descobrir uma brand associada ao usuário (usa a primeira encontrada)
-        const { data: brands } = await svc
-          .from('brands')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1);
-        const brandId =
-          brands && brands.length > 0 ? (brands[0] as any).id : null;
+          const { data: brands } = await svc
+            .from('brands')
+            .select('id')
+            .eq('user_id', userId)
+            .limit(1);
+          const brandId = brands && brands.length > 0 ? (brands[0] as any).id : null;
 
-        if (brandId) {
-          const hasOwn = (key: string) =>
-            Object.prototype.hasOwnProperty.call(payload || {}, key);
-
-          const collectAssets = async () => {
+          if (brandId) {
+            const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(payload || {}, key);
             const out: Array<{ url: string; asset: 'logo' | 'banner' }> = [];
-            if (hasOwn('logo_url') && logo_url)
-              out.push({ url: logo_url, asset: 'logo' });
-            if (hasOwn('share_banner_url') && share_banner_url)
-              out.push({ url: share_banner_url, asset: 'banner' });
-            if (hasOwn('top_benefit_image_url') && top_benefit_image_url)
-              out.push({ url: top_benefit_image_url, asset: 'banner' });
-            // banners arrays
-            try {
-              if (hasOwn('banners') && Array.isArray(banners)) {
-                for (const b of banners)
-                  if (b) out.push({ url: b, asset: 'banner' });
-              }
-            } catch (e) {
-              // ignore
+            if (hasOwn('logo_url') && logo_url) out.push({ url: logo_url, asset: 'logo' });
+            if (hasOwn('share_banner_url') && share_banner_url) out.push({ url: share_banner_url, asset: 'banner' });
+            if (hasOwn('top_benefit_image_url') && top_benefit_image_url) out.push({ url: top_benefit_image_url, asset: 'banner' });
+            if (hasOwn('banners') && Array.isArray(banners)) {
+              for (const b of banners) if (b) out.push({ url: b, asset: 'banner' });
             }
-            try {
-              if (hasOwn('banners_mobile') && Array.isArray(banners_mobile)) {
-                for (const b of banners_mobile)
-                  if (b) out.push({ url: b, asset: 'banner' });
-              }
-            } catch (e) {
-              // ignore
+            if (hasOwn('banners_mobile') && Array.isArray(banners_mobile)) {
+              for (const b of banners_mobile) if (b) out.push({ url: b, asset: 'banner' });
             }
-            return out;
-          };
 
-          const assets = await collectAssets();
-          await Promise.allSettled(
-            assets.map(async (a) => {
-              try {
-                // derive storage path from public URL if possible
-                let sourcePath = a.url;
+            await Promise.allSettled(
+              out.map(async (a) => {
                 try {
-                  const u = new URL(a.url);
-                  const seg = u.pathname.split('/');
-                  const idx = seg.indexOf('public');
-                  if (idx >= 0) sourcePath = seg.slice(idx + 1).join('/');
-                } catch (e) {
-                  // leave as-is
-                }
+                  let sourcePath = a.url;
+                  try {
+                    const u = new URL(a.url);
+                    const seg = u.pathname.split('/');
+                    const idx = seg.indexOf('public');
+                    if (idx >= 0) sourcePath = seg.slice(idx + 1).join('/');
+                  } catch (e) {}
 
-                await inngest.send({
-                  name: 'image/copy_brand.requested',
-                  data: {
-                    sourcePath,
-                    targetUserId: userId,
-                    brandId,
-                    asset: a.asset,
-                  },
-                });
-              } catch (e) {
-                console.warn('Failed to enqueue brand image copy', e);
-              }
-            })
-          );
+                  await inngest.send({
+                    name: 'image/copy_brand.requested',
+                    data: { sourcePath, targetUserId: userId, brandId, asset: a.asset },
+                  });
+                } catch (e) {}
+              })
+            );
+          }
         }
+      } catch (e) {
+        console.warn('settings/save: brand image background enqueue failed', e);
       }
-    } catch (e) {
-      console.warn('settings/save: brand image enqueue failed', e);
-    }
+    })();
 
     // NOTE: remova a lógica de espelhamento manual para `public_catalogs` e
     // mirror para `companies` — essa sincronização agora deve ser feita pelo

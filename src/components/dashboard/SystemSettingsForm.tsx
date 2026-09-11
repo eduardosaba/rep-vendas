@@ -158,7 +158,26 @@ export default function SystemSettingsForm({
 
   const [formData, setFormData] = useState<any>(initialForm);
   const [originalData, setOriginalData] = useState<any>(initialForm);
+  const [saveProgress, setSaveProgress] = useState<number>(0);
+  const [saveStepText, setSaveStepText] = useState<string>('');
   const slugRef = useRef<HTMLInputElement | null>(null);
+
+  const startProgressTracker = () => {
+    setSaveProgress(15);
+    setSaveStepText('Validando preferências...');
+    const t1 = setTimeout(() => {
+      setSaveProgress(50);
+      setSaveStepText('Salvando dados e personalizações...');
+    }, 200);
+    const t2 = setTimeout(() => {
+      setSaveProgress(85);
+      setSaveStepText('Sincronizando catálogo público...');
+    }, 500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  };
 
   // Presets de tema exibidos na aba Aparência (fallback local)
   const THEME_PRESETS = [
@@ -829,6 +848,7 @@ export default function SystemSettingsForm({
 
   const handleSaveAll = async () => {
     setSaving(true);
+    const stopTracker = startProgressTracker();
     try {
       const auth = await supabase.auth.getUser();
       const actingUser = auth?.data?.user || null;
@@ -887,9 +907,6 @@ export default function SystemSettingsForm({
         updated_at: now,
       };
 
-      // banner_mode agora existe no schema (migration SQL). Garantir que seja incluído.
-      // Nenhuma ação adicional necessária aqui — mantemos `mergedCatalog.banner_mode`.
-
       // Normalização de tipos
       const numericKeys = [
         'top_benefit_image_scale',
@@ -916,7 +933,6 @@ export default function SystemSettingsForm({
         'enable_stock_management',
         'global_allow_backorder',
       ].forEach((k) => {
-        // Always coerce to boolean — false is a valid value, don't skip it
         if (mergedCatalog[k] !== undefined) {
           mergedCatalog[k] = Boolean(mergedCatalog[k]);
         }
@@ -932,7 +948,6 @@ export default function SystemSettingsForm({
       // -------------------------------------------------------
       const tasks: Array<Promise<any>> = [];
 
-      // helper: sanitize payloads to avoid sending empty-strings to PostgREST
       const sanitizeEmptyStrings = (o: Record<string, any>) => {
         const out: Record<string, any> = {};
         Object.keys(o).forEach((k) => {
@@ -943,12 +958,9 @@ export default function SystemSettingsForm({
         return out;
       };
 
-      // --- CENÁRIO A: admin_company ou master ↔ salva na tabela `companies` ---
       const isCompanyAdmin =
         actingRole === 'admin_company' || actingRole === 'master';
       if (isCompanyAdmin && companyId) {
-        // A identidade visual da distribuidora fica em `companies`.
-        // Todos os representantes vinculados herdarão automaticamente pelo catálogo.
         const companyPayload: any = {
           name: formData.name || null,
           phone: formData.phone || null,
@@ -993,9 +1005,6 @@ export default function SystemSettingsForm({
         );
       }
 
-      // --- CENÁRIO B: representante / rep & configurações do sistema ---
-      // Executa quickSave com scope 'full' que faz o salvamento via API (/api/settings/save),
-      // garantindo sincronização com profiles, triggers do banco (sync_settings_to_catalogs) e eventos Inngest.
       tasks.push(quickSave(mergedCatalog, 'full') as any);
 
       // -------------------------------------------------------
@@ -1009,11 +1018,9 @@ export default function SystemSettingsForm({
         (r) => r.status === 'rejected' || (r as any).value?.error
       );
 
-      // Check if any successful result returned no data (0 rows affected)
       const noRowsAffected = results.some((r) => {
         if (r.status === 'fulfilled') {
           const val = (r as any).value;
-          // Supabase returns { data: null, error: null } when no row matched (only check DB query results, not API responses)
           if (val && !val.error && Object.prototype.hasOwnProperty.call(val, 'data') && val.data === null) return true;
         }
         return false;
@@ -1031,10 +1038,11 @@ export default function SystemSettingsForm({
         console.warn('[handleSaveAll] upsert retornou sem linhas afetadas');
         toast.warning('Nenhuma linha foi atualizada no banco. Verifique suas permissões.');
       } else {
-        // Success: update snapshot with merged data
         const updatedSnapshot = normalizeSettingsRow({ ...(originalData || {}), ...mergedCatalog });
         setOriginalData(updatedSnapshot);
         setFormData((fd: any) => ({ ...(fd || {}), ...mergedCatalog }));
+        setSaveProgress(100);
+        setSaveStepText('Configurações salvas com sucesso!');
         toast.success('Configurações salvas com sucesso!');
         devLogSettings('handleSaveAll:newSnapshot', updatedSnapshot);
       }
@@ -1042,7 +1050,11 @@ export default function SystemSettingsForm({
       console.error('Erro crítico no salvamento:', err);
       toast.error('Falha grave ao salvar. Verifique sua conexão.');
     } finally {
-      setSaving(false);
+      stopTracker();
+      setTimeout(() => {
+        setSaving(false);
+        setSaveProgress(0);
+      }, 600);
     }
   };
 
@@ -1074,7 +1086,6 @@ export default function SystemSettingsForm({
           'banners_mobile',
           'banner_mode',
         ];
-
       case 'institucional':
         return [
           'about_text',
@@ -1101,7 +1112,6 @@ export default function SystemSettingsForm({
           'top_benefit_image_scale',
           'top_benefit_text_align',
           'top_benefit_image_align',
-          // Pricing/display fields
           'show_sale_price',
           'show_cost_price',
           'price_unlock_mode',
@@ -1131,11 +1141,11 @@ export default function SystemSettingsForm({
 
   const saveActiveTab = async () => {
     setSaving(true);
+    const stopTracker = startProgressTracker();
     try {
       const fields = getFieldsForTab(activeTab);
       const partial: any = {};
       fields.forEach((f) => {
-        // Prioritize explicit catalogSettings or formData edits over initial originalData
         let val: any = undefined;
         if (
           catalogSettings &&
@@ -1162,10 +1172,8 @@ export default function SystemSettingsForm({
         partial[f] = val;
       });
 
-      // Include display-specific local states not stored in formData/catalogSettings
       if (activeTab === 'display') {
         try {
-          // topBenefit local preview/state variables
           partial.top_benefit_bg_color =
             topBenefitBgColor ??
             (catalogSettings as any)?.top_benefit_bg_color ??
@@ -1186,28 +1194,27 @@ export default function SystemSettingsForm({
           partial.top_benefit_image_scale =
             (catalogSettings as any)?.top_benefit_image_scale ??
             originalData?.top_benefit_image_scale;
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
 
-      // Use type-safe diff that preserves false, 0, null correctly
       const diff: any = computeSettingsDiff(partial, originalData || {}, Object.keys(partial));
-
-      devLogSettings('saveActiveTab:partial', partial);
-      devLogSettings('saveActiveTab:originalData', originalData);
-      devLogSettings('saveActiveTab:diff', diff);
 
       if (Object.keys(diff).length === 0) {
         toast.info('Nenhuma alteração nesta aba.');
         return;
       }
       await quickSave(diff);
+      setSaveProgress(100);
+      setSaveStepText('Aba salva com sucesso!');
       toast.success('Aba salva com sucesso.');
     } catch (err: any) {
       console.error('saveActiveTab error', err);
     } finally {
-      setSaving(false);
+      stopTracker();
+      setTimeout(() => {
+        setSaving(false);
+        setSaveProgress(0);
+      }, 500);
     }
   };
 
@@ -1223,7 +1230,6 @@ export default function SystemSettingsForm({
     { id: 'stock', label: 'Estoque', icon: Package },
   ];
 
-  // Filter tabs by permission; while permissions are loading, show all tabs (safe fallback)
   const tabs = allTabs.filter((t) => (permsLoading ? true : hasTab(t.id)));
 
   if (loading)
@@ -1253,6 +1259,24 @@ export default function SystemSettingsForm({
           </Button>
         </div>
       </div>
+
+      {saving && (
+        <div className="bg-indigo-50/90 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl p-3.5 shadow-sm space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-200">
+            <span className="flex items-center gap-2">
+              <Loader2 size={15} className="animate-spin text-indigo-600 dark:text-indigo-400" />
+              {saveStepText || 'Processando salvamento...'}
+            </span>
+            <span>{saveProgress}%</span>
+          </div>
+          <div className="w-full bg-indigo-200/60 dark:bg-indigo-900/60 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-indigo-600 dark:bg-indigo-400 h-2 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${saveProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <nav className="hidden md:flex space-x-1 border-b">
         {tabs.map((tab) => (
