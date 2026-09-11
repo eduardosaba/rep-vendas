@@ -1316,6 +1316,18 @@ export function SmartUpdateClient({
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-slate-700 dark:text-slate-300">
+              {/* Modo Selection */}
+              <div className="space-y-1.5 p-4 border border-indigo-200 dark:border-indigo-800 rounded-xl bg-indigo-50/40 dark:bg-indigo-950/20">
+                <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                  <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[11px]">⚡</span>
+                  Modos: Operacional vs Torre de Controle
+                </div>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                  • <strong>Meus Produtos (Operacional)</strong>: Restrito aos produtos da sua própria conta de representante/distribuidora.<br />
+                  • <strong>Torre de Controle (Global)</strong>: Exclusivo para Master/Admin. Permite filtrar por <strong>Marca</strong> e atualizar em <strong>Todos os Usuários da Marca</strong> ou usuários selecionados.
+                </p>
+              </div>
+
               {/* Step 1 */}
               <div className="space-y-1.5 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
                 <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
@@ -1331,12 +1343,10 @@ export function SmartUpdateClient({
               <div className="space-y-1.5 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
                 <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
                   <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[11px]">2</span>
-                  Passo 2: Mapear os Identificadores
+                  Passo 2: Mapear os Identificadores (PROCV)
                 </div>
                 <p className="text-slate-500 leading-relaxed">
-                  Selecione a coluna que identifica o produto (ex: <code>ITEM</code>, <code>SKU</code> ou <code>REFERENCIA</code>) e vincule com a <strong>Referência do Produto</strong> do banco.
-                  <br />
-                  <span className="text-indigo-600 font-semibold">• Dica:</span> Ative <em>"Preservar zeros à esquerda"</em> se seus códigos possuírem zeros no início (ex: <code>0005751</code>).
+                  Selecione a coluna que identifica o produto (ex: <code>REFERENCIA</code>, <code>SKU</code> ou <code>EAN/BARCODE</code>) e vincule com a <strong>Referência</strong> ou <strong>Código de Barras</strong> do banco.
                 </p>
               </div>
 
@@ -1347,7 +1357,7 @@ export function SmartUpdateClient({
                   Passo 3: Configurar Filtros (Quem será afetado?)
                 </div>
                 <p className="text-slate-500 leading-relaxed">
-                  Para afetar apenas produtos que estão saindo de linha: adicione um filtro na coluna de situação da fábrica (ex: <code>CORE</code> ou <code>SITUACAO</code>) com a condição <strong>Igual a</strong> <code>FORA DE LINHA</code> ou <code>INATIVO</code>.
+                  Adicione critérios para filtrar quais linhas da planilha serão processadas (ex: <code>SITUACAO</code> igual a <code>FORA DE LINHA</code> ou <code>LANCAMENTO</code> igual a <code>SIM</code>).
                 </p>
               </div>
 
@@ -1355,23 +1365,34 @@ export function SmartUpdateClient({
               <div className="space-y-1.5 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
                 <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
                   <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[11px]">4</span>
-                  Passo 4: Ação de Atualização (O que alterar?)
+                  Passo 4: Ações de Atualização (Campos Suportados)
                 </div>
                 <p className="text-slate-500 leading-relaxed">
-                  Escolha a camada <strong>Catálogo Global (products)</strong>. Selecione o campo <strong>Produto Ativo (is_active)</strong>, a operação <strong>Definir Valor (set)</strong> e o valor <strong>falso</strong>.
+                  Selecione os campos da Whitelist a serem modificados: <strong>Lançamento (`is_launch`)</strong>, <strong>Estoque (`stock_quantity`)</strong>, <strong>Produto Ativo (`is_active`)</strong>, <strong>Preço Base (`price`)</strong>, <strong>Preço Oferta (`sale_price`)</strong>, <strong>Custo (`cost`)</strong>, <strong>Categoria</strong>, <strong>Ficha Técnica (`technical_specs`)</strong>, etc.
                 </p>
               </div>
 
-              {/* Step 5 to 8 */}
+              {/* Step 5 */}
               <div className="space-y-1.5 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
                 <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
-                  <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[11px]">5-8</span>
+                  <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[11px]">5</span>
+                  Passo 5: Escopo & Filtro de Marca (Torre de Controle)
+                </div>
+                <p className="text-slate-500 leading-relaxed">
+                  Na Torre de Controle, selecione a <strong>Marca</strong> para filtrar por UUID e escolha se deseja afetar <strong>Todos os Usuários da Marca</strong> ou marcar usuários específicos.
+                </p>
+              </div>
+
+              {/* Step 6 to 8 */}
+              <div className="space-y-1.5 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
+                <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                  <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[11px]">6-8</span>
                   Preview, Execução Incremental e Rollback Auditado
                 </div>
                 <p className="text-slate-500 leading-relaxed">
-                  No <strong>Preview</strong>, o sistema simula as alterações sem tocar no banco de dados. Se afetar mais de 30% do catálogo, digite <code>ATUALIZAR</code> para liberar.
+                  No <strong>Preview</strong>, o sistema simula todas as alterações e exibe o impacto por usuário/marca sem alterar o banco de dados. Se afetar mais de 30% do catálogo, digite <code>ATUALIZAR</code> para liberar.
                   <br />
-                  A execução grava os lotes de 200 em 200 itens. Se precisar desfazer, acesse a <strong>Central de Histórico & Auditoria</strong> para um Rollback em 1 clique.
+                  A execução grava em lote auditado (`product_update_jobs`), mantendo suporte total a **Rollback em 1-clique**.
                 </p>
               </div>
             </div>
