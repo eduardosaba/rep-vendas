@@ -16,6 +16,7 @@ interface Product {
   sku?: string;
   barcode?: string | null;
   price?: number;
+  price_on_request?: boolean | null;
   brand?: string | null;
   description?: string | null;
   category?: string | null;

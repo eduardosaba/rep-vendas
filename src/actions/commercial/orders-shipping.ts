@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getOrderService } from '@/domain/orders/OrderService'
 
 interface DispatchInput {
   orderId: string
@@ -20,26 +21,40 @@ export async function dispatchContextOrder(input: DispatchInput) {
       return { success: false, error: 'O código de rastreamento é obrigatório para despachar.' }
     }
 
-    // Atualiza o status para Despachado e grava o timestamp e tracking
-    const { error } = await supabase
+    // Busca o pedido para capturar a versão atual (OCC)
+    const { data: currentOrder, error: fetchErr } = await supabase
       .from('orders')
-      .update({
-        status: 'Despachado',
-        tracking_code: input.trackingCode.trim(),
-        despachado_at: new Date().toISOString(),
-        estimated_delivery: input.estimatedDelivery || null,
-        updated_at: new Date().toISOString()
-      })
+      .select('id, version')
       .eq('id', input.orderId)
+      .single()
 
-    if (error) throw error
+    if (fetchErr || !currentOrder) {
+      return { success: false, error: 'Pedido não encontrado.' }
+    }
+
+    const version = currentOrder.version || 1
+    const service = getOrderService()
+
+    await service.shipOrder(
+      user.id,
+      input.orderId,
+      version,
+      input.trackingCode.trim(),
+      'Mercadoria despachada na esteira logística'
+    )
 
     revalidatePath('/distribuidora/expedicao')
     revalidatePath('/distribuidora/pedidos')
     return { success: true }
   } catch (error: any) {
     console.error('[Dispatch Order Error]:', error.message)
-    return { success: false, error: 'Falha ao registrar despacho do pedido.' }
+    const isConcurrency = error.message?.includes('CONFLICT_VERSION')
+    return {
+      success: false,
+      error: isConcurrency
+        ? 'O pedido foi atualizado por outro operador. Por favor, recarregue a página.'
+        : error.message || 'Falha ao registrar despacho do pedido.'
+    }
   }
 }
 
@@ -50,23 +65,38 @@ export async function deliverContextOrder(orderId: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'Sessão expirada.' }
 
-    // Finaliza a esteira marcando como Entregue
-    const { error } = await supabase
+    // Busca o pedido para capturar a versão atual (OCC)
+    const { data: currentOrder, error: fetchErr } = await supabase
       .from('orders')
-      .update({
-        status: 'Entregue',
-        entregue_at: new Date().toISOString(),
-        actual_delivery: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .select('id, version')
       .eq('id', orderId)
+      .single()
 
-    if (error) throw error
+    if (fetchErr || !currentOrder) {
+      return { success: false, error: 'Pedido não encontrado.' }
+    }
+
+    const version = currentOrder.version || 1
+    const service = getOrderService()
+
+    await service.deliverOrder(
+      user.id,
+      orderId,
+      version,
+      'Confirmação de entrega ao destinatário'
+    )
 
     revalidatePath('/distribuidora/expedicao')
+    revalidatePath('/distribuidora/pedidos')
     return { success: true }
   } catch (error: any) {
     console.error('[Deliver Order Error]:', error.message)
-    return { success: false, error: 'Falha ao registrar entrega do pedido.' }
+    const isConcurrency = error.message?.includes('CONFLICT_VERSION')
+    return {
+      success: false,
+      error: isConcurrency
+        ? 'O pedido foi atualizado por outro operador. Por favor, recarregue a página.'
+        : error.message || 'Falha ao registrar entrega do pedido.'
+    }
   }
 }

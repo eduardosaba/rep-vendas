@@ -274,7 +274,12 @@ export default function Checkout() {
         .from('order_items')
         .insert(orderItemsData);
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        try {
+          await supabase.from('orders').delete().eq('id', order.id);
+        } catch (e) {}
+        throw itemsError;
+      }
 
       // Criar notificação para o usuário sobre o novo pedido
       try {

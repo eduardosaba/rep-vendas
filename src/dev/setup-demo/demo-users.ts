@@ -1,5 +1,16 @@
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 
+type ProfileUpsert = {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  company_id: string;
+  status: string;
+  can_manage_catalog: boolean;
+  updated_at: string;
+};
+
 export async function createDemoUsers(supabaseAdmin: any, companyId: string) {
   const defaultPassword = 'password123';
 
@@ -45,7 +56,7 @@ export async function createDemoUsers(supabaseAdmin: any, companyId: string) {
         status: 'active',
         can_manage_catalog: u.role === 'company_admin',
         updated_at: new Date().toISOString(),
-      });
+      } satisfies ProfileUpsert as any);
 
     if (profileError) {
       throw new Error(profileError.message || `Erro ao atualizar profile ${u.email}`);

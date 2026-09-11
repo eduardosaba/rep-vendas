@@ -1,21 +1,62 @@
-import { FilterOperator, NormalizerRule, StructuredOperationType } from '../domain/types';
+import * as crypto from 'crypto';
+import { EngineConfiguration, FilterOperator, NormalizerRule, StructuredOperationType } from '../domain/types';
+import { normalizeProductKey, buildProductLookupKey as buildKey } from '@/shared/utils/normalize-product-key';
+
+export { normalizeProductKey } from '@/shared/utils/normalize-product-key';
+
+export const IGNORE_FIELD = Symbol('IGNORE_FIELD');
+
+export function normalizeLookupValue(value: unknown): string {
+  return normalizeProductKey(value as string | null | undefined);
+}
+
+export function buildProductLookupKey(brand: unknown, referenceCode: unknown): string {
+  return buildKey(brand as string | null | undefined, referenceCode as string | null | undefined);
+}
+
+export function computeConfigHash(config: EngineConfiguration): string {
+  const cleanConfig = { ...config };
+  delete cleanConfig.configHash;
+  return crypto.createHash('sha256').update(JSON.stringify(cleanConfig)).digest('hex');
+}
+
+/**
+ * Strict Portuguese/English Boolean Parser
+ * Returns true, false, or 'INVALID_VALUE'. Does NOT perform silent boolean coercion.
+ */
+export function parseStrictBoolean(val: any): boolean | 'INVALID_VALUE' {
+  if (val === null || val === undefined || String(val).trim() === '') {
+    return 'INVALID_VALUE';
+  }
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') {
+    if (val === 1) return true;
+    if (val === 0) return false;
+    return 'INVALID_VALUE';
+  }
+
+  const str = String(val).trim().toLowerCase();
+  const truthy = new Set(['sim', 's', 'true', '1', 'ativo', 'lançamento', 'lancamento', 'yes', 'y', 'on']);
+  const falsy = new Set(['não', 'nao', 'n', 'false', '0', 'inativo', 'normal', 'no', 'off']);
+
+  if (truthy.has(str)) return true;
+  if (falsy.has(str)) return false;
+
+  return 'INVALID_VALUE';
+}
 
 export function parsePortugueseCurrencyOrNumber(val: any): number {
   if (val === null || val === undefined || val === '') return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
 
   let str = String(val).trim();
-  // Remove currency symbol and spaces
   str = str.replace(/^R\$\s*/i, '').replace(/%\s*$/, '').trim();
 
   if (!str) return 0;
 
-  // Handle Brazilian format 1.299,90 vs US format 1299.90
   if (str.includes(',') && str.includes('.')) {
-    // e.g. 1.299,90 -> remove dots, replace comma with dot
     str = str.replace(/\./g, '').replace(',', '.');
   } else if (str.includes(',')) {
-    // e.g. 1299,90 -> replace comma with dot
     str = str.replace(',', '.');
   }
 
@@ -24,36 +65,7 @@ export function parsePortugueseCurrencyOrNumber(val: any): number {
 }
 
 export function applyStringNormalizations(val: any, rules: NormalizerRule[]): string {
-  if (val === null || val === undefined) return '';
-  let str = String(val).replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ').replace(/\s+/g, ' ').trim();
-
-  for (const rule of rules) {
-    switch (rule) {
-      case 'trim':
-        str = str.trim();
-        break;
-      case 'uppercase':
-        str = str.toUpperCase();
-        break;
-      case 'lowercase':
-        str = str.toLowerCase();
-        break;
-      case 'remove_accents':
-        str = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        break;
-      case 'remove_hyphens':
-        str = str.replace(/-/g, '');
-        break;
-      case 'remove_dots':
-        str = str.replace(/\./g, '');
-        break;
-      case 'remove_invisible':
-        str = str.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ');
-        break;
-    }
-  }
-
-  return str;
+  return normalizeProductKey(val, { rules });
 }
 
 export function evaluateFilterCondition(rowValue: any, operator: FilterOperator, targetValue: any): boolean {
@@ -110,23 +122,43 @@ export function evaluateFilterCondition(rowValue: any, operator: FilterOperator,
   }
 }
 
+/**
+ * Computes structured operations on product fields.
+ * Respects strict boolean parsing and empty cell ignoring.
+ */
 export function computeStructuredOperation(
   currentVal: any,
   sourceVal: any,
   op: StructuredOperationType,
-  targetType: 'boolean' | 'currency' | 'integer' | 'text'
+  targetType: 'boolean' | 'currency' | 'integer' | 'text' | 'json' | 'enum' | 'image'
 ): any {
-  if (targetType === 'boolean') {
-    if (op === 'set') {
-      if (typeof sourceVal === 'boolean') return sourceVal;
-      const str = String(sourceVal).trim().toLowerCase();
-      return str === 'true' || str === 'sim' || str === '1' || str === 'ativo';
-    }
-    return Boolean(sourceVal);
+  // Regra 5: Célula vazia = ignorar campo (NÃO alterar para 0, false ou "")
+  if (sourceVal === null || sourceVal === undefined || String(sourceVal).trim() === '') {
+    return IGNORE_FIELD;
   }
 
-  if (targetType === 'text') {
-    return String(sourceVal ?? '');
+  if (targetType === 'boolean') {
+    if (op === 'set') {
+      const parsedBool = parseStrictBoolean(sourceVal);
+      if (parsedBool === 'INVALID_VALUE') return 'INVALID_VALUE';
+      return parsedBool;
+    }
+    const parsedBool = parseStrictBoolean(sourceVal);
+    return parsedBool === 'INVALID_VALUE' ? 'INVALID_VALUE' : parsedBool;
+  }
+
+  if (targetType === 'text' || targetType === 'image' || targetType === 'enum') {
+    return String(sourceVal).trim();
+  }
+
+  if (targetType === 'json') {
+    try {
+      if (typeof sourceVal === 'object') return JSON.stringify(sourceVal);
+      JSON.parse(String(sourceVal));
+      return String(sourceVal).trim();
+    } catch {
+      return 'INVALID_VALUE';
+    }
   }
 
   const currentNum = parsePortugueseCurrencyOrNumber(currentVal);

@@ -11,6 +11,8 @@ import {
   X,
   Save,
   Edit,
+  Mail,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/utils/getErrorMessage';
@@ -34,6 +36,10 @@ interface UserData {
   email: string;
   role: string;
   status?: string | null;
+  is_active: boolean;
+  disabled_at?: string | null;
+  disabled_by?: string | null;
+  disabled_reason?: string | null;
   trial_ends_at?: string | null;
   company_id?: string | null;
   created_at: string;
@@ -100,7 +106,7 @@ export default function AdminUsersPage() {
         throw new Error(result.error || 'Erro ao carregar dados');
       }
 
-      const normalizedUsers: UserData[] = result.data.map(
+      const normalizedUsers: UserData[] = (result.data as any[]).map(
         (profile: Record<string, unknown>) => {
           // 🛑 LÓGICA CORRIGIDA PARA O BUG "SEM PLANO"
           let subData = null;
@@ -118,10 +124,14 @@ export default function AdminUsersPage() {
             email: (profile.email as string) || '',
             role: (profile.role as string) || 'user',
             status: (profile.status as string) || null,
+            is_active: profile.is_active as boolean,
+            disabled_at: (profile.disabled_at as string) || null,
+            disabled_by: (profile.disabled_by as string) || null,
+            disabled_reason: (profile.disabled_reason as string) || null,
             trial_ends_at: (profile.trial_ends_at as string) || null,
             company_id: (profile.company_id as string) || null,
             created_at: profile.created_at as string,
-            full_name: profile.full_name as string | undefined,
+            full_name: (profile.full_name || profile.name) as string | undefined,
             subscriptions: subData
               ? {
                   current_period_end: subData.current_period_end,
@@ -298,21 +308,22 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* DESKTOP: Tabela Tradicional */}
+      {/* DESKTOP: Tabela Tradicional com Rolagem Horizontal Adequada */}
       <div className="hidden md:block bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto scrollbar-thin">
+        <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700">
           <table
-            className="w-full text-sm text-left"
-            style={{ minWidth: '800px' }}
+            className="w-full text-sm text-left border-collapse"
+            style={{ minWidth: '1100px' }}
           >
             <thead className="bg-gray-50 dark:bg-slate-950 text-gray-500 dark:text-slate-400 font-medium border-b border-gray-200 dark:border-slate-800">
               <tr>
-                <th className="px-4 sm:px-6 py-4 min-w-[200px]">Usuário</th>
-                <th className="px-4 sm:px-6 py-4 min-w-[100px]">Role</th>
-                <th className="px-4 sm:px-6 py-4 min-w-[160px]">Empresa</th>
-                <th className="px-4 sm:px-6 py-4 min-w-[120px]">Cadastro</th>
-                <th className="px-4 sm:px-6 py-4 min-w-[150px]">Vencimento</th>
-                <th className="px-4 sm:px-6 py-4 text-right min-w-[140px] sticky right-0 bg-gray-50 dark:bg-slate-950 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
+                <th className="px-4 sm:px-6 py-4 min-w-[240px]">Usuário</th>
+                <th className="px-4 sm:px-6 py-4 min-w-[140px]">Status de Acesso</th>
+                <th className="px-4 sm:px-6 py-4 min-w-[130px]">Role</th>
+                <th className="px-4 sm:px-6 py-4 min-w-[180px]">Empresa</th>
+                <th className="px-4 sm:px-6 py-4 min-w-[130px]">Cadastro</th>
+                <th className="px-4 sm:px-6 py-4 min-w-[160px]">Vencimento</th>
+                <th className="px-4 sm:px-6 py-4 text-right min-w-[180px] sticky right-0 z-10 bg-gray-50 dark:bg-slate-950 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.12)]">
                   Ações
                 </th>
               </tr>
@@ -320,7 +331,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-gray-500">
+                  <td colSpan={7} className="p-12 text-center text-gray-500">
                     <div className="flex justify-center items-center gap-2">
                       <Loader2
                         className="animate-spin text-[var(--primary)]"
@@ -332,7 +343,7 @@ export default function AdminUsersPage() {
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-gray-500">
+                  <td colSpan={7} className="p-12 text-center text-gray-500">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
@@ -340,7 +351,7 @@ export default function AdminUsersPage() {
                 filteredUsers.map((user) => (
                   <tr
                     key={user.id}
-                    className="hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+                    className="group hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -348,9 +359,23 @@ export default function AdminUsersPage() {
                           {user.email?.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {user.email}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {user.email}
+                            </span>
+                            {user.created_at &&
+                              Math.ceil(
+                                Math.abs(
+                                  new Date().getTime() -
+                                    new Date(user.created_at).getTime()
+                                ) /
+                                  (1000 * 60 * 60 * 24)
+                              ) <= 7 && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                  <Sparkles size={10} /> Novo
+                                </span>
+                              )}
+                          </div>
                           <span
                             className="text-[10px] text-gray-400 font-mono"
                             title={user.id}
@@ -359,6 +384,34 @@ export default function AdminUsersPage() {
                           </span>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4">
+                      {user.is_active === false ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 w-fit">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                            Desativado
+                          </span>
+                          {user.disabled_at && (
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                              {new Date(user.disabled_at).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                          {user.disabled_reason && (
+                            <span
+                              className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[140px]"
+                              title={user.disabled_reason}
+                            >
+                              Motivo: {user.disabled_reason}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900 w-fit">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Ativo
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       <span
@@ -384,11 +437,19 @@ export default function AdminUsersPage() {
                     <td className="px-4 sm:px-6 py-4">
                       {renderExpirationDate(user)}
                     </td>
-                    <td className="px-4 sm:px-6 py-4 text-right sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800 shadow-[-5px_0_5px_-5px_rgba(0,0,0,0.1)]">
+                    <td className="px-4 sm:px-6 py-4 text-right sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.12)] transition-colors">
                       <div className="flex justify-end gap-2">
+                        <a
+                          href={`mailto:${user.email}?subject=Boas-vindas%20ao%20RepVendas&body=Ol%C3%A1!%20Vi%20que%20voc%C3%AA%20se%20cadastrou%20no%20RepVendas.%20Como%20posso%20te%20ajudar%20a%20configurar%20seu%20cat%C3%A1logo%3F`}
+                          className="p-2 text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-all"
+                          title="Enviar E-mail de Boas-Vindas"
+                        >
+                          <Mail size={16} />
+                        </a>
                         <Link
                           href={`/admin/users/${user.id}`}
                           className="p-2 text-indigo-600 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
+                          title="Editar Perfil"
                         >
                           <Edit size={16} />
                         </Link>
@@ -396,6 +457,7 @@ export default function AdminUsersPage() {
                           onClick={() => confirmAddTrial(user.id, user.email)}
                           disabled={updatingUser === user.id}
                           className="p-2 text-green-600 bg-green-50 border border-green-200 hover:bg-green-100 rounded-lg transition-all disabled:opacity-50"
+                          title="Adicionar 30 dias de teste"
                         >
                           {updatingUser === user.id ? (
                             <Loader2 size={16} className="animate-spin" />
@@ -406,6 +468,7 @@ export default function AdminUsersPage() {
                         <button
                           onClick={() => handleImpersonate(user.email)}
                           className="p-2 text-gray-400 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"
+                          title="Acessar como usuário"
                         >
                           <LogIn size={16} />
                         </button>
@@ -472,6 +535,27 @@ export default function AdminUsersPage() {
               </div>
 
               <div className="space-y-2 text-sm mb-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500 dark:text-slate-400">
+                    Status de Acesso:
+                  </span>
+                  {user.is_active === false ? (
+                    <div className="flex flex-col items-end">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900">
+                        Desativado
+                      </span>
+                      {user.disabled_at && (
+                        <span className="text-[10px] text-gray-500">
+                          {new Date(user.disabled_at).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900">
+                      Ativo
+                    </span>
+                  )}
+                </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500 dark:text-slate-400">
                     Cadastro:
@@ -581,10 +665,10 @@ export default function AdminUsersPage() {
                     }
                     className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
-                    <option value="representante">Representante</option>
-                    <option value="representative">Representante (vinculado a empresa)</option>
-                    <option value="rep">Admin Empresa (Distribuidora)</option>
-                    <option value="master">Master</option>
+                    <option value="rep">Representante Autônomo (Organização Própria)</option>
+                    <option value="representative">Representante Vinculado (a Distribuidora)</option>
+                    <option value="admin_company">Admin de Distribuidora</option>
+                    <option value="master">Master (Gestor da Plataforma)</option>
                   </select>
                 </div>
               {['representative', 'rep'].includes(formData.role) && (

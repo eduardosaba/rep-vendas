@@ -6,7 +6,8 @@ import { Storefront } from '@/components/catalogo/Storefront';
 import { Metadata, ResolvingMetadata } from 'next';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { getPublicCatalog } from '@/lib/catalog';
-import { resolveContext } from '@/lib/resolve-context';
+import { headers } from 'next/headers';
+import { normalizeCatalogSlug, resolvePublicCatalogContext, escapeIlikePattern } from '@/lib/resolve-context';
 import { RepositoryFactory } from '@/infrastructure/supabase/RepositoryFactory';
 import { ApplicationContextAssembler } from '@/modules/catalog/ApplicationContextAssembler';
 import { ApplicationContextService } from '@/modules/catalog/ApplicationContextService';
@@ -25,6 +26,7 @@ export async function generateMetadata(
   _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const { slug } = await params;
+  const normalizedCompanySlug = normalizeCatalogSlug(slug);
   const { productId } = await searchParams;
   const supabase = await createClient();
 
@@ -43,7 +45,7 @@ export async function generateMetadata(
     .select(
       'store_name, logo_url, single_brand_logo_url, footer_message, user_id, og_image_url, share_banner_url, updated_at'
     )
-    .eq('catalog_slug', slug)
+    .ilike('catalog_slug', escapeIlikePattern(normalizedCompanySlug))
     .eq('is_active', true)
     .maybeSingle();
 
@@ -52,7 +54,7 @@ export async function generateMetadata(
     const { data: profile } = await admin
       .from('profiles')
       .select('id')
-      .eq('slug', slug)
+      .ilike('slug', escapeIlikePattern(normalizedCompanySlug))
       .maybeSingle();
 
     if (profile?.id) {
@@ -74,7 +76,7 @@ export async function generateMetadata(
           openGraph: {
             title: storeName,
             description: settings.footer_message || undefined,
-            url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${slug}`,
+            url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
             siteName: 'RepVendas',
             images: ogImage ? [{ url: ogImage, width: 1200, height: 630 }] : [],
             locale: 'pt_BR',
@@ -91,7 +93,7 @@ export async function generateMetadata(
       const { data: company } = await admin
         .from('companies')
         .select('name, logo_url, welcome_text, updated_at')
-        .eq('slug', slug)
+        .ilike('slug', escapeIlikePattern(normalizedCompanySlug))
         .maybeSingle();
 
       if (company) {
@@ -106,7 +108,7 @@ export async function generateMetadata(
           openGraph: {
             title: company.name,
             description: company.welcome_text || undefined,
-            url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${slug}`,
+            url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
             siteName: 'RepVendas',
             images: companyOgImage
               ? [{ url: companyOgImage, width: 1200, height: 630 }]
@@ -153,7 +155,7 @@ export async function generateMetadata(
         openGraph: {
           title: `${product.name} - ${priceFormatted}`,
           description: product.description || 'Confira este produto incrível!',
-          url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${slug}`,
+          url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
           siteName: 'RepVendas',
           images: ogImageUrl
             ? [
@@ -193,7 +195,7 @@ export async function generateMetadata(
     openGraph: {
       title: catalog.store_name,
       description: catalog.footer_message || undefined,
-      url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${slug}`,
+      url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
       siteName: 'RepVendas',
       images: [
         {
@@ -213,42 +215,43 @@ export default async function CatalogPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
   const { productId } = resolvedSearchParams;
-  const normalizedCompanySlug = String(slug || '').trim().toLowerCase();
+  const normalizedCompanySlug = normalizeCatalogSlug(slug);
   const supabase = await createClient();
+
+  const headersList = await headers();
+  const userAgent = headersList.get('user-agent') || undefined;
+
+  const buildAdminClient = () => {
+    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!adminKey || !supabaseUrl) return null;
+    return createSupabaseAdmin(String(supabaseUrl), String(adminKey), {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  };
+
+  const admin = buildAdminClient();
+  const clientToUse = admin || supabase;
 
   // Prioriza slug de distribuidora para evitar colisão com slug de perfil/legado.
   // Se existir company com este slug, esta rota base sempre aponta para /empresa.
-  const { data: companyBySlugFirst } = await supabase
+  const { data: companyBySlugFirst } = await clientToUse
     .from('companies')
     .select('slug,type')
-    .eq('slug', normalizedCompanySlug)
+    .ilike('slug', escapeIlikePattern(normalizedCompanySlug))
     .maybeSingle();
 
   if (companyBySlugFirst?.slug && String((companyBySlugFirst as any).type || '').toLowerCase() === 'distribuidora') {
     redirect(`/catalogo/${normalizedCompanySlug}/empresa`);
   }
 
-  // Fallback com service role caso RLS impeça leitura pública em companies.
-  const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (adminKey && supabaseUrl) {
-    const admin = createSupabaseAdmin(String(supabaseUrl), String(adminKey), {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    const { data: companyBySlugAdminFirst } = await admin
-      .from('companies')
-      .select('slug,type')
-      .eq('slug', normalizedCompanySlug)
-      .maybeSingle();
-
-    if (companyBySlugAdminFirst?.slug && String((companyBySlugAdminFirst as any).type || '').toLowerCase() === 'distribuidora') {
-      redirect(`/catalogo/${normalizedCompanySlug}/empresa`);
-    }
-  }
-
-  // 1) RESOLVEDOR LEGADO (Prioridade 1 para não impactar representantes atuais)
-  let context = await resolveContext([normalizedCompanySlug], supabase as any);
+  // Resolução do contexto do catálogo público com fallback de Service Role
+  const { context } = await resolvePublicCatalogContext(
+    normalizedCompanySlug,
+    supabase as any,
+    buildAdminClient,
+    { userAgent, pathname: `/catalogo/${normalizedCompanySlug}` }
+  );
 
   if (context?.type === 'individual') {
     let catalog = context.catalog || null;
@@ -258,7 +261,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       // Quando resolveContext identifica profile por slug, tenta resolver public_catalog associado.
       const representativeId = context.representative?.id;
       if (representativeId) {
-        const { data: catalogByUser } = await supabase
+        const { data: catalogByUser } = await clientToUse
           .from('public_catalogs')
           .select('*, price_password_hash')
           .eq('user_id', representativeId)
@@ -266,7 +269,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         catalog = catalogByUser || null;
 
         if (representativeId) {
-          const { data: settingsByUser } = await supabase
+          const { data: settingsByUser } = await clientToUse
             .from('settings')
             .select('*')
             .eq('user_id', representativeId)
@@ -276,7 +279,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       }
 
       if (!catalog) {
-        const { data: catalogBySlug } = await supabase
+        const { data: catalogBySlug } = await clientToUse
           .from('public_catalogs')
           .select('*, price_password_hash')
           .eq('catalog_slug', normalizedCompanySlug)
@@ -284,7 +287,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         catalog = catalogBySlug || null;
 
         if (catalog?.user_id) {
-          const { data: settingsByCatalogUser } = await supabase
+          const { data: settingsByCatalogUser } = await clientToUse
             .from('settings')
             .select('*')
             .eq('user_id', catalog.user_id)
@@ -292,6 +295,27 @@ export default async function CatalogPage({ params, searchParams }: Props) {
           settingsFallback = settingsByCatalogUser || settingsFallback;
         }
       }
+    }
+
+    if (!catalog && (context.representative || settingsFallback)) {
+      catalog = {
+        id: context.representative?.id || settingsFallback?.user_id || 'default',
+        user_id: context.representative?.id || settingsFallback?.user_id || 'default',
+        store_name:
+          settingsFallback?.name ||
+          settingsFallback?.representative_name ||
+          context.representative?.full_name ||
+          'Catálogo Virtual',
+        catalog_slug: normalizedCompanySlug,
+        logo_url: settingsFallback?.logo_url || null,
+        primary_color: settingsFallback?.primary_color || '#2563eb',
+        secondary_color: settingsFallback?.secondary_color || '#0f172a',
+        is_active: true,
+        show_cost_price: settingsFallback?.show_cost_price ?? false,
+        show_sale_price: settingsFallback?.show_sale_price ?? true,
+        price_unlock_mode: settingsFallback?.price_unlock_mode || 'modal',
+        price_password_hash: settingsFallback?.price_password_hash || null,
+      };
     }
 
     if (catalog) {
@@ -370,14 +394,14 @@ export default async function CatalogPage({ params, searchParams }: Props) {
 
       let maxLimit = 5000;
       try {
-        const { data: sub } = await supabase
+        const { data: sub } = await clientToUse
           .from('subscriptions')
           .select('plan_id, plan_name')
           .eq('user_id', catalog.user_id)
           .maybeSingle();
 
         if (sub?.plan_id) {
-          const { data: plan } = await supabase
+          const { data: plan } = await clientToUse
             .from('plans')
             .select('product_limit, max_products')
             .eq('id', sub.plan_id)
@@ -387,7 +411,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
             maxLimit = plan.product_limit || plan.max_products || maxLimit;
           }
         } else if (sub?.plan_name) {
-          const { data: plan } = await supabase
+          const { data: plan } = await clientToUse
             .from('plans')
             .select('product_limit, max_products')
             .eq('name', sub.plan_name)
@@ -407,7 +431,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       const representativeCompanyId = context?.representative?.company_id || null;
       const ownerUserId = representativeId || catalog.user_id;
 
-      let productsQuery = supabase
+      let productsQuery = clientToUse
         .from('products')
         .select('*, linked_images, product_images(url, is_primary)')
         .eq('is_active', true)

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSvcClient } from '@supabase/supabase-js';
 import { inngest } from '@/inngest/client';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 function isMissingColumnError(error: any) {
   const code = String(error?.code || '');
@@ -120,6 +121,8 @@ export async function POST(req: Request) {
       // contact
       phone,
       email,
+      support_email,
+      support_phone,
 
       // social/contact handles
       instagram_handle,
@@ -226,17 +229,85 @@ export async function POST(req: Request) {
       ...rest
     } = payload;
 
+    let resolvedSlug = slug || catalog_slug || payload.catalogSlug || null;
+    if (!resolvedSlug) {
+      const { data: existingSettings } = await supabase
+        .from('settings')
+        .select('catalog_slug')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existingSettings?.catalog_slug) {
+        resolvedSlug = existingSettings.catalog_slug;
+      } else {
+        const { data: existingPub } = await supabase
+          .from('public_catalogs')
+          .select('catalog_slug')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (existingPub?.catalog_slug) {
+          resolvedSlug = existingPub.catalog_slug;
+        } else {
+          const baseName = String(name || payload.store_name || payload.representative_name || 'catalogo')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          resolvedSlug = `${baseName || 'catalogo'}-${userId.slice(0, 8)}`;
+        }
+      }
+    }
+
+    let resolvedName = name !== undefined && name !== null && String(name).trim() !== '' ? String(name).trim() : null;
+    if (!resolvedName) {
+      const { data: existingSettings } = await supabase
+        .from('settings')
+        .select('name')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existingSettings?.name) {
+        resolvedName = existingSettings.name;
+      } else {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', userId)
+          .maybeSingle();
+
+        resolvedName = existingProfile?.full_name || 'Catálogo RepVendas';
+      }
+    }
+
+    let resolvedLogoUrl = logo_url || null;
+    if (!resolvedLogoUrl) {
+      const { data: existingSettings } = await supabase
+        .from('settings')
+        .select('logo_url')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existingSettings?.logo_url) {
+        resolvedLogoUrl = existingSettings.logo_url;
+      } else {
+        resolvedLogoUrl = SYSTEM_LOGO_URL;
+      }
+    }
+
     const settingsPayload: any = {
       user_id: userId,
-      catalog_slug: slug || catalog_slug || payload.catalogSlug || null,
+      catalog_slug: resolvedSlug,
           cover_image_fit: cover_image_fit ?? 'cover',
           cover_image_height: cover_image_height ? Number(cover_image_height) : null,
           cover_image_position: cover_image_position || null,
           cover_image_offset_x: typeof cover_image_offset_x !== 'undefined' ? Number(cover_image_offset_x) : null,
           cover_image_offset_y: typeof cover_image_offset_y !== 'undefined' ? Number(cover_image_offset_y) : null,
-      name: name || null,
-      phone: phone || null,
-      email: email || null,
+      name: resolvedName,
+      logo_url: resolvedLogoUrl,
+      phone: phone !== undefined ? (phone || null) : undefined,
+      email: email !== undefined ? (email || null) : undefined,
+      support_email: support_email !== undefined ? (support_email || null) : undefined,
+      support_phone: support_phone !== undefined ? (support_phone || null) : undefined,
       primary_color: primary_color || null,
       secondary_color: secondary_color || null,
       // header_background_color and header_text_color intentionally omitted
@@ -259,7 +330,6 @@ export async function POST(req: Request) {
       show_pdf_link: typeof show_pdf_link !== 'undefined' ? !!show_pdf_link : null,
       banners: banners || null,
       banners_mobile: banners_mobile || null,
-      logo_url: logo_url || null,
       cover_image: cover_image || null,
       og_image_url: og_image_url || null,
       share_banner_url: share_banner_url || null,
@@ -283,19 +353,17 @@ export async function POST(req: Request) {
       top_benefit_text_color: top_benefit_text_color || null,
       top_benefit_text: top_benefit_text || null,
       top_benefit_mode:
-        top_benefit_mode === 'marquee' ? 'marquee' : 'static',
+        typeof top_benefit_mode !== 'undefined' && top_benefit_mode !== null
+          ? (top_benefit_mode === 'marquee' ? 'marquee' : 'static')
+          : undefined,
       top_benefit_speed:
-        top_benefit_speed === 'slow'
-          ? 'slow'
-          : top_benefit_speed === 'fast'
-            ? 'fast'
-            : 'medium',
+        typeof top_benefit_speed !== 'undefined' && top_benefit_speed !== null
+          ? (top_benefit_speed === 'slow' ? 'slow' : top_benefit_speed === 'fast' ? 'fast' : 'medium')
+          : undefined,
       top_benefit_animation:
-        top_benefit_animation === 'scroll_right'
-          ? 'scroll_right'
-          : top_benefit_animation === 'alternate'
-            ? 'alternate'
-            : 'scroll_left',
+        typeof top_benefit_animation !== 'undefined' && top_benefit_animation !== null
+          ? (top_benefit_animation === 'scroll_right' ? 'scroll_right' : top_benefit_animation === 'alternate' ? 'alternate' : 'scroll_left')
+          : undefined,
       show_top_benefit_bar: !!show_top_benefit_bar,
       show_top_info_bar: !!show_top_info_bar,
       top_benefit_image_url: top_benefit_image_url || null,
@@ -314,21 +382,30 @@ export async function POST(req: Request) {
       show_installments: !!show_installments,
       max_installments: max_installments ? Number(max_installments) : null,
       show_sale_price:
-        typeof show_sale_price === 'boolean' ? show_sale_price : null,
+        typeof show_sale_price === 'boolean'
+          ? show_sale_price
+          : typeof show_sale_price !== 'undefined' && show_sale_price !== null
+            ? Boolean(show_sale_price)
+            : undefined,
       show_cost_price:
-        typeof show_cost_price === 'boolean' ? show_cost_price : null,
+        typeof show_cost_price === 'boolean'
+          ? show_cost_price
+          : typeof show_cost_price !== 'undefined' && show_cost_price !== null
+            ? Boolean(show_cost_price)
+            : undefined,
       price_unlock_mode:
-        price_unlock_mode === 'modal' || price_unlock_mode === 'fab'
+        price_unlock_mode === 'modal' || price_unlock_mode === 'fab' || price_unlock_mode === 'none'
           ? price_unlock_mode
-          : 'none',
+          : undefined,
       cash_price_discount_percent: cash_price_discount_percent
         ? Number(cash_price_discount_percent)
         : null,
+      // Enforce mutually exclusive rule server-side
       enable_stock_management:
         typeof enable_stock_management === 'boolean'
           ? enable_stock_management
           : !!manage_stock,
-      global_allow_backorder: !!global_allow_backorder,
+      global_allow_backorder: typeof global_allow_backorder === 'boolean' ? global_allow_backorder : false,
       font_family: font_family || null,
       font_url: font_url || null,
       // grid_cols removed — frontend uses fixed defaults
@@ -407,6 +484,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: e?.message || String(e) }, { status: 500 });
     }
 
+    // Verify that the upsert returned data (at least 1 row affected)
+    if (!settingsUpsertResult) {
+      console.warn('[settings/save] upsert succeeded but returned no data — 0 rows affected');
+      return NextResponse.json(
+        { error: 'Nenhuma linha foi atualizada. Verifique se o usuário existe.' },
+        { status: 500 }
+      );
+    }
+
     // Upsert profile whatsapp fallback
     const { data: profileUpsertData, error: profileError } = await supabase.from('profiles').upsert({
       id: userId,
@@ -467,32 +553,34 @@ export async function POST(req: Request) {
           };
 
           const assets = await collectAssets();
-          for (const a of assets) {
-            try {
-              // derive storage path from public URL if possible
-              let sourcePath = a.url;
+          await Promise.allSettled(
+            assets.map(async (a) => {
               try {
-                const u = new URL(a.url);
-                const seg = u.pathname.split('/');
-                const idx = seg.indexOf('public');
-                if (idx >= 0) sourcePath = seg.slice(idx + 1).join('/');
-              } catch (e) {
-                // leave as-is
-              }
+                // derive storage path from public URL if possible
+                let sourcePath = a.url;
+                try {
+                  const u = new URL(a.url);
+                  const seg = u.pathname.split('/');
+                  const idx = seg.indexOf('public');
+                  if (idx >= 0) sourcePath = seg.slice(idx + 1).join('/');
+                } catch (e) {
+                  // leave as-is
+                }
 
-              await inngest.send({
-                name: 'image/copy_brand.requested',
-                data: {
-                  sourcePath,
-                  targetUserId: userId,
-                  brandId,
-                  asset: a.asset,
-                },
-              });
-            } catch (e) {
-              console.warn('Failed to enqueue brand image copy', e);
-            }
-          }
+                await inngest.send({
+                  name: 'image/copy_brand.requested',
+                  data: {
+                    sourcePath,
+                    targetUserId: userId,
+                    brandId,
+                    asset: a.asset,
+                  },
+                });
+              } catch (e) {
+                console.warn('Failed to enqueue brand image copy', e);
+              }
+            })
+          );
         }
       }
     } catch (e) {

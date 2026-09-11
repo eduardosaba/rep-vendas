@@ -10,6 +10,7 @@ import {
   CreditCard,
   HelpCircle,
   History,
+  HardDrive,
   Image as ImageIcon,
   LayoutDashboard,
   Package,
@@ -20,6 +21,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   ToggleLeft,
+  UserCheck,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -78,6 +80,7 @@ export default function AdminSidebar({
       icon: LayoutDashboard,
       exact: true,
     },
+    { label: 'Leads de Vendas', href: '/admin/leads', icon: UserCheck },
     {
       label: 'Editar Experiência do Catálogo',
       href: '/admin/configuracoes/catalogo',
@@ -124,7 +127,7 @@ export default function AdminSidebar({
     { label: 'Métricas Globais', href: '/admin/metrics', icon: BarChart2 },
     { label: 'Curadoria de Dados', href: '/admin/curadoria', icon: ShieldCheck },
     { label: 'Torre de Controle', href: '/admin/clear', icon: Cpu },
-    { label: 'Atualização de Fábrica', href: '/admin/produtos/atualizacao-linha', icon: Cpu },
+    { label: 'Atualização Inteligente', href: '/admin/produtos/atualizacao-inteligente', icon: Cpu },
     { label: 'Logs & Debug', href: '/admin/debug', icon: ShieldAlert },
     {
       label: 'Auditoria de Erro',
@@ -232,20 +235,20 @@ export default function AdminSidebar({
           );
         })}
 
-        {(userRole === 'master' || userRole === 'admin_company') && (
+        {userRole === 'master' && (
           <Link
-            href="/admin/permissions"
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
-              pathname?.startsWith('/admin/permissions')
+            href="/admin/storage-cleanup"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              pathname?.startsWith('/admin/storage-cleanup')
                 ? 'bg-primary/10 text-primary ring-1 ring-primary/10'
                 : 'hover:bg-gray-100 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
             }`}
           >
-            <ShieldCheck
+            <HardDrive
               size={18}
-              className={`${pathname?.startsWith('/admin/permissions') ? 'text-primary' : ''}`}
+              className={`${pathname?.startsWith('/admin/storage-cleanup') ? 'text-primary' : ''}`}
             />
-            {!isCollapsed && <span className="truncate">Permissões</span>}
+            {!isCollapsed && <span className="truncate">Limpeza de Storage</span>}
           </Link>
         )}
 

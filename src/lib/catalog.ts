@@ -3,6 +3,7 @@
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { resolveCatalogBranding } from '@/lib/resolve-catalog-branding';
+import { cache } from 'react';
 
 const supabaseAdmin = createSupabaseAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,7 +11,8 @@ const supabaseAdmin = createSupabaseAdmin(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-export async function getPublicCatalog(companyId: string, repId?: string, brand?: string) {
+export const getPublicCatalog = cache(
+  async (companyId: string, repId?: string, brand?: string) => {
   try {
     // company settings (branding, welcome text, banners)
     const { data: companyRaw } = await supabaseAdmin
@@ -106,4 +108,4 @@ export async function getPublicCatalog(companyId: string, repId?: string, brand?
   } catch (err: any) {
     return { success: false, error: err?.message || String(err) };
   }
-}
+});

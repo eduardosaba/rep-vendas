@@ -161,6 +161,29 @@ export default function ThemeRegistry() {
         }
 
         // 2. Verifica se há usuário logado (Contexto Dashboard/Admin)
+        const isHomePage = pathname === '/';
+        if (isHomePage) {
+          applyDefaultTheme();
+          return;
+        }
+
+        const hasAuthCookie =
+          typeof document !== 'undefined' &&
+          document.cookie.split(';').some((c) => {
+            const name = c.trim().toLowerCase();
+            return (
+              name.startsWith('sb-') ||
+              name.includes('repvendas-auth-token') ||
+              name.includes('auth-token') ||
+              name.includes('access-token')
+            );
+          });
+
+        if (!hasAuthCookie) {
+          applyDefaultTheme();
+          return;
+        }
+
         let user: any = null;
         try {
           const userPromise = supabase.auth.getUser();

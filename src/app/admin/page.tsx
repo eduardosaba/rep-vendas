@@ -19,95 +19,63 @@ export const dynamic = 'force-dynamic';
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
+  // 1. SEGURANÇA: Verificar se possui role de administração (Torre de Controle)
   const {
     data: { user },
-    error: userError,
   } = await supabase.auth.getUser();
 
-  console.log('[ADMIN PAGE] Auth:', {
-    userId: user?.id,
-    email: user?.email,
-    userError: userError?.message,
-  });
+  if (!user) redirect('/login');
 
-  if (userError || !user) {
-    console.error('[ADMIN PAGE] Usuário sem sessão válida.');
-    redirect('/login?redirectTo=/admin');
-  }
-
-  const {
-    data: currentUserProfile,
-    error: profileError,
-  } = await supabase
+  const { data: currentUserProfile } = await supabase
     .from('profiles')
-    .select('id, email, role')
+    .select('role')
     .eq('id', user.id)
     .maybeSingle();
 
-  console.log('[ADMIN PAGE] Perfil:', {
-    profile: currentUserProfile,
-    error: profileError?.message,
-    code: profileError?.code,
-    details: profileError?.details,
-  });
+  const role = currentUserProfile?.role;
 
-  if (profileError) {
-    console.error('[ADMIN PAGE] Erro ao consultar profiles:', profileError);
-    redirect('/admin/unauthorized?reason=profile_error');
+  if (!isAdminRole(role)) {
+    // Usuários sem role de admin não acessam a Torre de Controle -> Redireciona para o Dashboard
+    redirect('/dashboard');
   }
 
-  if (!currentUserProfile) {
-    console.error('[ADMIN PAGE] Perfil não encontrado para:', user.id);
-    redirect('/admin/unauthorized?reason=profile_not_found');
+  // 2. BUSCAR DADOS (Resiliente contra falhas com Promise.allSettled para evitar tela em branco)
+  let usersCount = 0;
+  let productsCount = 0;
+  let mrr = 0;
+  let recentUsers: any[] = [];
+
+  try {
+    const [usersReq, productsReq, subscriptionsReq, recentUsersReq] =
+      await Promise.allSettled([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('products').select('*', { count: 'exact', head: true }),
+        supabase.from('subscriptions').select('price').eq('status', 'active'),
+        supabase
+          .from('profiles')
+          .select('id, email, created_at, role, full_name')
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ]);
+
+    if (usersReq.status === 'fulfilled' && typeof usersReq.value.count === 'number') {
+      usersCount = usersReq.value.count;
+    }
+    if (productsReq.status === 'fulfilled' && typeof productsReq.value.count === 'number') {
+      productsCount = productsReq.value.count;
+    }
+    if (subscriptionsReq.status === 'fulfilled' && Array.isArray(subscriptionsReq.value.data)) {
+      mrr = subscriptionsReq.value.data.reduce(
+        (acc: number, sub: any) => acc + (Number(sub.price) || 0),
+        0
+      );
+    }
+    if (recentUsersReq.status === 'fulfilled' && Array.isArray(recentUsersReq.value.data)) {
+      recentUsers = recentUsersReq.value.data;
+    }
+  } catch (err) {
+    console.error('[AdminDashboardPage] Erro ao carregar dados:', err);
   }
-
-  const isAllowed = isAdminRole(currentUserProfile.role);
-
-  console.log('[ADMIN PAGE] Autorização:', {
-    role: currentUserProfile.role,
-    isAllowed,
-  });
-
-  if (!isAllowed) {
-    redirect(
-      `/admin/unauthorized?reason=invalid_role&role=${encodeURIComponent(
-        currentUserProfile.role || 'null'
-      )}`
-    );
-  }
-
-  // 2. BUSCAR DADOS (Em paralelo para performance)
-  const [usersReq, productsReq, subscriptionsReq, recentUsersReq] =
-    await Promise.all([
-      // Contagem de Usuários
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
-
-      // Contagem de Produtos
-      supabase.from('products').select('*', { count: 'exact', head: true }),
-
-      // Cálculo de Receita (MRR) - Apenas assinaturas ativas
-      supabase.from('subscriptions').select('price').eq('status', 'active'),
-
-      // Lista de Usuários Recentes
-      supabase
-        .from('profiles')
-        .select('id, email, created_at, role, full_name')
-        .order('created_at', { ascending: false })
-        .limit(5),
-    ]);
-
-  // 3. PROCESSAR DADOS
-  const usersCount = usersReq.count || 0;
-  const productsCount = productsReq.count || 0;
-
-  // Calcula o MRR somando os preços das assinaturas ativas
-  const mrr =
-    subscriptionsReq.data?.reduce(
-      (acc, sub) => acc + (Number(sub.price) || 0),
-      0
-    ) || 0;
-
-  const recentUsers = recentUsersReq.data || [];
 
   return (
     <div className="p-6 md:p-8 animate-in fade-in duration-500 min-h-screen space-y-8">

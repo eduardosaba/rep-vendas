@@ -22,6 +22,7 @@ import {
 import Link from 'next/link'
 import QuickActionCard from '@/components/QuickActionCard'
 import NotificationsCTA from '@/components/NotificationsCTA'
+import { DashboardChecklist } from '@/components/dashboard/DashboardChecklist'
 import { subDays, startOfDay, subMonths } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -38,10 +39,10 @@ export default async function DashboardPage({
   const activeUserId = await getActiveUserId()
   if (!activeUserId) redirect('/login')
 
-  // Busca perfil para identificar role e company
+  // Busca perfil para identificar role, company e organization
   const { data: profileData } = await supabase
     .from('profiles')
-    .select('role, company_id, full_name, name, display_name, email, notifications_enabled')
+    .select('role, company_id, organization_id, full_name, name, display_name, email, notifications_enabled')
     .eq('id', activeUserId)
     .maybeSingle()
 
@@ -241,8 +242,14 @@ export default async function DashboardPage({
       </header>
 
       {profile.data && (
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col gap-6">
           <NotificationsCTA userId={activeUserId} />
+          <DashboardChecklist
+            organizationLinked={Boolean(profile.data?.organization_id)}
+            catalogConfigured={Boolean(settings.data?.catalog_slug)}
+            productsCount={products.count || 0}
+            catalogSlug={settings.data?.catalog_slug}
+          />
         </div>
       )}
 

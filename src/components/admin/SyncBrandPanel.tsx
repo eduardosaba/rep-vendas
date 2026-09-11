@@ -65,7 +65,7 @@ export function SyncBrandPanel({ brands }: { brands: string[] }) {
         <button
           onClick={handleGlobalSync}
           disabled={isSyncing}
-          className="w-full py-5 bg-[var(--primary)] hover:bg-orange-600 rounded-2xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all"
+          className="w-full py-5 bg-[var(--primary)] text-white hover:opacity-90 active:scale-[0.98] rounded-2xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all cursor-pointer shadow-lg"
         >
           {isSyncing ? <RefreshCw className="animate-spin" /> : <RefreshCw />}
           {isSyncing ? 'Sincronizando...' : 'Atualizar todos os Catálogos'}

@@ -1,9 +1,11 @@
 import { SYSTEM_FONTS } from '@/lib/fonts';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import {
   Brush,
   ChevronDown,
   ChevronUp,
   Image as ImageIcon,
+  RotateCcw,
   Trash2,
   X,
 } from 'lucide-react';
@@ -181,13 +183,42 @@ export function TabAppearance(props: any) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div className="space-y-4">
-              <label className="text-xs font-black uppercase text-slate-500">
-                Logo da Marca
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black uppercase text-slate-500">
+                  Logo da Marca
+                </label>
+                {formData?.logo_url && formData.logo_url !== SYSTEM_LOGO_URL && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoPreview?.(SYSTEM_LOGO_URL);
+                      try {
+                        setFormData((p: any) => ({
+                          ...p,
+                          logo_url: null,
+                        }));
+                        setCatalogSettings?.((p: any) => ({
+                          ...(p || {}),
+                          logo_url: null,
+                        }));
+                      } catch (e) {
+                        // ignore
+                      }
+                      toast.info('Restaurado para a logo padrão do RepVendas');
+                    }}
+                    className="text-[11px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1 transition-colors"
+                    title="Restaurar para a logomarca original do RepVendas"
+                  >
+                    <RotateCcw size={12} />
+                    Usar Padrão RepVendas
+                  </button>
+                )}
+              </div>
               <div className="h-48 w-full border-2 border-dashed rounded-[2rem] flex items-center justify-center bg-slate-50 relative group">
-                {logoPreview ? (
+                {logoPreview || SYSTEM_LOGO_URL ? (
                   <img
-                    src={logoPreview}
+                    src={logoPreview || SYSTEM_LOGO_URL}
+                    alt="Logo da Marca"
                     className="max-h-full p-6 object-contain"
                   />
                 ) : (

@@ -132,6 +132,7 @@ export function StoreProvider({
   >('ref_desc');
   const [showOnlyNew, setShowOnlyNew] = useState(false);
   const [showOnlyBestsellers, setShowOnlyBestsellers] = useState(false);
+  const [selectedTipoMontagem, setSelectedTipoMontagem] = useState<string>('all');
   const [showFavorites, setShowFavorites] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid');
@@ -1504,8 +1505,21 @@ export function StoreProvider({
       .filter((p) => {
         if (p.is_active === false) return false;
         if (showFavorites && !favorites.includes(p.id)) return false;
-        if (showOnlyNew && !p.is_launch) return false;
-        if (showOnlyBestsellers && !p.is_best_seller) return false;
+        const isLaunch = Boolean(
+          p.is_launch ||
+          (p as any).launch ||
+          (p as any).is_new ||
+          (p as any).is_new_product ||
+          String(p.is_launch) === 'true'
+        );
+        if (showOnlyNew && !isLaunch) return false;
+        if (showOnlyBestsellers && !p.is_best_seller && !(p as any).bestseller) return false;
+
+        if (selectedTipoMontagem !== 'all') {
+          const pMount = String((p as any).tipo_montagem || '').toLowerCase().trim();
+          const targetMount = String(selectedTipoMontagem).toLowerCase().trim();
+          if (pMount !== targetMount) return false;
+        }
         if (selectedBrand !== 'all') {
           const normalize = (s: unknown) =>
             String(s || '')
@@ -2012,6 +2026,8 @@ export function StoreProvider({
         setShowOnlyNew,
         showOnlyBestsellers,
         setShowOnlyBestsellers,
+        selectedTipoMontagem,
+        setSelectedTipoMontagem,
         showFavorites,
         setShowFavorites,
         isFilterOpen,

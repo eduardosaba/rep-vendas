@@ -38,7 +38,25 @@ export default async function EditUserPage(props: any) {
     return notFound();
   }
 
-  // 3. Normalizar dados da assinatura
+  // 3. Buscar perfil de quem desativou (se houver)
+  let disabledByProfile: { id: string; email?: string; full_name?: string } | null = null;
+  if (profile.disabled_by) {
+    try {
+      const { supabaseAdmin } = await import('@/infrastructure/supabase/admin');
+      const { data: dProfile } = await (supabaseAdmin as any)
+        .from('profiles')
+        .select('id, email, full_name')
+        .eq('id', profile.disabled_by)
+        .maybeSingle();
+      if (dProfile) {
+        disabledByProfile = dProfile;
+      }
+    } catch (err) {
+      // Ignorar falha sem bloquear renderização da página
+    }
+  }
+
+  // 4. Normalizar dados da assinatura
   const subData = Array.isArray(profile.subscriptions)
     ? profile.subscriptions.length > 0
       ? profile.subscriptions[0]
@@ -50,14 +68,19 @@ export default async function EditUserPage(props: any) {
     : '';
 
   const initialFormData = {
-    email: profile.email || '', // <--- ADICIONADO: Necessário para a confirmação de exclusão
-    fullName: profile.full_name || '',
+    email: profile.email || '',
+    fullName: profile.full_name || profile.name || '',
     role: profile.role || 'rep',
     plan: subData?.plan_name || availablePlans[0]?.name || 'Free',
     status: subData?.status || 'trialing',
     endsAt: formattedDate,
     estados: profile.estados || [],
     brands: profile.brands || [],
+    is_active: profile.is_active,
+    disabled_at: profile.disabled_at || null,
+    disabled_by: profile.disabled_by || null,
+    disabled_reason: profile.disabled_reason || null,
+    disabledByProfile: disabledByProfile,
   };
 
   return (

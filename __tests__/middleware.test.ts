@@ -25,25 +25,37 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
 
 // Import AFTER mocks and polyfills to avoid runtime issues during module init
+class MockNextResponse {
+  status: number;
+  body: any;
+  headers = new Map();
+  cookies = { getAll: () => [], set: jest.fn() };
+  constructor(body?: any, opts?: any) {
+    this.body = body;
+    this.status = opts?.status || 200;
+  }
+  static next(opts?: any) {
+    return new MockNextResponse(null, { status: 200 });
+  }
+  static redirect(url: any) {
+    const res = new MockNextResponse(null, { status: 307 });
+    const loc = url.toString ? url.toString().replace('http://example.com', '') : (url.pathname || url);
+    res.headers.set('location', loc);
+    return res;
+  }
+  static json(data: any, opts?: any) {
+    return new MockNextResponse(data, opts);
+  }
+}
+
 jest.mock('next/server', () => ({
-  NextResponse: {
-    next: (opts: any) => ({
-      status: 200,
-      headers: new Map(),
-      cookies: { set: jest.fn(), getAll: () => [] },
-    }),
-    redirect: (url: any) => {
-      const headers = new Map();
-      headers.set('location', url.pathname || url.toString());
-      return { status: 307, headers, cookies: { getAll: () => [] } };
-    },
-  },
+  NextResponse: MockNextResponse,
   NextRequest: class {},
 }));
 
 const { middleware } = require('@/middleware');
 
-function makeRequest(path: string) {
+function makeRequest(path: string, cookiesList: any[] = []) {
   const urlObj = new URL(`http://example.com${path}`);
   return {
     nextUrl: {
@@ -61,7 +73,7 @@ function makeRequest(path: string) {
     },
     url: `http://example.com${path}`,
     cookies: {
-      getAll: jest.fn(() => []),
+      getAll: jest.fn(() => cookiesList),
       set: jest.fn(),
     },
     headers: new Map(),
@@ -84,10 +96,15 @@ describe('middleware router helper', () => {
     expect(location).toContain('/login');
   });
 
-  it('redirects logged user away from /login to /dashboard', async () => {
+  it('redirects logged active user away from /login to /dashboard', async () => {
     mockClient.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
-    const req = makeRequest('/login');
+    mockClient.from.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'rep', is_active: true } }),
+    });
 
+    const req = makeRequest('/login', [{ name: 'sb-access-token', value: 'mock-token' }]);
     const res: any = await middleware(req);
 
     const location = res.headers.get('location') || res.headers.get('Location');
@@ -95,11 +112,55 @@ describe('middleware router helper', () => {
     expect(location).toContain('/dashboard');
   });
 
-  it('returns next response when user present and accessing other paths', async () => {
-    mockClient.auth.getUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
-    const req = makeRequest('/some-public');
-
+  it('bypasses profile query for public catalog routes (/catalogo)', async () => {
+    const req = makeRequest('/catalogo');
     const res: any = await middleware(req);
+
     expect(res.status).toBe(200);
+    expect(mockClient.auth.getUser).not.toHaveBeenCalled();
+  });
+
+  it('redirects disabled user accessing /dashboard to /login?error=account_disabled', async () => {
+    mockClient.auth.getUser.mockResolvedValue({ data: { user: { id: 'u-disabled' } } });
+    mockClient.from.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'rep', is_active: false } }),
+    });
+
+    const req = makeRequest('/dashboard');
+    const res: any = await middleware(req);
+
+    const location = res.headers.get('location') || res.headers.get('Location');
+    expect(res.status).toBe(307);
+    expect(location).toContain('/login?error=account_disabled');
+  });
+
+  it('avoids redirect loop when disabled user is on /login?error=account_disabled', async () => {
+    mockClient.auth.getUser.mockResolvedValue({ data: { user: { id: 'u-disabled' } } });
+    mockClient.from.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'rep', is_active: false } }),
+    });
+
+    const req = makeRequest('/login?error=account_disabled');
+    const res: any = await middleware(req);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 403 Forbidden when disabled user attempts to call protected API', async () => {
+    mockClient.auth.getUser.mockResolvedValue({ data: { user: { id: 'u-disabled' } } });
+    mockClient.from.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: { role: 'admin', is_active: false } }),
+    });
+
+    const req = makeRequest('/api/admin/users');
+    const res: any = await middleware(req);
+
+    expect(res.status).toBe(403);
   });
 });

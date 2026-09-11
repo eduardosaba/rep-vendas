@@ -16,6 +16,7 @@ import {
 import LoginOnboarding from '@/components/LoginOnboarding';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { signup, loginWithGoogle } from '@/app/login/actions';
+import { getLeadByIdAction } from '@/app/actions/lead';
 
 // Componente de Botão
 const Button = ({
@@ -59,31 +60,80 @@ const Button = ({
 export default function RegisterPage() {
   const router = useRouter();
 
+  const [leadId, setLeadId] = useState('');
+  const [isLeadPreFilled, setIsLeadPreFilled] = useState(false);
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // 1. Extract message params and auto-fetch captured Lead details from Step 1
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const message = params.get('message');
-      if (message) {
-        if (message.includes('realizado') || message.includes('Verifique')) {
-          setSuccess(message);
-        } else {
-          setError(message);
+    let isMounted = true;
+
+    async function loadLeadData() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const message = params.get('message');
+        if (message) {
+          if (message.includes('realizado') || message.includes('Verifique')) {
+            setSuccess(message);
+          } else {
+            setError(message);
+          }
+          setLoading(false);
+          setGoogleLoading(false);
         }
-        setLoading(false);
-        setGoogleLoading(false);
+
+        const paramLeadId = params.get('lead_id') || window.sessionStorage.getItem('rep_lead_id') || '';
+
+        const res = await getLeadByIdAction(paramLeadId);
+        if (isMounted && res.success && res.lead) {
+          setLeadId(res.lead.id);
+          if (res.lead.name) setFullName(res.lead.name);
+          if (res.lead.email) setEmail(res.lead.email);
+          if (res.lead.whatsapp) {
+            let v = res.lead.whatsapp.replace(/\D/g, '');
+            if (v.startsWith('55') && v.length > 11) v = v.slice(2);
+            if (v.length > 7) {
+              v = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
+            } else if (v.length > 2) {
+              v = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+            }
+            setPhone(v);
+          }
+          setIsLeadPreFilled(true);
+        }
+      } catch (_e) {
+        // ignore
       }
-    } catch (_e) {
-      // ignore if window not available or parsing fails
     }
+
+    loadLeadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  // Brazilian phone mask: (XX) XXXXX-XXXX
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let v = e.target.value.replace(/\D/g, '');
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length > 7) {
+      v = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
+    } else if (v.length > 2) {
+      v = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+    }
+    setPhone(v);
+  };
 
   const handleSignupSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -91,16 +141,39 @@ export default function RegisterPage() {
     setError('');
     setSuccess('');
 
+    if (!fullName.trim()) {
+      setError('Informe seu nome completo.');
+      setLoading(false);
+      return;
+    }
+
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      setError('Informe um telefone válido com DDD.');
+      setLoading(false);
+      return;
+    }
+
     if (password.length < 6) {
       setError('A senha deve ter no mínimo 6 caracteres.');
       setLoading(false);
       return;
     }
 
+    if (password !== passwordConfirm) {
+      setError('As senhas não conferem.');
+      setLoading(false);
+      return;
+    }
+
+    if (!termsAccepted) {
+      setError('Você precisa aceitar os termos para continuar.');
+      setLoading(false);
+      return;
+    }
+
     const form = e.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
-
-    // nenhum campo 'estados' será enviado
 
     try {
       const res: any = await signup(formData as unknown as FormData);
@@ -135,7 +208,7 @@ export default function RegisterPage() {
       <div className="flex flex-1 items-center justify-center p-4 lg:p-12 bg-gray-50">
         <div className="w-full max-w-[440px] animate-fade-up">
           <div className="rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-gray-200 sm:p-10">
-            {/* Cabeçalho de Marketing (Trazido do seu código antigo) */}
+            {/* Cabeçalho de Marketing */}
             <div className="mb-6 text-center">
               <div className="mb-6 flex justify-center">
                 <img
@@ -153,7 +226,7 @@ export default function RegisterPage() {
               </p>
             </div>
 
-            {/* Lista de Benefícios (Trazido do seu código antigo) */}
+            {/* Lista de Benefícios */}
             <div className="mb-6 bg-orange-50 rounded-lg p-4 border border-orange-100">
               <ul className="space-y-2 text-sm text-gray-700">
                 <li className="flex items-center">
@@ -219,7 +292,16 @@ export default function RegisterPage() {
             </div>
 
               {/* FORMULÁRIO EMAIL */}
-              <form onSubmit={handleSignupSubmit} className="space-y-5">
+              <form onSubmit={handleSignupSubmit} className="space-y-4">
+              <input type="hidden" name="lead_id" value={leadId} />
+
+              {isLeadPreFilled && !success && (
+                <div className="flex items-center rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-800 font-medium">
+                  <CheckCircle size={16} className="mr-2 shrink-0 text-green-600" />
+                  <span>Passo 1 concluído! Seus dados foram preenchidos automaticamente.</span>
+                </div>
+              )}
+
               {error && (
                 <div className="flex items-center rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <span className="mr-2">⚠️</span> {error}
@@ -231,6 +313,23 @@ export default function RegisterPage() {
                   <CheckCircle size={18} className="mr-2" /> {success}
                 </div>
               )}
+
+              {/* Nome completo */}
+              <div>
+                <label className="mb-1.5 block text-sm font-bold text-[#0d1b2c]">
+                  Nome Completo
+                </label>
+                <input
+                  name="full_name"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-[#b9722e] focus:ring-2 focus:ring-[#b9722e] focus:ring-offset-1 transition-all outline-none"
+                  autoComplete="name"
+                  placeholder="Seu nome completo"
+                  required
+                />
+              </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-bold text-[#0d1b2c]">
@@ -251,6 +350,23 @@ export default function RegisterPage() {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Telefone / WhatsApp */}
+              <div>
+                <label className="mb-1.5 block text-sm font-bold text-[#0d1b2c]">
+                  Telefone / WhatsApp
+                </label>
+                <input
+                  name="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={handlePhoneChange}
+                  className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-[#b9722e] focus:ring-2 focus:ring-[#b9722e] focus:ring-offset-1 transition-all outline-none"
+                  autoComplete="tel"
+                  placeholder="(00) 00000-0000"
+                  required
+                />
               </div>
 
               <div>
@@ -281,7 +397,51 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Estados removidos — não serão coletados neste momento */}
+              {/* Confirmação de senha */}
+              <div>
+                <label className="mb-1.5 block text-sm font-bold text-[#0d1b2c]">
+                  Confirmar Senha
+                </label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    name="password_confirm"
+                    type={showPassword ? 'text' : 'password'}
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-gray-900 focus:border-[#b9722e] focus:ring-2 focus:ring-[#b9722e] focus:ring-offset-1 transition-all outline-none"
+                    autoComplete="new-password"
+                    placeholder="Repita a senha"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Aceite de termos */}
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="terms_accepted"
+                  name="terms_accepted"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-[#b9722e] focus:ring-[#b9722e]"
+                  required
+                />
+                <label htmlFor="terms_accepted" className="text-xs text-gray-500">
+                  Li e aceito os{' '}
+                  <Link href="/termos" className="text-[#b9722e] hover:underline" target="_blank">
+                    Termos de Uso
+                  </Link>{' '}
+                  e a{' '}
+                  <Link href="/privacidade" className="text-[#b9722e] hover:underline" target="_blank">
+                    Política de Privacidade
+                  </Link>
+                  .
+                </label>
+              </div>
 
               <Button type="submit" loading={loading} variant="primary">
                 Criar Conta Gratuita <ArrowRight className="ml-2 h-4 w-4" />

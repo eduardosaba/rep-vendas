@@ -2,9 +2,6 @@
 // @ts-nocheck - legacy fallback hooks and dynamic runtime hook resolution
 
 import React, { useState, useRef, useEffect } from 'react';
-// Fallback hooks: algumas versões do Next/React expõem hooks de formulário em 'react-dom'.
-// Usamos esses exports legados quando as APIs novas (`React.useActionState`) não existem.
-// NOTE: legacy exports may not exist in all React/DOM versions
 import {
   useFormState as useFormStateLegacy,
   useFormStatus as useFormStatusLegacy,
@@ -14,7 +11,10 @@ import {
   updateUserLicense,
   updateUserProfile,
   adminResetPassword,
-  deleteUser,
+  deactivateUser,
+  reactivateUser,
+  getUserDeletionImpact,
+  permanentlyDeleteUser,
 } from '../actions';
 import {
   Save,
@@ -22,13 +22,12 @@ import {
   User,
   Lock,
   KeyRound,
-  AlertTriangle,
-  Trash2,
   Loader2,
+  UserX,
+  UserCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// --- COMPONENTES UI ---
 function SubmitButton({
   label = 'Salvar',
   loadingLabel = 'Salvando...',
@@ -69,9 +68,19 @@ const initialState = { success: false, message: '', error: '' };
 
 export function EditUserForm({ userId, initialData, availablePlans }: any) {
   const router = useRouter();
+
+  // Estados dos Modais de Governança V1
+  const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
+  const [deactivateReason, setDeactivateReason] = useState('');
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
+
+  // Estados do Modal de Exclusão Definitiva
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [deleteImpact, setDeleteImpact] = useState<any>(null);
+  const [isLoadingImpact, setIsLoadingImpact] = useState(false);
 
   // Bind actions
   const updateProfileBind = updateUserProfile.bind(null, userId);
@@ -117,29 +126,134 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
     }
   }, [passState]);
 
-  const handleConfirmDelete = async () => {
-    if (deleteConfirmation !== initialData.email) return;
-    setIsDeleting(true);
-    const toastId = toast.loading('Excluindo...');
+  // Handler Desativar Acesso
+  const handleConfirmDeactivate = async () => {
+    if (!deactivateReason.trim()) {
+      toast.error('É obrigatório informar uma justificativa para a desativação.');
+      return;
+    }
+
+    setIsDeactivating(true);
+    const toastId = toast.loading('Desativando acesso do usuário...');
     try {
-      const res = await deleteUser(userId);
+      const res = await deactivateUser(userId, deactivateReason);
+      if (res.success) {
+        toast.success(res.message, { id: toastId });
+        if (res.warning) toast.warning(res.warning);
+        setIsDeactivateOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error, { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Erro inesperado.', { id: toastId });
+    } finally {
+      setIsDeactivating(false);
+    }
+  };
+
+  // Handler Reativar Acesso
+  const handleConfirmReactivate = async () => {
+    setIsReactivating(true);
+    const toastId = toast.loading('Reativando acesso do usuário...');
+    try {
+      const res = await reactivateUser(userId);
+      if (res.success) {
+        toast.success(res.message, { id: toastId });
+        router.refresh();
+      } else {
+        toast.error(res.error, { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Erro inesperado ao reativar.', { id: toastId });
+    } finally {
+      setIsReactivating(false);
+    }
+  };
+
+  const handleOpenDeleteModal = async () => {
+    setIsDeleteModalOpen(true);
+    setIsLoadingImpact(true);
+    try {
+      const res = await getUserDeletionImpact(userId);
+      if (res.success && res.impact) {
+        setDeleteImpact(res.impact);
+      } else {
+        toast.error(res.error || 'Erro ao carregar prévia do impacto.');
+      }
+    } catch (err) {
+      toast.error('Erro ao carregar prévia do impacto.');
+    } finally {
+      setIsLoadingImpact(false);
+    }
+  };
+
+  const handleConfirmPermanentDelete = async () => {
+    if (deleteConfirmEmail.trim().toLowerCase() !== initialData.email.trim().toLowerCase()) {
+      toast.error('O e-mail digitado não confere com a conta.');
+      return;
+    }
+
+    setIsDeletingUser(true);
+    const toastId = toast.loading('Excluindo usuário e produtos definitivamente...');
+    try {
+      const res = await permanentlyDeleteUser(userId, deleteConfirmEmail);
       if (res.success) {
         toast.success(res.message, { id: toastId });
         setIsDeleteModalOpen(false);
         router.push('/admin/users');
       } else {
         toast.error(res.error, { id: toastId });
-        setIsDeleting(false);
       }
     } catch (err) {
-      toast.error('Erro inesperado.', { id: toastId });
-      setIsDeleting(false);
+      toast.error('Erro ao excluir usuário definitivamente.', { id: toastId });
+    } finally {
+      setIsDeletingUser(false);
     }
   };
 
+  const isInactive = initialData.is_active === false;
+
+  const disabledByInfo = initialData.disabledByProfile
+    ? (initialData.disabledByProfile.full_name || initialData.disabledByProfile.email)
+    : (initialData.disabled_by ? `ID: ${initialData.disabled_by}` : null);
+
   return (
     <div className="space-y-6 relative">
-      {/* CARD 1: DADOS */}
+      {/* ALERTA DE STATUS COM DETALHES DE AUDITORIA */}
+      {isInactive && (
+        <div data-testid="disabled-access-panel" className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-red-900 dark:text-red-200 text-sm">
+          <div className="flex items-start gap-3">
+            <UserX size={22} className="text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-bold text-base">Acesso Desativado</p>
+              <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">
+                O acesso deste usuário foi desativado. Pedidos, produtos, clientes e históricos permanecem intactos.
+              </p>
+              <div className="mt-2 text-xs space-y-1 text-red-800 dark:text-red-200 font-mono">
+                {initialData.disabled_at && (
+                  <p>Data: {new Date(initialData.disabled_at).toLocaleString('pt-BR')}</p>
+                )}
+                {disabledByInfo && (
+                  <p>Desativado por: {disabledByInfo}</p>
+                )}
+                {initialData.disabled_reason && (
+                  <p>Motivo: &quot;{initialData.disabled_reason}&quot;</p>
+                )}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleConfirmReactivate}
+            disabled={isReactivating}
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 self-end sm:self-center shrink-0"
+          >
+            {isReactivating ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />} Reativar Acesso
+          </button>
+        </div>
+      )}
+
+      {/* CARD 1: DADOS DO USUÁRIO */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 flex items-center gap-2">
           <User className="text-gray-500" size={18} />
@@ -223,9 +337,6 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
                 placeholder="Digite marcas separadas por vírgula"
                 className="w-full rounded-lg border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               />
-              <p className="text-xs text-gray-400 mt-1">
-                Separe múltiplas marcas por vírgula. Opcional.
-              </p>
             </div>
           </div>
           <div className="flex justify-end pt-2">
@@ -234,7 +345,7 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
         </form>
       </div>
 
-      {/* CARD 2: PLANO */}
+      {/* CARD 2: PLANO & LICENÇA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 flex items-center gap-2">
           <CreditCard className="text-indigo-600" size={18} />
@@ -294,39 +405,12 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
             </div>
           </div>
           <div className="flex justify-end pt-2">
-            <div className="flex items-center gap-2">
-              <SubmitButton label="Salvar Assinatura" />
-              <button
-                type="button"
-                disabled={initialData.status === 'active'}
-                className="px-4 py-2.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => {
-                  try {
-                    const form = licenseFormRef.current as HTMLFormElement | null;
-                    if (!form) return;
-                    // set fields to activation defaults
-                    const planEl = form.querySelector('[name="plan"]') as HTMLSelectElement | null;
-                    const statusEl = form.querySelector('[name="status"]') as HTMLSelectElement | null;
-                    const endsAtEl = form.querySelector('[name="ends_at"]') as HTMLInputElement | null;
-                    if (planEl) planEl.value = initialData.plan || planEl.value;
-                    if (statusEl) statusEl.value = 'active';
-                    if (endsAtEl) endsAtEl.value = '';
-                    // submit the form programmatically
-                    if (typeof form.requestSubmit === 'function') form.requestSubmit();
-                    else form.submit();
-                  } catch (e) {
-                    console.error('Erro ao ativar conta:', e);
-                  }
-                }}
-              >
-                Ativar Conta
-              </button>
-            </div>
+            <SubmitButton label="Salvar Assinatura" />
           </div>
         </form>
       </div>
 
-      {/* CARD 3: SENHA */}
+      {/* CARD 3: SEGURANÇA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-red-100 dark:border-red-900/30 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/10 flex items-center gap-2">
           <Lock className="text-red-500" size={18} />
@@ -365,57 +449,176 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
         </form>
       </div>
 
-      {/* CARD 4: EXCLUIR */}
-      <div className="bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900 overflow-hidden mt-8 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      {/* CARD DE AÇÃO PRINCIPAL DE GOVERNANÇA: DESATIVAR OU REATIVAR ACESSO */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6 flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-medium text-red-900 dark:text-red-200">
-            Excluir Usuário
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <UserX size={18} className={isInactive ? "text-red-500" : "text-amber-500"} />
+            {isInactive ? 'Status do Acesso: Desativado' : 'Desativar Acesso do Usuário'}
           </h3>
-          <p className="text-xs text-red-600/80 dark:text-red-400 mt-1 max-w-md">
-            Ação irreversível. Remove todos os dados.
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md">
+            {isInactive
+              ? 'Este usuário está com o acesso suspenso. Clique em Reativar Acesso para restabelecer as permissões de login.'
+              : 'Bloqueia o login e revoga acessos imediatamente. Preserva 100% dos pedidos, catálogo e histórico comercial.'}
           </p>
         </div>
-        <button
-          onClick={() => setIsDeleteModalOpen(true)}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2"
-        >
-          <Trash2 size={16} /> Excluir Conta
-        </button>
+        <div>
+          {isInactive ? (
+            <button
+              onClick={handleConfirmReactivate}
+              disabled={isReactivating}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+            >
+              {isReactivating ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
+              Reativar Acesso
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsDeactivateOpen(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2"
+            >
+              <UserX size={16} /> Desativar Acesso
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* MODAL */}
-      {isDeleteModalOpen && (
+      {/* CARD DE ZONA DE PERIGO: EXCLUSÃO DEFINITIVA */}
+      <div className="bg-red-50/40 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900/50 shadow-sm p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+            <UserX size={18} />
+            Zona de Perigo: Exclusão Definitiva
+          </h3>
+          <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1 max-w-md">
+            Remove permanentemente a conta do Supabase Auth, o perfil em profiles e todos os produtos cadastrados pelo usuário. Se existirem pedidos vinculados, a exclusão será bloqueada.
+          </p>
+        </div>
+        <div>
+          <button
+            onClick={handleOpenDeleteModal}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
+          >
+            <UserX size={16} /> Excluir Definitivamente
+          </button>
+        </div>
+      </div>
+
+      {/* MODAL: DESATIVAR ACESSO (EXIGE JUSTIFICATIVA) */}
+      {isDeactivateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-xl shadow-2xl p-6">
-            <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
-              <AlertTriangle className="text-red-500" /> Confirmar Exclusão
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-xl shadow-2xl p-6 space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-amber-600">
+              <UserX /> Confirmar Desativação de Acesso
             </h3>
-            <p className="text-sm mb-4">
-              Digite <strong>{initialData.email}</strong> para confirmar.
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              O login de <strong>{initialData.email}</strong> será suspenso. Todos os pedidos, produtos e logs permanecerão preservados.
             </p>
-            <input
-              type="text"
-              value={deleteConfirmation}
-              onChange={(e) => setDeleteConfirmation(e.target.value)}
-              className="w-full p-2 border rounded mb-4 dark:bg-slate-800"
-              placeholder={initialData.email}
-            />
-            <div className="flex justify-end gap-2">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                Motivo / Justificativa (Obrigatório)
+              </label>
+              <input
+                type="text"
+                required
+                value={deactivateReason}
+                onChange={(e) => setDeactivateReason(e.target.value)}
+                placeholder="Informe a justificativa..."
+                className="w-full p-2 border rounded-lg text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
               <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 text-sm bg-gray-100 rounded hover:bg-gray-200 dark:bg-slate-800 dark:text-white"
+                onClick={() => setIsDeactivateOpen(false)}
+                className="px-4 py-2 text-sm bg-gray-100 dark:bg-slate-800 dark:text-white rounded-lg hover:bg-gray-200"
               >
                 Cancelar
               </button>
               <button
-                disabled={
-                  deleteConfirmation !== initialData.email || isDeleting
-                }
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                disabled={isDeactivating || !deactivateReason.trim()}
+                onClick={handleConfirmDeactivate}
+                className="px-4 py-2 text-sm bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 flex items-center gap-1.5 disabled:opacity-50"
               >
-                Excluir
+                {isDeactivating && <Loader2 size={14} className="animate-spin" />}
+                Confirmar Desativação
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EXCLUSÃO DEFINITIVA (AUDITORIA E CONFIRMAÇÃO POR EMAIL) */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl p-6 space-y-4 border border-red-200 dark:border-red-900">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-red-600">
+              <UserX /> Exclusão Definitiva de Usuário
+            </h3>
+
+            {isLoadingImpact ? (
+              <div className="py-8 flex items-center justify-center gap-2 text-gray-500">
+                <Loader2 className="animate-spin text-red-600" size={20} />
+                <span>Calculando impacto da exclusão...</span>
+              </div>
+            ) : deleteImpact ? (
+              <div className="space-y-4">
+                <div className="p-3 bg-gray-50 dark:bg-slate-800 rounded-lg text-xs space-y-1.5 border grid grid-cols-2 gap-x-2 gap-y-1">
+                  <p className="col-span-2"><strong>Conta:</strong> {initialData.email}</p>
+                  <p><strong>Produtos:</strong> {deleteImpact.productsCount} (serão apagados)</p>
+                  <p><strong>Clientes:</strong> {deleteImpact.clientsCount}</p>
+                  <p><strong>Pedidos:</strong> {deleteImpact.ordersCount}</p>
+                  <p><strong>Pedidos como Rep:</strong> {deleteImpact.ordersAsRepresentativeCount}</p>
+                  <p><strong>Itens de Pedidos:</strong> {deleteImpact.orderItemsCount}</p>
+                  <p><strong>Carrinhos Salvos:</strong> {deleteImpact.savedCartsCount}</p>
+                  <p><strong>Rascunhos de Pedido:</strong> {deleteImpact.draftOrdersCount}</p>
+                  <p><strong>Configurações:</strong> {deleteImpact.settingsCount}</p>
+                  <p><strong>Preferências:</strong> {deleteImpact.userPreferencesCount}</p>
+                </div>
+
+                {deleteImpact.isBlocked ? (
+                  <div className="p-3 bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 rounded-lg text-xs text-red-800 dark:text-red-200 space-y-1">
+                    <p className="font-bold flex items-center gap-1 text-red-700">
+                      ⚠️ Exclusão Definitiva Bloqueada
+                    </p>
+                    <p>{deleteImpact.blockReason}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                      Para confirmar a exclusão <strong>definitiva e irreversível</strong>, digite exatamente o e-mail do usuário (<strong>{initialData.email}</strong>):
+                    </p>
+                    <input
+                      type="email"
+                      value={deleteConfirmEmail}
+                      onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                      placeholder={initialData.email}
+                      className="w-full p-2.5 border border-red-300 rounded-lg text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-red-500 font-mono"
+                    />
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-slate-800">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeleteConfirmEmail('');
+                }}
+                className="px-4 py-2 text-sm bg-gray-100 dark:bg-slate-800 dark:text-white rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              {deleteImpact && !deleteImpact.isBlocked && (
+                <button
+                  disabled={isDeletingUser || deleteConfirmEmail.trim().toLowerCase() !== initialData.email.trim().toLowerCase()}
+                  onClick={handleConfirmPermanentDelete}
+                  className="px-4 py-2 text-sm bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 flex items-center gap-1.5 disabled:opacity-40 shadow-sm"
+                >
+                  {isDeletingUser && <Loader2 size={14} className="animate-spin" />}
+                  Confirmar Exclusão Definitiva
+                </button>
+              )}
             </div>
           </div>
         </div>

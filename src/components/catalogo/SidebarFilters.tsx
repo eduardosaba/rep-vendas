@@ -19,6 +19,8 @@ interface SidebarFiltersProps {
   showOnlyNew: boolean;
   onBestsellerChange: (show: boolean) => void;
   onNewChange: (show: boolean) => void;
+  selectedTipoMontagem?: string;
+  onTipoMontagemChange?: (tipo: string) => void;
 }
 
 export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
@@ -36,6 +38,8 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
   onBestsellerChange,
   onNewChange,
   brandLogos,
+  selectedTipoMontagem = 'all',
+  onTipoMontagemChange,
 }) => {
   if (
     settings?.show_filter_price === false &&
@@ -156,6 +160,22 @@ export const SidebarFilters: React.FC<SidebarFiltersProps> = ({
             </div>
           </div>
         )}
+
+        <div className="mb-6 pt-4 border-t border-gray-100">
+          <label className="mb-2 block text-sm font-semibold text-gray-700">
+            Tipo de Montagem
+          </label>
+          <select
+            value={selectedTipoMontagem}
+            onChange={(e) => onTipoMontagemChange && onTipoMontagemChange(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-sm text-gray-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="all">Todos os tipos</option>
+            <option value="aro_fechado">Aro Fechado (Full Rim)</option>
+            <option value="fio_nylon">Fio de Nylon (Semi-Rimless)</option>
+            <option value="balgriff">Balgriff / Parafuso (Rimless)</option>
+          </select>
+        </div>
 
         <button
           onClick={onClearFilters}

@@ -51,20 +51,44 @@ export async function GET(request: Request) {
     rawPath = rawPath.slice('product-images/'.length);
   }
 
-  const validBuckets = ['product-images', 'public_catalogs', 'catalogs', 'company-assets', 'companies', 'banners', 'receipts'];
-  const firstSegment = rawPath.split('/')[0]?.toLowerCase();
+  const PUBLIC_IMAGE_BUCKETS = [
+    'product-images',
+    'public_catalogs',
+    'catalogs',
+    'company-assets',
+    'companies',
+    'banners',
+  ];
 
-  let effectiveBucket = bucketParam || '';
+  let effectiveBucket = '';
   let effectivePath = rawPath;
 
-  if (!effectiveBucket) {
-    if (validBuckets.includes(firstSegment)) {
-      effectiveBucket = rawPath.split('/')[0];
+  if (bucketParam) {
+    const cleanBucketParam = bucketParam.trim().toLowerCase();
+    if (!PUBLIC_IMAGE_BUCKETS.includes(cleanBucketParam)) {
+      console.warn('[storage-image] blocked unauthorized bucketParam:', bucketParam);
+      return NextResponse.json(
+        { error: 'Unauthorized bucket access', requested: filePath },
+        { status: 400, headers: { 'Cache-Control': 'public, max-age=60' } }
+      );
+    }
+    effectiveBucket = cleanBucketParam;
+  } else {
+    const firstSegment = rawPath.split('/')[0]?.toLowerCase();
+    if (PUBLIC_IMAGE_BUCKETS.includes(firstSegment)) {
+      effectiveBucket = firstSegment;
       effectivePath = rawPath.split('/').slice(1).join('/');
     } else {
       effectiveBucket = 'product-images';
       effectivePath = rawPath;
     }
+  }
+
+  if (!PUBLIC_IMAGE_BUCKETS.includes(effectiveBucket)) {
+    return NextResponse.json(
+      { error: 'Invalid or unauthorized bucket', requested: filePath },
+      { status: 400, headers: { 'Cache-Control': 'public, max-age=60' } }
+    );
   }
 
   try {
@@ -118,7 +142,7 @@ export async function GET(request: Request) {
 
     // Construir candidatos de buckets e paths para tentar cobrir formatos divergentes
     const candidateBuckets = Array.from(
-      new Set([effectiveBucket, 'product-images'].filter(Boolean))
+      new Set([effectiveBucket, 'product-images'].filter((b) => PUBLIC_IMAGE_BUCKETS.includes(b)))
     );
 
     const buildImageCandidates = (p: string): string[] => {

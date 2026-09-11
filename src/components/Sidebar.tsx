@@ -2,6 +2,7 @@
 
 import { usePermissions } from '@/hooks/usePermissions';
 import { createClient } from '@/lib/supabase/client';
+import { isAdminRole } from '@/lib/auth/roles';
 import type { Settings } from '@/lib/types';
 import {
   Box,
@@ -220,16 +221,20 @@ export function Sidebar({
             .maybeSingle();
           const profile = profileRes?.data as any | null;
           if (profile) {
-            const role = profile?.role || '';
-            const isCompanyAdminRole =
-              role === 'admin_company' || role === 'master';
+            const role = String(profile?.role || '').toLowerCase();
+            if (role === 'master' || role === 'template' || masterDetected) {
+              setIsMaster(true);
+            }
+            const isCompanyAdminRole = isAdminRole(role);
             const hasCompanyLink = Boolean(profile?.company_id);
-            setIsCompanyAdmin(Boolean(isCompanyAdminRole) && hasCompanyLink);
+            setIsCompanyAdmin(Boolean(isCompanyAdminRole));
             setIsCompanyMember(hasCompanyLink);
             setCanManageCatalog(Boolean(profile?.can_manage_catalog));
+          } else if (masterDetected) {
+            setIsMaster(true);
           }
         } catch (e) {
-          // ignore profile fetch failures
+          if (masterDetected) setIsMaster(true);
         }
 
         const settingsRes = await supabase
@@ -347,8 +352,8 @@ export function Sidebar({
       {/* Navegação */}
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
         {MENU_ITEMS.map((item) => {
-          // If permissions loaded and this item is not allowed, hide it (allow master to bypass)
-          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster)
+          // If permissions loaded and this item is not allowed, hide it (allow master & admin roles to bypass)
+          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster && !isCompanyAdmin)
             return null;
           // company users: catalog operations are restricted unless explicitly allowed
           const showCatalogOps =
@@ -356,7 +361,7 @@ export function Sidebar({
           const showTools = showCatalogOps;
           // Additional legacy guards that depend on company linkage or master flag
           // If the top-level item itself points to the sync settings page, hide it for non-master
-          if (item.href === '/dashboard/settings/sync' && !isMaster)
+          if (item.href === '/dashboard/settings/sync' && !showCatalogOps)
             return null;
           // Area de fila B2B da distribuidora apenas para membros vinculados
           if (item.href === '/dashboard/distribuidora' && !isCompanyMember)
@@ -527,9 +532,8 @@ export function Sidebar({
                     );
                     // hide 'Saúde dos Dados' and sync settings page for non-master users
                     if (
-                      (child.title === 'Saúde dos Dados' ||
-                        child.href === '/dashboard/settings/sync') &&
-                      !isMaster
+                      (child.title === 'Saúde dos Dados' && !isMaster) ||
+                      (child.href === '/dashboard/settings/sync' && !showCatalogOps)
                     ) {
                       return null;
                     }

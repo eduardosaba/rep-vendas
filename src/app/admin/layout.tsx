@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 import AdminLayoutClient from './AdminLayoutClient';
 import { isAdminRole } from '@/lib/auth/roles';
-import { createClient } from '@/lib/supabase/server';
 
 export default async function AdminLayout({
   children,
@@ -14,20 +14,35 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
+  console.log('[ADMIN AUTH]', {
+    hasUser: !!user,
+    userId: user?.id,
+  });
+
   if (!user) {
     redirect('/login');
   }
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, is_active')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
+
+  if (profile && profile.is_active === false) {
+    redirect('/login?error=account_disabled');
+  }
 
   const role = profile?.role;
 
+  console.log('[ADMIN ROLE]', {
+    userId: user?.id,
+    role: profile?.role,
+    isAdmin: isAdminRole(profile?.role),
+  });
+
   if (!isAdminRole(role)) {
-    redirect('/admin/unauthorized');
+    redirect('/dashboard');
   }
 
   return <AdminLayoutClient>{children}</AdminLayoutClient>;

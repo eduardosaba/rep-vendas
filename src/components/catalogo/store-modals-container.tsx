@@ -332,26 +332,72 @@ export function StoreModals() {
   useEffect(() => {
     let mounted = true;
 
+    const getBaseModelPrefix = (refCode: string, brandName: string): string => {
+      if (!refCode) return '';
+      const cleanRef = refCode.trim();
+      const cleanBrand = (brandName || '').trim();
+
+      let refWithoutBrand = cleanRef;
+      if (cleanBrand && cleanRef.toLowerCase().startsWith(cleanBrand.toLowerCase())) {
+        refWithoutBrand = cleanRef.slice(cleanBrand.length).trim();
+      }
+
+      const parts = refWithoutBrand.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return cleanRef;
+
+      const modelPart = parts[0];
+
+      if (cleanBrand && cleanRef.toLowerCase().startsWith(cleanBrand.toLowerCase())) {
+        const brandPrefix = cleanRef.slice(0, cleanBrand.length).trim();
+        return `${brandPrefix} ${modelPart}`;
+      }
+
+      return modelPart;
+    };
+
     const loadVariants = async () => {
       try {
         const prod = modals.product || activeProduct;
-        if (!prod || !prod.reference_id) return;
+        if (!prod) return;
+
+        const refCode = String(prod.reference_code || prod.name || '').trim();
+        const brandName = typeof prod.brand === 'string' ? prod.brand : (prod.brand as any)?.name || '';
+        const baseModelPrefix = getBaseModelPrefix(refCode, brandName);
 
         if (
           variantList &&
           variantList.length > 0 &&
-          variantList[0]?.reference_id === prod.reference_id
-        )
-          return;
+          (variantList[0]?.reference_id === prod.reference_id || variantList.some((v: any) => v.id === prod.id))
+        ) {
+          // Já carregado
+        }
 
-        const { data, error } = await supabase
+        let query = supabase
           .from('products')
           .select(
             'id, reference_code, reference_id, image_url, image_path, color, name, brand, gallery_images, image_variants, user_id, is_active'
           )
-          .eq('reference_id', prod.reference_id)
-          .eq('is_active', true)
-          .order('id', { ascending: true });
+          .eq('is_active', true);
+
+        if (prod.reference_id && prod.reference_id !== prod.reference_code) {
+          if (baseModelPrefix && baseModelPrefix.length >= 3) {
+            query = query.or(`reference_id.eq.${prod.reference_id},reference_code.ilike.${baseModelPrefix}%`);
+          } else {
+            query = query.eq('reference_id', prod.reference_id);
+          }
+        } else if (baseModelPrefix && baseModelPrefix.length >= 3) {
+          query = query.ilike('reference_code', `${baseModelPrefix}%`);
+        } else if (prod.reference_id) {
+          query = query.eq('reference_id', prod.reference_id);
+        } else {
+          return;
+        }
+
+        if (brandName) {
+          query = query.ilike('brand', `%${brandName}%`);
+        }
+
+        const { data, error } = await query.order('id', { ascending: true });
 
         if (!mounted || error || !data) return;
 
@@ -789,6 +835,7 @@ export function StoreModals() {
                         <div className="flex items-center gap-4">
                           <PriceDisplay
                             value={item.price * item.quantity}
+                            priceOnRequest={item.price_on_request}
                             isPricesVisible={isPricesVisible}
                           />
                           <button
@@ -1287,6 +1334,7 @@ export function StoreModals() {
                       </span>
                       <PriceDisplay
                         value={(displayProduct?.price || 0) * detailQuantity}
+                        priceOnRequest={displayProduct?.price_on_request}
                         isPricesVisible={isPricesVisible}
                         size="large"
                         className="text-2xl font-black"

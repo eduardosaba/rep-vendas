@@ -70,7 +70,7 @@ export default function ProductSyncPage() {
       if (!user) return;
       const { data } = await supabase
         .from('products')
-        .select('id, name, reference_code, barcode, price, sale_price, cost, stock_quantity, description, category, color, technical_specs')
+        .select('id, name, reference_code, barcode, price, sale_price, cost, stock_quantity, description, category, color, technical_specs, is_active, is_launch')
         .eq('user_id', user.id);
       if (data) setProducts(data);
     }
@@ -98,8 +98,21 @@ export default function ProductSyncPage() {
     if (!matchCol || !valueCol) return toast.warning('Selecione as colunas.');
     addLog(`🔍 Analisando divergências em [${dbTargetCol}]...`);
     const results: SyncPreview[] = fileData.map((row) => {
-      const excelKey = String(row[matchCol] || '');
-      const excelValue = row[valueCol];
+      const excelKey = String(row[matchCol] || '').trim();
+      let excelValue = row[valueCol];
+
+      // Tratamento especial para colunas booleanas (is_active e is_launch)
+      if (['is_active', 'is_launch'].includes(dbTargetCol)) {
+        const strVal = String(excelValue ?? '').trim();
+        if (/^(false|0|inativo|inativa|desativado|desativada|nao|não|f|n|no|falso)$/i.test(strVal)) {
+          excelValue = false;
+        } else if (/^(true|1|ativo|ativa|ativado|ativada|sim|s|t|yes|verdadeiro|si)$/i.test(strVal)) {
+          excelValue = true;
+        } else {
+          excelValue = Boolean(excelValue);
+        }
+      }
+
       const dbProduct = products.find((p) =>
         matchCol.toLowerCase().includes('ean')
           ? p.barcode === excelKey
@@ -109,12 +122,12 @@ export default function ProductSyncPage() {
         return {
           key: excelKey,
           newValue: excelValue,
-          displayValue: excelValue,
+          displayValue: String(excelValue),
           currentValue: null,
           productName: 'Não encontrado',
           status: 'not_found',
         };
-      const currentDbValue = dbProduct[dbTargetCol] || 0;
+      const currentDbValue = dbProduct[dbTargetCol] ?? (dbTargetCol === 'is_active' ? true : dbTargetCol === 'is_launch' ? false : 0);
       
       // Truncar textos longos para display (description, technical_specs)
       let displayVal = excelValue;
@@ -476,6 +489,8 @@ export default function ProductSyncPage() {
                   <option value="sale_price">🏷️ Preços de Venda</option>
                   <option value="cost">📊 Custo Real</option>
                   <option value="stock_quantity">📦 Estoque (Quantidade)</option>
+                  <option value="is_active">⚡ Status Ativo / Inativo (is_active)</option>
+                  <option value="is_launch">✨ Lançamento (is_launch)</option>
                   <option value="image_url">🖼️ URL Imagens</option>
                   <option value="barcode">🔢 Código de Barras (EAN)</option>
                   <option value="description">📝 Descrição</option>

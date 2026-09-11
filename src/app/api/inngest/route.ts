@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { inngest } from '@/inngest/client';
 import { serve } from 'inngest/next';
 

@@ -6,6 +6,7 @@ import { getActiveUserId } from '@/lib/auth-utils';
 import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import { formatDocument } from '@/lib/formatDocument';
 import { getUiStatusKey } from '@/lib/orderStatus';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getServerUserFallback } from '@/lib/supabase/getServerUserFallback';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -106,12 +107,21 @@ export default async function OrderDetailsPage({
     }
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, company_id')
+    .eq('id', finalUserId)
+    .maybeSingle();
+
+  const role = String(profile?.role || '');
+  const companyId = profile?.company_id || null;
+  const isMaster = role === 'master';
+  const isAdminCompany = role === 'admin_company';
+  const isRep = role === 'representative' || role === 'rep';
+
   const isDisplayId = /^\d+$/.test(id);
 
-  let query = supabase
-    .from('orders')
-    .select(
-      `
+  const selectQuery = `
       *,
       clients (*),
       order_items (
@@ -127,6 +137,8 @@ export default async function OrderDetailsPage({
         products (
           id,
           reference_code,
+          barcode,
+          sku,
           image_url,
           external_image_url,
           brand,
@@ -135,9 +147,9 @@ export default async function OrderDetailsPage({
           product_images ( id, url, is_primary, optimized_variants )
         )
       )
-    `
-    )
-    .eq('user_id', finalUserId);
+    `;
+
+  let query = supabase.from('orders').select(selectQuery);
 
   if (isDisplayId) {
     query = query.eq('display_id', parseInt(id));
@@ -145,7 +157,27 @@ export default async function OrderDetailsPage({
     query = query.eq('id', id);
   }
 
-  const { data: order, error } = await query.maybeSingle();
+  let { data: order, error } = await query.maybeSingle();
+
+  // Se não encontrou no cliente do usuário e a função tem permissões elevadas/multitenant, tenta admin client
+  if ((!order || error) && (isMaster || isAdminCompany || isRep || Boolean(companyId))) {
+    try {
+      const adminClient = createAdminClient();
+      let adminQuery = adminClient.from('orders').select(selectQuery);
+      if (isDisplayId) {
+        adminQuery = adminQuery.eq('display_id', parseInt(id));
+      } else {
+        adminQuery = adminQuery.eq('id', id);
+      }
+      const { data: adminOrder, error: adminErr } = await adminQuery.maybeSingle();
+      if (adminOrder && !adminErr) {
+        order = adminOrder;
+        error = null;
+      }
+    } catch (e) {
+      // fallback silencioso se admin falhar
+    }
+  }
 
   if (error) {
     console.error('Erro ao buscar pedido:', error.message);
@@ -159,11 +191,23 @@ export default async function OrderDetailsPage({
 
   if (!order) return notFound();
 
-  // Settings
+  // Validação de acesso ao pedido
+  const isOwner = String(order.user_id) === String(finalUserId);
+  const isSeller = String(order.seller_id || '') === String(finalUserId);
+  const isSameCompany = Boolean(companyId) && String(order.company_id || '') === String(companyId);
+
+  const hasAccess = isMaster || isOwner || isSeller || isSameCompany;
+
+  if (!hasAccess) {
+    return notFound();
+  }
+
+  // Settings da loja do dono do pedido ou do usuário atual como fallback
+  const targetUserId = order.user_id || finalUserId;
   const { data: storeSettings } = await supabase
     .from('settings')
     .select('*')
-    .eq('user_id', finalUserId)
+    .eq('user_id', targetUserId)
     .maybeSingle();
 
   const safeSettings = storeSettings || {

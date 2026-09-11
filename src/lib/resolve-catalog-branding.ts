@@ -17,6 +17,7 @@
  */
 
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
+import { cache } from 'react';
 
 function buildAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -86,11 +87,13 @@ export interface CatalogBranding {
   [key: string]: any;
 }
 
+import { SYSTEM_LOGO_URL } from './constants';
+
 const DEFAULTS: CatalogBranding = {
   store_name: 'Catálogo Virtual',
   primary_color: '#b9722e',
   secondary_color: null,
-  logo_url: null,
+  logo_url: SYSTEM_LOGO_URL,
   font_family: null,
   font_url: null,
   cover_image: null,
@@ -156,10 +159,11 @@ function merge(base: any, override: any): any {
  * @param ownerUserId  - user_id do dono do catálogo (rep ou admin_company)
  * @param companyId    - company_id vinculado ao dono (pode ser null)
  */
-export async function resolveCatalogBranding(
-  ownerUserId: string,
-  companyId?: string | null
-): Promise<CatalogBranding> {
+export const resolveCatalogBranding = cache(
+  async (
+    ownerUserId: string,
+    companyId?: string | null
+  ): Promise<CatalogBranding> => {
   const admin = buildAdmin();
   if (!admin) return { ...DEFAULTS };
 
@@ -266,5 +270,9 @@ export async function resolveCatalogBranding(
   if (typeof publicIndex?.is_active === 'boolean') result.is_active = publicIndex.is_active;
   if (publicIndex?.price_password_hash) result.price_password_hash = publicIndex.price_password_hash;
 
+  if (!result.logo_url) {
+    result.logo_url = SYSTEM_LOGO_URL;
+  }
+
   return result;
-}
+});

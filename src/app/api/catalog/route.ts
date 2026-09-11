@@ -37,12 +37,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const is_launch_param = params.get('is_launch') || params.get('new');
+    const tipo_montagem_param = params.get('tipo_montagem') || params.get('tipo_de_montagem');
+
     /**
      * PROJEÇÃO ATUALIZADA
-     * Incluímos 'reference_id', 'reference_code', 'image_path' e 'sync_status'
-     * para garantir que o agrupamento de cores e as imagens HD funcionem sempre.
+     * Incluímos 'reference_id', 'reference_code', 'image_path', 'tipo_montagem' e 'sync_status'
+     * para garantir que o agrupamento de cores, filtros e imagens HD funcionem sempre.
      */
-    const projection = 'id,name,slug,brand,category,material,price,sale_price,stock_quantity,manage_stock,bestseller,is_launch,polarizado,fotocromatico,images,image_path,sync_status,external_image_url,reference_id,reference_code,created_at';
+    const projection = 'id,name,slug,brand,category,material,price,sale_price,stock_quantity,manage_stock,bestseller,is_launch,tipo_montagem,polarizado,fotocromatico,images,image_path,sync_status,external_image_url,reference_id,reference_code,created_at';
 
     let query = supabase
       .from('products')
@@ -90,6 +93,8 @@ export async function GET(req: NextRequest) {
     }
 
     if (material) query = query.eq('material', material);
+    if (tipo_montagem_param) query = query.eq('tipo_montagem', tipo_montagem_param);
+    if (is_launch_param === '1' || is_launch_param === 'true') query = query.eq('is_launch', true);
     if (polarizado === '1' || polarizado === 'true') query = query.eq('polarizado', true);
     if (fotocromatico === '1' || fotocromatico === 'true') query = query.eq('fotocromatico', true);
 

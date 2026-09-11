@@ -35,6 +35,7 @@ export interface Product {
 
   // Preços
   price: number; // Preço Base / Custo
+  price_on_request?: boolean | null;
   sale_price?: number | null; // Preço de Venda Sugerido
   original_price?: number | null; // Preço "De" para promoções
   track_stock?: boolean;
@@ -130,6 +131,8 @@ export interface BaseStoreSettings {
   footer_message?: string;
   phone?: string;
   email?: string;
+  support_email?: string;
+  support_phone?: string;
   icon_color?: string;
 
   // Regras de Exibição

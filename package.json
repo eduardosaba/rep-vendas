@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/dev-wrapper.mjs",
-    "build": "node scripts/check-env.js && node scripts/check-assets.js && next build",
+    "dev": "node --max-old-space-size=8192 scripts/dev-wrapper.mjs",
+    "build": "node scripts/check-env.js && node scripts/check-assets.js && node --max-old-space-size=8192 node_modules/next/dist/bin/next build",
     "start": "next start",
     "e2e:internalize": "node scripts/e2e-internalize-test.mjs",
     "lint": "next lint",
@@ -77,6 +77,7 @@
     "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^9.39.2",
     "@next/eslint-plugin-next": "15.3.8",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",

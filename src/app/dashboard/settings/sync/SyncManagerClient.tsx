@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   RefreshCw,
   Play,
@@ -16,6 +17,7 @@ import {
   Download,
   TrendingUp,
   Package,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -126,18 +128,11 @@ export default function SyncManagerClient({
       const payload: any = {
         limit: syncLimit,
         force: forceSync,
+        brand_id: selectedBrand || undefined,
       };
 
       if (selectedBrand) {
-        // Encontra brand_id baseado no nome
-        const brand = stats?.pendingByBrand.find(
-          (b) => b.brand === selectedBrand
-        );
-        if (brand) {
-          // Nota: precisaríamos do brand_id aqui, não apenas o nome
-          // Por simplicidade, vamos filtrar apenas pelo limite
-          addLog(`🏷️ Filtro de marca selecionado: ${selectedBrand}`, 'info');
-        }
+        addLog(`🏷️ Filtrando sincronização para a marca: ${selectedBrand}`, 'info');
       }
 
       addLog('🚀 Iniciando conexão com servidor...', 'info');
@@ -274,16 +269,27 @@ export default function SyncManagerClient({
                   : 'Painel de Sincronização (dados limitados ao seu usuário)'}
               </p>
             </div>
-            <button
-              onClick={loadStats}
-              disabled={isLoadingStats}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${isLoadingStats ? 'animate-spin' : ''}`}
-              />
-              Atualizar
-            </button>
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Link
+                  href="/admin/storage-cleanup"
+                  className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2 text-sm font-medium border border-slate-700 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                  Limpeza de Storage
+                </Link>
+              )}
+              <button
+                onClick={loadStats}
+                disabled={isLoadingStats}
+                className="px-4 py-2 bg-blue-600 text-white dark:text-white rounded-lg hover:bg-blue-700 hover:opacity-90 active:scale-95 disabled:opacity-50 flex items-center gap-2 text-sm font-medium transition-all shadow-sm cursor-pointer"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${isLoadingStats ? 'animate-spin' : ''}`}
+                />
+                Atualizar
+              </button>
+            </div>
           </div>
         </div>
 
@@ -427,25 +433,25 @@ export default function SyncManagerClient({
             {!isSyncing ? (
               <button
                 onClick={startSync}
-                disabled={!stats || stats.stats.pending === 0}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+                disabled={!stats || (!forceSync && (stats.stats.pending === 0 && (stats.stats.failed === 0)))}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white dark:text-white font-semibold rounded-lg shadow-sm hover:shadow-md disabled:bg-blue-600/60 disabled:hover:bg-blue-600/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 select-none cursor-pointer"
               >
-                <Play className="w-5 h-5" />
+                <Play className="w-5 h-5 fill-current" />
                 Iniciar Sincronização
               </button>
             ) : (
               <button
                 onClick={cancelSync}
-                className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 font-medium"
+                className="px-6 py-3 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white dark:text-white font-semibold rounded-lg shadow-sm flex items-center gap-2 transition-all cursor-pointer"
               >
-                <Pause className="w-5 h-5" />
+                <Pause className="w-5 h-5 fill-current" />
                 Cancelar
               </button>
             )}
 
             <button
               onClick={clearLogs}
-              className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+              className="px-4 py-3 bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white dark:text-white font-semibold rounded-lg shadow-sm flex items-center gap-2 transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
               Limpar Logs

@@ -11,14 +11,31 @@ export default function PresenceProvider({
   children: React.ReactNode;
 }) {
   useEffect(() => {
+    // Se não houver cookie de autenticação no navegador, não tenta registrar presença
+    const hasAuthCookie =
+      typeof document !== 'undefined' &&
+      document.cookie.split(';').some((c) => {
+        const name = c.trim().toLowerCase();
+        return (
+          name.startsWith('sb-') ||
+          name.includes('repvendas-auth-token') ||
+          name.includes('auth-token') ||
+          name.includes('access-token')
+        );
+      });
+
+    if (!hasAuthCookie) {
+      return;
+    }
+
     const supabase = createClient();
     let connectionId: string | null = null;
 
     async function upsertPresence() {
       try {
-        const { data } = await supabase.auth.getUser();
-        const user = data?.user;
-        if (!user) return;
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data?.user) return;
+        const user = data.user;
         connectionId =
           connectionId ??
           `${user.id}-${Math.random().toString(36).slice(2, 8)}`;

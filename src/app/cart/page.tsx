@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
+import { formatProductPrice } from '@/lib/utils/price';
 import {
   ShoppingCart,
   Star,
@@ -21,6 +22,7 @@ interface Product {
   reference_code?: string;
   description?: string;
   price: number;
+  price_on_request?: boolean | null;
   image_url?: string;
 }
 
@@ -284,7 +286,7 @@ export default function Cart() {
                             {item.product.brand || 'Marca'}
                           </p>
                           <p className="mt-1 text-sm font-medium text-gray-900">
-                            R$ {item.product.price.toFixed(2)}
+                            {formatProductPrice(item.product.price, item.product.price_on_request)}
                           </p>
                         </div>
 
@@ -327,7 +329,9 @@ export default function Cart() {
 
                         <div className="text-right">
                           <p className="text-sm font-medium text-gray-900">
-                            R$ {(item.product.price * item.quantity).toFixed(2)}
+                            {item.product.price_on_request
+                              ? 'Sob consulta'
+                              : formatProductPrice(item.product.price * item.quantity)}
                           </p>
                         </div>
                       </div>
@@ -350,7 +354,9 @@ export default function Cart() {
                       Subtotal ({getTotalItems()} itens)
                     </span>
                     <span className="text-gray-900">
-                      R$ {getTotalValue().toFixed(2)}
+                      {cartItems.some(i => i.product.price_on_request)
+                        ? 'Sob consulta'
+                        : formatProductPrice(getTotalValue())}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -361,7 +367,9 @@ export default function Cart() {
                     <div className="flex justify-between text-lg font-medium">
                       <span className="text-gray-900">Total</span>
                       <span className="text-gray-900">
-                        R$ {getTotalValue().toFixed(2)}
+                        {cartItems.some(i => i.product.price_on_request)
+                          ? 'Sob consulta'
+                          : formatProductPrice(getTotalValue())}
                       </span>
                     </div>
                   </div>

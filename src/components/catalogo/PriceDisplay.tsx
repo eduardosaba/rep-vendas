@@ -4,6 +4,7 @@ import React from 'react';
 
 interface PriceDisplayProps {
   value: number;
+  priceOnRequest?: boolean | null;
   isPricesVisible?: boolean;
   className?: string;
   size?: 'small' | 'normal' | 'large';
@@ -15,6 +16,7 @@ interface PriceDisplayProps {
  */
 export function PriceDisplay({
   value,
+  priceOnRequest = false,
   isPricesVisible = true,
   className = '',
   size = 'normal',
@@ -24,6 +26,15 @@ export function PriceDisplay({
     return (
       <span className={`text-gray-300 font-mono tracking-tighter ${className}`}>
         R$ •••
+      </span>
+    );
+  }
+
+  // Caso o produto esteja marcado como preço sob consulta
+  if (priceOnRequest === true) {
+    return (
+      <span className={`font-semibold text-gray-700 dark:text-gray-300 ${className}`}>
+        Sob consulta
       </span>
     );
   }
@@ -90,10 +101,12 @@ export function PriceDisplay({
 export const getInstallmentText = (
   price: number,
   maxInstallments: number,
-  isPricesVisible: boolean = true
+  isPricesVisible: boolean = true,
+  priceOnRequest?: boolean | null
 ) => {
   if (
     !isPricesVisible ||
+    priceOnRequest === true ||
     price <= 0 ||
     !maxInstallments ||
     maxInstallments <= 1
@@ -120,9 +133,10 @@ export const getInstallmentText = (
 export const getCashDiscountText = (
   price: number,
   discountPercent: number,
-  isPricesVisible: boolean = true
+  isPricesVisible: boolean = true,
+  priceOnRequest?: boolean | null
 ) => {
-  if (!isPricesVisible || !discountPercent || discountPercent <= 0) return null;
+  if (!isPricesVisible || priceOnRequest === true || !discountPercent || discountPercent <= 0) return null;
 
   const discountedPrice = price * (1 - discountPercent / 100);
 

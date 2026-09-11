@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isAdminRole } from '@/lib/auth/roles';
 
 export function usePlanLimits() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
-  const [canCreate, setCanCreate] = useState(false);
-  const [usage, setUsage] = useState({ current: 0, max: 0, planName: 'Free' });
+  const [canCreate, setCanCreate] = useState(true);
+  const [usage, setUsage] = useState({ current: 0, max: 10000, planName: 'Padrão' });
 
   const checkLimit = async () => {
     setLoading(true);
@@ -13,31 +14,67 @@ export function usePlanLimits() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setUsage({ current: 0, max: 10000, planName: 'Padrão' });
+        setCanCreate(true);
+        return;
+      }
 
-      // 1. Pega a assinatura e o plano associado
-      // (Supondo que você vincule pelo nome ou ID. Aqui uso nome por simplicidade atual)
+      // 1. Pega perfil do usuário para verificar role (administradores têm limite ilimitado)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const userRole = profile?.role;
+      if (isAdminRole(userRole)) {
+        setUsage({ current: 0, max: 999999, planName: 'Administrador' });
+        setCanCreate(true);
+        return;
+      }
+
+      // 2. Busca assinatura
       const { data: sub } = await supabase
         .from('subscriptions')
-        .select('plan_name')
+        .select('plan_name, plan_id')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      const planName = sub?.plan_name || 'Free'; // Padrão se não tiver assinatura
+      const planName = sub?.plan_name || 'Starter';
 
-      // 2. Busca o limite na tabela de Planos (que você configurou no Admin)
-      const { data: plan } = await supabase
-        .from('plans')
-        .select('product_limit, max_products')
-        .eq('name', planName)
-        .maybeSingle();
+      // 3. Busca limite do plano
+      let maxLimit = 10000;
+      if (sub?.plan_id) {
+        const { data: planById } = await supabase
+          .from('plans')
+          .select('product_limit, max_products')
+          .eq('id', sub.plan_id)
+          .maybeSingle();
 
-      const maxLimit = plan?.product_limit || plan?.max_products || 500; // Fallback se não achar plano
+        if (planById) {
+          maxLimit = Number(planById.product_limit || planById.max_products) || 10000;
+        }
+      } else {
+        const { data: planByName } = await supabase
+          .from('plans')
+          .select('product_limit, max_products')
+          .eq('name', planName)
+          .maybeSingle();
 
-      // 3. Conta produtos atuais
+        if (planByName) {
+          maxLimit = Number(planByName.product_limit || planByName.max_products) || 10000;
+        }
+      }
+
+      if (maxLimit <= 0) {
+        maxLimit = 10000;
+      }
+
+      // 4. Conta produtos atuais
       const { count } = await supabase
         .from('products')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id);
 
       const currentCount = count || 0;
@@ -50,9 +87,9 @@ export function usePlanLimits() {
 
       setCanCreate(currentCount < maxLimit);
     } catch (error) {
-      console.error(error);
-      // Em caso de erro, bloqueia por segurança ou libera (sua escolha)
-      setCanCreate(false);
+      console.error('[usePlanLimits] Erro ao checar limite:', error);
+      setUsage({ current: 0, max: 10000, planName: 'Padrão' });
+      setCanCreate(true);
     } finally {
       setLoading(false);
     }

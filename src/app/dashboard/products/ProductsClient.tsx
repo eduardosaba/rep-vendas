@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatProductPrice } from '@/lib/utils/price';
 import {
   Plus,
   Search,
@@ -15,14 +16,15 @@ import {
   RefreshCcw,
   AlertTriangle,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { LazyProductImage } from '@/components/ui/LazyProductImage';
+import { toast } from 'sonner';
 
 interface Product {
   id: string;
   name: string;
   reference_code: string;
   price: number;
+  price_on_request?: boolean | null;
   brand: string | null;
   image_url: string | null;
   images: string[] | null;
@@ -252,10 +254,7 @@ export default function ProductsClient({
                       {product.reference_code || '-'}
                     </td>
                     <td className="px-3 sm:px-6 py-4 font-medium text-gray-900">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(product.price)}
+                      {formatProductPrice(product.price, product.price_on_request)}
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
@@ -349,10 +348,7 @@ export default function ProductsClient({
 
                 <div className="ml-3 text-right">
                   <div className="text-sm text-gray-500">
-                    {new Intl.NumberFormat('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL',
-                    }).format(product.price)}
+                    {formatProductPrice(product.price, product.price_on_request)}
                   </div>
                   <div className="flex items-center gap-2 mt-2">
                     <Link

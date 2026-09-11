@@ -81,8 +81,15 @@ const getBase64ImageFromURL = async (
       });
     }
 
+    if (!url || typeof url !== 'string') return null;
+    let targetUrl = url;
+    if (targetUrl.startsWith('/')) {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+      targetUrl = `${baseUrl.replace(/\/$/, '')}${targetUrl}`;
+    }
+
     // Fetch the resource and convert to a blob, then to a dataURL via canvas or FileReader
-    const res = await fetch(url, { mode: 'cors' });
+    const res = await fetch(targetUrl, { mode: 'cors' });
     if (!res.ok) return null;
     const blob = await res.blob();
 
@@ -209,7 +216,8 @@ export const generateOrderPDF = async (
   overrideShowPrices?: boolean,
   options?: PdfRenderOptions
 ): Promise<void | Blob> => {
-  const doc = new jsPDF();
+  const JsPdfCtor = typeof jsPDF === 'function' ? jsPDF : (jsPDF as any).jsPDF || (jsPDF as any).default;
+  const doc = new JsPdfCtor();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   const margin = 14;
@@ -386,7 +394,8 @@ export const generateOrderPDF = async (
     return [...brandHeader, row];
   });
 
-  autoTable(doc, {
+  const autoTableFn = typeof autoTable === 'function' ? autoTable : (autoTable as any).default || (doc as any).autoTable;
+  autoTableFn(doc, {
     startY: boxY + 35,
     head: showPrices
       ? [['FOTO', 'REF', 'PRODUTO / MARCA', 'QTD', 'UNIT', 'TOTAL']]
@@ -579,6 +588,9 @@ export const generateOrderPDF = async (
 
   // --- SAÍDA FINAL ---
   if (returnBlob) {
+    if (typeof window === 'undefined') {
+      return doc.output('arraybuffer') as any;
+    }
     return doc.output('blob');
   } else {
     const cleanName = (orderData.customer.name || 'pedido')

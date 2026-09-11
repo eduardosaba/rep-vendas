@@ -12,36 +12,40 @@ export default async function OnboardingPage() {
   // 1. Obter usuário de forma segura
   const {
     data: { user },
-    error: authError,
   } = await supabase.auth.getUser();
 
   if (user) {
-    // 2. Busca o Perfil com foco na flag de conclusão
+    // 2. Busca o Perfil com dados iniciais e etapa atual
     const { data: profile } = await supabase
       .from('profiles')
-      .select('onboarding_completed')
+      .select('onboarding_completed, onboarding_step, full_name, phone')
       .eq('id', user.id)
       .maybeSingle();
 
-    // Se já completou, não há motivo para estar aqui
+    // Se já completou, redireciona para o dashboard
     if (profile?.onboarding_completed) {
       redirect('/dashboard');
     }
 
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <Suspense
           fallback={
             <div className="animate-pulse bg-white w-full max-w-2xl h-[600px] rounded-3xl" />
           }
         >
-          <OnboardingForm userId={user.id} userEmail={user.email || ''} />
+          <OnboardingForm
+            userId={user.id}
+            userEmail={user.email || ''}
+            initialFullName={profile?.full_name || ''}
+            initialPhone={profile?.phone || ''}
+            initialStep={profile?.onboarding_step || 1}
+          />
         </Suspense>
       </div>
     );
   }
 
-  // 3. Fallback para Client-side Gate (Evita tela branca se o cookie demorar a propagar)
-  // O OnboardingGate fará uma nova tentativa no cliente antes de mandar para /login
+  // 3. Fallback para Client-side Gate
   return <OnboardingGate />;
 }

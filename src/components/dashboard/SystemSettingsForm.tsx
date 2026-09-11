@@ -10,6 +10,13 @@ import PageBuilder from '@/components/dashboard/company/PageBuilder';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
 import { createClient } from '@/lib/supabase/client';
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
+import {
+  normalizeSettingsRow,
+  computeSettingsDiff,
+  enforcePriceExclusive,
+  devLogSettings,
+} from '@/lib/settings-utils';
 import {
   Building2,
   Globe,
@@ -108,9 +115,14 @@ export default function SystemSettingsForm({
   const handleCatalogSettingsChange = (e: any) => {
     if (e?.target) {
       const { name, value, checked, type } = e.target;
+      const val = type === 'checkbox' ? checked : value;
       setCatalogSettings((p: any) => ({
         ...p,
-        [name]: type === 'checkbox' ? checked : value,
+        [name]: val,
+      }));
+      setFormData((p: any) => ({
+        ...p,
+        [name]: val,
       }));
     }
   };
@@ -310,11 +322,8 @@ export default function SystemSettingsForm({
             // if settings exist, populate catalogSettings and preview states
             if (settingsRow) {
               const settingsData = settingsRow;
-              const normalized: any = {};
-              Object.keys(settingsData).forEach((k) => {
-                const v = (settingsData as any)[k];
-                normalized[k] = v === null ? '' : v;
-              });
+              const normalized: any = normalizeSettingsRow(settingsData as Record<string, unknown>);
+              devLogSettings('load:settings:normalized', normalized);
               // merge normalized into formData and originalData
               setFormData((p: any) => ({ ...p, ...normalized }));
               setOriginalData((od: any) => ({ ...(od || {}), ...normalized }));
@@ -463,11 +472,8 @@ export default function SystemSettingsForm({
             if (!mounted) return;
 
             if (!error && settingsData) {
-              const normalized: any = {};
-              Object.keys(settingsData).forEach((k) => {
-                const v = (settingsData as any)[k];
-                normalized[k] = v === null ? '' : v;
-              });
+              const normalized: any = normalizeSettingsRow(settingsData as Record<string, unknown>);
+              devLogSettings('load:settings:normalized(fallback1)', normalized);
               setFormData((p: any) => ({ ...p, ...normalized }));
               setOriginalData(normalized);
               const rawCatalog = settingsData.catalog_settings || {};
@@ -554,11 +560,8 @@ export default function SystemSettingsForm({
           if (!mounted) return;
 
           if (!error && settingsData) {
-            const normalized: any = {};
-            Object.keys(settingsData).forEach((k) => {
-              const v = (settingsData as any)[k];
-              normalized[k] = v === null ? '' : v;
-            });
+            const normalized: any = normalizeSettingsRow(settingsData as Record<string, unknown>);
+            devLogSettings('load:settings:normalized(fallback2)', normalized);
             setFormData((p: any) => ({ ...p, ...normalized }));
             setOriginalData(normalized);
             const rawCatalog = settingsData.catalog_settings || {};
@@ -691,12 +694,13 @@ export default function SystemSettingsForm({
 
       try {
         Object.keys(defaultCatalogSettings).forEach((k) => {
-          if (payload[k] === undefined || payload[k] === null) {
+          // Only fill in undefined values. Do NOT overwrite false, 0, or '' — these are valid.
+          if (payload[k] === undefined) {
             // prefer current catalogSettings value, otherwise fallback to defaultCatalogSettings
-            payload[k] =
-              (catalogSettings as any)?.[k] ??
-              (defaultCatalogSettings as any)[k];
+            const fallback = (catalogSettings as any)?.[k] ?? (defaultCatalogSettings as any)[k];
+            payload[k] = fallback;
           }
+          // null is acceptable for optional fields — don't replace with defaults
         });
       } catch (e) {
         // if something is off with defaultCatalogSettings, ignore and proceed
@@ -786,10 +790,11 @@ export default function SystemSettingsForm({
         throw err;
       }
 
-      // refresh local originalData by merging partial
-      const merged = { ...(originalData || {}), ...partial };
+      // refresh local originalData by merging partial, preserving types
+      const merged = normalizeSettingsRow({ ...(originalData || {}), ...partial });
       setOriginalData(merged);
       setFormData((p: any) => ({ ...p, ...partial }));
+      devLogSettings('quickSave:updatedSnapshot', merged);
 
       // Provide frontend feedback about public_catalog sync when available
       const pubSync = j?.public_catalog_sync;
@@ -911,9 +916,16 @@ export default function SystemSettingsForm({
         'enable_stock_management',
         'global_allow_backorder',
       ].forEach((k) => {
-        if (mergedCatalog[k] != null)
+        // Always coerce to boolean — false is a valid value, don't skip it
+        if (mergedCatalog[k] !== undefined) {
           mergedCatalog[k] = Boolean(mergedCatalog[k]);
+        }
       });
+
+      // Enforce mutually exclusive rule: show_sale_price XOR show_cost_price
+      const priceRule = enforcePriceExclusive(mergedCatalog.show_sale_price, mergedCatalog.show_cost_price);
+      mergedCatalog.show_sale_price = priceRule.show_sale_price;
+      mergedCatalog.show_cost_price = priceRule.show_cost_price;
 
       // -------------------------------------------------------
       // 2. Estratégia de herança — salvar no lugar certo
@@ -976,69 +988,55 @@ export default function SystemSettingsForm({
           supabase
             .from('companies')
             .update(sanitizeEmptyStrings(companyPayload))
-            .eq('id', companyId) as any
+            .eq('id', companyId)
+            .select() as any
         );
       }
 
-      // --- CENÁRIO B: representante / rep ---
-      // settings é a personalização individual — salva sempre para todos os roles
-      const settingsPayload: any = {
-        user_id: actingUser.id,
-        ...mergedCatalog,
-        // campos de identidade
-        name: formData.name || null,
-        phone: formData.phone || null,
-        email: formData.email || null,
-        catalog_slug: formData.catalog_slug || null,
-        is_active: formData.is_active ?? true,
-        representative_name:
-          formData.representative_name || formData.name || null,
-        whatsapp_url: formData.whatsapp_url || null,
-        footer_message: formData.footer_message || null,
-        updated_at: now,
-      };
-      // sanitize before upsert: convert empty strings to null to avoid Postgres integer parse errors
-      const settingsPayloadSanitized = sanitizeEmptyStrings({
-        ...settingsPayload,
-      });
-
-      // remove campos técnicos antes de salvar em settings (aplica na cópia sanitizada)
-      delete settingsPayloadSanitized.header_background_color;
-      delete settingsPayloadSanitized.header_text_color;
-      tasks.push(
-        supabase
-          .from('settings')
-          .upsert([settingsPayloadSanitized], { onConflict: 'user_id' }) as any
-      );
-
-      // public_catalogs agora é sincronizado automaticamente por um TRIGGER
-      // no banco (sync_settings_to_catalogs). Não é necessário upsert manual
-      // daqui para frente — o banco garante atomicidade e consistência.
+      // --- CENÁRIO B: representante / rep & configurações do sistema ---
+      // Executa quickSave com scope 'full' que faz o salvamento via API (/api/settings/save),
+      // garantindo sincronização com profiles, triggers do banco (sync_settings_to_catalogs) e eventos Inngest.
+      tasks.push(quickSave(mergedCatalog, 'full') as any);
 
       // -------------------------------------------------------
       // 3. Executar e avaliar resultados
       // -------------------------------------------------------
+      devLogSettings('handleSaveAll:mergedCatalog', mergedCatalog);
+
       const results = await Promise.allSettled(tasks);
 
       const failed = results.filter(
         (r) => r.status === 'rejected' || (r as any).value?.error
       );
 
-      if (failed.length === 0) {
-        setOriginalData((od: any) => ({ ...(od || {}), ...mergedCatalog }));
-        setFormData((fd: any) => ({ ...(fd || {}), ...mergedCatalog }));
-        toast.success('Configurações salvas com sucesso!');
-      } else {
+      // Check if any successful result returned no data (0 rows affected)
+      const noRowsAffected = results.some((r) => {
+        if (r.status === 'fulfilled') {
+          const val = (r as any).value;
+          // Supabase returns { data: null, error: null } when no row matched (only check DB query results, not API responses)
+          if (val && !val.error && Object.prototype.hasOwnProperty.call(val, 'data') && val.data === null) return true;
+        }
+        return false;
+      });
+
+      if (failed.length > 0) {
         failed.forEach((r) =>
           console.error(
             '[handleSaveAll] erro:',
             (r as any).reason || (r as any).value?.error
           )
         );
-        // atualiza o que salvou com sucesso
-        setOriginalData((od: any) => ({ ...(od || {}), ...mergedCatalog }));
+        toast.error('Erro ao salvar configurações. Verifique o console para detalhes.');
+      } else if (noRowsAffected) {
+        console.warn('[handleSaveAll] upsert retornou sem linhas afetadas');
+        toast.warning('Nenhuma linha foi atualizada no banco. Verifique suas permissões.');
+      } else {
+        // Success: update snapshot with merged data
+        const updatedSnapshot = normalizeSettingsRow({ ...(originalData || {}), ...mergedCatalog });
+        setOriginalData(updatedSnapshot);
         setFormData((fd: any) => ({ ...(fd || {}), ...mergedCatalog }));
-        toast.warning('Salvo com alertas — verifique o console para detalhes.');
+        toast.success('Configurações salvas com sucesso!');
+        devLogSettings('handleSaveAll:newSnapshot', updatedSnapshot);
       }
     } catch (err: any) {
       console.error('Erro crítico no salvamento:', err);
@@ -1055,6 +1053,8 @@ export default function SystemSettingsForm({
           'name',
           'phone',
           'email',
+          'support_email',
+          'support_phone',
           'catalog_slug',
           'price_password',
           'headline',
@@ -1135,31 +1135,33 @@ export default function SystemSettingsForm({
       const fields = getFieldsForTab(activeTab);
       const partial: any = {};
       fields.forEach((f) => {
-        // For robust detection, prefer explicit user edits in formData,
-        // then catalogSettings, then fall back to originalData.
+        // Prioritize explicit catalogSettings or formData edits over initial originalData
+        let val: any = undefined;
         if (
-          formData &&
-          Object.prototype.hasOwnProperty.call(formData, f) &&
-          formData[f] !== undefined
-        ) {
-          partial[f] = formData[f];
-        } else if (
           catalogSettings &&
           Object.prototype.hasOwnProperty.call(catalogSettings, f) &&
           (catalogSettings as any)[f] !== undefined
         ) {
-          partial[f] = (catalogSettings as any)[f];
-        } else if (
+          val = (catalogSettings as any)[f];
+        }
+        if (
+          val === undefined &&
+          formData &&
+          Object.prototype.hasOwnProperty.call(formData, f) &&
+          formData[f] !== undefined
+        ) {
+          val = formData[f];
+        }
+        if (
+          val === undefined &&
           originalData &&
           Object.prototype.hasOwnProperty.call(originalData, f)
         ) {
-          partial[f] = originalData[f];
-        } else {
-          partial[f] = undefined;
+          val = originalData[f];
         }
+        partial[f] = val;
       });
-      // compute diff against originalData
-      const diff: any = {};
+
       // Include display-specific local states not stored in formData/catalogSettings
       if (activeTab === 'display') {
         try {
@@ -1188,21 +1190,14 @@ export default function SystemSettingsForm({
           // ignore
         }
       }
-      Object.keys(partial).forEach((k) => {
-        const a =
-          typeof partial[k] === 'undefined' || partial[k] === null
-            ? ''
-            : partial[k];
-        const b =
-          typeof originalData?.[k] === 'undefined' || originalData?.[k] === null
-            ? ''
-            : originalData?.[k];
-        try {
-          if (JSON.stringify(a) !== JSON.stringify(b)) diff[k] = partial[k];
-        } catch (e) {
-          if (String(a) !== String(b)) diff[k] = partial[k];
-        }
-      });
+
+      // Use type-safe diff that preserves false, 0, null correctly
+      const diff: any = computeSettingsDiff(partial, originalData || {}, Object.keys(partial));
+
+      devLogSettings('saveActiveTab:partial', partial);
+      devLogSettings('saveActiveTab:originalData', originalData);
+      devLogSettings('saveActiveTab:diff', diff);
+
       if (Object.keys(diff).length === 0) {
         toast.info('Nenhuma alteração nesta aba.');
         return;
@@ -1334,7 +1329,7 @@ export default function SystemSettingsForm({
             logoPreview={
               formData.logo_url ||
               (catalogSettings && catalogSettings.logo_url) ||
-              null
+              SYSTEM_LOGO_URL
             }
             supabase={supabase}
             setLogoPreview={(url: string | null) => {

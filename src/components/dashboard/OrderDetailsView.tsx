@@ -472,7 +472,7 @@ export function OrderDetailsView({ order }: { order: any }) {
                           key={item.id}
                           className="flex flex-col py-4 border-b last:border-0 border-slate-100 dark:border-slate-800 px-6"
                         >
-                          <div className="w-full flex items-start gap-4">
+                          <div className="w-full flex items-start justify-between gap-4">
                             <div
                               role="button"
                               tabIndex={0}
@@ -523,61 +523,55 @@ export function OrderDetailsView({ order }: { order: any }) {
                               <h4 className="font-bold text-slate-800 dark:text-white truncate">
                                 {item.name || item.product_name}
                               </h4>
-                              {(item.products?.ean ||
-                                item.ean ||
-                                item.products?.barcode ||
+                              {(item.products?.barcode ||
                                 item.barcode ||
                                 item.products?.sku ||
-                                item.sku) && (
+                                item.sku ||
+                                item.products?.reference_code ||
+                                item.product_reference) && (
                                 <p className="text-xs text-slate-500 mt-1">
                                   Código:{' '}
-                                  {item.products?.ean ||
-                                    item.ean ||
-                                    item.products?.barcode ||
+                                  {item.products?.barcode ||
                                     item.barcode ||
                                     item.products?.sku ||
-                                    item.sku}
+                                    item.sku ||
+                                    item.products?.reference_code ||
+                                    item.product_reference}
                                 </p>
                               )}
-                              <p className="text-sm text-slate-500">
+                              <p className="text-sm text-slate-500 mt-1">
                                 Qtd: {item.quantity} × {fmt.format(unit)}
                               </p>
                             </div>
-                          </div>
 
-                          <div className="w-full mt-3 flex items-center">
-                            <div className="w-1/2 flex items-center justify-start px-3">
+                            <div className="flex flex-col items-end justify-start flex-shrink-0 gap-2">
+                              <p className="font-black text-slate-900 dark:text-white text-base md:text-lg">
+                                {fmt.format(unit * (item.quantity || 0))}
+                              </p>
+
                               {(() => {
                                 const raw = String(
-                                  item.products?.ean ||
-                                    item.ean ||
-                                    item.products?.barcode ||
+                                  item.products?.barcode ||
                                     item.barcode ||
                                     item.products?.sku ||
                                     item.sku ||
                                     ''
                                 );
                                 const code = raw.replace(/[^0-9]/g, '');
-                                if (code.length !== 13) return null;
+                                if (code.length !== 13 && code.length !== 8) return null;
 
                                 return (
-                                  <div className="bg-white dark:bg-white rounded border border-gray-200 px-2 py-1 shadow-sm flex items-center justify-center max-w-[160px] w-full">
+                                  <div className="bg-white dark:bg-white rounded border border-gray-200 px-2 py-1 shadow-sm flex items-center justify-center max-w-[150px]">
                                     <div className="w-full flex items-center justify-center">
                                       <EAN13Barcode
                                         code={code}
-                                        width={Math.min(160, 120)}
-                                        height={48}
+                                        width={120}
+                                        height={44}
                                       />
                                     </div>
                                   </div>
                                 );
                               })()}
-                            </div>
-
-                            <div className="w-1/2 flex items-center justify-end px-3">
-                              <p className="font-black text-slate-900 dark:text-white">
-                                {fmt.format(unit * (item.quantity || 0))}
-                              </p>
                             </div>
                           </div>
                         </div>

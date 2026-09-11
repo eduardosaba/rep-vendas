@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Heart, Star } from 'lucide-react';
 import Image from 'next/image';
 import { Product, Settings } from '../../lib/types';
+import { formatProductPrice } from '@/lib/utils/price';
 
 interface BestsellerCarouselProps {
   products: Product[];
@@ -94,9 +95,9 @@ export const BestsellerCarousel: React.FC<BestsellerCarouselProps> = ({
                 </h4>
                 <div className="mb-2 flex items-baseline space-x-2">
                   <span className="text-lg font-bold text-gray-900">
-                    R$ {formatPrice(product.price)}
+                    {formatProductPrice(product.price, product.price_on_request)}
                   </span>
-                  {settings?.show_sale_price && (
+                  {!product.price_on_request && settings?.show_sale_price && (
                     <span className="text-sm text-gray-500 line-through">
                       R$ {formatPrice(product.price * 1.2)}
                     </span>

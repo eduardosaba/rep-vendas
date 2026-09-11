@@ -11,13 +11,26 @@ export async function clonarCatalogo(
   targetUserId: string,
   brandName: string
 ) {
-  // Detecta se o alvo pertence a uma empresa (tenant corporativo)
+  // Detecta se o alvo pertence a uma empresa e resolve sua organization_id
   const { data: targetProfile } = await svc
     .from('profiles')
-    .select('company_id')
+    .select('company_id, organization_id')
     .eq('id', targetUserId)
     .maybeSingle();
   const targetCompanyId = (targetProfile as any)?.company_id || null;
+  let targetOrganizationId = (targetProfile as any)?.organization_id || null;
+
+  if (!targetOrganizationId) {
+    const { data: member } = await svc
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', targetUserId)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (member?.organization_id) {
+      targetOrganizationId = member.organization_id;
+    }
+  }
 
   // Detecta company do source caso a brand esteja associada a uma company
   const { data: sourceProfile } = await svc
@@ -98,9 +111,12 @@ export async function clonarCatalogo(
 
     return {
       ...productData,
+      source_product_id: product.id,
+      original_product_id: product.original_product_id || product.id,
       // mantemos o campo brand como veio do source
       brand: productData.brand,
       user_id: targetUserId,
+      organization_id: targetOrganizationId || null,
       company_id: targetCompanyId || null,
     };
   });

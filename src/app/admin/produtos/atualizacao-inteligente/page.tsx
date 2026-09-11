@@ -5,7 +5,7 @@ import { isAdminRole } from '@/lib/auth/roles';
 import { SmartUpdateClient } from './components/SmartUpdateClient';
 
 export default async function SmartUpdatePage() {
-  const isEnabled = process.env.FACTORY_LINE_IMPORT_ENABLED !== 'false';
+  const isEnabled = process.env.PRODUCT_UPDATE_ENGINE_ENABLED !== 'false';
 
   if (!isEnabled) {
     notFound();
@@ -20,17 +20,27 @@ export default async function SmartUpdatePage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, company_id')
     .eq('id', userId)
     .maybeSingle();
 
-  if (!profile || !isAdminRole(profile.role)) {
-    redirect('/admin/unauthorized');
-  }
+  const role = profile?.role || 'representative';
+  const isMasterOrAdmin = role === 'master' || role === 'admin';
+  const isCompanyAdmin = role === 'company_admin' || role === 'admin_company';
 
-  // Fetch companies & users for scope selector dropdowns
+  // Allow representatives, admins, and masters to access SmartUpdate
+  // (Representatives use Operational Mode for their own products)
+
+  // Fetch companies, users & brands for scope selector dropdowns
   const { data: companies } = await supabase.from('companies').select('id, name').order('name');
   const { data: users } = await supabase.from('profiles').select('id, email, full_name').order('email');
+  const { data: brands } = await supabase.from('brands').select('id, name').order('name');
+
+  const availableScopes = isMasterOrAdmin
+    ? ['PLATFORM_GLOBAL', 'GLOBAL', 'ORGANIZATION', 'COMPANY']
+    : isCompanyAdmin
+    ? ['ORGANIZATION', 'COMPANY']
+    : ['USER'];
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -38,12 +48,16 @@ export default async function SmartUpdatePage() {
         <h2 className="text-3xl font-bold tracking-tight">Motor de Atualização Inteligente por Planilha</h2>
       </div>
       <p className="text-slate-500 dark:text-slate-400">
-        Importe planilhas Excel em qualquer formato, configure identificadores, monte filtros dinâmicos e aplique atualizações em lote de forma auditada e reversível.
+        Importe planilhas Excel em qualquer formato, configure identificadores (Referência / EAN), monte filtros e aplique atualizações em lote de forma auditada e reversível.
       </p>
 
       <SmartUpdateClient
         availableCompanies={companies || []}
         availableUsers={users || []}
+        availableBrands={brands || []}
+        availableScopes={availableScopes}
+        userRole={role}
+        currentUserId={userId}
       />
     </div>
   );
