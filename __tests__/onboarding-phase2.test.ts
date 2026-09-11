@@ -75,6 +75,14 @@ const createMockSupabase = () => {
         };
       }
 
+      if (table === 'companies') {
+        return {
+          upsert: jest.fn().mockImplementation((payload: any) => {
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+      }
+
       if (table === 'organization_members') {
         return {
           upsert: jest.fn().mockImplementation((payload: any) => {

@@ -100,10 +100,11 @@ export async function saveOnboardingStep2(data: Step2Data) {
     ? data.organizationType
     : 'independent_representative';
 
+  let safeOrgSlug = '';
   // 3. Se nenhuma organização foi encontrada, criar uma nova organização de forma idempotente
   if (!organizationId) {
     const baseSlug = SlugService.generate(safeCompanyName) || `org-${user.id.slice(0, 8)}`;
-    const safeOrgSlug = await SlugService.ensureUnique(baseSlug, async (candidate) => {
+    safeOrgSlug = await SlugService.ensureUnique(baseSlug, async (candidate) => {
       const { data: orgCheck } = await supabase
         .from('organizations')
         .select('id')
@@ -159,11 +160,29 @@ export async function saveOnboardingStep2(data: Step2Data) {
     console.warn('[saveOnboardingStep2] Aviso ao inserir membership:', memberErr.message);
   }
 
-  // 5. Vincular profiles.organization_id e avançar para a Etapa 3
+  // 5. Garantir registro sincronizado na tabela empresas (companies) para compatibilidade plena
+  try {
+    await supabase.from('companies').upsert(
+      {
+        id: organizationId,
+        user_id: user.id,
+        name: safeCompanyName,
+        slug: safeOrgSlug || `company-${organizationId.slice(0, 8)}`,
+        type: safeOrgType === 'distributor' ? 'distribuidora' : 'representante',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch (compErr) {
+    console.warn('[saveOnboardingStep2] Aviso ao sincronizar tabela companies:', compErr);
+  }
+
+  // 6. Vincular profiles.organization_id e company_id e avançar para a Etapa 3
   const { error: updateProfileErr } = await supabase
     .from('profiles')
     .update({
       organization_id: organizationId,
+      company_id: organizationId,
       onboarding_step: 3,
       updated_at: new Date().toISOString(),
     })
