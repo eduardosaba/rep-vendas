@@ -89,3 +89,104 @@ export async function markOrderFaturado(orderId: string) {
     return { success: false, error: err?.message || String(err) };
   }
 }
+
+export async function linkOrderClient(input: {
+  orderId: string;
+  clientId?: string | null;
+  newClientData?: {
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    document?: string | null;
+  } | null;
+}) {
+  try {
+    const { orderId, clientId, newClientData } = input;
+    if (!orderId) return { success: false, error: 'orderId é obrigatório' };
+
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('id, company_id, organization_id, client_name_guest, client_phone_guest, client_email_guest, client_cnpj_guest, sales_rep_id')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!order) return { success: false, error: 'Pedido não encontrado' };
+
+    let targetClientId = clientId || null;
+    const orgId = order.organization_id || order.company_id;
+
+    // Se nenhum clientId foi informado mas newClientData foi fornecido (ou via dados guest do pedido)
+    if (!targetClientId) {
+      const clientName = newClientData?.name || order.client_name_guest || 'Cliente Guest';
+      const clientPhone = newClientData?.phone || order.client_phone_guest || null;
+      const clientEmail = newClientData?.email || order.client_email_guest || null;
+      const clientDocument = newClientData?.document || order.client_cnpj_guest || null;
+
+      // 1. Tentar encontrar cliente existente por documento, e-mail ou telefone
+      let matchedClient: any = null;
+
+      if (clientDocument && orgId) {
+        const { data: byDoc } = await supabaseAdmin
+          .from('clients')
+          .select('id')
+          .or(`organization_id.eq.${orgId},company_id.eq.${orgId}`)
+          .eq('document', clientDocument)
+          .maybeSingle();
+        if (byDoc) matchedClient = byDoc;
+      }
+
+      if (!matchedClient && clientPhone && orgId) {
+        const { data: byPhone } = await supabaseAdmin
+          .from('clients')
+          .select('id')
+          .or(`organization_id.eq.${orgId},company_id.eq.${orgId}`)
+          .eq('phone', clientPhone)
+          .maybeSingle();
+        if (byPhone) matchedClient = byPhone;
+      }
+
+      if (matchedClient) {
+        targetClientId = matchedClient.id;
+      } else {
+        // 2. Criar novo cliente
+        const { data: createdClient, error: createErr } = await supabaseAdmin
+          .from('clients')
+          .insert({
+            name: clientName,
+            phone: clientPhone,
+            email: clientEmail,
+            document: clientDocument,
+            organization_id: orgId,
+            company_id: orgId,
+            status: 'active',
+          })
+          .select('id')
+          .single();
+
+        if (createErr || !createdClient) {
+          throw new Error(`Falha ao criar cadastro de cliente: ${createErr?.message || 'erro desconhecido'}`);
+        }
+        targetClientId = createdClient.id;
+      }
+    }
+
+    // 3. Atualizar o pedido com client_id e customer_link_status = 'linked'
+    // PRESERVANDO ESTRITAMENTE sales_rep_id INTOCADO!
+    const { error: updateErr } = await supabaseAdmin
+      .from('orders')
+      .update({
+        client_id: targetClientId,
+        customer_link_status: 'linked',
+      })
+      .eq('id', orderId);
+
+    if (updateErr) throw updateErr;
+
+    revalidatePath('/admin/distribuidora/pedidos');
+    revalidatePath(`/dashboard/orders/${orderId}`);
+    return { success: true, clientId: targetClientId };
+  } catch (err: any) {
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+

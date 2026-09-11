@@ -270,8 +270,12 @@ export async function createOrder(
       client_email_guest: customer.email || null,
       client_cnpj_guest: customer.cnpj || null,
       company_id: companyId,
+      organization_id: companyId,
       source,
       seller_id: sellerId || null,
+      sales_rep_id: sellerId || null,
+      client_id: existingCustomerId || null,
+      customer_link_status: existingCustomerId ? 'linked' : 'pending',
     };
 
     const { data: order, error: orderError } = await insertClient

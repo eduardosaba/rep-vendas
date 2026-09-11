@@ -168,22 +168,27 @@ export async function resolveContext(
 
     const { data: representative } = await supabase
       .from('profiles')
-      .select('id, full_name, email, phone, slug, company_id')
+      .select('id, full_name, email, phone, slug, company_id, organization_id, is_active')
       .ilike('slug', escapeIlikePattern(normRep))
-      .eq('company_id', company.id)
       .maybeSingle();
 
-    if (!representative) return null;
+    // Validar se o representante existe, pertence à empresa/organização e está ATIVO
+    const isLinkedAndActive =
+      representative &&
+      representative.is_active !== false &&
+      (representative.company_id === company.id || representative.organization_id === company.id);
 
     return {
       type: 'distributor',
       companySlug: normCompany,
-      repSlug: normRep,
+      repSlug: isLinkedAndActive ? normRep : '',
       catalogSlug: normCompany,
       company,
-      representative,
+      representative: isLinkedAndActive ? representative : null,
       catalog,
-      pathPrefix: `/catalogo/${normCompany}/${normRep}`,
+      pathPrefix: isLinkedAndActive
+        ? `/catalogo/${normCompany}/${normRep}`
+        : `/catalogo/${normCompany}`,
     };
   }
 

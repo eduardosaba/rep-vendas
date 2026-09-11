@@ -18,6 +18,7 @@ type TeamMember = {
   full_name: string | null;
   email: string | null;
   role: string | null;
+  slug?: string | null;
   can_manage_catalog: boolean | null;
   settings?: { catalog_slug?: string | null };
 };
@@ -33,6 +34,8 @@ export default function EquipePage() {
   const [checkingSlug, setCheckingSlug] = useState(false);
   const slugDebounceRef = useRef<number | null>(null);
 
+  const [metrics, setMetrics] = useState<any>(null);
+
   const loadTeam = useCallback(async () => {
     setLoading(true);
     try {
@@ -40,6 +43,7 @@ export default function EquipePage() {
       const json = await res.json();
       if (!res.ok || !json?.success) throw new Error(json?.error || 'Erro ao carregar equipe');
       setMembers(json.data || []);
+      setMetrics(json.metrics || null);
     } catch (e: any) {
       toast.error(e?.message);
     } finally {
@@ -140,8 +144,8 @@ export default function EquipePage() {
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Gestão de Equipe</h1>
-            <p className="text-slate-500 text-sm font-medium">Controle os acessos e catálogos da Ótica Saba.</p>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Gestão de Equipe Comercial</h1>
+            <p className="text-slate-500 text-sm font-medium">Controle representantes, acessos e performance da Distribuidora.</p>
           </div>
         </div>
 
@@ -151,6 +155,31 @@ export default function EquipePage() {
         >
           <Plus size={18} /> Novo Representante
         </button>
+      </div>
+
+      {/* CARDS DE RESUMO DE PERFORMANCE */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de Representantes</p>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white mt-1">{members.length}</h2>
+          <p className="text-xs text-slate-500 mt-2">Membros ativos na equipe</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendas da Equipe (Mês)</p>
+          <h2 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+            R$ {Number(metrics?.month_sales_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </h2>
+          <p className="text-xs text-slate-500 mt-2">Volume bruto gerado</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Comissões Estimadas (Mês)</p>
+          <h2 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+            R$ {Number(metrics?.month_commission_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </h2>
+          <p className="text-xs text-slate-500 mt-2">Comissões acumuladas</p>
+        </div>
       </div>
 
       {/* LISTA DE MEMBROS (TABELA) */}
@@ -170,26 +199,36 @@ export default function EquipePage() {
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                   <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Representante</th>
-                  <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Catálogo</th>
+                  <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Slug Catálogo</th>
+                  <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Vendas (Mês)</th>
+                  <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Pedidos</th>
                   <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">E-mail</th>
                   <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                {members.map((member) => (
-                  <tr key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-8 py-4 font-bold text-slate-700 dark:text-slate-200">{member.full_name || 'Sem nome'}</td>
-                    <td className="px-8 py-4">
-                      <span className="text-primary font-mono text-xs bg-primary/5 px-2 py-1 rounded-md">/{member.settings?.catalog_slug || '---'}</span>
-                    </td>
-                    <td className="px-8 py-4 text-slate-500 text-sm">{member.email}</td>
-                    <td className="px-8 py-4 text-right">
-                      <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all text-slate-400">
-                        <SettingsIcon size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {members.map((member) => {
+                  const mMetrics = metrics?.by_member?.[member.id] || { month_sales: 0, month_orders: 0 };
+                  const repSlug = member.slug || member.settings?.catalog_slug;
+                  return (
+                    <tr key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-8 py-4 font-bold text-slate-700 dark:text-slate-200">{member.full_name || 'Sem nome'}</td>
+                      <td className="px-8 py-4">
+                        <span className="text-primary font-mono text-xs bg-primary/5 px-2 py-1 rounded-md">/{repSlug || '---'}</span>
+                      </td>
+                      <td className="px-8 py-4 font-bold text-slate-800 dark:text-slate-100">
+                        R$ {Number(mMetrics.month_sales || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-8 py-4 text-slate-600 dark:text-slate-300 font-semibold">{mMetrics.month_orders || 0}</td>
+                      <td className="px-8 py-4 text-slate-500 text-sm">{member.email}</td>
+                      <td className="px-8 py-4 text-right">
+                        <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all text-slate-400">
+                          <SettingsIcon size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -58,12 +58,41 @@ export default function CatalogRichLayout({ company, rep, representative: repres
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedIndex, galleryUrls.length]);
 
+  // Extrair marcas únicas dos produtos se brandsList não for fornecido
+  const extractedBrands = React.useMemo(() => {
+    if (Array.isArray(brandsList) && brandsList.length > 0) return brandsList;
+    const map = new Map<string, any>();
+    (products || []).forEach((p: any) => {
+      if (p.brand && !map.has(p.brand.toLowerCase())) {
+        map.set(p.brand.toLowerCase(), { name: p.brand });
+      }
+    });
+    return Array.from(map.values());
+  }, [brandsList, products]);
+
+  // Extrair coleções únicas dos produtos
+  const extractedCollections = React.useMemo(() => {
+    const map = new Map<string, any>();
+    (products || []).forEach((p: any) => {
+      const colName = p.collection || p.collection_name || p.line;
+      if (colName && !map.has(colName.toLowerCase())) {
+        map.set(colName.toLowerCase(), { name: colName, brand_name: p.brand || undefined });
+      }
+    });
+    return Array.from(map.values());
+  }, [products]);
+
+  const brandMode = (company?.brand_block_mode as 'brands' | 'collections' | 'both') || 'both';
+
   return (
     <div className="min-h-screen bg-gray-50 pt-15 md:pt-20">
-      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-6 md:py-7 mt-2 md:mt-3 space-y-8">
-        {Array.isArray(brandsList) && brandsList.length > 0 && (
-          <BrandFilterBar brands={brandsList} activeBrand={activeBrand} />
-        )}
+      <div className="max-w-[1920px] mx-auto px-4 lg:px-8 py-4 md:py-6 mt-2 md:mt-3 space-y-6">
+        <BrandFilterBar
+          brands={extractedBrands}
+          collections={extractedCollections}
+          activeBrand={activeBrand}
+          mode={brandMode}
+        />
       </div>
 
       {company?.cover_image && (

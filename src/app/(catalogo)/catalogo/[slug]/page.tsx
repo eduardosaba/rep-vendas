@@ -529,27 +529,52 @@ export default async function CatalogPage({ params, searchParams }: Props) {
   const appContext = await contextService.resolve(normalizedCompanySlug, repSlug);
 
   if (appContext?.organization) {
+    const orgId = appContext.organization.id;
+
+    // Buscar dados complementares da distribuidora (companies / public_catalogs)
+    const { data: companyData } = await clientToUse
+      .from('companies')
+      .select('*')
+      .or(`id.eq.${orgId},slug.eq.${normalizedCompanySlug}`)
+      .maybeSingle();
+
+    const { data: publicCatalog } = await clientToUse
+      .from('public_catalogs')
+      .select('*')
+      .or(`catalog_slug.eq.${normalizedCompanySlug}`)
+      .maybeSingle();
+
+    // Buscar produtos do catálogo Master sob organization_id ou company_id
+    const { data: orgProducts } = await clientToUse
+      .from('products')
+      .select('*, linked_images, product_images(url, is_primary)')
+      .eq('is_active', true)
+      .or(`organization_id.eq.${orgId},company_id.eq.${orgId}`)
+      .order('created_at', { ascending: false });
+
+    const companyEffective = {
+      id: orgId,
+      name: appContext.organization.name,
+      slug: normalizedCompanySlug,
+      logo_url: appContext.branding?.logoUrl || publicCatalog?.logo_url || companyData?.logo_url,
+      primary_color: appContext.branding?.primaryColor || publicCatalog?.primary_color || companyData?.primary_color || '#2563eb',
+      cover_image: companyData?.cover_image || publicCatalog?.share_banner_url,
+      welcome_text: companyData?.welcome_text || publicCatalog?.footer_message || 'Bem-vindo ao Nosso Portal B2B Master',
+      about_text: companyData?.about_text,
+      show_cost_price: publicCatalog?.show_cost_price ?? companyData?.show_cost_price ?? false,
+      show_sale_price: publicCatalog?.show_sale_price ?? companyData?.show_sale_price ?? true,
+      price_unlock_mode: publicCatalog?.price_unlock_mode || companyData?.price_unlock_mode || 'modal',
+      price_password_hash: publicCatalog?.price_password_hash || companyData?.price_password_hash || null,
+      ...companyData,
+      ...publicCatalog,
+    };
+
     return (
-      <div className="container mx-auto px-4 py-6">
-        <header className="flex justify-between items-center mb-8 border-b pb-4">
-          {appContext.branding?.logoUrl ? (
-            <img src={appContext.branding.logoUrl} alt={appContext.organization.name} className="h-12 object-contain" />
-          ) : (
-            <h1 className="text-2xl font-bold">{appContext.organization.name}</h1>
-          )}
-          {appContext.representative && (
-            <div className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-medium">
-              Atendimento: {appContext.representative.name}
-            </div>
-          )}
-        </header>
-        <main>
-          <p className="text-sm text-slate-500 mb-4">
-            Catálogo autorizado de {appContext.organization.name} isolado via Multi-tenancy.
-          </p>
-          <p>Módulo de produtos da Distribuidora em construção para Fase 2.</p>
-        </main>
-      </div>
+      <CatalogRichLayout
+        company={companyEffective}
+        representative={appContext.representative}
+        products={orgProducts || []}
+      />
     );
   }
 
