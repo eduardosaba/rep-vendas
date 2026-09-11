@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   ToggleLeft,
+  UserCheck,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -79,6 +80,7 @@ export default function AdminSidebar({
       icon: LayoutDashboard,
       exact: true,
     },
+    { label: 'Leads de Vendas', href: '/admin/leads', icon: UserCheck },
     {
       label: 'Editar Experiência do Catálogo',
       href: '/admin/configuracoes/catalogo',
