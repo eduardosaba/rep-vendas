@@ -44,18 +44,19 @@ async function requireProductUpdateAccess() {
   const isMaster = role === 'master';
   const isAdmin = role === 'admin';
   const isCompanyAdmin = ['company_admin', 'admin_company'].includes(role);
+  const isRepresentative = role === 'representative' || role === 'rep';
 
-  if (!isMaster && !isAdmin && !isCompanyAdmin) {
-    throw new Error('Acesso negado. Apenas master, admin ou administrador de empresa.');
+  if (!isMaster && !isAdmin && !isCompanyAdmin && !isRepresentative) {
+    throw new Error('Acesso negado.');
   }
 
-  return { userId, supabase, profile, isMaster, isAdmin, isCompanyAdmin };
+  return { userId, supabase, profile, isMaster, isAdmin, isCompanyAdmin, isRepresentative };
 }
 
 async function requireProductUpdateMaster() {
   const ctx = await requireProductUpdateAccess();
-  if (!ctx.isMaster) {
-    throw new Error('Acesso negado. Apenas o usuário master da Torre de Controle pode executar atualizações de plataforma.');
+  if (!ctx.isMaster && !ctx.isAdmin) {
+    throw new Error('Acesso negado. Apenas usuários autorizados da Torre de Controle podem executar atualizações globais.');
   }
   return ctx;
 }
@@ -63,6 +64,16 @@ async function requireProductUpdateMaster() {
 const requireProductUpdateAdmin = requireProductUpdateAccess;
 
 function validateCompanyAdminScope(profile: any, scope: any): void {
+  const role = profile.role as string;
+  const isRepresentative = role === 'representative' || role === 'rep';
+  if (isRepresentative) {
+    const scopeType = scope?.type || 'USER';
+    if (scopeType !== 'USER' && scopeType !== 'USER_AUTHORSHIP') {
+      throw new Error('Acesso negado: Representantes autônomos só podem executar atualizações no escopo dos seus próprios produtos.');
+    }
+    return;
+  }
+
   const isCompanyAdmin = ['company_admin', 'admin_company'].includes(profile.role);
   if (!isCompanyAdmin) return;
 

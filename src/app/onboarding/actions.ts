@@ -3,119 +3,288 @@
 import { createClient } from '@/lib/supabase/server';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { revalidatePath } from 'next/cache';
+import { SlugService } from '@/shared/slug/SlugService';
 
-type OnboardingData = {
-  name: string;
-  email: string;
+export type Step1Data = {
+  fullName: string;
   phone: string;
-  slug: string;
-  primary_color: string;
-  logo_url: string | null;
+  email: string;
 };
 
-function slugifySafe(input: string) {
-  return String(input || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 50);
-}
+export type Step2Data = {
+  companyName: string;
+  organizationType: 'independent_representative' | 'distributor' | 'optical_store';
+  phone?: string;
+};
 
-export async function finishOnboarding(data: OnboardingData) {
-  const supabase = await createClient();
+export type Step3Data = {
+  storeName: string;
+  slug: string;
+  primaryColor: string;
+  logoUrl?: string | null;
+};
 
-  // 1. Validar Sessão
+async function getAuthenticatedUser(supabase: any) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user)
+  if (!user) {
     throw new Error('Sessão expirada. Por favor, faça login novamente.');
+  }
+  return user;
+}
 
-  try {
-    // Fallbacks defensivos para evitar criação incompleta
-    const safeName = (data?.name || '').trim() || 'Minha Loja';
-    const baseSlug =
-      slugifySafe((data?.slug || '').trim()) ||
-      `catalogo-${String(user.id).slice(0, 5).toLowerCase()}`;
+/**
+ * ETAPA 1 — Seus Dados (Persiste Perfil Pessoal)
+ */
+export async function saveOnboardingStep1(data: Step1Data) {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
 
-    // Garantir slug único sem depender do frontend
-    let safeSlug = baseSlug;
-    for (let i = 0; i < 5; i++) {
-      const candidate = i === 0 ? safeSlug : `${baseSlug}-${i + 1}`;
-      const { data: existingSlug } = await supabase
-        .from('settings')
-        .select('user_id')
-        .eq('catalog_slug', candidate)
-        .maybeSingle();
-      if (!existingSlug || existingSlug.user_id === user.id) {
-        safeSlug = candidate;
-        break;
-      }
-    }
+  const { normalizePhone } = await import('@/lib/phone');
+  const safePhone = normalizePhone(data.phone);
+  const safeName = (data.fullName || '').trim();
 
-    const safeEmail = (data?.email || '').trim() || user.email || '';
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      full_name: safeName || undefined,
+      phone: safePhone || undefined,
+      onboarding_step: 2,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
 
-    // 2. Validar se o Slug (Link) já existe
-    const { data: existing } = await supabase
-      .from('settings')
-      .select('user_id')
-      .eq('catalog_slug', safeSlug)
+  if (error) {
+    throw new Error(`Erro ao salvar dados pessoais: ${error.message}`);
+  }
+
+  return { success: true, nextStep: 2 };
+}
+
+/**
+ * ETAPA 2 — Seu Negócio (Criação/Vinculação Idempotente da Organização Comercial)
+ */
+export async function saveOnboardingStep2(data: Step2Data) {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  // 1. Obter Perfil Atual para checar se já possui organization_id
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('organization_id, full_name, phone')
+    .eq('id', user.id)
+    .single();
+
+  if (profileErr) {
+    throw new Error(`Erro ao carregar perfil: ${profileErr.message}`);
+  }
+
+  let organizationId = profile?.organization_id;
+
+  // 2. Se o perfil não tem organization_id, busca se já existe uma organização com owner_user_id = user.id
+  if (!organizationId) {
+    const { data: existingOrg } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_user_id', user.id)
       .maybeSingle();
 
-    if (existing && existing.user_id !== user.id) {
-      throw new Error(
-        'Este link de catálogo já está em uso por outro representante.'
-      );
+    if (existingOrg) {
+      organizationId = existingOrg.id;
+    }
+  }
+
+  const safeCompanyName = (data.companyName || '').trim() || profile?.full_name || 'Minha Empresa';
+  const safeOrgType = ['independent_representative', 'distributor', 'optical_store'].includes(data.organizationType)
+    ? data.organizationType
+    : 'independent_representative';
+
+  // 3. Se nenhuma organização foi encontrada, criar uma nova organização de forma idempotente
+  if (!organizationId) {
+    const baseSlug = SlugService.generate(safeCompanyName) || `org-${user.id.slice(0, 8)}`;
+    const safeOrgSlug = await SlugService.ensureUnique(baseSlug, async (candidate) => {
+      const { data: orgCheck } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('slug', candidate)
+        .maybeSingle();
+      return Boolean(orgCheck);
+    });
+
+    const { data: newOrg, error: createOrgErr } = await supabase
+      .from('organizations')
+      .insert({
+        name: safeCompanyName,
+        slug: safeOrgSlug,
+        organization_type: safeOrgType,
+        owner_user_id: user.id,
+        status: 'active',
+        is_active: true,
+      })
+      .select('id')
+      .single();
+
+    if (createOrgErr || !newOrg) {
+      throw new Error(`Erro ao criar empresa/organização: ${createOrgErr?.message || 'Falha ao registrar'}`);
     }
 
-    // 3. Salvar Configurações (Upsert)
-    const { normalizePhone } = await import('@/lib/phone');
-    const finalPhone = normalizePhone(data.phone);
-
-    const { error: settingsError } = await supabase.from('settings').upsert({
-      user_id: user.id,
-      name: safeName,
-      email: safeEmail,
-      phone: finalPhone,
-      catalog_slug: safeSlug,
-      primary_color: data.primary_color || '#10b981',
-      logo_url: data.logo_url,
-      updated_at: new Date().toISOString(),
-    });
-
-    if (settingsError)
-      throw new Error('Falha ao salvar as configurações da loja.');
-
-    // 4. Sincronizar com o Catálogo Público (Importante para a visibilidade do cliente)
-    await syncPublicCatalog(user.id, {
-      slug: safeSlug,
-      store_name: safeName,
-      logo_url: data.logo_url || undefined,
-      primary_color: data.primary_color || '#10b981',
-      phone: finalPhone,
-      email: safeEmail,
-    });
-
-    // 5. Finalizar processo no perfil
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ onboarding_completed: true })
-      .eq('id', user.id);
-
-    if (profileError) throw new Error('Erro ao atualizar status do perfil.');
-
-    // 6. Limpar Cache do Next.js para forçar renderização do Dashboard
-    // Revalidamos tudo que depende do estado do usuário
-    revalidatePath('/', 'layout');
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/onboarding', 'page');
-
-    return { success: true };
-  } catch (err: any) {
-    console.error('[Onboarding Action Error]:', err.message);
-    throw err;
+    organizationId = newOrg.id;
+  } else {
+    // Atualizar nome e tipo da organização existente sem recriar
+    await supabase
+      .from('organizations')
+      .update({
+        name: safeCompanyName,
+        organization_type: safeOrgType,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', organizationId);
   }
+
+  // 4. Garantir Membership Owner em organization_members via ON CONFLICT (organization_id, user_id) DO NOTHING
+  const { error: memberErr } = await supabase
+    .from('organization_members')
+    .upsert(
+      {
+        organization_id: organizationId,
+        user_id: user.id,
+        role: 'owner',
+        status: 'active',
+      },
+      { onConflict: 'organization_id,user_id' }
+    );
+
+  if (memberErr) {
+    console.warn('[saveOnboardingStep2] Aviso ao inserir membership:', memberErr.message);
+  }
+
+  // 5. Vincular profiles.organization_id e avançar para a Etapa 3
+  const { error: updateProfileErr } = await supabase
+    .from('profiles')
+    .update({
+      organization_id: organizationId,
+      onboarding_step: 3,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (updateProfileErr) {
+    throw new Error(`Erro ao vincular organização ao perfil: ${updateProfileErr.message}`);
+  }
+
+  return { success: true, organizationId, nextStep: 3 };
+}
+
+/**
+ * ETAPA 3 — Seu Catálogo (Configuração da Presença Comercial e Branding)
+ */
+export async function saveOnboardingStep3(data: Step3Data) {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  const safeStoreName = (data.storeName || '').trim() || 'Minha Loja Digital';
+  const rawSlug = (data.slug || '').trim() || SlugService.generate(safeStoreName);
+
+  // Garantir Slug Única usando SlugService
+  const safeSlug = await SlugService.ensureUnique(rawSlug, async (candidate) => {
+    const { data: existingSettings } = await supabase
+      .from('settings')
+      .select('user_id')
+      .eq('catalog_slug', candidate)
+      .maybeSingle();
+
+    return Boolean(existingSettings && existingSettings.user_id !== user.id);
+  });
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('phone, email')
+    .eq('id', user.id)
+    .single();
+
+  const safePhone = profile?.phone || '';
+  const safeEmail = profile?.email || user.email || '';
+
+  // Upsert em Settings
+  const { error: settingsError } = await supabase.from('settings').upsert(
+    {
+      user_id: user.id,
+      name: safeStoreName,
+      email: safeEmail,
+      phone: safePhone,
+      catalog_slug: safeSlug,
+      primary_color: data.primaryColor || '#b9722e',
+      logo_url: data.logoUrl || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  );
+
+  if (settingsError) {
+    throw new Error(`Falha ao salvar configurações da loja: ${settingsError.message}`);
+  }
+
+  // Sincronizar com catálogo público
+  await syncPublicCatalog(user.id, {
+    slug: safeSlug,
+    store_name: safeStoreName,
+    logo_url: data.logoUrl || undefined,
+    primary_color: data.primaryColor || '#b9722e',
+    phone: safePhone,
+    email: safeEmail,
+  });
+
+  // Atualizar etapa do onboarding para 4
+  await supabase
+    .from('profiles')
+    .update({ onboarding_step: 4, updated_at: new Date().toISOString() })
+    .eq('id', user.id);
+
+  return { success: true, slug: safeSlug, nextStep: 4 };
+}
+
+/**
+ * ETAPA 4 — Conclusão do Onboarding (Marca Concluído e Ativa Lead)
+ */
+export async function finishOnboarding() {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  const nowIso = new Date().toISOString();
+
+  // 1. Marcar onboarding como concluído em profiles
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      onboarding_completed: true,
+      onboarding_completed_at: nowIso,
+      onboarding_step: 4,
+      updated_at: nowIso,
+    })
+    .eq('id', user.id);
+
+  if (profileError) {
+    throw new Error(`Erro ao atualizar status do perfil: ${profileError.message}`);
+  }
+
+  // 2. Atualizar status do lead para 'activated' se houver um lead associado ao user_id
+  try {
+    await supabase
+      .from('leads')
+      .update({
+        status: 'activated',
+        updated_at: nowIso,
+      })
+      .eq('user_id', user.id);
+  } catch (leadErr) {
+    console.warn('[finishOnboarding] Aviso ao atualizar lead:', leadErr);
+  }
+
+  // 3. Revalidar rotas no Next.js
+  revalidatePath('/', 'layout');
+  revalidatePath('/dashboard', 'page');
+  revalidatePath('/onboarding', 'page');
+
+  return { success: true, redirectTo: '/dashboard' };
 }

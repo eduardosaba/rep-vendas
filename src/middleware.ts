@@ -120,9 +120,13 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user || null;
+  } catch (err: any) {
+    console.warn('[middleware] Instabilidade temporária ao consultar usuário:', err?.message || err);
+  }
 
   // --- IGNORA OUTBOX CRON E WEBHOOKS ---
   if (pathname === '/api/cron/outbox') {
@@ -169,16 +173,23 @@ export async function middleware(request: NextRequest) {
     return redirectTo(loginUrl);
   }
 
-  // --- VERIFICAÇÃO DE IS_ACTIVE NAS ROTAS PROTEGEDAS E /LOGIN ---
+  // --- VERIFICAÇÃO DE IS_ACTIVE E ONBOARDING NAS ROTAS PROTEGEDAS E /LOGIN ---
   if (user && (isAdminRoute || isDashboardRoute || isPrivateApiRoute || pathname === '/login')) {
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, is_active')
-      .eq('id', user.id)
-      .maybeSingle();
+    let profile = null;
+    try {
+      const { data, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, is_active, onboarding_completed')
+        .eq('id', user.id)
+        .maybeSingle();
 
-    if (profileError) {
-      console.error('[middleware] Erro ao consultar perfil:', profileError.message);
+      if (profileError) {
+        console.warn('[middleware] Aviso ao consultar perfil:', profileError.message);
+      } else {
+        profile = data;
+      }
+    } catch (err: any) {
+      console.warn('[middleware] Instabilidade temporária ao consultar tabela de perfis:', err?.message || err);
     }
 
     if (profile && profile.is_active === false) {
@@ -192,6 +203,11 @@ export async function middleware(request: NextRequest) {
       }
       // Se já está na página de login, permite a exibição do alerta sem loop
       return response;
+    }
+
+    // --- BLOQUEIO DE ACESSO AO DASHBOARD QUANDO ONBOARDING ESTÁ PENDENTE ---
+    if (isDashboardRoute && profile && profile.onboarding_completed === false) {
+      return redirectTo('/onboarding');
     }
 
     // Se o usuário está ativo e acessando /login, redireciona para a home da sua role
