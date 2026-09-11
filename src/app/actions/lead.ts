@@ -50,7 +50,7 @@ export async function captureLeadAction(
       // Hash the IP — raw IP is NEVER persisted or sent to any external storage
       const ipHash = crypto.createHash('sha256').update(clientIp).digest('hex');
 
-      let rateLimitAllowed = false; // fail-closed default
+      let rateLimitAllowed = true; // Graceful fallback
       try {
         const supabaseAdmin = createAdminClient();
         const { data: rpcAllowed, error: rpcErr } = await supabaseAdmin.rpc(
@@ -58,29 +58,22 @@ export async function captureLeadAction(
           { p_ip_hash: ipHash, p_max_attempts: 5, p_window_seconds: 600 }
         );
         if (rpcErr) {
-          // Log sanitized error (no raw IP, no PII)
-          console.error('[lead-capture:rate-limit:error]', {
+          // Log warning and fail-open so missing RPC function does not block legitimate leads
+          console.warn('[lead-capture:rate-limit:warn]', {
             message: rpcErr.message,
             code: rpcErr.code,
-            hint: 'RPC failed — fail-closed, lead NOT inserted',
+            hint: 'RPC function missing or unavailable — failing open for lead capture',
           });
-          return {
-            success: false,
-            error: 'Serviço temporariamente indisponível. Por favor, tente novamente em alguns instantes.',
-          };
-        }
-        if (typeof rpcAllowed === 'boolean') {
+          rateLimitAllowed = true;
+        } else if (typeof rpcAllowed === 'boolean') {
           rateLimitAllowed = rpcAllowed;
         }
       } catch (rpcCatchErr: any) {
-        console.error('[lead-capture:rate-limit:error]', {
+        console.warn('[lead-capture:rate-limit:warn]', {
           message: rpcCatchErr?.message || String(rpcCatchErr),
-          hint: 'RPC exception — fail-closed, lead NOT inserted',
+          hint: 'RPC exception — failing open for lead capture',
         });
-        return {
-          success: false,
-          error: 'Serviço temporariamente indisponível. Por favor, tente novamente em alguns instantes.',
-        };
+        rateLimitAllowed = true;
       }
 
       if (!rateLimitAllowed) {
