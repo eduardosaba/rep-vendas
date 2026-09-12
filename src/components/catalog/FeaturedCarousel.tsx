@@ -70,8 +70,8 @@ export default function FeaturedCarousel({ products }: { products: any[] }) {
 
             return (
               <div key={product.id} className="w-full flex-shrink-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[260px] md:min-h-[450px]">
-                  <div className="relative aspect-[4/3] md:aspect-auto max-h-[320px] md:max-h-none bg-white dark:bg-slate-800 overflow-hidden p-3 md:p-0 flex items-center justify-center">
+                <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[240px] md:min-h-[300px] lg:min-h-[320px]">
+                  <div className="relative aspect-[4/3] md:aspect-auto max-h-[240px] md:max-h-[320px] lg:max-h-[340px] bg-white dark:bg-slate-800 overflow-hidden p-3 md:p-4 flex items-center justify-center">
                     <img src={product.image_url} alt={product.name} className="w-full h-full object-contain object-center transition-transform duration-700" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/18 to-transparent pointer-events-none" />
 
@@ -136,7 +136,7 @@ export default function FeaturedCarousel({ products }: { products: any[] }) {
                     </div>
                   </div>
 
-                  <div className="p-4 md:p-12 flex flex-col justify-center space-y-4">
+                  <div className="p-4 md:p-6 lg:p-8 flex flex-col justify-center space-y-3">
                     <div className="space-y-1">
                       {brandObj && brandObj.logo_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -144,15 +144,15 @@ export default function FeaturedCarousel({ products }: { products: any[] }) {
                       ) : brandName ? (
                         <span className="hidden md:inline-block font-extrabold text-[10px] uppercase tracking-[0.2em]" style={{ color: primaryColor }}>{brandName}</span>
                       ) : null}
-                      <h3 className="text-xl md:text-4xl lg:text-6xl font-extrabold text-slate-900 dark:text-white leading-tight uppercase tracking-tight">{product.name}</h3>
+                      <h3 className="text-lg md:text-2xl lg:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight uppercase tracking-tight">{product.name}</h3>
                     </div>
 
                     <div className="flex items-baseline gap-3">
                       {isPricesVisible ? (
                         <div className="hidden md:flex items-baseline gap-3">
-                          <PriceDisplay value={product.price} priceOnRequest={product.price_on_request} isPricesVisible={isPricesVisible} className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white font-mono" />
+                          <PriceDisplay value={product.price} priceOnRequest={product.price_on_request} isPricesVisible={isPricesVisible} className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white font-mono" />
                           {!product.price_on_request && product.original_price > product.price && (
-                            <span className="text-sm md:text-lg text-slate-400 line-through font-semibold">R$ {Number(product.original_price).toLocaleString('pt-BR')}</span>
+                            <span className="text-xs md:text-sm text-slate-400 line-through font-semibold">R$ {Number(product.original_price).toLocaleString('pt-BR')}</span>
                           )}
                         </div>
                       ) : (
@@ -163,7 +163,7 @@ export default function FeaturedCarousel({ products }: { products: any[] }) {
                       )}
                     </div>
 
-                    <div className="pt-2">
+                    <div className="pt-1">
                       {/* Desktop: botão completo */}
                       <button
                         onClick={async () => {
@@ -186,11 +186,11 @@ export default function FeaturedCarousel({ products }: { products: any[] }) {
                             setModal('product', product);
                           }
                         }}
-                        className="hidden md:inline-flex group items-center gap-3 px-6 py-3 md:px-10 md:py-4 text-white rounded-xl font-extrabold uppercase tracking-widest hover:shadow-2xl transition-all"
+                        className="hidden md:inline-flex group items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 text-white rounded-xl text-xs md:text-sm font-extrabold uppercase tracking-wider hover:shadow-xl transition-all"
                         style={{ backgroundColor: primaryColor }}
                       >
                         Ver detalhes do produto
-                        <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
+                        <ArrowRight size={16} className="group-hover:translate-x-1.5 transition-transform" />
                       </button>
                     </div>
                   </div>

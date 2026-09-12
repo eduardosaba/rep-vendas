@@ -2,7 +2,7 @@
 
 import { usePermissions } from '@/hooks/usePermissions';
 import { createClient } from '@/lib/supabase/client';
-import { isAdminRole } from '@/lib/auth/roles';
+import { isCompanyAdmin as checkIsCompanyAdmin } from '@/lib/auth/roles';
 import type { Settings } from '@/lib/types';
 import {
   Box,
@@ -15,6 +15,7 @@ import {
   Download,
   Edit,
   FileText,
+  Globe,
   HelpCircle,
   History,
   LayoutDashboard,
@@ -22,6 +23,7 @@ import {
   List,
   Megaphone,
   Package,
+  Palette,
   PlusCircle,
   RefreshCcw,
   Settings as SettingsIcon,
@@ -42,7 +44,6 @@ const MENU_ITEMS = [
     href: '/dashboard',
     exact: true,
   },
-  { icon: ShoppingBag, label: 'Pedidos', href: '/dashboard/orders' },
   { icon: Building2, label: 'Distribuidora', href: '/dashboard/distribuidora' },
   {
     icon: SettingsIcon,
@@ -78,6 +79,29 @@ const MENU_ITEMS = [
       { title: 'Categorias', href: '/dashboard/categories', icon: Box },
       { title: 'Marcas', href: '/dashboard/brands', icon: Tag },
     ],
+  },
+  { icon: ShoppingBag, label: 'Pedidos', href: '/dashboard/orders' },
+  { icon: ClipboardList, label: 'Estoque', href: '/dashboard/inventory' },
+  { icon: Users, label: 'Equipe', href: '/dashboard/equipe' },
+  {
+    icon: Megaphone,
+    label: 'Comunicados',
+    href: '/dashboard/equipe/comunicados',
+  },
+  {
+    icon: Building2,
+    label: 'Institucional',
+    href: '/dashboard/institucional',
+  },
+  {
+    icon: Globe,
+    label: 'Páginas da Empresa',
+    href: '/dashboard/empresa/paginas',
+  },
+  {
+    icon: Palette,
+    label: 'Vitrine / Aparência',
+    href: '/dashboard/settings?tab=appearance',
   },
   { icon: Zap, label: 'Marketing', href: '/dashboard/marketing' },
   {
@@ -133,12 +157,6 @@ const MENU_ITEMS = [
     ],
   },
   { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
-  { icon: Users, label: 'Equipe', href: '/dashboard/equipe' },
-  {
-    icon: Megaphone,
-    label: 'Comunicados',
-    href: '/dashboard/equipe/comunicados',
-  },
   { icon: SettingsIcon, label: 'Configurações', href: '/dashboard/settings' },
   { icon: HelpCircle, label: 'Ajuda', href: '/dashboard/help' },
 ];
@@ -225,7 +243,7 @@ export function Sidebar({
             if (role === 'master' || role === 'template' || masterDetected) {
               setIsMaster(true);
             }
-            const isCompanyAdminRole = isAdminRole(role);
+            const isCompanyAdminRole = checkIsCompanyAdmin(role);
             const hasCompanyLink = Boolean(profile?.company_id);
             setIsCompanyAdmin(Boolean(isCompanyAdminRole));
             setIsCompanyMember(hasCompanyLink);

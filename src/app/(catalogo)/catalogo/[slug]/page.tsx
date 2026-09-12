@@ -434,20 +434,21 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       let productsQuery = clientToUse
         .from('products')
         .select('*, linked_images, product_images(url, is_primary)')
-        .eq('is_active', true)
+        .not('is_active', 'eq', false)
         .order('created_at', { ascending: false })
         .range(0, fetchLimit - 1);
 
       if (representativeCompanyId) {
-        // Representante vinculado: mostrar catálogo da distribuidora (company_id)
+        // Representante vinculado: mostrar catálogo da distribuidora (company_id / organization_id)
         // sem perder produtos próprios já associados ao user_id do catálogo.
         productsQuery = productsQuery.or(
-          `user_id.eq.${ownerUserId},company_id.eq.${representativeCompanyId}`
+          `user_id.eq.${ownerUserId},company_id.eq.${representativeCompanyId},organization_id.eq.${representativeCompanyId}`
         );
       } else {
-        // Representante individual: sempre filtrar pelo próprio user_id (slug -> profile.id)
-        // para evitar depender de eventuais inconsistências em public_catalogs.user_id.
-        productsQuery = productsQuery.eq('user_id', ownerUserId);
+        // Representante individual / catálogo público: buscar por user_id, company_id ou organization_id
+        const ids = Array.from(new Set([ownerUserId, catalog.user_id, (catalog as any).company_id, (catalog as any).organization_id].filter(Boolean)));
+        const orClause = ids.map(id => `user_id.eq.${id},company_id.eq.${id},organization_id.eq.${id}`).join(',');
+        productsQuery = productsQuery.or(orClause);
       }
 
       const { data: products } = await productsQuery;
@@ -544,12 +545,12 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       .or(`catalog_slug.eq.${normalizedCompanySlug}`)
       .maybeSingle();
 
-    // Buscar produtos do catálogo Master sob organization_id ou company_id
+    // Buscar produtos do catálogo Master sob organization_id, company_id ou user_id
     const { data: orgProducts } = await clientToUse
       .from('products')
       .select('*, linked_images, product_images(url, is_primary)')
-      .eq('is_active', true)
-      .or(`organization_id.eq.${orgId},company_id.eq.${orgId}`)
+      .not('is_active', 'eq', false)
+      .or(`organization_id.eq.${orgId},company_id.eq.${orgId},user_id.eq.${orgId}`)
       .order('created_at', { ascending: false });
 
     const companyEffective = {

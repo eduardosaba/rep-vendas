@@ -722,9 +722,21 @@ export default function ImportVisualPage() {
           // ignore
         }
       } else {
+        // Obter organization_id do perfil
+        const { data: userProf } = await supabase
+          .from('profiles')
+          .select('organization_id, company_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const orgId = userProf?.organization_id || userProf?.company_id || null;
+        const compId = userProf?.company_id || userProf?.organization_id || null;
+
         // Inserir Produto novo com o formato correto (não definir preço aqui)
         const { error: productError } = await supabase.from('products').insert({
           user_id: user.id,
+          organization_id: orgId,
+          company_id: compId,
           name: data.name,
           reference_code: data.reference,
           reference_id: normalizedReferenceId,

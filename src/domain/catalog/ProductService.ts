@@ -40,6 +40,22 @@ export class ProductService {
     if (!context.organizationId) {
       throw new Error('Usuário sem organização ativa');
     }
+
+    // Auto-repair: Vincular retroativamente qualquer produto do usuário que esteja com organization_id nulo
+    try {
+      const supabase = await (this.repo as any).getSupabase();
+      await supabase
+        .from('products')
+        .update({
+          organization_id: context.organizationId,
+          company_id: context.organizationId,
+        })
+        .eq('user_id', userId)
+        .is('organization_id', null);
+    } catch (err) {
+      console.warn('[ProductService.listProducts] Erro silencioso no auto-repair de produtos:', err);
+    }
+
     return this.repo.listPaginated(context.organizationId, filters);
   }
 

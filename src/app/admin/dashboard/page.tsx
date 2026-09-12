@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import CatalogHealth from '@/components/admin/CatalogHealth';
 import { redirect } from 'next/navigation';
-import { isAdminRole } from '@/lib/auth/roles';
+import { isGlobalAdmin } from '@/lib/auth/roles';
 
 export default async function Page() {
   const supabase = await createClient();
@@ -20,8 +20,8 @@ export default async function Page() {
     .maybeSingle();
 
   const role = profile?.role;
-  if (!isAdminRole(role)) {
-    return redirect('/admin');
+  if (!isGlobalAdmin(role)) {
+    return redirect('/dashboard');
   }
 
   // Busca estatísticas via RPC

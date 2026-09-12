@@ -11,15 +11,19 @@ import { isAdminRole } from '@/lib/auth/roles';
 
 const ALL_SIDEBAR_ITEMS = [
   'Visão Geral',
-  'Pedidos',
   'Distribuidora',
   'Gestão da Distribuidora',
   'Produtos',
+  'Pedidos',
+  'Estoque',
+  'Equipe',
+  'Comunicados',
+  'Institucional',
+  'Páginas da Empresa',
+  'Vitrine / Aparência',
   'Marketing',
   'Ferramentas',
   'Clientes',
-  'Equipe',
-  'Comunicados',
   'Configurações',
   'Ajuda',
 ];

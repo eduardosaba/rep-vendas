@@ -51,18 +51,25 @@ const nextConfig: NextConfig = {
 
   experimental: {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
+    workerThreads: false,
+    cpus: 2,
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  org: 'repvendas',
-  project: 'javascript-nextjs',
-  silent: !process.env.CI,
-  widenClientFileUpload: true,
-  webpack: {
-    automaticVercelMonitors: true,
-    treeshake: {
-      removeDebugLogging: true,
-    },
-  },
-});
+const isSentryDisabled = process.env.DISABLE_SENTRY === 'true' || process.env.NEXT_PUBLIC_SENTRY_DSN === '';
+
+export default isSentryDisabled
+  ? nextConfig
+  : withSentryConfig(nextConfig, {
+      org: 'repvendas',
+      project: 'javascript-nextjs',
+      silent: !process.env.CI,
+      widenClientFileUpload: true,
+      webpack: {
+        automaticVercelMonitors: true,
+        treeshake: {
+          removeDebugLogging: true,
+        },
+      },
+    });
+

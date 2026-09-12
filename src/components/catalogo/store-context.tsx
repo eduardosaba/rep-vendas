@@ -94,15 +94,13 @@ export function StoreProvider({
     return showCost && !showSale;
   }, [store]);
 
-  // Por padrão: preços aparecem bloqueados (false). Usuário pode desbloquear via UI.
-  const [showPrices, setShowPrices] = useState<boolean>(() => false);
+  // Determina se os preços começam visíveis: em modo de preço sugerido/venda (!isCostMode),
+  // os preços são públicos (showPrices = true). Em modo custo, começam ocultos (false).
+  const [showPrices, setShowPrices] = useState<boolean>(() => !isCostMode);
 
-  // Se o catálogo está em modo custo, garantimos que os preços fiquem ocultos
-  // quando a fonte (store) mudar — evita que merges/overrides em rotas de rep
-  // acabem deixando os preços visíveis por herança.
   useEffect(() => {
     try {
-      if (isCostMode) setShowPrices(false);
+      setShowPrices(!isCostMode);
     } catch (e) {
       // ignore
     }
@@ -667,28 +665,47 @@ export function StoreProvider({
 
   useEffect(() => {
     const fetchLogos = async () => {
-      const query = supabase
-        .from('brands')
-        .select('id, name, logo_url, banner_url, description')
-        .eq('user_id', store.user_id);
-      if (Array.isArray(brands) && brands.length > 0) {
-        query.in('name', brands);
-      }
-
-      let { data } = await query;
-      if (
-        Array.isArray(data) &&
-        data.length === 0 &&
-        Array.isArray(brands) &&
-        brands.length > 0
-      ) {
-        try {
-          const res = await supabase
+      let data: any[] = [];
+      try {
+        if (store.user_id) {
+          const { data: userBrands } = await supabase
             .from('brands')
             .select('id, name, logo_url, banner_url, description')
             .eq('user_id', store.user_id);
-          data = res.data;
-        } catch { }
+          if (Array.isArray(userBrands) && userBrands.length > 0) {
+            data = userBrands;
+          }
+        }
+
+        // If data is empty or missing some brand names, query by brand names
+        if (Array.isArray(brands) && brands.length > 0) {
+          const existingNames = new Set(data.map((d: any) => String(d.name || '').trim().toLowerCase()));
+          const missingNames = brands.filter(
+            (bName) => !existingNames.has(String(bName || '').trim().toLowerCase())
+          );
+
+          if (missingNames.length > 0) {
+            const { data: nameBrands } = await supabase
+              .from('brands')
+              .select('id, name, logo_url, banner_url, description')
+              .in('name', missingNames);
+            if (Array.isArray(nameBrands) && nameBrands.length > 0) {
+              data = [...data, ...nameBrands];
+            }
+          }
+        }
+
+        // Ultimate fallback: if still empty, query all accessible brands
+        if (data.length === 0) {
+          const { data: allBrands } = await supabase
+            .from('brands')
+            .select('id, name, logo_url, banner_url, description');
+          if (Array.isArray(allBrands)) {
+            data = allBrands;
+          }
+        }
+      } catch (e) {
+        console.warn('fetchLogos failed', e);
       }
 
       let rows: any[] = Array.isArray(data) ? data : [];
@@ -1304,8 +1321,8 @@ export function StoreProvider({
 
         setCart([]);
         return true;
-      } catch (e) {
-        toast.error('Erro ao processar pedido.');
+      } catch (e: any) {
+        toast.error(e?.message || 'Erro ao processar pedido.');
         return false;
       } finally {
         setLoadingStates((s) => ({ ...s, submitting: false }));

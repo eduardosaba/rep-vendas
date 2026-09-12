@@ -163,14 +163,10 @@ export function StoreTopBar() {
       : ['Confira nossas ofertas'];
     const marqueeItems = [...textChunks, ...textChunks];
     const hasImageUrl = Boolean(store.top_benefit_image_url && String(store.top_benefit_image_url).trim());
+    const imageScale = Number(store.top_benefit_image_scale) || 100;
     return (
       <div className="w-full relative overflow-hidden" style={{ backgroundColor: bg, color: textColor }}>
         <div className="w-full px-4 lg:px-8 flex items-center gap-4" style={{ height }}>
-          {hasImageUrl && !benefitImageErrored ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={store.top_benefit_image_url ?? undefined} alt={store.top_benefit_text ?? undefined} className="h-full mr-3 object-contain" style={{ maxHeight: height }} onError={() => setBenefitImageErrored(true)} onLoad={() => setBenefitImageErrored(false)} />
-          ) : null}
-
           {mode === 'marquee' ? (
             <div className="flex-1 overflow-hidden whitespace-nowrap">
               <div
@@ -180,9 +176,11 @@ export function StoreTopBar() {
                     ? `${store.top_benefit_text_size}px`
                     : undefined,
                   animationName:
-                    animationType === 'scroll_right'
-                      ? 'rv-top-benefit-marquee-right'
-                      : 'rv-top-benefit-marquee-left',
+                    animationType === 'alternate'
+                      ? 'rv-top-benefit-marquee-alternate'
+                      : animationType === 'scroll_right'
+                        ? 'rv-top-benefit-marquee-right'
+                        : 'rv-top-benefit-marquee-left',
                   animationDuration: `${durationSeconds}s`,
                   animationTimingFunction:
                     animationType === 'alternate' ? 'ease-in-out' : 'linear',
@@ -192,16 +190,38 @@ export function StoreTopBar() {
                 }}
               >
                 {marqueeItems.map((item, idx) => (
-                  <span key={`${item}-${idx}`} className="inline-flex items-center px-6 text-sm font-bold uppercase tracking-widest">
-                    {item}
+                  <span key={`${item}-${idx}`} className="inline-flex items-center px-6 text-sm font-bold uppercase tracking-widest gap-2">
+                    {hasImageUrl && !benefitImageErrored ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={store.top_benefit_image_url ?? undefined}
+                        alt={store.top_benefit_text ?? undefined}
+                        className="object-contain shrink-0"
+                        style={{ height: `${imageScale * 0.7}%`, width: 'auto' }}
+                        onError={() => setBenefitImageErrored(true)}
+                        onLoad={() => setBenefitImageErrored(false)}
+                      />
+                    ) : null}
+                    <span>{item}</span>
                     <span className="mx-4 opacity-80">/</span>
                   </span>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="flex-1 text-sm font-bold overflow-hidden" style={{ fontSize: store.top_benefit_text_size ? `${store.top_benefit_text_size}px` : undefined }}>
-              {store.top_benefit_text || ''}
+            <div className="flex-1 text-sm font-bold overflow-hidden flex items-center gap-2" style={{ fontSize: store.top_benefit_text_size ? `${store.top_benefit_text_size}px` : undefined }}>
+              {hasImageUrl && !benefitImageErrored ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={store.top_benefit_image_url ?? undefined}
+                  alt={store.top_benefit_text ?? undefined}
+                  className="object-contain shrink-0 mr-1"
+                  style={{ height: `${imageScale}%`, maxHeight: '100%', width: 'auto' }}
+                  onError={() => setBenefitImageErrored(true)}
+                  onLoad={() => setBenefitImageErrored(false)}
+                />
+              ) : null}
+              <span className="truncate">{store.top_benefit_text || ''}</span>
             </div>
           )}
         </div>
@@ -213,7 +233,7 @@ export function StoreTopBar() {
           </>
         ) : null}
 
-        <style jsx>{`
+        <style>{`
           @keyframes rv-top-benefit-marquee-left {
             0% {
               transform: translateX(0);
@@ -229,6 +249,15 @@ export function StoreTopBar() {
             }
             100% {
               transform: translateX(0);
+            }
+          }
+
+          @keyframes rv-top-benefit-marquee-alternate {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-50%);
             }
           }
         `}</style>
@@ -1193,7 +1222,7 @@ export function CarouselBrands() {
                 <button
                   key={`brand-marquee-${brand.name}-${i}`}
                   onClick={() => toggleBrand(brand.name)}
-                  className={`group relative flex h-12 w-[120px] md:w-[136px] items-center justify-center p-1 mx-3 transition-all duration-200 shrink-0 hover:scale-105 ${
+                  className={`group relative flex h-12 w-[120px] md:w-[136px] items-center justify-center p-1 mx-3 transition-all duration-300 shrink-0 hover:z-[60] ${
                     active ? 'bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] rounded-lg' : ''
                   }`}
                 >
@@ -1202,10 +1231,10 @@ export function CarouselBrands() {
                       src={finalSrc}
                       alt={brand.name}
                       loading="eager" 
-                      className="max-h-9 md:max-h-10 w-auto max-w-[92%] object-contain"
+                      className="max-h-9 md:max-h-10 w-auto max-w-[92%] object-contain transition-transform duration-300 ease-out group-hover:scale-[2] hover:scale-[2] origin-center group-hover:drop-shadow-xl cursor-pointer"
                     />
                   ) : (
-                    <span className={`px-3 text-[10px] font-bold uppercase whitespace-nowrap ${active ? 'text-[var(--primary)]' : 'text-gray-500'}`}>
+                    <span className={`px-3 text-[10px] font-bold uppercase whitespace-nowrap transition-transform duration-300 ease-out group-hover:scale-[1.8] hover:scale-[1.8] ${active ? 'text-[var(--primary)]' : 'text-gray-500'}`}>
                       {brand.name}
                     </span>
                   )}

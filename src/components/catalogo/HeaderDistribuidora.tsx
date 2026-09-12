@@ -52,6 +52,8 @@ export function HeaderDistribuidora({ slug, repSlug, repName, companyLogo, compa
   const topBenefitBgColor = (barSource?.top_benefit_bg_color as string) || primaryColor || 'var(--primary)';
   const topBenefitTextColor = (barSource?.top_benefit_text_color as string) || headerTextColor || '#ffffff';
   const topBenefitText = String(barSource?.top_benefit_text || '').trim();
+  const topBenefitImageUrl = barSource?.top_benefit_image_url || '';
+  const topBenefitImageScale = Number(barSource?.top_benefit_image_scale) || 100;
   const topBenefitParts = (topBenefitText ? topBenefitText.split('/') : ['Confira nossas ofertas'])
     .map((v) => v.trim())
     .filter(Boolean);
@@ -193,24 +195,48 @@ export function HeaderDistribuidora({ slug, repSlug, repName, companyLogo, compa
                   className="inline-flex min-w-full w-max items-center"
                   style={{
                     fontSize: `${topBenefitTextSize}px`,
-                    animationName: topBenefitAnimation === 'scroll_right' ? 'rv-top-benefit-marquee-right' : 'rv-top-benefit-marquee-left',
-                    animationDuration: `${topBenefitDuration}s`,
+                    animationName:
+                      topBenefitAnimation === 'alternate'
+                        ? 'rv-top-benefit-marquee-alternate'
+                        : topBenefitAnimation === 'scroll_right'
+                          ? 'rv-top-benefit-marquee-right'
+                          : 'rv-top-benefit-marquee-left',
+                    animationDuration:
+                      topBenefitAnimation === 'alternate'
+                        ? `${topBenefitSpeed === 'slow' ? 14 : topBenefitSpeed === 'fast' ? 5 : 8}s`
+                        : `${topBenefitDuration}s`,
                     animationTimingFunction: topBenefitAnimation === 'alternate' ? 'ease-in-out' : 'linear',
                     animationIterationCount: 'infinite',
                     animationDirection: topBenefitAnimation === 'alternate' ? 'alternate' : 'normal',
                   }}
                 >
                   {topBenefitItems.map((item, idx) => (
-                    <span key={`${item}-${idx}`} className="inline-flex items-center px-6 text-[11px] font-black uppercase tracking-widest">
-                      {item}
+                    <span key={`${item}-${idx}`} className="inline-flex items-center px-6 text-[11px] font-black uppercase tracking-widest gap-2">
+                      {topBenefitImageUrl && (
+                        <img
+                          src={topBenefitImageUrl}
+                          alt=""
+                          style={{ height: `${topBenefitImageScale * 0.7}%`, width: 'auto' }}
+                          className="object-contain shrink-0"
+                        />
+                      )}
+                      <span>{item}</span>
                       <span className="mx-4 opacity-80">/</span>
                     </span>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="flex-1 text-sm font-black overflow-hidden truncate" style={{ fontSize: `${topBenefitTextSize}px` }}>
-                {topBenefitText}
+              <div className="flex-1 text-sm font-black overflow-hidden truncate flex items-center gap-2" style={{ fontSize: `${topBenefitTextSize}px` }}>
+                {topBenefitImageUrl && (
+                  <img
+                    src={topBenefitImageUrl}
+                    alt=""
+                    style={{ height: `${topBenefitImageScale}%`, maxHeight: '100%', width: 'auto' }}
+                    className="object-contain shrink-0"
+                  />
+                )}
+                <span className="truncate">{topBenefitText}</span>
               </div>
             )}
           </div>
@@ -318,7 +344,7 @@ export function HeaderDistribuidora({ slug, repSlug, repName, companyLogo, compa
       </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes rv-top-benefit-marquee-left {
           0% {
             transform: translateX(0);
@@ -334,6 +360,15 @@ export function HeaderDistribuidora({ slug, repSlug, repName, companyLogo, compa
           }
           100% {
             transform: translateX(0);
+          }
+        }
+
+        @keyframes rv-top-benefit-marquee-alternate {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
           }
         }
       `}</style>

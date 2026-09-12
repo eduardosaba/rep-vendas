@@ -23,6 +23,7 @@ import Link from 'next/link'
 import QuickActionCard from '@/components/QuickActionCard'
 import NotificationsCTA from '@/components/NotificationsCTA'
 import { DashboardChecklist } from '@/components/dashboard/DashboardChecklist'
+import { isCompanyAdmin, isGlobalAdmin } from '@/lib/auth/roles'
 import { subDays, startOfDay, subMonths } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -46,7 +47,7 @@ export default async function DashboardPage({
     .eq('id', activeUserId)
     .maybeSingle()
 
-  const isAdmin = profileData?.role === 'admin' || profileData?.role === 'owner'
+  const isAdmin = isCompanyAdmin(profileData?.role) || isGlobalAdmin(profileData?.role) || profileData?.role === 'admin' || profileData?.role === 'owner'
   const companyId = profileData?.company_id
   const dashboardFilter = {
     column: isAdmin ? 'company_id' : 'user_id',
@@ -284,7 +285,7 @@ export default async function DashboardPage({
             {isAdmin ? (
               <>
                 <QuickActionCard href="/dashboard/settings?tab=institucional" icon={Building2} label="Minha Marca" color="blue" />
-                <QuickActionCard href="/dashboard/team" icon={Users} label="Minha Equipe" color="blue" />
+                <QuickActionCard href="/dashboard/equipe" icon={Users} label="Minha Equipe" color="blue" />
                 <QuickActionCard href="/dashboard/inventory" icon={Package} label="Estoque Global" color="red" />
                 <QuickActionCard href="/dashboard/settings" icon={SettingsIcon} label="Configurações" color="slate" />
               </>

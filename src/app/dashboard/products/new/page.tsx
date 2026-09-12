@@ -605,8 +605,20 @@ export default function NewProductPage() {
         ? slugify(String(candidateRef))
         : null;
 
+      // Buscar profile para obter organization_id e company_id
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('organization_id, company_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const resolvedOrgId = userProfile?.organization_id || userProfile?.company_id || null;
+      const resolvedCompId = userProfile?.company_id || userProfile?.organization_id || null;
+
       const payload = {
         user_id: user.id,
+        organization_id: resolvedOrgId,
+        company_id: resolvedCompId,
         name: formData.name,
         reference_code:
           formData.reference_code || `REF-${Date.now().toString().slice(-6)}`,

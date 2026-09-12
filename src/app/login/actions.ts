@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
-import { isAdminRole } from '@/lib/auth/roles';
+import { isGlobalAdmin } from '@/lib/auth/roles';
 
 function extractMissingColumn(msg: unknown) {
   const s = String((msg as any)?.message || msg || '');
@@ -36,7 +36,7 @@ export async function login(_arg: unknown, formData: FormData) {
     try { revalidatePath('/', 'layout'); } catch (_) {}
 
     const userRole = String(profile?.role || '').toLowerCase();
-    const isControlTowerUser = isAdminRole(userRole);
+    const isControlTowerUser = isGlobalAdmin(userRole);
 
     return { success: true, redirectTo: isControlTowerUser ? '/admin' : '/dashboard' };
   } catch (err: unknown) {

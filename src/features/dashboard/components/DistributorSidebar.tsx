@@ -11,15 +11,12 @@ export function DistributorSidebar({ context }: DistributorSidebarProps) {
   const { branding, role } = context
 
   const navigationItems = [
-    { href: '/distribuidora', label: '📊 Torre de Controle' },
-    { href: '/distribuidora/produtos', label: '📦 Catálogo Óptico' },
-    { href: '/distribuidora/estoque', label: '🛡️ Controle de Estoque' },
-    { href: '/distribuidora/pedidos', label: '📝 Fila de Pedidos B2B' },
-    { href: '/distribuidora/expedicao', label: '🚚 Esteira de Expedição' },
-    { href: '/distribuidora/financeiro', label: '💰 Fluxo Financeiro' },
-    { href: '/distribuidora/equipe', label: '👥 Time Comercial' },
-    { href: '/distribuidora/configuracoes', label: '⚙️ Configurações' },
-    { href: '/distribuidora/branding', label: '🎨 Personalização' }
+    { href: '/dashboard', label: '📊 Visão Geral' },
+    { href: '/dashboard/products', label: '📦 Catálogo Master' },
+    { href: '/dashboard/inventory', label: '🛡️ Controle de Estoque' },
+    { href: '/dashboard/orders', label: '📝 Pedidos B2B' },
+    { href: '/dashboard/equipe', label: '👥 Time Comercial' },
+    { href: '/dashboard/settings', label: '⚙️ Vitrine & Configurações' },
   ]
 
   return (

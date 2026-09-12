@@ -20,9 +20,10 @@ export async function GET(request: Request) {
   const invalidInputs = ['undefined', 'null', 'none', 'n/a', ''];
   if (invalidInputs.includes(lower) || filePath.length < 5) {
     console.warn('[storage-image] short-circuit invalid path:', filePath);
-    return returnPlaceholderSvg('INVALID PATH', 404, {
-      'Cache-Control': 'public, max-age=60',
-    });
+    return NextResponse.json(
+      { error: 'Invalid path', requested: filePath },
+      { status: 404, headers: { 'Cache-Control': 'public, max-age=60' } }
+    );
   }
 
   // 1. Configurações do Supabase (Server-side)
@@ -330,9 +331,10 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error('[storage-image] Erro Crítico:', err?.message, err);
-    return returnPlaceholderSvg('Erro interno', 500, {
-      'Cache-Control': 'public, max-age=60',
-    });
+    return NextResponse.json(
+      { error: 'Internal image server error', message: err?.message },
+      { status: 500, headers: { 'Cache-Control': 'public, max-age=60' } }
+    );
   }
 }
 

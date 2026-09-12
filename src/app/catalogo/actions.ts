@@ -222,6 +222,42 @@ export async function createOrder(
     }
 
     if (companyId) {
+      // Garantir existência da empresa na tabela public.companies para evitar falhas de chave estrangeira
+      try {
+        const dbClient = adminSupabase ?? supabase;
+        const { data: existingComp } = await dbClient
+          .from('companies')
+          .select('id')
+          .eq('id', companyId)
+          .maybeSingle();
+
+        if (!existingComp) {
+          const { data: org } = await dbClient
+            .from('organizations')
+            .select('name, slug, organization_type')
+            .eq('id', companyId)
+            .maybeSingle();
+
+          const compName = org?.name || 'Minha Empresa';
+          const compSlug = org?.slug || `company-${String(companyId).slice(0, 8)}`;
+          const compType = org?.organization_type === 'distributor' ? 'distribuidora' : 'representante';
+
+          await dbClient.from('companies').upsert(
+            {
+              id: companyId,
+              user_id: effectiveOwnerId,
+              name: compName,
+              slug: compSlug,
+              type: compType,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
+        }
+      } catch (syncCompErr) {
+        console.warn('[createOrder] Aviso ao garantir empresa:', syncCompErr);
+      }
+
       const { data: companyPolicy } = await (adminSupabase ?? supabase)
         .from('companies')
         .select('block_new_orders, require_customer_approval')
@@ -317,9 +353,12 @@ export async function createOrder(
       );
     }
 
+    const isUuid = (v: any) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
     const orderItems = cartItems.map((item) => {
-      const productId = item.product_id || item.id || null;
-      const product = productId ? productsById.get(String(productId)) : null;
+      const rawProdId = item.product_id || item.id || null;
+      const productId = isUuid(rawProdId) ? rawProdId : null;
+      const product = rawProdId ? productsById.get(String(rawProdId)) : null;
 
       const quantity = Number(item.quantity || 1);
       const unitPrice = Number(item.unit_price ?? item.price ?? 0);

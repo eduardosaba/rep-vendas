@@ -3,9 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { companyPageContentToHtml } from '@/lib/company-page-content';
+import { isCompanyAdmin, isGlobalAdmin } from '@/lib/auth/roles';
 
 function isCompanyAdminRole(role: string) {
-  return ['admin_company', 'master'].includes(String(role || ''));
+  return isCompanyAdmin(role) || isGlobalAdmin(role);
 }
 
 async function getUserCompanyContext(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -17,30 +18,84 @@ async function getUserCompanyContext(supabase: Awaited<ReturnType<typeof createC
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id,role,company_id')
+    .select('id,role,company_id,organization_id,full_name')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (!profile || !(profile as any).company_id) {
+  if (!profile) return { user, profile: null, error: 'No profile found' };
+
+  const targetCompanyId = profile.company_id || profile.organization_id;
+
+  if (!targetCompanyId) {
     return { user, profile, error: 'No company linked' };
   }
 
-  return { user, profile: profile as any, error: null };
+  // Garantir a existência de registro na tabela companies para evitar violação da FK company_pages_company_id_fkey
+  try {
+    const { data: existingComp } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('id', targetCompanyId)
+      .maybeSingle();
+
+    if (!existingComp) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('name, slug, organization_type')
+        .eq('id', targetCompanyId)
+        .maybeSingle();
+
+      const compName = org?.name || profile.full_name || 'Minha Empresa';
+      const compSlug = org?.slug || `company-${String(targetCompanyId).slice(0, 8)}`;
+      const compType = org?.organization_type === 'distributor' ? 'distribuidora' : 'representante';
+
+      await supabase.from('companies').upsert(
+        {
+          id: targetCompanyId,
+          user_id: user.id,
+          name: compName,
+          slug: compSlug,
+          type: compType,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+    }
+
+    if (!profile.company_id) {
+      await supabase
+        .from('profiles')
+        .update({ company_id: targetCompanyId, updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+    }
+  } catch (syncErr) {
+    console.warn('[getUserCompanyContext] Aviso ao sincronizar companies:', syncErr);
+  }
+
+  return { user, profile: { ...profile, company_id: targetCompanyId }, error: null };
 }
 
 export async function GET() {
   try {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
-    if (ctx.error) {
-      return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+    if (ctx.error || !ctx.profile) {
+      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('company_pages')
       .select('id,title,slug,content,is_active,created_at,updated_at')
-      .eq('company_id', ctx.profile.company_id)
       .order('created_at', { ascending: false });
+
+    const tenantId = ctx.profile.organization_id || ctx.profile.company_id;
+    if (ctx.profile.organization_id) {
+      query = query.or(`organization_id.eq.${ctx.profile.organization_id},company_id.eq.${ctx.profile.company_id}`);
+    } else {
+      query = query.eq('company_id', tenantId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     return NextResponse.json({ success: true, data: data || [] });
@@ -53,8 +108,8 @@ export async function POST(req: Request) {
   try {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
-    if (ctx.error) {
-      return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+    if (ctx.error || !ctx.profile) {
+      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
     if (!isCompanyAdminRole(String(ctx.profile.role || ''))) {
@@ -82,28 +137,35 @@ export async function POST(req: Request) {
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
 
-    if (!slug) {
-      return NextResponse.json({ success: false, error: 'Slug is required' }, { status: 400 });
+    const RESERVED_SLUGS = ['empresa', 'produtos', 'checkout', 'cart', 'login', 'register', 'sobre', 'admin', 'api', 'dashboard', 'settings', 'catalogo'];
+    if (RESERVED_SLUGS.includes(slug)) {
+      return NextResponse.json({ success: false, error: `O slug "${slug}" é reservado pelo sistema. Por favor, escolha outro.` }, { status: 400 });
+    }
+
+    const insertPayload: any = {
+      company_id: ctx.profile.company_id,
+      title,
+      slug,
+      content,
+      is_active: isActive,
+    };
+    if (ctx.profile.organization_id) {
+      insertPayload.organization_id = ctx.profile.organization_id;
     }
 
     const { data, error } = await supabase
       .from('company_pages')
-      .insert({
-        company_id: ctx.profile.company_id,
-        title,
-        slug,
-        content,
-        is_active: isActive,
-      })
+      .insert(insertPayload)
       .select('id,title,slug,content,is_active,created_at,updated_at')
       .single();
 
     if (error) throw error;
 
     // Gerar arquivo estático para pré-visualização/exports (não bloquear resposta)
+    const companyId = ctx.profile.company_id;
     (async () => {
       try {
-        const outDir = path.join(process.cwd(), 'public', 'generated_pages', String(ctx.profile.company_id));
+        const outDir = path.join(process.cwd(), 'public', 'generated_pages', String(companyId));
         await fs.mkdir(outDir, { recursive: true });
         const filePath = path.join(outDir, `${data.slug}.html`);
         const renderedBody = companyPageContentToHtml(data.content, String(data.title || ''));
@@ -124,8 +186,8 @@ export async function PATCH(req: Request) {
   try {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
-    if (ctx.error) {
-      return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+    if (ctx.error || !ctx.profile) {
+      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
     if (!isCompanyAdminRole(String(ctx.profile.role || ''))) {
@@ -136,6 +198,8 @@ export async function PATCH(req: Request) {
     const id = String(body?.id || '');
     if (!id) return NextResponse.json({ success: false, error: 'Id is required' }, { status: 400 });
 
+    const companyId = ctx.profile.company_id;
+
     // buscar slug antigo para remover arquivo caso o slug mude
     let oldSlug: string | null = null;
     try {
@@ -143,7 +207,7 @@ export async function PATCH(req: Request) {
         .from('company_pages')
         .select('slug')
         .eq('id', id)
-        .eq('company_id', ctx.profile.company_id)
+        .eq('company_id', companyId)
         .maybeSingle();
       oldSlug = existing?.slug || null;
     } catch (e) {
@@ -171,7 +235,7 @@ export async function PATCH(req: Request) {
       .from('company_pages')
       .update(payload)
       .eq('id', id)
-      .eq('company_id', ctx.profile.company_id)
+      .eq('company_id', companyId)
       .select('id,title,slug,content,is_active,created_at,updated_at')
       .single();
 
@@ -180,7 +244,7 @@ export async function PATCH(req: Request) {
     // Atualizar/gerar arquivo estático e remover antigo se necessário
     (async () => {
       try {
-        const outDir = path.join(process.cwd(), 'public', 'generated_pages', String(ctx.profile.company_id));
+        const outDir = path.join(process.cwd(), 'public', 'generated_pages', String(companyId));
         await fs.mkdir(outDir, { recursive: true });
         const filePath = path.join(outDir, `${data.slug}.html`);
         const renderedBody = companyPageContentToHtml(data.content, String(data.title || ''));
@@ -208,8 +272,8 @@ export async function DELETE(req: Request) {
   try {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
-    if (ctx.error) {
-      return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+    if (ctx.error || !ctx.profile) {
+      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
     if (!isCompanyAdminRole(String(ctx.profile.role || ''))) {
@@ -220,6 +284,8 @@ export async function DELETE(req: Request) {
     const id = String(body?.id || '');
     if (!id) return NextResponse.json({ success: false, error: 'Id is required' }, { status: 400 });
 
+    const companyId = ctx.profile.company_id;
+
     // Buscar slug para remover arquivo estático
     let slugToRemove: string | null = null;
     try {
@@ -227,7 +293,7 @@ export async function DELETE(req: Request) {
         .from('company_pages')
         .select('slug')
         .eq('id', id)
-        .eq('company_id', ctx.profile.company_id)
+        .eq('company_id', companyId)
         .maybeSingle();
       slugToRemove = existing?.slug || null;
     } catch (e) {
@@ -238,7 +304,7 @@ export async function DELETE(req: Request) {
       .from('company_pages')
       .delete()
       .eq('id', id)
-      .eq('company_id', ctx.profile.company_id);
+      .eq('company_id', companyId);
 
     if (error) throw error;
 
@@ -246,7 +312,7 @@ export async function DELETE(req: Request) {
     (async () => {
       try {
         if (!slugToRemove) return;
-        const outDir = path.join(process.cwd(), 'public', 'generated_pages', String(ctx.profile.company_id));
+        const outDir = path.join(process.cwd(), 'public', 'generated_pages', String(companyId));
         const filePath = path.join(outDir, `${slugToRemove}.html`);
         await fs.unlink(filePath).catch(() => {});
       } catch (e) {

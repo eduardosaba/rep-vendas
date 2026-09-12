@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { isAdminRole } from '@/lib/auth/roles';
+import { isGlobalAdmin } from '@/lib/auth/roles';
 
 type SupabaseCookieToSet = {
   name: string;
@@ -210,14 +210,22 @@ export async function middleware(request: NextRequest) {
       return redirectTo('/onboarding');
     }
 
+    const userRole = String(profile?.role || '').toLowerCase();
+    const isControlTowerUser = isGlobalAdmin(userRole);
+
+    // Se um usuário não-master tentar acessar a Torre de Controle (/admin), redireciona para o /dashboard
+    if (isAdminRoute && !isControlTowerUser) {
+      if (pathname.startsWith('/api/admin')) {
+        return forbidden();
+      }
+      return redirectTo('/dashboard');
+    }
+
     // Se o usuário está ativo e acessando /login, redireciona para a home da sua role
     if (pathname === '/login') {
       const searchParams = request.nextUrl?.searchParams || new URL(request.url).searchParams;
       const requestedRedirect = searchParams?.get('redirectTo') || searchParams?.get('redirectedFrom');
       const safeRedirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : null;
-
-      const userRole = String(profile?.role || '').toLowerCase();
-      const isControlTowerUser = isAdminRole(userRole);
 
       if (safeRedirect?.startsWith('/admin')) {
         return redirectTo(isControlTowerUser ? safeRedirect : '/dashboard');

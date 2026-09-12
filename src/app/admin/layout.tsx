@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import AdminLayoutClient from './AdminLayoutClient';
-import { isAdminRole } from '@/lib/auth/roles';
+import { isGlobalAdmin } from '@/lib/auth/roles';
 
 export default async function AdminLayout({
   children,
@@ -38,10 +38,10 @@ export default async function AdminLayout({
   console.log('[ADMIN ROLE]', {
     userId: user?.id,
     role: profile?.role,
-    isAdmin: isAdminRole(profile?.role),
+    isGlobalAdmin: isGlobalAdmin(profile?.role),
   });
 
-  if (!isAdminRole(role)) {
+  if (!isGlobalAdmin(role)) {
     redirect('/dashboard');
   }
 

@@ -46,9 +46,13 @@ export const getPublicCatalog = cache(
       }
     }
 
-    // products visible to public: those matching either company_id OR user_id
-    // (some rows use user_id as owner, others use company_id). Fetch both and prefer seller-specific products when applicable.
-    let productsQuery = supabaseAdmin.from('products').select('*').or(`company_id.eq.${companyId},user_id.eq.${companyId}`).order('created_at', { ascending: false });
+    // products visible to public: those matching company_id, user_id, OR organization_id
+    let productsQuery = supabaseAdmin
+      .from('products')
+      .select('*')
+      .not('is_active', 'eq', false)
+      .or(`company_id.eq.${companyId},user_id.eq.${companyId},organization_id.eq.${companyId}`)
+      .order('created_at', { ascending: false });
 
     // apply brand filter if provided (product.brand is a string column)
     if (brand) {
@@ -78,16 +82,14 @@ export const getPublicCatalog = cache(
         rep = bySlug || null;
       }
 
-      // If we found a rep and products table contains seller_id, prefer products for that seller
+      // If we found a rep and products table contains seller_id, prefer products for that seller plus common products
       if (rep && rep.id) {
         try {
-          // fetch the combined products (company_id OR user_id) and then prefer seller-specific ones
           const { data: allProducts } = await productsQuery;
           const list = Array.isArray(allProducts) ? allProducts : [];
-          // prefer products where seller_id === rep.id; if none, include products with seller_id null
           const sellerProducts = list.filter((p: any) => p.seller_id === rep.id);
           const fallbackProducts = list.filter((p: any) => p.seller_id == null);
-          const productsForSeller = sellerProducts.length > 0 ? sellerProducts : fallbackProducts;
+          const productsForSeller = sellerProducts.length > 0 ? [...sellerProducts, ...fallbackProducts] : list;
           return { success: true, company, products: productsForSeller || [], rep };
         } catch (e) {
           // fallback to default products query below

@@ -36,12 +36,14 @@ type Props = {
   context?: 'company' | 'representative';
   targetId?: string | null;
   ownerSettingsUserId?: string | null;
+  initialTab?: 'general' | 'appearance' | 'institucional' | 'gallery' | 'display' | 'stock' | 'pages' | 'sync';
 };
 
 export default function SystemSettingsForm({
   context = 'representative',
   targetId = null,
   ownerSettingsUserId = null,
+  initialTab,
 }: Props) {
   const supabase = createClient();
 
@@ -56,7 +58,17 @@ export default function SystemSettingsForm({
     | 'stock'
     | 'pages'
     | 'sync'
-  >('general');
+  >(() => {
+    if (initialTab) return initialTab;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'institucional' || tab === 'appearance' || tab === 'display' || tab === 'gallery' || tab === 'pages' || tab === 'stock' || tab === 'general' || tab === 'sync') {
+        return tab as any;
+      }
+    }
+    return 'general';
+  });
   const [isCompanyAdmin, setIsCompanyAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userCanManageCatalog, setUserCanManageCatalog] =
@@ -80,6 +92,8 @@ export default function SystemSettingsForm({
     top_benefit_text_size: 14,
     show_installments: false,
     max_installments: null,
+    show_cash_discount: false,
+    cash_price_discount_percent: null,
     show_sale_price: false,
     show_cost_price: false,
     price_unlock_mode: 'none',
@@ -714,6 +728,7 @@ export default function SystemSettingsForm({
           'top_benefit_height',
           'top_benefit_text_size',
           'max_installments',
+          'cash_price_discount_percent',
         ];
         numericKeys.forEach((k) => {
           if (payload[k] !== undefined && payload[k] !== null) {
@@ -743,6 +758,7 @@ export default function SystemSettingsForm({
         const boolKeys = [
           'show_top_benefit_bar',
           'show_installments',
+          'show_cash_discount',
           'show_sale_price',
           'show_cost_price',
           'enable_stock_management',
@@ -884,6 +900,34 @@ export default function SystemSettingsForm({
           topBenefitImagePreview ??
           (catalogSettings as any)?.top_benefit_image_url ??
           null,
+        top_benefit_mode:
+          (catalogSettings as any)?.top_benefit_mode ??
+          formData?.top_benefit_mode ??
+          'static',
+        top_benefit_speed:
+          (catalogSettings as any)?.top_benefit_speed ??
+          formData?.top_benefit_speed ??
+          'medium',
+        top_benefit_animation:
+          (catalogSettings as any)?.top_benefit_animation ??
+          formData?.top_benefit_animation ??
+          'scroll_left',
+        top_benefit_image_fit:
+          (catalogSettings as any)?.top_benefit_image_fit ??
+          formData?.top_benefit_image_fit ??
+          'cover',
+        top_benefit_image_scale:
+          typeof topBenefitImageScale !== 'undefined'
+            ? topBenefitImageScale
+            : ((catalogSettings as any)?.top_benefit_image_scale ?? 100),
+        top_benefit_image_align:
+          (catalogSettings as any)?.top_benefit_image_align ??
+          formData?.top_benefit_image_align ??
+          'center',
+        top_benefit_text_align:
+          (catalogSettings as any)?.top_benefit_text_align ??
+          formData?.top_benefit_text_align ??
+          'center',
         updated_at: now,
       };
 
@@ -977,6 +1021,13 @@ export default function SystemSettingsForm({
           top_benefit_height: mergedCatalog.top_benefit_height,
           top_benefit_text_size: mergedCatalog.top_benefit_text_size,
           top_benefit_image_url: mergedCatalog.top_benefit_image_url || null,
+          top_benefit_mode: mergedCatalog.top_benefit_mode || null,
+          top_benefit_speed: mergedCatalog.top_benefit_speed || null,
+          top_benefit_animation: mergedCatalog.top_benefit_animation || null,
+          top_benefit_image_fit: mergedCatalog.top_benefit_image_fit || null,
+          top_benefit_image_scale: mergedCatalog.top_benefit_image_scale || null,
+          top_benefit_image_align: mergedCatalog.top_benefit_image_align || null,
+          top_benefit_text_align: mergedCatalog.top_benefit_text_align || null,
           show_installments: mergedCatalog.show_installments,
           max_installments: mergedCatalog.max_installments,
           show_sale_price: mergedCatalog.show_sale_price,
@@ -1184,8 +1235,34 @@ export default function SystemSettingsForm({
             (catalogSettings as any)?.top_benefit_image_url ??
             originalData?.top_benefit_image_url;
           partial.top_benefit_image_scale =
-            (catalogSettings as any)?.top_benefit_image_scale ??
-            originalData?.top_benefit_image_scale;
+            typeof topBenefitImageScale !== 'undefined'
+              ? topBenefitImageScale
+              : ((catalogSettings as any)?.top_benefit_image_scale ??
+                originalData?.top_benefit_image_scale);
+          partial.top_benefit_mode =
+            (catalogSettings as any)?.top_benefit_mode ??
+            formData?.top_benefit_mode ??
+            originalData?.top_benefit_mode;
+          partial.top_benefit_animation =
+            (catalogSettings as any)?.top_benefit_animation ??
+            formData?.top_benefit_animation ??
+            originalData?.top_benefit_animation;
+          partial.top_benefit_speed =
+            (catalogSettings as any)?.top_benefit_speed ??
+            formData?.top_benefit_speed ??
+            originalData?.top_benefit_speed;
+          partial.top_benefit_image_fit =
+            (catalogSettings as any)?.top_benefit_image_fit ??
+            formData?.top_benefit_image_fit ??
+            originalData?.top_benefit_image_fit;
+          partial.top_benefit_image_align =
+            (catalogSettings as any)?.top_benefit_image_align ??
+            formData?.top_benefit_image_align ??
+            originalData?.top_benefit_image_align;
+          partial.top_benefit_text_align =
+            (catalogSettings as any)?.top_benefit_text_align ??
+            formData?.top_benefit_text_align ??
+            originalData?.top_benefit_text_align;
         } catch (e) {
           // ignore
         }
@@ -1219,7 +1296,6 @@ export default function SystemSettingsForm({
     { id: 'display', label: 'Exibição', icon: Palette },
     { id: 'institucional', label: 'Institucional', icon: Building2 },
     { id: 'gallery', label: 'Galeria', icon: Images },
-    { id: 'pages', label: 'Páginas', icon: Globe },
     { id: 'stock', label: 'Estoque', icon: Package },
   ];
 

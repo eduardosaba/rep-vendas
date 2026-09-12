@@ -14,6 +14,7 @@ export const GLOBAL_ADMIN_ROLES = [
 export const COMPANY_ADMIN_ROLES = [
   'admin_company',
   'company_admin',
+  'owner',
 ] as const;
 
 export type AdminRole = (typeof ADMIN_ROLES)[number];

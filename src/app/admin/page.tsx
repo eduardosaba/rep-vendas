@@ -2,7 +2,7 @@ import React from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { isAdminRole } from '@/lib/auth/roles';
+import { isGlobalAdmin } from '@/lib/auth/roles';
 import {
   Users,
   DollarSign,
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
-  // 1. SEGURANÇA: Verificar se possui role de administração (Torre de Controle)
+  // 1. SEGURANÇA: Verificar se possui role de administração global (Torre de Controle)
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -34,8 +34,8 @@ export default async function AdminDashboardPage() {
 
   const role = currentUserProfile?.role;
 
-  if (!isAdminRole(role)) {
-    // Usuários sem role de admin não acessam a Torre de Controle -> Redireciona para o Dashboard
+  if (!isGlobalAdmin(role)) {
+    // Usuários sem role de admin global não acessam a Torre de Controle -> Redireciona para o Dashboard
     redirect('/dashboard');
   }
 

@@ -100,7 +100,7 @@ export default function CatalogRichLayout({ company, rep, representative: repres
           <img
             src={company.cover_image}
             alt={`${company.name} cover`}
-            className="w-full object-cover h-[360px] md:h-[420px] lg:h-[560px]"
+            className="w-full object-cover h-[220px] md:h-[300px] lg:h-[360px]"
             style={{
               objectFit: coverFit,
               objectPosition:

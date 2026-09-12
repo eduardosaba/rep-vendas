@@ -159,7 +159,7 @@ export class ProductRepository {
       .eq('organization_id', organizationId);
 
     if (activeOnly) {
-      query = query.eq('is_active', true);
+      query = query.not('is_active', 'eq', false);
     }
 
     query = query.order('name', { ascending: true });

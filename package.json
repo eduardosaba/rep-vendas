@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --max-old-space-size=8192 scripts/dev-wrapper.mjs",
-    "build": "node scripts/check-env.js && node scripts/check-assets.js && node --max-old-space-size=8192 node_modules/next/dist/bin/next build",
+    "dev": "node --max-old-space-size=4096 scripts/dev-wrapper.mjs",
+    "build": "node scripts/check-env.js && node scripts/check-assets.js && node --max-old-space-size=4096 node_modules/next/dist/bin/next build",
     "start": "next start",
     "e2e:internalize": "node scripts/e2e-internalize-test.mjs",
     "lint": "next lint",
@@ -33,6 +33,9 @@
     "seed": "npx tsx scripts/seed/run-all.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@sentry/nextjs": "^10.50.0",
     "@supabase/ssr": "0.4.0",
     "@supabase/supabase-js": "^2.89.0",
