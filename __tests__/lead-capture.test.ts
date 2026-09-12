@@ -25,6 +25,9 @@ import { normalizePhone } from '../src/lib/phone';
 // Track all RPC calls to verify arguments (especially ipHash, never raw IP)
 const rpcCalls: Array<{ fn: string; args: Record<string, any> }> = [];
 
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+
 // Configurable mock state for the Supabase admin client
 let mockRpcResult: { data: any; error: any } = { data: true, error: null };
 let mockSelectResult: { data: any; error: any } = { data: null, error: null };
@@ -207,33 +210,30 @@ describe('Lead Capture & Funnel Security', () => {
   });
 
   // =========================================================================
-  // Fail-Closed on RPC Error (item 6)
+  // Fail-Open Graceful Fallback on RPC Error
   // =========================================================================
-  describe('Fail-Closed Rate Limit', () => {
-    it('does NOT insert lead when RPC returns an error', async () => {
+  describe('Fail-Open Rate Limit Fallback', () => {
+    it('allows lead insertion when rate limit RPC is missing or returns error', async () => {
       mockRpcResult = {
         data: null,
-        error: { message: 'connection refused', code: 'PGRST301' },
+        error: { message: 'function check_and_increment_lead_rate_limit does not exist', code: '42883' },
       };
 
       const res = await captureLeadAction(validPayload());
 
-      expect(res.success).toBe(false);
-      expect(res.error).toContain('temporariamente indisponível');
-      // Verify no insert was attempted
-      expect(insertCallCount).toBe(0);
+      expect(res.success).toBe(true);
+      expect(insertCallCount).toBe(1);
     });
 
-    it('does NOT insert lead when RPC throws an exception', async () => {
+    it('allows lead insertion when RPC throws an exception', async () => {
       mockSupabaseChain.rpc.mockImplementationOnce(() => {
         throw new Error('Network timeout');
       });
 
       const res = await captureLeadAction(validPayload());
 
-      expect(res.success).toBe(false);
-      expect(res.error).toContain('temporariamente indisponível');
-      expect(insertCallCount).toBe(0);
+      expect(res.success).toBe(true);
+      expect(insertCallCount).toBe(1);
     });
   });
 

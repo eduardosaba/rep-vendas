@@ -221,7 +221,7 @@ export default function RegisterPage() {
                 Teste Grátis por 14 Dias
               </h2>
               <p className="mt-2 text-sm text-gray-500">
-                Acesso completo à Torre de Controle e Catálogo. Sem cartão de
+                Acesso completo à Dashboard e Catálogo virtual. Sem cartão de
                 crédito.
               </p>
             </div>
@@ -291,8 +291,8 @@ export default function RegisterPage() {
               </div>
             </div>
 
-              {/* FORMULÁRIO EMAIL */}
-              <form onSubmit={handleSignupSubmit} className="space-y-4">
+            {/* FORMULÁRIO EMAIL */}
+            <form onSubmit={handleSignupSubmit} className="space-y-4">
               <input type="hidden" name="lead_id" value={leadId} />
 
               {isLeadPreFilled && !success && (

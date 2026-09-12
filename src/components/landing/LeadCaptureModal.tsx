@@ -148,15 +148,15 @@ export function LeadCaptureModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-lg max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200 my-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
         {/* Header do Modal */}
-        <div className="bg-[#0d1b2c] p-6 text-white relative">
+        <div className="bg-[#0d1b2c] p-5 md:p-6 text-white relative flex-shrink-0">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
@@ -164,20 +164,20 @@ export function LeadCaptureModal({
           >
             <X size={20} />
           </button>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-[#b9722e] text-xs font-bold mb-3 border border-white/10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-[#b9722e] text-xs font-bold mb-2.5 border border-white/10">
             <span className="flex h-2 w-2 rounded-full bg-[#b9722e] animate-ping"></span>
             Passo 1 de 2
           </div>
-          <h2 id="modal-title" className="text-2xl font-black tracking-tight">
+          <h2 id="modal-title" className="text-xl md:text-2xl font-black tracking-tight">
             Vamos preparar seu RepVendas
           </h2>
-          <p className="text-sm text-gray-300 mt-1">
+          <p className="text-xs md:text-sm text-gray-300 mt-1">
             Preencha seus dados básicos para personalizar sua experiência.
           </p>
         </div>
 
         {/* Formulário */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 md:p-6 space-y-3.5 md:space-y-4 overflow-y-auto flex-1 custom-scrollbar">
           {error && (
             <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
               <span>⚠️</span> {error}

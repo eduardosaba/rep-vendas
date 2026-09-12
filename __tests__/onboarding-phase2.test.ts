@@ -168,6 +168,10 @@ jest.mock('@/lib/supabase/server', () => ({
   createClient: jest.fn(() => Promise.resolve(createMockSupabase())),
 }));
 
+jest.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: jest.fn(() => createMockSupabase()),
+}));
+
 jest.mock('next/cache', () => ({
   revalidatePath: jest.fn(),
 }));

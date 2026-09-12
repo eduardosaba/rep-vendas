@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { revalidatePath } from 'next/cache';
 import { SlugService } from '@/shared/slug/SlugService';
@@ -68,9 +69,10 @@ export async function saveOnboardingStep1(data: Step1Data) {
 export async function saveOnboardingStep2(data: Step2Data) {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
+  const adminDb = createAdminClient();
 
   // 1. Obter Perfil Atual para checar se já possui organization_id
-  const { data: profile, error: profileErr } = await supabase
+  const { data: profile, error: profileErr } = await adminDb
     .from('profiles')
     .select('organization_id, full_name, phone')
     .eq('id', user.id)
@@ -84,7 +86,7 @@ export async function saveOnboardingStep2(data: Step2Data) {
 
   // 2. Se o perfil não tem organization_id, busca se já existe uma organização com owner_user_id = user.id
   if (!organizationId) {
-    const { data: existingOrg } = await supabase
+    const { data: existingOrg } = await adminDb
       .from('organizations')
       .select('id')
       .eq('owner_user_id', user.id)
@@ -105,7 +107,7 @@ export async function saveOnboardingStep2(data: Step2Data) {
   if (!organizationId) {
     const baseSlug = SlugService.generate(safeCompanyName) || `org-${user.id.slice(0, 8)}`;
     safeOrgSlug = await SlugService.ensureUnique(baseSlug, async (candidate) => {
-      const { data: orgCheck } = await supabase
+      const { data: orgCheck } = await adminDb
         .from('organizations')
         .select('id')
         .eq('slug', candidate)
@@ -113,7 +115,7 @@ export async function saveOnboardingStep2(data: Step2Data) {
       return Boolean(orgCheck);
     });
 
-    const { data: newOrg, error: createOrgErr } = await supabase
+    const { data: newOrg, error: createOrgErr } = await adminDb
       .from('organizations')
       .insert({
         name: safeCompanyName,
@@ -133,7 +135,7 @@ export async function saveOnboardingStep2(data: Step2Data) {
     organizationId = newOrg.id;
   } else {
     // Atualizar nome e tipo da organização existente sem recriar
-    await supabase
+    await adminDb
       .from('organizations')
       .update({
         name: safeCompanyName,
@@ -144,7 +146,7 @@ export async function saveOnboardingStep2(data: Step2Data) {
   }
 
   // 4. Garantir Membership Owner em organization_members via ON CONFLICT (organization_id, user_id) DO NOTHING
-  const { error: memberErr } = await supabase
+  const { error: memberErr } = await adminDb
     .from('organization_members')
     .upsert(
       {
@@ -162,7 +164,7 @@ export async function saveOnboardingStep2(data: Step2Data) {
 
   // 5. Garantir registro sincronizado na tabela empresas (companies) para compatibilidade plena
   try {
-    await supabase.from('companies').upsert(
+    await adminDb.from('companies').upsert(
       {
         id: organizationId,
         user_id: user.id,
@@ -178,7 +180,7 @@ export async function saveOnboardingStep2(data: Step2Data) {
   }
 
   // 6. Vincular profiles.organization_id e company_id e avançar para a Etapa 3
-  const { error: updateProfileErr } = await supabase
+  const { error: updateProfileErr } = await adminDb
     .from('profiles')
     .update({
       organization_id: organizationId,
@@ -201,13 +203,14 @@ export async function saveOnboardingStep2(data: Step2Data) {
 export async function saveOnboardingStep3(data: Step3Data) {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
+  const adminDb = createAdminClient();
 
   const safeStoreName = (data.storeName || '').trim() || 'Minha Loja Digital';
   const rawSlug = (data.slug || '').trim() || SlugService.generate(safeStoreName);
 
   // Garantir Slug Única usando SlugService
   const safeSlug = await SlugService.ensureUnique(rawSlug, async (candidate) => {
-    const { data: existingSettings } = await supabase
+    const { data: existingSettings } = await adminDb
       .from('settings')
       .select('user_id')
       .eq('catalog_slug', candidate)
@@ -216,17 +219,17 @@ export async function saveOnboardingStep3(data: Step3Data) {
     return Boolean(existingSettings && existingSettings.user_id !== user.id);
   });
 
-  const { data: profile } = await supabase
+  const { data: profile } = await adminDb
     .from('profiles')
-    .select('phone, email')
+    .select('phone, email, organization_id, company_id')
     .eq('id', user.id)
     .single();
 
   const safePhone = profile?.phone || '';
   const safeEmail = profile?.email || user.email || '';
 
-  // Upsert em Settings
-  const { error: settingsError } = await supabase.from('settings').upsert(
+  // 1. Upsert em Settings (idêntico ao salvar do /api/settings/save)
+  const { error: settingsError } = await adminDb.from('settings').upsert(
     {
       user_id: user.id,
       name: safeStoreName,
@@ -235,6 +238,7 @@ export async function saveOnboardingStep3(data: Step3Data) {
       catalog_slug: safeSlug,
       primary_color: data.primaryColor || '#b9722e',
       logo_url: data.logoUrl || null,
+      is_active: true,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' }
@@ -244,7 +248,47 @@ export async function saveOnboardingStep3(data: Step3Data) {
     throw new Error(`Falha ao salvar configurações da loja: ${settingsError.message}`);
   }
 
-  // Sincronizar com catálogo público
+  // 2. Sincronizar profiles.slug e profiles.whatsapp para garantir resolução direta do catálogo
+  const { error: profileError } = await adminDb
+    .from('profiles')
+    .update({
+      slug: safeSlug,
+      phone: safePhone || undefined,
+      whatsapp: safePhone || undefined,
+      onboarding_step: 4,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (profileError) {
+    console.warn('[saveOnboardingStep3] Erro ao atualizar slug no perfil:', profileError.message);
+  }
+
+  // 3. Se houver organização vinculada, atualizar o slug e nome da organização
+  if (profile?.organization_id) {
+    await adminDb
+      .from('organizations')
+      .update({
+        slug: safeSlug,
+        name: safeStoreName,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', profile.organization_id);
+  }
+
+  // 4. Se houver empresa (companies) vinculada no perfil, atualizar o slug da distribuidora
+  if (profile?.company_id) {
+    await adminDb
+      .from('companies')
+      .update({
+        slug: safeSlug,
+        name: safeStoreName,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', profile.company_id);
+  }
+
+  // 5. Sincronizar com catálogo público (public_catalogs)
   await syncPublicCatalog(user.id, {
     slug: safeSlug,
     store_name: safeStoreName,
@@ -252,13 +296,8 @@ export async function saveOnboardingStep3(data: Step3Data) {
     primary_color: data.primaryColor || '#b9722e',
     phone: safePhone,
     email: safeEmail,
+    is_active: true,
   });
-
-  // Atualizar etapa do onboarding para 4
-  await supabase
-    .from('profiles')
-    .update({ onboarding_step: 4, updated_at: new Date().toISOString() })
-    .eq('id', user.id);
 
   return { success: true, slug: safeSlug, nextStep: 4 };
 }
@@ -269,11 +308,12 @@ export async function saveOnboardingStep3(data: Step3Data) {
 export async function finishOnboarding() {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
+  const adminDb = createAdminClient();
 
   const nowIso = new Date().toISOString();
 
   // 1. Marcar onboarding como concluído em profiles
-  const { error: profileError } = await supabase
+  const { error: profileError } = await adminDb
     .from('profiles')
     .update({
       onboarding_completed: true,
@@ -289,7 +329,7 @@ export async function finishOnboarding() {
 
   // 2. Atualizar status do lead para 'activated' se houver um lead associado ao user_id
   try {
-    await supabase
+    await adminDb
       .from('leads')
       .update({
         status: 'activated',

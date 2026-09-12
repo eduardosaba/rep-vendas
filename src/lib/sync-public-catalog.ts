@@ -98,16 +98,23 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
 
   const isActive = data.is_active ?? true; // Captura o valor vindo do dashboard
 
-  // Verifica existência pelo `slug` — mais seguro para evitar alterações cruzadas
-  const { data: existing } = await supabase
+  // 1. Verifica se o slug pertence a outro usuário
+  const { data: slugOwner } = await supabase
     .from('public_catalogs')
-    .select('id, user_id, catalog_slug, store_name, logo_url, share_banner_url, og_image_url, banners, banners_mobile')
+    .select('id, user_id')
     .eq('catalog_slug', slug)
     .maybeSingle();
 
-  if (existing && existing.user_id !== userId) {
+  if (slugOwner && slugOwner.user_id !== userId) {
     throw new Error('Slug already belongs to another user');
   }
+
+  // 2. Busca registro existente deste usuário por user_id
+  const { data: existing } = await supabase
+    .from('public_catalogs')
+    .select('id, user_id, catalog_slug, store_name, logo_url, share_banner_url, og_image_url, banners, banners_mobile')
+    .eq('user_id', userId)
+    .maybeSingle();
 
   const recordAudit = async (payload: Record<string, any>) => {
     try {
@@ -252,6 +259,8 @@ export async function syncPublicCatalog(userId: string, data: SyncCatalogData) {
     // existing public_catalogs values with defaults when callers send
     // partial payloads (this previously caused colors/passwords to be lost).
     const updatePayload: Record<string, any> = {
+      catalog_slug: slug,
+      is_active: isActive,
       updated_at: new Date().toISOString(),
     };
 
