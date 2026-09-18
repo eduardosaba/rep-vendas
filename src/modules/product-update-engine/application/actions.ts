@@ -937,7 +937,7 @@ export async function processBatchChunkAction(
     const isCompleted = chunkRowIndex + chunkSize >= eligibleRawData.length;
 
     if (chunkData.length === 0) {
-      await supabase.from('product_update_jobs').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', jobId);
+      await queryClient.from('product_update_jobs').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', jobId);
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: true };
     }
 
@@ -1011,7 +1011,7 @@ export async function processBatchChunkAction(
             continue;
           }
 
-          const { data: jobItem, error: itemErr } = await supabase
+          const { data: jobItem, error: itemErr } = await queryClient
             .from('product_update_job_items')
             .insert({
               job_id: jobId,
@@ -1032,6 +1032,7 @@ export async function processBatchChunkAction(
             .single();
 
           if (itemErr || !jobItem) {
+            console.error('[JOB ITEM INSERT ERROR]', itemErr);
             skippedRows++;
             continue;
           }
@@ -1059,7 +1060,7 @@ export async function processBatchChunkAction(
     let failed = 0;
 
     if (rpcRows.length > 0) {
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('apply_product_update_batch', {
+      const { data: rpcResult, error: rpcError } = await queryClient.rpc('apply_product_update_batch', {
         p_job_id: jobId,
         p_rows: rpcRows,
       });
@@ -1067,11 +1068,11 @@ export async function processBatchChunkAction(
       if (rpcError) {
         console.error('RPC apply_product_update_batch error:', rpcError);
         const pendingIds = rpcRows.map((r) => r.job_item_id);
-        await supabase
+        await queryClient
           .from('product_update_job_items')
           .update({ status: 'failed', error_message: rpcError.message })
           .in('id', pendingIds);
-        await supabase.from('product_update_jobs').update({ status: 'failed', error_message: rpcError.message, completed_at: new Date().toISOString() }).eq('id', jobId);
+        await queryClient.from('product_update_jobs').update({ status: 'failed', error_message: rpcError.message, completed_at: new Date().toISOString() }).eq('id', jobId);
         return { processed: chunkData.length, applied: 0, skipped: 0, failed: rpcRows.length, isCompleted: true, error: rpcError.message };
       }
 
@@ -1082,7 +1083,7 @@ export async function processBatchChunkAction(
 
       // Fallback de resiliência para campos da whitelist (ex: reference_id em bancos que ainda não rodaram a nova migration)
       if (failed > 0) {
-        const { data: failedItems } = await supabase
+        const { data: failedItems } = await queryClient
           .from('product_update_job_items')
           .select('id, product_id, target_field, new_value')
           .eq('job_id', jobId)
@@ -1092,13 +1093,13 @@ export async function processBatchChunkAction(
         if (failedItems && failedItems.length > 0) {
           for (const item of failedItems) {
             const field = String(item.target_field).trim();
-            const { error: directErr } = await supabase
+            const { error: directErr } = await queryClient
               .from('products')
               .update({ [field]: item.new_value, updated_at: new Date().toISOString() })
               .eq('id', item.product_id);
 
             if (!directErr) {
-              await supabase
+              await queryClient
                 .from('product_update_job_items')
                 .update({ status: 'applied', applied_at: new Date().toISOString(), error_message: null })
                 .eq('id', item.id);
@@ -1113,7 +1114,7 @@ export async function processBatchChunkAction(
     if (isCompleted) {
       const totalErrors = conflicts + failed;
       const status = totalErrors > 0 ? (applied > 0 ? 'partially_completed' : 'failed') : 'completed';
-      await supabase
+      await queryClient
         .from('product_update_jobs')
         .update({ status, completed_at: new Date().toISOString() })
         .eq('id', jobId);
@@ -1129,7 +1130,7 @@ export async function processBatchChunkAction(
 
 export async function rollbackJobAction(jobId: string): Promise<{ success: boolean; rolledBack: number; conflicts: number; errors: string[] }> {
   try {
-    const { userId, supabase, profile } = await requireProductUpdateAccess();
+    const { userId, supabase, profile, isMaster } = await requireProductUpdateAccess();
 
     const { data: job } = await supabase.from('product_update_jobs').select('*').eq('id', jobId).single();
     if (!job) return { success: false, rolledBack: 0, conflicts: 0, errors: ['Job não encontrado.'] };
@@ -1140,8 +1141,11 @@ export async function rollbackJobAction(jobId: string): Promise<{ success: boole
     const config: EngineConfiguration = job.configuration as any;
     validateCompanyAdminScope(profile, config.scope);
 
+    const isGlobalScope = ['PLATFORM_GLOBAL', 'GLOBAL'].includes(config.scope?.type || 'GLOBAL');
+    const queryClient = isMaster && isGlobalScope ? createAdminClient() : supabase;
+
     // Fetch only applied items that have not been rolled back yet
-    const { data: items } = await supabase
+    const { data: items } = await queryClient
       .from('product_update_job_items')
       .select('id')
       .eq('job_id', jobId)
@@ -1161,7 +1165,7 @@ export async function rollbackJobAction(jobId: string): Promise<{ success: boole
     for (let i = 0; i < itemIds.length; i += BATCH_SIZE) {
       const batchIds = itemIds.slice(i, i + BATCH_SIZE);
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('rollback_product_update_batch', {
+      const { data: rpcResult, error: rpcError } = await queryClient.rpc('rollback_product_update_batch', {
         p_job_id: jobId,
         p_item_ids: batchIds,
       });
