@@ -202,11 +202,11 @@ export function ProductCard({
             <Heart size={16} className={isFavorite ? 'fill-red-500 text-red-500' : ''} />
           </button>
 
-          {variantCount >= 1 && (
+          {variantCount > 1 && (
             <div className="absolute bottom-2 right-2 z-10">
               <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-gray-100 px-2 py-1 rounded-md shadow-sm hover:scale-105 transition-transform cursor-default">
                 <div className="flex -space-x-1.5">{colorDots.map((c, i) => (<div key={i} className={`w-2.5 h-2.5 rounded-full border border-white`} style={c ? { backgroundColor: c } : undefined} />))}</div>
-                <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">{additionalColors === 0 ? 'COR' : additionalColors === 1 ? '+1 COR' : `+ ${additionalColors} CORES`}</span>
+                <span className="text-[10px] font-extrabold text-gray-800 tracking-tighter whitespace-nowrap">{additionalColors === 1 ? '+1 COR' : `+ ${additionalColors} CORES`}</span>
               </div>
             </div>
           )}

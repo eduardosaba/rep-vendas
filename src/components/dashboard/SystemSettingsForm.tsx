@@ -1303,7 +1303,6 @@ export default function SystemSettingsForm({
     { id: 'general', label: 'Geral', icon: SettingsIcon },
     { id: 'appearance', label: 'Aparência', icon: Palette },
     { id: 'display', label: 'Exibição', icon: Palette },
-    { id: 'institucional', label: 'Institucional', icon: Building2 },
     { id: 'gallery', label: 'Galeria', icon: Images },
     { id: 'stock', label: 'Estoque', icon: Package },
   ];

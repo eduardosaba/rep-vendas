@@ -8,6 +8,7 @@ import { ImageDropzone } from '@/components/dashboard/ImageDropzone';
 import { StagingProductCard } from '@/components/dashboard/StagingProductCard';
 import { toast } from 'sonner';
 import { useConfirm } from '@/hooks/useConfirm';
+import { deriveReferenceId } from '@/lib/utils/reference-logic';
 import {
   ArrowLeft,
   Loader2,
@@ -665,7 +666,7 @@ export default function ImportVisualPage() {
 
       // Normalize reference_id (use provided reference or fallback to reference_code/name)
       const rawRef = (data as any).reference || (data as any).reference_code || data.name || '';
-      const normalizedReferenceId = slugify(String(rawRef));
+      const normalizedReferenceId = deriveReferenceId({ refCode: String(rawRef) });
 
       // gerar variantes 480/1200 a partir da url/storage_path
       const ensure480 = (u: string) => {

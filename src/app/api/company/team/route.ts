@@ -94,8 +94,33 @@ function isNativeAdminRole(role: string | null | undefined) {
   return normalized === 'master' || normalized === 'admin_company' || normalized === 'representative' || normalized === 'rep';
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const checkSlug = searchParams.get('slug');
+
+    if (checkSlug) {
+      const normalized = normalizeSlug(checkSlug);
+      if (!normalized) {
+        return NextResponse.json({ success: true, available: true });
+      }
+
+      const { data: profileSlug } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('slug', normalized)
+        .maybeSingle();
+
+      const { data: catalogSlug } = await supabaseAdmin
+        .from('public_catalogs')
+        .select('id')
+        .eq('catalog_slug', normalized)
+        .maybeSingle();
+
+      const available = !profileSlug?.id && !catalogSlug?.id;
+      return NextResponse.json({ success: true, available });
+    }
+
     const requester = await getRequesterProfile();
     if ('error' in requester) return requester.error;
 

@@ -211,10 +211,10 @@ importers:
         specifier: ^8.5.6
         version: 8.5.6
       prettier:
-        specifier: ^3.7.4
+        specifier: ^3.8.1
         version: 3.8.1
       puppeteer:
-        specifier: ^24.36.1
+        specifier: ^24.37.4
         version: 24.37.4(typescript@5.9.3)
       tailwindcss:
         specifier: ^3.4.19

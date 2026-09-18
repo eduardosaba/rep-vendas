@@ -237,9 +237,10 @@ export const generateOrderPDF = async (
   if (logoData?.base64) {
     const targetHeight = 22;
     const ratio = logoData.width / logoData.height;
+    const imageFormat = detectImageFormat(logoData.base64);
     doc.addImage(
       logoData.base64,
-      'PNG',
+      imageFormat,
       margin,
       startY,
       targetHeight * ratio,

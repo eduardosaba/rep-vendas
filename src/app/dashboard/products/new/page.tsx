@@ -22,6 +22,10 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
+  deriveReferenceId,
+  cleanReferenceId,
+} from '@/lib/utils/reference-logic';
+import {
   prepareProductImage,
   prepareProductGallery,
 } from '@/lib/utils/image-logic';
@@ -599,11 +603,13 @@ export default function NewProductPage() {
       const image_variants = finalImages.length > 0 ? finalImages[0].variants : null;
       const firstImagePath = finalImages.length > 0 ? finalImages[0].path || null : null;
 
-      // Normalize reference_id to avoid accidental splits between variants
-      const candidateRef = (formData as any).reference_id?.trim() || (formData as any).reference_code?.trim() || (formData as any).name?.trim() || null;
-      const normalizedRefId = candidateRef
-        ? slugify(String(candidateRef))
-        : null;
+      // Normalize reference_id preserving base reference model format (e.g. BOSS 1983/S)
+      const normalizedRefId = deriveReferenceId({
+        modelCode: (formData as any).reference_id || null,
+        refCode: formData.reference_code || null,
+        name: formData.name || null,
+        color: formData.color || null,
+      });
 
       // Buscar profile para obter organization_id e company_id
       const { data: userProfile } = await supabase

@@ -31,6 +31,8 @@ import {
   dedupePreferOptimized,
   ensureOptimizedFirst,
 } from '@/lib/imageHelpers';
+import { deriveReferenceId } from '@/lib/utils/reference-logic';
+import { parsePriceToNumber } from '@/lib/utils/price-utils';
 import getProductImageUrl, { formatImageUrl, buildGalleryItem } from '@/lib/imageUtils';
 
 // Remove arquivos de storage associados a uma imagem (inclui variantes)
@@ -981,9 +983,9 @@ export function EditProductForm({ product }: { product: Product }) {
 
     try {
       // 2. CONVERSÕES DE PREÇO E SPECS
-      const finalPrice = parseFloat(formData.price.replace(/\./g, '').replace(',', '.')) || 0;
-      const finalSalePrice = formData.sale_price ? parseFloat(formData.sale_price.replace(/\./g, '').replace(',', '.')) : null;
-      const finalOriginalPrice = formData.original_price ? parseFloat(formData.original_price.replace(/\./g, '').replace(',', '.')) : null;
+      const finalPrice = parsePriceToNumber(formData.price);
+      const finalSalePrice = formData.sale_price ? parsePriceToNumber(formData.sale_price) : null;
+      const finalOriginalPrice = formData.original_price ? parsePriceToNumber(formData.original_price) : null;
 
       let technical_specs: any = null;
       if (formData.technical_specs_mode === 'table') {
@@ -1028,16 +1030,13 @@ export function EditProductForm({ product }: { product: Product }) {
         syncUrls = (mergedImages || []).map((img: any) => (typeof img === 'string' ? img : img.url)).filter(Boolean);
       }
 
-      // Normalize reference_id to avoid accidental splits between variants
-      const slugify = (str: string | null | undefined) =>
-        String(str || '')
-          .toLowerCase()
-          .trim()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)+/g, '');
-
-      const candidateRef = (formData as any).reference_id || (product as any).reference_id || formData.reference_code || product.reference_code || null;
-      const normalizedRefId = slugify(candidateRef);
+      // Normalize reference_id preserving base reference model format (e.g. BOSS 1983/S)
+      const normalizedRefId = deriveReferenceId({
+        modelCode: (formData as any).reference_id || (product as any).reference_id || null,
+        refCode: formData.reference_code || product.reference_code || null,
+        name: formData.name || product.name || null,
+        color: formData.color || product.color || null,
+      });
 
       // 5. MONTAGEM DO PAYLOAD
       const payload: any = {

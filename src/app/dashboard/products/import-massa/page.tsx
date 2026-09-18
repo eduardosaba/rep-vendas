@@ -817,7 +817,10 @@ export default function ImportMassaPage() {
           );
         }
 
-        const slugBase = slugify(String(name) || 'produto');
+        const newProductId = crypto.randomUUID();
+        const uuidSuffix = newProductId.replace(/-/g, '').slice(-4);
+        const cleanSlugBase = slugify(refCode || referenceId || String(name) || 'produto');
+        const generatedSlug = `${cleanSlugBase}-${uuidSuffix}`;
 
         const imageMeta = prepareProductImage(coverUrl || null);
 
@@ -846,6 +849,7 @@ export default function ImportMassaPage() {
         const uniqueImages = Array.from(new Set(flattenedImages));
 
         const productObj = {
+          id: newProductId,
           user_id: isCompany ? null : user.id,
           company_id: isCompany ? companyId : null,
           name: String(name),
@@ -881,7 +885,7 @@ export default function ImportMassaPage() {
 
           technical_specs: Object.keys(techSpecs).length > 0 ? techSpecs : null,
           last_import_id: null,
-          slug: `${slugBase}-${Date.now().toString(36).slice(-6)}`,
+          slug: generatedSlug,
         };
 
         if (groupByReference) {

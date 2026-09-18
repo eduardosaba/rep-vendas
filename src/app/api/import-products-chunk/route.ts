@@ -122,6 +122,16 @@ export async function POST(req: Request) {
         return null;
       };
 
+      const slugifyText = (str: string) =>
+        str
+          .toLowerCase()
+          .trim()
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-');
+
       const cleanedToInsert = toInsert.map((item) => {
         const cleaned = { ...item };
         delete cleaned.profile_id;
@@ -133,6 +143,50 @@ export async function POST(req: Request) {
         }
         return cleaned;
       });
+
+      // Collect initial candidate slugs from batch and query public.products to check for collisions globally
+      const candidateSlugs = cleanedToInsert
+        .map((it) => it.slug)
+        .filter((s): s is string => Boolean(s));
+
+      const existingDbSlugs = new Set<string>();
+      if (candidateSlugs.length > 0) {
+        const { data: dbSlugs } = await supabase
+          .from('products')
+          .select('slug')
+          .in('slug', candidateSlugs);
+        if (Array.isArray(dbSlugs)) {
+          dbSlugs.forEach((s: any) => {
+            if (s.slug) existingDbSlugs.add(s.slug);
+          });
+        }
+      }
+
+      const seenInBatch = new Set<string>();
+
+      for (const item of cleanedToInsert) {
+        if (!item.id) {
+          item.id = crypto.randomUUID();
+        }
+
+        const baseRef = item.reference_code || item.reference_id || item.name || 'produto';
+        const cleanBase = slugifyText(String(baseRef));
+
+        let currentId = item.id;
+        let suffix = currentId.replace(/-/g, '').slice(-4);
+        let candidateSlug = item.slug || `${cleanBase}-${suffix}`;
+
+        // Loop: if candidateSlug exists in DB or seen in batch, generate a NEW complete UUID & recalculate slug
+        while (existingDbSlugs.has(candidateSlug) || seenInBatch.has(candidateSlug)) {
+          currentId = crypto.randomUUID();
+          item.id = currentId;
+          suffix = currentId.replace(/-/g, '').slice(-4);
+          candidateSlug = `${cleanBase}-${suffix}`;
+        }
+
+        item.slug = candidateSlug;
+        seenInBatch.add(candidateSlug);
+      }
 
       let { data: inserted, error: insertErr } = await supabase
         .from('products')
@@ -154,10 +208,25 @@ export async function POST(req: Request) {
         let singleFailures = 0;
 
         for (const item of fallbackItems) {
-          const { data: singleData, error: singleErr } = await supabase
+          let currentItem = { ...item };
+          let { data: singleData, error: singleErr } = await supabase
             .from('products')
-            .insert([item])
+            .insert([currentItem])
             .select('id, external_image_url, reference_id, reference_code');
+
+          if (singleErr && singleErr.message?.includes('idx_products_slug_unique')) {
+            const newId = crypto.randomUUID();
+            const baseRef = currentItem.reference_code || currentItem.reference_id || currentItem.name || 'produto';
+            const cleanBase = slugifyText(String(baseRef));
+            currentItem.id = newId;
+            currentItem.slug = `${cleanBase}-${newId.replace(/-/g, '').slice(-4)}`;
+            const retryRes = await supabase
+              .from('products')
+              .insert([currentItem])
+              .select('id, external_image_url, reference_id, reference_code');
+            singleData = retryRes.data;
+            singleErr = retryRes.error;
+          }
 
           if (!singleErr && singleData && singleData.length > 0) {
             singleInsertedList.push(singleData[0]);

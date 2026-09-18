@@ -52,10 +52,8 @@ async function getUserCompanyContext(supabase: Awaited<ReturnType<typeof createC
       await supabase.from('companies').upsert(
         {
           id: targetCompanyId,
-          user_id: user.id,
           name: compName,
           slug: compSlug,
-          type: compType,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'id' }

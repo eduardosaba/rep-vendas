@@ -7,8 +7,8 @@ import Link from 'next/link';
 
 export default async function Page() {
   return (
-    <RequireRole allowedRoles={[ 'financeiro_company', 'admin_company', 'master' ]}>
-      <RoleGuard allowedRoles={[ 'financeiro_company', 'admin_company', 'master' ]}>
+    <RequireRole allowedRoles={['master']}>
+      <RoleGuard allowedRoles={['master']}>
         <div className="p-6">
           <h1 className="text-2xl font-black">Painel Financeiro</h1>
           <p className="mt-2 text-slate-600">Aqui o usuário financeiro aprova crédito, anexa NF e controla baixas.</p>

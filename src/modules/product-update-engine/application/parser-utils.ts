@@ -126,13 +126,29 @@ export function evaluateFilterCondition(rowValue: any, operator: FilterOperator,
  * Computes structured operations on product fields.
  * Respects strict boolean parsing and empty cell ignoring.
  */
+import { deriveReferenceId } from '@/lib/utils/reference-logic';
+
 export function computeStructuredOperation(
   currentVal: any,
   sourceVal: any,
   op: StructuredOperationType,
   targetType: 'boolean' | 'currency' | 'integer' | 'text' | 'json' | 'enum' | 'image'
 ): any {
-  // Regra 5: Célula vazia = ignorar campo (NÃO alterar para 0, false ou "")
+  // Operação explícita LIMPAR / NULL
+  if (op === 'clear') {
+    return null;
+  }
+
+  // Operação especial: Derivar Referência Base sem cor
+  if (op === 'derive_base_reference') {
+    const rawVal = sourceVal !== null && sourceVal !== undefined && String(sourceVal).trim() !== ''
+      ? String(sourceVal).trim()
+      : String(currentVal || '').trim();
+    if (!rawVal) return IGNORE_FIELD;
+    return deriveReferenceId({ refCode: rawVal });
+  }
+
+  // Regra de Ouro: Célula vazia = ignorar campo (NÃO alterar para 0, false ou "")
   if (sourceVal === null || sourceVal === undefined || String(sourceVal).trim() === '') {
     return IGNORE_FIELD;
   }
@@ -194,12 +210,36 @@ export function computeStructuredOperation(
   }
 
   if (result < 0 && (targetType === 'currency' || targetType === 'integer')) {
-    result = 0; // Prevent negative prices or stocks
+    result = 0; // Previne preços ou estoques negativos
   }
 
-  if (targetType === 'integer') {
-    return Math.round(result);
-  }
 
   return Number(result.toFixed(2));
+}
+
+/**
+ * Compara se dois valores são semanticamente iguais para um determinado tipo de campo.
+ * Evita atualizações desnecessárias no banco de dados quando o valor atual já for equivalente ao novo valor.
+ */
+export function areValuesEqual(val1: any, val2: any, fieldType?: string): boolean {
+  if (val1 === val2) return true;
+
+  const isVal1Empty = val1 === null || val1 === undefined || String(val1).trim() === '';
+  const isVal2Empty = val2 === null || val2 === undefined || String(val2).trim() === '';
+  if (isVal1Empty && isVal2Empty) return true;
+  if (isVal1Empty !== isVal2Empty) return false;
+
+  if (fieldType === 'currency' || fieldType === 'integer' || typeof val1 === 'number' || typeof val2 === 'number') {
+    const n1 = typeof val1 === 'number' ? val1 : parseFloat(String(val1).replace('R$', '').replace(',', '.').trim());
+    const n2 = typeof val2 === 'number' ? val2 : parseFloat(String(val2).replace('R$', '').replace(',', '.').trim());
+    if (!isNaN(n1) && !isNaN(n2)) {
+      return Math.abs(n1 - n2) < 0.0001;
+    }
+  }
+
+  if (fieldType === 'boolean' || typeof val1 === 'boolean' || typeof val2 === 'boolean') {
+    return Boolean(val1) === Boolean(val2);
+  }
+
+  return String(val1).trim() === String(val2).trim();
 }

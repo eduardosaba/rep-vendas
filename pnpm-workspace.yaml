@@ -1,10 +1,8 @@
-ignoredBuiltDependencies:
-  - '@firebase/util'
-  - '@sentry/cli'
-  - core-js
-  - protobufjs
-  - puppeteer
-  - unrs-resolver
-
-onlyBuiltDependencies:
-  - sharp
+allowBuilds:
+  '@firebase/util': false
+  '@sentry/cli': true
+  core-js: true
+  protobufjs: true
+  puppeteer: true
+  sharp: true
+  unrs-resolver: true

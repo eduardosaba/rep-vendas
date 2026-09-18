@@ -38,6 +38,8 @@ export function normalizeKeySegment(text: string | null | undefined): string {
 export function buildProductLookupKey(brand: string | null | undefined, referenceCode: string | null | undefined): string {
   const normBrand = normalizeKeySegment(brand);
   const normRef = normalizeKeySegment(referenceCode);
+  if (!normRef) return '';
+  if (!normBrand) return normRef;
   return `${normBrand}|${normRef}`;
 }
 

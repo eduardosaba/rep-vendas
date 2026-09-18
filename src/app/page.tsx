@@ -95,15 +95,6 @@ export default function LandingPage() {
             >
               Ver Catálogo Demo
             </a>
-
-            <a
-              href="/demo/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto px-6 py-4 bg-transparent border border-white/30 text-white rounded-full font-bold text-base hover:bg-white/10 transition-all backdrop-blur-sm flex items-center justify-center gap-2"
-            >
-              Ver Painel Demo
-            </a>
           </div>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-gray-400">

@@ -730,7 +730,7 @@ export default function ProductDetailPage() {
                 const salePrice = product.sale_price ?? null;
                 const originalPrice = product.original_price ?? null;
                 const currentPrice = salePrice ?? product.price ?? 0;
-                const isPriceOnRequest = product.price_on_request === true;
+                const isPriceOnRequest = currentPrice <= 0 && product.price_on_request !== false;
 
                 return (
                   <>

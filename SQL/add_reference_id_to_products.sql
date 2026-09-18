@@ -1,14 +1,13 @@
--- Adiciona coluna reference_id e preenche com referência existente (reference_code) ou slug do nome
+-- Adiciona coluna reference_id e preenche com referência existente (reference_code) preservando o formato original
 BEGIN;
 
 ALTER TABLE IF EXISTS products
 ADD COLUMN IF NOT EXISTS reference_id TEXT;
 
--- Backfill: se houver reference_code use ele, senão crie um slug simples a partir do nome
+-- Backfill: usa derive_base_reference para derivar o modelo base preservando espaços e maiúsculas
 UPDATE products
-SET reference_id = COALESCE(reference_id, reference_code, 
-  lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '-', 'g')))
-WHERE reference_id IS NULL;
+SET reference_id = public.derive_base_reference(reference_code)
+WHERE reference_id IS NULL OR reference_id = '';
 
 -- Index para acelerar buscas por variantes
 CREATE INDEX IF NOT EXISTS idx_products_reference_id ON products(reference_id);

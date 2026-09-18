@@ -108,7 +108,55 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
         product_images: item.products?.product_images || null,
       }));
 
-      // 5. Montagem do Rodapé
+      // 5. Resolução da Logo da Distribuidora / Loja
+      let resolvedLogoUrl = store?.logo_url || null;
+
+      if (!resolvedLogoUrl && order?.company_id) {
+        try {
+          const { data: comp } = await supabase
+            .from('companies')
+            .select('logo_url')
+            .eq('id', order.company_id)
+            .maybeSingle();
+          if (comp?.logo_url) resolvedLogoUrl = comp.logo_url;
+        } catch {}
+      }
+
+      if (!resolvedLogoUrl) {
+        const targetSellerId = order?.seller_id || order?.user_id;
+        if (targetSellerId) {
+          try {
+            const { data: sellerSettings } = await supabase
+              .from('settings')
+              .select('logo_url')
+              .eq('user_id', targetSellerId)
+              .maybeSingle();
+            if (sellerSettings?.logo_url) resolvedLogoUrl = sellerSettings.logo_url;
+          } catch {}
+        }
+      }
+
+      if (!resolvedLogoUrl && order?.company_id) {
+        try {
+          const { data: profileWithCompany } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('company_id', order.company_id)
+            .limit(1)
+            .maybeSingle();
+
+          if (profileWithCompany?.id) {
+            const { data: compAdminSettings } = await supabase
+              .from('settings')
+              .select('logo_url')
+              .eq('user_id', profileWithCompany.id)
+              .maybeSingle();
+            if (compAdminSettings?.logo_url) resolvedLogoUrl = compAdminSettings.logo_url;
+          }
+        } catch {}
+      }
+
+      // 6. Montagem do Rodapé
       const contactParts = [];
       if (store?.name) contactParts.push(store.name);
       if (store?.email) contactParts.push(store.email);
@@ -120,7 +168,7 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
         name: store?.name || 'Minha Loja',
         email: store?.email,
         phone: store?.phone,
-        logo_url: store?.logo_url,
+        logo_url: resolvedLogoUrl,
         primary_color: store?.primary_color,
         footer_message: customFooter,
       };

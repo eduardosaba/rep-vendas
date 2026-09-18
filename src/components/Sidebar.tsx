@@ -46,11 +46,6 @@ const MENU_ITEMS = [
   },
   { icon: Building2, label: 'Distribuidora', href: '/dashboard/distribuidora' },
   {
-    icon: SettingsIcon,
-    label: 'Gestão da Distribuidora',
-    href: '/dashboard/empresa',
-  },
-  {
     icon: Package,
     label: 'Produtos',
     href: '/dashboard/products',
@@ -87,16 +82,6 @@ const MENU_ITEMS = [
     icon: Megaphone,
     label: 'Comunicados',
     href: '/dashboard/equipe/comunicados',
-  },
-  {
-    icon: Building2,
-    label: 'Institucional',
-    href: '/dashboard/institucional',
-  },
-  {
-    icon: Globe,
-    label: 'Páginas da Empresa',
-    href: '/dashboard/empresa/paginas',
   },
   {
     icon: Palette,
@@ -157,7 +142,29 @@ const MENU_ITEMS = [
     ],
   },
   { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
-  { icon: SettingsIcon, label: 'Configurações', href: '/dashboard/settings' },
+  {
+    icon: SettingsIcon,
+    label: 'Gestão da Distribuidora',
+    href: '#empresa',
+    children: [
+      {
+        title: 'Dados da Distribuidora',
+        href: '/dashboard/empresa',
+        icon: SettingsIcon,
+        exact: true,
+      },
+      {
+        title: 'Institucional',
+        href: '/dashboard/institucional',
+        icon: Building2,
+      },
+      {
+        title: 'Páginas da Empresa',
+        href: '/dashboard/empresa/paginas',
+        icon: Globe,
+      },
+    ],
+  },
   { icon: HelpCircle, label: 'Ajuda', href: '/dashboard/help' },
 ];
 
@@ -182,6 +189,7 @@ export function Sidebar({
   const [expandedMenus, setExpandedMenus] = useState<string[]>([
     'Produtos',
     'Ferramentas',
+    'Gestão da Distribuidora',
   ]);
   const [branding, setBranding] = useState<Settings | null>(
     initialSettings || null

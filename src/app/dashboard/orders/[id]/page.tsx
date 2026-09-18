@@ -210,10 +210,36 @@ export default async function OrderDetailsPage({
     .eq('user_id', targetUserId)
     .maybeSingle();
 
-  const safeSettings = storeSettings || {
+  let safeSettings = storeSettings || {
     name: 'Loja',
     primary_color: '#4f46e5',
   };
+
+  if (!safeSettings?.logo_url) {
+    let fallbackLogo: string | null = null;
+    if (order.company_id) {
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('logo_url, name')
+        .eq('id', order.company_id)
+        .maybeSingle();
+      if (comp?.logo_url) fallbackLogo = comp.logo_url;
+    }
+
+    if (!fallbackLogo && (order.seller_id || order.user_id)) {
+      const sellerIdToTry = order.seller_id || order.user_id;
+      const { data: sellerSett } = await supabase
+        .from('settings')
+        .select('logo_url')
+        .eq('user_id', sellerIdToTry)
+        .maybeSingle();
+      if (sellerSett?.logo_url) fallbackLogo = sellerSett.logo_url;
+    }
+
+    if (fallbackLogo) {
+      safeSettings = { ...safeSettings, logo_url: fallbackLogo };
+    }
+  }
   const statusKey = getUiStatusKey(order.status);
 
   // Cliente

@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { getActiveUserId } from '@/lib/auth-utils';
 import { createClient } from '@/lib/supabase/server';
-import { isAdminRole } from '@/lib/auth/roles';
+import { isGlobalAdmin } from '@/lib/auth/roles';
 import { SmartUpdateClient } from './components/SmartUpdateClient';
 
 export default async function SmartUpdatePage() {
@@ -24,23 +24,18 @@ export default async function SmartUpdatePage() {
     .eq('id', userId)
     .maybeSingle();
 
-  const role = profile?.role || 'representative';
-  const isMasterOrAdmin = role === 'master' || role === 'admin';
-  const isCompanyAdmin = role === 'company_admin' || role === 'admin_company';
+  const role = profile?.role;
 
-  // Allow representatives, admins, and masters to access SmartUpdate
-  // (Representatives use Operational Mode for their own products)
+  if (!isGlobalAdmin(role)) {
+    redirect('/dashboard');
+  }
 
   // Fetch companies, users & brands for scope selector dropdowns
   const { data: companies } = await supabase.from('companies').select('id, name').order('name');
   const { data: users } = await supabase.from('profiles').select('id, email, full_name').order('email');
   const { data: brands } = await supabase.from('brands').select('id, name').order('name');
 
-  const availableScopes = isMasterOrAdmin
-    ? ['PLATFORM_GLOBAL', 'GLOBAL', 'ORGANIZATION', 'COMPANY']
-    : isCompanyAdmin
-    ? ['ORGANIZATION', 'COMPANY']
-    : ['USER'];
+  const availableScopes = ['PLATFORM_GLOBAL', 'GLOBAL', 'ORGANIZATION', 'COMPANY'];
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -56,7 +51,7 @@ export default async function SmartUpdatePage() {
         availableUsers={users || []}
         availableBrands={brands || []}
         availableScopes={availableScopes}
-        userRole={role}
+        userRole={role || 'master'}
         currentUserId={userId}
       />
     </div>

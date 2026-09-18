@@ -50,6 +50,9 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
 
   experimental: {
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
     workerThreads: false,
     cpus: 2,

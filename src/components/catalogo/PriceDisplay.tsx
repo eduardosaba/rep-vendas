@@ -30,8 +30,10 @@ export function PriceDisplay({
     );
   }
 
-  // Caso o produto esteja marcado como preço sob consulta
-  if (priceOnRequest === true) {
+  const numValue = typeof value === 'number' ? value : Number(value ?? 0);
+
+  // Exibe sob consulta se o preço for <= 0 (a não ser que priceOnRequest seja explicitamente false)
+  if (numValue <= 0 && priceOnRequest !== false) {
     return (
       <span className={`font-semibold text-gray-700 dark:text-gray-300 ${className}`}>
         Sob consulta

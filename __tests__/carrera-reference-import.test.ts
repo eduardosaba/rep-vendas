@@ -96,13 +96,91 @@ describe('Proteção e Regras de Derivação de reference_id em Importações', 
     });
   });
 
-  test('6. Fallback limpo quando REF não é fornecida mas refCode é válido', () => {
-    const derived = deriveReferenceId({
+  test('6. Fallback automático extrai referência base de refCode removendo cor e tamanho sem virar slug', () => {
+    const derived1 = deriveReferenceId({
+      refCode: 'BOSS 1983/S 4C3',
+    });
+    expect(derived1).toBe('BOSS 1983/S');
+    expect(derived1).not.toBe('boss-1983s-4c3');
+    expect(derived1).not.toBe('boss-1983s');
+
+    const derived2 = deriveReferenceId({
+      refCode: 'BOSS 1997/G J5G 58',
+    });
+    expect(derived2).toBe('BOSS 1997/G');
+
+    const derived3 = deriveReferenceId({
+      refCode: 'BOSS 2004/G/S KB7',
+    });
+    expect(derived3).toBe('BOSS 2004/G/S');
+
+    const derived4 = deriveReferenceId({
       modelCode: 'SUNGLASSES',
       refCode: 'CA 3036/C 086',
     });
+    expect(derived4).toBe('CA 3036/C');
+  });
 
-    expect(derived).toBe('CA 3036/C 086');
-    expect(derived).not.toBe('sunglasses');
+  test('7. Coluna mapeada explicitamente para modelCode/reference_id preserva o valor exato com trim()', () => {
+    const derived = deriveReferenceId({
+      modelCode: 'BOSS 1983/S',
+      refCode: 'BOSS 1983/S 4C3',
+    });
+
+    expect(derived).toBe('BOSS 1983/S');
+    expect(derived).not.toBe('boss-1983s');
+  });
+
+  test('8. Marca 7A: "7A 117 600" (3 partes) deriva "7A 117", enquanto "7A 117" (2 partes) não remove 117', () => {
+    const derivedWithColor = deriveReferenceId({
+      refCode: '7A 117 600',
+    });
+    expect(derivedWithColor).toBe('7A 117');
+
+    const derivedWithoutColor = deriveReferenceId({
+      refCode: '7A 117',
+    });
+    expect(derivedWithoutColor).toBe('7A 117');
+    expect(derivedWithoutColor).not.toBe('7A');
+    expect(derivedWithoutColor).not.toBe('117');
+  });
+
+  test('9. Trata hífen antes da cor no final (MARC 726-086 -> MARC 726) e limpa aspas residuais', () => {
+    const derivedMarc1 = deriveReferenceId({
+      refCode: 'MARC 726-086',
+    });
+    expect(derivedMarc1).toBe('MARC 726');
+
+    const derivedMarc2 = deriveReferenceId({
+      refCode: 'MARC 726/S-086',
+    });
+    expect(derivedMarc2).toBe('MARC 726/S');
+
+    const derivedMarc3 = deriveReferenceId({
+      refCode: 'MJ 1138/S-JRI',
+    });
+    expect(derivedMarc3).toBe('MJ 1138/S');
+
+    const derivedWithQuotes = deriveReferenceId({
+      refCode: '""HER 0423/G 807""',
+    });
+    expect(derivedWithQuotes).toBe('HER 0423/G');
+  });
+
+  test('10. Preserva tamanhos no final (-58, -90) em reference_code e extrai a referência base limpa', () => {
+    const derivedWithSize1 = deriveReferenceId({
+      refCode: 'HER 0411/G/S 807-90',
+    });
+    expect(derivedWithSize1).toBe('HER 0411/G/S');
+
+    const derivedWithSize2 = deriveReferenceId({
+      refCode: 'MARC 726-086-58',
+    });
+    expect(derivedWithSize2).toBe('MARC 726');
+
+    const derivedWithSize3 = deriveReferenceId({
+      refCode: '7A 117 600-54',
+    });
+    expect(derivedWithSize3).toBe('7A 117');
   });
 });

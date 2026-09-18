@@ -72,6 +72,8 @@ export function buildProductLookupKey(
 ): string {
   const normBrand = normalizeProductKey(brand, config);
   const normRef = normalizeProductKey(referenceCode, config);
-  if (!normBrand || !normRef) return '';
+  if (!normRef) return '';
+  if (!normBrand) return normRef;
   return `${normBrand}|${normRef}`;
 }
+

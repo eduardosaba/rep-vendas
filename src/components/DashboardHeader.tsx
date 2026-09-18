@@ -104,7 +104,6 @@ export default function AdminSidebar({
     { label: 'Fechamento Mensal', href: '/admin/financeiro/fechamento', icon: Percent },
     { label: 'Clonar Catálogo', href: '/admin/clone-user', icon: Copy },
     { label: 'Auditoria de Sinc.', href: '/admin/sync-logs', icon: History },
-    { label: 'Sincronizador Master', href: '/admin/products/master-sync', icon: ShieldCheck },
     { label: 'Auditoria Catalogo', href: '/admin/audit', icon: ImageIcon },
     { label: 'Status Importação', href: '/admin/import-status', icon: BarChart2 },
     { label: 'Planos & Preços', href: '/admin/plans', icon: Package },

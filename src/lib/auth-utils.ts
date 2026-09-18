@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
+import { isMaster } from '@/lib/auth/roles';
 
 function isValidUuid(value: string | undefined | null) {
   if (!value) return false;
@@ -57,15 +58,7 @@ export async function getActiveUserId() {
 
     const role = profile?.role || null;
 
-    const allowedRoles = [
-      'master',
-      'admin',
-      'owner',
-      'template',
-      'admin_company',
-    ];
-
-    if (role && allowedRoles.includes(role)) {
+    if (isMaster(role)) {
       return impersonateId;
     }
 

@@ -140,11 +140,9 @@ export async function createOrder(
     if (companyIdCandidate) {
       const { data: companyRow } = await client
         .from('companies')
-        .select('id, user_id')
+        .select('id')
         .eq('id', companyIdCandidate)
         .maybeSingle();
-      const companyUserId = (companyRow as any)?.user_id;
-      if (companyUserId) candidateIds.add(String(companyUserId));
     }
 
     const adminAuth = (adminSupabase as any)?.auth?.admin;
@@ -202,7 +200,7 @@ export async function createOrder(
 
     const { data: ownerProfileData } = await (adminSupabase ?? supabase)
       .from('profiles')
-      .select('company_id, is_active')
+      .select('company_id, organization_id, is_active')
       .eq('id', effectiveOwnerId)
       .maybeSingle();
 
@@ -220,6 +218,8 @@ export async function createOrder(
     } else if (!companyId) {
       companyId = (ownerProfileData as any)?.company_id ?? null;
     }
+
+    const realOrgId = (ownerProfileData as any)?.organization_id || null;
 
     if (companyId) {
       // Garantir existência da empresa na tabela public.companies para evitar falhas de chave estrangeira
@@ -245,10 +245,8 @@ export async function createOrder(
           await dbClient.from('companies').upsert(
             {
               id: companyId,
-              user_id: effectiveOwnerId,
               name: compName,
               slug: compSlug,
-              type: compType,
               updated_at: new Date().toISOString(),
             },
             { onConflict: 'id' }
@@ -306,7 +304,7 @@ export async function createOrder(
       client_email_guest: customer.email || null,
       client_cnpj_guest: customer.cnpj || null,
       company_id: companyId,
-      organization_id: companyId,
+      organization_id: realOrgId,
       source,
       seller_id: sellerId || null,
       sales_rep_id: sellerId || null,
@@ -314,11 +312,45 @@ export async function createOrder(
       customer_link_status: existingCustomerId ? 'linked' : 'pending',
     };
 
-    const { data: order, error: orderError } = await insertClient
-      .from('orders')
-      .insert(orderPayload)
-      .select()
-      .maybeSingle();
+    let order: any = null;
+    let orderError: any = null;
+    const payloadForOrder: any = { ...orderPayload };
+
+    for (let attempts = 0; attempts < 6; attempts++) {
+      const res = await insertClient
+        .from('orders')
+        .insert(payloadForOrder)
+        .select()
+        .maybeSingle();
+
+      order = res.data;
+      orderError = res.error;
+
+      if (!orderError && order) break;
+
+      const errMsg = String(orderError?.message || '');
+      const matchMissingCol =
+        errMsg.match(/column\s+"([^\"]+)"\s+(?:of\s+relation\s+"[^\"]+"\s+)?does\s+not\s+exist/i) ||
+        errMsg.match(/could not find the '([^']+)' column/i);
+
+      if (matchMissingCol && matchMissingCol[1] && matchMissingCol[1] in payloadForOrder) {
+        console.warn(`[createOrder] Removing missing column from order insert: ${matchMissingCol[1]}`);
+        delete payloadForOrder[matchMissingCol[1]];
+        continue;
+      }
+
+      const matchFk =
+        errMsg.match(/foreign key constraint "orders_([a-zA-Z0-9_]+)_fkey"/i) ||
+        errMsg.match(/violates foreign key constraint "orders_([a-zA-Z0-9_]+)_fkey"/i);
+
+      if (matchFk && matchFk[1] && matchFk[1] in payloadForOrder) {
+        console.warn(`[createOrder] Removing invalid FK column from order insert: ${matchFk[1]}`);
+        delete payloadForOrder[matchFk[1]];
+        continue;
+      }
+
+      break;
+    }
 
     if (orderError || !order) {
       throw new Error(
@@ -390,9 +422,34 @@ export async function createOrder(
       };
     });
 
-    const { error: itemsError } = await insertClient
-      .from('order_items')
-      .insert(orderItems);
+    let itemsError: any = null;
+    let itemsPayload: any[] = [...orderItems];
+
+    for (let attempts = 0; attempts < 6; attempts++) {
+      const res = await insertClient
+        .from('order_items')
+        .insert(itemsPayload);
+
+      itemsError = res.error;
+      if (!itemsError) break;
+
+      const errMsg = String(itemsError?.message || '');
+      const match =
+        errMsg.match(/column\s+"([^\"]+)"\s+(?:of\s+relation\s+"[^\"]+"\s+)?does\s+not\s+exist/i) ||
+        errMsg.match(/could not find the '([^']+)' column/i);
+
+      if (match && match[1]) {
+        const missingCol = match[1];
+        console.warn(`[createOrder] Removing missing column from order_items insert: ${missingCol}`);
+        itemsPayload = itemsPayload.map((it) => {
+          const copy = { ...it };
+          delete copy[missingCol];
+          return copy;
+        });
+      } else {
+        break;
+      }
+    }
 
     if (itemsError) {
       try {

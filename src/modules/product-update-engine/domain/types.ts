@@ -3,15 +3,17 @@ import { ScopeConfig } from './layer-scope-matrix';
 
 export type StructuredOperationType =
   | 'set'
+  | 'clear'
   | 'add'
   | 'subtract'
   | 'multiply'
   | 'divide'
   | 'percentage_increase'
   | 'percentage_decrease'
-  | 'round';
+  | 'round'
+  | 'derive_base_reference';
 
-export type ValueSourceType = 'fixed' | 'spreadsheet';
+export type ValueSourceType = 'fixed' | 'spreadsheet' | 'auto_derive';
 
 export type FilterOperator =
   | 'equals'
@@ -49,14 +51,21 @@ export interface SpreadsheetColumn {
   sampleValues: any[];
 }
 
-export interface IdentifierMapping {
+export interface IdentifierConfig {
   spreadsheetColumn: string;
-  dbField: 'reference_code' | 'brand' | 'name' | 'color_nome' | 'colecao';
+  dbField: 'reference_code' | 'reference_id' | 'sku' | 'barcode' | string;
+  normalizations: NormalizerRule[];
 }
 
-export interface IdentifierConfig {
-  mappings: IdentifierMapping[];
-  normalizations: NormalizerRule[];
+export interface BrandScopeConfig {
+  mode: 'all' | 'specific';
+  selectedBrandName?: string;
+  spreadsheetBrandColumn?: string;
+}
+
+export interface UserScopeConfig {
+  mode: 'all' | 'specific';
+  targetUserIds?: string[];
 }
 
 export interface FilterCondition {
@@ -82,9 +91,11 @@ export interface UpdateActionConfig {
 export interface EngineConfiguration {
   sheetName: string;
   identifier: IdentifierConfig;
-  filters: FilterGroup;
+  brandScope?: BrandScopeConfig;
+  userScope?: UserScopeConfig;
+  filters?: FilterGroup;
   actions: UpdateActionConfig[];
-  scope: ScopeConfig;
+  scope?: ScopeConfig;
   configHash?: string;
 }
 
@@ -154,6 +165,9 @@ export interface PreviewRowDetail {
     actionType: StructuredOperationType;
   }[];
   organizationBreakdown?: OrganizationPreviewItem[];
+  matchedDbValues?: string[];
+  totalUsersCount?: number;
+  affectedUsersCount?: number;
   status: PreviewStatus;
   message?: string;
 }
@@ -170,6 +184,8 @@ export interface PreviewEngineResult {
   fileHash?: string;
   configHash?: string;
   totalRows: number;
+  eligibleRows?: number;
+  canonicalBrandName?: string;
   matchedRows: number;
   matchedProducts?: number;
   affectedOrganizations?: number;
@@ -183,6 +199,7 @@ export interface PreviewEngineResult {
   ambiguousOrganizationsRows?: number;
   brandsIncluded?: string[];
   brandBreakdown?: BrandBreakdownStats[];
+  changedFieldsSummary?: Record<string, number>;
   criticalConfirmationRequired: boolean;
   criticalReason?: string;
   sampleDetails: PreviewRowDetail[];

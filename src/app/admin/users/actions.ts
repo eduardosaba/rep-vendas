@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin, supabaseAdmin } from '@/infrastructure/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage } from '@/utils/getErrorMessage';
+import { isMaster } from '@/lib/auth/roles';
 import { logger } from '@/lib/logger';
 
 
@@ -39,10 +40,10 @@ export async function getAuthenticatedUser() {
 
 async function requireAdminPermission() {
   const user = await getAuthenticatedUser();
-  const isAllowed = user.role === 'admin' || user.role === 'master';
+  const isAllowed = isMaster(user.role);
 
   if (!isAllowed) {
-    throw new Error('Acesso negado: Apenas administradores podem realizar esta ação.');
+    throw new Error('Acesso negado: Apenas o perfil Master pode realizar esta ação.');
   }
   return user;
 }

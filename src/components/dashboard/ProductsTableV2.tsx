@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { useOrganization } from '@/modules/organization-context/OrganizationProvider';
 import { formatImageUrl, getProductImageUrl } from '@/lib/imageUtils';
 import { bulkUpdatePrice } from '@/app/dashboard/products/actions';
+import { parsePriceToNumber } from '@/lib/utils/price-utils';
 
 const ALL_COLUMNS = [
   { key: 'image_url', label: 'Imagem' },
@@ -219,8 +220,8 @@ export function ProductsTable() {
   };
 
   const handleExecutePriceUpdate = async () => {
-    const val = parseFloat(priceValue.replace(',', '.'));
-    if (isNaN(val)) {
+    const val = parsePriceToNumber(priceValue);
+    if (!val && priceValue.trim() !== '0') {
       toast.error('Informe um valor numérico válido.');
       return;
     }

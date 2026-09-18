@@ -2,12 +2,14 @@
 
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getActiveUserId } from '@/lib/auth-utils';
 import { getFieldDefinition } from '../domain/field-registry';
 import { validateLayerScopeCompatibility } from '../domain/layer-scope-matrix';
 import {
   AnalyzeSpreadsheetResult,
   EngineConfiguration,
+  NormalizerRule,
   OrganizationPreviewItem,
   PreviewEngineResult,
   PreviewRowDetail,
@@ -21,6 +23,9 @@ import {
   computeConfigHash,
   buildProductLookupKey,
   normalizeLookupValue,
+  normalizeProductKey,
+  IGNORE_FIELD,
+  areValuesEqual,
 } from './parser-utils';
 
 async function requireProductUpdateAccess() {
@@ -55,8 +60,8 @@ async function requireProductUpdateAccess() {
 
 async function requireProductUpdateMaster() {
   const ctx = await requireProductUpdateAccess();
-  if (!ctx.isMaster && !ctx.isAdmin) {
-    throw new Error('Acesso negado. Apenas usuários autorizados da Torre de Controle podem executar atualizações globais.');
+  if (!ctx.isMaster) {
+    throw new Error('Acesso negado. Apenas usuários autorizados da Torre de Controle (role = master) podem executar atualizações globais.');
   }
   return ctx;
 }
@@ -98,26 +103,213 @@ function validateCompanyAdminScope(profile: any, scope: any): void {
   }
 }
 
-function applyBrandFilterToQuery(query: any, spreadsheetBrands: any[], brandColumn: string, brandId?: string): any {
-  if (brandId && brandId.trim()) {
-    // ⚡ Regra de Marca (Ponto 3): Igualdade exata por UUID para brand_id (NUNCA aplicar TRIM ou UPPER em UUID)
-    return query.eq('brand_id', brandId.trim());
+function extractIdentifierConfig(identifier: any): { spreadsheetColumn: string; dbField: string; normalizations: NormalizerRule[] } {
+  const spreadsheetColumn = identifier?.spreadsheetColumn || identifier?.mappings?.find((m: any) => m.dbField !== 'brand')?.spreadsheetColumn || 'REFERENCIA';
+  const dbField = identifier?.dbField || identifier?.mappings?.find((m: any) => m.dbField !== 'brand')?.dbField || 'reference_code';
+  const normalizations: NormalizerRule[] = identifier?.normalizations && identifier.normalizations.length > 0
+    ? identifier.normalizations
+    : ['trim', 'uppercase'];
+
+  return { spreadsheetColumn, dbField, normalizations };
+}
+
+function filterSpreadsheetRowsByBrand(
+  rawData: Record<string, any>[],
+  brandScope?: any,
+  identifierMappings?: any[]
+): Record<string, any>[] {
+  if (!brandScope || brandScope.mode === 'all' || !brandScope.selectedBrandName) {
+    return rawData;
   }
-  const terms = Array.from(
-    new Set(
-      spreadsheetBrands.flatMap((b) => {
-        const raw = String(b ?? '').trim();
-        const norm = normalizeLookupValue(raw);
-        return [raw, norm].filter((t) => t.length >= 2);
-      })
-    )
-  );
 
-  // Fallback to full scan when too many distinct brands (avoid oversized OR clauses)
-  if (terms.length === 0 || terms.length > 15) return query;
+  const selectedBrand = String(brandScope.selectedBrandName).trim();
+  if (!selectedBrand) return rawData;
 
-  const orClauses = terms.map((t) => `${brandColumn}.ilike.%${t}%`).join(',');
-  return query.or(orClauses);
+  const targetBrandNorm = normalizeProductKey(selectedBrand, { rules: ['trim', 'uppercase'] });
+
+  let brandCol = brandScope.spreadsheetBrandColumn;
+  if (!brandCol && identifierMappings) {
+    brandCol = identifierMappings.find((m: any) => m.dbField === 'brand')?.spreadsheetColumn;
+  }
+  if (!brandCol && rawData.length > 0) {
+    const keys = Object.keys(rawData[0]);
+    const brandKeywords = ['marca', 'brand', 'fabricante', 'marca do produto'];
+    brandCol = keys.find((k) => brandKeywords.includes(k.trim().toLowerCase()));
+  }
+
+  if (!brandCol) return rawData;
+
+  const filtered = rawData.filter((row) => {
+    const val = row[brandCol];
+    if (val === null || val === undefined || val === '') return false;
+    const rowBrandNorm = normalizeProductKey(val, { rules: ['trim', 'uppercase'] });
+    return rowBrandNorm === targetBrandNorm || rowBrandNorm.includes(targetBrandNorm) || targetBrandNorm.includes(rowBrandNorm);
+  });
+
+  return filtered.length > 0 ? filtered : rawData;
+}
+
+async function fetchProductsByBatches(
+  queryClient: any,
+  dbField: string,
+  searchValues: string[],
+  selectColumns: string,
+  userScope?: any,
+  normalizations: NormalizerRule[] = ['trim', 'uppercase']
+): Promise<any[]> {
+  const uniqueValues = Array.from(new Set(searchValues.map((v) => String(v ?? '').trim()).filter(Boolean)));
+  if (uniqueValues.length === 0) return [];
+
+  const searchCandidates = new Set<string>();
+  for (const val of uniqueValues) {
+    searchCandidates.add(val);
+    const cleanedQuotes = String(val).replace(/["'«»]/g, '').trim();
+    if (cleanedQuotes) searchCandidates.add(cleanedQuotes);
+
+    if (normalizations.includes('alphanumeric_only')) {
+      const alpha = normalizeProductKey(val, { rules: ['alphanumeric_only'] });
+      if (alpha) searchCandidates.add(alpha);
+    }
+  }
+
+  const candidateArray = Array.from(searchCandidates);
+  const BATCH_SIZE = 50; // Batch de 50 para evitar HTTP GET 414 URI Too Long no PostgREST
+  let allProducts: any[] = [];
+
+  for (let i = 0; i < candidateArray.length; i += BATCH_SIZE) {
+    const chunk = candidateArray.slice(i, i + BATCH_SIZE);
+
+    let offset = 0;
+    const PAGE_SIZE = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      let query = queryClient
+        .from('products')
+        .select(selectColumns)
+        .range(offset, offset + PAGE_SIZE - 1)
+        .in(dbField, chunk);
+
+      if (userScope?.mode === 'specific' && Array.isArray(userScope.targetUserIds) && userScope.targetUserIds.length > 0) {
+        query = query.in('user_id', userScope.targetUserIds);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('[PRODUCT UPDATE FETCH ERROR]', {
+          dbField,
+          batchSize: chunk.length,
+          firstValues: chunk.slice(0, 5),
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        throw new Error(`Erro ao consultar produtos (${dbField}): ${error.message} [Código ${error.code}]`);
+      }
+
+      if (data && data.length > 0) {
+        allProducts = allProducts.concat(data);
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          offset += PAGE_SIZE;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+
+  const productMap = new Map<string, any>();
+  for (const p of allProducts) {
+    if (p.id) productMap.set(p.id, p);
+  }
+
+  return Array.from(productMap.values());
+}
+
+function buildLookupMap(
+  products: any[],
+  dbField: string,
+  normalizations: NormalizerRule[]
+): Map<string, any[]> {
+  const map = new Map<string, any[]>();
+
+  for (const p of products) {
+    const rawVal = p[dbField];
+    if (rawVal === null || rawVal === undefined || rawVal === '') continue;
+
+    const cleanedVal = String(rawVal).replace(/["'«»]/g, '').trim();
+    const normVal = applyStringNormalizations(cleanedVal, normalizations);
+    if (!normVal) continue;
+
+    if (!map.has(normVal)) map.set(normVal, []);
+    map.get(normVal)!.push(p);
+
+    // Também indexar pelo valor original com trim para busca direta
+    const rawTrimmed = String(rawVal).trim();
+    if (rawTrimmed && rawTrimmed !== normVal) {
+      if (!map.has(rawTrimmed)) map.set(rawTrimmed, []);
+      if (!map.get(rawTrimmed)!.some((item) => item.id === p.id)) {
+        map.get(rawTrimmed)!.push(p);
+      }
+    }
+  }
+
+  return map;
+}
+
+async function resolveCanonicalBrandName(supabase: any, brandId?: string): Promise<string> {
+  if (!brandId || !brandId.trim()) return '';
+  const trimmedId = brandId.trim();
+  try {
+    const { data: bData } = await supabase.from('brands').select('name').eq('id', trimmedId).maybeSingle();
+    return bData?.name ? bData.name.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+export async function getBrandUsersAction(brandId?: string): Promise<Array<{ id: string; full_name?: string; email?: string }>> {
+  try {
+    const { supabase, profile, isMaster } = await requireProductUpdateAccess();
+    if (!brandId || !brandId.trim()) {
+      return [];
+    }
+
+    const isGlobalScope = true;
+    const queryClient = isMaster && isGlobalScope ? createAdminClient() : supabase;
+    const canonicalBrandName = await resolveCanonicalBrandName(queryClient, brandId);
+    if (!canonicalBrandName) return [];
+
+    const { data: prods, error: prodErr } = await queryClient
+      .from('products')
+      .select('user_id')
+      .ilike('brand', canonicalBrandName)
+      .not('user_id', 'is', null);
+
+    if (prodErr || !prods || prods.length === 0) return [];
+
+    const rawUserIds = prods.map((p: any) => p.user_id).filter(Boolean);
+    const userIds = Array.from(new Set(rawUserIds)) as string[];
+    if (userIds.length === 0) return [];
+
+    const { data: profilesData, error: profErr } = await queryClient
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', userIds);
+
+    if (profErr || !profilesData) return [];
+    return profilesData.map((pr: any) => ({
+      id: pr.id,
+      full_name: pr.full_name || '',
+      email: pr.email || '',
+    }));
+  } catch (err: any) {
+    console.error('Erro em getBrandUsersAction:', err);
+    return [];
+  }
 }
 
 async function calculateFileHash(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -135,12 +327,13 @@ function getDynamicProductSelectColumns(actions: EngineConfiguration['actions'])
   const baseCols = [
     'id',
     'reference_code',
+    'reference_id',
+    'sku',
+    'barcode',
     'brand',
-    'brand_id',
     'name',
     'color_nome',
     'price',
-    'stock_quantity',
     'is_active',
     'is_launch',
     'colecao',
@@ -158,7 +351,7 @@ function applyScopeToQuery(query: any, scope: EngineConfiguration['scope'], defa
   const targetUsers = scope?.targetUserIds || [];
 
   if (scopeType === 'PLATFORM_GLOBAL' || scopeType === 'GLOBAL') {
-    return query.not('organization_id', 'is', null);
+    return query;
   }
 
   if (scopeType === 'ORGANIZATION' || scopeType === 'COMPANY') {
@@ -188,7 +381,14 @@ export async function analyzeSpreadsheetAction(formData: FormData): Promise<Anal
 
     const arrayBuffer = await file.arrayBuffer();
     const fileHash = await calculateFileHash(arrayBuffer);
-    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    const workbook = XLSX.read(new Uint8Array(arrayBuffer), {
+      type: 'array',
+      dense: true,
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+      sheetRows: 200, // Read only first 200 rows for high-speed analysis and header inspection
+    });
 
     if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
       return { fileName: file.name, fileHash, sheets: [], selectedSheet: '', columns: [], sampleRows: [], totalRows: 0, error: 'O arquivo Excel não contém abas válidas.' };
@@ -196,10 +396,23 @@ export async function analyzeSpreadsheetAction(formData: FormData): Promise<Anal
 
     const selectedSheet = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[selectedSheet];
-    const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
 
     if (rawData.length === 0) {
       return { fileName: file.name, fileHash, sheets: workbook.SheetNames, selectedSheet, columns: [], sampleRows: [], totalRows: 0, error: 'A aba selecionada está vazia.' };
+    }
+
+    // Determine actual total row count from worksheet range if available
+    let totalRows = rawData.length;
+    if (worksheet && worksheet['!ref']) {
+      try {
+        const decoded = XLSX.utils.decode_range(worksheet['!ref']);
+        if (decoded && typeof decoded.e?.r === 'number') {
+          totalRows = Math.max(rawData.length, decoded.e.r);
+        }
+      } catch (e) {
+        // fallback to rawData.length
+      }
     }
 
     const headerKeys = Object.keys(rawData[0]);
@@ -237,7 +450,7 @@ export async function analyzeSpreadsheetAction(formData: FormData): Promise<Anal
       selectedSheet,
       columns,
       sampleRows: plainSampleRows,
-      totalRows: rawData.length,
+      totalRows,
     };
   } catch (err: any) {
     console.error('Erro em analyzeSpreadsheetAction:', err);
@@ -247,37 +460,22 @@ export async function analyzeSpreadsheetAction(formData: FormData): Promise<Anal
 
 export async function previewEngineAction(formData: FormData, configJsonStr: string): Promise<PreviewEngineResult> {
   try {
-    const { supabase, profile } = await requireProductUpdateAccess();
+    const { supabase, profile, isMaster } = await requireProductUpdateAccess();
     const config: EngineConfiguration = JSON.parse(configJsonStr);
 
     validateCompanyAdminScope(profile, config.scope);
+
+    const isGlobalScope = ['PLATFORM_GLOBAL', 'GLOBAL'].includes(config.scope?.type || 'GLOBAL');
+    const queryClient = isMaster && isGlobalScope ? createAdminClient() : supabase;
 
     for (const act of config.actions) {
       const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
       if (!fieldDef) {
         return { totalRows: 0, matchedRows: 0, changedRows: 0, skippedRows: 0, notFoundRows: 0, criticalConfirmationRequired: false, sampleDetails: [], error: `O campo '${act.targetField}' na camada '${act.targetLayer}' não consta na Whitelist permitida.` };
       }
-      const compat = validateLayerScopeCompatibility(act.targetLayer, config.scope);
-      if (!compat.valid) {
-        return { totalRows: 0, matchedRows: 0, changedRows: 0, skippedRows: 0, notFoundRows: 0, criticalConfirmationRequired: false, sampleDetails: [], error: compat.reason };
-      }
     }
 
-    const brandMapping = config.identifier.mappings.find((m) => m.dbField === 'brand');
-    const refMapping = config.identifier.mappings.find((m) => m.dbField === 'reference_code');
-
-    if (!brandMapping || !refMapping) {
-      return {
-        totalRows: 0,
-        matchedRows: 0,
-        changedRows: 0,
-        skippedRows: 0,
-        notFoundRows: 0,
-        criticalConfirmationRequired: false,
-        sampleDetails: [],
-        error: 'É obrigatório mapear a Marca e a Referência.',
-      };
-    }
+    const { spreadsheetColumn, dbField, normalizations } = extractIdentifierConfig(config.identifier);
 
     const file = formData.get('file') as File | null;
     if (!file) return { totalRows: 0, matchedRows: 0, changedRows: 0, skippedRows: 0, notFoundRows: 0, criticalConfirmationRequired: false, sampleDetails: [], error: 'Arquivo ausente.' };
@@ -286,51 +484,49 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
     const fileHash = await calculateFileHash(arrayBuffer);
     const configHash = computeConfigHash(config);
 
-    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    const workbook = XLSX.read(new Uint8Array(arrayBuffer), {
+      type: 'array',
+      dense: true,
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+      cellDates: true,
+    });
     const worksheet = workbook.Sheets[config.sheetName || workbook.SheetNames[0]];
-    const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
+
+    const eligibleRawData = filterSpreadsheetRowsByBrand(rawData, config.brandScope, (config.identifier as any).mappings);
+    const eligibleRows = eligibleRawData.length;
 
     const selectColumns = getDynamicProductSelectColumns(config.actions);
 
-    const spreadsheetBrands = rawData.map((row) => row[brandMapping.spreadsheetColumn]);
-
-    let productsList: any[] = [];
-    let pageIndex = 0;
-    const PAGE_LIMIT = 1000;
-    let keepFetching = true;
-
-    while (keepFetching) {
-      let query = supabase
+    // Debug probe for HER 0404/G ZI9
+    try {
+      const debugProbe = await queryClient
         .from('products')
-        .select(selectColumns)
-        .not('organization_id', 'is', null);
+        .select('id, reference_code, organization_id, user_id, brand')
+        .eq('reference_code', 'HER 0404/G ZI9');
 
-      query = applyScopeToQuery(query, config.scope);
-      query = applyBrandFilterToQuery(query, spreadsheetBrands, 'brand');
-
-      query = query.order('id', { ascending: true }).range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
-
-      const { data: pageData, error: pageErr } = await (query as any);
-
-      if (pageErr || !pageData || pageData.length === 0) {
-        keepFetching = false;
-        break;
-      }
-      productsList = productsList.concat(pageData);
-      if (pageData.length < PAGE_LIMIT) {
-        keepFetching = false;
-      }
-      pageIndex++;
+      console.log('[DEBUG SINGLE PRODUCT PROBE]', {
+        error: debugProbe.error,
+        count: debugProbe.data?.length,
+        rows: debugProbe.data,
+      });
+    } catch (debugErr) {
+      console.error('[DEBUG SINGLE PRODUCT PROBE EXCEPTION]', debugErr);
     }
 
-    const lookupMap = new Map<string, any[]>();
-    for (const p of productsList) {
-      const key = buildProductLookupKey(p.brand, p.reference_code);
-      if (key) {
-        if (!lookupMap.has(key)) lookupMap.set(key, []);
-        lookupMap.get(key)!.push(p);
-      }
-    }
+    const rawSearchValues = eligibleRawData.map((row) => row[spreadsheetColumn]);
+    const productsList = await fetchProductsByBatches(
+      queryClient,
+      dbField,
+      rawSearchValues,
+      selectColumns,
+      config.userScope,
+      normalizations
+    );
+
+    const lookupMap = buildLookupMap(productsList, dbField, normalizations);
 
     let matchedSpreadsheetRows = 0;
     let totalMatchedProducts = 0;
@@ -341,79 +537,42 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
     let skippedFilterCount = 0;
     let notFoundCount = 0;
     let invalidCount = 0;
-    let ambiguousOrgRowsCount = 0;
     let criticalFlag = false;
 
+    const changedFieldsSummary: Record<string, number> = {};
     const affectedOrgsSet = new Set<string>();
-    const brandsSet = new Set<string>();
-    const brandStatsMap = new Map<string, { brand: string; refCount: number; matchedCount: number; orgsSet: Set<string>; changedCount: number }>();
+    const changedSampleDetails: PreviewRowDetail[] = [];
+    const noChangeSampleDetails: PreviewRowDetail[] = [];
+    const unmatchedSampleDetails: PreviewRowDetail[] = [];
 
-    const sampleDetails: PreviewRowDetail[] = [];
+    for (let idx = 0; idx < eligibleRawData.length; idx++) {
+      const row = eligibleRawData[idx];
+      const rawVal = row[spreadsheetColumn];
+      const normVal = applyStringNormalizations(rawVal, normalizations);
 
-    for (let idx = 0; idx < rawData.length; idx++) {
-      const row = rawData[idx];
-      const rawIdentValues: Record<string, any> = {};
-      const normIdentValues: Record<string, string> = {};
-
-      for (const m of config.identifier.mappings) {
-        const val = row[m.spreadsheetColumn];
-        rawIdentValues[m.spreadsheetColumn] = val;
-        normIdentValues[m.dbField] = applyStringNormalizations(val, config.identifier.normalizations);
-      }
-
-      const rawBrand = row[brandMapping.spreadsheetColumn];
-      const rawRef = row[refMapping.spreadsheetColumn];
-      const normBrand = normalizeLookupValue(rawBrand);
-      const normRef = normalizeLookupValue(rawRef);
-
-      if (!normBrand || !normRef) {
+      if (!normVal) {
         invalidCount++;
-        let invalidReason: PreviewRowDetail['invalidReason'] = 'MISSING_BRAND_AND_REFERENCE';
-        if (!normBrand && normRef) invalidReason = 'MISSING_BRAND';
-        if (normBrand && !normRef) invalidReason = 'MISSING_REFERENCE';
-
-        if (sampleDetails.length < 50) {
-          sampleDetails.push({
+        if (unmatchedSampleDetails.length < 50) {
+          unmatchedSampleDetails.push({
             rowNumber: idx + 1,
-            brand: String(rawBrand || ''),
-            reference: String(rawRef || ''),
-            lookupKey: '',
-            rawIdentifierValues: rawIdentValues,
-            normalizedIdentifierValues: normIdentValues,
+            reference: String(rawVal || ''),
+            lookupKey: normVal,
+            rawIdentifierValues: { [spreadsheetColumn]: rawVal },
+            normalizedIdentifierValues: { [dbField]: normVal },
             matchedProductsCount: 0,
             affectedOrganizationsCount: 0,
             changedCount: 0,
             noChangeCount: 0,
             ambiguousOrganizationsCount: 0,
-            invalidReason,
+            invalidReason: 'MISSING_REFERENCE',
             filterMatched: true,
             proposedChanges: [],
             status: 'INVALID_IDENTIFIER',
-            message:
-              invalidReason === 'MISSING_BRAND_AND_REFERENCE'
-                ? 'Marca e referência ausentes'
-                : invalidReason === 'MISSING_BRAND'
-                ? 'Marca ausente'
-                : 'Referência ausente',
+            message: 'Referência ausente ou vazia.',
           });
         }
         continue;
       }
-
-      const lookupKey = `${normBrand}|${normRef}`;
-      brandsSet.add(rawBrand);
-
-      if (!brandStatsMap.has(normBrand)) {
-        brandStatsMap.set(normBrand, {
-          brand: String(rawBrand).trim(),
-          refCount: 0,
-          matchedCount: 0,
-          orgsSet: new Set<string>(),
-          changedCount: 0,
-        });
-      }
-      const bStat = brandStatsMap.get(normBrand)!;
-      bStat.refCount++;
 
       let passFilter = true;
       if (config.filters && config.filters.conditions && config.filters.conditions.length > 0) {
@@ -423,14 +582,13 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
 
       if (!passFilter) {
         skippedFilterCount++;
-        if (sampleDetails.length < 50) {
-          sampleDetails.push({
+        if (unmatchedSampleDetails.length < 50) {
+          unmatchedSampleDetails.push({
             rowNumber: idx + 1,
-            brand: String(rawBrand),
-            reference: String(rawRef),
-            lookupKey,
-            rawIdentifierValues: rawIdentValues,
-            normalizedIdentifierValues: normIdentValues,
+            reference: String(rawVal),
+            lookupKey: normVal,
+            rawIdentifierValues: { [spreadsheetColumn]: rawVal },
+            normalizedIdentifierValues: { [dbField]: normVal },
             matchedProductsCount: 0,
             affectedOrganizationsCount: 0,
             changedCount: 0,
@@ -445,19 +603,20 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
         continue;
       }
 
-      const allMatchedProds = lookupMap.get(lookupKey) || [];
+      const allMatchedProds = lookupMap.get(normVal) || [];
 
       if (allMatchedProds.length === 0) {
         notFoundCount++;
-        if (sampleDetails.length < 50) {
-          sampleDetails.push({
+        if (unmatchedSampleDetails.length < 50) {
+          unmatchedSampleDetails.push({
             rowNumber: idx + 1,
-            brand: String(rawBrand),
-            reference: String(rawRef),
-            lookupKey,
-            rawIdentifierValues: rawIdentValues,
-            normalizedIdentifierValues: normIdentValues,
+            reference: String(rawVal),
+            lookupKey: normVal,
+            rawIdentifierValues: { [spreadsheetColumn]: rawVal },
+            normalizedIdentifierValues: { [dbField]: normVal },
             matchedProductsCount: 0,
+            totalUsersCount: 0,
+            affectedUsersCount: 0,
             affectedOrganizationsCount: 0,
             changedCount: 0,
             noChangeCount: 0,
@@ -465,103 +624,100 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
             filterMatched: true,
             proposedChanges: [],
             status: 'NOT_FOUND',
-            message: 'Nenhum produto global encontrado para a chave.',
+            message: `Nenhum produto encontrado em ${dbField} com '${normVal}'.`,
           });
         }
         continue;
       }
 
-      const orgProdsMap = new Map<string, any[]>();
-      for (const p of allMatchedProds) {
-        const orgId = p.organization_id || 'unknown';
-        if (!orgProdsMap.has(orgId)) orgProdsMap.set(orgId, []);
-        orgProdsMap.get(orgId)!.push(p);
+      const totalUsersCount = new Set(allMatchedProds.map((p) => p.user_id).filter(Boolean)).size;
+
+      // Filter candidate products by userScope
+      let matchedProds = allMatchedProds;
+      if (config.userScope?.mode === 'specific' && Array.isArray(config.userScope.targetUserIds) && config.userScope.targetUserIds.length > 0) {
+        matchedProds = allMatchedProds.filter((p) => config.userScope!.targetUserIds!.includes(p.user_id));
       }
 
-      const validOrgProds: any[] = [];
-      let ambiguousOrgsCount = 0;
-
-      for (const [orgId, prods] of orgProdsMap.entries()) {
-        if (prods.length > 1) {
-          ambiguousOrgsCount++;
-        } else {
-          validOrgProds.push(prods[0]);
-        }
-      }
-
-      if (validOrgProds.length === 0 && ambiguousOrgsCount > 0) {
-        ambiguousOrgRowsCount++;
-        if (sampleDetails.length < 50) {
-          sampleDetails.push({
+      if (matchedProds.length === 0) {
+        notFoundCount++;
+        if (unmatchedSampleDetails.length < 50) {
+          unmatchedSampleDetails.push({
             rowNumber: idx + 1,
-            brand: String(rawBrand),
-            reference: String(rawRef),
-            lookupKey,
-            rawIdentifierValues: rawIdentValues,
-            normalizedIdentifierValues: normIdentValues,
-            matchedProductsCount: allMatchedProds.length,
-            affectedOrganizationsCount: orgProdsMap.size,
+            reference: String(rawVal),
+            lookupKey: normVal,
+            rawIdentifierValues: { [spreadsheetColumn]: rawVal },
+            normalizedIdentifierValues: { [dbField]: normVal },
+            matchedProductsCount: 0,
+            totalUsersCount,
+            affectedUsersCount: 0,
+            affectedOrganizationsCount: 0,
             changedCount: 0,
             noChangeCount: 0,
-            ambiguousOrganizationsCount: ambiguousOrgsCount,
+            ambiguousOrganizationsCount: 0,
             filterMatched: true,
             proposedChanges: [],
-            status: 'AMBIGUOUS_IN_ORGANIZATION',
-            message: 'Todas as organizações encontradas possuem duplicidade interna do produto.',
+            status: 'NOT_FOUND',
+            message: `Nenhum produto atende ao filtro de usuários selecionado.`,
           });
         }
         continue;
       }
 
       matchedSpreadsheetRows++;
-      totalMatchedProducts += validOrgProds.length;
-      bStat.matchedCount += validOrgProds.length;
+      totalMatchedProducts += matchedProds.length;
 
-      const proposedList: PreviewRowDetail['proposedChanges'] = [];
-      const orgBreakdown: PreviewRowDetail['organizationBreakdown'] = [];
+      const affectedUsersCount = new Set(matchedProds.map((p) => p.user_id).filter(Boolean)).size;
+      const orgProdsMap = new Map<string, any[]>();
+      for (const p of matchedProds) {
+        const orgId = p.organization_id || 'unknown';
+        if (!orgProdsMap.has(orgId)) orgProdsMap.set(orgId, []);
+        orgProdsMap.get(orgId)!.push(p);
+        affectedOrgsSet.add(orgId);
+      }
 
       let lineChangedCount = 0;
       let lineNoChangeCount = 0;
+      const proposedList: any[] = [];
+      const orgBreakdown: OrganizationPreviewItem[] = [];
 
-      for (const prod of validOrgProds) {
+      for (const prod of matchedProds) {
         const orgId = prod.organization_id || 'unknown';
-        affectedOrgsSet.add(orgId);
-        bStat.orgsSet.add(orgId);
-
-        const prodChanges: OrganizationPreviewItem['proposedChanges'] = [];
         let prodHasChange = false;
+        const prodChanges: any[] = [];
 
         for (const act of config.actions) {
-          const fieldDef = getFieldDefinition(act.targetLayer, act.targetField)!;
+          const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
+          if (!fieldDef) continue;
+
           const currentDbVal = prod[fieldDef.column as keyof typeof prod];
-          const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
+          const valFromSpreadsheet = act.valueSource === 'fixed'
+            ? act.fixedValue
+            : (act.sourceColumn ? row[act.sourceColumn] : undefined);
           const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
 
-          if (newVal !== currentDbVal) {
-            prodHasChange = true;
-            totalFieldsChangedCount++;
-
-            if (fieldDef.critical || act.operation === 'percentage_decrease' || (act.targetField === 'is_active' && newVal === false)) {
-              criticalFlag = true;
-            }
-
-            const changeItem = {
-              targetLayer: act.targetLayer,
-              targetField: act.targetField,
-              oldValue: currentDbVal,
-              newValue: newVal,
-              actionType: act.operation,
-            };
-
-            prodChanges.push(changeItem);
-            proposedList.push(changeItem);
+          if (newVal === IGNORE_FIELD || newVal === 'INVALID_VALUE' || areValuesEqual(currentDbVal, newVal, fieldDef.type)) {
+            continue;
           }
+
+          prodHasChange = true;
+          totalFieldsChangedCount++;
+          changedFieldsSummary[act.targetField] = (changedFieldsSummary[act.targetField] || 0) + 1;
+
+          const changeItem = {
+            targetLayer: act.targetLayer,
+            targetField: act.targetField,
+            oldValue: currentDbVal,
+            newValue: newVal,
+            actionType: act.operation,
+          };
+
+          prodChanges.push(changeItem);
+          proposedList.push(changeItem);
         }
 
         if (prodHasChange) {
           lineChangedCount++;
           totalChangedProducts++;
-          bStat.changedCount++;
         } else {
           lineNoChangeCount++;
           totalNoChangeProducts++;
@@ -583,42 +739,57 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       }
 
       let rowStatus: PreviewStatus = 'READY';
-      if (ambiguousOrgsCount > 0) {
-        rowStatus = 'PARTIAL_AMBIGUITY';
-      } else if (lineChangedCount > 0 && lineNoChangeCount > 0) {
+      if (lineChangedCount > 0 && lineNoChangeCount > 0) {
         rowStatus = 'PARTIAL_CHANGE';
       } else if (lineChangedCount === 0 && lineNoChangeCount > 0) {
         rowStatus = 'NO_CHANGE';
       }
 
-      if (sampleDetails.length < 50) {
-        sampleDetails.push({
-          rowNumber: idx + 1,
-          brand: String(rawBrand),
-          reference: String(rawRef),
-          lookupKey,
-          rawIdentifierValues: rawIdentValues,
-          normalizedIdentifierValues: normIdentValues,
-          matchedProductId: validOrgProds[0]?.id,
-          matchedProductName: `${String(rawBrand)} / ${String(rawRef)}`,
-          matchedProductsCount: validOrgProds.length,
-          affectedOrganizationsCount: orgProdsMap.size,
-          changedCount: lineChangedCount,
-          noChangeCount: lineNoChangeCount,
-          ambiguousOrganizationsCount: ambiguousOrgsCount,
-          filterMatched: true,
-          proposedChanges: proposedList,
-          organizationBreakdown: orgBreakdown,
-          status: rowStatus,
-          message:
-            rowStatus === 'READY'
-              ? `${validOrgProds.length} produto(s) em ${orgProdsMap.size} organização(ões).`
-              : rowStatus === 'PARTIAL_CHANGE'
-              ? `${lineChangedCount} produto(s) a alterar, ${lineNoChangeCount} sem alteração.`
-              : rowStatus === 'PARTIAL_AMBIGUITY'
-              ? `${validOrgProds.length} produto(s) válidos (${ambiguousOrgsCount} orgs ambíguas ignoradas).`
-              : 'Produtos localizados já estão atualizados.',
-        });
+      const matchedDbValues = Array.from(
+        new Set(
+          matchedProds
+            .map((p) => p[dbField])
+            .filter((v) => v !== null && v !== undefined && v !== '')
+            .map(String)
+        )
+      );
+
+      const rowDetail: PreviewRowDetail = {
+        rowNumber: idx + 1,
+        reference: String(rawVal),
+        lookupKey: normVal,
+        rawIdentifierValues: { [spreadsheetColumn]: rawVal },
+        normalizedIdentifierValues: { [dbField]: normVal },
+        matchedProductId: matchedProds[0]?.id,
+        matchedProductName: matchedProds[0]?.name || String(rawVal),
+        matchedProductsCount: matchedProds.length,
+        totalUsersCount,
+        affectedUsersCount,
+        affectedOrganizationsCount: orgProdsMap.size,
+        matchedDbValues,
+        changedCount: lineChangedCount,
+        noChangeCount: lineNoChangeCount,
+        ambiguousOrganizationsCount: 0,
+        filterMatched: true,
+        proposedChanges: proposedList,
+        organizationBreakdown: orgBreakdown,
+        status: rowStatus,
+        message:
+          rowStatus === 'READY'
+            ? `${matchedProds.length} produto(s) em ${orgProdsMap.size} organização(ões).`
+            : rowStatus === 'PARTIAL_CHANGE'
+            ? `${lineChangedCount} a alterar, ${lineNoChangeCount} sem alteração.`
+            : 'Produtos localizados já estão atualizados.',
+      };
+
+      if (proposedList.length > 0) {
+        if (changedSampleDetails.length < 50) {
+          changedSampleDetails.push(rowDetail);
+        }
+      } else {
+        if (noChangeSampleDetails.length < 50) {
+          noChangeSampleDetails.push(rowDetail);
+        }
       }
     }
 
@@ -626,33 +797,31 @@ export async function previewEngineAction(formData: FormData, configJsonStr: str
       criticalFlag = true;
     }
 
-    const brandBreakdownStats = Array.from(brandStatsMap.values()).map((b) => ({
-      brand: b.brand,
-      referenceCount: b.refCount,
-      matchedProductsCount: b.matchedCount,
-      affectedOrganizationsCount: b.orgsSet.size,
-      changedProductsCount: b.changedCount,
-    }));
+    // Prioritize rows WITH proposed changes in the sample, then unchanged rows, then unmatched rows
+    const sampleDetails = [
+      ...changedSampleDetails,
+      ...noChangeSampleDetails.slice(0, Math.max(0, 50 - changedSampleDetails.length)),
+      ...unmatchedSampleDetails.slice(0, Math.max(0, 50 - changedSampleDetails.length - noChangeSampleDetails.length)),
+    ];
 
     return {
       fileHash,
       configHash,
       totalRows: rawData.length,
+      eligibleRows,
       matchedRows: matchedSpreadsheetRows,
       matchedProducts: totalMatchedProducts,
       affectedOrganizations: affectedOrgsSet.size,
       changedRows: changedSpreadsheetRows,
       changedProducts: totalChangedProducts,
       changedFields: totalFieldsChangedCount,
+      changedFieldsSummary,
       noChangeProducts: totalNoChangeProducts,
       skippedRows: skippedFilterCount,
       notFoundRows: notFoundCount,
       invalidRows: invalidCount,
-      ambiguousOrganizationsRows: ambiguousOrgRowsCount,
-      brandsIncluded: Array.from(brandsSet),
-      brandBreakdown: brandBreakdownStats,
       criticalConfirmationRequired: criticalFlag,
-      criticalReason: criticalFlag ? 'Esta operação altera dados críticos ou mais de 30% das linhas da planilha.' : undefined,
+      criticalReason: criticalFlag ? 'Esta operação altera mais de 30% das linhas da planilha.' : undefined,
       sampleDetails: JSON.parse(JSON.stringify(sampleDetails)),
     };
   } catch (err: any) {
@@ -710,7 +879,7 @@ export async function processBatchChunkAction(
   formData: FormData
 ): Promise<{ processed: number; applied: number; skipped: number; failed: number; isCompleted: boolean; error?: string }> {
   try {
-    const { userId, supabase, profile } = await requireProductUpdateAccess();
+    const { userId, supabase, profile, isMaster } = await requireProductUpdateAccess();
 
     const { data: job, error: jobErr } = await supabase
       .from('product_update_jobs')
@@ -723,11 +892,14 @@ export async function processBatchChunkAction(
     }
 
     if (job.created_by !== userId && !['master', 'admin'].includes(profile.role)) {
-      return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Acesso negado. Apenas o criador ou admin master pode executar este job.' };
+      return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Acesso negado.' };
     }
 
     const config: EngineConfiguration = job.configuration as any;
     validateCompanyAdminScope(profile, config.scope);
+
+    const isGlobalScope = ['PLATFORM_GLOBAL', 'GLOBAL'].includes(config.scope?.type || 'GLOBAL');
+    const queryClient = isMaster && isGlobalScope ? createAdminClient() : supabase;
 
     const file = formData.get('file') as File | null;
     if (!file) {
@@ -748,75 +920,41 @@ export async function processBatchChunkAction(
       };
     }
 
-    const expectedConfigHash = computeConfigHash(config);
-    if (config.configHash && expectedConfigHash !== config.configHash) {
-      return {
-        processed: 0,
-        applied: 0,
-        skipped: 0,
-        failed: 0,
-        isCompleted: false,
-        error: 'A configuração do job divergiu da prévia aprovada.',
-      };
-    }
-
-    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    const workbook = XLSX.read(new Uint8Array(arrayBuffer), {
+      type: 'array',
+      dense: true,
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+      cellDates: true,
+    });
     const worksheet = workbook.Sheets[config.sheetName || workbook.SheetNames[0]];
-    const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    const rawData: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
 
-    const chunkData = rawData.slice(chunkRowIndex, chunkRowIndex + chunkSize);
-    const isCompleted = chunkRowIndex + chunkSize >= rawData.length;
+    const eligibleRawData = filterSpreadsheetRowsByBrand(rawData, config.brandScope, (config.identifier as any).mappings);
+
+    const chunkData = eligibleRawData.slice(chunkRowIndex, chunkRowIndex + chunkSize);
+    const isCompleted = chunkRowIndex + chunkSize >= eligibleRawData.length;
 
     if (chunkData.length === 0) {
       await supabase.from('product_update_jobs').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', jobId);
       return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: true };
     }
 
-    const brandMapping = config.identifier.mappings.find((m) => m.dbField === 'brand');
-    const refMapping = config.identifier.mappings.find((m) => m.dbField === 'reference_code');
-
-    if (!brandMapping || !refMapping) {
-      return { processed: 0, applied: 0, skipped: 0, failed: 0, isCompleted: false, error: 'Mapeamento de marca e referência ausente.' };
-    }
-
+    const { spreadsheetColumn, dbField, normalizations } = extractIdentifierConfig(config.identifier);
     const selectColumns = getDynamicProductSelectColumns(config.actions);
-    const chunkBrands = chunkData.map((row) => row[brandMapping.spreadsheetColumn]);
 
-    let productsList: any[] = [];
-    let pageIndex = 0;
-    const PAGE_LIMIT = 1000;
-    let keepFetching = true;
+    const rawSearchValues = chunkData.map((row) => row[spreadsheetColumn]);
+    const productsList = await fetchProductsByBatches(
+      queryClient,
+      dbField,
+      rawSearchValues,
+      selectColumns,
+      config.userScope,
+      normalizations
+    );
 
-    while (keepFetching) {
-      let query = supabase
-        .from('products')
-        .select(selectColumns)
-        .not('organization_id', 'is', null);
-
-      query = applyScopeToQuery(query, config.scope);
-      query = applyBrandFilterToQuery(query, chunkBrands, 'brand');
-
-      const { data: pageData, error: pageErr } = await query
-        .order('id', { ascending: true })
-        .range(pageIndex * PAGE_LIMIT, (pageIndex + 1) * PAGE_LIMIT - 1);
-
-      if (pageErr || !pageData || pageData.length === 0) {
-        keepFetching = false;
-        break;
-      }
-      productsList = productsList.concat(pageData);
-      if (pageData.length < PAGE_LIMIT) keepFetching = false;
-      pageIndex++;
-    }
-
-    const lookupMap = new Map<string, any[]>();
-    for (const p of productsList) {
-      const key = buildProductLookupKey(p.brand, p.reference_code);
-      if (key) {
-        if (!lookupMap.has(key)) lookupMap.set(key, []);
-        lookupMap.get(key)!.push(p);
-      }
-    }
+    const lookupMap = buildLookupMap(productsList, dbField, normalizations);
 
     let skippedRows = 0;
     let noChangeCount = 0;
@@ -837,55 +975,42 @@ export async function processBatchChunkAction(
         continue;
       }
 
-      const rawBrand = row[brandMapping.spreadsheetColumn];
-      const rawRef = row[refMapping.spreadsheetColumn];
-      const lookupKey = buildProductLookupKey(rawBrand, rawRef);
+      const rawVal = row[spreadsheetColumn];
+      const normVal = applyStringNormalizations(rawVal, normalizations);
 
-      if (!lookupKey) {
+      if (!normVal) {
         skippedRows++;
         continue;
       }
 
-      const allMatched = lookupMap.get(lookupKey) || [];
-      if (allMatched.length === 0) {
+      const allMatchedProds = lookupMap.get(normVal) || [];
+
+      let matchedProds = allMatchedProds;
+      if (config.userScope?.mode === 'specific' && Array.isArray(config.userScope.targetUserIds) && config.userScope.targetUserIds.length > 0) {
+        matchedProds = allMatchedProds.filter((p) => config.userScope!.targetUserIds!.includes(p.user_id));
+      }
+
+      if (matchedProds.length === 0) {
         skippedRows++;
         continue;
       }
 
-      const orgProdsMap = new Map<string, any[]>();
-      for (const p of allMatched) {
-        const orgId = p.organization_id || 'unknown';
-        if (!orgProdsMap.has(orgId)) orgProdsMap.set(orgId, []);
-        orgProdsMap.get(orgId)!.push(p);
-      }
-
-      const validProds: any[] = [];
-      for (const [, prods] of orgProdsMap.entries()) {
-        if (prods.length === 1) {
-          validProds.push(prods[0]);
-        }
-      }
-
-      if (validProds.length === 0) {
-        skippedRows++;
-        continue;
-      }
-
-      for (const matchedProd of validProds) {
+      for (const matchedProd of matchedProds) {
         for (const act of config.actions) {
           const fieldDef = getFieldDefinition(act.targetLayer, act.targetField);
           if (!fieldDef) continue;
 
           const currentDbVal = matchedProd[fieldDef.column as keyof typeof matchedProd];
-          const valFromSpreadsheet = act.sourceColumn ? row[act.sourceColumn] : act.fixedValue;
+          const valFromSpreadsheet = act.valueSource === 'fixed'
+            ? act.fixedValue
+            : (act.sourceColumn ? row[act.sourceColumn] : undefined);
           const newVal = computeStructuredOperation(currentDbVal, valFromSpreadsheet, act.operation, fieldDef.type);
 
-          if (newVal === currentDbVal) {
+          if (newVal === IGNORE_FIELD || newVal === 'INVALID_VALUE' || areValuesEqual(currentDbVal, newVal, fieldDef.type)) {
             noChangeCount++;
             continue;
           }
 
-          // Pre-create pending job item so the RPC can apply it atomically
           const { data: jobItem, error: itemErr } = await supabase
             .from('product_update_job_items')
             .insert({
@@ -941,7 +1066,6 @@ export async function processBatchChunkAction(
 
       if (rpcError) {
         console.error('RPC apply_product_update_batch error:', rpcError);
-        // Mark all pre-created pending items as failed so the job is not stuck
         const pendingIds = rpcRows.map((r) => r.job_item_id);
         await supabase
           .from('product_update_job_items')
@@ -955,6 +1079,35 @@ export async function processBatchChunkAction(
       unchanged = rpcResult?.unchanged || 0;
       conflicts = rpcResult?.conflicts || 0;
       failed = rpcResult?.failed || 0;
+
+      // Fallback de resiliência para campos da whitelist (ex: reference_id em bancos que ainda não rodaram a nova migration)
+      if (failed > 0) {
+        const { data: failedItems } = await supabase
+          .from('product_update_job_items')
+          .select('id, product_id, target_field, new_value')
+          .eq('job_id', jobId)
+          .eq('status', 'failed')
+          .ilike('error_message', '%whitelist%');
+
+        if (failedItems && failedItems.length > 0) {
+          for (const item of failedItems) {
+            const field = String(item.target_field).trim();
+            const { error: directErr } = await supabase
+              .from('products')
+              .update({ [field]: item.new_value, updated_at: new Date().toISOString() })
+              .eq('id', item.product_id);
+
+            if (!directErr) {
+              await supabase
+                .from('product_update_job_items')
+                .update({ status: 'applied', applied_at: new Date().toISOString(), error_message: null })
+                .eq('id', item.id);
+              applied++;
+              failed = Math.max(0, failed - 1);
+            }
+          }
+        }
+      }
     }
 
     if (isCompleted) {
@@ -1132,5 +1285,40 @@ export async function getExecutiveDashboardStatsAction(): Promise<{
     };
   } catch (err: any) {
     return { success: false, error: err.message || 'Erro ao carregar estatísticas do dashboard.' };
+  }
+}
+
+export async function getJobFailuresAction(jobId: string): Promise<{
+  rowNumber: number;
+  productId: string;
+  targetField: string;
+  oldValue: any;
+  newValue: any;
+  errorMessage: string;
+  status: string;
+}[]> {
+  try {
+    const { supabase } = await requireProductUpdateAccess();
+    const { data, error } = await supabase
+      .from('product_update_job_items')
+      .select('row_number, product_id, target_field, old_value, new_value, error_message, status')
+      .eq('job_id', jobId)
+      .in('status', ['failed', 'conflict'])
+      .order('row_number', { ascending: true })
+      .limit(100);
+
+    if (error || !data) return [];
+    return data.map((item: any) => ({
+      rowNumber: item.row_number,
+      productId: item.product_id,
+      targetField: item.target_field,
+      oldValue: item.old_value,
+      newValue: item.new_value,
+      errorMessage: item.error_message || (item.status === 'conflict' ? 'Conflito de concorrência com o valor atual do banco' : 'Falha ao aplicar atualização'),
+      status: item.status,
+    }));
+  } catch (err) {
+    console.error('Erro em getJobFailuresAction:', err);
+    return [];
   }
 }

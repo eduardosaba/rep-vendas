@@ -12,7 +12,7 @@ export default async function FinancialClosurePage() {
   if (!user) {
     return (
       <RequireRole
-        allowedRoles={['financeiro_company', 'admin_company', 'master']}
+        allowedRoles={['master']}
       >
         <div className="p-6">Acesso restrito.</div>
       </RequireRole>

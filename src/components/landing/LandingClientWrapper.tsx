@@ -81,14 +81,6 @@ export default function LandingClientWrapper({
             >
               Catálogo Demo
             </a>
-            <a
-              href="/demo/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"
-            >
-              Painel Demo
-            </a>
 
             <Link
               href="/login"

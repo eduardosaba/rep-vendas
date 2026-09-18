@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createSvcClient } from '@supabase/supabase-js';
 import { inngest } from '@/inngest/client';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
+import { enforcePriceExclusive } from '@/lib/settings-utils';
 
 function isMissingColumnError(error: any) {
   const code = String(error?.code || '');
@@ -229,16 +230,16 @@ export async function POST(req: Request) {
       ...rest
     } = payload;
 
+    const { data: existingSettingsRow } = await supabase
+      .from('settings')
+      .select('catalog_slug, name, logo_url, show_sale_price, show_cost_price')
+      .eq('user_id', userId)
+      .maybeSingle();
+
     let resolvedSlug = slug || catalog_slug || payload.catalogSlug || null;
     if (!resolvedSlug) {
-      const { data: existingSettings } = await supabase
-        .from('settings')
-        .select('catalog_slug')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (existingSettings?.catalog_slug) {
-        resolvedSlug = existingSettings.catalog_slug;
+      if (existingSettingsRow?.catalog_slug) {
+        resolvedSlug = existingSettingsRow.catalog_slug;
       } else {
         const { data: existingPub } = await supabase
           .from('public_catalogs')
@@ -260,14 +261,8 @@ export async function POST(req: Request) {
 
     let resolvedName = name !== undefined && name !== null && String(name).trim() !== '' ? String(name).trim() : null;
     if (!resolvedName) {
-      const { data: existingSettings } = await supabase
-        .from('settings')
-        .select('name')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (existingSettings?.name) {
-        resolvedName = existingSettings.name;
+      if (existingSettingsRow?.name) {
+        resolvedName = existingSettingsRow.name;
       } else {
         const { data: existingProfile } = await supabase
           .from('profiles')
@@ -281,14 +276,8 @@ export async function POST(req: Request) {
 
     let resolvedLogoUrl = logo_url || null;
     if (!resolvedLogoUrl) {
-      const { data: existingSettings } = await supabase
-        .from('settings')
-        .select('logo_url')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (existingSettings?.logo_url) {
-        resolvedLogoUrl = existingSettings.logo_url;
+      if (existingSettingsRow?.logo_url) {
+        resolvedLogoUrl = existingSettingsRow.logo_url;
       } else {
         resolvedLogoUrl = SYSTEM_LOGO_URL;
       }
@@ -381,18 +370,6 @@ export async function POST(req: Request) {
       top_benefit_text_align: top_benefit_text_align || null,
       show_installments: !!show_installments,
       max_installments: max_installments ? Number(max_installments) : null,
-      show_sale_price:
-        typeof show_sale_price === 'boolean'
-          ? show_sale_price
-          : typeof show_sale_price !== 'undefined' && show_sale_price !== null
-            ? Boolean(show_sale_price)
-            : undefined,
-      show_cost_price:
-        typeof show_cost_price === 'boolean'
-          ? show_cost_price
-          : typeof show_cost_price !== 'undefined' && show_cost_price !== null
-            ? Boolean(show_cost_price)
-            : undefined,
       price_unlock_mode:
         price_unlock_mode === 'modal' || price_unlock_mode === 'fab' || price_unlock_mode === 'none'
           ? price_unlock_mode
@@ -418,8 +395,36 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
+    const hasPricePayload = hasOwnPayloadKey('show_sale_price') || hasOwnPayloadKey('show_cost_price');
+    if (hasPricePayload || !existingSettingsRow) {
+      let targetSale: boolean;
+      let targetCost: boolean;
+
+      if (hasOwnPayloadKey('show_sale_price') && hasOwnPayloadKey('show_cost_price')) {
+        targetSale = Boolean(show_sale_price);
+        targetCost = Boolean(show_cost_price);
+      } else if (hasOwnPayloadKey('show_sale_price')) {
+        targetSale = Boolean(show_sale_price);
+        targetCost = !targetSale;
+      } else if (hasOwnPayloadKey('show_cost_price')) {
+        targetCost = Boolean(show_cost_price);
+        targetSale = !targetCost;
+      } else {
+        targetSale = existingSettingsRow?.show_sale_price ?? true;
+        targetCost = existingSettingsRow?.show_cost_price ?? false;
+      }
+
+      const safePrice = enforcePriceExclusive(targetSale, targetCost);
+      settingsPayload.show_sale_price = safePrice.show_sale_price;
+      settingsPayload.show_cost_price = safePrice.show_cost_price;
+    }
+
     if (isTabScopedSave) {
       const alwaysKeep = new Set(['user_id', 'updated_at']);
+      if (hasPricePayload || !existingSettingsRow) {
+        alwaysKeep.add('show_sale_price');
+        alwaysKeep.add('show_cost_price');
+      }
       const keepCatalogSlug =
         hasOwnPayloadKey('slug') ||
         hasOwnPayloadKey('catalog_slug') ||

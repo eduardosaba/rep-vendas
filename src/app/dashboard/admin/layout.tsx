@@ -23,10 +23,10 @@ export default async function AdminCompanyLayout({
     .maybeSingle();
 
   const role = String(profile?.role || '').toLowerCase();
-  const canAccess = role === 'admin_company' || role === 'master';
+  const isMaster = role === 'master';
 
-  if (!canAccess || !profile?.company_id) {
-    redirect('/admin/unauthorized');
+  if (!isMaster) {
+    redirect('/dashboard');
   }
 
   return (

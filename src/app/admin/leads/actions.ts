@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { normalizePhone } from '@/lib/phone';
+import { isMaster } from '@/lib/auth/roles';
 
 export type CommercialLeadStatus = 'in_contact' | 'converted' | 'discarded';
 export type SystemLeadStatus = 'lead_captured' | 'account_created' | 'onboarding_started' | 'activated';
@@ -82,8 +83,8 @@ async function requireAdminPermission() {
     .maybeSingle();
 
   const role = (profile?.role || '').toString();
-  // Restrição estrita: Apenas administradores globais da Torre de Controle (master / admin)
-  const isAuthorized = ['master', 'admin'].includes(role);
+  // Restrição estrita: Apenas administradores globais da Torre de Controle (master)
+  const isAuthorized = isMaster(role);
 
   if (!isAuthorized) {
     throw new Error('Acesso negado. Apenas administradores globais da Torre de Controle podem gerenciar leads.');

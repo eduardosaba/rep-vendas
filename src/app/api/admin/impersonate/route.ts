@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteSupabase } from '@/lib/supabase/server';
+import { isMaster } from '@/lib/auth/roles';
 
 export async function POST(req: Request) {
   try {
@@ -22,14 +23,7 @@ export async function POST(req: Request) {
       .eq('id', user.id)
       .maybeSingle();
     const role = profile?.role || null;
-    const allowedRoles = [
-      'master',
-      'admin',
-      'template',
-      'rep',
-      'representative',
-    ];
-    if (!role || !allowedRoles.includes(role)) {
+    if (!isMaster(role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
