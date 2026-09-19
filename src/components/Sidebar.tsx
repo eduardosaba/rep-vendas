@@ -150,6 +150,12 @@ const MENU_ITEMS = [
   { icon: Users, label: 'Clientes', href: '/dashboard/clients' },
   {
     icon: SettingsIcon,
+    label: 'Configurações',
+    href: '/dashboard/settings',
+    exact: true,
+  },
+  {
+    icon: SettingsIcon,
     label: 'Gestão da Distribuidora',
     href: '#empresa',
     children: [
@@ -385,7 +391,9 @@ export function Sidebar({
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-thin">
         {MENU_ITEMS.map((item) => {
           // If permissions loaded and this item is not allowed, hide it (allow master & admin roles to bypass)
-          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster && !isCompanyAdmin)
+          // Always allow "Configurações" and "Ajuda"
+          const alwaysAllowed = item.label === 'Configurações' || item.label === 'Ajuda';
+          if (!permsLoading && !hasSidebarItem(item.label) && !isMaster && !isCompanyAdmin && !alwaysAllowed)
             return null;
           // company users: catalog operations are restricted unless explicitly allowed
           const showCatalogOps =
@@ -399,7 +407,7 @@ export function Sidebar({
           if (item.href === '/dashboard/distribuidora' && !isCompanyMember)
             return null;
           // Gestão da distribuidora só para administradores da empresa
-          if (item.href === '/dashboard/empresa' && !isCompanyAdmin)
+          if (item.label === 'Gestão da Distribuidora' && !isCompanyAdmin)
             return null;
           // Equipe e Comunicados apenas para administradores da distribuidora ou master
           if ((item.href === '/dashboard/equipe' || item.href === '/dashboard/equipe/comunicados') && !isCompanyAdmin && !isMaster)

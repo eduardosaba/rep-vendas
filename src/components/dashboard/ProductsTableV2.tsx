@@ -403,7 +403,19 @@ export function ProductsTable() {
         body: JSON.stringify({ ids: targetIds, updates: fields }),
       });
 
-      if (!response.ok) {
+      let needFallback = !response.ok;
+      if (response.ok) {
+        try {
+          const result = await response.json();
+          if (result.updatedCount === 0 && targetIds.length > 0) {
+            needFallback = true;
+          }
+        } catch (e) {
+          needFallback = true; // Error parsing JSON
+        }
+      }
+
+      if (needFallback) {
         await Promise.all(
           targetIds.map(id =>
             fetch(`/api/products/${id}`, {
@@ -655,6 +667,16 @@ export function ProductsTable() {
             >
               <Star className="w-3.5 h-3.5 mr-1 fill-current" />
               Destaque
+            </Button>
+
+            <Button
+              size="sm"
+              className="bg-slate-600 hover:bg-slate-700 text-white text-xs py-1.5 px-3 h-8 font-semibold rounded-lg shadow-sm border-0 flex items-center"
+              disabled={isBulkUpdating}
+              onClick={() => handleBulkUpdate({ is_destaque: false })}
+            >
+              <Star className="w-3.5 h-3.5 mr-1" />
+              Tirar Destaque
             </Button>
 
             <Button

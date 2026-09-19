@@ -129,6 +129,13 @@ export function SmartImage({
     setStatus('error');
   };
 
+  const imgRef = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current?.naturalWidth > 0) {
+      setStatus('loaded');
+    }
+  }, [activeSrc]);
+
   return (
     <div
       className={`relative overflow-hidden flex items-center justify-center ${className}`}
@@ -136,6 +143,7 @@ export function SmartImage({
       {activeSrc && status !== 'error' ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src={activeSrc}
           alt={product?.name || 'Produto'}
           onLoad={() => setStatus('loaded')}

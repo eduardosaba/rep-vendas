@@ -328,10 +328,10 @@ export async function GET(req: Request) {
     filtered.sort((a, b) => {
       if (sortBy === 'size_desc') return b.size_bytes - a.size_bytes;
       if (sortBy === 'size_asc') return a.size_bytes - b.size_bytes;
-      if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
-      if (sortBy === 'name_desc') return b.name.localeCompare(a.name);
-      if (sortBy === 'date_desc') return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-      if (sortBy === 'date_asc') return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      if (sortBy === 'name_asc') return a.name.localeCompare(b.name, 'pt-BR');
+      if (sortBy === 'name_desc') return b.name.localeCompare(a.name, 'pt-BR');
+      if (sortBy === 'date_desc' || sortBy === 'updated_desc') return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      if (sortBy === 'date_asc' || sortBy === 'updated_asc') return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
       return 0;
     });
 

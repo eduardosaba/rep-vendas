@@ -716,7 +716,7 @@ export function EditProductForm({ product }: { product: Product }) {
         body: JSON.stringify(updateData),
       });
       const resJson = await res.json();
-      if (!res.ok || !resJson.success) {
+      if (!res.ok || resJson.error) {
         console.warn('removeImage: API failed', resJson);
         toast.error('Falha ao persistir remoção da imagem');
         return;
@@ -762,7 +762,7 @@ export function EditProductForm({ product }: { product: Product }) {
       });
       const resJson = await res.json();
 
-      if (!res.ok || !resJson.success) {
+      if (!res.ok || resJson.error) {
         console.warn('setAsCover: API failed', resJson);
         toast.error('Falha ao definir capa');
         return;
@@ -1089,7 +1089,7 @@ export function EditProductForm({ product }: { product: Product }) {
         body: JSON.stringify(payload),
       });
       const resultJson = await result.json();
-      if (!result.ok || !resultJson.success) throw new Error(resultJson?.error || 'Erro no update');
+      if (!result.ok || resultJson.error) throw new Error(resultJson?.error || 'Erro no update');
 
       // 8. SINCRONIZAÇÃO AUXILIAR (Protegida)
       if (syncUrls && syncUrls.length > 0) {

@@ -294,37 +294,55 @@ export default function MatcherPage() {
   // --- LÓGICA DE VÍNCULO INTELIGENTE (REVISADA) ---
   const normalizeRef = (ref?: string) =>
     ref?.toString().toLowerCase().replace(/[^a-z0-9]/g, '') || '';
-  const analyzeSmartMatch = () => {
-    const matches: any[] = [];
-    images.forEach((img) => {
-      const fileName = (img.original_name || '')
-        .split('.')[0]
-        .trim()
-        .toUpperCase();
-      const matchedProd = products.find(
-        (p) =>
-          p.reference_code?.trim().toUpperCase() === fileName ||
-          p.reference_code?.trim().toUpperCase().replace(/\s/g, '') ===
-            fileName.replace(/\s/g, '')
-      );
+    
+  const findMatchForImage = (img: any, allProducts: any[]) => {
+    const metaRef = normalizeRef((img.metadata as any)?.reference);
+    if (metaRef) {
+      const match = allProducts.find((p: any) => normalizeRef(p.reference_code) === metaRef);
+      if (match) return match;
+    }
+    const fileName = (img.original_name || '').split('.')[0].trim();
+    const fileRef = normalizeRef(fileName);
+    if (fileRef) {
+      const match = allProducts.find((p: any) => normalizeRef(p.reference_code) === fileRef);
+      if (match) return match;
+    }
+    return null;
+  };
 
-      if (matchedProd) {
-        matches.push({
-          productId: matchedProd.id,
-          imageId: img.id,
-          ref: matchedProd.reference_code,
-          fileName: img.original_name,
-        });
+  const analyzeSmartMatch = async () => {
+    setLoading(true);
+    try {
+      const { data: allProducts, error } = await supabase
+        .from('products')
+        .select('id, reference_code');
+
+      if (error || !allProducts) throw error;
+
+      const matches: any[] = [];
+      images.forEach((img) => {
+        const matchedProd = findMatchForImage(img, allProducts);
+        if (matchedProd) {
+          matches.push({
+            productId: matchedProd.id,
+            imageId: img.id,
+            ref: matchedProd.reference_code,
+            fileName: img.original_name,
+          });
+        }
+      });
+
+      if (matches.length === 0) {
+        toast.info('Nenhum código de arquivo coincide com as referências dos produtos.');
+      } else {
+        setSmartMatches(matches);
+        setShowSmartModal(true);
       }
-    });
-
-    if (matches.length === 0) {
-      toast.info(
-        'Nenhum código de arquivo coincide com as referências dos produtos.'
-      );
-    } else {
-      setSmartMatches(matches);
-      setShowSmartModal(true);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao analisar referências no banco de dados.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -338,17 +356,17 @@ export default function MatcherPage() {
 
     try {
       const stagingImages = [...images];
-      const availableProducts = [...products];
+      
+      const { data: allProducts, error } = await supabase
+        .from('products')
+        .select('id, reference_code');
+
+      if (error || !allProducts) throw error;
 
       for (let i = 0; i < stagingImages.length; i++) {
         const img = stagingImages[i];
-        const imgRef = normalizeRef((img.metadata as any)?.reference);
-        if (!imgRef) {
-          setProgress(Math.round(((i + 1) / stagingImages.length) * 100));
-          continue;
-        }
-
-        const target = availableProducts.find((p) => normalizeRef((p as any).reference_code) === imgRef);
+        
+        const target = findMatchForImage(img, allProducts);
         if (!target) {
           setProgress(Math.round(((i + 1) / stagingImages.length) * 100));
           continue;
@@ -406,6 +424,7 @@ export default function MatcherPage() {
         toast.info('Nenhum match automático encontrado via Referência.');
       }
     } catch (err) {
+      console.error(err);
       toast.error('Erro no processamento automático.');
     } finally {
       setIsMatching(false);
@@ -427,46 +446,46 @@ export default function MatcherPage() {
     try {
       setLoading(true);
 
-      // Usar o produto carregado localmente para preservar gallery_images sem sobrescrever
-      const product = products.find((p) => p.id === pid);
+      const { data: product } = await supabase
+        .from('products')
+        .select('id, gallery_images, image_url')
+        .eq('id', pid)
+        .maybeSingle();
+
       if (!product) return toast.error('Produto não encontrado');
 
-      // localizar a primeira imagem selecionada (suporta múltiplas ids)
-      const imgFromStaging = images.find((i) => iids.includes(i.id));
-      if (!imgFromStaging) return toast.error('Imagem de staging não encontrada');
-
-      // Preparar o item da galeria usando metadata se disponível
-      const newGalleryItem = {
-        url: imgFromStaging.url || imgFromStaging.publicUrl || imgFromStaging.publicUrl,
-        path: imgFromStaging.storage_path || null,
-        variants:
-          (imgFromStaging.metadata && Array.isArray(imgFromStaging.metadata.variants) && imgFromStaging.metadata.variants) || [
-            { size: 480, url: imgFromStaging.url || imgFromStaging.publicUrl, path: imgFromStaging.storage_path || null },
-            { size: 1200, url: imgFromStaging.url || imgFromStaging.publicUrl, path: imgFromStaging.storage_path || null },
-          ],
-      };
+      const selectedImages = images.filter((i) => iids.includes(i.id));
+      if (selectedImages.length === 0) return toast.error('Nenhuma imagem de staging selecionada encontrada');
 
       const currentGallery = Array.isArray((product as any).gallery_images) ? (product as any).gallery_images : [];
+      let updatedGallery = [...currentGallery];
 
-      // Evitar duplicados por path ou url
-      const isDuplicate = currentGallery.some((it: any) => (it.path && newGalleryItem.path && it.path === newGalleryItem.path) || it.url === newGalleryItem.url);
-      if (isDuplicate) {
-        toast.error('Esta imagem já está vinculada a este produto.');
-        return;
+      for (const imgFromStaging of selectedImages) {
+        const newGalleryItem = {
+          url: imgFromStaging.url || imgFromStaging.publicUrl || imgFromStaging.publicUrl,
+          path: imgFromStaging.storage_path || null,
+          variants:
+            (imgFromStaging.metadata && Array.isArray(imgFromStaging.metadata.variants) && imgFromStaging.metadata.variants) || [
+              { size: 480, url: imgFromStaging.url || imgFromStaging.publicUrl, path: imgFromStaging.storage_path || null },
+              { size: 1200, url: imgFromStaging.url || imgFromStaging.publicUrl, path: imgFromStaging.storage_path || null },
+            ],
+        };
+
+        const isDuplicate = updatedGallery.some((it: any) => (it.path && newGalleryItem.path && it.path === newGalleryItem.path) || it.url === newGalleryItem.url);
+        if (!isDuplicate) {
+          updatedGallery.push(newGalleryItem);
+        }
       }
-
-      const updatedGallery = [...currentGallery, newGalleryItem];
 
       const updates: any = {
         gallery_images: updatedGallery,
         updated_at: new Date().toISOString(),
       };
 
-      // Se o produto não tinha capa, definir essa como capa
-      if (!product.image_url) {
-        updates.image_url = newGalleryItem.url;
-        updates.image_variants = newGalleryItem.variants;
-        updates.image_path = newGalleryItem.path || null;
+      if (!product.image_url && updatedGallery.length > 0) {
+        updates.image_url = updatedGallery[0].url;
+        updates.image_variants = updatedGallery[0].variants;
+        updates.image_path = updatedGallery[0].path || null;
       }
 
       const { error } = await supabase.from('products').update(updates).eq('id', product.id);
@@ -476,12 +495,10 @@ export default function MatcherPage() {
         return;
       }
 
-      // Remover do staging após vincular com sucesso
-      await supabase.from('staging_images').delete().eq('id', imgFromStaging.id);
+      await supabase.from('staging_images').delete().in('id', selectedImages.map(i => i.id));
 
-      toast.success('Imagem vinculada com sucesso!');
+      toast.success('Imagem(ns) vinculada(s) com sucesso!');
 
-      // Atualiza estado local: refetch geral (mesma página)
       fetchData(page);
       setSelectedImageIds([]);
     } catch (err: any) {
@@ -886,11 +903,7 @@ export default function MatcherPage() {
               {images.map((img) => {
                 const rawThumb = img.metadata?.variants?.find((v: any) => v.size === 480)?.url || img.url || img.publicUrl || null;
                 let thumbUrl = rawThumb || '/placeholder.png';
-                // If thumbUrl is not an absolute http(s) url and not already an /api proxy, format it
                 if (thumbUrl && !thumbUrl.startsWith('http') && !thumbUrl.startsWith('/api/storage-image')) {
-                  thumbUrl = formatImageUrl(thumbUrl) as string;
-                } else if (thumbUrl && thumbUrl.includes('/storage/v1/object')) {
-                  // if it's a supabase full url, convert to proxy
                   thumbUrl = formatImageUrl(thumbUrl) as string;
                 }
                 const refBadge = (img.metadata as any)?.reference;

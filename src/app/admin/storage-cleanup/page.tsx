@@ -535,6 +535,24 @@ export default function StorageCleanupPage() {
                   <option value=".png">.PNG</option>
                 </select>
               </div>
+
+              <div className="md:col-span-3">
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none"
+                >
+                  <option value="size_desc">Maior tamanho primeiro</option>
+                  <option value="size_asc">Menor tamanho primeiro</option>
+                  <option value="name_asc">Nome A → Z</option>
+                  <option value="name_desc">Nome Z → A</option>
+                  <option value="updated_asc">Mais antigos primeiro</option>
+                  <option value="updated_desc">Mais recentes primeiro</option>
+                </select>
+              </div>
             </>
           ) : (
             <div className="md:col-span-6">
@@ -559,11 +577,22 @@ export default function StorageCleanupPage() {
       {/* CONTENT LIST */}
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
         <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-            {activeModule === 'products'
-              ? `Arquivos de Imagens de Produtos (${items.length} exibidos)`
-              : `PDFs de Pedidos no Bucket 'orders' (Modo Auditoria Dry-Run)`}
-          </span>
+          <div className="flex items-center gap-4">
+            {activeModule === 'products' && (
+              <input
+                type="checkbox"
+                checked={selectAll}
+                onChange={handleSelectAll}
+                className="w-5 h-5 rounded border-slate-300 text-indigo-600 cursor-pointer"
+                title="Selecionar todos os arquivos da página"
+              />
+            )}
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              {activeModule === 'products'
+                ? `Arquivos de Imagens de Produtos (${items.length} exibidos)`
+                : `PDFs de Pedidos no Bucket 'orders' (Modo Auditoria Dry-Run)`}
+            </span>
+          </div>
 
           <button
             onClick={handleOpenSummaryModal}
@@ -594,6 +623,39 @@ export default function StorageCleanupPage() {
                     onChange={() => toggleSelect(o.path)}
                     className="w-5 h-5 rounded border-slate-300 text-indigo-600"
                   />
+
+                  <div className="relative group">
+                    <img
+                      src={o.public_url}
+                      alt={o.name}
+                      className="w-14 h-14 object-cover rounded-xl border border-slate-200 bg-slate-50"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/placeholder.png';
+                      }}
+                    />
+
+                    <div
+                      className="
+                        absolute left-16 top-1/2 -translate-y-1/2
+                        hidden group-hover:block
+                        z-50
+                        bg-white dark:bg-slate-900
+                        border border-slate-200 dark:border-slate-700
+                        rounded-2xl
+                        shadow-2xl
+                        p-2
+                      "
+                    >
+                      <img
+                        src={o.public_url}
+                        alt={o.name}
+                        className="w-56 h-56 object-contain rounded-xl"
+                        loading="lazy"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white">{o.name}</div>
                     <div className="text-xs text-slate-500 font-mono">{o.path}</div>
@@ -652,6 +714,51 @@ export default function StorageCleanupPage() {
               </div>
             ))}
         </div>
+
+        {/* PAGINATION */}
+        {!loading && activeModule === 'products' && totalPages > 1 && (
+          <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm text-slate-700 dark:text-slate-300 shadow-sm disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+            >
+              <ChevronLeft size={16} /> Anterior
+            </button>
+            <span className="text-sm font-bold text-slate-500">
+              Página {page} de {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm text-slate-700 dark:text-slate-300 shadow-sm disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+            >
+              Próxima <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        {!loading && activeModule === 'order_pdfs' && orderPdfTotalPages > 1 && (
+          <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <button
+              onClick={() => setOrderPdfPage((p) => Math.max(1, p - 1))}
+              disabled={orderPdfPage === 1}
+              className="px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm text-slate-700 dark:text-slate-300 shadow-sm disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+            >
+              <ChevronLeft size={16} /> Anterior
+            </button>
+            <span className="text-sm font-bold text-slate-500">
+              Página {orderPdfPage} de {orderPdfTotalPages}
+            </span>
+            <button
+              onClick={() => setOrderPdfPage((p) => Math.min(orderPdfTotalPages, p + 1))}
+              disabled={orderPdfPage === orderPdfTotalPages}
+              className="px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm text-slate-700 dark:text-slate-300 shadow-sm disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+            >
+              Próxima <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* SUMMARY MODAL */}
