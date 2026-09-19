@@ -32,6 +32,7 @@ import {
   UploadCloud,
   Users,
   Zap,
+  Activity,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -138,6 +139,11 @@ const MENU_ITEMS = [
         title: 'Imagens Externas',
         href: '/dashboard/manage-external-images',
         icon: Download,
+      },
+      {
+        title: 'Diagnóstico de Imagens',
+        href: '/dashboard/test-images',
+        icon: Activity,
       },
     ],
   },
@@ -578,6 +584,12 @@ export function Sidebar({
                       child.href === '/dashboard/manage-external-images' &&
                       !isMaster &&
                       !isTemplateAccount
+                    ) {
+                      return null;
+                    }
+                    if (
+                      child.href === '/dashboard/test-images' &&
+                      !isMaster
                     ) {
                       return null;
                     }
