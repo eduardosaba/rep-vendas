@@ -67,40 +67,7 @@ export default function ManageExternalImagesClient({
   );
 
   // Polling conservador: atualiza os dados do servidor periodicamente.
-  // Evita refreshs ATIVOS durante processamento e quando a aba está oculta.
-  useEffect(() => {
-    const POLL_INTERVAL = 30000; // 30s
-    let iv: any = null;
-
-    const shouldRefresh = () => {
-      if (document.visibilityState !== 'visible') return false;
-      if (isProcessing) return false;
-      return true;
-    };
-
-    const start = () => {
-      if (iv) return;
-      iv = setInterval(() => {
-        try {
-          if (!shouldRefresh()) return;
-          router.refresh();
-        } catch (_) {}
-      }, POLL_INTERVAL);
-    };
-
-    start();
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') start();
-      else if (iv) clearInterval(iv);
-    };
-
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      if (iv) clearInterval(iv);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [isProcessing, router]);
+  // router.refresh() periódico removido para prevenir re-execuções de Server Components na Vercel
 
   // --- MOTOR DE REPARO EM LOTE (A SOLUÇÃO DEFINITIVA) ---
   // helper: fetch with timeout and optional retries

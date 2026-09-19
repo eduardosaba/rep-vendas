@@ -75,11 +75,9 @@ export default function SyncStatusCard({
       }
     }
 
-    // If no job provided, try to load the latest one for this user and
-    // poll periodically until a job appears (so UI sees newly created jobs).
+    // If no job provided, load the latest once for this user.
     if (!job?.id) {
       fetchLatestJobForUser();
-      // também calcula quantos produtos parecem não estar internalizados
       (async () => {
         try {
           const {
@@ -127,21 +125,17 @@ export default function SyncStatusCard({
           // ignore
         }
       })();
-      const pollInterval = setInterval(() => {
-        fetchLatestJobForUser();
-      }, 3000);
 
       return () => {
         mounted = false;
-        clearInterval(pollInterval);
       };
     }
 
     let interval: ReturnType<typeof setInterval> | null = null;
-    // start polling while processing
+    // start polling a cada 12s apenas enquanto estiver em processamento
     if (job?.status === 'processing') {
       fetchStatus();
-      interval = setInterval(fetchStatus, 3000);
+      interval = setInterval(fetchStatus, 12000);
     } else if (job?.id) {
       // fetch once to ensure we have latest
       fetchStatus();

@@ -58,31 +58,12 @@ function normalizeImageSrc(raw?: string | null) {
   // Já é URL absoluta
   if (typeof s === 'string' && (s.startsWith('http://') || s.startsWith('https://'))) return s;
 
-  // Não é uma URL absoluta — preferimos servir via proxy para evitar 403
-  // Tratamos cenários common: caminhos que já incluem '/storage/v1/object/public/...'
-  // ou que contenham 'product-images' em algum lugar.
   try {
-    // Caso o valor inclua o segmento público do Supabase, extraímos apenas o objeto
-    // Ex: '/storage/v1/object/public/product-images/foo.webp' ou full path with prefix
-    const marker = '/storage/v1/object/public/';
-    if (s.includes(marker)) {
-      const after = s.split(marker).pop() || '';
-      const parts = after.split('/');
-      // if bucket present like 'product-images/...', remove bucket prefix
-      if (parts[0] === 'product-images') parts.shift();
-      const objectPath = parts.join('/');
-      if (objectPath)
-        return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
-    }
+    // 1. Tenta primeiramente a URL pública direta da CDN do Supabase
+    const directUrl = buildSupabaseImageUrl(s);
+    if (directUrl) return directUrl;
 
-    // If includes 'product-images/' segment or looks like a relative path, use proxy
-    if (s.includes('/product-images/')) {
-      const parts = s.split('/product-images/');
-      const objectPath = parts[parts.length - 1].replace(/^\/+/, '');
-      return `/api/storage-image?path=${encodeURIComponent(objectPath)}`;
-    }
-
-    // Otherwise assume it's a simple storage path or filename and proxy it
+    // 2. Fallback caso não seja possível parsear o bucket/objeto diretamente
     const path = s.replace(/^\/+/, '');
     return `/api/storage-image?path=${encodeURIComponent(path)}`;
   } catch (e) {

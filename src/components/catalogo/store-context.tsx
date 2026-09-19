@@ -11,6 +11,7 @@ import type {
   PublicCatalog,
   Settings as StoreSettings,
 } from '@/lib/types';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 import { useRouter } from 'next/navigation';
 import React, {
   createContext,
@@ -769,7 +770,7 @@ export function StoreProvider({
             cleanPath = cleanPath
               .replace(/^(public\/)+/, '')
               .replace('product-images/public/', 'product-images/');
-            return `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
+            return buildSupabaseImageUrl(cleanPath) || `/api/storage-image?path=${encodeURIComponent(cleanPath)}`;
           } catch (e) {
             return null;
           }
@@ -786,9 +787,9 @@ export function StoreProvider({
             ) {
               const match = u.match(/\/storage\/v1\/object\/public\/(.+)$/);
               if (match && match[1]) {
-                return `/api/storage-image?path=${encodeURIComponent(match[1])}`;
+                return buildSupabaseImageUrl(match[1]) || `/api/storage-image?path=${encodeURIComponent(match[1])}`;
               }
-              return `/api/storage-image?path=${encodeURIComponent(u)}`;
+              return buildSupabaseImageUrl(u) || `/api/storage-image?path=${encodeURIComponent(u)}`;
             }
             if (
               typeof u === 'string' &&
@@ -1681,7 +1682,7 @@ export function StoreProvider({
         'product-images/'
       );
       const resizeParam = isThumbnail ? '&width=400&quality=75' : '';
-      return `/api/storage-image?path=${encodeURIComponent(cleanPath)}${resizeParam}`;
+      return buildSupabaseImageUrl(cleanPath) || `/api/storage-image?path=${encodeURIComponent(cleanPath)}${resizeParam}`;
     };
 
     if (Array.isArray(s.banners)) {

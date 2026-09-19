@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { Loader2, ImageOff } from 'lucide-react';
 import { ensure480w } from '@/lib/imageUtils';
 
@@ -17,23 +17,21 @@ export function SmartImage({
   initialSrc = null,
   priority = false,
 }: any) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
-
-  const retryCount = useRef(0);
-  const lastAttemptedSrc = useRef<string | null>(null);
-
-  const resolveInitialSrc = () => {
+  // 1. Derivar a URL primária puramente das props usando useMemo (zero estado durante render)
+  const primarySrc = useMemo(() => {
     if (initialSrc) return initialSrc;
 
-    // If thumbnail is requested, prefer 480w
     if (variant === 'thumbnail' || preferredSize === 480) {
       const base = product?.image_url || product?.image_path;
       if (base) {
-      const s = typeof base === 'string' ? base : base.url;
-      if (!s) return DEFAULT_PLACEHOLDER;
-        // If the value is already a proxy URL or an absolute external URL, do not rewrite it
-        if (s.startsWith('/api/storage-image') || s.includes('?path=') || s.startsWith('http://') || s.startsWith('https://')) {
+        const s = typeof base === 'string' ? base : base.url;
+        if (!s) return DEFAULT_PLACEHOLDER;
+        if (
+          s.startsWith('/api/storage-image') ||
+          s.includes('?path=') ||
+          s.startsWith('http://') ||
+          s.startsWith('https://')
+        ) {
           return s;
         }
         return ensure480w(s);
@@ -41,61 +39,89 @@ export function SmartImage({
     }
 
     return product?.image_url || product?.image_path || DEFAULT_PLACEHOLDER;
-  };
+  }, [
+    initialSrc,
+    product?.id,
+    product?.image_url,
+    product?.image_path,
+    variant,
+    preferredSize,
+  ]);
 
+  // 2. Estado mantido EXCLUSIVAMENTE para gerenciar fallbacks em caso de erro
+  const [fallbackSrc, setFallbackSrc] = useState<string | null>(null);
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const retryCount = useRef(0);
+
+  // 3. Quando a prop de imagem principal muda (ex: troca de variante), reseta o fallback de erro
   useEffect(() => {
-    const newSrc = resolveInitialSrc();
-    if (newSrc !== src) {
-      setSrc(newSrc);
-      setStatus('loading');
-      retryCount.current = 0;
-      lastAttemptedSrc.current = null;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product?.id, product?.image_url, variant]);
+    setFallbackSrc(null);
+    setStatus('loading');
+    retryCount.current = 0;
+  }, [primarySrc]);
+
+  // URL ativa para exibição
+  const activeSrc = fallbackSrc ?? primarySrc;
 
   const handleError = () => {
     const placeholder = DEFAULT_PLACEHOLDER;
 
-    // Prevent infinite loops
-    if (retryCount.current >= 4) {
+    // Trava de segurança: interrompe após 3 tentativas ou se já estiver no placeholder
+    if (retryCount.current >= 3 || activeSrc === placeholder) {
       setStatus('error');
       return;
     }
 
     retryCount.current++;
 
-    const external = (product && (product.external_image_url || (product as any).external)) || null;
+    const external =
+      (product && (product.external_image_url || (product as any).external)) ||
+      null;
 
-    // 1) If we tried 480w, next try 1200w
-    if (src && src.includes('-480w.webp')) {
-      const nextTry = src.replace('-480w.webp', '-1200w.webp');
-      setSrc(nextTry);
+    // 1) Se a URL atual for da CDN do Supabase Storage e falhar (404), migra para o proxy /api/storage-image
+    if (
+      activeSrc &&
+      (activeSrc.includes('supabase.co/storage') ||
+        activeSrc.includes('/storage/v1/object/public/'))
+    ) {
+      const marker = '/storage/v1/object/public/';
+      let rawPath = activeSrc;
+      if (activeSrc.includes(marker)) {
+        rawPath = activeSrc.split(marker).pop() || activeSrc;
+      }
+      rawPath = rawPath.split('?')[0];
+      const proxyUrl = `/api/storage-image?path=${encodeURIComponent(rawPath)}`;
+      setFallbackSrc(proxyUrl);
       setStatus('loading');
       return;
     }
 
-    // 2) If we tried 1200w, try original (strip suffix)
-    if (src && src.includes('-1200w.webp')) {
-      const original = src.replace('-1200w.webp', '');
-      setSrc(original);
+    // 2) Se tentou 480w, tenta 1200w
+    if (activeSrc && activeSrc.includes('-480w.webp')) {
+      const nextTry = activeSrc.replace('-480w.webp', '-1200w.webp');
+      setFallbackSrc(nextTry);
       setStatus('loading');
       return;
     }
 
-    // 3) If the current src looks like an encoded proxy path (with ?path=...),
-    // try to decode to original path without suffixes (already covered above) — skip
-
-    // 4) If we have an external_image_url, try it
-    if (src && external && src !== external) {
-      setSrc(external);
+    // 3) Se tentou 1200w, tenta sem sufixo
+    if (activeSrc && activeSrc.includes('-1200w.webp')) {
+      const original = activeSrc.replace('-1200w.webp', '');
+      setFallbackSrc(original);
       setStatus('loading');
       return;
     }
 
-    // 5) Last resort: placeholder
-    if (src !== placeholder) {
-      setSrc(placeholder);
+    // 4) Se possui imagem externa e ainda não tentou, tenta
+    if (activeSrc && external && activeSrc !== external) {
+      setFallbackSrc(external);
+      setStatus('loading');
+      return;
+    }
+
+    // 5) Último recurso: exibe placeholder e encerra
+    if (activeSrc !== placeholder) {
+      setFallbackSrc(placeholder);
       setStatus('loading');
       return;
     }
@@ -104,15 +130,19 @@ export function SmartImage({
   };
 
   return (
-    <div className={`relative overflow-hidden flex items-center justify-center ${className}`}>
-      {src && status !== 'error' ? (
+    <div
+      className={`relative overflow-hidden flex items-center justify-center ${className}`}
+    >
+      {activeSrc && status !== 'error' ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={src}
+          src={activeSrc}
           alt={product?.name || 'Produto'}
           onLoad={() => setStatus('loaded')}
           onError={handleError}
-          className={`transition-all duration-500 ${imgClassName} max-w-full max-h-full ${status === 'loaded' ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+          className={`transition-all duration-500 ${imgClassName} max-w-full max-h-full ${
+            status === 'loaded' ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          }`}
           style={imgStyle}
           loading={priority ? 'eager' : 'lazy'}
         />

@@ -12,6 +12,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { SmartImage } from './SmartImage';
+import { buildSupabaseImageUrl } from '@/lib/imageUtils';
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/components/catalogo/store-context';
 import {
@@ -74,12 +75,12 @@ export function ProductCard({
     : null;
 
   if (smallVariant?.path) {
-    // Se temos o path da variante 480w, usamos ela via proxy
-    displayImage = `/api/storage-image?path=${encodeURIComponent(smallVariant.path)}&format=webp&q=80`;
+    // Se temos o path da variante 480w, usamos ela via CDN direto do Supabase com fallback para o proxy
+    displayImage = buildSupabaseImageUrl(smallVariant.path) || `/api/storage-image?path=${encodeURIComponent(smallVariant.path)}&format=webp&q=80`;
   } else if (product.image_path) {
     // 2. BACKUP: Se não houver array de variantes mas houver path principal
     const path = String(product.image_path).replace(/^\/+/, '');
-    displayImage = `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=80`;
+    displayImage = buildSupabaseImageUrl(path) || `/api/storage-image?path=${encodeURIComponent(path)}&format=webp&q=80`;
   } else if (isPending && product.external_image_url) {
     // 3. PENDENTE: Mostra URL externa enquanto o script não processa
     displayImage = product.external_image_url;
