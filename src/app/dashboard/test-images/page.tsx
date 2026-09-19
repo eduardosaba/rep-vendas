@@ -8,7 +8,7 @@ export default function TestImagesPage() {
 
   // Caso 1: Troca Rápida de Variantes
   const handleSwapVariant = () => {
-    setVariantTestUrl(\`https://picsum.photos/400/400?\${Math.random()}\`);
+    setVariantTestUrl(`https://picsum.photos/400/400?${Math.random()}`);
   };
 
   // Mock Products
