@@ -11,6 +11,8 @@ import { useOrganization } from '@/modules/organization-context/OrganizationProv
 import { formatImageUrl, getProductImageUrl } from '@/lib/imageUtils';
 import { bulkUpdatePrice } from '@/app/dashboard/products/actions';
 import { parsePriceToNumber } from '@/lib/utils/price-utils';
+import { ExportModal } from '@/components/dashboard/ExportModal';
+import { createClient } from '@/lib/supabase/client';
 
 const ALL_COLUMNS = [
   { key: 'image_url', label: 'Imagem' },
@@ -195,6 +197,100 @@ export function ProductsTable() {
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [priceMode, setPriceMode] = useState<'fixed' | 'percentage'>('fixed');
   const [priceValue, setPriceValue] = useState<string>('');
+
+  // Modal de Catálogo em PDF
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [storeSettings, setStoreSettings] = useState<any>(null);
+  const [pdfProducts, setPdfProducts] = useState<Product[]>([]);
+  const [isLoadingPdfProducts, setIsLoadingPdfProducts] = useState(false);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setStoreSettings(data || null);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const brandMapping = useMemo(() => {
+    return brands.reduce((acc, b) => {
+      acc[b.name] = b.logo_url;
+      return acc;
+    }, {} as Record<string, string | null>);
+  }, [brands]);
+
+  const handleOpenPdfModal = async () => {
+    if (selectedIds.length === 0) return;
+
+    if (selectAllPages) {
+      setIsLoadingPdfProducts(true);
+      try {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== '' && value !== null && key !== 'page' && key !== 'page_size') {
+            params.append(key, String(value));
+          }
+        });
+        params.append('page', '1');
+        params.append('limit', '10000');
+        const response = await fetch(`/api/products?${params.toString()}`);
+        if (response.ok) {
+          const result = await response.json();
+          setPdfProducts(result.data || []);
+          setShowPdfModal(true);
+        } else {
+          toast.error('Erro ao buscar produtos para o PDF');
+        }
+      } catch (e) {
+        console.error('Erro ao buscar produtos para PDF:', e);
+        toast.error('Erro ao buscar produtos para o PDF');
+      } finally {
+        setIsLoadingPdfProducts(false);
+      }
+      return;
+    }
+
+    const localSelected = products.filter((p) => selectedIds.includes(p.id));
+    if (localSelected.length === selectedIds.length) {
+      setPdfProducts(localSelected);
+      setShowPdfModal(true);
+    } else {
+      setIsLoadingPdfProducts(true);
+      try {
+        const supabase = createClient();
+        const { data: fetchedProducts } = await supabase
+          .from('products')
+          .select('*')
+          .in('id', selectedIds);
+
+        if (fetchedProducts && fetchedProducts.length > 0) {
+          setPdfProducts(fetchedProducts as Product[]);
+        } else {
+          setPdfProducts(localSelected);
+        }
+        setShowPdfModal(true);
+      } catch (e) {
+        console.error('Erro ao buscar produtos selecionados para PDF:', e);
+        setPdfProducts(localSelected);
+        setShowPdfModal(true);
+      } finally {
+        setIsLoadingPdfProducts(false);
+      }
+    }
+  };
 
   const getTargetIdsForBulk = async (): Promise<string[]> => {
     if (!selectAllPages) return selectedIds;
@@ -619,6 +715,21 @@ export function ProductsTable() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Botão Gerar Catálogo PDF dos Selecionados */}
+            <Button
+              size="sm"
+              className="bg-orange-600 hover:bg-orange-700 text-white text-xs py-1.5 px-3 h-8 font-semibold rounded-lg shadow-sm border-0 flex items-center"
+              disabled={isBulkUpdating || isLoadingPdfProducts}
+              onClick={handleOpenPdfModal}
+            >
+              {isLoadingPdfProducts ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+              ) : (
+                <FileText className="w-3.5 h-3.5 mr-1" />
+              )}
+              PDF
+            </Button>
+
             {/* Botão Atualizar Preços em Massa */}
             <Button
               size="sm"
@@ -1232,6 +1343,15 @@ export function ProductsTable() {
           </div>
         </div>
       )}
+
+      {/* Modal de Exportação do Catálogo em PDF com os Produtos Selecionados */}
+      <ExportModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        products={pdfProducts}
+        storeSettings={storeSettings}
+        brandMapping={brandMapping}
+      />
     </div>
   );
 }

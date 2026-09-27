@@ -60,94 +60,118 @@ const resolveOrderDateLabel = (orderData: OrderData) => {
   return new Date().toLocaleDateString('pt-BR');
 };
 
+const rasterizeBlob = async (
+  blob: Blob
+): Promise<{ base64: string | null; width: number; height: number } | null> => {
+  try {
+    let width = 0;
+    let height = 0;
+    let source: CanvasImageSource | null = null;
+
+    const isSvg = (blob.type || '').includes('svg');
+    if (!isSvg && typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(blob);
+        width = bitmap.width;
+        height = bitmap.height;
+        source = bitmap;
+      } catch {
+        source = null;
+      }
+    }
+
+    if (!source) {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = dataUrl;
+      const loaded = await new Promise<boolean>((resolve) => {
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+      });
+
+      if (!loaded || !img.naturalWidth || !img.naturalHeight) return null;
+      width = img.naturalWidth;
+      height = img.naturalHeight;
+      source = img;
+    }
+
+    if (!source || !width || !height) return null;
+
+    const maxDim = 1200;
+    const ratio = Math.max(width / maxDim, height / maxDim, 1);
+    const targetW = Math.round(width / ratio);
+    const targetH = Math.round(height / ratio);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Fundo branco sólido para compatibilidade de visualização e evitar artefatos em JPEGs
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, targetW, targetH);
+    ctx.drawImage(source, 0, 0, targetW, targetH);
+
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    return {
+      base64: jpegDataUrl,
+      width: targetW,
+      height: targetH,
+    };
+  } catch (err) {
+    console.warn('rasterizeBlob failed:', err);
+    return null;
+  }
+};
+
 const getBase64ImageFromURL = async (
   url: string
 ): Promise<{ base64: string | null; width: number; height: number } | null> => {
   try {
-    if (!url) return null;
-
-    // If already a data URL, try to create image to get dimensions
-    if (typeof url === 'string' && url.startsWith('data:')) {
-      return await new Promise((resolve) => {
-        const img = new Image();
-        img.src = url;
-        img.onload = () =>
-          resolve({
-            base64: url,
-            width: img.naturalWidth,
-            height: img.naturalHeight,
-          });
-        img.onerror = () => resolve(null);
-      });
-    }
-
     if (!url || typeof url !== 'string') return null;
-    let targetUrl = url;
+
+    let targetUrl = url.trim();
+    if (!targetUrl) return null;
+
     if (targetUrl.startsWith('/')) {
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-      targetUrl = `${baseUrl.replace(/\/$/, '')}${targetUrl}`;
+      const origin =
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+      targetUrl = `${origin.replace(/\/$/, '')}${targetUrl}`;
     }
 
-    // Fetch the resource and convert to a blob, then to a dataURL via canvas or FileReader
-    const res = await fetch(targetUrl, { mode: 'cors' });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-
-    // Try createImageBitmap for fast size extraction and drawing
-    let bitmap: ImageBitmap | null = null;
-    try {
-      // NOTE: createImageBitmap may be available only in certain runtimes
-      bitmap = await createImageBitmap(blob);
-    } catch (e) {
-      bitmap = null;
+    let blob: Blob | null = null;
+    if (targetUrl.startsWith('data:')) {
+      const res = await fetch(targetUrl);
+      blob = await res.blob();
+    } else {
+      const res = await fetch(targetUrl, { mode: 'cors' });
+      if (!res.ok) return null;
+      blob = await res.blob();
     }
 
-    // Convert blob to dataURL
-    const dataURL: string = await new Promise((resolve, reject) => {
-      try {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('FileReader failed'));
-        reader.readAsDataURL(blob);
-      } catch (e) {
-        reject(e);
-      }
-    });
+    if (!blob) return null;
 
-    if (bitmap) {
-      return { base64: dataURL, width: bitmap.width, height: bitmap.height };
-    }
-
-    // Fallback: create an Image to read dimensions
-    return await new Promise((resolve) => {
-      const img = new Image();
-      img.src = dataURL;
-      img.onload = () =>
-        resolve({
-          base64: dataURL,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-        });
-      img.onerror = () => resolve(null);
-    });
+    return await rasterizeBlob(blob);
   } catch (e) {
-    // Any error in fetch/convert should not break PDF generation
     console.warn('getBase64ImageFromURL failed for', url, e);
     return null;
   }
 };
 
 const detectImageFormat = (dataUrlOrBase64: string | null) => {
-  if (!dataUrlOrBase64 || typeof dataUrlOrBase64 !== 'string') return 'PNG';
-  const m = dataUrlOrBase64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
-  if (m && m[1]) {
-    const mime = m[1].toLowerCase();
-    if (mime.includes('jpeg') || mime.includes('jpg')) return 'JPEG';
-    if (mime.includes('png')) return 'PNG';
-    if (mime.includes('webp')) return 'WEBP';
-    if (mime.includes('gif')) return 'GIF';
-  }
-  return 'PNG';
+  if (!dataUrlOrBase64 || typeof dataUrlOrBase64 !== 'string') return 'JPEG';
+  if (dataUrlOrBase64.startsWith('data:image/png')) return 'PNG';
+  return 'JPEG';
 };
 
 const normalizeImageUrlForFetch = (raw: string | null | undefined) => {

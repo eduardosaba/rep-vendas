@@ -1273,44 +1273,14 @@ export function StoreProvider({
           );
         }
 
-        let publicUrl: string | null = null;
-        try {
-          const serverOrder = {
-            id: result.id || null,
-            display_id: result.display_id || result.orderId || null,
-          } as any;
-
-          const doc = await generateOrderPDF(
-            { ...serverOrder, customer },
-            store,
-            cart,
-            totalValue,
-            true,
-            showPrices
-          );
-          if (doc instanceof Blob) {
-            const fileName = `pedidos/${serverOrder.id || serverOrder.display_id || 'unknown'}_${Date.now()}.pdf`;
-            const { error: uploadError } = await supabase.storage
-              .from('order-receipts')
-              .upload(fileName, doc);
-            if (!uploadError) {
-              const { data: urlData } = supabase.storage
-                .from('order-receipts')
-                .getPublicUrl(fileName);
-              publicUrl = urlData.publicUrl;
-            }
-          }
-        } catch (pdfErr) {
-          console.error('Erro ao processar PDF para nuvem', pdfErr);
-        }
-
+        // Define os dados de sucesso do pedido sem salvar PDF no storage (gerado sob demanda na máquina do usuário)
         setOrderSuccessData({
           id: result.id || result.orderId || null,
           display_id: result.display_id || result.orderId || null,
           customer,
           items: cart,
           total: totalValue,
-          pdf_url: publicUrl,
+          pdf_url: null,
         });
         try {
           localStorage.setItem(
@@ -2073,10 +2043,6 @@ export function StoreProvider({
         handleDownloadPDF: async () => {
           if (!orderSuccessData) return;
           try {
-            if (orderSuccessData.pdf_url) {
-              window.open(orderSuccessData.pdf_url, '_blank');
-              return;
-            }
             const doc = await generateOrderPDF(
               { ...orderSuccessData, customer: orderSuccessData.customer },
               store,
@@ -2089,13 +2055,14 @@ export function StoreProvider({
               const url = URL.createObjectURL(doc);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `pedido_${orderSuccessData.id || 'receipt'}.pdf`;
+              a.download = `pedido_${orderSuccessData.display_id || orderSuccessData.id || 'receipt'}.pdf`;
               document.body.appendChild(a);
               a.click();
               a.remove();
               URL.revokeObjectURL(url);
             }
           } catch (err) {
+            console.error('Erro ao gerar/baixar PDF:', err);
             toast.error('Erro ao gerar/baixar PDF.');
           }
         },

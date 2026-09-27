@@ -118,6 +118,7 @@ function EAN13Barcode({
       xmlns="http://www.w3.org/2000/svg"
       role="img"
       aria-label={`Código de barras ${code}`}
+      className="max-w-full h-auto"
     >
       <rect width={svgWidth} height={height} fill="transparent" />
       <g>
@@ -467,12 +468,34 @@ export function OrderDetailsView({ order }: { order: any }) {
                       const initialSrc = getBestItemImage(item, 480);
                       const modalSrc = getBestItemImage(item, 1200);
 
+                      const rawCode = String(
+                        item.products?.barcode ||
+                          item.barcode ||
+                          item.products?.sku ||
+                          item.sku ||
+                          ''
+                      );
+                      const cleanDigits = rawCode.replace(/[^0-9]/g, '');
+                      const barcodeCode =
+                        cleanDigits.length === 13 || cleanDigits.length === 8
+                          ? cleanDigits
+                          : null;
+
+                      const itemCodeDisplay =
+                        item.products?.barcode ||
+                        item.barcode ||
+                        item.products?.sku ||
+                        item.sku ||
+                        item.products?.reference_code ||
+                        item.product_reference;
+
                       return (
                         <div
                           key={item.id}
-                          className="flex flex-col py-4 border-b last:border-0 border-slate-100 dark:border-slate-800 px-6"
+                          className="flex flex-col py-4 border-b last:border-0 border-slate-100 dark:border-slate-800 px-4 md:px-6"
                         >
-                          <div className="w-full flex items-start justify-between gap-4">
+                          {/* Desktop Layout (>= md) - Mantém apresentação tabular/atual */}
+                          <div className="hidden md:flex items-start justify-between gap-4">
                             <div
                               role="button"
                               tabIndex={0}
@@ -483,7 +506,7 @@ export function OrderDetailsView({ order }: { order: any }) {
                                 if (e.key === 'Enter' || e.key === ' ')
                                   openLightbox(modalSrc, item.products);
                               }}
-                              className="w-28 h-28 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 dark:border-slate-800 flex-shrink-0 cursor-pointer relative"
+                              className="w-24 h-24 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 dark:border-slate-800 flex-shrink-0 cursor-pointer relative"
                             >
                               <SmartImage
                                 product={{
@@ -523,20 +546,9 @@ export function OrderDetailsView({ order }: { order: any }) {
                               <h4 className="font-bold text-slate-800 dark:text-white truncate">
                                 {item.name || item.product_name}
                               </h4>
-                              {(item.products?.barcode ||
-                                item.barcode ||
-                                item.products?.sku ||
-                                item.sku ||
-                                item.products?.reference_code ||
-                                item.product_reference) && (
+                              {itemCodeDisplay && (
                                 <p className="text-xs text-slate-500 mt-1">
-                                  Código:{' '}
-                                  {item.products?.barcode ||
-                                    item.barcode ||
-                                    item.products?.sku ||
-                                    item.sku ||
-                                    item.products?.reference_code ||
-                                    item.product_reference}
+                                  Código: {itemCodeDisplay}
                                 </p>
                               )}
                               <p className="text-sm text-slate-500 mt-1">
@@ -549,30 +561,103 @@ export function OrderDetailsView({ order }: { order: any }) {
                                 {fmt.format(unit * (item.quantity || 0))}
                               </p>
 
-                              {(() => {
-                                const raw = String(
-                                  item.products?.barcode ||
-                                    item.barcode ||
-                                    item.products?.sku ||
-                                    item.sku ||
-                                    ''
-                                );
-                                const code = raw.replace(/[^0-9]/g, '');
-                                if (code.length !== 13 && code.length !== 8) return null;
-
-                                return (
-                                  <div className="bg-white dark:bg-white rounded border border-gray-200 px-2 py-1 shadow-sm flex items-center justify-center max-w-[150px]">
-                                    <div className="w-full flex items-center justify-center">
-                                      <EAN13Barcode
-                                        code={code}
-                                        width={120}
-                                        height={44}
-                                      />
-                                    </div>
+                              {barcodeCode && (
+                                <div className="bg-white dark:bg-white rounded border border-gray-200 px-2 py-1 shadow-sm flex items-center justify-center max-w-[150px]">
+                                  <div className="w-full flex items-center justify-center">
+                                    <EAN13Barcode
+                                      code={barcodeCode}
+                                      width={120}
+                                      height={44}
+                                    />
                                   </div>
-                                );
-                              })()}
+                                </div>
+                              )}
                             </div>
+                          </div>
+
+                          {/* Mobile Layout (< md) - Empilhado responsivo com barcode em linha própria */}
+                          <div className="flex md:hidden flex-col gap-3">
+                            {/* 1. Imagem + Identificação do produto */}
+                            <div className="flex items-start gap-3">
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() =>
+                                  openLightbox(modalSrc, item.products)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ')
+                                    openLightbox(modalSrc, item.products);
+                                }}
+                                className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 dark:border-slate-800 flex-shrink-0 cursor-pointer relative"
+                              >
+                                <SmartImage
+                                  product={{
+                                    ...(item.products || {}),
+                                    image_url:
+                                      item.products?.image_url ||
+                                      item.image_url ||
+                                      item.external_image_url ||
+                                      initialSrc,
+                                    external_image_url:
+                                      item.products?.external_image_url ||
+                                      item.external_image_url,
+                                    optimized_variants:
+                                      item.products?.optimized_variants ||
+                                      item.products?.image_variants ||
+                                      item.image_variants,
+                                    image_variants:
+                                      item.products?.image_variants ||
+                                      item.image_variants,
+                                  }}
+                                  initialSrc={initialSrc}
+                                  preferredSize={480}
+                                  variant="thumbnail"
+                                  priority={Boolean(
+                                    item.id && lcpItemId && item.id === lcpItemId
+                                  )}
+                                  className="w-full h-full"
+                                  imgClassName="object-cover"
+                                />
+                                <div className="absolute right-1 bottom-1 bg-white/80 dark:bg-black/60 rounded-full p-0.5">
+                                  <ZoomIn size={12} className="text-slate-700 dark:text-slate-200" />
+                                </div>
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-bold text-slate-800 dark:text-white text-sm line-clamp-2 leading-snug">
+                                  {item.name || item.product_name}
+                                </h4>
+                                {itemCodeDisplay && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Ref / Código: <span className="font-mono text-slate-700 dark:text-slate-300 font-medium">{itemCodeDisplay}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 2. Quantidade e Preço em linha separada */}
+                            <div className="flex items-center justify-between pt-1.5 border-t border-gray-100 dark:border-slate-800/80 text-sm">
+                              <span className="text-slate-600 dark:text-slate-400">
+                                Qtd: <strong className="text-slate-900 dark:text-white font-semibold">{item.quantity}</strong> × {fmt.format(unit)}
+                              </span>
+                              <span className="font-black text-slate-900 dark:text-white text-base">
+                                {fmt.format(unit * (item.quantity || 0))}
+                              </span>
+                            </div>
+
+                            {/* 3. Barcode em bloco próprio com largura disponível, centralizado, sem overflow */}
+                            {barcodeCode && (
+                              <div className="w-full pt-1 flex flex-col items-center justify-center overflow-hidden">
+                                <div className="w-full max-w-[260px] bg-white rounded-lg border border-gray-200/90 px-3 py-2 shadow-sm flex items-center justify-center overflow-hidden">
+                                  <EAN13Barcode
+                                    code={barcodeCode}
+                                    width={190}
+                                    height={48}
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

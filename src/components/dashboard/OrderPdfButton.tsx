@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, Loader2, RotateCcw } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 import { generateOrderPDF } from '@/lib/generateOrderPDF';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -15,8 +15,7 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
 
-  const isMissingPdf = !order?.pdf_url;
-  const buttonLabel = isMissingPdf ? 'Gerar PDF novamente' : 'Gerar PDF';
+  const buttonLabel = 'Baixar PDF';
 
   const resolveBrand = (item: any, byReference: Record<string, string>): string | null => {
     const raw =
@@ -175,31 +174,26 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
 
       const total = order.total_value || items.reduce((acc: number, i: any) => acc + i.quantity * i.price, 0);
 
-      // Regenera PDF via pdfMake / gerador de PDF
+      // Regenera PDF via gerador de PDF
       const pdfBuffer = await generateOrderPDF(orderData, storeData, items, total, true, true, {
         paymentTerms: paymentTerms || undefined,
         signatureUrl: signatureUrl || undefined,
         groupByBrand: true,
       });
 
-      // Se o pdf_url estava nulo/ausente, faz upload do novo PDF para o bucket 'orders'
-      if (order?.id && pdfBuffer) {
-        try {
-          const uploadRes = await fetch(`/api/upload-order-pdf?orderId=${order.id}`, {
-            method: 'POST',
-            body: pdfBuffer,
-          });
-
-          const uploadJson = await uploadRes.json();
-          if (uploadRes.ok && uploadJson.publicUrl) {
-            order.pdf_url = uploadJson.publicUrl;
-          }
-        } catch (upErr) {
-          console.warn('Erro ao atualizar pdf_url no servidor:', upErr);
-        }
+      // Dispara o download local imediato para o usuário no navegador
+      if (pdfBuffer instanceof Blob) {
+        const downloadUrl = URL.createObjectURL(pdfBuffer);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = pdfName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(downloadUrl);
       }
 
-      toast.success(isMissingPdf ? 'PDF gerado e sincronizado com sucesso!' : 'PDF gerado com sucesso!');
+      toast.success('PDF do pedido baixado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
       toast.error('Erro ao gerar PDF. Verifique o console.');
@@ -217,8 +211,6 @@ export function OrderPdfButton({ order, store }: OrderPdfButtonProps) {
     >
       {isLoading ? (
         <Loader2 size={16} className="animate-spin" />
-      ) : isMissingPdf ? (
-        <RotateCcw size={16} className="text-amber-600" />
       ) : (
         <FileText size={16} />
       )}

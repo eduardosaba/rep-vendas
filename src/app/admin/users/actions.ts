@@ -582,6 +582,8 @@ export async function createManualUser(data: {
         full_name: data.email.split('@')[0],
         role: candidateRole,
         plan_id: planId,
+        status: data.planName ? 'active' : 'trial',
+        trial_ends_at: data.planName ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         is_active: true,
         can_manage_catalog: !data.company_id,
         updated_at: new Date().toISOString(),
