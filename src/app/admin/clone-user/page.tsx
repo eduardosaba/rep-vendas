@@ -52,10 +52,11 @@ export default function CloneUserPage() {
     { id: 'cost_price', label: 'Preço de Custo' },
     { id: 'is_active', label: 'Status (Ativo/Inativo)' },
     { id: 'is_launch', label: 'Lançamento' },
+    { id: 'sku', label: 'SKU' },
+    { id: 'barcode', label: 'Código de Barras (EAN)' },
     { id: 'is_best_seller', label: 'Best Seller' },
     { id: 'stock_quantity', label: 'Estoque Real' },
     { id: 'description', label: 'Descrição' },
-    { id: 'barcode', label: 'Código de Barras' },
   ];
 
   // 1. Carregar lista de usuários
@@ -314,7 +315,7 @@ export default function CloneUserPage() {
       if (isSimulation) {
         const count = typeof json.updatedProducts === 'number' ? json.updatedProducts : (json.updatedCount ?? json.updated_products ?? 0);
         setDryRunData({ count });
-        toast.info(`Simulação: ${count} produtos detectados.`);
+        toast.info(json.message || `Simulação: ${count} produtos detectados.`);
       } else {
         // execução real: RPC já foi chamada pelo servidor quando properties === 'all'
         toast.success('Sincronização aplicada', { description: json.message || `${json.updatedProducts || 0} produtos atualizados` });

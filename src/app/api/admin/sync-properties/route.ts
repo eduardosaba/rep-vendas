@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { syncDivergentProducts, normalizePropertyNames } from '@/lib/clone/syncDivergentProducts';
 
 export async function POST(req: Request) {
   try {
@@ -16,15 +18,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { targetUserId, sourceUserId, brands, properties, dryRun } = body;
 
-    // Default properties if not specified
-    const propsToSync = properties || [
-      'price',
-      'sale_price',
-      'is_active',
-      'is_launch',
-      'is_best_seller',
-      'description',
-    ];
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const adminClient =
+      SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+        ? createServiceClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        : supabase;
 
     // determine effective source user: allow override when caller is master/admin
     let effectiveSource = user.id;
@@ -39,72 +38,150 @@ export async function POST(req: Request) {
       }
     }
 
-    // Support full clone when properties === 'all'
+    const cleanedBrands = Array.isArray(brands) && brands.length > 0
+      ? brands.map((b) => String(b || '').trim()).filter(Boolean)
+      : null;
+
+    // Support full clone / sync when properties === 'all'
     if (properties === 'all') {
-      // dry-run: count how many products would be cloned from the source for the brands
-      if (dryRun) {
-        const q = supabase
-          .from('products')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', effectiveSource);
-        if (brands && Array.isArray(brands) && brands.length > 0) q.in('brand', brands);
-        const { count, error: cErr } = await q;
-        if (cErr) throw cErr;
-        return NextResponse.json({ success: true, updatedCount: typeof count === 'number' ? count : 0 });
-      }
+      if (targetUserId) {
+        if (dryRun) {
+          // Contar novos produtos a serem inseridos
+          const { count: srcCount } = await adminClient
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', effectiveSource)
+            .in('brand', cleanedBrands || []);
 
-      // execute full clone via RPC
-      let rpcData: any = null;
-      let rpcErr: any = null;
+          // Verificar produtos existentes divergentes
+          const syncSimulation = await syncDivergentProducts({
+            supabase: adminClient,
+            sourceUserId: effectiveSource,
+            targetUserId,
+            brands: cleanedBrands,
+            propertiesToSync: 'all',
+            dryRun: true,
+          });
 
-      const call1 = await supabase.rpc('clone_catalog_smart', {
-        source_user_id: effectiveSource,
-        target_user_id: targetUserId,
-        brands_to_copy: brands || null,
-      } as any);
+          const totalDetected = (srcCount || 0) + syncSimulation.divergentCount;
 
-      if (!call1.error) {
-        rpcData = call1.data;
-      } else {
-        const call2 = await supabase.rpc('clone_catalog_smart', {
-          p_source_user_id: effectiveSource,
-          p_target_user_id: targetUserId,
-          p_brands_to_copy: brands || null,
-        } as any);
-
-        if (!call2.error) {
-          rpcData = call2.data;
-        } else {
-          rpcErr = call2.error;
+          return NextResponse.json({
+            success: true,
+            updatedCount: totalDetected,
+            divergentCount: syncSimulation.divergentCount,
+            affectedUsers: 1,
+            message: `Simulação: ${syncSimulation.divergentCount} produtos existentes divergentes e novos produtos detectados.`,
+          });
         }
-      }
 
-      if (rpcErr) throw rpcErr;
-      return NextResponse.json({ success: true, updatedCount: rpcData });
+        // Executar inserção de novos produtos via clone_catalog_smart / batch
+        let insertedCount = 0;
+        try {
+          const call1 = await adminClient.rpc('clone_catalog_smart', {
+            source_user_id: effectiveSource,
+            target_user_id: targetUserId,
+            brands_to_copy: cleanedBrands,
+          } as any);
+
+          if (!call1.error) {
+            insertedCount = typeof call1.data === 'number' ? call1.data : (call1.data?.total_processed ?? 0);
+          } else {
+            const call2 = await adminClient.rpc('clone_catalog_smart', {
+              p_source_user_id: effectiveSource,
+              p_target_user_id: targetUserId,
+              p_brands_to_copy: cleanedBrands,
+            } as any);
+            if (!call2.error) {
+              insertedCount = typeof call2.data === 'number' ? call2.data : (call2.data?.total_processed ?? 0);
+            }
+          }
+        } catch (e) {
+          console.warn('[sync-properties] Falha ao executar clone de novos produtos:', e);
+        }
+
+        // Executar sincronização de referências existentes divergentes
+        const syncResult = await syncDivergentProducts({
+          supabase: adminClient,
+          sourceUserId: effectiveSource,
+          targetUserId,
+          brands: cleanedBrands,
+          propertiesToSync: 'all',
+          dryRun: false,
+        });
+
+        const totalUpdated = insertedCount + syncResult.updatedCount;
+        const msgParts = [];
+        if (insertedCount > 0) msgParts.push(`${insertedCount} novos adicionados`);
+        if (syncResult.updatedCount > 0) msgParts.push(`${syncResult.updatedCount} existentes atualizados`);
+        const message = msgParts.length > 0
+          ? `Sincronização completa aplicada: ${msgParts.join(' e ')}.`
+          : 'Catálogo já sincronizado com o master.';
+
+        return NextResponse.json({
+          success: true,
+          updatedProducts: totalUpdated,
+          affectedUsers: 1,
+          message,
+        });
+      }
     }
 
+    // Default properties if not specified
+    const rawProps = properties || [
+      'price',
+      'sale_price',
+      'cost_price',
+      'is_active',
+      'is_launch',
+      'is_best_seller',
+      'stock_quantity',
+      'description',
+    ];
+
+    // Se temos um targetUserId específico, usar syncDivergentProducts
+    if (targetUserId) {
+      const syncResult = await syncDivergentProducts({
+        supabase: adminClient,
+        sourceUserId: effectiveSource,
+        targetUserId,
+        brands: cleanedBrands,
+        propertiesToSync: rawProps,
+        dryRun: Boolean(dryRun),
+      });
+
+      if (dryRun) {
+        return NextResponse.json({
+          success: true,
+          updatedCount: syncResult.divergentCount,
+          affectedUsers: 1,
+          message: `${syncResult.divergentCount} produtos com dados divergentes seriam atualizados`,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        updatedProducts: syncResult.updatedCount,
+        affectedUsers: 1,
+        message: `${syncResult.updatedCount} produtos atualizados com sucesso`,
+      });
+    }
+
+    // Fallback: se nenhum targetUserId for fornecido (sincronizar todos os clones do source)
+    const normalizedPropsArray = normalizePropertyNames(rawProps);
+    const propsToSync = Array.isArray(normalizedPropsArray) ? normalizedPropsArray : null;
+
     if (dryRun) {
-      // Compute affected clones without applying changes
-      // 1) fetch catalog_clones for this source user (and optional target filter)
-      const { data: clones, error: clonesErr } = await supabase
+      const { data: clones } = await adminClient
         .from('catalog_clones')
         .select('source_product_id, cloned_product_id, target_user_id')
         .eq('source_user_id', effectiveSource);
 
-      // Note: .maybeSingle above returns single row when using maybeSingle; but we want array
-      // Adjust: redo select without maybeSingle
       let filtered = clones || [];
-
-      if (targetUserId) {
-        filtered = filtered.filter((c: any) => String(c.target_user_id) === String(targetUserId));
-      }
-
-      // If brands filter present, fetch source products and filter by brand
-      if (brands && Array.isArray(brands) && brands.length > 0) {
+      if (cleanedBrands && cleanedBrands.length > 0) {
         const srcIds = Array.from(new Set(filtered.map((c: any) => c.source_product_id).filter(Boolean)));
         if (srcIds.length > 0) {
-          const { data: srcProds } = await supabase.from('products').select('id,brand').in('id', srcIds);
-          const allowed = new Set((srcProds || []).filter((p: any) => brands.includes(p.brand)).map((p: any) => String(p.id)));
+          const { data: srcProds } = await adminClient.from('products').select('id,brand').in('id', srcIds);
+          const allowed = new Set((srcProds || []).filter((p: any) => cleanedBrands.includes(p.brand)).map((p: any) => String(p.id)));
           filtered = filtered.filter((c: any) => allowed.has(String(c.source_product_id)));
         } else {
           filtered = [];
@@ -122,13 +199,13 @@ export async function POST(req: Request) {
       });
     }
 
-    // Call SQL function to sync properties (apply)
-    const { data, error } = await supabase.rpc(
+    // Call SQL function to sync properties across all clones
+    const { data, error } = await adminClient.rpc(
       'sync_product_properties_to_clones',
       {
         p_source_user_id: effectiveSource,
-        p_target_user_id: targetUserId || null,
-        p_brands: brands || null,
+        p_target_user_id: null,
+        p_brands: cleanedBrands,
         p_properties: propsToSync,
       }
     );
