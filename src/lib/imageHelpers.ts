@@ -136,38 +136,47 @@ export function normalizeImageForDB(img: any) {
   try {
     if (url && url.includes('/storage/v1/object/public/')) {
       const extracted = url.split('/storage/v1/object/public/')[1] || '';
-      path = extracted || path;
+      path = extracted ? extracted.split('?')[0] : path;
     }
   } catch (e) {
     // ignore
   }
 
-  // Clean path: remove leading slashes and any leading "product-images/"
+  // Clean path: remove query parameters, leading slashes and any leading "product-images/"
   let cleanPath: string | null = null;
   if (path) {
-    cleanPath = String(path).replace(/^\/+/, '');
+    cleanPath = String(path).split('?')[0].replace(/^\/+/, '');
     if (cleanPath.toLowerCase().startsWith('product-images/')) {
       cleanPath = cleanPath.slice('product-images/'.length);
     }
     cleanPath = cleanPath.replace(/^(public\/)+/i, 'public/').replace(/\\/g, '/');
+    // Sanitize any malformed duplicate variant suffixes (e.g. -1200w.webp-1200w.webp)
+    while (/(?:-(480w|1200w)\.webp){2,}$/i.test(cleanPath)) {
+      cleanPath = cleanPath.replace(/-(480w|1200w)\.webp$/i, '');
+    }
   }
 
+  const cleanUrl = url ? String(url).split('?')[0] : '';
+
   // Check if the path or url explicitly has resolution variant suffixes (-480w or -1200w)
-  const isVariant = /-(480w|1200w)\.webp(\?.*)?$/i.test(url) || (cleanPath ? /-(480w|1200w)\.webp(\?.*)?$/i.test(cleanPath) : false);
+  const isVariant = /-(480w|1200w)\.webp(\?.*)?$/i.test(cleanUrl) || (cleanPath ? /-(480w|1200w)\.webp(\?.*)?$/i.test(cleanPath) : false);
 
   if (isVariant && cleanPath) {
-    const basePath = cleanPath.replace(/-(480w|1200w)\.webp$/i, '');
+    let basePath = cleanPath.split('?')[0];
+    while (/(?:-(480w|1200w)\.webp)$/i.test(basePath)) {
+      basePath = basePath.replace(/-(480w|1200w)\.webp$/i, '');
+    }
     const path1200 = `${basePath}-1200w.webp`;
     const path480 = `${basePath}-480w.webp`;
-    const url1200 = upgradeTo1200w(String(url || ''));
-    const url480 = ensure480w(String(url || ''));
+    const url1200 = upgradeTo1200w(cleanUrl);
+    const url480 = ensure480w(cleanUrl);
 
     return {
-      url: url1200 || url || null,
+      url: url1200 || cleanUrl || null,
       path: path1200,
       variants: [
-        { size: 480, url: url480 || url || null, path: path480 },
-        { size: 1200, url: url1200 || url || null, path: path1200 },
+        { size: 480, url: url480 || cleanUrl || null, path: path480 },
+        { size: 1200, url: url1200 || cleanUrl || null, path: path1200 },
       ],
     };
   }

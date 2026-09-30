@@ -381,9 +381,20 @@ export default function MatcherPage() {
 
         const currentGallery = Array.isArray(currentProd?.gallery_images) ? currentProd!.gallery_images : [];
 
+        const cleanCandidateUrl = (img.url || img.publicUrl || '').split('?')[0];
+        const cleanCandidatePath = (img.storage_path || '').split('?')[0] || null;
+
         const candidate = img.metadata?.variants
-            ? { url: img.publicUrl || img.url, path: img.storage_path || null, variants: img.metadata.variants }
-            : { url: img.publicUrl || img.url, path: img.storage_path || null };
+            ? {
+                url: cleanCandidateUrl,
+                path: cleanCandidatePath,
+                variants: img.metadata.variants.map((v: any) => ({
+                  ...v,
+                  url: v.url ? String(v.url).split('?')[0] : v.url,
+                  path: v.path ? String(v.path).split('?')[0] : v.path,
+                })),
+              }
+            : { url: cleanCandidateUrl, path: cleanCandidatePath };
 
         // Normalize both candidate and current gallery via shared helpers
         const newItem = buildGalleryItem(candidate) || normalizeImageForDB(candidate);
@@ -401,8 +412,8 @@ export default function MatcherPage() {
 
         const updates: any = {
           gallery_images: finalGallery,
-          image_url: mainImage?.url || null,
-          image_path: mainImage?.path || null,
+          image_url: mainImage?.url ? String(mainImage.url).split('?')[0] : null,
+          image_path: mainImage?.path ? String(mainImage.path).split('?')[0] : null,
           image_variants: mainImage?.variants || null,
           image_optimized: true,
           updated_at: new Date().toISOString(),
@@ -461,15 +472,22 @@ export default function MatcherPage() {
       let updatedGallery = [...currentGallery];
 
       for (const imgFromStaging of selectedImages) {
-        const newGalleryItem = {
-          url: imgFromStaging.url || imgFromStaging.publicUrl || imgFromStaging.publicUrl,
-          path: imgFromStaging.storage_path || null,
-          variants:
-            (imgFromStaging.metadata && Array.isArray(imgFromStaging.metadata.variants) && imgFromStaging.metadata.variants) || [
-              { size: 480, url: imgFromStaging.url || imgFromStaging.publicUrl, path: imgFromStaging.storage_path || null },
-              { size: 1200, url: imgFromStaging.url || imgFromStaging.publicUrl, path: imgFromStaging.storage_path || null },
-            ],
+        const cleanStagingUrl = (imgFromStaging.url || imgFromStaging.publicUrl || '').split('?')[0];
+        const cleanStagingPath = (imgFromStaging.storage_path || '').split('?')[0] || null;
+
+        const candidate = {
+          url: cleanStagingUrl,
+          path: cleanStagingPath,
+          variants: (imgFromStaging.metadata && Array.isArray(imgFromStaging.metadata.variants))
+            ? imgFromStaging.metadata.variants.map((v: any) => ({
+                ...v,
+                url: v.url ? String(v.url).split('?')[0] : v.url,
+                path: v.path ? String(v.path).split('?')[0] : v.path,
+              }))
+            : undefined,
         };
+
+        const newGalleryItem = buildGalleryItem(candidate) || normalizeImageForDB(candidate);
 
         const isDuplicate = updatedGallery.some((it: any) => (it.path && newGalleryItem.path && it.path === newGalleryItem.path) || it.url === newGalleryItem.url);
         if (!isDuplicate) {
@@ -483,9 +501,9 @@ export default function MatcherPage() {
       };
 
       if (!product.image_url && updatedGallery.length > 0) {
-        updates.image_url = updatedGallery[0].url;
-        updates.image_variants = updatedGallery[0].variants;
-        updates.image_path = updatedGallery[0].path || null;
+        updates.image_url = updatedGallery[0]?.url ? String(updatedGallery[0].url).split('?')[0] : null;
+        updates.image_variants = updatedGallery[0]?.variants || null;
+        updates.image_path = updatedGallery[0]?.path ? String(updatedGallery[0].path).split('?')[0] : null;
       }
 
       const { error } = await supabase.from('products').update(updates).eq('id', product.id);

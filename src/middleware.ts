@@ -174,12 +174,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- VERIFICAÇÃO DE IS_ACTIVE E ONBOARDING NAS ROTAS PROTEGEDAS E /LOGIN ---
-  if (user && (isAdminRoute || isDashboardRoute || isPrivateApiRoute || pathname === '/login')) {
+  if (user && (isAdminRoute || isDashboardRoute || isPrivateApiRoute || pathname === '/login' || pathname === '/onboarding')) {
     let profile = null;
     try {
       const { data, error: profileError } = await supabase
         .from('profiles')
-        .select('role, is_active, onboarding_completed')
+        .select('role, is_active, onboarding_completed, company_id')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -205,13 +205,22 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // --- BLOQUEIO DE ACESSO AO DASHBOARD QUANDO ONBOARDING ESTÁ PENDENTE ---
-    if (isDashboardRoute && profile && profile.onboarding_completed === false) {
-      return redirectTo('/onboarding');
-    }
-
     const userRole = String(profile?.role || '').toLowerCase();
     const isControlTowerUser = isGlobalAdmin(userRole);
+    const isTeamRepresentative =
+      Boolean((profile as any)?.company_id) &&
+      (userRole === 'representative' || userRole === 'rep' || userRole === 'representante');
+
+    // Se representante de equipe tentar acessar /onboarding, redireciona para /dashboard
+    if (pathname === '/onboarding' && isTeamRepresentative) {
+      return redirectTo('/dashboard');
+    }
+
+    // --- BLOQUEIO DE ACESSO AO DASHBOARD QUANDO ONBOARDING ESTÁ PENDENTE ---
+    // Representantes vinculados à distribuidora usam a identidade da distribuidora e não passam por onboarding
+    if (isDashboardRoute && profile && profile.onboarding_completed === false && !isTeamRepresentative) {
+      return redirectTo('/onboarding');
+    }
 
     // Se um usuário não-master tentar acessar a Torre de Controle (/admin), redireciona para o /dashboard
     if (isAdminRoute && !isControlTowerUser) {

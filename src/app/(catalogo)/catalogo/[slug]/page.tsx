@@ -380,6 +380,84 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         };
       }
 
+      // Herança resiliente da Distribuidora:
+      // Quando o catálogo pertence a um representante vinculado a uma distribuidora,
+      // herda automaticamente a identidade visual oficial (logo, banners, cores, headline, sobre)
+      const repCompanyId = context?.representative?.company_id || (context?.representative as any)?.organization_id || null;
+      if (repCompanyId) {
+        try {
+          const { data: compBranding } = await clientToUse
+            .from('companies')
+            .select('name, logo_url, primary_color, secondary_color, banners, banners_mobile, headline, about_text, welcome_text, footer_message, font_family, show_top_benefit_bar, top_benefit_text, top_benefit_bg_color, top_benefit_text_color')
+            .eq('id', repCompanyId)
+            .maybeSingle();
+
+          // Buscar settings dos administradores da distribuidora se companies não tiver logo ou banners
+          const { data: compAdmins } = await clientToUse
+            .from('profiles')
+            .select('id')
+            .eq('company_id', repCompanyId)
+            .in('role', ['admin_company', 'master', 'admin'])
+            .limit(5);
+
+          const adminIds = (compAdmins || []).map((a: any) => a.id).filter(Boolean);
+          let distAdminSettings: any = null;
+          if (adminIds.length > 0) {
+            const { data: dSet } = await clientToUse
+              .from('settings')
+              .select('*')
+              .in('user_id', adminIds)
+              .not('logo_url', 'is', null)
+              .limit(1)
+              .maybeSingle();
+            distAdminSettings = dSet;
+          }
+
+          if (compBranding || distAdminSettings) {
+            const effLogo = compBranding?.logo_url || distAdminSettings?.logo_url;
+            if (effLogo) catalog.logo_url = effLogo;
+
+            const effName = compBranding?.name || distAdminSettings?.name;
+            if (effName) catalog.store_name = effName;
+
+            const effPrimary = compBranding?.primary_color || distAdminSettings?.primary_color;
+            if (effPrimary) catalog.primary_color = effPrimary;
+
+            const effSecondary = compBranding?.secondary_color || distAdminSettings?.secondary_color;
+            if (effSecondary) catalog.secondary_color = effSecondary;
+
+            const banners = (compBranding?.banners && compBranding.banners.length > 0)
+              ? compBranding.banners
+              : distAdminSettings?.banners;
+            if (Array.isArray(banners) && banners.length > 0) {
+              catalog.banners = banners;
+            }
+
+            const bannersMobile = (compBranding?.banners_mobile && compBranding.banners_mobile.length > 0)
+              ? compBranding.banners_mobile
+              : distAdminSettings?.banners_mobile;
+            if (Array.isArray(bannersMobile) && bannersMobile.length > 0) {
+              catalog.banners_mobile = bannersMobile;
+            }
+
+            catalog.headline = compBranding?.headline || distAdminSettings?.headline || catalog.headline;
+            catalog.about_text = compBranding?.about_text || compBranding?.welcome_text || distAdminSettings?.about_text || distAdminSettings?.welcome_text || catalog.about_text;
+            catalog.footer_message = compBranding?.footer_message || distAdminSettings?.footer_message || catalog.footer_message;
+            catalog.font_family = compBranding?.font_family || distAdminSettings?.font_family || catalog.font_family;
+
+            const showTop = compBranding?.show_top_benefit_bar ?? distAdminSettings?.show_top_benefit_bar;
+            if (typeof showTop === 'boolean') {
+              catalog.show_top_benefit_bar = showTop;
+              catalog.top_benefit_text = compBranding?.top_benefit_text || distAdminSettings?.top_benefit_text || catalog.top_benefit_text;
+              catalog.top_benefit_bg_color = compBranding?.top_benefit_bg_color || distAdminSettings?.top_benefit_bg_color || catalog.top_benefit_bg_color;
+              catalog.top_benefit_text_color = compBranding?.top_benefit_text_color || distAdminSettings?.top_benefit_text_color || catalog.top_benefit_text_color;
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao herdar branding da distribuidora:', e);
+        }
+      }
+
       // Garante que logo_url sempre tem fallback para single_brand_logo_url
       // (campo real de logo em public_catalogs, mesmo sem settingsFallback)
       if (!catalog.logo_url && (catalog as any).single_brand_logo_url) {
@@ -440,9 +518,20 @@ export default async function CatalogPage({ params, searchParams }: Props) {
 
       if (representativeCompanyId) {
         // Representante vinculado: mostrar catálogo da distribuidora (company_id / organization_id)
-        // sem perder produtos próprios já associados ao user_id do catálogo.
+        // e todos os produtos criados pelos administradores da distribuidora, sem perder produtos próprios.
+        const { data: compAdminUsers } = await clientToUse
+          .from('profiles')
+          .select('id')
+          .eq('company_id', representativeCompanyId)
+          .in('role', ['admin_company', 'master', 'admin'])
+          .limit(10);
+
+        const adminUserIds = (compAdminUsers || []).map((u: any) => u.id).filter(Boolean);
+        const allAssociatedUserIds = Array.from(new Set([ownerUserId, ...adminUserIds]));
+        const userOrClauses = allAssociatedUserIds.map((id) => `user_id.eq.${id}`).join(',');
+
         productsQuery = productsQuery.or(
-          `user_id.eq.${ownerUserId},company_id.eq.${representativeCompanyId},organization_id.eq.${representativeCompanyId}`
+          `${userOrClauses},company_id.eq.${representativeCompanyId},organization_id.eq.${representativeCompanyId}`
         );
       } else {
         // Representante individual / catálogo público: buscar por user_id, company_id ou organization_id
@@ -475,25 +564,26 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       // Ensure settings explicitly override public_catalogs store_name/logo/colors
       const finalCatalog = {
         ...catalog,
-        // Prefer settings.name (explicit request) then representative_name then catalog.store_name
-        store_name:
-          (settingsFallback?.name as any) ||
-          (settingsFallback?.representative_name as any) ||
-          (catalog as any).store_name,
+        store_name: representativeCompanyId
+          ? (catalog.store_name || (settingsFallback?.name as any) || 'Catálogo Virtual')
+          : ((settingsFallback?.name as any) || (settingsFallback?.representative_name as any) || (catalog as any).store_name),
         // Propagate contact and branding from settings when present
         email: (settingsFallback?.email as any) || (catalog as any).email || null,
         phone: (settingsFallback?.phone as any) || (catalog as any).phone || null,
-        logo_url:
-          (settingsFallback?.logo_url as any) ||
-          (catalog as any).single_brand_logo_url ||
-          (catalog as any).logo_url,
-        primary_color:
-          (settingsFallback?.primary_color as any) ||
-          (catalog as any).primary_color,
-        secondary_color:
-          (settingsFallback?.secondary_color as any) ||
-          (catalog as any).secondary_color,
-        representative_name: (settingsFallback?.representative_name as any) || (catalog as any).representative_name || null,
+        logo_url: representativeCompanyId
+          ? (catalog.logo_url || (settingsFallback?.logo_url as any) || (catalog as any).single_brand_logo_url)
+          : ((settingsFallback?.logo_url as any) || (catalog as any).single_brand_logo_url || (catalog as any).logo_url),
+        primary_color: representativeCompanyId
+          ? (catalog.primary_color || (settingsFallback?.primary_color as any))
+          : ((settingsFallback?.primary_color as any) || (catalog as any).primary_color),
+        secondary_color: representativeCompanyId
+          ? (catalog.secondary_color || (settingsFallback?.secondary_color as any))
+          : ((settingsFallback?.secondary_color as any) || (catalog as any).secondary_color),
+        representative_name:
+          context?.representative?.full_name ||
+          (settingsFallback?.representative_name as any) ||
+          (catalog as any).representative_name ||
+          null,
       };
 
       try {

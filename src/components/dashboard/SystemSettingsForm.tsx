@@ -168,10 +168,13 @@ export default function SystemSettingsForm({
     primary_color: '',
     font_family: '',
     gallery_urls: [],
+    contract_type: 'gestao_completa',
   };
 
   const [formData, setFormData] = useState<any>(initialForm);
   const [originalData, setOriginalData] = useState<any>(initialForm);
+  const [companyMetadata, setCompanyMetadata] = useState<any>({});
+  const [showPricePassword, setShowPricePassword] = useState(false);
   const [saveProgress, setSaveProgress] = useState<number>(0);
   const [saveStepText, setSaveStepText] = useState<string>('');
   const slugRef = useRef<HTMLInputElement | null>(null);
@@ -288,8 +291,7 @@ export default function SystemSettingsForm({
         }
         if (!targetUserId) return;
 
-        // Attempt unified load from companies (joins settings and public_catalogs)
-        // Prefer company-based config when available to keep public/catalog admin in sync
+        // Resolve company_id from profile
         let companyId: string | null = null;
         try {
           const profileRes = await supabase
@@ -302,374 +304,218 @@ export default function SystemSettingsForm({
           companyId = null;
         }
 
-        if (companyId) {
-          // Load company without relational expand (some DBs may lack FK relations for PostgREST)
-          const { data: companyData, error: companyError } = await supabase
-            .from('companies')
-            .select('*')
-            .eq('id', companyId)
-            .maybeSingle();
+        const effectiveUserId = ownerSettingsUserId || targetUserId || currentUser?.id;
 
-          if (!mounted) return;
-
-          if (!companyError && companyData) {
-            const companyPlain: any = { ...companyData };
-
-            // fetch settings separately (by user_id)
-            let settingsRow: any = null;
-            try {
-              const userIdForSettings = companyPlain.user_id || null;
-              if (userIdForSettings) {
-                const { data: s } = await supabase
-                  .from('settings')
-                  .select('*')
-                  .eq('user_id', userIdForSettings)
-                  .maybeSingle();
-                settingsRow = s || null;
-              }
-            } catch (e) {
-              settingsRow = null;
-            }
-
-            // fetch public_catalogs separately (by user_id)
-            let publicCatalogRow: any = null;
-            try {
-              const userIdForCatalog = companyPlain.user_id || null;
-              if (userIdForCatalog) {
-                const { data: pc } = await supabase
-                  .from('public_catalogs')
-                  .select('*')
-                  .eq('user_id', userIdForCatalog)
-                  .maybeSingle();
-                publicCatalogRow = pc || null;
-              }
-            } catch (e) {
-              publicCatalogRow = null;
-            }
-
-            // fill formData from company (branding/identity)
-            const companyFields = { ...(companyPlain as any) };
-            setFormData((p: any) => ({ ...p, ...companyFields }));
-            setOriginalData((od: any) => ({ ...(od || {}), ...companyFields }));
-
-            // if settings exist, populate catalogSettings and preview states
-            if (settingsRow) {
-              const settingsData = settingsRow;
-              const normalized: any = normalizeSettingsRow(settingsData as Record<string, unknown>);
-              devLogSettings('load:settings:normalized', normalized);
-              // merge normalized into formData and originalData
-              setFormData((p: any) => ({ ...p, ...normalized }));
-              setOriginalData((od: any) => ({ ...(od || {}), ...normalized }));
-
-              // build catalogSettings from settingsRow (respecting nested catalog_settings)
-              const rawCatalog = settingsData.catalog_settings || {};
-              const normalizedCatalog: any = { ...defaultCatalogSettings };
-              Object.keys(defaultCatalogSettings).forEach((k) => {
-                const topLevelVal = (settingsData as any)[k];
-                const nestedVal = (rawCatalog as any)[k];
-                const val =
-                  typeof topLevelVal !== 'undefined' && topLevelVal !== null
-                    ? topLevelVal
-                    : typeof nestedVal !== 'undefined' && nestedVal !== null
-                      ? nestedVal
-                      : undefined;
-                if (typeof val !== 'undefined') normalizedCatalog[k] = val;
-              });
-              normalizedCatalog.banners = Array.isArray(settingsData.banners)
-                ? settingsData.banners
-                : normalizedCatalog.banners;
-              normalizedCatalog.banners_mobile = Array.isArray(
-                settingsData.banners_mobile
-              )
-                ? settingsData.banners_mobile
-                : normalizedCatalog.banners_mobile;
-              normalizedCatalog.gallery_urls = Array.isArray(
-                settingsData.gallery_urls
-              )
-                ? settingsData.gallery_urls
-                : normalizedCatalog.gallery_urls;
-              setCatalogSettings(normalizedCatalog);
-
-              setTopBenefitHeight(
-                Number(
-                  normalizedCatalog.top_benefit_height ||
-                    defaultCatalogSettings.top_benefit_height
-                )
-              );
-              setTopBenefitTextSize(
-                Number(
-                  normalizedCatalog.top_benefit_text_size ||
-                    defaultCatalogSettings.top_benefit_text_size
-                )
-              );
-              setTopBenefitBgColor(
-                normalizedCatalog.top_benefit_bg_color ||
-                  defaultCatalogSettings.top_benefit_bg_color
-              );
-              setTopBenefitTextColor(
-                normalizedCatalog.top_benefit_text_color ||
-                  defaultCatalogSettings.top_benefit_text_color
-              );
-              setTopBenefitImageFit(
-                normalizedCatalog.top_benefit_image_fit ||
-                  defaultCatalogSettings.top_benefit_image_fit
-              );
-              setTopBenefitImageScale(
-                Number(
-                  normalizedCatalog.top_benefit_image_scale ??
-                    defaultCatalogSettings.top_benefit_image_scale
-                )
-              );
-              setTopBenefitTextAlign(
-                normalizedCatalog.top_benefit_text_align ||
-                  defaultCatalogSettings.top_benefit_text_align
-              );
-              setTopBenefitImageAlign(
-                normalizedCatalog.top_benefit_image_align ||
-                  defaultCatalogSettings.top_benefit_image_align
-              );
-              setTopBenefitImagePreview(
-                normalizedCatalog.top_benefit_image_url || null
-              );
-              // banners
-              // (these are already applied in normalizedCatalog.banners / banners_mobile)
-            } else if (publicCatalogRow) {
-              // No settings row; use public_catalogs as fallback for catalogSettings
-              const pc = publicCatalogRow;
-              const normalizedCatalog: any = { ...defaultCatalogSettings };
-              // map common fields if present
-              if (pc.top_benefit_bg_color)
-                normalizedCatalog.top_benefit_bg_color =
-                  pc.top_benefit_bg_color;
-              if (pc.top_benefit_text_color)
-                normalizedCatalog.top_benefit_text_color =
-                  pc.top_benefit_text_color;
-              if (Array.isArray(pc.banners))
-                normalizedCatalog.banners = pc.banners;
-              if (Array.isArray(pc.banners_mobile))
-                normalizedCatalog.banners_mobile = pc.banners_mobile;
-              if (Array.isArray(pc.gallery_urls))
-                normalizedCatalog.gallery_urls = pc.gallery_urls;
-              normalizedCatalog.logo_url = pc.logo_url || null;
-              setCatalogSettings(normalizedCatalog);
-              setTopBenefitHeight(
-                Number(
-                  normalizedCatalog.top_benefit_height ||
-                    defaultCatalogSettings.top_benefit_height
-                )
-              );
-              setTopBenefitTextSize(
-                Number(
-                  normalizedCatalog.top_benefit_text_size ||
-                    defaultCatalogSettings.top_benefit_text_size
-                )
-              );
-              setTopBenefitBgColor(
-                normalizedCatalog.top_benefit_bg_color ||
-                  defaultCatalogSettings.top_benefit_bg_color
-              );
-              setTopBenefitTextColor(
-                normalizedCatalog.top_benefit_text_color ||
-                  defaultCatalogSettings.top_benefit_text_color
-              );
-              setTopBenefitImageFit(
-                normalizedCatalog.top_benefit_image_fit ||
-                  defaultCatalogSettings.top_benefit_image_fit
-              );
-              setTopBenefitImageScale(
-                Number(
-                  normalizedCatalog.top_benefit_image_scale ??
-                    defaultCatalogSettings.top_benefit_image_scale
-                )
-              );
-              setTopBenefitTextAlign(
-                normalizedCatalog.top_benefit_text_align ||
-                  defaultCatalogSettings.top_benefit_text_align
-              );
-              setTopBenefitImageAlign(
-                normalizedCatalog.top_benefit_image_align ||
-                  defaultCatalogSettings.top_benefit_image_align
-              );
-              setTopBenefitImagePreview(
-                normalizedCatalog.top_benefit_image_url || null
-              );
-            }
-          } else {
-            // fallback to previous behavior: load settings by user_id
-            const { data: settingsData, error } = await supabase
+        // 1. Fetch settings row by user_id
+        let settingsRow: any = null;
+        if (effectiveUserId) {
+          try {
+            const { data: s } = await supabase
               .from('settings')
               .select('*')
-              .eq('user_id', targetUserId)
+              .eq('user_id', effectiveUserId)
               .maybeSingle();
-
-            if (!mounted) return;
-
-            if (!error && settingsData) {
-              const normalized: any = normalizeSettingsRow(settingsData as Record<string, unknown>);
-              devLogSettings('load:settings:normalized(fallback1)', normalized);
-              setFormData((p: any) => ({ ...p, ...normalized }));
-              setOriginalData(normalized);
-              const rawCatalog = settingsData.catalog_settings || {};
-              const normalizedCatalog: any = { ...defaultCatalogSettings };
-              Object.keys(defaultCatalogSettings).forEach((k) => {
-                const topLevelVal = (settingsData as any)[k];
-                const nestedVal = (rawCatalog as any)[k];
-                const val =
-                  typeof topLevelVal !== 'undefined' && topLevelVal !== null
-                    ? topLevelVal
-                    : typeof nestedVal !== 'undefined' && nestedVal !== null
-                      ? nestedVal
-                      : undefined;
-                if (typeof val !== 'undefined') normalizedCatalog[k] = val;
-              });
-              normalizedCatalog.banners = Array.isArray(settingsData.banners)
-                ? settingsData.banners
-                : normalizedCatalog.banners;
-              normalizedCatalog.banners_mobile = Array.isArray(
-                settingsData.banners_mobile
-              )
-                ? settingsData.banners_mobile
-                : normalizedCatalog.banners_mobile;
-              normalizedCatalog.gallery_urls = Array.isArray(
-                settingsData.gallery_urls
-              )
-                ? settingsData.gallery_urls
-                : normalizedCatalog.gallery_urls;
-              setCatalogSettings(normalizedCatalog);
-              setTopBenefitHeight(
-                Number(
-                  normalizedCatalog.top_benefit_height ||
-                    defaultCatalogSettings.top_benefit_height
-                )
-              );
-              setTopBenefitTextSize(
-                Number(
-                  normalizedCatalog.top_benefit_text_size ||
-                    defaultCatalogSettings.top_benefit_text_size
-                )
-              );
-              setTopBenefitBgColor(
-                normalizedCatalog.top_benefit_bg_color ||
-                  defaultCatalogSettings.top_benefit_bg_color
-              );
-              setTopBenefitTextColor(
-                normalizedCatalog.top_benefit_text_color ||
-                  defaultCatalogSettings.top_benefit_text_color
-              );
-              setTopBenefitImageFit(
-                normalizedCatalog.top_benefit_image_fit ||
-                  defaultCatalogSettings.top_benefit_image_fit
-              );
-              setTopBenefitImageScale(
-                Number(
-                  normalizedCatalog.top_benefit_image_scale ??
-                    defaultCatalogSettings.top_benefit_image_scale
-                )
-              );
-              setTopBenefitTextAlign(
-                normalizedCatalog.top_benefit_text_align ||
-                  defaultCatalogSettings.top_benefit_text_align
-              );
-              setTopBenefitImageAlign(
-                normalizedCatalog.top_benefit_image_align ||
-                  defaultCatalogSettings.top_benefit_image_align
-              );
-              setTopBenefitImagePreview(
-                normalizedCatalog.top_benefit_image_url || null
-              );
-            } else {
-              setOriginalData(initialForm);
-              setFormData(initialForm);
-            }
-          }
-        } else {
-          // no companyId: fallback to original settings load
-          const { data: settingsData, error } = await supabase
-            .from('settings')
-            .select('*')
-            .eq('user_id', targetUserId)
-            .maybeSingle();
-
-          if (!mounted) return;
-
-          if (!error && settingsData) {
-            const normalized: any = normalizeSettingsRow(settingsData as Record<string, unknown>);
-            devLogSettings('load:settings:normalized(fallback2)', normalized);
-            setFormData((p: any) => ({ ...p, ...normalized }));
-            setOriginalData(normalized);
-            const rawCatalog = settingsData.catalog_settings || {};
-            const normalizedCatalog: any = { ...defaultCatalogSettings };
-            Object.keys(defaultCatalogSettings).forEach((k) => {
-              const topLevelVal = (settingsData as any)[k];
-              const nestedVal = (rawCatalog as any)[k];
-              const val =
-                typeof topLevelVal !== 'undefined' && topLevelVal !== null
-                  ? topLevelVal
-                  : typeof nestedVal !== 'undefined' && nestedVal !== null
-                    ? nestedVal
-                    : undefined;
-              if (typeof val !== 'undefined') normalizedCatalog[k] = val;
-            });
-            normalizedCatalog.banners = Array.isArray(settingsData.banners)
-              ? settingsData.banners
-              : normalizedCatalog.banners;
-            normalizedCatalog.banners_mobile = Array.isArray(
-              settingsData.banners_mobile
-            )
-              ? settingsData.banners_mobile
-              : normalizedCatalog.banners_mobile;
-            normalizedCatalog.gallery_urls = Array.isArray(
-              settingsData.gallery_urls
-            )
-              ? settingsData.gallery_urls
-              : normalizedCatalog.gallery_urls;
-            setCatalogSettings(normalizedCatalog);
-            setTopBenefitHeight(
-              Number(
-                normalizedCatalog.top_benefit_height ||
-                  defaultCatalogSettings.top_benefit_height
-              )
-            );
-            setTopBenefitTextSize(
-              Number(
-                normalizedCatalog.top_benefit_text_size ||
-                  defaultCatalogSettings.top_benefit_text_size
-              )
-            );
-            setTopBenefitBgColor(
-              normalizedCatalog.top_benefit_bg_color ||
-                defaultCatalogSettings.top_benefit_bg_color
-            );
-            setTopBenefitTextColor(
-              normalizedCatalog.top_benefit_text_color ||
-                defaultCatalogSettings.top_benefit_text_color
-            );
-            setTopBenefitImageFit(
-              normalizedCatalog.top_benefit_image_fit ||
-                defaultCatalogSettings.top_benefit_image_fit
-            );
-            setTopBenefitImageScale(
-              Number(
-                normalizedCatalog.top_benefit_image_scale ??
-                  defaultCatalogSettings.top_benefit_image_scale
-              )
-            );
-            setTopBenefitTextAlign(
-              normalizedCatalog.top_benefit_text_align ||
-                defaultCatalogSettings.top_benefit_text_align
-            );
-            setTopBenefitImageAlign(
-              normalizedCatalog.top_benefit_image_align ||
-                defaultCatalogSettings.top_benefit_image_align
-            );
-            setTopBenefitImagePreview(
-              normalizedCatalog.top_benefit_image_url || null
-            );
-          } else {
-            setOriginalData(initialForm);
-            setFormData(initialForm);
+            settingsRow = s || null;
+          } catch (e) {
+            settingsRow = null;
           }
         }
+
+        // 2. Fetch public_catalogs row by user_id
+        let publicCatalogRow: any = null;
+        if (effectiveUserId) {
+          try {
+            const { data: pc } = await supabase
+              .from('public_catalogs')
+              .select('*')
+              .eq('user_id', effectiveUserId)
+              .maybeSingle();
+            publicCatalogRow = pc || null;
+          } catch (e) {
+            publicCatalogRow = null;
+          }
+        }
+
+        // 3. Fetch company row (if companyId is present)
+        let companyPlain: any = null;
+        if (companyId) {
+          try {
+            const { data: c } = await supabase
+              .from('companies')
+              .select('*')
+              .eq('id', companyId)
+              .maybeSingle();
+            companyPlain = c || null;
+          } catch (e) {
+            companyPlain = null;
+          }
+        }
+
+        if (!mounted) return;
+
+        // Merge in hierarchical order:
+        // Defaults -> Company -> Public Catalog -> Settings
+        // This guarantees actual user configured settings (phone, email, headline, slug, etc.) are never overwritten by empty company nulls!
+        const mergedForm: any = { ...initialForm };
+
+        if (companyPlain) {
+          setCompanyMetadata(companyPlain.metadata || {});
+          const cMeta = (companyPlain.metadata as any) || {};
+          if (cMeta.contract_type) {
+            mergedForm.contract_type = cMeta.contract_type;
+          }
+          Object.keys(companyPlain).forEach((k) => {
+            if (companyPlain[k] !== null && companyPlain[k] !== undefined && companyPlain[k] !== '') {
+              mergedForm[k] = companyPlain[k];
+            }
+          });
+          if (companyPlain.slug && !mergedForm.catalog_slug) {
+            mergedForm.catalog_slug = companyPlain.slug;
+          }
+        }
+
+        if (publicCatalogRow) {
+          const normPub = normalizeSettingsRow(publicCatalogRow as Record<string, unknown>);
+          Object.keys(normPub).forEach((k) => {
+            if (normPub[k] !== null && normPub[k] !== undefined && normPub[k] !== '') {
+              mergedForm[k] = normPub[k];
+            }
+          });
+          if (publicCatalogRow.store_name && !mergedForm.name) {
+            mergedForm.name = publicCatalogRow.store_name;
+          }
+          if (publicCatalogRow.catalog_slug) {
+            mergedForm.catalog_slug = publicCatalogRow.catalog_slug;
+          }
+        }
+
+        if (settingsRow) {
+          const normSettings = normalizeSettingsRow(settingsRow as Record<string, unknown>);
+          Object.keys(normSettings).forEach((k) => {
+            if (normSettings[k] !== null && normSettings[k] !== undefined && normSettings[k] !== '') {
+              mergedForm[k] = normSettings[k];
+            }
+          });
+          if (settingsRow.catalog_slug) {
+            mergedForm.catalog_slug = settingsRow.catalog_slug;
+          }
+        }
+
+        // Explicit fallback for crucial fields
+        mergedForm.catalog_slug =
+          settingsRow?.catalog_slug ||
+          publicCatalogRow?.catalog_slug ||
+          companyPlain?.slug ||
+          mergedForm.catalog_slug ||
+          '';
+
+        mergedForm.headline =
+          settingsRow?.headline ||
+          publicCatalogRow?.headline ||
+          companyPlain?.headline ||
+          mergedForm.headline ||
+          '';
+
+        mergedForm.phone =
+          settingsRow?.phone ||
+          publicCatalogRow?.phone ||
+          companyPlain?.phone ||
+          mergedForm.phone ||
+          '';
+
+        mergedForm.email =
+          settingsRow?.email ||
+          publicCatalogRow?.email ||
+          companyPlain?.email ||
+          mergedForm.email ||
+          '';
+
+        mergedForm.name =
+          settingsRow?.name ||
+          publicCatalogRow?.store_name ||
+          companyPlain?.name ||
+          mergedForm.name ||
+          '';
+
+        if (settingsRow?.price_password_hash || publicCatalogRow?.price_password_hash) {
+          mergedForm.price_password_hash = settingsRow?.price_password_hash || publicCatalogRow?.price_password_hash;
+        }
+
+        devLogSettings('load:unified:mergedForm', mergedForm);
+        setFormData(mergedForm);
+        setOriginalData(mergedForm);
+
+        // Normalize catalog settings from settingsRow / publicCatalogRow / companyPlain
+        const sourceData = settingsRow || publicCatalogRow || companyPlain || {};
+        const rawCatalog = (settingsRow?.catalog_settings || publicCatalogRow?.catalog_settings || {}) as any;
+        const normalizedCatalog: any = { ...defaultCatalogSettings };
+
+        Object.keys(defaultCatalogSettings).forEach((k) => {
+          const topLevelVal = (sourceData as any)[k];
+          const nestedVal = (rawCatalog as any)[k];
+          const val =
+            typeof topLevelVal !== 'undefined' && topLevelVal !== null
+              ? topLevelVal
+              : typeof nestedVal !== 'undefined' && nestedVal !== null
+                ? nestedVal
+                : undefined;
+          if (typeof val !== 'undefined') normalizedCatalog[k] = val;
+        });
+
+        normalizedCatalog.banners = Array.isArray(sourceData.banners)
+          ? sourceData.banners
+          : normalizedCatalog.banners;
+        normalizedCatalog.banners_mobile = Array.isArray(sourceData.banners_mobile)
+          ? sourceData.banners_mobile
+          : normalizedCatalog.banners_mobile;
+        normalizedCatalog.gallery_urls = Array.isArray(sourceData.gallery_urls)
+          ? sourceData.gallery_urls
+          : normalizedCatalog.gallery_urls;
+        normalizedCatalog.logo_url = sourceData.logo_url || null;
+
+        setCatalogSettings(normalizedCatalog);
+
+        setTopBenefitHeight(
+          Number(
+            normalizedCatalog.top_benefit_height ||
+              defaultCatalogSettings.top_benefit_height
+          )
+        );
+        setTopBenefitTextSize(
+          Number(
+            normalizedCatalog.top_benefit_text_size ||
+              defaultCatalogSettings.top_benefit_text_size
+          )
+        );
+        setTopBenefitBgColor(
+          normalizedCatalog.top_benefit_bg_color ||
+            defaultCatalogSettings.top_benefit_bg_color
+        );
+        setTopBenefitTextColor(
+          normalizedCatalog.top_benefit_text_color ||
+            defaultCatalogSettings.top_benefit_text_color
+        );
+        setTopBenefitImageFit(
+          normalizedCatalog.top_benefit_image_fit ||
+            defaultCatalogSettings.top_benefit_image_fit
+        );
+        setTopBenefitImageScale(
+          Number(
+            normalizedCatalog.top_benefit_image_scale ??
+              defaultCatalogSettings.top_benefit_image_scale
+          )
+        );
+        setTopBenefitTextAlign(
+          normalizedCatalog.top_benefit_text_align ||
+            defaultCatalogSettings.top_benefit_text_align
+        );
+        setTopBenefitImageAlign(
+          normalizedCatalog.top_benefit_image_align ||
+            defaultCatalogSettings.top_benefit_image_align
+        );
+        setTopBenefitImagePreview(
+          normalizedCatalog.top_benefit_image_url || null
+        );
       } catch (e) {
         console.warn('load settings failed', e);
       } finally {
@@ -1047,6 +893,13 @@ export default function SystemSettingsForm({
           enable_stock_management: mergedCatalog.enable_stock_management,
           updated_at: now,
         };
+
+        const currentMeta = companyMetadata || {};
+        companyPayload.metadata = {
+          ...currentMeta,
+          contract_type: formData.contract_type || 'gestao_completa',
+        };
+
         tasks.push(
           supabase
             .from('companies')
@@ -1056,7 +909,15 @@ export default function SystemSettingsForm({
         );
       }
 
-      tasks.push(quickSave(mergedCatalog, 'full') as any);
+      tasks.push(
+        quickSave(
+          {
+            ...mergedCatalog,
+            contract_type: formData.contract_type || 'gestao_completa',
+          },
+          'full'
+        ) as any
+      );
 
       // -------------------------------------------------------
       // 3. Executar e avaliar resultados
@@ -1412,12 +1273,15 @@ export default function SystemSettingsForm({
           handleChange={handleChange}
           handleSlugChange={handleSlugChange}
           slugRef={slugRef}
-          showPassword={false}
-          onToggleShowPassword={() => {}}
+          showPassword={showPricePassword}
+          onToggleShowPassword={() => setShowPricePassword((p) => !p)}
           isActive={!!formData.is_active}
           onToggleActive={onToggleActive}
-          isCompanyAdmin={isCompanyAdmin}
+          isCompanyAdmin={isCompanyAdmin || context === 'company'}
           userRole={userRole}
+          onContractTypeChange={(val) =>
+            setFormData((p: any) => ({ ...p, contract_type: val }))
+          }
         />
       )}
 

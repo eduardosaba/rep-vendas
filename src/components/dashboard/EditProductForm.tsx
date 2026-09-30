@@ -33,7 +33,7 @@ import {
 } from '@/lib/imageHelpers';
 import { deriveReferenceId } from '@/lib/utils/reference-logic';
 import { parsePriceToNumber } from '@/lib/utils/price-utils';
-import getProductImageUrl, { formatImageUrl, buildGalleryItem } from '@/lib/imageUtils';
+import getProductImageUrl, { formatImageUrl, buildGalleryItem, normalizeStoragePath } from '@/lib/imageUtils';
 
 // Remove arquivos de storage associados a uma imagem (inclui variantes)
 const deleteImageFromStorage = async (supabaseClient: any, imagePath: string | null) => {
@@ -125,31 +125,39 @@ const ImageUploader = ({
   }) => {
     const placeholder = '/images/product-placeholder.svg';
 
-    // Normalize and prioritize storage path
-    const [src, setSrc] = React.useState<string>(() => {
-      // 1. Try storage path first (most reliable)
-      if (storagePath && typeof storagePath === 'string') {
-        return formatImageUrl(storagePath);
-      }
+    const cleanPath = React.useMemo(() => {
+      return storagePath ? normalizeStoragePath(storagePath) : null;
+    }, [storagePath]);
 
-      // 2. Try external URL second
-      if (externalUrl && typeof externalUrl === 'string') {
-        // If external URL is actually a storage URL, use proxy
+    const cleanExternal = React.useMemo(() => {
+      return externalUrl ? String(externalUrl).split('?')[0].trim() : null;
+    }, [externalUrl]);
+
+    const computeInitialSrc = React.useCallback(() => {
+      if (cleanPath) return formatImageUrl(cleanPath);
+      if (cleanExternal) {
         if (
-          externalUrl.includes('supabase.co/storage') ||
-          externalUrl.includes('/storage/v1/object')
+          cleanExternal.includes('supabase.co/storage') ||
+          cleanExternal.includes('/storage/v1/object')
         ) {
-          return formatImageUrl(externalUrl);
+          return formatImageUrl(cleanExternal);
         }
-        return externalUrl;
+        return cleanExternal;
       }
-
       return placeholder;
-    });
+    }, [cleanPath, cleanExternal]);
 
-    const triedStorage = React.useRef(false);
+    const [src, setSrc] = React.useState<string>(computeInitialSrc);
+    const triedProxy = React.useRef(false);
     const triedExternal = React.useRef(false);
     const triedPlaceholder = React.useRef(false);
+
+    React.useEffect(() => {
+      setSrc(computeInitialSrc());
+      triedProxy.current = false;
+      triedExternal.current = false;
+      triedPlaceholder.current = false;
+    }, [computeInitialSrc]);
 
     return (
       <img
@@ -157,34 +165,25 @@ const ImageUploader = ({
         className="w-full h-full object-contain p-1 cursor-zoom-in"
         alt={alt || 'Product image'}
         onClick={() => src && src !== placeholder && setZoomImage(src)}
-        onError={(e) => {
-          const t = e.currentTarget as HTMLImageElement;
-
-          // Strategy 1: If showing external and have storage path, try storage
-          if (!triedStorage.current && storagePath && src === externalUrl) {
-            triedStorage.current = true;
-            setSrc(formatImageUrl(storagePath) as string);
+        onError={() => {
+          // 1. Fallback cascata para proxy /api/storage-image se storagePath existir
+          if (!triedProxy.current && cleanPath) {
+            triedProxy.current = true;
+            setSrc(`/api/storage-image?path=${encodeURIComponent(cleanPath)}`);
             return;
           }
 
-          // Strategy 2: If showing storage and have external, try external
-          if (
-            !triedExternal.current &&
-            externalUrl &&
-            src !== externalUrl &&
-            src !== placeholder
-          ) {
+          // 2. Fallback para externalUrl se diferente
+          if (!triedExternal.current && cleanExternal && src !== cleanExternal) {
             triedExternal.current = true;
-            setSrc(externalUrl);
+            setSrc(cleanExternal);
             return;
           }
 
-          // Strategy 3: Show placeholder to avoid infinite loop
+          // 3. Fallback placeholder
           if (!triedPlaceholder.current) {
             triedPlaceholder.current = true;
-            t.onerror = null;
             setSrc(placeholder);
-            return;
           }
         }}
         loading="lazy"
@@ -622,8 +621,8 @@ export function EditProductForm({ product }: { product: Product }) {
             ? new File([blob480], `${baseName}-480w.webp`, { type: 'image/webp' })
             : final1200;
 
-          const fullPath480 = `${user.id}/products/${baseName}-480w.webp`;
-          const fullPath1200 = `${user.id}/products/${baseName}-1200w.webp`;
+          const fullPath480 = `public/${user.id}/products/${baseName}-480w.webp`;
+          const fullPath1200 = `public/${user.id}/products/${baseName}-1200w.webp`;
 
           // upload 480 then 1200
           const { error: e480 } = await supabase.storage.from('product-images').upload(fullPath480, final480, { cacheControl: '3600', upsert: true });
@@ -634,7 +633,8 @@ export function EditProductForm({ product }: { product: Product }) {
           const { data: d1200 } = supabase.storage.from('product-images').getPublicUrl(fullPath1200);
 
           // Replace the tempUrl object in formData.images with the full structured gallery item (with variants)
-          const galleryItem = buildGalleryItem({ url: d1200.publicUrl, path: fullPath1200 });
+          const cleanUrl = d1200?.publicUrl ? d1200.publicUrl.split('?')[0] : '';
+          const galleryItem = buildGalleryItem({ url: cleanUrl, path: fullPath1200 }, fullPath1200);
           setFormData((prev) => {
             const imgs = [...(prev.images || [])];
             const idx = imgs.findIndex((x: any) => x && x.url === entry.tempUrl);

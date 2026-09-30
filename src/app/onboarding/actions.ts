@@ -164,13 +164,20 @@ export async function saveOnboardingStep2(data: Step2Data) {
 
   // 5. Garantir registro sincronizado na tabela empresas (companies) para compatibilidade plena
   try {
+    const companyType =
+      safeOrgType === 'distributor'
+        ? 'distribuidora'
+        : safeOrgType === 'optical_store'
+        ? 'optica'
+        : 'representante';
+
     await adminDb.from('companies').upsert(
       {
         id: organizationId,
         user_id: user.id,
         name: safeCompanyName,
         slug: safeOrgSlug || `company-${organizationId.slice(0, 8)}`,
-        type: safeOrgType === 'distributor' ? 'distribuidora' : 'representante',
+        type: companyType,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'id' }
@@ -179,12 +186,21 @@ export async function saveOnboardingStep2(data: Step2Data) {
     console.warn('[saveOnboardingStep2] Aviso ao sincronizar tabela companies:', compErr);
   }
 
-  // 6. Vincular profiles.organization_id e company_id e avançar para a Etapa 3
+  // 6. Vincular profiles.organization_id, company_id, role e user_category e avançar para a Etapa 3
+  const targetRole =
+    safeOrgType === 'distributor'
+      ? 'admin_company'
+      : safeOrgType === 'optical_store'
+      ? 'optical_client'
+      : 'rep';
+
   const { error: updateProfileErr } = await adminDb
     .from('profiles')
     .update({
       organization_id: organizationId,
       company_id: organizationId,
+      role: targetRole,
+      user_category: safeOrgType,
       onboarding_step: 3,
       updated_at: new Date().toISOString(),
     })

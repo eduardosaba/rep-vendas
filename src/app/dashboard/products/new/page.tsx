@@ -176,13 +176,19 @@ const ImageUploader = ({
   );
 };
 
-// Constrói um item de galeria com variantes 480w/1200w a partir de uma URL simples
-const buildGalleryItem = (url: string, path: string | null) => {
-  const baseurl = String(url || '').replace(/-(480w|1200w)\.webp$/, '');
-  const basePath = path ? String(path).replace(/-(480w|1200w)\.webp$/, '') : null;
+// Constrói um item de galeria com variantes 480w/1200w a partir de uma URL ou objeto simples
+const buildGalleryItem = (urlOrObj: string | { url?: string; path?: string | null }, pathArg?: string | null) => {
+  const rawUrl = typeof urlOrObj === 'string' ? urlOrObj : urlOrObj?.url || '';
+  const rawPath = typeof urlOrObj === 'object' && urlOrObj?.path ? urlOrObj.path : (pathArg || null);
 
-  const url1200 = url.includes('1200w') ? url : `${baseurl}-1200w.webp`;
-  const path1200 = path ? (path.includes('1200w') ? path : `${basePath}-1200w.webp`) : null;
+  const cleanUrl = String(rawUrl || '').split('?')[0].trim();
+  const cleanPath = rawPath ? String(rawPath).split('?')[0].trim() : null;
+
+  const baseurl = cleanUrl.replace(/-(480w|1200w)\.webp$/i, '');
+  const basePath = cleanPath ? cleanPath.replace(/-(480w|1200w)\.webp$/i, '') : null;
+
+  const url1200 = cleanUrl.includes('1200w') ? cleanUrl : `${baseurl}-1200w.webp`;
+  const path1200 = cleanPath ? (cleanPath.includes('1200w') ? cleanPath : `${basePath}-1200w.webp`) : null;
 
   return {
     url: url1200,
@@ -405,7 +411,7 @@ export default function NewProductPage() {
             const { data: url1200Data } = supabase.storage.from('product-images').getPublicUrl(path1200);
 
             // Build structured gallery item with variants so UI and catalog always have same shape
-            const galleryItem = buildGalleryItem(url1200Data.publicUrl, path1200);
+            const galleryItem = buildGalleryItem({ url: url1200Data.publicUrl.split('?')[0], path: path1200 }, path1200);
             newEntries.push(galleryItem);
         } catch (err) {
           console.error('upload item failed', err);
@@ -649,7 +655,7 @@ export default function NewProductPage() {
         is_active: formData.is_active,
         // Preserve raw images array (legacy) but also persist structured gallery
         images: formData.images,
-        image_url: imageMeta.image_url || null,
+        image_url: imageMeta.image_url || (finalImages[0]?.url ? String(finalImages[0].url).split('?')[0] : null),
         image_variants: image_variants,
         gallery_images: finalImages,
         sync_status: imageMeta.sync_status,

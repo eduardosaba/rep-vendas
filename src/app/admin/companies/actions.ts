@@ -283,7 +283,7 @@ export async function getCompanyOrders(companyId: string) {
     const { data, error } = await supabaseAdmin
       .from('orders')
       .select(
-        `id, display_id, created_at, total_value, status, faturado_at, despachado_at, entregue_at, user_id, customer_id, client_name_guest, client_phone_guest, client_email_guest, company_id`
+        `id, display_id, created_at, total_value, status, faturado_at, despachado_at, entregue_at, user_id, seller_id, customer_id, client_name_guest, client_phone_guest, client_email_guest, company_id`
       )
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
@@ -297,11 +297,12 @@ export async function getCompanyOrders(companyId: string) {
         let customer_name = o.client_name_guest || null;
         let customer_city = null;
 
-        if (o.user_id) {
+        const effectiveSellerId = o.seller_id || o.user_id;
+        if (effectiveSellerId) {
           const { data: p } = await supabaseAdmin
             .from('profiles')
             .select('full_name')
-            .eq('id', o.user_id)
+            .eq('id', effectiveSellerId)
             .maybeSingle();
           rep_name = (p as any)?.full_name || null;
         }

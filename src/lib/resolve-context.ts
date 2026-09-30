@@ -195,11 +195,11 @@ export async function resolveContext(
   const [repSlug] = slugArray;
   const normRep = normalizeCatalogSlug(repSlug);
 
-  const { data: representative } = await supabase
-    .from('profiles')
-    .select('id, full_name, email, phone, slug, company_id')
-    .ilike('slug', escapeIlikePattern(normRep))
-    .maybeSingle();
+    const { data: representative } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, phone, slug, company_id, organization_id, is_active, role')
+      .ilike('slug', escapeIlikePattern(normRep))
+      .maybeSingle();
 
   if (representative) {
     let catalog: any = null;

@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useOrganization } from '@/modules/organization-context/OrganizationProvider';
-import { formatImageUrl, getProductImageUrl } from '@/lib/imageUtils';
+import { formatImageUrl, getProductImageUrl, normalizeStoragePath } from '@/lib/imageUtils';
 import { bulkUpdatePrice } from '@/app/dashboard/products/actions';
 import { parsePriceToNumber } from '@/lib/utils/price-utils';
 import { ExportModal } from '@/components/dashboard/ExportModal';
@@ -127,6 +127,71 @@ interface Category {
   name: string;
 }
 
+function ProductThumbnailCell({
+  product,
+  onOpenPreview,
+  onHover,
+  onLeave,
+}: {
+  product: Product;
+  onOpenPreview: () => void;
+  onHover: (e: React.MouseEvent<HTMLDivElement>, src: string, isExternal: boolean) => void;
+  onLeave: () => void;
+}) {
+  const { src, isExternal } = getProductImageUrl(product as any);
+  const initialSrc = src ? (isExternal ? src : formatImageUrl(src)) : null;
+  const [currentSrc, setCurrentSrc] = useState<string | null>(initialSrc);
+  const [hasError, setHasError] = useState(false);
+  const [triedProxy, setTriedProxy] = useState(false);
+
+  useEffect(() => {
+    setCurrentSrc(initialSrc);
+    setHasError(false);
+    setTriedProxy(false);
+  }, [initialSrc, product.id]);
+
+  const handleError = () => {
+    if (!triedProxy) {
+      setTriedProxy(true);
+      const raw = product.image_path || (product.images?.[0] as any)?.path || product.image_url || currentSrc;
+      if (raw) {
+        const clean = normalizeStoragePath(typeof raw === 'object' ? (raw as any).path || (raw as any).url : raw);
+        if (clean) {
+          setCurrentSrc(`/api/storage-image?path=${encodeURIComponent(clean)}`);
+          return;
+        }
+      }
+    }
+    setHasError(true);
+  };
+
+  if (!currentSrc || currentSrc === '/placeholder.png' || hasError) {
+    return (
+      <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+        <Tag className="h-6 w-6 text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={onOpenPreview}
+      onMouseEnter={(e) => onHover(e, currentSrc, !!isExternal)}
+      onMouseLeave={onLeave}
+      className="relative cursor-pointer inline-block"
+      title="Clique para ampliar / passe o mouse para zoom 3x"
+    >
+      <img
+        src={currentSrc}
+        alt={product.name}
+        className="rounded-lg object-cover w-12 h-12 transition-all duration-200 border border-gray-200 dark:border-gray-700 hover:scale-105 hover:shadow-md"
+        onError={handleError}
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
 export function ProductsTable() {
   const { context, isLoading: orgLoading } = useOrganization();
   const [products, setProducts] = useState<Product[]>([]);
@@ -152,7 +217,16 @@ export function ProductsTable() {
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [viewImageFailed, setViewImageFailed] = useState(false);
+  const [viewModalSrc, setViewModalSrc] = useState<string | null>(null);
+  const [triedModalProxy, setTriedModalProxy] = useState(false);
   const [hoveredPreview, setHoveredPreview] = useState<{ src: string; alt: string; x: number; y: number; isExternal: boolean } | null>(null);
+
+  const handleOpenViewProduct = (p: Product) => {
+    setViewImageFailed(false);
+    setViewModalSrc(null);
+    setTriedModalProxy(false);
+    setViewProduct(p);
+  };
 
   // Ref e evento para fechar Seletor de Colunas ao clicar fora
   const columnSelectorRef = useRef<HTMLDivElement>(null);
@@ -1058,45 +1132,24 @@ export function ProductsTable() {
                     </td>
                     {visibleColumns.image_url !== false && (
                       <td className="px-4 py-3">
-                        {(() => {
-                          const { src, isExternal } = getProductImageUrl(product as any);
-                          const finalSrc = src ? (isExternal ? src : formatImageUrl(src)) : null;
-
-                          return finalSrc && finalSrc !== '/placeholder.png' ? (
-                            <div
-                              onClick={() => { setViewImageFailed(false); setViewProduct(product); }}
-                              onMouseEnter={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                let x = rect.right + 16;
-                                if (x + 268 > window.innerWidth) {
-                                  x = Math.max(16, rect.left - 272);
-                                }
-                                let y = rect.top - 100;
-                                if (y < 16) y = 16;
-                                if (y + 268 > window.innerHeight - 16) {
-                                  y = Math.max(16, window.innerHeight - 280);
-                                }
-                                setHoveredPreview({ src: finalSrc, alt: product.name, x, y, isExternal: !!isExternal });
-                              }}
-                              onMouseLeave={() => setHoveredPreview(null)}
-                              className="relative cursor-pointer inline-block"
-                              title="Clique para ampliar / passe o mouse para zoom 3x"
-                            >
-                              <Image
-                                src={finalSrc}
-                                alt={product.name}
-                                width={50}
-                                height={50}
-                                className="rounded-lg object-cover w-12 h-12 transition-all duration-200 border border-gray-200 dark:border-gray-700 hover:scale-105 hover:shadow-md"
-                                unoptimized={isExternal}
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                              <Tag className="h-6 w-6 text-gray-400" />
-                            </div>
-                          );
-                        })()}
+                        <ProductThumbnailCell
+                          product={product}
+                          onOpenPreview={() => handleOpenViewProduct(product)}
+                          onHover={(e, src, isExternal) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            let x = rect.right + 16;
+                            if (x + 268 > window.innerWidth) {
+                              x = Math.max(16, rect.left - 272);
+                            }
+                            let y = rect.top - 100;
+                            if (y < 16) y = 16;
+                            if (y + 268 > window.innerHeight - 16) {
+                              y = Math.max(16, window.innerHeight - 280);
+                            }
+                            setHoveredPreview({ src, alt: product.name, x, y, isExternal });
+                          }}
+                          onLeave={() => setHoveredPreview(null)}
+                        />
                       </td>
                     )}
                     {visibleColumns.reference_code !== false && (
@@ -1105,7 +1158,7 @@ export function ProductsTable() {
                     {visibleColumns.name !== false && (
                       <td className="px-4 py-3">
                         <div
-                          onClick={() => { setViewImageFailed(false); setViewProduct(product); }}
+                          onClick={() => handleOpenViewProduct(product)}
                           className="font-medium text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 transition-colors"
                           title="Clique para ver detalhes do produto"
                         >
@@ -1250,20 +1303,32 @@ export function ProductsTable() {
               {(() => {
                 const { src, isExternal } = getProductImageUrl(viewProduct as any);
                 const modalSrc = src ? (isExternal ? src : formatImageUrl(src)) : null;
+                const activeModalSrc = viewModalSrc || modalSrc;
 
-                if (!modalSrc || modalSrc === '/placeholder.png' || viewImageFailed) {
+                if (!activeModalSrc || activeModalSrc === '/placeholder.png' || viewImageFailed) {
                   return <ImageIcon size={48} className="text-gray-300" />;
                 }
 
                 return (
-                  <Image
-                    key={modalSrc}
-                    src={modalSrc}
+                  <img
+                    key={activeModalSrc}
+                    src={activeModalSrc}
                     alt={viewProduct.name}
-                    fill
-                    className="object-contain p-4"
-                    unoptimized={isExternal}
-                    onError={() => setViewImageFailed(true)}
+                    className="max-h-full max-w-full object-contain p-2"
+                    onError={() => {
+                      if (!triedModalProxy) {
+                        setTriedModalProxy(true);
+                        const raw = viewProduct.image_path || (viewProduct.images?.[0] as any)?.path || viewProduct.image_url || modalSrc;
+                        if (raw) {
+                          const clean = normalizeStoragePath(typeof raw === 'object' ? (raw as any).path || (raw as any).url : raw);
+                          if (clean) {
+                            setViewModalSrc(`/api/storage-image?path=${encodeURIComponent(clean)}`);
+                            return;
+                          }
+                        }
+                      }
+                      setViewImageFailed(true);
+                    }}
                   />
                 );
               })()}
@@ -1332,13 +1397,11 @@ export function ProductsTable() {
           className="pointer-events-none fixed z-[9999] bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-64 h-64 flex items-center justify-center animate-in fade-in zoom-in-95"
           style={{ top: `${hoveredPreview.y}px`, left: `${hoveredPreview.x}px` }}
         >
-          <div className="relative w-full h-full">
-            <Image
+          <div className="relative w-full h-full flex items-center justify-center">
+            <img
               src={hoveredPreview.src}
               alt={hoveredPreview.alt}
-              fill
-              className="object-contain rounded-xl p-1"
-              unoptimized={hoveredPreview.isExternal}
+              className="max-w-full max-h-full object-contain rounded-xl p-1"
             />
           </div>
         </div>

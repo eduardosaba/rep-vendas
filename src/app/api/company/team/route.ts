@@ -12,8 +12,11 @@ type ProfileRow = {
   id: string;
   role: string | null;
   company_id: string | null;
+  organization_id?: string | null;
   slug?: string | null;
   email?: string | null;
+  phone?: string | null;
+  full_name?: string | null;
   commission_rate?: number | null;
   can_manage_catalog?: boolean | null;
 };
@@ -64,7 +67,7 @@ async function getRequesterProfile() {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id,role,company_id,can_manage_catalog')
+    .select('id,role,company_id,organization_id,can_manage_catalog,slug,email,full_name')
     .eq('id', user.id)
     .maybeSingle<ProfileRow>();
 
@@ -135,7 +138,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('id,full_name,email,slug,role,company_id,commission_rate,can_manage_catalog,created_at')
+      .select('id,full_name,email,phone,slug,role,company_id,commission_rate,can_manage_catalog,created_at')
       .eq('company_id', profile.company_id)
       .order('created_at', { ascending: true });
 
@@ -232,6 +235,27 @@ export async function GET(req: Request) {
       }
     }
 
+    const catalogMap = new Map<string, { is_active?: boolean; catalog_slug?: string }>();
+    if (memberIds.length > 0) {
+      const { data: catRows } = await supabaseAdmin
+        .from('public_catalogs')
+        .select('user_id, is_active, catalog_slug')
+        .in('user_id', memberIds);
+
+      (catRows || []).forEach((c: any) => {
+        catalogMap.set(c.user_id, c);
+      });
+    }
+
+    const enrichedMembers = members.map((m) => {
+      const cat = catalogMap.get(m.id);
+      return {
+        ...m,
+        slug: m.slug || cat?.catalog_slug || null,
+        is_active: typeof cat?.is_active === 'boolean' ? cat.is_active : true,
+      };
+    });
+
     const byMember: Record<string, TeamMetricsByMember> = {};
     for (const [memberId, payload] of metricsByMember.entries()) {
       byMember[memberId] = payload;
@@ -239,7 +263,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      data: members,
+      data: enrichedMembers,
       metrics: {
         period_start: monthStart,
         month_sales_total: monthSalesTotal,
@@ -267,9 +291,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const targetUserId = String(body?.target_user_id || '');
-    const canManageCatalog = Boolean(body?.can_manage_catalog);
-    const commissionRate = body?.commission_rate;
+    const targetUserId = String(body?.target_user_id || body?.id || '').trim();
 
     if (!targetUserId) {
       return NextResponse.json({ success: false, error: 'target_user_id required' }, { status: 400 });
@@ -277,14 +299,14 @@ export async function PATCH(req: Request) {
 
     if (targetUserId === user.id) {
       return NextResponse.json(
-        { success: false, error: 'Você não pode alterar sua própria permissão nesta tela' },
+        { success: false, error: 'Você não pode alterar suas próprias permissões nesta tela' },
         { status: 400 }
       );
     }
 
     const { data: target, error: targetError } = await supabaseAdmin
       .from('profiles')
-      .select('id,company_id,role')
+      .select('id,company_id,role,slug,email,full_name,phone')
       .eq('id', targetUserId)
       .maybeSingle<ProfileRow>();
 
@@ -299,35 +321,327 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: 'Usuário não pertence à sua empresa' }, { status: 403 });
     }
 
-    if (isNativeAdminRole(target.role)) {
+    if (isNativeAdminRole(target.role) && profile.role !== 'master') {
       return NextResponse.json(
-        { success: false, error: 'Perfis administrativos já possuem acesso ao catálogo' },
+        { success: false, error: 'Não é permitido alterar administradores da empresa por esta tela' },
+        { status: 403 }
+      );
+    }
+
+    const updateProfilePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    // 1. Atualização de Nome
+    if (typeof body.full_name === 'string' && body.full_name.trim()) {
+      const newFullName = body.full_name.trim();
+      updateProfilePayload.full_name = newFullName;
+
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+          user_metadata: { name: newFullName },
+        });
+      } catch (authErr) {
+        console.warn('[PATCH /api/company/team] Falha ao atualizar nome no Auth:', authErr);
+      }
+
+      await supabaseAdmin
+        .from('settings')
+        .update({ representative_name: newFullName, updated_at: new Date().toISOString() })
+        .eq('user_id', targetUserId);
+
+      await supabaseAdmin
+        .from('public_catalogs')
+        .update({ representative_name: newFullName, updated_at: new Date().toISOString() })
+        .eq('user_id', targetUserId);
+    }
+
+    // 2. Atualização de Telefone
+    if (typeof body.phone !== 'undefined') {
+      const newPhone = String(body.phone || '').trim();
+      updateProfilePayload.phone = newPhone || null;
+
+      const waUrl = newPhone ? `https://wa.me/${newPhone.replace(/\D/g, '')}` : null;
+      await supabaseAdmin
+        .from('settings')
+        .update({ phone: newPhone || null, whatsapp_url: waUrl, updated_at: new Date().toISOString() })
+        .eq('user_id', targetUserId);
+
+      await supabaseAdmin
+        .from('public_catalogs')
+        .update({ phone: newPhone || null, updated_at: new Date().toISOString() })
+        .eq('user_id', targetUserId);
+    }
+
+    // 3. Atualização de Slug
+    if (typeof body.slug === 'string' && body.slug.trim()) {
+      const candidateSlug = normalizeSlug(body.slug);
+      if (candidateSlug && candidateSlug !== target.slug) {
+        // Valida unicidade
+        const { data: profileCollision } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('slug', candidateSlug)
+          .neq('id', targetUserId)
+          .maybeSingle();
+
+        const { data: catalogCollision } = await supabaseAdmin
+          .from('public_catalogs')
+          .select('id')
+          .eq('catalog_slug', candidateSlug)
+          .neq('user_id', targetUserId)
+          .maybeSingle();
+
+        if (profileCollision?.id || catalogCollision?.id) {
+          return NextResponse.json(
+            { success: false, error: 'O slug informado já está em uso por outro usuário.' },
+            { status: 409 }
+          );
+        }
+
+        updateProfilePayload.slug = candidateSlug;
+
+        await supabaseAdmin
+          .from('settings')
+          .update({ catalog_slug: candidateSlug, updated_at: new Date().toISOString() })
+          .eq('user_id', targetUserId);
+
+        await supabaseAdmin
+          .from('public_catalogs')
+          .update({ catalog_slug: candidateSlug, updated_at: new Date().toISOString() })
+          .eq('user_id', targetUserId);
+      }
+    }
+
+    // 4. Permissão do Catálogo
+    if (typeof body.can_manage_catalog === 'boolean') {
+      updateProfilePayload.can_manage_catalog = body.can_manage_catalog;
+    }
+
+    // 5. Comissão
+    if (typeof body.commission_rate !== 'undefined' && body.commission_rate !== null) {
+      const cr = Number(body.commission_rate);
+      if (!Number.isFinite(cr) || cr < 0 || cr > 100) {
+        return NextResponse.json({ success: false, error: 'Taxa de comissão inválida (deve ser entre 0 e 100)' }, { status: 400 });
+      }
+      updateProfilePayload.commission_rate = cr;
+    }
+
+    // 6. Status Ativo/Inativo
+    if (typeof body.is_active === 'boolean') {
+      const isActive = body.is_active;
+      await supabaseAdmin
+        .from('public_catalogs')
+        .update({ is_active: isActive, updated_at: new Date().toISOString() })
+        .eq('user_id', targetUserId);
+
+      await supabaseAdmin
+        .from('settings')
+        .update({ is_active: isActive, updated_at: new Date().toISOString() })
+        .eq('user_id', targetUserId);
+
+      // Tenta persistir status em profiles
+      try {
+        await supabaseAdmin
+          .from('profiles')
+          .update({ status: isActive ? 'active' : 'inactive' })
+          .eq('id', targetUserId);
+      } catch {}
+    }
+
+    // 7. Redefinição de Senha
+    if (typeof body.password === 'string' && body.password.trim()) {
+      const newPassword = body.password.trim();
+      if (newPassword.length < 8) {
+        return NextResponse.json(
+          { success: false, error: 'A nova senha precisa ter ao menos 8 caracteres' },
+          { status: 400 }
+        );
+      }
+
+      const { error: pwdError } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+        password: newPassword,
+      });
+
+      if (pwdError) {
+        return NextResponse.json(
+          { success: false, error: `Falha ao redefinir senha: ${pwdError.message}` },
+          { status: 500 }
+        );
+      }
+    }
+
+    // 8. Sincronizar catálogo / identidade visual completa da distribuidora
+    if (body.sync_catalog) {
+      const targetOrgId = profile.organization_id || profile.company_id;
+      let compData: any = null;
+      if (profile.company_id) {
+        const { data: c } = await supabaseAdmin.from('companies').select('*').eq('id', profile.company_id).maybeSingle();
+        compData = c;
+      }
+
+      let distSettings: any = null;
+      const { data: s } = await supabaseAdmin.from('settings').select('*').eq('user_id', user.id).maybeSingle();
+      distSettings = s;
+      if (!distSettings && targetOrgId) {
+        const { data: os } = await supabaseAdmin.from('settings').select('*').eq('organization_id', targetOrgId).limit(1).maybeSingle();
+        distSettings = os;
+      }
+
+      let distCatalog: any = null;
+      const { data: pc } = await supabaseAdmin.from('public_catalogs').select('*').eq('user_id', user.id).maybeSingle();
+      distCatalog = pc;
+
+      const resolvedLogo = distSettings?.logo_url || compData?.logo_url || distCatalog?.logo_url || null;
+      const resolvedPrimary = distSettings?.primary_color || compData?.primary_color || distCatalog?.primary_color || '#2563eb';
+      const resolvedSecondary = distSettings?.secondary_color || compData?.secondary_color || distCatalog?.secondary_color || '#0f172a';
+      const resolvedBanners = (distSettings?.banners?.length ? distSettings.banners : compData?.banners?.length ? compData.banners : distCatalog?.banners) || [];
+      const resolvedBannersMobile = (distSettings?.banners_mobile?.length ? distSettings.banners_mobile : compData?.banners_mobile?.length ? compData.banners_mobile : distCatalog?.banners_mobile) || [];
+      const resolvedStoreName = compData?.name || distSettings?.name || distCatalog?.store_name || 'Catálogo Virtual';
+      const resolvedHeadline = distSettings?.headline || compData?.headline || distCatalog?.headline || null;
+      const resolvedAboutText = distSettings?.about_text || compData?.about_text || compData?.welcome_text || distCatalog?.about_text || null;
+      const resolvedFooterMessage = distSettings?.footer_message || compData?.footer_message || distCatalog?.footer_message || null;
+      const resolvedFontFamily = distSettings?.font_family || compData?.font_family || distCatalog?.font_family || null;
+
+      await supabaseAdmin.from('settings').update({
+        logo_url: resolvedLogo,
+        name: resolvedStoreName,
+        primary_color: resolvedPrimary,
+        secondary_color: resolvedSecondary,
+        banners: resolvedBanners,
+        banners_mobile: resolvedBannersMobile,
+        headline: resolvedHeadline,
+        about_text: resolvedAboutText,
+        footer_message: resolvedFooterMessage,
+        font_family: resolvedFontFamily,
+        price_unlock_mode: distSettings?.price_unlock_mode || 'modal',
+        price_password_hash: distSettings?.price_password_hash || null,
+        show_sale_price: distSettings?.show_sale_price ?? true,
+        show_cost_price: distSettings?.show_cost_price ?? false,
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', targetUserId);
+
+      await supabaseAdmin.from('public_catalogs').update({
+        store_name: resolvedStoreName,
+        logo_url: resolvedLogo,
+        single_brand_logo_url: resolvedLogo,
+        primary_color: resolvedPrimary,
+        secondary_color: resolvedSecondary,
+        banners: resolvedBanners,
+        banners_mobile: resolvedBannersMobile,
+        headline: resolvedHeadline,
+        about_text: resolvedAboutText,
+        footer_message: resolvedFooterMessage,
+        font_family: resolvedFontFamily,
+        price_unlock_mode: distSettings?.price_unlock_mode || distCatalog?.price_unlock_mode || 'modal',
+        price_password_hash: distSettings?.price_password_hash || distCatalog?.price_password_hash || null,
+        show_sale_price: distSettings?.show_sale_price ?? distCatalog?.show_sale_price ?? true,
+        show_cost_price: distSettings?.show_cost_price ?? distCatalog?.show_cost_price ?? false,
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', targetUserId);
+    }
+
+    // Aplica alterações na tabela profiles
+    const { data: updatedProfile, error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update(updateProfilePayload)
+      .eq('id', targetUserId)
+      .eq('company_id', profile.company_id)
+      .select('id,full_name,email,phone,slug,role,company_id,can_manage_catalog,commission_rate')
+      .maybeSingle();
+
+    if (updateError) {
+      return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, data: updatedProfile });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const requester = await getRequesterProfile();
+    if ('error' in requester) return requester.error;
+
+    const { user, profile } = requester;
+    if (!canManageTeam(profile)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!profile.company_id) {
+      return NextResponse.json({ success: false, error: 'No company linked' }, { status: 400 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    let targetUserId = searchParams.get('id') || searchParams.get('target_user_id');
+
+    if (!targetUserId) {
+      try {
+        const body = await req.json();
+        targetUserId = body?.target_user_id || body?.id;
+      } catch {}
+    }
+
+    if (!targetUserId) {
+      return NextResponse.json({ success: false, error: 'target_user_id required' }, { status: 400 });
+    }
+
+    if (targetUserId === user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Você não pode excluir sua própria conta nesta tela' },
         { status: 400 }
       );
     }
 
-    const updatePayload: Record<string, any> = { can_manage_catalog: canManageCatalog };
-    if (typeof commissionRate !== 'undefined' && commissionRate !== null) {
-      const cr = Number(commissionRate);
-      if (!Number.isFinite(cr) || cr < 0 || cr > 100) {
-        return NextResponse.json({ success: false, error: 'commission_rate inválido' }, { status: 400 });
-      }
-      updatePayload.commission_rate = cr;
-    }
-
-    const { data, error } = await supabaseAdmin
+    const { data: target, error: targetError } = await supabaseAdmin
       .from('profiles')
-      .update(updatePayload)
+      .select('id,company_id,role,full_name')
       .eq('id', targetUserId)
-      .eq('company_id', profile.company_id)
-      .select('id,full_name,email,slug,role,company_id,can_manage_catalog,commission_rate')
-      .maybeSingle();
+      .maybeSingle<ProfileRow>();
 
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (targetError || !target) {
+      return NextResponse.json(
+        { success: false, error: targetError?.message || 'Representante não encontrado' },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ success: true, data });
+    if (target.company_id !== profile.company_id) {
+      return NextResponse.json({ success: false, error: 'Usuário não pertence à sua distribuidora' }, { status: 403 });
+    }
+
+    if (isNativeAdminRole(target.role) && profile.role !== 'master') {
+      return NextResponse.json(
+        { success: false, error: 'Não é permitido excluir administradores da empresa' },
+        { status: 403 }
+      );
+    }
+
+    // Exclusão / Desvinculação em cascata
+    // 1. Remover public_catalogs
+    await supabaseAdmin.from('public_catalogs').delete().eq('user_id', targetUserId);
+
+    // 2. Remover settings
+    await supabaseAdmin.from('settings').delete().eq('user_id', targetUserId);
+
+    // 3. Remover organization_members se houver
+    try {
+      await supabaseAdmin.from('organization_members').delete().eq('user_id', targetUserId);
+    } catch {}
+
+    // 4. Remover de profiles
+    await supabaseAdmin.from('profiles').delete().eq('id', targetUserId);
+
+    // 5. Excluir do Supabase Auth
+    try {
+      await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+    } catch (authDelErr: any) {
+      console.warn('[DELETE /api/company/team] Falha ao deletar auth user:', authDelErr?.message);
+    }
+
+    return NextResponse.json({ success: true, message: 'Representante excluído com sucesso' });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 });
   }
@@ -350,8 +664,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const fullName = String(body?.full_name || '').trim();
     const email = String(body?.email || '').trim().toLowerCase();
+    const phone = String(body?.phone || '').trim();
     const password = String(body?.password || '');
-    const slug = normalizeSlug(String(body?.slug || ''));
+    const slugInput = normalizeSlug(String(body?.slug || ''));
+    const finalSlug = slugInput || normalizeSlug(fullName);
     const commissionPercent = Number(body?.commission_percent ?? 5);
 
     if (!fullName || !email || !password) {
@@ -368,14 +684,20 @@ export async function POST(req: Request) {
       );
     }
 
-    if (slug) {
-      const { data: existingSlug } = await supabaseAdmin
+    if (finalSlug) {
+      const { data: existingProfileSlug } = await supabaseAdmin
         .from('profiles')
         .select('id')
-        .eq('slug', slug)
+        .eq('slug', finalSlug)
         .maybeSingle();
 
-      if (existingSlug?.id) {
+      const { data: existingCatalogSlug } = await supabaseAdmin
+        .from('public_catalogs')
+        .select('id')
+        .eq('catalog_slug', finalSlug)
+        .maybeSingle();
+
+      if (existingProfileSlug?.id || existingCatalogSlug?.id) {
         return NextResponse.json(
           { success: false, error: 'Slug já está em uso por outro usuário' },
           { status: 409 }
@@ -404,6 +726,7 @@ export async function POST(req: Request) {
         name: fullName,
         role: 'representative',
         company_id: profile.company_id,
+        phone: phone || undefined,
       },
     });
 
@@ -415,6 +738,7 @@ export async function POST(req: Request) {
     }
 
     const authUserId = createdAuth.user.id;
+    const targetOrgId = profile.organization_id || profile.company_id;
 
     try {
       const roleCandidates = ['representative', 'rep'] as const;
@@ -426,13 +750,19 @@ export async function POST(req: Request) {
           id: authUserId,
           full_name: fullName,
           email,
+          phone: phone || null,
           role: roleCandidate,
           company_id: profile.company_id,
+          organization_id: targetOrgId,
           status: 'active',
+          can_manage_catalog: true,
+          onboarding_completed: true,
+          onboarding_step: 4,
+          onboarding_completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
 
-        if (slug) profilePayload.slug = slug;
+        if (finalSlug) profilePayload.slug = finalSlug;
         if (Number.isFinite(commissionPercent)) profilePayload.commission_rate = commissionPercent;
 
         for (let attempts = 0; attempts < 8; attempts++) {
@@ -472,9 +802,168 @@ export async function POST(req: Request) {
         );
       }
 
+      // Clona identidade visual e configurações da distribuidora para o representante
+      let baseSettings: any = null;
+      const { data: distSettings } = await supabaseAdmin
+        .from('settings')
+        .select('*')
+        .eq('user_id', requester.user.id)
+        .maybeSingle();
+
+      baseSettings = distSettings;
+
+      if (!baseSettings && targetOrgId) {
+        const { data: orgSettings } = await supabaseAdmin
+          .from('settings')
+          .select('*')
+          .eq('organization_id', targetOrgId)
+          .limit(1)
+          .maybeSingle();
+        baseSettings = orgSettings || null;
+      }
+
+      let companyData: any = null;
+      if (profile.company_id) {
+        const { data: comp } = await supabaseAdmin
+          .from('companies')
+          .select('*')
+          .eq('id', profile.company_id)
+          .maybeSingle();
+        companyData = comp || null;
+      }
+
+      let distCatalog: any = null;
+      const { data: cat } = await supabaseAdmin
+        .from('public_catalogs')
+        .select('*')
+        .eq('user_id', requester.user.id)
+        .maybeSingle();
+      distCatalog = cat || null;
+
+      // Unifica identidade visual da distribuidora (companies + settings + public_catalogs)
+      const resolvedLogo = baseSettings?.logo_url || companyData?.logo_url || distCatalog?.logo_url || null;
+      const resolvedPrimaryColor = baseSettings?.primary_color || companyData?.primary_color || distCatalog?.primary_color || '#2563eb';
+      const resolvedSecondaryColor = baseSettings?.secondary_color || companyData?.secondary_color || distCatalog?.secondary_color || '#0f172a';
+      const resolvedBanners = (baseSettings?.banners && baseSettings.banners.length > 0)
+        ? baseSettings.banners
+        : (companyData?.banners && companyData.banners.length > 0)
+        ? companyData.banners
+        : distCatalog?.banners || [];
+      const resolvedBannersMobile = (baseSettings?.banners_mobile && baseSettings.banners_mobile.length > 0)
+        ? baseSettings.banners_mobile
+        : (companyData?.banners_mobile && companyData.banners_mobile.length > 0)
+        ? companyData.banners_mobile
+        : distCatalog?.banners_mobile || [];
+      const resolvedStoreName = companyData?.name || baseSettings?.name || distCatalog?.store_name || 'Catálogo Virtual';
+      const resolvedHeadline = baseSettings?.headline || companyData?.headline || distCatalog?.headline || null;
+      const resolvedAboutText = baseSettings?.about_text || companyData?.about_text || companyData?.welcome_text || distCatalog?.about_text || null;
+      const resolvedFooterMessage = baseSettings?.footer_message || companyData?.footer_message || distCatalog?.footer_message || null;
+      const resolvedFontFamily = baseSettings?.font_family || companyData?.font_family || distCatalog?.font_family || null;
+
+      // 1. Salvar configurações clonadas em public.settings
+      const settingsPayload: Record<string, any> = {
+        ...(baseSettings || {}),
+        user_id: authUserId,
+        catalog_slug: finalSlug || null,
+        name: resolvedStoreName,
+        representative_name: fullName,
+        email: email,
+        phone: phone || null,
+        whatsapp_url: phone ? `https://wa.me/${phone.replace(/\D/g, '')}` : (baseSettings?.whatsapp_url || null),
+        logo_url: resolvedLogo,
+        primary_color: resolvedPrimaryColor,
+        secondary_color: resolvedSecondaryColor,
+        banners: resolvedBanners,
+        banners_mobile: resolvedBannersMobile,
+        headline: resolvedHeadline,
+        about_text: resolvedAboutText,
+        footer_message: resolvedFooterMessage,
+        font_family: resolvedFontFamily,
+        company_id: profile.company_id,
+        organization_id: targetOrgId,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+      delete settingsPayload.id;
+      delete settingsPayload.created_at;
+
+      for (let attempts = 0; attempts < 8; attempts++) {
+        const { error: settingsError } = await supabaseAdmin
+          .from('settings')
+          .upsert(settingsPayload, { onConflict: 'user_id' });
+
+        if (!settingsError) break;
+
+        if (isMissingColumnError(settingsError)) {
+          const missingColumn = extractMissingColumnName(settingsError);
+          if (missingColumn && missingColumn in settingsPayload) {
+            delete settingsPayload[missingColumn];
+            continue;
+          }
+        }
+        console.warn('[POST /api/company/team] Aviso ao clonar settings:', settingsError?.message);
+        break;
+      }
+
+      // 2. Salvar catálogo público clonado em public.public_catalogs
+      const catalogPayload: Record<string, any> = {
+        ...(distCatalog || {}),
+        user_id: authUserId,
+        catalog_slug: finalSlug || null,
+        store_name: resolvedStoreName,
+        representative_name: fullName,
+        email: email,
+        phone: phone || null,
+        logo_url: resolvedLogo,
+        single_brand_logo_url: resolvedLogo,
+        primary_color: resolvedPrimaryColor,
+        secondary_color: resolvedSecondaryColor,
+        banners: resolvedBanners,
+        banners_mobile: resolvedBannersMobile,
+        headline: resolvedHeadline,
+        about_text: resolvedAboutText,
+        footer_message: resolvedFooterMessage,
+        font_family: resolvedFontFamily,
+        company_id: profile.company_id,
+        organization_id: targetOrgId,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+      delete catalogPayload.id;
+      delete catalogPayload.created_at;
+
+      if (baseSettings) {
+        if (!catalogPayload.price_unlock_mode && baseSettings.price_unlock_mode) catalogPayload.price_unlock_mode = baseSettings.price_unlock_mode;
+        if (!catalogPayload.price_password_hash && baseSettings.price_password_hash) catalogPayload.price_password_hash = baseSettings.price_password_hash;
+        if (catalogPayload.show_sale_price == null && baseSettings.show_sale_price != null) {
+          catalogPayload.show_sale_price = baseSettings.show_sale_price;
+        }
+        if (catalogPayload.show_cost_price == null && baseSettings.show_cost_price != null) {
+          catalogPayload.show_cost_price = baseSettings.show_cost_price;
+        }
+      }
+
+      for (let attempts = 0; attempts < 8; attempts++) {
+        const { error: catError } = await supabaseAdmin
+          .from('public_catalogs')
+          .upsert(catalogPayload, { onConflict: 'user_id' });
+
+        if (!catError) break;
+
+        if (isMissingColumnError(catError)) {
+          const missingColumn = extractMissingColumnName(catError);
+          if (missingColumn && missingColumn in catalogPayload) {
+            delete catalogPayload[missingColumn];
+            continue;
+          }
+        }
+        console.warn('[POST /api/company/team] Aviso ao clonar public_catalogs:', catError?.message);
+        break;
+      }
+
       const { data: createdProfile } = await supabaseAdmin
         .from('profiles')
-        .select('id,full_name,email,slug,role,company_id,commission_rate,can_manage_catalog,created_at')
+        .select('id,full_name,email,phone,slug,role,company_id,commission_rate,can_manage_catalog,created_at')
         .eq('id', authUserId)
         .maybeSingle();
 

@@ -210,6 +210,8 @@ export function Sidebar({
   const [isCompanyAdmin, setIsCompanyAdmin] = useState(false);
   const [isCompanyMember, setIsCompanyMember] = useState(false);
   const [canManageCatalog, setCanManageCatalog] = useState(false);
+  const [contractType, setContractType] = useState<string>('gestao_completa');
+  const [companyType, setCompanyType] = useState<string | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   const isDashboardRoute = pathname?.startsWith('/dashboard');
@@ -268,6 +270,36 @@ export function Sidebar({
             setIsCompanyAdmin(Boolean(isCompanyAdminRole));
             setIsCompanyMember(hasCompanyLink);
             setCanManageCatalog(Boolean(profile?.can_manage_catalog));
+
+            let compId = profile?.company_id;
+            if (!compId && isCompanyAdminRole) {
+              try {
+                const { data: userComp } = await supabase
+                  .from('companies')
+                  .select('id')
+                  .eq('user_id', user.id)
+                  .maybeSingle();
+                if (userComp?.id) compId = userComp.id;
+              } catch (_) {}
+            }
+
+            if (compId) {
+              try {
+                const { data: comp } = await supabase
+                  .from('companies')
+                  .select('metadata, type')
+                  .eq('id', compId)
+                  .maybeSingle();
+                const meta = (comp?.metadata as any) || {};
+                if (meta.contract_type) {
+                  setContractType(meta.contract_type);
+                }
+                const cType = String(comp?.type || '').toLowerCase();
+                if (cType) {
+                  setCompanyType(cType);
+                }
+              } catch (_) {}
+            }
           } else if (masterDetected) {
             setIsMaster(true);
           }
@@ -412,6 +444,39 @@ export function Sidebar({
           // Equipe e Comunicados apenas para administradores da distribuidora ou master
           if ((item.href === '/dashboard/equipe' || item.href === '/dashboard/equipe/comunicados') && !isCompanyAdmin && !isMaster)
             return null;
+
+          // Restringir "Vitrine / Aparência" e "Configurações" para admin da distribuidora e membros vinculados a ela,
+          // pois a distribuidora já possui o módulo oficial "Gestão da Distribuidora" (Dados da Distribuidora, Institucional, Páginas).
+          // Mantido ativo para outros perfis (ex: representantes autônomos, óticas, etc.).
+          const isDistributorAdminOrLinked = Boolean(
+            isCompanyAdmin ||
+            (isCompanyMember && (companyType === 'distribuidora' || companyType === 'distributor' || !companyType))
+          );
+
+          if (
+            (item.label === 'Vitrine / Aparência' ||
+             item.label === 'Configurações' ||
+             item.href === '/dashboard/settings' ||
+             item.href === '/dashboard/settings?tab=appearance') &&
+            isDistributorAdminOrLinked
+          ) {
+            return null;
+          }
+
+          // Módulo de Pedidos:
+          // Só aparece no menu se a distribuidora contratar 'gestao_completa' (ou se for usuário independente / master).
+          // Se contratar 'catalogo', não exibe no sidebar nem da distribuidora nem do representante vinculado.
+          if (item.href === '/dashboard/orders') {
+            if ((isCompanyAdmin || isCompanyMember) && !isMaster && contractType === 'catalogo') {
+              return null;
+            }
+          }
+
+          let displayLabel = item.label;
+          if (item.href === '/dashboard/orders') {
+            displayLabel = isCompanyAdmin ? 'Pedidos dos Representantes' : 'Pedidos';
+          }
+
           const active = item.exact
             ? pathname === item.href
             : pathname?.startsWith(item.href);
@@ -454,7 +519,7 @@ export function Sidebar({
                         }
                         style={active ? { color: primary } : {}}
                       />
-                      {!isCollapsed && <span>{item.label}</span>}
+                      {!isCollapsed && <span>{displayLabel}</span>}
                     </div>
                     {!isCollapsed && (
                       <ChevronDown
@@ -494,7 +559,7 @@ export function Sidebar({
                         }
                         style={active ? { color: primary } : {}}
                       />
-                      {!isCollapsed && <span>{item.label}</span>}
+                      {!isCollapsed && <span>{displayLabel}</span>}
                     </div>
                     {!isCollapsed && (
                       <ChevronDown
@@ -535,7 +600,7 @@ export function Sidebar({
                       }
                       style={active ? { color: primary } : {}}
                     />
-                    {!isCollapsed && <span>{item.label}</span>}
+                    {!isCollapsed && <span>{displayLabel}</span>}
                   </div>
                 </Link>
               )}

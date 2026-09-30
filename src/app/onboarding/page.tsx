@@ -18,12 +18,17 @@ export default async function OnboardingPage() {
     // 2. Busca o Perfil com dados iniciais e etapa atual
     const { data: profile } = await supabase
       .from('profiles')
-      .select('onboarding_completed, onboarding_step, full_name, phone')
+      .select('onboarding_completed, onboarding_step, full_name, phone, role, company_id')
       .eq('id', user.id)
       .maybeSingle();
 
-    // Se já completou, redireciona para o dashboard
-    if (profile?.onboarding_completed) {
+    const role = String(profile?.role || '').toLowerCase();
+    const isTeamRep =
+      Boolean((profile as any)?.company_id) &&
+      (role === 'representative' || role === 'rep' || role === 'representante');
+
+    // Se já completou ou se for representante vinculado à distribuidora, redireciona para o dashboard
+    if (profile?.onboarding_completed || isTeamRep) {
       redirect('/dashboard');
     }
 

@@ -200,7 +200,7 @@ export async function createOrder(
 
     const { data: ownerProfileData } = await (adminSupabase ?? supabase)
       .from('profiles')
-      .select('company_id, organization_id, is_active')
+      .select('company_id, organization_id, is_active, role')
       .eq('id', effectiveOwnerId)
       .maybeSingle();
 
@@ -292,11 +292,18 @@ export async function createOrder(
       return acc + unitPrice * quantity;
     }, 0);
 
+    const isOwnerRep =
+      (ownerProfileData as any)?.role === 'representative' ||
+      (ownerProfileData as any)?.role === 'rep' ||
+      (ownerProfileData as any)?.role === 'representante';
+
+    const finalSellerId = sellerId || (isOwnerRep ? effectiveOwnerId : null);
+
     const orderPayload = {
       user_id: effectiveOwnerId,
       display_id: displayId,
       status: mapToDbStatus(
-        sellerId && companyId ? 'pending_review' : 'pending'
+        finalSellerId && companyId ? 'pending_review' : 'pending'
       ),
       total_value: totalValue,
       client_name_guest: customer.name,
@@ -306,8 +313,8 @@ export async function createOrder(
       company_id: companyId,
       organization_id: realOrgId,
       source,
-      seller_id: sellerId || null,
-      sales_rep_id: sellerId || null,
+      seller_id: finalSellerId || null,
+      sales_rep_id: finalSellerId || null,
       client_id: existingCustomerId || null,
       customer_link_status: existingCustomerId ? 'linked' : 'pending',
     };

@@ -18,6 +18,8 @@ import {
   Activity,
   CheckCircle2,
   Building2,
+  Store,
+  HelpCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import QuickActionCard from '@/components/QuickActionCard'
@@ -40,15 +42,91 @@ export default async function DashboardPage({
   const activeUserId = await getActiveUserId()
   if (!activeUserId) redirect('/login')
 
-  // Busca perfil para identificar role, company e organization
+  // Busca perfil para identificar role, company, organization e user_category
   const { data: profileData } = await supabase
     .from('profiles')
-    .select('role, company_id, organization_id, full_name, name, display_name, email, notifications_enabled')
+    .select('role, company_id, organization_id, full_name, store_name, email, notifications_enabled, user_category')
     .eq('id', activeUserId)
     .maybeSingle()
 
-  const isAdmin = isCompanyAdmin(profileData?.role) || isGlobalAdmin(profileData?.role) || profileData?.role === 'admin' || profileData?.role === 'owner'
-  const companyId = profileData?.company_id
+  // Identificação robusta da organização
+  let orgType: 'distributor' | 'optical_store' | 'independent_representative' = 'independent_representative';
+  let orgName: string | null = null;
+
+  if (profileData?.organization_id) {
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('name, organization_type')
+      .eq('id', profileData.organization_id)
+      .maybeSingle();
+    if (org) {
+      if (
+        org.organization_type === 'distributor' ||
+        org.organization_type === 'optical_store' ||
+        org.organization_type === 'independent_representative'
+      ) {
+        orgType = org.organization_type;
+      }
+      orgName = org.name || null;
+    }
+  }
+
+  let companyName: string | null = null;
+  let companyType: string | null = null;
+  const companyId = profileData?.company_id;
+
+  if (companyId) {
+    try {
+      const compRes = await supabase.from('companies').select('name, type').eq('id', companyId).maybeSingle();
+      companyName = compRes?.data?.name ?? null;
+      companyType = compRes?.data?.type ?? null;
+      if (!orgName && companyName) orgName = companyName;
+      if (orgType === 'independent_representative' && companyType) {
+        if (companyType === 'distribuidora' || companyType === 'distributor') {
+          orgType = 'distributor';
+        } else if (companyType === 'optica' || companyType === 'optical_store' || companyType === 'otica') {
+          orgType = 'optical_store';
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao buscar dados da company:', err);
+    }
+  }
+
+  const roleLower = String(profileData?.role || '').toLowerCase();
+  const categoryLower = String(profileData?.user_category || '').toLowerCase();
+
+  const isDistributorRole =
+    roleLower === 'admin_company' ||
+    roleLower === 'company_admin' ||
+    roleLower === 'distributor' ||
+    categoryLower === 'distributor' ||
+    isCompanyAdmin(profileData?.role);
+
+  const isOpticalRole =
+    roleLower === 'optical_store' ||
+    roleLower === 'optical_client' ||
+    roleLower === 'lojista' ||
+    roleLower === 'optica' ||
+    roleLower === 'otica' ||
+    categoryLower === 'optical_store';
+
+  // Se o usuário tem role de representante vinculado a distribuidora,
+  // ele é um Representante daquela Distribuidora:
+  const isLinkedRep = (roleLower === 'rep' || roleLower === 'representative') && Boolean(companyId);
+
+  // Determina o tipo de perfil ativo
+  let profileKind: 'distributor' | 'optical_store' | 'representative' = 'representative';
+  if (!isLinkedRep) {
+    if (isDistributorRole || orgType === 'distributor') {
+      profileKind = 'distributor';
+    } else if (isOpticalRole || orgType === 'optical_store') {
+      profileKind = 'optical_store';
+    }
+  }
+
+  const isAdmin = profileKind === 'distributor' || isGlobalAdmin(profileData?.role) || roleLower === 'master' || roleLower === 'admin';
+
   const dashboardFilter = {
     column: isAdmin ? 'company_id' : 'user_id',
     value: isAdmin ? companyId : activeUserId,
@@ -70,34 +148,61 @@ export default async function DashboardPage({
         end_date: now,
       })
       .maybeSingle(),
-    supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq(dashboardFilter.column, dashboardFilter.value)
-      .eq('is_active', true),
-    supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq(dashboardFilter.column, dashboardFilter.value)
-      .gte('created_at', startDate),
-    supabase
-      .from('orders')
-      .select(
-        `id, display_id, client_name_guest, total_value, status, created_at, order_items (id, quantity)`
-      )
-      .eq(dashboardFilter.column, dashboardFilter.value)
-      .order('created_at', { ascending: false })
-      .limit(5),
+    companyId
+      ? supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .or(`company_id.eq.${companyId},user_id.eq.${activeUserId}`)
+          .eq('is_active', true)
+      : supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', activeUserId)
+          .eq('is_active', true),
+    isAdmin
+      ? supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('company_id', companyId)
+          .gte('created_at', startDate)
+      : supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .or(`user_id.eq.${activeUserId},seller_id.eq.${activeUserId}`)
+          .gte('created_at', startDate),
+    isAdmin
+      ? supabase
+          .from('orders')
+          .select(
+            `id, display_id, client_name_guest, total_value, status, created_at, order_items (id, quantity)`
+          )
+          .eq('company_id', companyId)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      : supabase
+          .from('orders')
+          .select(
+            `id, display_id, client_name_guest, total_value, status, created_at, order_items (id, quantity)`
+          )
+          .or(`user_id.eq.${activeUserId},seller_id.eq.${activeUserId}`)
+          .order('created_at', { ascending: false })
+          .limit(5),
     supabase
       .from('settings')
       .select('*')
       .eq('user_id', activeUserId)
       .maybeSingle(),
-    supabase
-      .from('orders')
-      .select('total_value, created_at')
-      .eq(dashboardFilter.column, dashboardFilter.value)
-      .gte('created_at', startDate),
+    isAdmin
+      ? supabase
+          .from('orders')
+          .select('total_value, created_at')
+          .eq('company_id', companyId)
+          .gte('created_at', startDate)
+      : supabase
+          .from('orders')
+          .select('total_value, created_at')
+          .or(`user_id.eq.${activeUserId},seller_id.eq.${activeUserId}`)
+          .gte('created_at', startDate),
     supabase
       .from('sync_logs')
       .select('*')
@@ -132,9 +237,8 @@ export default async function DashboardPage({
   const latestUpdate = results[7].status === 'fulfilled' ? results[7].value : { data: null, error: null }
   const syncJob = results[8].status === 'fulfilled' ? results[8].value : { data: null, error: null }
 
-  // Se for admin, buscamos informações adicionais da empresa e contagem da equipe
+  // Se for admin, buscamos contagem da equipe
   let teamCount = 0
-  let companyName: string | null = null
   if (isAdmin && companyId) {
     try {
       const teamRes = await supabase
@@ -145,14 +249,6 @@ export default async function DashboardPage({
     } catch (err) {
       console.error('Erro ao buscar contagem de representantes:', err)
       teamCount = 0
-    }
-
-    try {
-      const compRes = await supabase.from('companies').select('name').eq('id', companyId).maybeSingle()
-      companyName = compRes?.data?.name ?? null
-    } catch (err) {
-      console.error('Erro ao buscar dados da company:', err)
-      companyName = null
     }
   }
 
@@ -175,32 +271,64 @@ export default async function DashboardPage({
   const daysSinceSync = syncDate ? Math.floor((new Date().getTime() - syncDate.getTime()) / (1000 * 3600 * 24)) : null
   const needsSyncAlert = daysSinceSync !== null && daysSinceSync > 15
 
-  // Nome curto
-  const rawFullName = profile.data?.full_name || profile.data?.name || profile.data?.display_name || ''
-  const firstName = rawFullName && typeof rawFullName === 'string' && rawFullName.trim().length > 0
-    ? rawFullName.trim().split(' ')[0]
-    : profile.data?.email
-      ? profile.data.email.split('@')[0]
-      : isAdmin
-        ? 'Gestor'
-        : 'Representante'
+  // Identificação do nome e perfil para a saudação
+  const rawFullName = (profileData?.full_name || profileData?.store_name || '').trim();
+  const isGenericName =
+    !rawFullName ||
+    rawFullName.toLowerCase() === 'representante' ||
+    rawFullName.toLowerCase() === 'gestor' ||
+    rawFullName.toLowerCase() === 'admin' ||
+    rawFullName.toLowerCase() === 'distribuidora' ||
+    rawFullName.toLowerCase() === 'otica' ||
+    rawFullName.toLowerCase() === 'óptica' ||
+    rawFullName.toLowerCase() === 'usuario' ||
+    rawFullName.toLowerCase() === 'user';
+
+  let greetingName = '';
+  if (!isGenericName) {
+    greetingName = rawFullName;
+  } else {
+    if (profileKind === 'distributor') {
+      greetingName = orgName || 'Distribuidora';
+    } else if (profileKind === 'optical_store') {
+      greetingName = orgName || 'Ótica';
+    } else {
+      greetingName = profileData?.email ? profileData.email.split('@')[0] : 'Representante';
+    }
+  }
+
+  // Configuração visual do Badge e Subtítulo de acordo com o perfil
+  const badgeConfig = {
+    distributor: {
+      label: 'Distribuidora',
+      className: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800',
+    },
+    optical_store: {
+      label: 'Ótica',
+      className: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+    },
+    representative: {
+      label: isLinkedRep ? 'Representante da Distribuidora' : 'Representante',
+      className: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
+    },
+  }[profileKind];
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950 p-4 md:p-8 animate-in fade-in duration-700">
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            Olá, {profile.data?.full_name || profile.data?.name || profile.data?.display_name || firstName} 👋
-            {isAdmin && (
-              <span className="ml-3 text-[10px] uppercase tracking-wider bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">
-                Gestor Distribuidora
-              </span>
-            )}
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center flex-wrap gap-2">
+            <span>Olá, {greetingName} 👋</span>
+            <span className={`text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-full border ${badgeConfig.className}`}>
+              {badgeConfig.label}
+            </span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            {isAdmin
-              ? `Monitorando o desempenho global${companyName ? ` da ${companyName}` : ''}`
-              : '📈 Acompanhe suas vendas e metas pessoais.'}
+            {profileKind === 'distributor'
+              ? `Monitorando o desempenho global e vendas da equipe${orgName ? ` da ${orgName}` : ''}.`
+              : profileKind === 'optical_store'
+              ? `Painel de compras, pedidos e catálogo da ótica${orgName ? ` ${orgName}` : ''}.`
+              : '📈 Acompanhe suas vendas, pedidos e clientes.'}
           </p>
           {settings.data && (
             <div className="mt-3">
@@ -256,23 +384,47 @@ export default async function DashboardPage({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
-          title={isAdmin ? 'Faturamento Global' : 'Minha Receita'}
+          title={
+            profileKind === 'distributor'
+              ? 'Faturamento Global'
+              : profileKind === 'optical_store'
+              ? 'Total em Compras'
+              : 'Minha Receita'
+          }
           value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
             (isAdmin ? (totals.data as any)?.company_revenue ?? (totals.data as any)?.total_revenue : (totals.data as any)?.user_revenue ?? (totals.data as any)?.total_revenue) || 0
           )}
           icon={DollarSign}
-          color={isAdmin ? 'indigo' : 'green'}
+          color={profileKind === 'distributor' ? 'indigo' : profileKind === 'optical_store' ? 'blue' : 'green'}
         />
 
-        <StatCard title={isAdmin ? 'Total de Pedidos' : 'Meus Pedidos'} value={orders.count || 0} icon={ShoppingBag} color="blue" />
+        <StatCard
+          title={
+            profileKind === 'optical_store'
+              ? 'Pedidos de Compra'
+              : isAdmin
+              ? 'Total de Pedidos'
+              : 'Meus Pedidos'
+          }
+          value={orders.count || 0}
+          icon={ShoppingBag}
+          color="blue"
+        />
 
-        {isAdmin ? (
+        {profileKind === 'distributor' ? (
           <StatCard title="Representantes" value={teamCount} icon={Users} color="purple" />
+        ) : profileKind === 'optical_store' ? (
+          <StatCard title="Distribuidoras Parceiras" value={clientsCount || 1} icon={Building2} color="purple" />
         ) : (
           <StatCard title="Clientes Atendidos" value={clientsCount} icon={Users} color="purple" />
         )}
 
-        <StatCard title="Mix de Produtos" value={products.count || 0} icon={Package} color="orange" />
+        <StatCard
+          title={profileKind === 'optical_store' ? 'Catálogo de Produtos' : 'Mix de Produtos'}
+          value={products.count || 0}
+          icon={Package}
+          color="orange"
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
@@ -282,12 +434,19 @@ export default async function DashboardPage({
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-200 dark:border-slate-800 shadow-sm">
           <h3 className="font-bold text-gray-400 dark:text-slate-500 mb-5 uppercase text-xs tracking-widest">Ações Rápidas</h3>
           <div className="grid grid-cols-2 gap-4">
-            {isAdmin ? (
+            {profileKind === 'distributor' ? (
               <>
                 <QuickActionCard href="/dashboard/settings?tab=institucional" icon={Building2} label="Minha Marca" color="blue" />
                 <QuickActionCard href="/dashboard/equipe" icon={Users} label="Minha Equipe" color="blue" />
                 <QuickActionCard href="/dashboard/inventory" icon={Package} label="Estoque Global" color="red" />
                 <QuickActionCard href="/dashboard/settings" icon={SettingsIcon} label="Configurações" color="slate" />
+              </>
+            ) : profileKind === 'optical_store' ? (
+              <>
+                <QuickActionCard href="/dashboard/orders" icon={ShoppingBag} label="Meus Pedidos" color="blue" />
+                <QuickActionCard href="/dashboard/products" icon={Package} label="Catálogo" color="orange" />
+                <QuickActionCard href="/dashboard/settings" icon={SettingsIcon} label="Configurações" color="slate" />
+                <QuickActionCard href="/dashboard/help" icon={HelpCircle} label="Ajuda" color="blue" />
               </>
             ) : (
               <>

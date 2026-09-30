@@ -31,6 +31,23 @@ export default function OnboardingGate() {
           return;
         }
 
+        // Verifica se o perfil já completou onboarding ou é representante de equipe
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, company_id, onboarding_completed')
+          .eq('id', clientUser.id)
+          .maybeSingle();
+
+        const role = String(profile?.role || '').toLowerCase();
+        const isTeamRep =
+          Boolean((profile as any)?.company_id) &&
+          (role === 'representative' || role === 'rep' || role === 'representante');
+
+        if (profile?.onboarding_completed || isTeamRep) {
+          router.replace('/dashboard');
+          return;
+        }
+
         // Usuário encontrado: renderiza o formulário de onboarding no client
         setUser(clientUser);
         setStatus('ready');

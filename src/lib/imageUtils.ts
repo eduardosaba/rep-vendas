@@ -44,7 +44,11 @@ export function normalizeStoragePath(path?: string | null): string | null {
   } catch (e) {
     // ignore se não for uma sequência codificada
   }
-  s = s.trim();
+  s = s.split('?')[0].trim();
+  // Limpar duplicações de sufixos de variante caso venham corrompidos
+  while (/(?:-(480w|1200w)\.webp){2,}$/i.test(s)) {
+    s = s.replace(/-(480w|1200w)\.webp$/i, '');
+  }
   const marker = '/storage/v1/object/public/';
   if (s.includes(marker)) {
     s = s.split(marker).pop() || s;
@@ -72,10 +76,19 @@ export function formatImageUrl(path?: string | null) {
 /**
  * Normaliza/Reconstrói um item de galeria garantindo variantes 480w/1200w
  */
-export const buildGalleryItem = (img: any) => {
-  const url = (typeof img === 'string' ? img : img?.url || '').trim();
-  const path = img?.path || null;
-  if (!url) return null;
+export const buildGalleryItem = (img: any, pathArg?: string | null) => {
+  let url = (typeof img === 'string' ? img : img?.url || '').trim();
+  let path = (typeof img === 'object' && img?.path) ? img.path : (pathArg || null);
+  if (!url && !path) return null;
+
+  // Limpa query params de URLs e paths antes de processar variantes
+  if (url) url = url.split('?')[0].trim();
+  if (path) {
+    path = String(path).split('?')[0].trim();
+    while (/(?:-(480w|1200w)\.webp){2,}$/i.test(path)) {
+      path = path.replace(/-(480w|1200w)\.webp$/i, '');
+    }
+  }
 
   // Função robusta para limpar quaisquer sufixos previamente aplicados
   const cleanBase = (s?: string | null) => {

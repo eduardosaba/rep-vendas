@@ -511,6 +511,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: profileError?.message || String(profileError) }, { status: 500 });
     }
 
+    // Atualiza o tipo de contrato da distribuidora (Gestão Completa vs Catálogo) se aplicável
+    if (actorCompanyIdResolved && (payload?.contract_type === 'gestao_completa' || payload?.contract_type === 'catalogo')) {
+      try {
+        const { data: comp } = await supabase
+          .from('companies')
+          .select('metadata')
+          .eq('id', actorCompanyIdResolved)
+          .maybeSingle();
+        const currentMeta = (comp?.metadata as any) || {};
+        await supabase
+          .from('companies')
+          .update({
+            metadata: {
+              ...currentMeta,
+              contract_type: payload.contract_type,
+            },
+          })
+          .eq('id', actorCompanyIdResolved);
+      } catch (err) {
+        console.warn('settings/save: failed to update company metadata contract_type', err);
+      }
+    }
+
     // Enfileira processamento de imagens de branding via Inngest de forma não-bloqueante (Background)
     (async () => {
       try {

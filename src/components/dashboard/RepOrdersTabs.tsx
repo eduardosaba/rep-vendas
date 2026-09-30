@@ -7,6 +7,7 @@ import { OrdersTable } from '@/components/dashboard/OrdersTable';
 type RepOrdersTabsProps = {
   mySales: any[];
   distributorOrders: any[];
+  distributorName?: string | null;
   currentUserId?: string | null;
 };
 
@@ -15,6 +16,7 @@ type TabKey = 'my_sales' | 'distributor';
 export default function RepOrdersTabs({
   mySales,
   distributorOrders,
+  distributorName,
   currentUserId = null,
 }: RepOrdersTabsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('my_sales');
@@ -29,12 +31,12 @@ export default function RepOrdersTabs({
       },
       {
         key: 'distributor' as TabKey,
-        label: 'Distribuidora (Otica Saba)',
+        label: distributorName ? `Distribuidora (${distributorName})` : 'Distribuidora',
         count: distributorOrders.length,
         icon: Store,
       },
     ],
-    [mySales.length, distributorOrders.length]
+    [mySales.length, distributorOrders.length, distributorName]
   );
 
   const currentData =

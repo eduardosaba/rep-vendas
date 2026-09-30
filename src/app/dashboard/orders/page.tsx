@@ -158,6 +158,49 @@ export default async function OrdersPage() {
   const isRepresentative =
     Boolean(companyId) && (role === 'representative' || role === 'rep');
 
+  // Verifica se a distribuidora contratou apenas o catálogo virtual
+  let contractType = 'gestao_completa';
+  if (companyId) {
+    const { data: companyRow } = await supabase
+      .from('companies')
+      .select('metadata')
+      .eq('id', companyId)
+      .maybeSingle();
+    const meta = (companyRow?.metadata as any) || {};
+    if (meta.contract_type) {
+      contractType = meta.contract_type;
+    }
+  }
+
+  if (companyId && contractType === 'catalogo' && role !== 'master') {
+    return (
+      <div className="p-6 max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
+        <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-8 shadow-sm text-center space-y-4">
+          <div className="inline-flex p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full">
+            <ShoppingBag size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+            Módulo de Pedidos não habilitado
+          </h2>
+          <p className="text-slate-600 dark:text-slate-300 max-w-md mx-auto text-sm">
+            Sua distribuidora está cadastrada no plano <strong>Apenas Catálogo Virtual</strong>.
+            O painel de pedidos é exclusivo para o plano <strong>Gestão Completa</strong>.
+          </p>
+          {isCompanyAdmin && (
+            <div className="pt-2">
+              <Link
+                href="/dashboard/empresa"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium hover:bg-primary/90 transition shadow-sm"
+              >
+                Gerenciar Módulo da Distribuidora
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (isCompanyAdmin && companyId) {
     const companyOrders = await getCompanyOrders(String(companyId));
 
@@ -183,7 +226,7 @@ export default async function OrdersPage() {
           customer_name: o.customer_name || o.client_name_guest || null,
           customer_city: o.customer_city || null,
           rep_name: o.rep_name || null,
-          seller_id: o.user_id || o.seller_id || null,
+          seller_id: o.seller_id || o.user_id || null,
         }))}
       />
     );
@@ -304,10 +347,13 @@ export default async function OrdersPage() {
   }
 
   if (isRepresentative && companyId) {
-    const [mySalesRows, distributorRows] = await Promise.all([
+    const [mySalesRows, distributorRows, companyRes] = await Promise.all([
       safeFetchOrders('user'),
       safeFetchOrders('companySeller'),
+      supabase.from('companies').select('name').eq('id', companyId).maybeSingle(),
     ]);
+
+    const distributorName = companyRes?.data?.name || null;
 
     return (
       <div className="p-4 md:p-6 space-y-6 pb-24 animate-in fade-in duration-500">
@@ -332,6 +378,7 @@ export default async function OrdersPage() {
         <RepOrdersTabs
           mySales={mapOrders(mySalesRows)}
           distributorOrders={mapOrders(distributorRows)}
+          distributorName={distributorName}
           currentUserId={finalUserId}
         />
       </div>
