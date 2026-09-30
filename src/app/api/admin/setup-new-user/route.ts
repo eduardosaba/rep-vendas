@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       const batchSize = 500;
 
       while (true) {
-        const { data: batchRes, error: batchErr }: { data: any; error: any } = await supabase.rpc('clone_catalog_batch', {
+        let batchCall = await supabase.rpc('clone_catalog_batch', {
           p_source_user_id: sourceId,
           p_target_user_id: body.targetUserId,
           p_brands_to_copy: brandsToSend,
@@ -93,9 +93,19 @@ export async function POST(req: Request) {
           p_last_id: lastId,
         } as any);
 
-        if (batchErr) throw batchErr;
+        if (batchCall.error && /not find.*function/i.test(batchCall.error.message || '')) {
+          batchCall = await supabase.rpc('clone_catalog_batch', {
+            source_user_id: sourceId,
+            target_user_id: body.targetUserId,
+            brands_to_copy: brandsToSend,
+            batch_size: batchSize,
+            last_id: lastId,
+          } as any);
+        }
 
-        const row: any = Array.isArray(batchRes) && batchRes.length > 0 ? batchRes[0] : batchRes;
+        if (batchCall.error) throw batchCall.error;
+
+        const row: any = Array.isArray(batchCall.data) && batchCall.data.length > 0 ? batchCall.data[0] : batchCall.data;
         const processed = Number(row?.processed_count || 0);
         const last = row?.last_processed_id || null;
 
@@ -107,24 +117,39 @@ export async function POST(req: Request) {
       }
 
       // Guarantee target user's cloned products have organization_id populated
-    await ensureTargetProductsOrganizationId(supabase, body.targetUserId);
+      await ensureTargetProductsOrganizationId(supabase, body.targetUserId);
 
-    return NextResponse.json({ success: true, data: { total_processed: totalProcessed } });
+      return NextResponse.json({ success: true, data: { total_processed: totalProcessed } });
     } catch (batchErr) {
       console.warn('clone_catalog_batch failed, falling back to clone_catalog_smart', batchErr);
     }
 
-    // Fallback
-    const rpcParams: any = {
+    // Fallback: try clone_catalog_smart without mixing parameter signatures
+    let legacyData: any = null;
+    let legacyErr: any = null;
+
+    const call1 = await supabase.rpc('clone_catalog_smart', {
       source_user_id: sourceId,
       target_user_id: body.targetUserId,
       brands_to_copy: brandsToSend,
-      p_brands_to_copy: brandsToSend,
-      p_source_user_id: sourceId,
-      p_target_user_id: body.targetUserId,
-    };
+    } as any);
 
-    const { data: legacyData, error: legacyErr } = await supabase.rpc('clone_catalog_smart', rpcParams);
+    if (!call1.error) {
+      legacyData = call1.data;
+    } else {
+      const call2 = await supabase.rpc('clone_catalog_smart', {
+        p_source_user_id: sourceId,
+        p_target_user_id: body.targetUserId,
+        p_brands_to_copy: brandsToSend,
+      } as any);
+
+      if (!call2.error) {
+        legacyData = call2.data;
+      } else {
+        legacyErr = call2.error;
+      }
+    }
+
     if (legacyErr) {
       console.error('clone_catalog_smart failed', legacyErr);
       return NextResponse.json({ error: 'RPC failed', detail: legacyErr.message || String(legacyErr) }, { status: 500 });

@@ -54,15 +54,30 @@ export async function POST(req: Request) {
       }
 
       // execute full clone via RPC
-      const rpcParams: any = {
+      let rpcData: any = null;
+      let rpcErr: any = null;
+
+      const call1 = await supabase.rpc('clone_catalog_smart', {
         source_user_id: effectiveSource,
         target_user_id: targetUserId,
         brands_to_copy: brands || null,
-        p_brands_to_copy: brands || null,
-        p_source_user_id: effectiveSource,
-        p_target_user_id: targetUserId,
-      };
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('clone_catalog_smart', rpcParams);
+      } as any);
+
+      if (!call1.error) {
+        rpcData = call1.data;
+      } else {
+        const call2 = await supabase.rpc('clone_catalog_smart', {
+          p_source_user_id: effectiveSource,
+          p_target_user_id: targetUserId,
+          p_brands_to_copy: brands || null,
+        } as any);
+
+        if (!call2.error) {
+          rpcData = call2.data;
+        } else {
+          rpcErr = call2.error;
+        }
+      }
 
       if (rpcErr) throw rpcErr;
       return NextResponse.json({ success: true, updatedCount: rpcData });

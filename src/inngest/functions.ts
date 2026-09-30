@@ -258,15 +258,26 @@ export const cloneCatalog = inngest.createFunction(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      const rpcParams: any = {
+      let { data, error } = await supabase.rpc('clone_catalog_smart', {
         source_user_id: source_user_id,
         target_user_id: target_user_id,
         brands_to_copy: brands || null,
-        p_brands_to_copy: brands || null,
-        p_source_user_id: source_user_id,
-        p_target_user_id: target_user_id,
-      };
-      const { data, error } = await supabase.rpc('clone_catalog_smart', rpcParams);
+      } as any);
+
+      if (error) {
+        const retry = await supabase.rpc('clone_catalog_smart', {
+          p_source_user_id: source_user_id,
+          p_target_user_id: target_user_id,
+          p_brands_to_copy: brands || null,
+        } as any);
+        if (!retry.error) {
+          data = retry.data;
+          error = null;
+        } else {
+          error = retry.error;
+        }
+      }
+
       if (error) throw error;
 
       // Company-aware normalization for worker-based clone path.
