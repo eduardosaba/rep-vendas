@@ -6,17 +6,25 @@ export async function GET(req: Request) {
     const supabase = await createClient();
     const { data: authUser } = await supabase.auth.getUser();
     const userId = authUser?.user?.id;
-    if (!userId) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    if (!userId) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
 
     const { data: profile, error: pErr } = await supabase
       .from('profiles')
-      .select('company_id')
+      .select('company_id,organization_id')
       .eq('id', userId)
       .maybeSingle();
 
     if (pErr) throw pErr;
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return NextResponse.json({ success: false, error: 'No company linked' }, { status: 404 });
+    let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+    if (!companyId) {
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('id')
+        .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+        .maybeSingle();
+      companyId = comp?.id;
+    }
+    if (!companyId) return NextResponse.json({ success: false, error: 'Usuário não vinculado a uma empresa' }, { status: 404 });
 
     // Evita erro 500 quando ambientes ainda não possuem todas as colunas novas.
     const { data: company, error } = await supabase

@@ -9,19 +9,32 @@ const supabaseAdmin = createSupabaseAdmin(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+async function resolveCompanyId(supabase: any, userId: string) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('company_id,organization_id')
+    .eq('id', userId)
+    .maybeSingle();
+  let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+  if (!companyId) {
+    const { data: comp } = await supabaseAdmin
+      .from('companies')
+      .select('id')
+      .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+      .maybeSingle();
+    companyId = comp?.id;
+  }
+  return companyId;
+}
+
 export async function getCompanyProducts() {
   try {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return { success: false, error: 'Not authenticated' };
+    if (!userId) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .maybeSingle();
-    const companyId = (profile as any)?.company_id;
+    const companyId = await resolveCompanyId(supabase, userId);
     if (!companyId) return { success: true, data: [] };
 
     const { data, error } = await supabaseAdmin
@@ -42,15 +55,10 @@ export async function createCompanyProduct(payload: any) {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return { success: false, error: 'Not authenticated' };
+    if (!userId) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return { success: false, error: 'User not linked to a company' };
+    const companyId = await resolveCompanyId(supabase, userId);
+    if (!companyId) return { success: false, error: 'Usuário não vinculado a uma empresa' };
 
     const insertPayload = {
       ...payload,
@@ -76,19 +84,14 @@ export async function updateCompanyProduct(productId: string, payload: any) {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return { success: false, error: 'Not authenticated' };
+    if (!userId) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return { success: false, error: 'User not linked to a company' };
+    const companyId = await resolveCompanyId(supabase, userId);
+    if (!companyId) return { success: false, error: 'Usuário não vinculado a uma empresa' };
 
     // ensure product belongs to company
     const { data: existing } = await supabaseAdmin.from('products').select('id,company_id').eq('id', productId).maybeSingle();
-    if (!existing || existing.company_id !== companyId) return { success: false, error: 'Product not found or permission denied' };
+    if (!existing || existing.company_id !== companyId) return { success: false, error: 'Produto não encontrado ou permissão negada' };
 
     const { data, error } = await supabaseAdmin
       .from('products')
@@ -135,15 +138,10 @@ export async function createProductFromForm(formData: FormData) {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return { success: false, error: 'Not authenticated' };
+    if (!userId) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return { success: false, error: 'User not linked to a company' };
+    const companyId = await resolveCompanyId(supabase, userId);
+    if (!companyId) return { success: false, error: 'Usuário não vinculado a uma empresa' };
 
     const arrayBuffer = await image.arrayBuffer();
     const buf = Buffer.from(arrayBuffer);
@@ -181,15 +179,10 @@ export async function updateProductFromForm(formData: FormData) {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return { success: false, error: 'Not authenticated' };
+    if (!userId) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return { success: false, error: 'User not linked to a company' };
+    const companyId = await resolveCompanyId(supabase, userId);
+    if (!companyId) return { success: false, error: 'Usuário não vinculado a uma empresa' };
 
     const arrayBuffer = await image.arrayBuffer();
     const buf = Buffer.from(arrayBuffer);

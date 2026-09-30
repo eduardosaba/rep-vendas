@@ -62,7 +62,7 @@ async function getRequesterProfile() {
   const authRes = await supabase.auth.getUser();
   const user = authRes?.data?.user;
   if (!user) {
-    return { error: NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 }) };
+    return { error: NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 }) };
   }
 
   const { data: profile, error } = await supabase
@@ -74,7 +74,7 @@ async function getRequesterProfile() {
   if (error || !profile) {
     return {
       error: NextResponse.json(
-        { success: false, error: error?.message || 'Profile not found' },
+        { success: false, error: error?.message || 'Perfil não encontrado' },
         { status: 403 }
       ),
     };

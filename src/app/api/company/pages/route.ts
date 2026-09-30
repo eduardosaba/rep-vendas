@@ -14,7 +14,7 @@ async function getUserCompanyContext(supabase: Awaited<ReturnType<typeof createC
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { user: null, profile: null, error: 'Not authenticated' };
+  if (!user) return { user: null, profile: null, error: 'Não autenticado' };
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -22,12 +22,21 @@ async function getUserCompanyContext(supabase: Awaited<ReturnType<typeof createC
     .eq('id', user.id)
     .maybeSingle();
 
-  if (!profile) return { user, profile: null, error: 'No profile found' };
+  if (!profile) return { user, profile: null, error: 'Perfil não encontrado' };
 
-  const targetCompanyId = profile.company_id || profile.organization_id;
+  let targetCompanyId = profile.company_id || profile.organization_id;
 
   if (!targetCompanyId) {
-    return { user, profile, error: 'No company linked' };
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('id')
+      .or(`owner_user_id.eq.${user.id},user_id.eq.${user.id}`)
+      .maybeSingle();
+    targetCompanyId = comp?.id;
+  }
+
+  if (!targetCompanyId) {
+    return { user, profile, error: 'Usuário não vinculado a uma empresa' };
   }
 
   // Garantir a existência de registro na tabela companies para evitar violação da FK company_pages_company_id_fkey
@@ -78,7 +87,7 @@ export async function GET() {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
     if (ctx.error || !ctx.profile) {
-      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+      return NextResponse.json({ success: false, error: ctx.error || 'Usuário não vinculado a uma empresa' }, { status: ctx.error === 'Não autenticado' || ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
     let query = supabase
@@ -107,11 +116,11 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
     if (ctx.error || !ctx.profile) {
-      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+      return NextResponse.json({ success: false, error: ctx.error || 'Usuário não vinculado a uma empresa' }, { status: ctx.error === 'Não autenticado' || ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
     if (!isCompanyAdminRole(String(ctx.profile.role || ''))) {
-      return NextResponse.json({ success: false, error: 'Only company admins can create pages' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Apenas administradores da empresa podem criar páginas' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -185,7 +194,7 @@ export async function PATCH(req: Request) {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
     if (ctx.error || !ctx.profile) {
-      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+      return NextResponse.json({ success: false, error: ctx.error || 'Usuário não vinculado a uma empresa' }, { status: ctx.error === 'Não autenticado' || ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
     if (!isCompanyAdminRole(String(ctx.profile.role || ''))) {
@@ -271,11 +280,11 @@ export async function DELETE(req: Request) {
     const supabase = await createClient();
     const ctx = await getUserCompanyContext(supabase);
     if (ctx.error || !ctx.profile) {
-      return NextResponse.json({ success: false, error: ctx.error || 'No company linked' }, { status: ctx.error === 'Not authenticated' ? 401 : 403 });
+      return NextResponse.json({ success: false, error: ctx.error || 'Usuário não vinculado a uma empresa' }, { status: ctx.error === 'Não autenticado' || ctx.error === 'Not authenticated' ? 401 : 403 });
     }
 
     if (!isCompanyAdminRole(String(ctx.profile.role || ''))) {
-      return NextResponse.json({ success: false, error: 'Only company admins can remove pages' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Apenas administradores da empresa podem remover páginas' }, { status: 403 });
     }
 
     const body = await req.json();

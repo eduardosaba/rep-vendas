@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
+import { formatPhone } from '@/lib/phone';
 import { usePathname } from 'next/navigation';
 import { SmartImage } from './SmartImage';
 import { Button } from '@/components/ui/button';
@@ -58,16 +59,7 @@ function whatsappHref(phone?: string | null) {
 }
 
 function formatPhoneDisplay(phone?: string | null) {
-  const digits = normalizePhoneDigits(phone);
-  if (!digits) return phone || '';
-  const local = digits.slice(2);
-  if (local.length === 11) {
-    return `+${digits.slice(0, 2)} (${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
-  }
-  if (local.length === 10) {
-    return `+${digits.slice(0, 2)} (${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
-  }
-  return `+${digits}`;
+  return formatPhone(phone);
 }
 
 // --- Helper: contraste de texto para uma cor de fundo ---

@@ -1,7 +1,7 @@
 'use client';
 
 import type { Settings } from '@/lib/types';
-import { normalizePhone } from '@/lib/phone';
+import { formatPhone } from '@/lib/phone';
 import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 interface CatalogFooterProps {
@@ -107,9 +107,9 @@ export const CatalogFooter: React.FC<CatalogFooterProps> = ({ settings }) => {
                     className="block"
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`Chamar no WhatsApp ${normalizePhone(settings.phone)}`}
+                    aria-label={`Chamar no WhatsApp ${formatPhone(settings.phone)}`}
                   >
-                    {normalizePhone(settings.phone)}
+                    {formatPhone(settings.phone)}
                   </a>
                 </p>
               )}

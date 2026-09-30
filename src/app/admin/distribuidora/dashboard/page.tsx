@@ -6,7 +6,19 @@ import { getCompanyPerformance } from './actions';
 
 export default async function Page() {
   const res = await getCompanyPerformance();
-  if (!res.success) return <div className="p-6">Erro: {res.error}</div>;
+  if (!res.success) {
+    return (
+      <div className="p-8 min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <Clock size={24} />
+          </div>
+          <h2 className="text-lg font-bold text-slate-800">Aviso da Distribuidora</h2>
+          <p className="text-slate-500 text-sm">{res.error || 'Não foi possível carregar os dados de performance.'}</p>
+        </div>
+      </div>
+    );
+  }
 
   const stats = res;
 

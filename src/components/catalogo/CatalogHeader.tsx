@@ -6,7 +6,7 @@ import { Search, Heart, ShoppingCart, LogIn, Phone, Mail } from 'lucide-react';
 import { useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Settings } from '../../lib/types';
-import { normalizePhone } from '@/lib/phone';
+import { formatPhone } from '@/lib/phone';
 import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
@@ -92,7 +92,7 @@ export const CatalogHeader: React.FC<CatalogHeaderProps> = ({
                 <div className="flex items-center gap-3">
                   {catalogPhone &&
                     (() => {
-                      const display = normalizePhone(catalogPhone);
+                      const display = formatPhone(catalogPhone);
                       const href = makeWhatsAppUrl(catalogPhone) || '#';
                       return (
                         <a

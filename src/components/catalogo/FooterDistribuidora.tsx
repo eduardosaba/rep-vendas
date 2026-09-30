@@ -3,6 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { Instagram, Facebook, Linkedin, MessageCircle, Mail, Phone, MapPin, Globe, FileText } from 'lucide-react'
+import { formatPhone } from '@/lib/phone'
 
 function isValidUrl(u: any) {
   return typeof u === 'string' && /^https?:\/\//i.test(u);
@@ -83,14 +84,14 @@ export default function FooterDistribuidora({ company, primaryColor }: any) {
                   <Phone size={16} style={{ color: primaryColor }} />
                   {isValidUrl(company.whatsapp_url) ? (
                     <a href={company.whatsapp_url} target="_blank" rel="noreferrer" className="font-bold hover:underline">
-                      {company.phone}
+                      {formatPhone(company.phone)}
                       <span className="ml-2 inline-flex items-center">
                         <MessageCircle size={14} style={{ color: '#25D366' }} />
                       </span>
                     </a>
                   ) : (
                     <a href={`tel:${company.phone}`} className="font-bold">
-                      {company.phone}
+                      {formatPhone(company.phone)}
                     </a>
                   )}
                 </li>

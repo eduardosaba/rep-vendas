@@ -6,11 +6,19 @@ export async function GET() {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    if (!userId) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
 
-    const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return NextResponse.json({ success: false, error: 'User not linked to company' }, { status: 403 });
+    const { data: profile } = await supabase.from('profiles').select('company_id,organization_id').eq('id', userId).maybeSingle();
+    let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+    if (!companyId) {
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('id')
+        .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+        .maybeSingle();
+      companyId = comp?.id;
+    }
+    if (!companyId) return NextResponse.json({ success: false, error: 'Usuário não vinculado a uma empresa' }, { status: 403 });
 
     const { data, error } = await supabase.from('company_gallery').select('*').eq('company_id', companyId).order('order_index', { ascending: true }).limit(200);
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

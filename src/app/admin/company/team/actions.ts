@@ -10,20 +10,32 @@ const supabaseAdmin = createSupabaseAdmin(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+async function resolveCompanyId(supabase: any, userId: string) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('company_id,organization_id')
+    .eq('id', userId)
+    .maybeSingle();
+  let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+  if (!companyId) {
+    const { data: comp } = await supabaseAdmin
+      .from('companies')
+      .select('id')
+      .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+      .maybeSingle();
+    companyId = comp?.id;
+  }
+  return companyId;
+}
+
 export async function getTeamMembers() {
   try {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return { success: false, error: 'Not authenticated' };
+    if (!userId) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile, error: pErr } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .maybeSingle();
-    if (pErr) throw pErr;
-    const companyId = (profile as any)?.company_id;
+    const companyId = await resolveCompanyId(supabase, userId);
     if (!companyId) return { success: true, data: [] };
 
     const { data, error } = await supabaseAdmin
@@ -44,16 +56,10 @@ export async function addTeamMember(data: { email: string; password: string; nam
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return { success: false, error: 'Not authenticated' };
+    if (!userId) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile, error: pErr } = await supabase
-      .from('profiles')
-      .select('company_id')
-      .eq('id', userId)
-      .maybeSingle();
-    if (pErr) throw pErr;
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return { success: false, error: 'User not linked to a company' };
+    const companyId = await resolveCompanyId(supabase, userId);
+    if (!companyId) return { success: false, error: 'Usuário não vinculado a uma empresa' };
 
     // Create user in Auth via service role
     const result = await supabaseAdmin.auth.admin.createUser({

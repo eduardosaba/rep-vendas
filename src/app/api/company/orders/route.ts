@@ -31,7 +31,7 @@ async function getRequesterProfile() {
   if (!user) {
     return {
       error: NextResponse.json(
-        { success: false, error: 'Not authenticated' },
+        { success: false, error: 'Não autenticado' },
         { status: 401 }
       ),
     };
@@ -39,23 +39,33 @@ async function getRequesterProfile() {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id,role,company_id')
+    .select('id,role,company_id,organization_id')
     .eq('id', user.id)
     .maybeSingle<ProfileRow>();
 
   if (error || !profile) {
     return {
       error: NextResponse.json(
-        { success: false, error: error?.message || 'Profile not found' },
+        { success: false, error: error?.message || 'Perfil não encontrado' },
         { status: 403 }
       ),
     };
   }
 
-  if (!profile.company_id) {
+  let companyId = profile.company_id || (profile as any)?.organization_id;
+  if (!companyId) {
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('id')
+      .or(`owner_user_id.eq.${user.id},user_id.eq.${user.id}`)
+      .maybeSingle();
+    companyId = comp?.id;
+  }
+
+  if (!companyId) {
     return {
       error: NextResponse.json(
-        { success: false, error: 'No company linked' },
+        { success: false, error: 'Usuário não vinculado a uma empresa' },
         { status: 400 }
       ),
     };
@@ -65,17 +75,17 @@ async function getRequesterProfile() {
   const isCompanyAdmin =
     role === 'admin_company' ||
     role === 'master' ||
-    ((role === 'representative' || role === 'rep') && Boolean(profile.company_id));
+    ((role === 'representative' || role === 'rep') && Boolean(companyId));
   if (!isCompanyAdmin) {
     return {
       error: NextResponse.json(
-        { success: false, error: 'Forbidden' },
+        { success: false, error: 'Acesso negado' },
         { status: 403 }
       ),
     };
   }
 
-  return { user, profile };
+  return { user, profile: { ...profile, company_id: companyId } };
 }
 
 export async function GET(req: Request) {

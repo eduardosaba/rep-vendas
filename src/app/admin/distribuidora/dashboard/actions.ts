@@ -7,11 +7,21 @@ export async function getCompanyPerformance() {
 
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth?.user?.id;
-  if (!userId) return { success: false, error: 'Not authenticated' };
+  if (!userId) return { success: false, error: 'Não autenticado' };
 
-  const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
-  const companyId = (profile as any)?.company_id;
-  if (!companyId) return { success: false, error: 'User not linked to a company' };
+  const { data: profile } = await supabase.from('profiles').select('company_id,organization_id').eq('id', userId).maybeSingle();
+  let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+
+  if (!companyId) {
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('id')
+      .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+      .maybeSingle();
+    companyId = comp?.id;
+  }
+
+  if (!companyId) return { success: false, error: 'Usuário não vinculado a uma empresa' };
 
   const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 

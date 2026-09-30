@@ -5,6 +5,7 @@ import CatalogThemeProvider from '@/components/theme/CatalogThemeProvider';
 import { hexToRgb } from '@/lib/colors'; // Importando nossa função utilitária
 import { SYSTEM_FONTS } from '@/lib/fonts';
 import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
+import { formatPhone } from '@/lib/phone';
 import React, { useEffect, useMemo } from 'react';
 import { FloatingCart } from './FloatingCart';
 import { InstallPrompt } from './InstallPrompt';
@@ -340,7 +341,7 @@ export function Storefront({
                       rel="noopener noreferrer"
                       className="hover:underline font-medium truncate"
                     >
-                      {store.phone}
+                      {formatPhone(store.phone)}
                     </a>
                   </>
                 ) : null}

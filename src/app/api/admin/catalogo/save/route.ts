@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    if (!userId) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
 
     const body = await req.json();
     const headline = body.headline ?? null;
@@ -15,15 +15,23 @@ export async function POST(req: Request) {
     const cover_image = body.cover_image ?? null;
     const gallery_urls = Array.isArray(body.gallery_urls) ? body.gallery_urls : null;
 
-    // find company for this user
-    const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return NextResponse.json({ success: false, error: 'User not linked to company' }, { status: 403 });
-
     const svc = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!svc || !url) return NextResponse.json({ success: false, error: 'Missing service role key' }, { status: 500 });
+    if (!svc || !url) return NextResponse.json({ success: false, error: 'Chave de serviço do Supabase não configurada' }, { status: 500 });
     const supabaseAdmin = createSupabaseAdmin(String(url), String(svc));
+
+    // find company for this user with fallback
+    const { data: profile } = await supabase.from('profiles').select('company_id,organization_id').eq('id', userId).maybeSingle();
+    let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+    if (!companyId) {
+      const { data: comp } = await supabaseAdmin
+        .from('companies')
+        .select('id')
+        .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+        .maybeSingle();
+      companyId = comp?.id;
+    }
+    if (!companyId) return NextResponse.json({ success: false, error: 'Usuário não vinculado a uma empresa' }, { status: 403 });
 
     const updatePayload: any = {};
     if (headline !== undefined) updatePayload.headline = headline;

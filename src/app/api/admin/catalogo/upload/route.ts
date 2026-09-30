@@ -9,32 +9,40 @@ export async function POST(req: Request) {
     const userId = auth?.user?.id;
     if (!userId) {
       console.warn('[upload] unauthenticated request');
-      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
     }
 
     const form = await req.formData();
     const file = form.get('file') as File | null;
-    if (!file) return NextResponse.json({ success: false, error: 'No file' }, { status: 400 });
-
-    const { data: profile, error: profileErr } = await supabase.from('profiles').select('company_id,role').eq('id', userId).maybeSingle();
-    if (profileErr) {
-      console.error('[upload] error loading profile', profileErr.message || profileErr);
-      return NextResponse.json({ success: false, error: 'Failed to resolve profile' }, { status: 500 });
-    }
-    const companyId = (profile as any)?.company_id;
-    const role = (profile as any)?.role;
-    if (!companyId) {
-      console.warn(`[upload] user ${userId} (role=${role}) has no company_id`);
-      return NextResponse.json({ success: false, error: 'User not linked to company', detail: role ? `role=${role}` : undefined }, { status: 403 });
-    }
+    if (!file) return NextResponse.json({ success: false, error: 'Nenhum arquivo enviado' }, { status: 400 });
 
     const svc = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (!svc || !url) {
       console.error('[upload] missing service role or url env vars', { svc: Boolean(svc), url: Boolean(url) });
-      return NextResponse.json({ success: false, error: 'Missing service role key or URL' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Chave de serviço do Supabase não configurada' }, { status: 500 });
     }
     const supabaseAdmin = createSupabaseClient(String(url), String(svc));
+
+    const { data: profile, error: profileErr } = await supabase.from('profiles').select('company_id,organization_id,role').eq('id', userId).maybeSingle();
+    if (profileErr) {
+      console.error('[upload] error loading profile', profileErr.message || profileErr);
+      return NextResponse.json({ success: false, error: 'Falha ao carregar perfil' }, { status: 500 });
+    }
+    let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+    const role = (profile as any)?.role;
+    if (!companyId) {
+      const { data: comp } = await supabaseAdmin
+        .from('companies')
+        .select('id')
+        .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+        .maybeSingle();
+      companyId = comp?.id;
+    }
+    if (!companyId) {
+      console.warn(`[upload] user ${userId} (role=${role}) has no company_id`);
+      return NextResponse.json({ success: false, error: 'Usuário não vinculado a uma empresa', detail: role ? `role=${role}` : undefined }, { status: 403 });
+    }
 
     const arrayBuffer = await file.arrayBuffer();
     const buf = Buffer.from(arrayBuffer);

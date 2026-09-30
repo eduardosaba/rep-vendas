@@ -8,16 +8,29 @@ const supabaseAdmin = createSupabaseAdmin(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+async function resolveCompanyId(supabase: any, userId: string) {
+  const { data: profile } = await supabase.from('profiles').select('company_id,organization_id').eq('id', userId).maybeSingle();
+  let companyId = (profile as any)?.company_id || (profile as any)?.organization_id;
+  if (!companyId) {
+    const { data: comp } = await supabaseAdmin
+      .from('companies')
+      .select('id')
+      .or(`owner_user_id.eq.${userId},user_id.eq.${userId}`)
+      .maybeSingle();
+    companyId = comp?.id;
+  }
+  return companyId;
+}
+
 export async function GET() {
   try {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    if (!userId) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
 
-    const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return NextResponse.json({ success: false, error: 'User not linked to company' }, { status: 403 });
+    const companyId = await resolveCompanyId(supabase, userId);
+    if (!companyId) return NextResponse.json({ success: false, error: 'Usuário não vinculado a uma empresa' }, { status: 403 });
 
     const { data, error } = await supabaseAdmin.from('company_settings').select('*').eq('company_id', companyId).maybeSingle();
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -32,13 +45,12 @@ export async function POST(req: Request) {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
-    if (!userId) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    if (!userId) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
 
     const body = await req.json();
 
-    const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
-    const companyId = (profile as any)?.company_id;
-    if (!companyId) return NextResponse.json({ success: false, error: 'User not linked to company' }, { status: 403 });
+    const companyId = await resolveCompanyId(supabase, userId);
+    if (!companyId) return NextResponse.json({ success: false, error: 'Usuário não vinculado a uma empresa' }, { status: 403 });
 
     const payload = {
       company_id: companyId,
