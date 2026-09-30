@@ -12,8 +12,15 @@ import HeroDemoCTA from '@/components/HeroDemoCTA';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 export const metadata: Metadata = {
-  title: 'Política de Privacidade | RepVendas',
-  description: 'Saiba como o RepVendas protege e trata os seus dados pessoais.',
+  title: 'Política de Privacidade',
+  description: 'Saiba como o RepVendas protege, coleta e trata com total segurança os seus dados pessoais em conformidade com a LGPD.',
+  alternates: {
+    canonical: '/privacidade',
+  },
+  openGraph: {
+    title: 'Política de Privacidade | RepVendas',
+    description: 'Saiba como o RepVendas protege, coleta e trata os seus dados pessoais.',
+  },
 };
 
 export default function PrivacyPage() {

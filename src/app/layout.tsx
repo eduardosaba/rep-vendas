@@ -19,12 +19,44 @@ const inter = Inter({
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
 
 export const metadata: Metadata = {
-  title: 'RepVendas SaaS',
-  description: 'Sistema de Catálogo e Pedidos',
+  title: {
+    default: 'RepVendas | Catálogo Digital B2B e Gestão de Pedidos',
+    template: '%s | RepVendas',
+  },
+  description:
+    'Plataforma completa para representantes comerciais e distribuidoras. Crie catálogos digitais interativos, compartilhe com seus clientes e receba pedidos organizados via WhatsApp.',
+  keywords: [
+    'catálogo digital',
+    'catálogo virtual',
+    'pedidos whatsapp',
+    'representante comercial',
+    'distribuidora b2b',
+    'vendas b2b',
+    'força de vendas',
+    'tabela de preços digital',
+  ],
+  authors: [{ name: 'RepVendas', url: APP_URL }],
+  creator: 'RepVendas',
+  publisher: 'RepVendas',
   metadataBase: new URL(APP_URL),
+  alternates: {
+    canonical: './',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   openGraph: {
-    title: 'RepVendas SaaS',
-    description: 'Sistema de Catálogo e Pedidos',
+    title: 'RepVendas | Catálogo Digital B2B e Gestão de Pedidos',
+    description:
+      'Crie catálogos digitais profissionais, compartilhe produtos e receba pedidos organizados.',
     url: APP_URL,
     siteName: 'RepVendas',
     type: 'website',
@@ -34,14 +66,16 @@ export const metadata: Metadata = {
         url: `${APP_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'RepVendas SaaS',
+        alt: 'RepVendas - Catálogo Digital B2B e Gestão de Pedidos',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'RepVendas SaaS',
-    description: 'Sistema de Catálogo e Pedidos',
+    title: 'RepVendas | Catálogo Digital B2B e Gestão de Pedidos',
+    description:
+      'Crie catálogos digitais profissionais, compartilhe produtos e receba pedidos organizados.',
+    images: [`${APP_URL}/og-image.png`],
   },
   icons: {
     icon: '/favicon.svg',

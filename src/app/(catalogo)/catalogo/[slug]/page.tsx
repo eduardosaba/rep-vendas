@@ -49,6 +49,8 @@ export async function generateMetadata(
     .eq('is_active', true)
     .maybeSingle();
 
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
+
   // Fallback 1: busca por profiles.slug → settings (caso catalog_slug não esteja populado)
   if (!catalog && admin) {
     const { data: profile } = await admin
@@ -68,15 +70,23 @@ export async function generateMetadata(
         const storeName = settings.representative_name || settings.name || 'Catálogo Virtual';
         const logoUrl = settings.logo_url;
         const baseV = settings.updated_at ? new Date(settings.updated_at).getTime() : Date.now();
-        const ogImageRaw = settings.share_banner_url || settings.og_image_url || logoUrl || `${process.env.NEXT_PUBLIC_APP_URL || ''}/repvendas.png`;
+        const ogImageRaw = settings.share_banner_url || settings.og_image_url || logoUrl || `${APP_URL}/repvendas.png`;
         const ogImage = ogImageRaw ? `${ogImageRaw}?v=${baseV}` : ogImageRaw;
         return {
           title: `${storeName} | Catálogo Digital`,
           description: settings.footer_message || 'Confira nossos produtos e faça seu pedido online.',
+          alternates: {
+            canonical: `${APP_URL}/catalogo/${normalizedCompanySlug}`,
+          },
+          robots: {
+            index: true,
+            follow: true,
+            'max-image-preview': 'large',
+          },
           openGraph: {
             title: storeName,
             description: settings.footer_message || undefined,
-            url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
+            url: `${APP_URL}/catalogo/${normalizedCompanySlug}`,
             siteName: 'RepVendas',
             images: ogImage ? [{ url: ogImage, width: 1200, height: 630 }] : [],
             locale: 'pt_BR',
@@ -97,7 +107,7 @@ export async function generateMetadata(
         .maybeSingle();
 
       if (company) {
-        const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL || ''}/repvendas.png`;
+        const fallbackImage = `${APP_URL}/repvendas.png`;
         const baseV = company?.updated_at ? new Date(company.updated_at).getTime() : Date.now();
         const companyOgImageRaw = company.logo_url || fallbackImage;
         const companyOgImage = companyOgImageRaw ? `${companyOgImageRaw}?v=${baseV}` : companyOgImageRaw;
@@ -105,10 +115,18 @@ export async function generateMetadata(
         return {
           title: `${company.name} | Catálogo Digital`,
           description: company.welcome_text || 'Confira nossos produtos e faça seu pedido online.',
+          alternates: {
+            canonical: `${APP_URL}/catalogo/${normalizedCompanySlug}`,
+          },
+          robots: {
+            index: true,
+            follow: true,
+            'max-image-preview': 'large',
+          },
           openGraph: {
             title: company.name,
             description: company.welcome_text || undefined,
-            url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
+            url: `${APP_URL}/catalogo/${normalizedCompanySlug}`,
             siteName: 'RepVendas',
             images: companyOgImage
               ? [{ url: companyOgImage, width: 1200, height: 630 }]
@@ -120,7 +138,10 @@ export async function generateMetadata(
       }
     }
 
-    return { title: 'Loja não encontrada' };
+    return {
+      title: 'Loja não encontrada',
+      robots: { index: false, follow: false },
+    };
   }
 
   if (productId && typeof productId === 'string') {
@@ -147,15 +168,23 @@ export async function generateMetadata(
         catalog.og_image_url ||
         catalog.single_brand_logo_url ||
         catalog.logo_url ||
-        `${process.env.NEXT_PUBLIC_APP_URL || ''}/repvendas.png`;
+        `${APP_URL}/repvendas.png`;
       const ogImageUrl = ogImage ? `${ogImage}?v=${baseV}` : ogImage;
       return {
         title: `${product.name} | ${catalog.store_name}`,
         description: `Por apenas ${priceFormatted}. ${product.description || 'Confira os detalhes!'}`,
+        alternates: {
+          canonical: `${APP_URL}/catalogo/${normalizedCompanySlug}?productId=${productId}`,
+        },
+        robots: {
+          index: true,
+          follow: true,
+          'max-image-preview': 'large',
+        },
         openGraph: {
           title: `${product.name} - ${priceFormatted}`,
           description: product.description || 'Confira este produto incrível!',
-          url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
+          url: `${APP_URL}/catalogo/${normalizedCompanySlug}?productId=${productId}`,
           siteName: 'RepVendas',
           images: ogImageUrl
             ? [
@@ -173,7 +202,7 @@ export async function generateMetadata(
     }
   }
 
-  const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL || ''}/repvendas.png`;
+  const fallbackImage = `${APP_URL}/repvendas.png`;
   const baseV = catalog?.updated_at
     ? new Date(catalog.updated_at).getTime()
     : Date.now();
@@ -192,10 +221,18 @@ export async function generateMetadata(
     description:
       catalog.footer_message ||
       'Confira nossos produtos e faça seu pedido online.',
+    alternates: {
+      canonical: `${APP_URL}/catalogo/${normalizedCompanySlug}`,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+    },
     openGraph: {
       title: catalog.store_name,
       description: catalog.footer_message || undefined,
-      url: `${process.env.NEXT_PUBLIC_APP_URL || ''}/catalogo/${normalizedCompanySlug}`,
+      url: `${APP_URL}/catalogo/${normalizedCompanySlug}`,
       siteName: 'RepVendas',
       images: [
         {
@@ -598,12 +635,76 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         /* ignore logging errors */
       }
 
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
+      const catalogJsonLd = [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Store',
+          name: finalCatalog.store_name,
+          url: `${appUrl}/catalogo/${normalizedCompanySlug}`,
+          image: finalCatalog.logo_url || undefined,
+          description: finalCatalog.footer_message || finalCatalog.headline || finalCatalog.about_text || 'Catálogo Digital B2B',
+          telephone: finalCatalog.phone || undefined,
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: 'Início',
+              item: appUrl,
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: finalCatalog.store_name,
+              item: `${appUrl}/catalogo/${normalizedCompanySlug}`,
+            },
+          ],
+        },
+        ...(productsWithImages && productsWithImages.length > 0
+          ? [
+              {
+                '@context': 'https://schema.org',
+                '@type': 'ItemList',
+                name: `Produtos - ${finalCatalog.store_name}`,
+                numberOfItems: productsWithImages.length,
+                itemListElement: productsWithImages.slice(0, 30).map((prod: any, idx: number) => ({
+                  '@type': 'ListItem',
+                  position: idx + 1,
+                  item: {
+                    '@type': 'Product',
+                    name: prod.name,
+                    url: `${appUrl}/catalogo/${normalizedCompanySlug}/product/${prod.id}`,
+                    image: prod.image_url || undefined,
+                    description: prod.description || undefined,
+                    offers: {
+                      '@type': 'Offer',
+                      price: typeof prod.price === 'number' ? prod.price : 0,
+                      priceCurrency: 'BRL',
+                      availability: 'https://schema.org/InStock',
+                    },
+                  },
+                })),
+              },
+            ]
+          : []),
+      ];
+
       return (
-        <Storefront
-          catalog={finalCatalog}
-          initialProducts={productsWithImages || []}
-          startProductId={typeof productId === 'string' ? productId : undefined}
-        />
+        <>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(catalogJsonLd) }}
+          />
+          <Storefront
+            catalog={finalCatalog}
+            initialProducts={productsWithImages || []}
+            startProductId={typeof productId === 'string' ? productId : undefined}
+          />
+        </>
       );
     }
   }
@@ -660,12 +761,75 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       ...publicCatalog,
     };
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
+    const richCatalogJsonLd = [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Store',
+        name: companyEffective.name,
+        url: `${appUrl}/catalogo/${normalizedCompanySlug}`,
+        image: companyEffective.logo_url || undefined,
+        description: companyEffective.welcome_text || companyEffective.about_text || 'Catálogo Digital B2B Master',
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Início',
+            item: appUrl,
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: companyEffective.name,
+            item: `${appUrl}/catalogo/${normalizedCompanySlug}`,
+          },
+        ],
+      },
+      ...(orgProducts && orgProducts.length > 0
+        ? [
+            {
+              '@context': 'https://schema.org',
+              '@type': 'ItemList',
+              name: `Produtos - ${companyEffective.name}`,
+              numberOfItems: orgProducts.length,
+              itemListElement: orgProducts.slice(0, 30).map((prod: any, idx: number) => ({
+                '@type': 'ListItem',
+                position: idx + 1,
+                item: {
+                  '@type': 'Product',
+                  name: prod.name,
+                  url: `${appUrl}/catalogo/${normalizedCompanySlug}/product/${prod.id}`,
+                  image: prod.image_url || undefined,
+                  description: prod.description || undefined,
+                  offers: {
+                    '@type': 'Offer',
+                    price: typeof prod.price === 'number' ? prod.price : 0,
+                    priceCurrency: 'BRL',
+                    availability: 'https://schema.org/InStock',
+                  },
+                },
+              })),
+            },
+          ]
+        : []),
+    ];
+
     return (
-      <CatalogRichLayout
-        company={companyEffective}
-        representative={appContext.representative}
-        products={orgProducts || []}
-      />
+      <>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(richCatalogJsonLd) }}
+        />
+        <CatalogRichLayout
+          company={companyEffective}
+          representative={appContext.representative}
+          products={orgProducts || []}
+        />
+      </>
     );
   }
 

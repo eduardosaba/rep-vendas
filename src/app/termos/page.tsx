@@ -5,8 +5,15 @@ import HeroDemoCTA from '@/components/HeroDemoCTA';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 export const metadata: Metadata = {
-  title: 'Termos de Uso | RepVendas',
-  description: 'regras e condições de utilização da plataforma RepVendas',
+  title: 'Termos de Uso',
+  description: 'Conheça os termos e condições gerais para utilização da plataforma RepVendas.',
+  alternates: {
+    canonical: '/termos',
+  },
+  openGraph: {
+    title: 'Termos de Uso | RepVendas',
+    description: 'Conheça os termos e condições gerais para utilização da plataforma RepVendas.',
+  },
 };
 
 export default function TermsPage() {

@@ -94,7 +94,7 @@ function canManageTeam(profile: ProfileRow) {
 
 function isNativeAdminRole(role: string | null | undefined) {
   const normalized = String(role || '');
-  return normalized === 'master' || normalized === 'admin_company' || normalized === 'representative' || normalized === 'rep';
+  return normalized === 'master' || normalized === 'admin_company';
 }
 
 export async function GET(req: Request) {

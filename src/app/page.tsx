@@ -18,19 +18,31 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'RepVendas | Catálogo Digital para Representantes Comerciais',
+  title: 'RepVendas | Catálogo Digital para Representantes Comerciais e Distribuidoras',
   description:
     'Transforme sua lista de produtos em um catálogo digital profissional, compartilhe com seus clientes e receba pedidos organizados no WhatsApp.',
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
-    title: 'RepVendas | Catálogo Digital para Representantes Comerciais',
+    title: 'RepVendas | Catálogo Digital para Representantes Comerciais e Distribuidoras',
     description:
-      'Crie seu catálogo digital profissional, compartilhe com seus clientes e receba pedidos organizados.',
+      'Crie seu catálogo digital profissional, compartilhe com seus clientes e receba pedidos organizados no WhatsApp.',
+    images: [SYSTEM_LOGO_URL],
+    url: 'https://www.repvendas.com.br',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RepVendas | Catálogo Digital para Representantes Comerciais e Distribuidoras',
+    description:
+      'Crie seu catálogo digital profissional, compartilhe com seus clientes e receba pedidos organizados no WhatsApp.',
     images: [SYSTEM_LOGO_URL],
   },
 };
 
 export default function LandingPage() {
-  // Real factual JSON-LD Structured Data for Organization and SoftwareApplication
+  // Real factual JSON-LD Structured Data for Organization, SoftwareApplication, WebSite and FAQPage
   const jsonLd = [
     {
       '@context': 'https://schema.org',
@@ -40,6 +52,23 @@ export default function LandingPage() {
       logo: SYSTEM_LOGO_URL,
       description:
         'Plataforma de catálogo digital e gestão de pedidos para representantes comerciais e distribuidoras.',
+      contactPoint: {
+        '@type': 'ContactPoint',
+        telephone: '+55-11-99999-9999',
+        contactType: 'customer service',
+        availableLanguage: 'Portuguese',
+      },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'RepVendas',
+      url: 'https://www.repvendas.com.br',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: 'https://www.repvendas.com.br/catalogo/{search_term_string}',
+        'query-input': 'required name=search_term_string',
+      },
     },
     {
       '@context': 'https://schema.org',
@@ -49,6 +78,60 @@ export default function LandingPage() {
       applicationCategory: 'BusinessApplication',
       description:
         'Sistema de catálogo digital profissional e gestão de pedidos para representantes comerciais e distribuidoras.',
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: 'O RepVendas substitui o catálogo em PDF?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Sim! Em vez de enviar arquivos em PDF pesados que ficam desatualizados a cada mudança de preço ou estoque, você compartilha um link de catálogo digital profissional. Seu cliente acessa pelo celular ou computador, vê as fotos organizadas e pode montar o pedido sozinho.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Meu cliente precisa instalar algum aplicativo para ver o catálogo?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Não. O seu catálogo funciona diretamente no navegador do celular ou computador do seu cliente, sem necessidade de baixar ou instalar nada na Play Store ou App Store.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Como recebo os pedidos dos meus clientes?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Quando o cliente finaliza o pedido no seu catálogo, as informações chegam formatadas e organizadas no seu Painel Administrativo. O cliente também pode enviar uma cópia do pedido pronto diretamente para o seu WhatsApp com um único clique.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'É possível proteger ou ocultar os preços dos produtos?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Sim! Você pode definir se os preços ficam públicos ou se exigem uma senha de acesso. Desta forma, apenas clientes autorizados conseguem visualizar informações comerciais estratégicas.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Posso importar meus produtos de uma planilha Excel ou CSV?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Com certeza. O RepVendas permite importar sua relação de produtos via planilha e vincular todas as imagens de forma simples e rápida na nossa interface visual.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Posso usar minha própria marca, logo e cores?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Sim! Você pode fazer upload da sua logo, personalizar as cores principais do catálogo e configurar a identidade visual para transmitir total profissionalismo aos seus clientes.',
+          },
+        },
+      ],
     },
   ];
 

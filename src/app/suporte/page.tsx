@@ -14,8 +14,15 @@ import {
   import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
 
 export const metadata: Metadata = {
-  title: 'Suporte | RepVendas',
-  description: 'Central de Ajuda e Suporte do RepVendas',
+  title: 'Suporte e Atendimento',
+  description: 'Central de Ajuda, Suporte Técnico e Canais de Atendimento da plataforma RepVendas.',
+  alternates: {
+    canonical: '/suporte',
+  },
+  openGraph: {
+    title: 'Suporte e Atendimento | RepVendas',
+    description: 'Central de Ajuda, Suporte Técnico e Canais de Atendimento da plataforma RepVendas.',
+  },
 };
 
 export default function SupportPage() {
