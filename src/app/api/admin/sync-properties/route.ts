@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
-import { syncDivergentProducts, normalizePropertyNames } from '@/lib/clone/syncDivergentProducts';
+import {
+  syncDivergentProducts,
+  normalizePropertyNames,
+  cloneAndSyncCatalog,
+} from '@/lib/clone/syncDivergentProducts';
 
 export async function POST(req: Request) {
   try {
@@ -45,83 +49,25 @@ export async function POST(req: Request) {
     // Support full clone / sync when properties === 'all'
     if (properties === 'all') {
       if (targetUserId) {
-        if (dryRun) {
-          // Contar novos produtos a serem inseridos
-          const { count: srcCount } = await adminClient
-            .from('products')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', effectiveSource)
-            .in('brand', cleanedBrands || []);
-
-          // Verificar produtos existentes divergentes
-          const syncSimulation = await syncDivergentProducts({
-            supabase: adminClient,
-            sourceUserId: effectiveSource,
-            targetUserId,
-            brands: cleanedBrands,
-            propertiesToSync: 'all',
-            dryRun: true,
-          });
-
-          const totalDetected = (srcCount || 0) + syncSimulation.divergentCount;
-
-          return NextResponse.json({
-            success: true,
-            updatedCount: totalDetected,
-            divergentCount: syncSimulation.divergentCount,
-            affectedUsers: 1,
-            message: `Simulação: ${syncSimulation.divergentCount} produtos existentes divergentes e novos produtos detectados.`,
-          });
-        }
-
-        // Executar inserção de novos produtos via clone_catalog_smart / batch
-        let insertedCount = 0;
-        try {
-          const call1 = await adminClient.rpc('clone_catalog_smart', {
-            source_user_id: effectiveSource,
-            target_user_id: targetUserId,
-            brands_to_copy: cleanedBrands,
-          } as any);
-
-          if (!call1.error) {
-            insertedCount = typeof call1.data === 'number' ? call1.data : (call1.data?.total_processed ?? 0);
-          } else {
-            const call2 = await adminClient.rpc('clone_catalog_smart', {
-              p_source_user_id: effectiveSource,
-              p_target_user_id: targetUserId,
-              p_brands_to_copy: cleanedBrands,
-            } as any);
-            if (!call2.error) {
-              insertedCount = typeof call2.data === 'number' ? call2.data : (call2.data?.total_processed ?? 0);
-            }
-          }
-        } catch (e) {
-          console.warn('[sync-properties] Falha ao executar clone de novos produtos:', e);
-        }
-
-        // Executar sincronização de referências existentes divergentes
-        const syncResult = await syncDivergentProducts({
+        const result = await cloneAndSyncCatalog({
           supabase: adminClient,
           sourceUserId: effectiveSource,
           targetUserId,
           brands: cleanedBrands,
-          propertiesToSync: 'all',
-          dryRun: false,
+          propertiesToSync: 'clone_safe',
+          dryRun: Boolean(dryRun),
         });
-
-        const totalUpdated = insertedCount + syncResult.updatedCount;
-        const msgParts = [];
-        if (insertedCount > 0) msgParts.push(`${insertedCount} novos adicionados`);
-        if (syncResult.updatedCount > 0) msgParts.push(`${syncResult.updatedCount} existentes atualizados`);
-        const message = msgParts.length > 0
-          ? `Sincronização completa aplicada: ${msgParts.join(' e ')}.`
-          : 'Catálogo já sincronizado com o master.';
 
         return NextResponse.json({
           success: true,
-          updatedProducts: totalUpdated,
+          updatedProducts: result.totalProcessed,
+          updatedCount: result.totalProcessed,
+          insertedCount: result.insertedCount,
+          divergentCount: result.updatedCount,
           affectedUsers: 1,
-          message,
+          message: dryRun
+            ? `Simulação: ${result.insertedCount} novos produtos a adicionar e ${result.updatedCount} existentes a atualizar.`
+            : result.message,
         });
       }
     }

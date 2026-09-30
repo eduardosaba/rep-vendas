@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
-import { syncDivergentProducts } from '@/lib/clone/syncDivergentProducts';
+import { cloneAndSyncCatalog } from '@/lib/clone/syncDivergentProducts';
 
 type Body = {
   sourceUserId?: string;
@@ -79,112 +79,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Origem e destino devem ser usuários diferentes' }, { status: 400 });
     }
 
-    // Try batch RPC first
-    try {
-      let totalProcessed = 0;
-      let lastId: string | null = null;
-      const batchSize = 500;
-
-      while (true) {
-        let batchCall = await supabase.rpc('clone_catalog_batch', {
-          p_source_user_id: sourceId,
-          p_target_user_id: body.targetUserId,
-          p_brands_to_copy: brandsToSend,
-          p_batch_size: batchSize,
-          p_last_id: lastId,
-        } as any);
-
-        if (batchCall.error && /not find.*function/i.test(batchCall.error.message || '')) {
-          batchCall = await supabase.rpc('clone_catalog_batch', {
-            source_user_id: sourceId,
-            target_user_id: body.targetUserId,
-            brands_to_copy: brandsToSend,
-            batch_size: batchSize,
-            last_id: lastId,
-          } as any);
-        }
-
-        if (batchCall.error) throw batchCall.error;
-
-        const row: any = Array.isArray(batchCall.data) && batchCall.data.length > 0 ? batchCall.data[0] : batchCall.data;
-        const processed = Number(row?.processed_count || 0);
-        const last = row?.last_processed_id || null;
-
-        totalProcessed += processed;
-        lastId = last || lastId;
-
-        if (!processed || processed === 0) break;
-        await new Promise((r) => setTimeout(r, 100));
-      }
-
-      // Sincronizar produtos com referências já existentes que tenham informações divergentes
-      // Atualiza apenas campos permitidos: price, sale_price, is_launch, sku, barcode (ean), is_active (status), description
-      const syncResult = await syncDivergentProducts({
-        supabase,
-        sourceUserId: sourceId,
-        targetUserId: body.targetUserId,
-        brands: brandsToSend,
-        propertiesToSync: 'clone_safe',
-        dryRun: false,
-      });
-
-      // Guarantee target user's cloned products have organization_id populated
-      await ensureTargetProductsOrganizationId(supabase, body.targetUserId);
-
-      const msgParts = [];
-      if (totalProcessed > 0) msgParts.push(`${totalProcessed} novos produtos adicionados`);
-      if (syncResult.updatedCount > 0) msgParts.push(`${syncResult.updatedCount} produtos existentes atualizados`);
-      const message = msgParts.length > 0
-        ? `Sincronização concluída: ${msgParts.join(' e ')}.`
-        : 'Catálogo já está sincronizado com o master.';
-
-      return NextResponse.json({
-        success: true,
-        message,
-        data: {
-          total_processed: totalProcessed + syncResult.updatedCount,
-          inserted_count: totalProcessed,
-          updated_count: syncResult.updatedCount,
-        },
-      });
-    } catch (batchErr) {
-      console.warn('clone_catalog_batch failed, falling back to clone_catalog_smart', batchErr);
-    }
-
-    // Fallback: try clone_catalog_smart without mixing parameter signatures
-    let legacyData: any = null;
-    let legacyErr: any = null;
-
-    const call1 = await supabase.rpc('clone_catalog_smart', {
-      source_user_id: sourceId,
-      target_user_id: body.targetUserId,
-      brands_to_copy: brandsToSend,
-    } as any);
-
-    if (!call1.error) {
-      legacyData = call1.data;
-    } else {
-      const call2 = await supabase.rpc('clone_catalog_smart', {
-        p_source_user_id: sourceId,
-        p_target_user_id: body.targetUserId,
-        p_brands_to_copy: brandsToSend,
-      } as any);
-
-      if (!call2.error) {
-        legacyData = call2.data;
-      } else {
-        legacyErr = call2.error;
-      }
-    }
-
-    if (legacyErr) {
-      console.error('clone_catalog_smart failed', legacyErr);
-      return NextResponse.json({ error: 'RPC failed', detail: legacyErr.message || String(legacyErr) }, { status: 500 });
-    }
-
-    // Sincronizar produtos existentes que tenham informações divergentes
-    // Atualiza apenas campos permitidos: price, sale_price, is_launch, sku, barcode (ean), is_active (status), description
-    const fallbackSyncResult = await syncDivergentProducts({
+    const result = await cloneAndSyncCatalog({
       supabase,
       sourceUserId: sourceId,
       targetUserId: body.targetUserId,
@@ -195,21 +90,13 @@ export async function POST(req: Request) {
 
     await ensureTargetProductsOrganizationId(supabase, body.targetUserId);
 
-    const insertedCount = typeof legacyData === 'number' ? legacyData : (legacyData?.total_processed ?? 0);
-    const msgParts = [];
-    if (insertedCount > 0) msgParts.push(`${insertedCount} novos produtos adicionados`);
-    if (fallbackSyncResult.updatedCount > 0) msgParts.push(`${fallbackSyncResult.updatedCount} produtos existentes atualizados`);
-    const message = msgParts.length > 0
-      ? `Sincronização concluída: ${msgParts.join(' e ')}.`
-      : 'Catálogo já está sincronizado com o master.';
-
     return NextResponse.json({
       success: true,
-      message,
+      message: result.message,
       data: {
-        total_processed: insertedCount + fallbackSyncResult.updatedCount,
-        inserted_count: insertedCount,
-        updated_count: fallbackSyncResult.updatedCount,
+        total_processed: result.totalProcessed,
+        inserted_count: result.insertedCount,
+        updated_count: result.updatedCount,
       },
     });
   } catch (err: any) {

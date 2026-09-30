@@ -451,3 +451,305 @@ export async function syncDivergentProducts({
     })),
   };
 }
+
+/**
+ * Resolve organization_id e company_id do usuário destino
+ */
+async function resolveTargetOrgAndCompany(
+  supabase: SupabaseClient,
+  targetUserId: string
+): Promise<{ targetOrgId: string | null; targetCompId: string | null }> {
+  let targetOrgId: string | null = null;
+  let targetCompId: string | null = null;
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id, company_id')
+      .eq('id', targetUserId)
+      .maybeSingle();
+
+    targetOrgId = profile?.organization_id || null;
+    targetCompId = profile?.company_id || null;
+
+    if (!targetOrgId) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('owner_user_id', targetUserId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (org?.id) targetOrgId = org.id;
+    }
+
+    if (!targetOrgId) {
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', targetUserId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (member?.organization_id) targetOrgId = member.organization_id;
+    }
+  } catch (err) {
+    console.warn('[cloneAndSyncCatalog] Erro ao resolver organização do destino:', err);
+  }
+
+  return { targetOrgId, targetCompId };
+}
+
+/**
+ * Gera slug limpo e único para novo produto clonado
+ */
+function generateSlug(baseText: string, existingSlugs: Set<string>): string {
+  const cleanBase =
+    baseText
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'produto';
+
+  let candidate = cleanBase;
+  if (!existingSlugs.has(candidate)) {
+    existingSlugs.add(candidate);
+    return candidate;
+  }
+
+  let attempt = 0;
+  while (attempt < 50) {
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    candidate = `${cleanBase}-${randomSuffix}`;
+    if (!existingSlugs.has(candidate)) {
+      existingSlugs.add(candidate);
+      return candidate;
+    }
+    attempt++;
+  }
+
+  candidate = `${cleanBase}-${Date.now().toString(36)}`;
+  existingSlugs.add(candidate);
+  return candidate;
+}
+
+export interface CloneAndSyncOptions {
+  supabase: SupabaseClient;
+  sourceUserId: string;
+  targetUserId: string;
+  brands?: string[] | null;
+  propertiesToSync?: string[] | 'all' | 'clone_safe';
+  dryRun?: boolean;
+}
+
+export interface CloneAndSyncResult {
+  insertedCount: number;
+  updatedCount: number;
+  totalProcessed: number;
+  message: string;
+}
+
+/**
+ * Operação completa de clonagem e sincronização direta:
+ * 1) Insere produtos novos que o cliente ainda não possui (com fotos, metadados e slug único).
+ * 2) Atualiza referências que o cliente já possui exclusivamente nos campos permitidos:
+ *    price, sale_price, is_launch, sku, barcode (ean), is_active (status), description.
+ * 3) Não depende de funções RPC sujeitas a divergência de tipos no schema cache.
+ */
+export async function cloneAndSyncCatalog({
+  supabase,
+  sourceUserId,
+  targetUserId,
+  brands = null,
+  propertiesToSync = 'clone_safe',
+  dryRun = false,
+}: CloneAndSyncOptions): Promise<CloneAndSyncResult> {
+  const { targetOrgId, targetCompId } = await resolveTargetOrgAndCompany(supabase, targetUserId);
+
+  // Busca todos os produtos do template de origem
+  const sourceProducts = await fetchAllUserProducts(supabase, sourceUserId, brands, '*');
+
+  if (!sourceProducts || sourceProducts.length === 0) {
+    return {
+      insertedCount: 0,
+      updatedCount: 0,
+      totalProcessed: 0,
+      message: 'Nenhum produto encontrado no catálogo de origem para as marcas selecionadas.',
+    };
+  }
+
+  // Busca produtos existentes do destino para identificar o que já existe vs o que é novo
+  const targetProducts = await fetchAllUserProducts(
+    supabase,
+    targetUserId,
+    brands,
+    'id,reference_code,brand,slug'
+  );
+
+  const targetExistingKeys = new Set<string>();
+  const targetExistingRefs = new Set<string>();
+  const targetExistingSlugs = new Set<string>();
+
+  for (const tgt of targetProducts) {
+    const ref = String(tgt.reference_code || '').trim().toLowerCase();
+    const brand = String(tgt.brand || '').trim().toLowerCase();
+    if (ref && brand) targetExistingKeys.add(`${brand}:::${ref}`);
+    if (ref) targetExistingRefs.add(ref);
+    if (tgt.slug) targetExistingSlugs.add(String(tgt.slug).toLowerCase());
+  }
+
+  // Separa o que precisa ser inserido como novidade (lançamento)
+  const toInsert: any[] = [];
+  for (const src of sourceProducts) {
+    const srcRef = String(src.reference_code || '').trim().toLowerCase();
+    const srcBrand = String(src.brand || '').trim().toLowerCase();
+
+    if (srcRef && (targetExistingKeys.has(`${srcBrand}:::${srcRef}`) || targetExistingRefs.has(srcRef))) {
+      // Já existe no catálogo do cliente
+      continue;
+    }
+    toInsert.push(src);
+  }
+
+  let insertedCount = 0;
+
+  // Insere novos produtos
+  if (!dryRun && toInsert.length > 0) {
+    const productsToInsert: any[] = [];
+    const clonesToInsert: any[] = [];
+
+    for (const src of toInsert) {
+      const newId = crypto.randomUUID();
+      const refOrName = src.reference_code || src.name || 'item';
+      const cleanSlug = generateSlug(refOrName, targetExistingSlugs);
+
+      const productPayload: Record<string, any> = {
+        id: newId,
+        reference_code: src.reference_code || null,
+        reference_id: src.reference_id || src.reference_code || null,
+        name: src.name || '',
+        description: src.description || null,
+        brand: src.brand || null,
+        category: src.category || null,
+        category_id: src.category_id || null,
+        slug: cleanSlug,
+        price: src.price ?? 0,
+        original_price: src.original_price ?? null,
+        sale_price: src.sale_price ?? null,
+        cost: src.cost ?? null,
+        discount_percent: src.discount_percent ?? null,
+        image_url: src.image_url || null,
+        external_image_url: src.external_image_url || null,
+        image_path: src.image_path || null,
+        images: src.images || null,
+        gallery_images: src.gallery_images || null,
+        image_variants: src.image_variants || null,
+        image_optimized: src.image_optimized ?? null,
+        image_is_shared: true,
+        is_active: src.is_active ?? true,
+        is_launch: src.is_launch ?? false,
+        is_best_seller: src.is_best_seller ?? false,
+        bestseller: src.bestseller ?? false,
+        is_destaque: src.is_destaque ?? false,
+        price_on_request: src.price_on_request ?? false,
+        technical_specs: src.technical_specs || null,
+        stock_quantity: src.stock_quantity ?? 0,
+        track_stock: src.track_stock ?? false,
+        manage_stock: src.manage_stock ?? false,
+        min_stock_level: src.min_stock_level ?? null,
+        sku: src.sku || null,
+        barcode: src.barcode || null,
+        color: src.color || null,
+        gender: src.gender || null,
+        class_core: src.class_core || null,
+        short_id: src.short_id || null,
+        original_product_id: src.id,
+        sync_status: 'synced',
+        user_id: targetUserId,
+        organization_id: targetOrgId,
+        company_id: targetCompId,
+        source_organization_id: src.organization_id || null,
+        material: src.material || null,
+        polarizado: src.polarizado ?? false,
+        fotocromatico: src.fotocromatico ?? false,
+        material_haste: src.material_haste || null,
+        colecao: src.colecao || null,
+        frame_formato: src.frame_formato || null,
+        color_nome: src.color_nome || null,
+      };
+
+      productsToInsert.push(productPayload);
+      clonesToInsert.push({
+        source_product_id: src.id,
+        cloned_product_id: newId,
+        source_user_id: sourceUserId,
+        target_user_id: targetUserId,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    const insertChunkSize = 50;
+    for (let i = 0; i < productsToInsert.length; i += insertChunkSize) {
+      const chunk = productsToInsert.slice(i, i + insertChunkSize);
+      const { error: insErr } = await supabase.from('products').insert(chunk);
+      if (insErr) {
+        console.warn('[cloneAndSyncCatalog] Falha no lote, tentando inserção com regeneração de slug:', insErr.message);
+        for (const item of chunk) {
+          const { error: singleErr } = await supabase.from('products').insert(item);
+          if (singleErr) {
+            item.slug = generateSlug(item.reference_code || item.name, targetExistingSlugs);
+            const { error: retryErr } = await supabase.from('products').insert(item);
+            if (!retryErr) insertedCount++;
+          } else {
+            insertedCount++;
+          }
+        }
+      } else {
+        insertedCount += chunk.length;
+      }
+    }
+
+    for (let i = 0; i < clonesToInsert.length; i += 100) {
+      const chunk = clonesToInsert.slice(i, i + 100);
+      try {
+        await supabase.from('catalog_clones').insert(chunk);
+      } catch (cloneErr) {
+        console.warn('[cloneAndSyncCatalog] Aviso ao salvar mapeamento catalog_clones:', cloneErr);
+      }
+    }
+  } else if (dryRun) {
+    insertedCount = toInsert.length;
+  }
+
+  // Sincroniza referências existentes nos campos permitidos (price, is_launch, sku, barcode, is_active, description)
+  const syncResult = await syncDivergentProducts({
+    supabase,
+    sourceUserId,
+    targetUserId,
+    brands,
+    propertiesToSync,
+    dryRun,
+  });
+
+  const updatedCount = syncResult.divergentCount || syncResult.updatedCount;
+  const totalProcessed = insertedCount + updatedCount;
+
+  const msgParts: string[] = [];
+  if (insertedCount > 0) msgParts.push(`${insertedCount} novos produtos adicionados`);
+  if (updatedCount > 0) msgParts.push(`${updatedCount} produtos existentes atualizados`);
+
+  const message =
+    msgParts.length > 0
+      ? `Sincronização concluída: ${msgParts.join(' e ')}.`
+      : 'Catálogo já está sincronizado com o master.';
+
+  return {
+    insertedCount,
+    updatedCount,
+    totalProcessed,
+    message,
+  };
+}

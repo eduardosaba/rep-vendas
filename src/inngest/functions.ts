@@ -278,7 +278,25 @@ export const cloneCatalog = inngest.createFunction(
         }
       }
 
-      if (error) throw error;
+      if (error) {
+        // Fallback resiliente caso o RPC falhe por divergência de tipo no schema cache
+        try {
+          const { cloneAndSyncCatalog } = await import('@/lib/clone/syncDivergentProducts');
+          const directResult = await cloneAndSyncCatalog({
+            supabase,
+            sourceUserId: source_user_id,
+            targetUserId: target_user_id,
+            brands: brands || null,
+            propertiesToSync: 'clone_safe',
+            dryRun: false,
+          });
+          data = { products_added: directResult.insertedCount, total_processed: directResult.totalProcessed };
+          error = null;
+        } catch (fallbackErr) {
+          console.error('[inngest] Erro no fallback de clonagem:', fallbackErr);
+          throw error;
+        }
+      }
 
       // Company-aware normalization for worker-based clone path.
       try {
