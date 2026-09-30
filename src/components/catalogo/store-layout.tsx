@@ -1203,10 +1203,10 @@ export function CarouselBrands() {
           )}
         </div>
 
-        {/* 2. Mantemos o overflow-hidden APENAS aqui para o carrossel não vazar nas laterais */}
-        <div className="flex-1 overflow-hidden pointer-events-auto">
+        {/* 2. Mantemos o container com padding/margem para o zoom não ser cortado nem ficar embaixo de outros elementos */}
+        <div className="flex-1 overflow-hidden py-4 -my-4 pointer-events-auto">
           <div
-            className={`${shouldAnimate ? 'animate-marquee' : 'flex items-center gap-3'} ${isPaused ? 'paused' : ''}`}
+            className={`${shouldAnimate ? 'animate-marquee' : 'flex items-center gap-3'} ${isPaused ? 'paused' : ''} py-2`}
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
             onTouchStart={() => setIsPaused(true)}
@@ -1222,7 +1222,7 @@ export function CarouselBrands() {
                 <button
                   key={`brand-marquee-${brand.name}-${i}`}
                   onClick={() => toggleBrand(brand.name)}
-                  className={`group relative flex h-12 w-[120px] md:w-[136px] items-center justify-center p-1 mx-3 transition-all duration-300 shrink-0 hover:z-[60] ${
+                  className={`group relative z-0 hover:z-[90] focus-within:z-[90] flex h-12 w-[120px] md:w-[136px] items-center justify-center p-1 mx-3 transition-all duration-300 shrink-0 ${
                     active ? 'bg-[var(--primary)]/10 ring-2 ring-[var(--primary)] rounded-lg' : ''
                   }`}
                 >
@@ -1231,10 +1231,10 @@ export function CarouselBrands() {
                       src={finalSrc}
                       alt={brand.name}
                       loading="eager" 
-                      className="max-h-9 md:max-h-10 w-auto max-w-[92%] object-contain transition-transform duration-300 ease-out group-hover:scale-[2] hover:scale-[2] origin-center group-hover:drop-shadow-xl cursor-pointer"
+                      className="max-h-9 md:max-h-10 w-auto max-w-[92%] object-contain transition-transform duration-300 ease-out group-hover:scale-[1.8] hover:scale-[1.8] origin-center group-hover:drop-shadow-2xl cursor-pointer relative group-hover:z-[100]"
                     />
                   ) : (
-                    <span className={`px-3 text-[10px] font-bold uppercase whitespace-nowrap transition-transform duration-300 ease-out group-hover:scale-[1.8] hover:scale-[1.8] ${active ? 'text-[var(--primary)]' : 'text-gray-500'}`}>
+                    <span className={`px-3 text-[10px] font-bold uppercase whitespace-nowrap transition-transform duration-300 ease-out group-hover:scale-[1.6] hover:scale-[1.6] relative group-hover:z-[100] ${active ? 'text-[var(--primary)]' : 'text-gray-500'}`}>
                       {brand.name}
                     </span>
                   )}
@@ -1245,8 +1245,8 @@ export function CarouselBrands() {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute left-0 top-0 h-full w-16 hidden lg:block" style={{ background: 'linear-gradient(to right, rgba(255,255,255,1), rgba(255,255,255,0))' }} />
-      <div className="pointer-events-none absolute right-0 top-0 h-full w-16 hidden lg:block" style={{ background: 'linear-gradient(to left, rgba(255,255,255,1), rgba(255,255,255,0))' }} />
+      <div className="pointer-events-none absolute left-0 top-0 h-full w-16 hidden lg:block z-[5]" style={{ background: 'linear-gradient(to right, rgba(255,255,255,1), rgba(255,255,255,0))' }} />
+      <div className="pointer-events-none absolute right-0 top-0 h-full w-16 hidden lg:block z-[5]" style={{ background: 'linear-gradient(to left, rgba(255,255,255,1), rgba(255,255,255,0))' }} />
 
       <style>{`
         @keyframes rv-marquee-scroll {

@@ -18,12 +18,35 @@ export default async function ThemeLayout({ children, params }: { children: Reac
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
-      // 1. Achar a empresa pelo slug
-      const { data: company } = await admin
+      const normalizedSlug = String(slug || '').trim();
+
+      // 1. Achar a empresa pelo slug (case-insensitive)
+      let { data: company } = await admin
         .from('companies')
         .select('id,primary_color,secondary_color')
-        .eq('slug', slug)
+        .ilike('slug', normalizedSlug)
         .maybeSingle();
+
+      // Fallback: tentar por public_catalogs
+      if (!company) {
+        const { data: pc } = await admin
+          .from('public_catalogs')
+          .select('company_id,primary_color,secondary_color')
+          .ilike('catalog_slug', normalizedSlug)
+          .maybeSingle();
+
+        if (pc?.company_id) {
+          const { data: compFromPc } = await admin
+            .from('companies')
+            .select('id,primary_color,secondary_color')
+            .eq('id', pc.company_id)
+            .maybeSingle();
+          company = compFromPc;
+        } else if (pc) {
+          primaryColor = pc.primary_color || primaryColor;
+          secondaryColor = pc.secondary_color || secondaryColor;
+        }
+      }
 
       if (company?.id) {
         primaryColor = company.primary_color || primaryColor;

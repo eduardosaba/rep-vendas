@@ -46,12 +46,27 @@ export const getPublicCatalog = cache(
       }
     }
 
+    // Buscar todos os administradores da empresa para incluir produtos associados aos seus user_ids
+    const { data: allCompAdmins } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('company_id', companyId);
+
+    const compAdminIds = (allCompAdmins || []).map((a: any) => a.id).filter(Boolean);
+    const userOrClauses = compAdminIds.map((uid) => `user_id.eq.${uid}`).join(',');
+    const orFilter = [
+      `company_id.eq.${companyId}`,
+      `organization_id.eq.${companyId}`,
+      `user_id.eq.${companyId}`,
+      ...(userOrClauses ? [userOrClauses] : []),
+    ].join(',');
+
     // products visible to public: those matching company_id, user_id, OR organization_id
     let productsQuery = supabaseAdmin
       .from('products')
-      .select('*')
+      .select('*, linked_images, product_images(url, is_primary)')
       .not('is_active', 'eq', false)
-      .or(`company_id.eq.${companyId},user_id.eq.${companyId},organization_id.eq.${companyId}`)
+      .or(orFilter)
       .order('created_at', { ascending: false });
 
     // apply brand filter if provided (product.brand is a string column)
@@ -104,7 +119,13 @@ export const getPublicCatalog = cache(
     }
 
     // default product list
-    const { data: products } = await productsQuery;
+    const { data: rawProducts } = await productsQuery;
+    const products = (rawProducts || []).map((p: any) => {
+      const gallery = p.product_images || [];
+      const primary = gallery.find((i: any) => i.is_primary);
+      const displayUrl = primary ? primary.url : gallery[0]?.url || p.image_url || p.external_image_url;
+      return displayUrl ? { ...p, image_url: displayUrl } : p;
+    });
 
     return { success: true, company, products, rep };
   } catch (err: any) {

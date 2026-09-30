@@ -55,8 +55,10 @@ type ParamsType = {
 export default async function CompanyCustomPage({ params }: { params: Promise<ParamsType> }) {
   const { slug, pageSlug } = await params;
   const supabase = await createClient();
+  const admin = buildSupabaseAdmin();
+  const clientToUse = admin || supabase;
 
-  const { data: company } = await supabase
+  const { data: company } = await clientToUse
     .from('companies')
     .select('id,name,slug,primary_color,secondary_color,logo_url,phone,whatsapp,email,instagram,address')
     .ilike('slug', String(slug || '').toLowerCase())
