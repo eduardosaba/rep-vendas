@@ -13,6 +13,7 @@ import {
   Edit,
   Mail,
   Sparkles,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/utils/getErrorMessage';
@@ -24,6 +25,7 @@ import {
 } from './actions';
 import { getCompanies } from './companiesActions';
 import { Button } from '@/components/ui/button';
+import { IntegrityAuditModal } from '@/components/admin/IntegrityAuditModal';
 
 interface Plan {
   id: string;
@@ -61,6 +63,7 @@ export default function AdminUsersPage() {
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -267,15 +270,28 @@ export default function AdminUsersPage() {
       );
     }
 
+    const isCanceled = user.subscriptions.status === 'canceled' || user.status === 'inactive';
+    const isPastDue = user.subscriptions.status === 'past_due';
     const date = new Date(user.subscriptions.current_period_end);
     const isExpired = date.getTime() < new Date().getTime();
+
     return (
       <div className="flex flex-col">
-        <span className={`text-sm font-medium ${isExpired ? 'text-red-600' : 'text-green-600'}`}>
+        <span className={`text-sm font-medium ${isCanceled || isExpired ? 'text-red-600' : isPastDue ? 'text-amber-600' : 'text-green-600'}`}>
           {date.toLocaleDateString('pt-BR')}
         </span>
-        <span className="text-[10px] text-gray-400 flex gap-1">
-          {isExpired ? 'Expirado' : 'Ativo'} • {user.subscriptions.plan_name || 'Plano'}
+        <span className="text-[10px] text-gray-400 flex items-center gap-1">
+          {isCanceled ? (
+            <span className="font-bold text-red-600 dark:text-red-400">Cancelado</span>
+          ) : isPastDue ? (
+            <span className="font-bold text-amber-600 dark:text-amber-400">Inadimplente</span>
+          ) : isExpired ? (
+            <span className="font-bold text-red-500">Expirado</span>
+          ) : (
+            <span className="font-bold text-emerald-600 dark:text-emerald-400">Ativo</span>
+          )}
+          <span>•</span>
+          <span>{user.subscriptions.plan_name || 'Plano'}</span>
         </span>
       </div>
     );
@@ -303,6 +319,14 @@ export default function AdminUsersPage() {
               className="pl-9 pr-4 py-2 border rounded-lg text-sm w-full md:w-64 bg-white dark:bg-slate-900 dark:border-slate-700 focus:ring-2 focus:ring-[var(--primary)] outline-none"
             />
           </div>
+          <Button
+            variant="outline"
+            onClick={() => setIsAuditModalOpen(true)}
+            className="border-amber-200 dark:border-amber-900/50 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-700 dark:text-amber-400 font-semibold gap-1.5"
+            leftIcon={<ShieldAlert size={16} className="text-amber-600 dark:text-amber-400" />}
+          >
+            Auditoria de Integridade
+          </Button>
           <Button
             onClick={() => setIsCreateOpen(true)}
             leftIcon={<Plus size={18} />}
@@ -390,23 +414,23 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4">
-                      {user.is_active === false ? (
+                      {user.is_active === false || user.status === 'inactive' || user.subscriptions?.status === 'canceled' ? (
                         <div className="flex flex-col gap-0.5">
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 w-fit">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                            Desativado
+                            {user.subscriptions?.status === 'canceled' || user.status === 'inactive' ? 'Cancelado' : 'Desativado'}
                           </span>
-                          {user.disabled_at && (
+                          {(user.disabled_at || user.subscriptions?.current_period_end) && (
                             <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                              {new Date(user.disabled_at).toLocaleDateString('pt-BR')}
+                              {new Date(user.disabled_at || user.subscriptions!.current_period_end!).toLocaleDateString('pt-BR')}
                             </span>
                           )}
-                          {user.disabled_reason && (
+                          {(user.disabled_reason || (user.subscriptions?.status === 'canceled' ? 'Assinatura cancelada' : null)) && (
                             <span
                               className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[140px]"
-                              title={user.disabled_reason}
+                              title={user.disabled_reason || 'Assinatura cancelada'}
                             >
-                              Motivo: {user.disabled_reason}
+                              Motivo: {user.disabled_reason || 'Assinatura cancelada'}
                             </span>
                           )}
                         </div>
@@ -555,14 +579,14 @@ export default function AdminUsersPage() {
                   <span className="text-gray-500 dark:text-slate-400">
                     Status de Acesso:
                   </span>
-                  {user.is_active === false ? (
+                  {user.is_active === false || user.status === 'inactive' || user.subscriptions?.status === 'canceled' ? (
                     <div className="flex flex-col items-end">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900">
-                        Desativado
+                        {user.subscriptions?.status === 'canceled' || user.status === 'inactive' ? 'Cancelado' : 'Desativado'}
                       </span>
-                      {user.disabled_at && (
+                      {(user.disabled_at || user.subscriptions?.current_period_end) && (
                         <span className="text-[10px] text-gray-500">
-                          {new Date(user.disabled_at).toLocaleDateString('pt-BR')}
+                          {new Date(user.disabled_at || user.subscriptions!.current_period_end!).toLocaleDateString('pt-BR')}
                         </span>
                       )}
                     </div>
@@ -758,6 +782,13 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE AUDITORIA DE INTEGRIDADE MULTI-TENANT */}
+      <IntegrityAuditModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        onRepaired={fetchUsers}
+      />
     </div>
   );
 }

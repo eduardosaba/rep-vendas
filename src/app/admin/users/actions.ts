@@ -1022,24 +1022,45 @@ export async function updateUserLicense(
 
     // Sincronizar status e trial_ends_at em profiles conforme o status da assinatura
     try {
-      if (String(status).toLowerCase() === 'active') {
+      const lowerStatus = String(status || '').toLowerCase();
+      if (lowerStatus === 'active') {
         await (supabaseAdmin as any)
           .from('profiles')
-          .update({ status: 'active', trial_ends_at: null, updated_at: new Date().toISOString() })
+          .update({
+            status: 'active',
+            is_active: true,
+            trial_ends_at: null,
+            disabled_at: null,
+            disabled_reason: null,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', userId);
-      } else if (String(status).toLowerCase() === 'trial') {
-        // se veio uma data de término, sincronizar trial_ends_at
+      } else if (lowerStatus === 'trial' || lowerStatus === 'trialing') {
+        const payload: any = {
+          status: 'trial',
+          is_active: true,
+          disabled_at: null,
+          disabled_reason: null,
+          updated_at: new Date().toISOString(),
+        };
         if (updateData.current_period_end) {
-          await (supabaseAdmin as any)
-            .from('profiles')
-            .update({ status: 'trial', trial_ends_at: updateData.current_period_end, updated_at: new Date().toISOString() })
-            .eq('id', userId);
-        } else {
-          await (supabaseAdmin as any)
-            .from('profiles')
-            .update({ status: 'trial', updated_at: new Date().toISOString() })
-            .eq('id', userId);
+          payload.trial_ends_at = updateData.current_period_end;
         }
+        await (supabaseAdmin as any)
+          .from('profiles')
+          .update(payload)
+          .eq('id', userId);
+      } else if (lowerStatus === 'canceled') {
+        await (supabaseAdmin as any)
+          .from('profiles')
+          .update({
+            status: 'inactive',
+            is_active: false,
+            disabled_at: new Date().toISOString(),
+            disabled_reason: 'Assinatura cancelada',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
       }
     } catch (e) {
       // não interromper o fluxo principal se a sincronização falhar

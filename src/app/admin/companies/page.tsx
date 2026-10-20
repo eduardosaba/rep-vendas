@@ -37,15 +37,10 @@ import {
   updateCompany,
   deleteCompany,
   toggleCompanyActive,
-  getCompanyRepresentatives,
 } from './actions';
-import {
-  runIntegrityAudit,
-  repairIntegrityIssues,
-  type IntegrityReport,
-} from '../integrity/actions';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { IntegrityAuditModal } from '@/components/admin/IntegrityAuditModal';
 
 type NewCompanyForm = {
   companyName: string;
@@ -125,9 +120,6 @@ export default function CompaniesAdminPage() {
 
   // Estado para Auditoria de Integridade Multi-tenant
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
-  const [auditReport, setAuditReport] = useState<IntegrityReport | null>(null);
-  const [isRunningAudit, setIsRunningAudit] = useState(false);
-  const [isRepairing, setIsRepairing] = useState(false);
 
   useEffect(() => {
     fetchCompanies();
@@ -260,45 +252,7 @@ export default function CompaniesAdminPage() {
     }
   };
 
-  const handleRunAudit = async () => {
-    setIsRunningAudit(true);
-    try {
-      const res = await runIntegrityAudit();
-      if (res.success && res.data) {
-        setAuditReport(res.data);
-        setIsAuditModalOpen(true);
-        if (res.data.healthy) {
-          toast.success('Auditoria concluída: Nenhuma inconsistência encontrada!');
-        } else {
-          toast.warning(`Auditoria concluída: ${res.data.totalIssuesCount} inconsistência(s) encontrada(s).`);
-        }
-      } else {
-        toast.error(res.error || 'Erro ao executar auditoria');
-      }
-    } catch {
-      toast.error('Falha ao executar auditoria de integridade');
-    } finally {
-      setIsRunningAudit(false);
-    }
-  };
 
-  const handleRepairAudit = async (targetType?: string) => {
-    setIsRepairing(true);
-    try {
-      const res = await repairIntegrityIssues(targetType);
-      if (res.success) {
-        toast.success(res.message);
-        await handleRunAudit();
-        fetchCompanies();
-      } else {
-        toast.error(res.error || 'Erro ao reparar inconsistências');
-      }
-    } catch {
-      toast.error('Falha ao executar reparo');
-    } finally {
-      setIsRepairing(false);
-    }
-  };
 
   const handleChangeMode = async (companyId: string, newMode: 'representative' | 'distributor') => {
     setUpdatingCompanyId(companyId);
@@ -349,15 +303,10 @@ export default function CompaniesAdminPage() {
         <div className="flex items-center gap-2 w-full md:w-auto">
           <Button
             variant="outline"
-            onClick={handleRunAudit}
-            disabled={isRunningAudit}
+            onClick={() => setIsAuditModalOpen(true)}
             className="gap-2 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
           >
-            {isRunningAudit ? (
-              <Loader2 size={16} className="animate-spin text-indigo-600" />
-            ) : (
-              <Activity size={16} className="text-indigo-600" />
-            )}
+            <Activity size={16} className="text-indigo-600" />
             Auditoria de Integridade
           </Button>
 
@@ -1230,136 +1179,11 @@ export default function CompaniesAdminPage() {
       )}
 
       {/* MODAL DE AUDITORIA DE INTEGRIDADE MULTI-TENANT */}
-      {isAuditModalOpen && auditReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 p-6 space-y-5">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`p-2.5 rounded-2xl ${
-                    auditReport.healthy
-                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
-                      : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
-                  }`}
-                >
-                  {auditReport.healthy ? <ShieldCheck size={24} /> : <ShieldAlert size={24} />}
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                    Auditoria de Integridade Multi-Tenant
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Última verificação: {new Date(auditReport.timestamp).toLocaleTimeString('pt-BR')} • {auditReport.stats.totalProfiles} perfis, {auditReport.stats.totalCompanies} distribuidoras
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAuditModalOpen(false)}
-                className="text-slate-400 hover:text-red-500 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* STATUS GERAL */}
-            <div
-              className={`p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border ${
-                auditReport.healthy
-                  ? 'bg-emerald-50/70 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200'
-                  : 'bg-amber-50/70 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/40 text-amber-900 dark:text-amber-200'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                {auditReport.healthy ? (
-                  <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertTriangle size={20} className="text-amber-600 shrink-0" />
-                )}
-                <span className="font-bold text-sm">
-                  {auditReport.healthy
-                    ? 'Sistema 100% íntegro. Nenhuma inconsistência de vínculo ou organização detectada.'
-                    : `${auditReport.totalIssuesCount} inconsistência(s) detectada(s) que podem comprometer isolamento ou permissões.`}
-                </span>
-              </div>
-
-              {!auditReport.healthy && (
-                <Button
-                  onClick={() => handleRepairAudit()}
-                  disabled={isRepairing}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs gap-1.5 shrink-0"
-                >
-                  {isRepairing ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" /> Reparando...
-                    </>
-                  ) : (
-                    <>
-                      <Wrench size={14} /> Reparar Inconsistências
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-
-            {/* LISTA DE INCONSISTÊNCIAS */}
-            {auditReport.issues.length > 0 && (
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {auditReport.issues.map((iss) => (
-                  <div
-                    key={iss.id}
-                    className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex items-start justify-between gap-3 text-xs"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] ${
-                            iss.severity === 'high'
-                              ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                          }`}
-                        >
-                          {iss.severity === 'high' ? 'Crítico' : 'Atenção'}
-                        </span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                          {iss.description}
-                        </span>
-                      </div>
-                      <p className="text-slate-400 font-mono text-[11px] truncate">
-                        ID: {iss.entityId} • Detalhes: {JSON.stringify(iss.details)}
-                      </p>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRepairAudit(iss.type)}
-                      disabled={isRepairing}
-                      className="text-[11px] shrink-0 font-bold h-7 px-2.5"
-                    >
-                      Reparar Este
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                variant="outline"
-                onClick={handleRunAudit}
-                disabled={isRunningAudit}
-                className="gap-1.5 text-xs font-semibold"
-              >
-                <RefreshCw size={13} className={isRunningAudit ? 'animate-spin' : ''} />
-                Reexecutar Auditoria
-              </Button>
-              <Button variant="outline" onClick={() => setIsAuditModalOpen(false)}>
-                Fechar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <IntegrityAuditModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        onRepaired={fetchCompanies}
+      />
 
       {/* MODAL DE CONFIRMAÇÃO DE MUDANÇA DE PACOTE */}
       {pendingModeChange && (

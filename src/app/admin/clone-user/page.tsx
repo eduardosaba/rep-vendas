@@ -187,10 +187,16 @@ export default function CloneUserPage() {
       setProgress(100);
 
       if (json?.inserted_count > 0) {
-        toast.success(`${json.inserted_count} produtos clonados com sucesso.`);
+        const brandMsg = json?.synced_brands_count > 0
+          ? ` e ${json.synced_brands_count} marca(s) com logo sincronizada(s)`
+          : '';
+        toast.success(`${json.inserted_count} produtos clonados com sucesso${brandMsg}.`);
       } else if (json?.skipped_count > 0) {
+        const brandMsg = json?.synced_brands_count > 0
+          ? ` (${json.synced_brands_count} marca(s) com logo sincronizada(s))`
+          : '';
         toast.info(
-          `Nenhum produto novo. ${json.skipped_count} produtos já estavam no catálogo.`
+          `Nenhum produto novo. ${json.skipped_count} produtos já estavam no catálogo${brandMsg}.`
         );
       } else {
         toast.info(json?.message || 'Nenhum produto encontrado para clonagem.');

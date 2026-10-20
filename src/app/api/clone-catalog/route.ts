@@ -274,6 +274,128 @@ export async function POST(req: Request) {
 
     /*
      * =====================================================
+     * SINCRONIZAÇÃO DE MARCAS E LOGOS (dashboard/brands)
+     * =====================================================
+     */
+    let syncedBrandsCount = 0;
+    try {
+      // 1. Buscar marcas configuradas no usuário de origem
+      const { data: sourceBrands } = await supabase
+        .from('brands')
+        .select('*')
+        .eq('user_id', sourceUserId);
+
+      // Fallback para template padrão caso o usuário fonte não tenha logos configurados
+      let fallbackBrands: any[] = [];
+      const hasMissingLogos =
+        !sourceBrands ||
+        sourceBrands.length === 0 ||
+        brands.some((b) => {
+          const match = sourceBrands.find(
+            (sb: any) => sb.name?.trim().toLowerCase() === b.trim().toLowerCase()
+          );
+          return !match || !match.logo_url;
+        });
+
+      if (hasMissingLogos) {
+        const { data: defaultTemplateProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('slug', 'template')
+          .maybeSingle();
+
+        if (defaultTemplateProfile?.id && defaultTemplateProfile.id !== sourceUserId) {
+          const { data: tBrands } = await supabase
+            .from('brands')
+            .select('*')
+            .eq('user_id', defaultTemplateProfile.id);
+          fallbackBrands = tBrands || [];
+        }
+      }
+
+      // 2. Buscar marcas já existentes no usuário destino para evitar duplicatas e preservar personalizações
+      const { data: targetBrands } = await supabase
+        .from('brands')
+        .select('*')
+        .eq('user_id', body.target_user_id);
+
+      const targetBrandsMap = new Map<string, any>();
+      (targetBrands || []).forEach((tb: any) => {
+        if (tb.name) {
+          targetBrandsMap.set(tb.name.trim().toLowerCase(), tb);
+        }
+      });
+
+      // 3. Para cada marca clonada, criar ou atualizar com a imagem e metadados
+      for (const brandName of brands) {
+        const normalized = brandName.trim().toLowerCase();
+
+        // Encontrar a marca na origem (ou no fallback)
+        const srcBrand =
+          (sourceBrands || []).find(
+            (sb: any) => sb.name?.trim().toLowerCase() === normalized
+          ) ||
+          fallbackBrands.find(
+            (fb: any) => fb.name?.trim().toLowerCase() === normalized
+          );
+
+        const existingTb = targetBrandsMap.get(normalized);
+
+        if (existingTb) {
+          // Já existe no destino: preenche logo e/ou banner caso o destino esteja sem imagem
+          const updatePayload: Record<string, any> = {};
+          if (!existingTb.logo_url && srcBrand?.logo_url) {
+            updatePayload.logo_url = srcBrand.logo_url;
+            if (srcBrand.logo_path) updatePayload.logo_path = srcBrand.logo_path;
+          }
+          if (!existingTb.banner_url && srcBrand?.banner_url) {
+            updatePayload.banner_url = srcBrand.banner_url;
+            if (srcBrand.banner_path) updatePayload.banner_path = srcBrand.banner_path;
+            if (srcBrand.banner_meta) updatePayload.banner_meta = srcBrand.banner_meta;
+          }
+          if (Object.keys(updatePayload).length > 0) {
+            updatePayload.updated_at = new Date().toISOString();
+            await supabase
+              .from('brands')
+              .update(updatePayload)
+              .eq('id', existingTb.id);
+            syncedBrandsCount++;
+          }
+        } else {
+          // Não existe no destino: insere a marca com logo, banner e dados visuais
+          const insertPayload: Record<string, any> = {
+            name: srcBrand?.name || brandName,
+            user_id: body.target_user_id,
+            organization_id: targetOrganizationId,
+            company_id: targetProfile.company_id || null,
+            logo_url: srcBrand?.logo_url || null,
+            logo_path: srcBrand?.logo_path || null,
+            banner_url: srcBrand?.banner_url || null,
+            banner_path: srcBrand?.banner_path || null,
+            banner_meta: srcBrand?.banner_meta || null,
+            description: srcBrand?.description || null,
+            commission_percent: srcBrand?.commission_percent ?? 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          const { error: insErr } = await supabase
+            .from('brands')
+            .insert(insertPayload);
+
+          if (!insErr) {
+            syncedBrandsCount++;
+          } else {
+            console.warn(`Aviso: falha ao inserir marca "${brandName}" no destino:`, insErr.message);
+          }
+        }
+      }
+    } catch (brandSyncError) {
+      console.warn('Aviso: falha não-crítica ao sincronizar marcas durante clone de catálogo:', brandSyncError);
+    }
+
+    /*
+     * =====================================================
      * AUDITORIA
      * =====================================================
      */
@@ -297,6 +419,7 @@ export async function POST(req: Request) {
           target_user_id: body.target_user_id,
           target_organization_id: targetOrganizationId,
           brands,
+          synced_brands_count: syncedBrandsCount,
           result: cloneResult,
         },
       });
@@ -318,6 +441,7 @@ export async function POST(req: Request) {
           : 'Nenhum produto novo para clonar.',
       template: sourceTemplateSlug,
       target_user: targetProfile.slug,
+      synced_brands_count: syncedBrandsCount,
       ...cloneResult,
     });
   } catch (error: any) {

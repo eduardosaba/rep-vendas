@@ -215,7 +215,8 @@ export function EditUserForm({ userId, initialData, availablePlans, availableCom
     }
   };
 
-  const isInactive = initialData.is_active === false;
+  const isCanceled = initialData.status === 'canceled' || initialData.status === 'inactive';
+  const isInactive = initialData.is_active === false || isCanceled;
 
   const disabledByInfo = initialData.disabledByProfile
     ? (initialData.disabledByProfile.full_name || initialData.disabledByProfile.email)
@@ -229,9 +230,13 @@ export function EditUserForm({ userId, initialData, availablePlans, availableCom
           <div className="flex items-start gap-3">
             <UserX size={22} className="text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <div>
-              <p className="font-bold text-base">Acesso Desativado</p>
+              <p className="font-bold text-base">
+                {isCanceled ? 'Assinatura Cancelada / Acesso Inativo' : 'Acesso Desativado'}
+              </p>
               <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">
-                O acesso deste usuário foi desativado. Pedidos, produtos, clientes e históricos permanecem intactos.
+                {isCanceled
+                  ? 'A assinatura do usuário está cancelada. Pedidos, catálogo e histórico comercial permanecem intactos.'
+                  : 'O acesso deste usuário foi desativado. Pedidos, produtos, clientes e históricos permanecem intactos.'}
               </p>
               <div className="mt-2 text-xs space-y-1 text-red-800 dark:text-red-200 font-mono">
                 {initialData.disabled_at && (
@@ -488,11 +493,11 @@ export function EditUserForm({ userId, initialData, availablePlans, availableCom
         <div>
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <UserX size={18} className={isInactive ? "text-red-500" : "text-amber-500"} />
-            {isInactive ? 'Status do Acesso: Desativado' : 'Desativar Acesso do Usuário'}
+            {isCanceled ? 'Status do Acesso: Assinatura Cancelada' : isInactive ? 'Status do Acesso: Desativado' : 'Desativar Acesso do Usuário'}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md">
             {isInactive
-              ? 'Este usuário está com o acesso suspenso. Clique em Reativar Acesso para restabelecer as permissões de login.'
+              ? 'Este usuário está com o acesso suspenso/cancelado. Clique em Reativar Acesso para restabelecer as permissões de login.'
               : 'Bloqueia o login e revoga acessos imediatamente. Preserva 100% dos pedidos, catálogo e histórico comercial.'}
           </p>
         </div>
