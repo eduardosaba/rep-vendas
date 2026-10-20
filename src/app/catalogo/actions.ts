@@ -211,12 +211,18 @@ export async function createOrder(
       };
     }
 
-    let companyId: string | null = companyIdFromPayload || resolvedCompanyId;
+    // Resolução estrita e segura de companyId (vínculo real com distribuidora verificado no banco):
+    // NUNCA confiar exclusivamente em companyIdFromPayload enviado pelo navegador.
+    let companyId: string | null = null;
 
-    if (!companyId && ownerIsCompany) {
+    if (ownerIsCompany) {
       companyId = ownerId;
-    } else if (!companyId) {
-      companyId = (ownerProfileData as any)?.company_id ?? null;
+    } else if ((ownerProfileData as any)?.role === 'admin_company') {
+      companyId = (ownerProfileData as any)?.company_id || effectiveOwnerId;
+    } else if (resolvedCompanyId) {
+      companyId = resolvedCompanyId;
+    } else if ((ownerProfileData as any)?.company_id) {
+      companyId = (ownerProfileData as any).company_id;
     }
 
     const realOrgId = (ownerProfileData as any)?.organization_id || null;
@@ -258,7 +264,7 @@ export async function createOrder(
 
       const { data: companyPolicy } = await (adminSupabase ?? supabase)
         .from('companies')
-        .select('block_new_orders, require_customer_approval')
+        .select('block_new_orders, require_customer_approval, order_management_mode')
         .eq('id', companyId)
         .maybeSingle();
 
@@ -299,12 +305,31 @@ export async function createOrder(
 
     const finalSellerId = sellerId || (isOwnerRep ? effectiveOwnerId : null);
 
+    // Determinação do modelo de gestão de pedidos contratado:
+    // 'representative': Catálogo Digital (autonomia do representante)
+    // 'distributor': B2B Completo (gestão centralizada com aprovação da distribuidora)
+    let orderManagementMode: 'representative' | 'distributor' = 'representative';
+    if (companyId) {
+      const { data: compMode } = await (adminSupabase ?? supabase)
+        .from('companies')
+        .select('order_management_mode')
+        .eq('id', companyId)
+        .maybeSingle();
+      if (compMode?.order_management_mode === 'distributor') {
+        orderManagementMode = 'distributor';
+      }
+    }
+
+    const initialStatus =
+      finalSellerId && companyId && orderManagementMode === 'distributor'
+        ? 'pending_review'
+        : 'pending';
+
     const orderPayload = {
       user_id: effectiveOwnerId,
       display_id: displayId,
-      status: mapToDbStatus(
-        finalSellerId && companyId ? 'pending_review' : 'pending'
-      ),
+      status: mapToDbStatus(initialStatus),
+      order_management_mode: orderManagementMode,
       total_value: totalValue,
       client_name_guest: customer.name,
       client_phone_guest: customer.phone,

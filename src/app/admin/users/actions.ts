@@ -304,7 +304,7 @@ export async function provisionUserOrganization(params: {
     // 3. Provisionar membership (capturando estado anterior se já existia)
     const { data: existingMember } = await (supabaseAdmin as any)
       .from('organization_members')
-      .select('id, role, status')
+      .select('organization_id, role, status')
       .eq('organization_id', targetOrgId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -404,6 +404,245 @@ export async function provisionUserOrganization(params: {
   }
 }
 
+// --- FUNÇÃO AUXILIAR: SINCRONIZAÇÃO E ISOLAMENTO ORGANIZACIONAL (TRANSIÇÃO DE PERFIS) ---
+export async function syncUserOrganizationContext(params: {
+  userId: string;
+  role: string;
+  companyId?: string | null;
+  email: string;
+  fullName?: string | null;
+}) {
+  const { userId, role, companyId, email, fullName } = params;
+  logger.info('Iniciando sincronização de contexto organizacional', { userId, role, companyId });
+
+  try {
+    // 1. Cenário: Representante Autônomo ('rep') ou Master ('master')
+    if (role === 'rep' || role === 'master' || !companyId) {
+      // 1.1 Revogação Estrita: Remove todas as participações em organizações de distribuidoras
+      // Isso impede imediatamente que o usuário acesse dados da distribuidora anterior via RLS
+      const { data: currentMemberships } = await (supabaseAdmin as any)
+        .from('organization_members')
+        .select('organization_id, organizations(id, organization_type, metadata)')
+        .eq('user_id', userId);
+
+      for (const m of currentMemberships || []) {
+        const orgType = m.organizations?.organization_type;
+        const orgMetaCompany = m.organizations?.metadata?.company_id;
+        if (orgType === 'distributor' || orgMetaCompany) {
+          logger.info('Revogando vínculo de distribuidora anterior', {
+            userId,
+            orgId: m.organization_id,
+          });
+          await (supabaseAdmin as any)
+            .from('organization_members')
+            .delete()
+            .eq('organization_id', m.organization_id)
+            .eq('user_id', userId);
+        }
+      }
+
+      if (role === 'rep') {
+        // 1.2 Garantir organização própria do representante independente
+        let { data: repOrg } = await (supabaseAdmin as any)
+          .from('organizations')
+          .select('id')
+          .eq('owner_user_id', userId)
+          .maybeSingle();
+
+        if (!repOrg) {
+          const userName = fullName || email?.split('@')[0] || 'representante';
+          const baseSlug = `rep-${userName}-${userId.slice(0, 8)}`;
+          const uniqueSlug = await generateUniqueOrgSlug(supabaseAdmin, baseSlug);
+          const orgName = `${userName.charAt(0).toUpperCase() + userName.slice(1)} Representações`;
+
+          const { data: newOrg, error: orgErr } = await (supabaseAdmin as any)
+            .from('organizations')
+            .insert({
+              name: orgName,
+              slug: uniqueSlug,
+              organization_type: 'independent_representative',
+              owner_user_id: userId,
+              status: 'active',
+              is_active: true,
+            })
+            .select('id')
+            .single();
+
+          if (orgErr) {
+            logger.error('Erro ao criar organização própria do representante', orgErr);
+          } else {
+            repOrg = newOrg;
+          }
+        }
+
+        if (repOrg?.id) {
+          // Garante papel de proprietário na sua organização independente
+          await (supabaseAdmin as any)
+            .from('organization_members')
+            .upsert(
+              {
+                organization_id: repOrg.id,
+                user_id: userId,
+                role: 'owner',
+                status: 'active',
+              },
+              { onConflict: 'organization_id,user_id' }
+            );
+
+          // Atualiza o perfil para apontar exclusivamente para a organização autônoma
+          await (supabaseAdmin as any)
+            .from('profiles')
+            .update({
+              organization_id: repOrg.id,
+              company_id: null,
+              can_manage_catalog: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', userId);
+        }
+      } else if (role === 'master') {
+        // Master não deve ficar vinculado a uma distribuidora
+        await (supabaseAdmin as any)
+          .from('profiles')
+          .update({
+            company_id: null,
+            can_manage_catalog: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+      }
+
+      return { success: true };
+    }
+
+    // 2. Cenário: Usuário Vinculado a Distribuidora ('representative' ou 'admin_company')
+    let targetOrgId: string | null = null;
+
+    // 2.1 Identificar organização da distribuidora
+    const { data: orgByMeta } = await (supabaseAdmin as any)
+      .from('organizations')
+      .select('id')
+      .filter('metadata->>company_id', 'eq', companyId)
+      .maybeSingle();
+
+    if (orgByMeta?.id) {
+      targetOrgId = orgByMeta.id;
+    } else {
+      const { data: orgById } = await (supabaseAdmin as any)
+        .from('organizations')
+        .select('id')
+        .eq('id', companyId)
+        .maybeSingle();
+
+      if (orgById?.id) {
+        targetOrgId = orgById.id;
+      }
+    }
+
+    // Se a distribuidora não tiver organização provisionada, provisiona agora
+    if (!targetOrgId) {
+      let companyName = 'Distribuidora';
+      let companySlug = 'distribuidora';
+      const { data: companyData } = await (supabaseAdmin as any)
+        .from('companies')
+        .select('name, slug')
+        .eq('id', companyId)
+        .maybeSingle();
+
+      if (companyData?.name) companyName = companyData.name;
+      if (companyData?.slug) companySlug = companyData.slug;
+
+      const baseSlug = `dist-${companySlug}`;
+      const uniqueSlug = await generateUniqueOrgSlug(supabaseAdmin, baseSlug);
+
+      const { data: newOrg, error: orgErr } = await (supabaseAdmin as any)
+        .from('organizations')
+        .insert({
+          name: companyName,
+          slug: uniqueSlug,
+          organization_type: 'distributor',
+          owner_user_id: null,
+          status: 'active',
+          is_active: true,
+          metadata: { company_id: companyId },
+        })
+        .select('id')
+        .single();
+
+      if (!orgErr && newOrg?.id) {
+        targetOrgId = newOrg.id;
+      }
+    }
+
+    if (!targetOrgId) {
+      throw new Error(`Não foi possível determinar a organização da distribuidora ${companyId}.`);
+    }
+
+    // 2.2 Isolamento Multi-tenant: Revogar membros em QUALQUER OUTRA organização de distribuidora
+    const { data: allMemberships } = await (supabaseAdmin as any)
+      .from('organization_members')
+      .select('organization_id, organizations(organization_type, metadata)')
+      .eq('user_id', userId);
+
+    for (const m of allMemberships || []) {
+      if (m.organization_id !== targetOrgId) {
+        const isDistributor =
+          m.organizations?.organization_type === 'distributor' ||
+          !!m.organizations?.metadata?.company_id;
+
+        if (isDistributor) {
+          logger.info('Removendo vínculo de distribuidora divergente', {
+            userId,
+            divergentOrgId: m.organization_id,
+          });
+          await (supabaseAdmin as any)
+            .from('organization_members')
+            .delete()
+            .eq('organization_id', m.organization_id)
+            .eq('user_id', userId);
+        }
+      }
+    }
+
+    // 2.3 Upsert da participação na distribuidora correta
+    const memberRole = role === 'admin_company' ? 'admin' : 'sales_rep';
+    await (supabaseAdmin as any)
+      .from('organization_members')
+      .upsert(
+        {
+          organization_id: targetOrgId,
+          user_id: userId,
+          role: memberRole,
+          status: 'active',
+        },
+        { onConflict: 'organization_id,user_id' }
+      );
+
+    // 2.4 Atualizar profile com a organização e permissões corretas
+    await (supabaseAdmin as any)
+      .from('profiles')
+      .update({
+        organization_id: targetOrgId,
+        company_id: companyId,
+        can_manage_catalog: role === 'admin_company',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    logger.info('Sincronização de contexto organizacional concluída com sucesso', {
+      userId,
+      role,
+      companyId,
+      targetOrgId,
+    });
+
+    return { success: true, organizationId: targetOrgId };
+  } catch (err: any) {
+    logger.error('Erro em syncUserOrganizationContext', { userId, err });
+    throw err;
+  }
+}
+
 // --- ACTION 4: CRIAR USUÁRIO MANUALMENTE ---
 export async function createManualUser(data: {
   email: string;
@@ -449,16 +688,25 @@ export async function createManualUser(data: {
       return { success: false, error: 'Email já cadastrado' };
     }
 
-    const mapRoleToDb = (role: string, companyId?: string | null) => {
-      const r = (role || '').toString().toLowerCase();
-      if (r === 'master' || r === 'admin') return 'master';
-      if (r === 'admin_company' || r === 'company_admin') return 'admin_company';
-      if (r === 'rep_company') return 'representative';
-      if (r === 'representative') return companyId ? 'representative' : 'rep';
-      if (r === 'representante') return companyId ? 'representative' : 'rep';
-      if (r === 'rep') return companyId ? 'representative' : 'rep';
-      return companyId ? 'representative' : 'rep';
-    };
+    // Sanitização rigorosa da Role e isolamento de Distribuidora
+    const rawRole = (data.role || '').toLowerCase().trim();
+    let dbRole = 'rep';
+    let cleanCompanyId: string | null = null;
+
+    if (rawRole === 'master' || rawRole === 'admin') {
+      dbRole = 'master';
+      cleanCompanyId = null;
+    } else if (rawRole === 'admin_company' || rawRole === 'company_admin') {
+      dbRole = 'admin_company';
+      cleanCompanyId = data.company_id?.trim() || null;
+    } else if (rawRole === 'representative') {
+      dbRole = 'representative';
+      cleanCompanyId = data.company_id?.trim() || null;
+    } else {
+      // 'rep' ou 'representante' (autônomo)
+      dbRole = 'rep';
+      cleanCompanyId = null; // Representante autônomo NUNCA deve ter vínculo de empresa
+    }
 
     const isRoleConstraintError = (err: any) => {
       const code = String(err?.code || '');
@@ -473,20 +721,18 @@ export async function createManualUser(data: {
 
     const buildRoleCandidates = (baseRole: string) => {
       const r = (baseRole || '').toLowerCase();
-      if (r === 'master' || r === 'admin') return ['master'];
-      if (r === 'admin_company') return ['admin_company', 'rep', 'representative'];
-      if (r === 'rep_company') return ['representative', 'rep'];
-      if (r === 'rep') return ['rep', 'representative'];
+      if (r === 'master' || r === 'admin') return ['master', 'admin'];
+      if (r === 'admin_company') return ['admin_company', 'admin', 'representative'];
       if (r === 'representative') return ['representative', 'rep'];
       return ['rep', 'representative'];
     };
 
-    const dbRole = mapRoleToDb(data.role, data.company_id);
     const roleCandidates = buildRoleCandidates(dbRole);
 
     logger.info('Tentando criar usuário no Auth', {
       email: data.email,
       dbRole,
+      cleanCompanyId,
       hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     });
@@ -500,7 +746,7 @@ export async function createManualUser(data: {
         email: data.email,
         password: data.password,
         email_confirm: true,
-        user_metadata: { role: roleCandidates[0], company_id: data.company_id ?? null },
+        user_metadata: { role: roleCandidates[0], company_id: cleanCompanyId },
       });
 
       if (result.error) {
@@ -585,10 +831,10 @@ export async function createManualUser(data: {
         status: data.planName ? 'active' : 'trial',
         trial_ends_at: data.planName ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         is_active: true,
-        can_manage_catalog: !data.company_id,
+        can_manage_catalog: !cleanCompanyId,
+        company_id: cleanCompanyId,
         updated_at: new Date().toISOString(),
       };
-      if (data.company_id) profileUpsert.company_id = data.company_id;
 
       const { error: profileError } = await (supabaseAdmin as any)
         .from('profiles')
@@ -614,7 +860,7 @@ export async function createManualUser(data: {
       await supabaseAdmin.auth.admin.updateUserById(userId, {
         user_metadata: {
           role: selectedRole,
-          company_id: data.company_id ?? null,
+          company_id: cleanCompanyId,
         },
       });
     } catch {}
@@ -660,10 +906,11 @@ export async function createManualUser(data: {
       userId,
       email: data.email,
       fullName: data.email.split('@')[0],
-      companyId: data.company_id ?? null,
+      companyId: cleanCompanyId,
     });
 
     revalidatePath('/admin/users');
+    revalidatePath('/admin/companies');
     return { success: true };
   } catch (error: unknown) {
     logger.error('Erro no createManualUser. Iniciando compensação...', error);
@@ -867,7 +1114,25 @@ export async function updateUserProfile(
     await requireAdminPermission();
 
     const fullName = formData.get('full_name') as string;
-    const role = formData.get('role') as string;
+    const rawRole = (formData.get('role') as string || '').toLowerCase().trim();
+    const companyIdRaw = formData.get('company_id') as string | null;
+
+    const role = rawRole || 'rep';
+    let company_id: string | null = null;
+
+    if (role === 'rep' || role === 'master') {
+      company_id = null; // Autônomo e Master não se vinculam a distribuidora
+    } else {
+      company_id = companyIdRaw?.trim() || null;
+    }
+
+    // Obter e-mail atual do usuário para sincronização de organização
+    const { data: currentProfile } = await (supabaseAdmin as any)
+      .from('profiles')
+      .select('email, organization_id')
+      .eq('id', userId)
+      .maybeSingle();
+
     // Optional fields
     const estados = formData.getAll('estados') as string[];
     const brandsRaw = (formData.get('brands') as string) || '';
@@ -879,6 +1144,8 @@ export async function updateUserProfile(
     const updatePayload: any = {
       full_name: fullName,
       role: role,
+      company_id: company_id,
+      can_manage_catalog: role === 'rep' || role === 'admin_company' || role === 'master',
       updated_at: new Date().toISOString(),
     };
 
@@ -893,13 +1160,29 @@ export async function updateUserProfile(
 
     if (error) throw error;
 
-    await (supabaseAdmin.auth.admin as any).updateUserById(userId, {
-      user_metadata: { role: role },
-    });
+    try {
+      await (supabaseAdmin.auth.admin as any).updateUserById(userId, {
+        user_metadata: { role: role, company_id: company_id },
+      });
+    } catch {}
+
+    // Sincronizar contexto organizacional e revogar memberships da distribuidora anterior
+    try {
+      await syncUserOrganizationContext({
+        userId,
+        role,
+        companyId: company_id,
+        email: currentProfile?.email || '',
+        fullName,
+      });
+    } catch (syncErr) {
+      logger.error('Aviso: falha na sincronização organizacional do usuário', syncErr);
+    }
 
     revalidatePath(`/admin/users/${userId}`);
     revalidatePath('/admin/users');
-    return { success: true, message: 'Dados do perfil atualizados!' };
+    revalidatePath('/admin/companies');
+    return { success: true, message: 'Dados do perfil e permissões atualizados com sucesso!' };
   } catch (error: any) {
     logger.error('Erro updateUserProfile', error);
     return { success: false, error: getErrorMessage(error) };

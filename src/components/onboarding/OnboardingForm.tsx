@@ -32,7 +32,14 @@ interface OnboardingFormProps {
   userEmail: string;
   initialFullName?: string;
   initialPhone?: string;
+  initialSlug?: string;
+  initialEmail?: string;
   initialStep?: number;
+  initialRole?: string;
+  isTrial?: boolean;
+  initialCompanyName?: string;
+  initialPrimaryColor?: string;
+  initialLogoUrl?: string | null;
 }
 
 export function OnboardingForm({
@@ -40,7 +47,14 @@ export function OnboardingForm({
   userEmail,
   initialFullName = '',
   initialPhone = '',
+  initialSlug = '',
+  initialEmail = '',
   initialStep = 1,
+  initialRole = '',
+  isTrial = true,
+  initialCompanyName = '',
+  initialPrimaryColor = '#b9722e',
+  initialLogoUrl = null,
 }: OnboardingFormProps) {
   const router = useRouter();
   const supabase = createClient();
@@ -54,22 +68,33 @@ export function OnboardingForm({
   // Form State
   const [fullName, setFullName] = useState(initialFullName);
   const [phone, setPhone] = useState(initialPhone);
-  const [email] = useState(userEmail || '');
+  const [email, setEmail] = useState(initialEmail || userEmail || '');
 
-  const [companyName, setCompanyName] = useState('');
-  const [organizationType, setOrganizationType] = useState<'independent_representative' | 'distributor' | 'optical_store'>('independent_representative');
+  const resolveInitialOrgType = (): 'independent_representative' | 'distributor' | 'optical_store' => {
+    const r = (initialRole || '').toLowerCase();
+    if (r === 'admin_company' || r === 'distribuidora' || r === 'distributor') return 'distributor';
+    if (r === 'optical_client' || r === 'optica' || r === 'optical_store') return 'optical_store';
+    return 'independent_representative';
+  };
 
-  const [storeName, setStoreName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [primaryColor, setPrimaryColor] = useState(BRAND_BRONZE);
+  const [companyName, setCompanyName] = useState(
+    initialCompanyName || (initialFullName ? `${initialFullName} Representações` : '')
+  );
+  const [organizationType, setOrganizationType] = useState<'independent_representative' | 'distributor' | 'optical_store'>(resolveInitialOrgType);
+
+  const [storeName, setStoreName] = useState(initialFullName || '');
+  const [slug, setSlug] = useState(initialSlug || '');
+  const [primaryColor, setPrimaryColor] = useState(initialPrimaryColor || BRAND_BRONZE);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(SYSTEM_LOGO_URL);
+  const [logoPreview, setLogoPreview] = useState<string | null>(initialLogoUrl || SYSTEM_LOGO_URL);
 
-  // Auto-fill Store & Company Name if initialFullName exists
+  // Auto-fill Store & Company Name if initialFullName exists and they are empty
   useEffect(() => {
     if (initialFullName && !companyName) {
       setCompanyName(`${initialFullName} Representações`);
-      setStoreName(`${initialFullName}`);
+    }
+    if (initialFullName && !storeName) {
+      setStoreName(initialFullName);
     }
   }, [initialFullName]);
 
@@ -136,7 +161,13 @@ export function OnboardingForm({
     }
     setLoading(true);
     try {
-      await saveOnboardingStep2({ companyName, organizationType, phone });
+      await saveOnboardingStep2({
+        companyName,
+        organizationType,
+        phone,
+        email,
+        isManualClient: !isTrial,
+      });
       setStep(3);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao salvar dados da empresa');
@@ -172,7 +203,15 @@ export function OnboardingForm({
         }
       }
 
-      await saveOnboardingStep3({ storeName, slug, primaryColor, logoUrl });
+      await saveOnboardingStep3({
+        storeName,
+        slug,
+        primaryColor,
+        logoUrl,
+        phone,
+        email,
+        fullName,
+      });
       setStep(4);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao salvar configurações do catálogo');
@@ -330,33 +369,56 @@ export function OnboardingForm({
 
                 <div>
                   <label className="block font-bold text-gray-700 mb-2">Tipo de Atuação Comercial</label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {[
-                      { id: 'independent_representative', title: 'Representante Comercial', desc: 'Atua de forma autônoma' },
-                      { id: 'distributor', title: 'Distribuidora', desc: 'Distribui produtos e marcas' },
-                      { id: 'optical_store', title: 'Óptica / Loja', desc: 'Venda direta ao cliente' },
-                    ].map((t) => (
-                      <label
-                        key={t.id}
-                        onClick={() => setOrganizationType(t.id as any)}
-                        className={`p-3 border rounded-xl cursor-pointer transition-all ${
-                          organizationType === t.id
-                            ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 font-semibold shadow-sm'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="orgType"
-                          checked={organizationType === t.id}
-                          onChange={() => {}}
-                          className="sr-only"
-                        />
-                        <span className="block text-xs font-bold">{t.title}</span>
-                        <span className="block text-[10px] text-gray-500 mt-0.5">{t.desc}</span>
-                      </label>
-                    ))}
-                  </div>
+                  {isTrial ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {[
+                        { id: 'independent_representative', title: 'Representante Comercial', desc: 'Atua de forma autônoma' },
+                        { id: 'distributor', title: 'Distribuidora', desc: 'Distribui produtos e marcas' },
+                        { id: 'optical_store', title: 'Óptica / Loja', desc: 'Venda direta ao cliente' },
+                      ].map((t) => (
+                        <label
+                          key={t.id}
+                          onClick={() => setOrganizationType(t.id as any)}
+                          className={`p-3 border rounded-xl cursor-pointer transition-all ${
+                            organizationType === t.id
+                              ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 font-semibold shadow-sm'
+                              : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="orgType"
+                            checked={organizationType === t.id}
+                            onChange={() => {}}
+                            className="sr-only"
+                          />
+                          <span className="block text-xs font-bold">{t.title}</span>
+                          <span className="block text-[10px] text-gray-500 mt-0.5">{t.desc}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                          Perfil Registrado
+                        </span>
+                        <span className="text-sm font-bold text-slate-800">
+                          {organizationType === 'distributor'
+                            ? 'Distribuidora'
+                            : organizationType === 'optical_store'
+                            ? 'Óptica / Loja'
+                            : 'Representante Comercial'}
+                        </span>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Definido no cadastro da Torre de Controle.
+                        </p>
+                      </div>
+                      <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-full">
+                        Ativo
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

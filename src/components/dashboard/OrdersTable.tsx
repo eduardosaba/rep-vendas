@@ -12,6 +12,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { toast } from "sonner";
+
 export interface Order {
   id: string | number;
   display_id: number;
@@ -23,6 +25,8 @@ export interface Order {
   brands?: string;        // Marcas formatadas
   client_name_guest: string;    // Já mapeado no servidor
   client_phone_guest: string;
+  company_id?: string | null;
+  seller_id?: string | null;
   order_items?: any[];
 }
 
@@ -33,9 +37,106 @@ interface OrdersTableProps {
 
 export function OrdersTable({ initialOrders, currentUserId }: OrdersTableProps) {
   const [orders, setOrders] = useState<Order[] & any[]>(initialOrders || []);
-  // If parent passed currentUserId via prop (second arg), override local
-  // Note: React doesn't provide direct access to prop in function signature above
+  const [loadingOrderId, setLoadingOrderId] = useState<string | number | null>(null);
   const router = useRouter();
+
+  // Handlers para ações de aprovação e cancelamento
+  const handleApproveOrder = async (orderId: string | number) => {
+    try {
+      setLoadingOrderId(orderId);
+      const res = await fetch('/api/orders/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, newStatus: 'confirmed' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Erro ao aprovar pedido');
+      setOrders((prev) =>
+        prev.map((p) => (p.id === orderId ? { ...p, status: mapToDbStatus('confirmed') } : p))
+      );
+      toast.success('Pedido aprovado com sucesso!');
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || 'Falha ao aprovar pedido');
+    } finally {
+      setLoadingOrderId(null);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string | number) => {
+    if (!confirm('Deseja realmente cancelar este pedido?')) return;
+    try {
+      setLoadingOrderId(orderId);
+      const res = await fetch('/api/orders/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, newStatus: 'cancelled' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Erro ao cancelar pedido');
+      setOrders((prev) =>
+        prev.map((p) => (p.id === orderId ? { ...p, status: mapToDbStatus('cancelled') } : p))
+      );
+      toast.success('Pedido cancelado.');
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || 'Falha ao cancelar pedido');
+    } finally {
+      setLoadingOrderId(null);
+    }
+  };
+
+  const handleReleaseToDistributor = async (orderId: string | number) => {
+    try {
+      setLoadingOrderId(orderId);
+      const res = await fetch('/api/orders/release', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.success) throw new Error(j?.error || 'Erro ao liberar pedido');
+      setOrders((prev) =>
+        prev.map((p) => (p.id === orderId ? { ...p, status: mapToDbStatus('pending') } : p))
+      );
+      try {
+        await fetch('/api/notifications/new-order-released', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId }),
+        });
+      } catch {}
+      toast.success('Pedido enviado para a distribuidora!');
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao enviar pedido para a distribuidora');
+    } finally {
+      setLoadingOrderId(null);
+    }
+  };
+
+  const handleRejectDistributorOrder = async (orderId: string | number) => {
+    if (!confirm('Deseja recusar este pedido?')) return;
+    try {
+      setLoadingOrderId(orderId);
+      const res = await fetch('/api/orders/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.success) throw new Error(j?.error || 'Erro ao recusar');
+      setOrders((prev) =>
+        prev.map((p) => (p.id === orderId ? { ...p, status: mapToDbStatus('cancelled') } : p))
+      );
+      toast.success('Pedido recusado.');
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao recusar pedido');
+    } finally {
+      setLoadingOrderId(null);
+    }
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ status: "all", startDate: "", endDate: "" });
@@ -171,50 +272,50 @@ export function OrdersTable({ initialOrders, currentUserId }: OrdersTableProps) 
                     {order.total_qty || order.item_count}
                   </span>
                 </td>
-                <td className="px-4 py-4">{getStatusBadge(order.status)}
-                  {/* Show release controls for representative when order is awaiting review */}
-                  {getUiStatusKey(order.status) === 'pending_review' && (order as any).seller_id && String((order as any).seller_id) === String(currentUserId) && (
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            const res = await fetch('/api/orders/release', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id }) });
-                            const j = await res.json();
-                            if (!res.ok || !j.success) throw new Error(j?.error || 'Erro');
-                            // Update local state
-                            setOrders((prev) => prev.map((p) => (p.id === order.id ? { ...p, status: mapToDbStatus('pending') } : p)));
-                            // Call notifications endpoint
-                            try { await fetch('/api/notifications/new-order-released', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id }) }); } catch {}
-                          } catch (err) {
-                            // eslint-disable-next-line no-console
-                            console.error('Erro ao liberar pedido', err);
-                            alert('Erro ao liberar pedido');
-                          }
-                        }}
-                        className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold"
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >Enviar para Distribuidora</button>
+                <td className="px-4 py-4 min-w-[200px]">
+                  <div>{getStatusBadge(order.status)}</div>
 
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (!confirm('Deseja recusar este pedido?')) return;
-                          try {
-                            const res = await fetch('/api/orders/reject', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id }) });
-                            const j = await res.json();
-                            if (!res.ok || !j.success) throw new Error(j?.error || 'Erro');
-                            setOrders((prev) => prev.map((p) => (p.id === order.id ? { ...p, status: mapToDbStatus('cancelled') } : p)));
-                          } catch (err) {
-                            // eslint-disable-next-line no-console
-                            console.error('Erro ao recusar pedido', err);
-                            alert('Erro ao recusar pedido');
-                          }
-                        }}
-                        className="bg-red-100 text-red-600 px-3 py-1 rounded text-xs font-bold"
-                      >Recusar</button>
-                    </div>
-                  )}
+                  {/* Ações para representante vinculado a distribuidora */}
+                  {Boolean((order as any).company_id) &&
+                    getUiStatusKey(order.status) === 'pending_review' && (
+                      <div className="mt-2 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleReleaseToDistributor(order.id)}
+                          disabled={loadingOrderId === order.id}
+                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
+                        >
+                          {loadingOrderId === order.id ? 'Processando...' : 'Aprovar e Enviar para Distribuidora'}
+                        </button>
+                        <button
+                          onClick={() => handleRejectDistributorOrder(order.id)}
+                          disabled={loadingOrderId === order.id}
+                          className="bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 border border-red-200 px-2.5 py-1 rounded text-xs font-bold transition"
+                        >
+                          Recusar
+                        </button>
+                      </div>
+                    )}
+
+                  {/* Ações para representantes normais: APENAS Aprovar ou Cancelar Pedido */}
+                  {!Boolean((order as any).company_id) &&
+                    (getUiStatusKey(order.status) === 'pending' || getUiStatusKey(order.status) === 'pending_review') && (
+                      <div className="mt-2 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleApproveOrder(order.id)}
+                          disabled={loadingOrderId === order.id}
+                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2.5 py-1 rounded text-xs font-bold transition shadow-sm"
+                        >
+                          {loadingOrderId === order.id ? 'Processando...' : 'Aprovar'}
+                        </button>
+                        <button
+                          onClick={() => handleCancelOrder(order.id)}
+                          disabled={loadingOrderId === order.id}
+                          className="bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 border border-red-200 px-2.5 py-1 rounded text-xs font-bold transition"
+                        >
+                          Cancelar Pedido
+                        </button>
+                      </div>
+                    )}
                 </td>
                 <td className="px-4 py-4 text-right font-black text-slate-900">
                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(order.total_value)}
@@ -265,14 +366,56 @@ export function OrdersTable({ initialOrders, currentUserId }: OrdersTableProps) 
                     </div>
                   </div>
                 </div>
+
                 <div className="mt-3 flex items-center justify-between">
                   <div className="text-xs text-slate-500">Peças: <span className="font-bold text-slate-700">{order.total_qty || order.item_count}</span></div>
                   <div>
                     <Link href={`/dashboard/orders/${order.id}`} onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10">Ver</Button>
+                      <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10">Ver Detalhes</Button>
                     </Link>
                   </div>
                 </div>
+
+                {/* Mobile: Ações rápidas de aprovação e cancelamento */}
+                {Boolean((order as any).company_id) &&
+                  getUiStatusKey(order.status) === 'pending_review' && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleReleaseToDistributor(order.id)}
+                        disabled={loadingOrderId === order.id}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-2 px-3 rounded-lg text-xs font-bold transition text-center"
+                      >
+                        {loadingOrderId === order.id ? 'Processando...' : 'Aprovar e Enviar p/ Distribuidora'}
+                      </button>
+                      <button
+                        onClick={() => handleRejectDistributorOrder(order.id)}
+                        disabled={loadingOrderId === order.id}
+                        className="bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 border border-red-200 py-2 px-3 rounded-lg text-xs font-bold transition"
+                      >
+                        Recusar
+                      </button>
+                    </div>
+                  )}
+
+                {!Boolean((order as any).company_id) &&
+                  (getUiStatusKey(order.status) === 'pending' || getUiStatusKey(order.status) === 'pending_review') && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleApproveOrder(order.id)}
+                        disabled={loadingOrderId === order.id}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-2 px-3 rounded-lg text-xs font-bold transition text-center"
+                      >
+                        {loadingOrderId === order.id ? 'Processando...' : 'Aprovar'}
+                      </button>
+                      <button
+                        onClick={() => handleCancelOrder(order.id)}
+                        disabled={loadingOrderId === order.id}
+                        className="bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 border border-red-200 py-2 px-3 rounded-lg text-xs font-bold transition"
+                      >
+                        Cancelar Pedido
+                      </button>
+                    </div>
+                  )}
               </div>
             ))}
           </div>

@@ -38,6 +38,7 @@ type CreateCompanyWithAdminInput = {
   adminName: string;
   adminEmail: string;
   adminPassword: string;
+  orderManagementMode?: 'representative' | 'distributor';
 };
 
 const COMPANY_ADMIN_ROLE_CANDIDATES = ['admin_company', 'admin', 'representative', 'rep'] as const;
@@ -123,6 +124,7 @@ export async function createCompanyWithAdmin(input: CreateCompanyWithAdminInput)
         name: companyName,
         slug: companySlug,
         cnpj,
+        order_management_mode: input.orderManagementMode || 'representative',
       })
       .select()
       .single();
@@ -266,13 +268,339 @@ export async function createCompanyWithAdmin(input: CreateCompanyWithAdminInput)
 
 export async function getCompanies() {
   try {
-    const { data, error } = await supabaseAdmin
+    const { data: companies, error } = await supabaseAdmin
       .from('companies')
       .select('*')
       .order('name');
 
     if (error) throw error;
-    return { success: true, data };
+
+    // Buscar contagem de representantes vinculados
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('company_id')
+      .not('company_id', 'is', null);
+
+    const counts: Record<string, number> = {};
+    (profiles || []).forEach((p: any) => {
+      if (p.company_id) {
+        counts[p.company_id] = (counts[p.company_id] || 0) + 1;
+      }
+    });
+
+    const enriched = (companies || []).map((c: any) => {
+      const isActive =
+        c.is_active !== undefined && c.is_active !== null
+          ? Boolean(c.is_active)
+          : (c.metadata?.is_active !== undefined ? Boolean(c.metadata.is_active) : !c.block_new_orders);
+
+      return {
+        ...c,
+        is_active: isActive,
+        representatives_count: counts[c.id] || 0,
+      };
+    });
+
+    return { success: true, data: enriched };
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export async function getCompanyRepresentatives(companyId: string) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, email, role, is_active, created_at')
+      .eq('company_id', companyId)
+      .order('full_name');
+
+    if (error) throw error;
+    return { success: true, data: data || [] };
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export async function updateCompany(
+  companyId: string,
+  data: {
+    name: string;
+    slug: string;
+    cnpj?: string | null;
+    orderManagementMode?: 'representative' | 'distributor';
+  }
+) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: 'Não autenticado' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profile?.role !== 'master') {
+      return {
+        success: false,
+        error: 'Apenas administradores Master podem editar distribuidoras.',
+      };
+    }
+
+    const name = String(data.name || '').trim();
+    const slug = normalizeSlug(data.slug);
+    const cnpj = String(data.cnpj || '').trim() || null;
+    const mode = data.orderManagementMode || 'representative';
+
+    if (!name || !slug) {
+      return { success: false, error: 'Nome e slug são obrigatórios.' };
+    }
+
+    // Verificar se outro registro já utiliza este slug
+    const { data: existing } = await supabaseAdmin
+      .from('companies')
+      .select('id')
+      .eq('slug', slug)
+      .neq('id', companyId)
+      .maybeSingle();
+
+    if (existing?.id) {
+      return { success: false, error: 'Este slug já está em uso por outra distribuidora.' };
+    }
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('companies')
+      .update({
+        name,
+        slug,
+        cnpj,
+        order_management_mode: mode,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', companyId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await createAuditLog(
+      'update_company',
+      `Distribuidora ${name} atualizada pelo Master`,
+      { company_id: companyId, slug, mode }
+    );
+
+    revalidatePath('/admin/companies');
+    revalidatePath(`/catalogo/${slug}`);
+
+    return { success: true, data: updated };
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export async function toggleCompanyActive(
+  companyId: string,
+  isActive: boolean,
+  reason?: string
+) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: 'Não autenticado' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profile?.role !== 'master') {
+      return {
+        success: false,
+        error: 'Apenas administradores Master podem ativar ou desativar distribuidoras.',
+      };
+    }
+
+    const { data: existingCompany } = await supabaseAdmin
+      .from('companies')
+      .select('id, name, slug, metadata, organization_id')
+      .eq('id', companyId)
+      .maybeSingle();
+
+    if (!existingCompany) {
+      return { success: false, error: 'Distribuidora não encontrada.' };
+    }
+
+    const currentMetadata =
+      existingCompany.metadata && typeof existingCompany.metadata === 'object'
+        ? existingCompany.metadata
+        : {};
+
+    const updatedMetadata = {
+      ...currentMetadata,
+      is_active: isActive,
+      status: isActive ? 'active' : 'suspended',
+      deactivated_at: !isActive ? new Date().toISOString() : null,
+      deactivated_reason: !isActive ? (reason || 'Desativada pelo administrador Master') : null,
+    };
+
+    const updatePayload: any = {
+      block_new_orders: !isActive,
+      metadata: updatedMetadata,
+      updated_at: new Date().toISOString(),
+    };
+
+    const company = existingCompany;
+    let { error } = await supabaseAdmin
+      .from('companies')
+      .update({
+        ...updatePayload,
+        is_active: isActive,
+      })
+      .eq('id', companyId);
+
+    if (error && (error.code === '42703' || String(error.message).includes('is_active'))) {
+      const fallback = await supabaseAdmin
+        .from('companies')
+        .update(updatePayload)
+        .eq('id', companyId);
+      error = fallback.error;
+    }
+
+    if (error) throw error;
+
+    // Sincronizar organização vinculada se houver
+    if (existingCompany.organization_id) {
+      try {
+        await supabaseAdmin
+          .from('organizations')
+          .update({
+            is_active: isActive,
+            status: isActive ? 'active' : 'suspended',
+          })
+          .eq('id', existingCompany.organization_id);
+      } catch {}
+    }
+
+    await createAuditLog(
+      'toggle_company_active',
+      `Distribuidora ${company.name} ${isActive ? 'reativada' : 'desativada'} pelo Master`,
+      { company_id: companyId, is_active: isActive, reason: reason || null }
+    );
+
+    revalidatePath('/admin/companies');
+    revalidatePath(`/catalogo/${company.slug}`);
+
+    return {
+      success: true,
+      message: `Distribuidora "${company.name}" ${isActive ? 'reativada' : 'desativada'} com sucesso!`,
+    };
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export async function deleteCompany(companyId: string) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: 'Não autenticado' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profile?.role !== 'master') {
+      return {
+        success: false,
+        error: 'Apenas administradores Master podem excluir distribuidoras.',
+      };
+    }
+
+    // 1. Obter dados da empresa para auditoria
+    const { data: company } = await supabaseAdmin
+      .from('companies')
+      .select('id, name, slug')
+      .eq('id', companyId)
+      .maybeSingle();
+
+    if (!company) {
+      return { success: false, error: 'Distribuidora não encontrada.' };
+    }
+
+    // 2. Verificar dependências comerciais e operacionais
+    const [ordersRes, productsRes, customersRes, profilesRes] = await Promise.all([
+      supabaseAdmin.from('orders').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      supabaseAdmin.from('products').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      supabaseAdmin.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+    ]);
+
+    const ordersCount = ordersRes.count || 0;
+    const productsCount = productsRes.count || 0;
+    const customersCount = customersRes.count || 0;
+    const profilesCount = profilesRes.count || 0;
+
+    const blockingReasons: string[] = [];
+    if (ordersCount > 0) blockingReasons.push(`${ordersCount} pedido(s) registrados`);
+    if (productsCount > 0) blockingReasons.push(`${productsCount} produto(s) no catálogo`);
+    if (customersCount > 0) blockingReasons.push(`${customersCount} cliente(s) vinculados`);
+    if (profilesCount > 0) blockingReasons.push(`${profilesCount} representante(s)/admin(s) vinculados`);
+
+    if (blockingReasons.length > 0) {
+      return {
+        success: false,
+        error: `Não é possível excluir esta distribuidora porque ela possui dependências ativas: ${blockingReasons.join(', ')}. Para preservar o histórico comercial e fiscal, utilize a opção "Desativar Distribuidora". A exclusão definitiva é permitida apenas para empresas criadas por engano sem movimentação.`,
+      };
+    }
+
+    // 3. Remover a organização vinculada no metadata se houver
+    try {
+      await supabaseAdmin
+        .from('organizations')
+        .delete()
+        .filter('metadata->>company_id', 'eq', companyId);
+    } catch {}
+
+    // 4. Remover a empresa
+    const { error: deleteError } = await supabaseAdmin
+      .from('companies')
+      .delete()
+      .eq('id', companyId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    await createAuditLog(
+      'delete_company',
+      `Distribuidora ${company.name} excluída definitivamente pelo Master (sem dependências)`,
+      { company_id: companyId, slug: company.slug }
+    );
+
+    revalidatePath('/admin/companies');
+    revalidatePath('/admin/users');
+
+    return { success: true };
   } catch (error: any) {
     return { success: false, error: error?.message || String(error) };
   }
@@ -332,6 +660,61 @@ export async function getCompanyOrders(companyId: string) {
     );
 
     return { success: true, data: enriched };
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export async function updateCompanyOrderManagementMode(
+  companyId: string,
+  mode: 'representative' | 'distributor'
+) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: 'Não autenticado' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profile?.role !== 'master') {
+      return {
+        success: false,
+        error:
+          'Apenas o administrador Master pode alterar o modelo de gestão contratado pela distribuidora.',
+      };
+    }
+
+    const { error } = await supabaseAdmin
+      .from('companies')
+      .update({
+        order_management_mode: mode,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', companyId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    await createAuditLog(
+      'update_company_order_management_mode',
+      `Modelo de gestão da distribuidora alterado para: ${mode}`,
+      { company_id: companyId, mode }
+    );
+
+    revalidatePath('/admin/companies');
+    revalidatePath('/dashboard/orders');
+
+    return { success: true };
   } catch (error: any) {
     return { success: false, error: error?.message || String(error) };
   }

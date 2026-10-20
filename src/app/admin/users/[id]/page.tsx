@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, UserCog } from 'lucide-react';
 import { EditUserForm } from './edit-user-form';
 import { getPlans, getUserWithSubscription } from '../actions';
+import { getCompanies } from '../companiesActions';
 
 export default async function EditUserPage(props: any) {
   const { params } = props as { params: { id: string } };
@@ -26,12 +27,14 @@ export default async function EditUserPage(props: any) {
   if (!isAllowed) redirect('/dashboard');
 
   // 2. BUSCAR DADOS
-  const [plansRes, userRes] = await Promise.all([
+  const [plansRes, userRes, companiesRes] = await Promise.all([
     getPlans(),
     getUserWithSubscription(id),
+    getCompanies(),
   ]);
 
   const availablePlans = plansRes.success && plansRes.data ? plansRes.data : [];
+  const availableCompanies = companiesRes.success && companiesRes.data ? (companiesRes.data as any[]) : [];
   const profile = userRes.success ? userRes.data : null;
 
   if (!profile) {
@@ -71,6 +74,7 @@ export default async function EditUserPage(props: any) {
     email: profile.email || '',
     fullName: profile.full_name || profile.name || '',
     role: profile.role || 'rep',
+    company_id: profile.company_id || '',
     plan: subData?.plan_name || availablePlans[0]?.name || 'Free',
     status: subData?.status || 'trialing',
     endsAt: formattedDate,
@@ -108,6 +112,7 @@ export default async function EditUserPage(props: any) {
         userId={profile.id}
         initialData={initialFormData}
         availablePlans={availablePlans}
+        availableCompanies={availableCompanies}
       />
     </div>
   );

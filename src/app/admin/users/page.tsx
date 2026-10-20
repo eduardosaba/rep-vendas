@@ -65,7 +65,7 @@ export default function AdminUsersPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    role: 'representante',
+    role: 'rep',
     planName: '',
     company_id: '',
   });
@@ -170,6 +170,10 @@ export default function AdminUsersPage() {
       return toast.error('A senha deve ter pelo menos 6 caracteres');
     }
 
+    if (['representative', 'admin_company'].includes(formData.role) && !formData.company_id) {
+      return toast.error('Selecione a Empresa Pai (Distribuidora) para este perfil vinculado.');
+    }
+
     setIsCreating(true);
     try {
       const result = await createManualUser(formData);
@@ -179,7 +183,7 @@ export default function AdminUsersPage() {
         setFormData({
           email: '',
           password: '',
-          role: 'representante',
+          role: 'rep',
           planName: plansList[0]?.name || '',
           company_id: '',
         });
@@ -414,17 +418,23 @@ export default function AdminUsersPage() {
                       )}
                     </td>
                     <td className="px-4 sm:px-6 py-4">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                          user.company_id
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : user.role === 'master' || user.role === 'admin'
-                            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
-                            : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                        }`}
-                      >
-                        {user.company_id ? 'Empresa/Distrib.' : user.role || 'user'}
-                      </span>
+                      {user.role === 'master' || user.role === 'admin' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
+                          Master
+                        </span>
+                      ) : user.role === 'admin_company' || user.role === 'company_admin' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800">
+                          Admin Distribuidora
+                        </span>
+                      ) : user.company_id || user.role === 'representative' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">
+                          Rep. Vinculado
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900">
+                          Rep. Autônomo
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-gray-500 dark:text-slate-400">
                       {user.company_id
@@ -521,17 +531,23 @@ export default function AdminUsersPage() {
                     </span>
                   </div>
                 </div>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 ${
-                    user.company_id
-                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : user.role === 'master' || user.role === 'admin'
-                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
-                      : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                  }`}
-                >
-                  {user.company_id ? 'Empresa/Distrib.' : user.role || 'user'}
-                </span>
+                {user.role === 'master' || user.role === 'admin' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
+                    Master
+                  </span>
+                ) : user.role === 'admin_company' || user.role === 'company_admin' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800">
+                    Admin Distribuidora
+                  </span>
+                ) : user.company_id || user.role === 'representative' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">
+                    Rep. Vinculado
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border flex-shrink-0 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900">
+                    Rep. Autônomo
+                  </span>
+                )}
               </div>
 
               <div className="space-y-2 text-sm mb-4">
@@ -653,16 +669,21 @@ export default function AdminUsersPage() {
                   className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    Permissão
+                    Perfil / Permissão
                   </label>
                   <select
                     value={formData.role}
-                    onChange={(e) =>
-                      setFormData({ ...formData, role: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newRole = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        role: newRole,
+                        company_id: ['rep', 'master'].includes(newRole) ? '' : prev.company_id,
+                      }));
+                    }}
                     className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                   >
                     <option value="rep">Representante Autônomo (Organização Própria)</option>
@@ -670,22 +691,33 @@ export default function AdminUsersPage() {
                     <option value="admin_company">Admin de Distribuidora</option>
                     <option value="master">Master (Gestor da Plataforma)</option>
                   </select>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {formData.role === 'rep' && '✓ Não possui empresa pai. Gerencia catálogo e pedidos com total autonomia.'}
+                    {formData.role === 'representative' && '✓ Vinculado a uma distribuidora contratante.'}
+                    {formData.role === 'admin_company' && '✓ Gestor com acesso ao painel da distribuidora.'}
+                    {formData.role === 'master' && '✓ Superusuário com acesso irrestrito ao sistema.'}
+                  </p>
                 </div>
-              {['representative', 'rep'].includes(formData.role) && (
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Empresa Pai (Distribuidora)</label>
-                  <select
-                    value={formData.company_id}
-                    onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
-                    className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                  >
-                    <option value="">Nenhuma (Autônomo)</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+
+                {['representative', 'admin_company'].includes(formData.role) && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                      Empresa Pai (Distribuidora) *
+                    </label>
+                    <select
+                      required
+                      value={formData.company_id}
+                      onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
+                      className="w-full p-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white font-medium"
+                    >
+                      <option value="">Selecione a distribuidora...</option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     Plano Inicial

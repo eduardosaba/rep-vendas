@@ -18,7 +18,7 @@ export default async function OnboardingPage() {
     // 2. Busca o Perfil com dados iniciais e etapa atual
     const { data: profile } = await supabase
       .from('profiles')
-      .select('onboarding_completed, onboarding_step, full_name, phone, role, company_id')
+      .select('onboarding_completed, onboarding_step, full_name, phone, role, company_id, slug, email, status, plan_id')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -32,6 +32,16 @@ export default async function OnboardingPage() {
       redirect('/dashboard');
     }
 
+    // 3. Busca configurações pré-existentes de loja/catálogo (caso criadas pela Torre de Controle)
+    const { data: settings } = await supabase
+      .from('settings')
+      .select('name, catalog_slug, phone, email, primary_color, logo_url')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    // Determina se o usuário é do teste (auto-cadastro sem plano) ou cliente cadastrado manualmente
+    const isTrial = profile?.status === 'trial' && !profile?.plan_id;
+
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <Suspense
@@ -41,10 +51,17 @@ export default async function OnboardingPage() {
         >
           <OnboardingForm
             userId={user.id}
-            userEmail={user.email || ''}
-            initialFullName={profile?.full_name || ''}
-            initialPhone={profile?.phone || ''}
+            userEmail={profile?.email || user.email || settings?.email || ''}
+            initialFullName={profile?.full_name || settings?.name || ''}
+            initialPhone={profile?.phone || settings?.phone || ''}
+            initialSlug={profile?.slug || settings?.catalog_slug || ''}
+            initialEmail={profile?.email || settings?.email || user.email || ''}
             initialStep={profile?.onboarding_step || 1}
+            initialRole={profile?.role || ''}
+            isTrial={isTrial}
+            initialCompanyName={profile?.full_name ? `${profile.full_name} Representações` : ''}
+            initialPrimaryColor={settings?.primary_color || undefined}
+            initialLogoUrl={settings?.logo_url || null}
           />
         </Suspense>
       </div>

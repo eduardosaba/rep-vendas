@@ -66,8 +66,11 @@ function SubmitButton({
 
 const initialState = { success: false, message: '', error: '' };
 
-export function EditUserForm({ userId, initialData, availablePlans }: any) {
+export function EditUserForm({ userId, initialData, availablePlans, availableCompanies = [] }: any) {
   const router = useRouter();
+
+  const [selectedRole, setSelectedRole] = useState(initialData.role || 'rep');
+  const [selectedCompanyId, setSelectedCompanyId] = useState(initialData.company_id || '');
 
   // Estados dos Modais de Governança V1
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
@@ -279,14 +282,45 @@ export function EditUserForm({ userId, initialData, availablePlans }: any) {
               </label>
               <select
                 name="role"
-                defaultValue={initialData.role}
+                value={selectedRole}
+                onChange={(e) => {
+                  const newRole = e.target.value;
+                  setSelectedRole(newRole);
+                  if (['rep', 'master'].includes(newRole)) {
+                    setSelectedCompanyId('');
+                  }
+                }}
                 className="w-full rounded-lg border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option value="rep">Representante</option>
-                <option value="admin">Administrador</option>
+                <option value="rep">Representante Autônomo</option>
+                <option value="representative">Representante Vinculado (Distribuidora)</option>
+                <option value="admin_company">Admin de Distribuidora</option>
                 <option value="master">Master</option>
               </select>
             </div>
+
+            {['representative', 'admin_company'].includes(selectedRole) ? (
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
+                  Empresa Pai (Distribuidora)
+                </label>
+                <select
+                  name="company_id"
+                  value={selectedCompanyId}
+                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  className="w-full rounded-lg border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="">Selecione a distribuidora...</option>
+                  {availableCompanies.map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <input type="hidden" name="company_id" value="" />
+            )}
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
                 Estados que atuam (opcional)

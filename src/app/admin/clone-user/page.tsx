@@ -64,8 +64,20 @@ export default function CloneUserPage() {
     setMounted(true);
 
     async function loadUsers() {
-      const { data } = await supabase.from('profiles').select('id, full_name, email, company_id').order('full_name');
-      setUsers(data || []);
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, company_id, slug')
+        .order('full_name');
+      const loaded = data || [];
+      setUsers(loaded);
+
+      // Pré-selecionar template de óptica padrão caso disponível
+      const defaultTemplate = loaded.find(
+        (u: any) => u.slug === 'template' || u.email === 'template-otica@repvendas.com.br'
+      );
+      if (defaultTemplate) {
+        setSourceUser((prev) => prev || defaultTemplate.id);
+      }
     }
     loadUsers();
   }, []);
@@ -144,17 +156,20 @@ export default function CloneUserPage() {
         });
       }, 500);
 
-      const res = await fetch('/api/admin/setup-new-user', {
+      const sourceProfile = users.find((u) => u.id === sourceUser);
+      const brandsToClone =
+        selectedBrandVariants.length > 0 ? selectedBrandVariants : selectedBrands;
+
+      const res = await fetch('/api/clone-catalog', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          sourceUserId: sourceUser,
-          targetUserId: selectedUser,
-          // always send an array when intent is to filter; fallback to selectedBrands
-          brands: selectedBrandVariants.length > 0 ? selectedBrandVariants : (selectedBrands.length > 0 ? selectedBrands : [])
+          target_user_id: selectedUser,
+          brands: brandsToClone,
+          source_template_slug: sourceProfile?.slug || 'template',
         })
       });
 
@@ -166,11 +181,20 @@ export default function CloneUserPage() {
         const detail = [json?.error, json?.detail, json?.hint]
           .filter(Boolean)
           .join(' | ');
-        throw new Error(detail || 'Erro no processamento do clone');
+        throw new Error(detail || 'Erro ao clonar catálogo');
       }
 
       setProgress(100);
-      toast.success(json?.message || 'Catálogo clonado com sucesso!');
+
+      if (json?.inserted_count > 0) {
+        toast.success(`${json.inserted_count} produtos clonados com sucesso.`);
+      } else if (json?.skipped_count > 0) {
+        toast.info(
+          `Nenhum produto novo. ${json.skipped_count} produtos já estavam no catálogo.`
+        );
+      } else {
+        toast.info(json?.message || 'Nenhum produto encontrado para clonagem.');
+      }
       
       // Resetar após a conclusão
       setTimeout(() => {

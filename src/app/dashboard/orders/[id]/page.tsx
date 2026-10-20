@@ -202,6 +202,31 @@ export default async function OrderDetailsPage({
     return notFound();
   }
 
+  // Resolução do modelo de gestão de pedidos da distribuidora contratada:
+  // 'representative': Catálogo Digital (autonomia do representante para aprovar/confirmar)
+  // 'distributor': B2B Completo (gestão centralizada com aprovação da distribuidora)
+  let orderManagementMode: 'representative' | 'distributor' =
+    (order as any).order_management_mode || 'representative';
+
+  if (!(order as any).order_management_mode && order.company_id) {
+    const { data: compMode } = await supabase
+      .from('companies')
+      .select('order_management_mode')
+      .eq('id', order.company_id)
+      .maybeSingle();
+    if (compMode?.order_management_mode === 'distributor') {
+      orderManagementMode = 'distributor';
+    }
+  }
+
+  const isDistributorManaged =
+    Boolean(order.company_id) && orderManagementMode === 'distributor';
+
+  // Autorizações de fluxo de pedido
+  const distributorApprovalRequired = isDistributorManaged;
+  const canApproveDistributorOrder = isMaster || (isAdminCompany && isSameCompany);
+  const canManageOrder = isMaster || isOwner || isSeller || (isAdminCompany && isSameCompany);
+
   // Settings da loja do dono do pedido ou do usuário atual como fallback
   const targetUserId = order.user_id || finalUserId;
   const { data: storeSettings } = await supabase
@@ -274,7 +299,7 @@ export default async function OrderDetailsPage({
   }));
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 overflow-hidden animate-in fade-in">
+    <div className="flex flex-col min-h-[calc(100vh-1rem)] bg-gray-50 dark:bg-slate-950 p-4 md:p-6 animate-in fade-in">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
@@ -407,7 +432,8 @@ export default async function OrderDetailsPage({
               </div>
             </div>
 
-            {statusKey === 'pending_review' ? (
+            {/* Exclusivo para distribuidora no modelo B2B Completo */}
+            {statusKey === 'pending_review' && isDistributorManaged ? (
               <NegotiationPanel
                 orderId={order.id}
                 customerName={clientName}
@@ -420,7 +446,7 @@ export default async function OrderDetailsPage({
 
             {statusKey !== 'cancelled' &&
               statusKey !== 'delivered' &&
-              statusKey !== 'pending_review' && (
+              (statusKey !== 'pending_review' || !isDistributorManaged) && (
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
                   <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                     <CheckCircle
@@ -432,25 +458,62 @@ export default async function OrderDetailsPage({
                   <OrderStatusControls
                     orderId={order.id}
                     statusKey={statusKey}
+                    distributorApprovalRequired={distributorApprovalRequired}
+                    canApproveDistributorOrder={canApproveDistributorOrder}
+                    canManageOrder={canManageOrder}
                   />
                   <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-3 border-t border-gray-100 dark:border-slate-800 mt-4">
-                    Ações de status atualizam o estoque e notificam (se
-                    configurado).
+                    Ações de status atualizam o pedido e o estoque.
                   </p>
                 </div>
               )}
           </div>
 
-          {/* Mobile: colapsável */}
-          <div className="md:hidden">
-            <details className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <summary className="px-4 py-3 flex items-center justify-between cursor-pointer">
+          {/* Mobile: Ações do Pedido em destaque (não cortado nem escondido) */}
+          <div className="md:hidden space-y-4">
+            {statusKey === 'pending_review' && isDistributorManaged ? (
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-4">
+                <NegotiationPanel
+                  orderId={order.id}
+                  customerName={clientName}
+                  customerPhone={clientPhone}
+                  representativeName={null}
+                  baseTotal={calculatedTotal}
+                  items={negotiationItems}
+                />
+              </div>
+            ) : null}
+
+            {statusKey !== 'cancelled' &&
+              statusKey !== 'delivered' &&
+              (statusKey !== 'pending_review' || !isDistributorManaged) && (
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm">
+                    <CheckCircle
+                      size={16}
+                      className="text-green-600 dark:text-green-400"
+                    />{' '}
+                    Ações do Pedido
+                  </h3>
+                  <OrderStatusControls
+                    orderId={order.id}
+                    statusKey={statusKey}
+                    distributorApprovalRequired={distributorApprovalRequired}
+                    canApproveDistributorOrder={canApproveDistributorOrder}
+                    canManageOrder={canManageOrder}
+                  />
+                </div>
+              )}
+
+            {/* Mobile: Dados do Cliente */}
+            <details className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden" open>
+              <summary className="px-4 py-3 flex items-center justify-between cursor-pointer font-medium text-gray-900 dark:text-white text-sm">
                 <div className="flex items-center gap-2">
                   <User size={16} /> Dados do Cliente
                 </div>
-                <div className="text-sm text-slate-500">Toque para abrir</div>
+                <div className="text-xs text-slate-400">Ver detalhes</div>
               </summary>
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-4 border-t border-gray-100 dark:border-slate-800">
                 <div>
                   <div className="font-medium text-gray-900 dark:text-white">
                     {clientName}
@@ -467,47 +530,25 @@ export default async function OrderDetailsPage({
                         href={makeWhatsAppUrl(clientPhone) || '#'}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm text-green-600"
+                        className="text-sm text-green-600 block"
                       >
                         {clientPhone}
                       </a>
                     )}
                     {clientEmail && (
-                      <div className="text-sm text-gray-700">{clientEmail}</div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">{clientEmail}</div>
                     )}
                   </div>
                 )}
 
                 {clientDoc && (
-                  <div className="text-sm font-mono">
+                  <div className="text-sm font-mono text-gray-700 dark:text-gray-300">
                     {formatDocument(clientDoc) || clientDoc}
                   </div>
                 )}
                 {clientAddress && (
-                  <div className="text-sm">{clientAddress}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">{clientAddress}</div>
                 )}
-
-                {statusKey === 'pending_review' ? (
-                  <NegotiationPanel
-                    orderId={order.id}
-                    customerName={clientName}
-                    customerPhone={clientPhone}
-                    representativeName={null}
-                    baseTotal={calculatedTotal}
-                    items={negotiationItems}
-                  />
-                ) : null}
-
-                {statusKey !== 'cancelled' &&
-                  statusKey !== 'delivered' &&
-                  statusKey !== 'pending_review' && (
-                    <div>
-                      <OrderStatusControls
-                        orderId={order.id}
-                        statusKey={statusKey}
-                      />
-                    </div>
-                  )}
               </div>
             </details>
           </div>
