@@ -11,6 +11,9 @@ import { normalizeCatalogSlug, resolvePublicCatalogContext, escapeIlikePattern }
 import { RepositoryFactory } from '@/infrastructure/supabase/RepositoryFactory';
 import { ApplicationContextAssembler } from '@/modules/catalog/ApplicationContextAssembler';
 import { ApplicationContextService } from '@/modules/catalog/ApplicationContextService';
+import { getDemoOpticalProductsAsCatalogProducts, seedDemoProductsForUser } from '@/lib/demo-catalog-seeder';
+import BlockedCatalogModal from '@/components/catalogo/BlockedCatalogModal';
+import { checkCatalogAccessStatus } from '@/lib/auth/subscription-rules';
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -29,6 +32,24 @@ export async function generateMetadata(
   const normalizedCompanySlug = normalizeCatalogSlug(slug);
   const { productId } = await searchParams;
   const supabase = await createClient();
+
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
+
+  if (normalizedCompanySlug === 'demo') {
+    return {
+      title: 'Óptica Demo RepVendas | Catálogo Digital Modelo',
+      description: 'Navegue no catálogo modelo oficial do RepVendas com 16 armações ópticas prontas para testes.',
+      alternates: {
+        canonical: `${APP_URL}/catalogo/demo`,
+      },
+      openGraph: {
+        title: 'Óptica Demo RepVendas | Catálogo Digital Modelo',
+        description: 'Navegue no catálogo modelo oficial do RepVendas com 16 armações ópticas prontas para testes.',
+        url: `${APP_URL}/catalogo/demo`,
+        images: [{ url: `${APP_URL}/repvendas.png`, width: 1200, height: 630 }],
+      },
+    };
+  }
 
   // Usa service role para garantir acesso mesmo com RLS
   const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
@@ -49,8 +70,6 @@ export async function generateMetadata(
     .eq('is_active', true)
     .maybeSingle();
 
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
-
   // Fallback 1: busca por profiles.slug → settings (caso catalog_slug não esteja populado)
   if (!catalog && admin) {
     const { data: profile } = await admin
@@ -70,7 +89,7 @@ export async function generateMetadata(
         const storeName = settings.representative_name || settings.name || 'Catálogo Virtual';
         const logoUrl = settings.logo_url;
         const baseV = settings.updated_at ? new Date(settings.updated_at).getTime() : Date.now();
-        const ogImageRaw = settings.share_banner_url || settings.og_image_url || logoUrl || `${APP_URL}/repvendas.png`;
+        const ogImageRaw = settings.share_banner_url || settings.og_image_url || logoUrl || `${APP_URL}/logo.png`;
         const ogImage = ogImageRaw ? `${ogImageRaw}?v=${baseV}` : ogImageRaw;
         return {
           title: `${storeName} | Catálogo Digital`,
@@ -107,7 +126,7 @@ export async function generateMetadata(
         .maybeSingle();
 
       if (company) {
-        const fallbackImage = `${APP_URL}/repvendas.png`;
+        const fallbackImage = `${APP_URL}/logo.png`;
         const baseV = company?.updated_at ? new Date(company.updated_at).getTime() : Date.now();
         const companyOgImageRaw = company.logo_url || fallbackImage;
         const companyOgImage = companyOgImageRaw ? `${companyOgImageRaw}?v=${baseV}` : companyOgImageRaw;
@@ -168,7 +187,7 @@ export async function generateMetadata(
         catalog.og_image_url ||
         catalog.single_brand_logo_url ||
         catalog.logo_url ||
-        `${APP_URL}/repvendas.png`;
+        `${APP_URL}/logo.png`;
       const ogImageUrl = ogImage ? `${ogImage}?v=${baseV}` : ogImage;
       return {
         title: `${product.name} | ${catalog.store_name}`,
@@ -202,7 +221,7 @@ export async function generateMetadata(
     }
   }
 
-  const fallbackImage = `${APP_URL}/repvendas.png`;
+  const fallbackImage = `${APP_URL}/logo.png`;
   const baseV = catalog?.updated_at
     ? new Date(catalog.updated_at).getTime()
     : Date.now();
@@ -280,6 +299,75 @@ export default async function CatalogPage({ params, searchParams }: Props) {
 
   if (companyBySlugFirst?.slug && String((companyBySlugFirst as any).type || '').toLowerCase() === 'distribuidora') {
     redirect(`/catalogo/${normalizedCompanySlug}/empresa`);
+  }
+
+  // 0. SUPORTE NATIVO AO CATÁLOGO DEMONSTRATIVO OFICIAL (/catalogo/demo)
+  if (normalizedCompanySlug === 'demo') {
+    const demoProducts = getDemoOpticalProductsAsCatalogProducts('demo-store');
+    const demoCatalog: any = {
+      id: 'demo-catalog',
+      user_id: 'demo-store',
+      catalog_slug: 'demo',
+      store_name: 'Óptica Demo RepVendas',
+      logo_url: '/repvendas.png',
+      single_brand_logo_url: '/repvendas.png',
+      primary_color: '#b9722e',
+      secondary_color: '#0d1b2c',
+      phone: '(11) 99999-8888',
+      email: 'contato@repvendas.com.br',
+      footer_message:
+        'Catálogo demonstrativo oficial RepVendas (Setor Óptico). Cadastre-se e monte seu catálogo personalizado em minutos!',
+      show_cost_price: true,
+      show_sale_price: false, // Ativa fluxo restrito para testar "Ver Preços" / "Ocultar Preços"
+      price_unlock_mode: 'modal' as const,
+      price_password: '123456',
+      price_password_hash:
+        '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', // sha256('123456')
+      is_active: true,
+      show_top_benefit_bar: true,
+      top_benefit_text:
+        'Demonstração Interativa RepVendas • Digite a senha 123456 para desbloquear os preços',
+      top_benefit_bg_color: '#0d1b2c',
+      top_benefit_text_color: '#ffffff',
+      banners: [
+        'https://images.unsplash.com/photo-1572635196237-14b3f281503f?auto=format&fit=crop&q=80&w=1200',
+      ],
+      banners_mobile: [
+        'https://images.unsplash.com/photo-1572635196237-14b3f281503f?auto=format&fit=crop&q=80&w=600',
+      ],
+    };
+
+    return (
+      <Storefront
+        catalog={demoCatalog}
+        initialProducts={demoProducts}
+        startProductId={typeof productId === 'string' ? productId : undefined}
+        topSlot={
+          <div className="bg-[#0D1B2C] text-white text-xs px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-[#b9722e]/40 shadow-sm sticky top-0 z-50">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="bg-[#b9722e] text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                Modo Demonstração Oficial
+              </span>
+              <span className="text-slate-200 text-xs flex items-center gap-1.5 flex-wrap">
+                Você está no catálogo modelo do RepVendas. Senha para ver preços:
+                <strong className="text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/30 font-mono text-sm font-black tracking-wide">
+                  123456
+                </strong>
+                <span className="text-slate-400 text-[11px]">(ou demo)</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href="/register"
+                className="bg-[#b9722e] hover:bg-[#965c25] text-white px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all shadow-sm"
+              >
+                Criar Meu Catálogo Grátis →
+              </a>
+            </div>
+          </div>
+        }
+      />
+    );
   }
 
   // Resolução do contexto do catálogo público com fallback de Service Role
@@ -546,50 +634,82 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       const representativeCompanyId = context?.representative?.company_id || null;
       const ownerUserId = representativeId || catalog.user_id;
 
-      let productsQuery = clientToUse
-        .from('products')
-        .select('*, linked_images, product_images(url, is_primary)')
-        .not('is_active', 'eq', false)
-        .order('created_at', { ascending: false })
-        .range(0, fetchLimit - 1);
+      // Validação Canônica de Acesso: Inadimplente, Vencido > 5 dias ou Desativado
+      const accessCheck = await checkCatalogAccessStatus(
+        {
+          ownerUserId,
+          companyId: representativeCompanyId || (catalog as any)?.company_id || null,
+          representativeId,
+          slug: normalizedCompanySlug,
+        },
+        clientToUse
+      );
+      const isCatalogBlocked = accessCheck.isBlocked;
 
-      if (representativeCompanyId) {
-        // Representante vinculado: mostrar catálogo da distribuidora (company_id / organization_id)
-        // e todos os produtos criados pelos administradores da distribuidora, sem perder produtos próprios.
-        const { data: compAdminUsers } = await clientToUse
-          .from('profiles')
-          .select('id')
-          .eq('company_id', representativeCompanyId)
-          .in('role', ['admin_company', 'master', 'admin'])
-          .limit(10);
+      let products: any[] = [];
+      let effectiveProducts: any[] = [];
+      let isDemoActive = false;
 
-        const adminUserIds = (compAdminUsers || []).map((u: any) => u.id).filter(Boolean);
-        const allAssociatedUserIds = Array.from(new Set([ownerUserId, ...adminUserIds]));
-        const userOrClauses = allAssociatedUserIds.map((id) => `user_id.eq.${id}`).join(',');
+      // Se o catálogo estiver bloqueado, NUNCA executa a query nem envia produtos/imagens para o cliente
+      if (!isCatalogBlocked) {
+        let productsQuery = clientToUse
+          .from('products')
+          .select('*, linked_images, product_images(url, is_primary)')
+          .not('is_active', 'eq', false)
+          .order('created_at', { ascending: false })
+          .range(0, fetchLimit - 1);
 
-        productsQuery = productsQuery.or(
-          `${userOrClauses},company_id.eq.${representativeCompanyId},organization_id.eq.${representativeCompanyId}`
-        );
-      } else {
-        // Representante individual / catálogo público: buscar por user_id, company_id ou organization_id
-        const ids = Array.from(new Set([ownerUserId, catalog.user_id, (catalog as any).company_id, (catalog as any).organization_id].filter(Boolean)));
-        const orClause = ids.map(id => `user_id.eq.${id},company_id.eq.${id},organization_id.eq.${id}`).join(',');
-        productsQuery = productsQuery.or(orClause);
+        if (representativeCompanyId) {
+          // Representante vinculado: mostrar catálogo da distribuidora (company_id / organization_id)
+          // e todos os produtos criados pelos administradores da distribuidora, sem perder produtos próprios.
+          const { data: compAdminUsers } = await clientToUse
+            .from('profiles')
+            .select('id')
+            .eq('company_id', representativeCompanyId)
+            .in('role', ['admin_company', 'master', 'admin'])
+            .limit(10);
+
+          const adminUserIds = (compAdminUsers || []).map((u: any) => u.id).filter(Boolean);
+          const allAssociatedUserIds = Array.from(new Set([ownerUserId, ...adminUserIds]));
+          const userOrClauses = allAssociatedUserIds.map((id) => `user_id.eq.${id}`).join(',');
+
+          productsQuery = productsQuery.or(
+            `${userOrClauses},company_id.eq.${representativeCompanyId},organization_id.eq.${representativeCompanyId}`
+          );
+        } else {
+          // Representante individual / catálogo público: buscar por user_id, company_id ou organization_id
+          const ids = Array.from(new Set([ownerUserId, catalog.user_id, (catalog as any).company_id, (catalog as any).organization_id].filter(Boolean)));
+          const orClause = ids.map(id => `user_id.eq.${id},company_id.eq.${id},organization_id.eq.${id}`).join(',');
+          productsQuery = productsQuery.or(orClause);
+        }
+
+        const { data: fetchedProducts } = await productsQuery;
+        products = fetchedProducts || [];
+        effectiveProducts = products;
+
+        if (!products || products.length === 0) {
+          // Catálogo novo sem produtos cadastrados: carrega os 16 itens ópticos de demonstração
+          effectiveProducts = getDemoOpticalProductsAsCatalogProducts(catalog.user_id) as any;
+          isDemoActive = true;
+
+          // Auto-seed assíncrono para persistir no banco e sincronizar com o dashboard de produtos
+          if (catalog.user_id) {
+            void seedDemoProductsForUser(catalog.user_id, (catalog as any).organization_id, (catalog as any).company_id);
+          }
+        }
       }
 
-      const { data: products } = await productsQuery;
-
       const counts = new Map<string, number>();
-      products?.forEach((p: any) => {
+      effectiveProducts?.forEach((p: any) => {
         const key = p.reference_id || p.reference_code || p.id;
         const current = counts.get(key) || 0;
         counts.set(key, current + 1);
       });
 
-      const productsWithImages = products?.map((p: any) => {
+      const productsWithImages = effectiveProducts?.map((p: any) => {
         const gallery = p.product_images || [];
         const primary = gallery.find((i: any) => i.is_primary);
-        const displayUrl = primary ? primary.url : gallery[0]?.url;
+        const displayUrl = primary ? primary.url : (gallery[0]?.url || p.image_url || p.external_image_url);
         const variantCount = counts.get(p.reference_id || p.reference_code || p.id) || 1;
 
         if (displayUrl) {
@@ -693,6 +813,17 @@ export default async function CatalogPage({ params, searchParams }: Props) {
           : []),
       ];
 
+      if (isCatalogBlocked) {
+        return (
+          <div className="relative min-h-screen">
+            <BlockedCatalogModal
+              storeName={finalCatalog.store_name}
+              catalogSlug={normalizedCompanySlug}
+            />
+          </div>
+        );
+      }
+
       return (
         <>
           <script
@@ -703,6 +834,26 @@ export default async function CatalogPage({ params, searchParams }: Props) {
             catalog={finalCatalog}
             initialProducts={productsWithImages || []}
             startProductId={typeof productId === 'string' ? productId : undefined}
+            topSlot={
+              isDemoActive ? (
+                <div className="bg-[#0D1B2C] text-white text-xs px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-[#A46431]/40 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-[#A46431] text-white font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      Modo Demonstração Ativo
+                    </span>
+                    <span className="text-slate-300">
+                      Exibindo 16 armações ópticas prontas para testes no seu link personalizado.
+                    </span>
+                  </div>
+                  <a
+                    href="/dashboard/products"
+                    className="text-[#A46431] hover:text-[#c47e43] font-semibold underline text-xs transition-colors"
+                  >
+                    Gerenciar produtos no Painel →
+                  </a>
+                </div>
+              ) : undefined
+            }
           />
         </>
       );
@@ -736,13 +887,35 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       .or(`catalog_slug.eq.${normalizedCompanySlug}`)
       .maybeSingle();
 
-    // Buscar produtos do catálogo Master sob organization_id, company_id ou user_id
-    const { data: orgProducts } = await clientToUse
-      .from('products')
-      .select('*, linked_images, product_images(url, is_primary)')
-      .not('is_active', 'eq', false)
-      .or(`organization_id.eq.${orgId},company_id.eq.${orgId},user_id.eq.${orgId}`)
-      .order('created_at', { ascending: false });
+    const distAccessCheck = await checkCatalogAccessStatus(
+      {
+        companyId: orgId,
+        representativeId: appContext.representative?.id || null,
+        slug: normalizedCompanySlug,
+      },
+      clientToUse
+    );
+    const isDistBlocked = distAccessCheck.isBlocked;
+
+    let orgProducts: any[] = [];
+    let effectiveOrgProducts: any[] = [];
+
+    if (!isDistBlocked) {
+      // Buscar produtos do catálogo Master sob organization_id, company_id ou user_id
+      const { data: fetchedOrgProducts } = await clientToUse
+        .from('products')
+        .select('*, linked_images, product_images(url, is_primary)')
+        .not('is_active', 'eq', false)
+        .or(`organization_id.eq.${orgId},company_id.eq.${orgId},user_id.eq.${orgId}`)
+        .order('created_at', { ascending: false });
+
+      orgProducts = fetchedOrgProducts || [];
+      effectiveOrgProducts = orgProducts;
+      if (!orgProducts || orgProducts.length === 0) {
+        effectiveOrgProducts = getDemoOpticalProductsAsCatalogProducts(orgId) as any;
+        void seedDemoProductsForUser(orgId, orgId, orgId);
+      }
+    }
 
     const companyEffective = {
       id: orgId,
@@ -760,6 +933,17 @@ export default async function CatalogPage({ params, searchParams }: Props) {
       ...companyData,
       ...publicCatalog,
     };
+
+    if (isDistBlocked) {
+      return (
+        <div className="relative min-h-screen">
+          <BlockedCatalogModal
+            storeName={companyEffective.name}
+            catalogSlug={normalizedCompanySlug}
+          />
+        </div>
+      );
+    }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://repvendas.com.br';
     const richCatalogJsonLd = [
@@ -827,7 +1011,7 @@ export default async function CatalogPage({ params, searchParams }: Props) {
         <CatalogRichLayout
           company={companyEffective}
           representative={appContext.representative}
-          products={orgProducts || []}
+          products={effectiveOrgProducts || []}
         />
       </>
     );

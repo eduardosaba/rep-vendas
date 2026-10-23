@@ -171,7 +171,7 @@ export default function LandingPage() {
             </button>
 
             <a
-              href="/catalogo/teste"
+              href="/demo/catalogo"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto px-6 py-4 bg-transparent border border-white/30 text-white rounded-full font-bold text-base hover:bg-white/10 transition-all backdrop-blur-sm flex items-center justify-center gap-2"
@@ -452,7 +452,7 @@ export default function LandingPage() {
               Criar meu catálogo <ArrowRight size={22} />
             </button>
             <a
-              href="/catalogo/teste"
+              href="/demo/catalogo"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto px-6 py-5 bg-white border border-gray-300 text-gray-800 rounded-full font-bold text-base hover:bg-gray-100 transition-all flex items-center justify-center"

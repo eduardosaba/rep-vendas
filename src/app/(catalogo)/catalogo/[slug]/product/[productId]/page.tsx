@@ -1,7 +1,10 @@
+import { notFound } from 'next/navigation';
 import { Metadata, ResolvingMetadata } from 'next';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import ProductDetailUnifiedPage from '@/components/catalogo/pages/ProductDetailUnifiedPage';
 import { normalizeCatalogSlug, escapeIlikePattern } from '@/lib/resolve-context';
+import BlockedCatalogModal from '@/components/catalogo/BlockedCatalogModal';
+import { checkCatalogAccessStatus } from '@/lib/auth/subscription-rules';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -88,7 +91,7 @@ export async function generateMetadata(
   const imageUrl =
     product.image_url ||
     product.external_image_url ||
-    `${APP_URL}/repvendas.png`;
+    `${APP_URL}/logo.png`;
 
   const canonicalUrl = `${APP_URL}/catalogo/${normalizedSlug}/product/${productId}`;
 
@@ -136,87 +139,111 @@ export default async function ProductDetailPageServer({ params }: Props) {
   let productSchema: any = null;
   let breadcrumbSchema: any = null;
 
-  if (admin) {
-    const { data: product } = await admin
-      .from('products')
-      .select('id, name, description, price, sale_price, image_url, external_image_url, brand, sku')
-      .eq('id', productId)
+  if (!admin) {
+    return notFound();
+  }
+
+  let storeName = 'Catálogo';
+  const { data: catalog } = await admin
+    .from('public_catalogs')
+    .select('store_name, user_id, company_id')
+    .ilike('catalog_slug', escapeIlikePattern(normalizedSlug))
+    .maybeSingle();
+
+  let company: any = null;
+  if (catalog?.store_name) {
+    storeName = catalog.store_name;
+  } else {
+    const { data: comp } = await admin
+      .from('companies')
+      .select('id, name')
+      .ilike('slug', escapeIlikePattern(normalizedSlug))
       .maybeSingle();
+    company = comp;
+    if (company?.name) storeName = company.name;
+  }
 
-    let storeName = 'Catálogo';
-    const { data: catalog } = await admin
-      .from('public_catalogs')
-      .select('store_name')
-      .ilike('catalog_slug', escapeIlikePattern(normalizedSlug))
-      .maybeSingle();
+  const accessCheck = await checkCatalogAccessStatus(
+    {
+      ownerUserId: catalog?.user_id,
+      companyId: company?.id || catalog?.company_id,
+      slug: normalizedSlug,
+    },
+    admin
+  );
 
-    if (catalog?.store_name) {
-      storeName = catalog.store_name;
-    } else {
-      const { data: company } = await admin
-        .from('companies')
-        .select('name')
-        .ilike('slug', escapeIlikePattern(normalizedSlug))
-        .maybeSingle();
-      if (company?.name) storeName = company.name;
-    }
+  if (accessCheck.isBlocked) {
+    return (
+      <div className="relative min-h-screen">
+        <BlockedCatalogModal
+          storeName={storeName}
+          catalogSlug={normalizedSlug}
+        />
+      </div>
+    );
+  }
 
-    if (product) {
-      const effectivePrice = product.sale_price || product.price || 0;
-      const imageUrl = product.image_url || product.external_image_url || `${APP_URL}/repvendas.png`;
-      const canonicalUrl = `${APP_URL}/catalogo/${normalizedSlug}/product/${productId}`;
+  const { data: product } = await admin
+    .from('products')
+    .select('id, name, description, price, sale_price, image_url, external_image_url, brand, sku')
+    .eq('id', productId)
+    .maybeSingle();
 
-      productSchema = {
-        '@context': 'https://schema.org',
-        '@type': 'Product',
-        name: product.name,
-        image: imageUrl,
-        description: product.description || `Produto ${product.name} disponível em ${storeName}`,
-        sku: product.sku || product.id,
-        brand: product.brand
-          ? {
-              '@type': 'Brand',
-              name: product.brand,
-            }
-          : undefined,
-        offers: {
-          '@type': 'Offer',
-          url: canonicalUrl,
-          priceCurrency: 'BRL',
-          price: effectivePrice,
-          availability: 'https://schema.org/InStock',
-          seller: {
-            '@type': 'Organization',
-            name: storeName,
-          },
+  if (product) {
+    const effectivePrice = product.sale_price || product.price || 0;
+    const imageUrl = product.image_url || product.external_image_url || `${APP_URL}/logo.png`;
+    const canonicalUrl = `${APP_URL}/catalogo/${normalizedSlug}/product/${productId}`;
+
+    productSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      image: imageUrl,
+      description: product.description || `Produto ${product.name} disponível em ${storeName}`,
+      sku: product.sku || product.id,
+      brand: product.brand
+        ? {
+            '@type': 'Brand',
+            name: product.brand,
+          }
+        : undefined,
+      offers: {
+        '@type': 'Offer',
+        url: canonicalUrl,
+        priceCurrency: 'BRL',
+        price: effectivePrice,
+        availability: 'https://schema.org/InStock',
+        seller: {
+          '@type': 'Organization',
+          name: storeName,
         },
-      };
+      },
+    };
 
-      breadcrumbSchema = {
-        '@context': 'https://schema.org',
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Início',
-            item: APP_URL,
-          },
-          {
-            '@type': 'ListItem',
-            position: 2,
-            name: storeName,
-            item: `${APP_URL}/catalogo/${normalizedSlug}`,
-          },
-          {
-            '@type': 'ListItem',
-            position: 3,
-            name: product.name,
-            item: canonicalUrl,
-          },
-        ],
-      };
-    }
+    breadcrumbSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Início',
+          item: APP_URL,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: storeName,
+          item: `${APP_URL}/catalogo/${normalizedSlug}`,
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: product.name,
+          item: canonicalUrl,
+        },
+      ],
+    };
   }
 
   return (

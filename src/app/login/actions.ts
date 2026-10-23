@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { isGlobalAdmin } from '@/lib/auth/roles';
+import { notifyUserRegistered } from '@/lib/telegram';
 
 function extractMissingColumn(msg: unknown) {
   const s = String((msg as any)?.message || msg || '');
@@ -95,12 +96,15 @@ export async function signup(formData: FormData) {
         const { normalizePhone } = await import('@/lib/phone');
         const normalizedPhone = normalizePhone(rawPhone);
         const estados = formData.getAll('estados') as string[] | [];
+        const endsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
         const profilePayload: Record<string, any> = {
           id: userId,
           email,
           full_name: fullName || null,
           phone: normalizedPhone || null,
+          status: 'trial',
+          trial_ends_at: endsAt,
           updated_at: new Date().toISOString(),
         };
         if (estados && estados.length > 0) profilePayload.estados = estados;
@@ -183,6 +187,27 @@ export async function signup(formData: FormData) {
             } catch (e) {
               // ignore
             }
+          } else {
+            // Direct signup without landing page pre-capture: create lead entry in CRM
+            try {
+              await supabaseAdmin.from('leads').insert({
+                name: fullName || email.split('@')[0],
+                email: normalizedAuthEmail,
+                whatsapp: normalizedPhone || null,
+                status: 'account_created',
+                source: 'direct_signup',
+                user_id: userId,
+                company_name: null,
+                metadata: {
+                  signup_channel: 'direct',
+                  estados: estados || [],
+                },
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+            } catch (directLeadErr) {
+              console.error('[signup:direct-lead-insert:error]', directLeadErr);
+            }
           }
         } catch (leadErr) {
           console.error('[signup:lead-linkage:error]', { message: (leadErr as any)?.message });
@@ -225,6 +250,16 @@ export async function signup(formData: FormData) {
         }
       } catch (err) { console.warn('Não foi possível completar rotinas pós-signup (trial/profiles):', err); }
     }
+
+    // Disparo em tempo real para o Telegram do administrador
+    void notifyUserRegistered({
+      userId,
+      name: (formData.get('name') as string) || (formData.get('full_name') as string) || null,
+      email,
+      phone: (formData.get('phone') as string) || null,
+      company_name: (formData.get('company_name') as string) || null,
+      estados: (formData.getAll('estados') as string[]) || [],
+    });
 
     return { success: true, redirectTo: '/onboarding' };
   } catch (err: unknown) {

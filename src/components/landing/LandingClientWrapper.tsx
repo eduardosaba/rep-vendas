@@ -74,7 +74,7 @@ export default function LandingClientWrapper({
               Dúvidas
             </a>
             <a
-              href="/catalogo/teste"
+              href="/demo/catalogo"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-300 hover:text-white transition-colors font-medium text-sm uppercase tracking-wide"

@@ -25,6 +25,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // Modo Demonstração: permitir validação direta de senhas padrão
+    if (userId === 'demo' || userId === 'demo-store' || userId === 'demo-catalog') {
+      if (checkOnly) return NextResponse.json({ ok: true, configured: true });
+      const plain = String(password || '').trim().toLowerCase();
+      const allowed = ['demo', '123456', 'repvendas', 'admin'];
+      if (allowed.includes(plain)) {
+        return NextResponse.json({ ok: true, configured: true });
+      }
+      return NextResponse.json({ ok: false, configured: true, error: 'invalid_password' });
+    }
+
     const admin = createSupabaseClient(
       String(SUPABASE_URL),
       String(SUPABASE_SERVICE_ROLE_KEY)

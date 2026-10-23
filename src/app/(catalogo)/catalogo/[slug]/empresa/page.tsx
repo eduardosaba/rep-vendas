@@ -5,6 +5,8 @@ import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import CatalogRichLayout from '@/components/catalogo/CatalogRichLayout';
 import { escapeIlikePattern, normalizeCatalogSlug } from '@/lib/resolve-context';
 import { makeWhatsAppUrl } from '@/lib/format-whatsapp';
+import BlockedCatalogModal from '@/components/catalogo/BlockedCatalogModal';
+import { checkCatalogAccessStatus } from '@/lib/auth/subscription-rules';
 
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
@@ -112,7 +114,7 @@ export async function generateMetadata(
     company.headline ||
     `Confira o catálogo oficial da ${company.name}, consulte produtos e faça pedidos online.`;
 
-  const fallbackImage = `${APP_URL}/repvendas.png`;
+  const fallbackImage = `${APP_URL}/logo.png`;
   const ogImage = company.cover_image || company.logo_url || fallbackImage;
   const canonicalUrl = `${APP_URL}/catalogo/${normalizedSlug}/empresa`;
 
@@ -525,6 +527,26 @@ export default async function Page({ params }: PageProps) {
       null,
     user_id: ownerUserId || company.id,
   };
+
+  const accessCheck = await checkCatalogAccessStatus(
+    {
+      ownerUserId,
+      companyId: company.id,
+      slug: normalizedSlug,
+    },
+    clientToUse
+  );
+
+  if (accessCheck.isBlocked) {
+    return (
+      <div className="relative min-h-screen">
+        <BlockedCatalogModal
+          storeName={companyEffective.name || company.name}
+          catalogSlug={`${normalizedSlug}/empresa`}
+        />
+      </div>
+    );
+  }
 
   // 7. Buscar produtos com cobertura exaustiva (company_id, organization_id e user_ids dos administradores)
   const allAssociatedIds = Array.from(

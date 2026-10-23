@@ -5,10 +5,21 @@ import WelcomePopup from '@/components/WelcomePopup';
 import BlockedAccountPopup from '@/components/dashboard/BlockedAccountPopup';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { useWelcomeManager } from '@/hooks/useWelcomeManager';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Clock, CreditCard, Loader2 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { OrganizationProvider } from '@/modules/organization-context/OrganizationProvider';
+import Link from 'next/link';
+
+interface AccessState {
+  status: string;
+  isAllowed: boolean;
+  isBlocked: boolean;
+  inGracePeriod: boolean;
+  daysRemainingOrOverdue: number;
+  reason: string;
+  expiryDate: string | null;
+}
 
 export default function DashboardLayout({
   children,
@@ -45,12 +56,13 @@ export default function DashboardLayout({
     updateData,
   } = useWelcomeManager();
 
+  const [accessState, setAccessState] = useState<AccessState | null>(null);
+
   useEffect(() => {
     let mounted = true;
 
     const initializeDashboard = async () => {
       try {
-        // Pequeno delay para evitar flicker durante hidratação.
         await new Promise((resolve) => setTimeout(resolve, 150));
 
         if (!mounted) return;
@@ -73,8 +85,6 @@ export default function DashboardLayout({
       mounted = false;
     };
   }, []);
-
-  const [showBlockedPopup, setShowBlockedPopup] = useState(false);
 
   useEffect(() => {
     if (!authorized) return;
@@ -101,21 +111,13 @@ export default function DashboardLayout({
 
         const json = await res.json();
         const profile = json?.profile || null;
+        const access = json?.access || null;
+
+        if (access) {
+          setAccessState(access);
+        }
 
         if (!profile) return;
-
-        const status = profile.status || null;
-
-        const trialEnds = profile.trial_ends_at
-          ? new Date(profile.trial_ends_at)
-          : null;
-
-        const now = new Date();
-        const isTrialExpired = trialEnds ? now > trialEnds : false;
-
-        if (status === 'blocked' || (status === 'trial' && isTrialExpired)) {
-          setShowBlockedPopup(true);
-        }
 
         const COMPANY_CATALOG_RESTRICTED_PREFIXES = [
           '/dashboard/products',
@@ -157,7 +159,7 @@ export default function DashboardLayout({
     return () => {
       mounted = false;
     };
-  }, [authorized]);
+  }, [authorized, pathname]);
 
   if (connectionError) {
     return (
@@ -189,9 +191,83 @@ export default function DashboardLayout({
 
   if (!authorized) return null;
 
+  // Se a rota for de pagamento (/dashboard/fatura), permite acesso mesmo se bloqueado para possibilitar regularização
+  const isFaturaRoute = pathname?.startsWith('/dashboard/fatura');
+  const isHardBlocked = accessState?.isBlocked && !isFaturaRoute;
+  const inGracePeriod = accessState?.inGracePeriod && !isHardBlocked;
+  
+  // Alerta de proximidade de vencimento (5 dias ou menos restantes)
+  const daysRemaining = accessState?.daysRemainingOrOverdue ?? 999;
+  const isNearExpiry =
+    !isHardBlocked &&
+    !inGracePeriod &&
+    accessState?.isAllowed &&
+    daysRemaining <= 5 &&
+    daysRemaining > 0;
+
   return (
     <OrganizationProvider>
       <div className="min-h-screen transition-colors duration-300 dark:bg-slate-950">
+        {/* Banner 1: Próximo de Vencer (5 dias ou menos) */}
+        {isNearExpiry && (
+          <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-orange-700 text-white text-xs font-semibold py-2 px-4 sticky top-0 left-0 right-0 z-50 flex items-center justify-between shadow-md">
+            <div className="flex items-center gap-2 max-w-5xl mx-auto w-full justify-between">
+              <span className="flex items-center gap-2">
+                <Clock size={16} className="text-amber-200 shrink-0 animate-pulse" />
+                <span>
+                  <strong>Atenção:</strong> Seu plano expira em{' '}
+                  <strong className="underline decoration-amber-300 font-black">
+                    {daysRemaining} {daysRemaining === 1 ? 'dia' : 'dias'}
+                  </strong>
+                  . Renove agora para manter seus catálogos públicos e pedidos no ar sem interrupções.
+                </span>
+              </span>
+              <Link
+                href="/dashboard/fatura"
+                className="inline-flex items-center gap-1.5 bg-white text-amber-950 px-3.5 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-50 shrink-0 transition-all shadow-sm active:scale-95"
+              >
+                <CreditCard size={14} />
+                Renovar Assinatura
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Banner 2: Tolerância / Grace Period (Vencido há até 5 dias) */}
+        {inGracePeriod && (
+          <div className="bg-gradient-to-r from-red-600 via-red-700 to-amber-700 text-white text-xs font-semibold py-2.5 px-4 sticky top-0 left-0 right-0 z-50 flex items-center justify-between shadow-lg">
+            <div className="flex items-center gap-2 max-w-5xl mx-auto w-full justify-between">
+              <span className="flex items-center gap-2">
+                <AlertTriangle size={17} className="text-red-200 shrink-0 animate-bounce" />
+                <span>
+                  <strong>Assinatura Vencida:</strong> Seu período expirou há{' '}
+                  {Math.abs(accessState?.daysRemainingOrOverdue || 1)} dia(s) e está em período de tolerância.
+                  Regularize hoje para evitar a suspensão automática dos seus catálogos.
+                </span>
+              </span>
+              <Link
+                href="/dashboard/fatura"
+                className="inline-flex items-center gap-1.5 bg-white text-red-950 px-3.5 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 shrink-0 transition-all shadow-sm active:scale-95"
+              >
+                <CreditCard size={14} />
+                Regularizar Agora
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Banner 3: Vencido / Suspenso enquanto navega na tela de fatura */}
+        {isFaturaRoute && accessState?.isBlocked && (
+          <div className="bg-red-700 text-white text-xs font-bold py-2.5 px-4 sticky top-0 left-0 right-0 z-50 flex items-center justify-center shadow-lg">
+            <span className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-red-200" />
+              <span>
+                Conta com assinatura suspensa. Escolha seu ciclo de pagamento abaixo para reativar seu catálogo e produtos imediatamente.
+              </span>
+            </span>
+          </div>
+        )}
+
         <div className="flex h-screen w-full overflow-hidden">
           <Sidebar
             isCollapsed={isSidebarCollapsed}
@@ -218,9 +294,12 @@ export default function DashboardLayout({
                   />
                 )}
 
-                {showBlockedPopup && (
+                {/* Hard block popup para testes expirados além de 5 dias ou suspensões */}
+                {isHardBlocked && (
                   <BlockedAccountPopup
-                    onClose={() => setShowBlockedPopup(false)}
+                    hardBlock={true}
+                    reason={accessState?.reason}
+                    daysOverdue={Math.abs(accessState?.daysRemainingOrOverdue || 0)}
                   />
                 )}
               </div>

@@ -2,78 +2,131 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, CreditCard, X } from 'lucide-react';
+import { Lock, CreditCard, X, LogOut, AlertTriangle } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
-export default function BlockedAccountPopup({ onClose }: { onClose?: () => void }) {
+interface BlockedAccountPopupProps {
+  onClose?: () => void;
+  hardBlock?: boolean;
+  reason?: string;
+  daysOverdue?: number;
+}
+
+export default function BlockedAccountPopup({
+  onClose,
+  hardBlock = false,
+  reason,
+  daysOverdue,
+}: BlockedAccountPopupProps) {
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(true);
+  const supabase = createClient();
 
   useEffect(() => {
-    const isDismissed = sessionStorage.getItem('blocked_popup_dismissed');
-    if (isDismissed) {
-      setIsVisible(false);
+    if (!hardBlock) {
+      const isDismissed = sessionStorage.getItem('blocked_popup_dismissed');
+      if (isDismissed) {
+        setIsVisible(false);
+      }
+    } else {
+      setIsVisible(true);
     }
-  }, []);
+  }, [hardBlock]);
 
   const handleClose = () => {
+    if (hardBlock) return; // Bloqueio estrito: impede fechamento
     sessionStorage.setItem('blocked_popup_dismissed', 'true');
     setIsVisible(false);
     if (onClose) onClose();
   };
 
-  // Função para fechar o popup E navegar ao mesmo tempo
   const handleAction = () => {
-    handleClose(); // Fecha o popup e marca como dispensado na sessão
-    router.push('/dashboard/fatura'); // Navega para a fatura
+    if (!hardBlock) {
+      handleClose();
+    }
+    router.push('/dashboard/fatura');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('Erro ao deslogar:', err);
+    }
+    router.push('/login');
   };
 
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleClose} />
-      
-      <div className="relative max-w-sm w-full bg-white dark:bg-slate-900 rounded-[2rem] p-8 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in duration-300">
-        
-        <button 
-          onClick={handleClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-        >
-          <X size={20} />
-        </button>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
+      {/* Backdrop: se hardBlock for true, clique de fundo NÃO fecha */}
+      <div
+        className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+        onClick={hardBlock ? undefined : handleClose}
+      />
+
+      <div className="relative max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 md:p-10 shadow-2xl border border-red-200 dark:border-red-900/30 animate-in zoom-in duration-300">
+        {!hardBlock && (
+          <button
+            onClick={handleClose}
+            className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+          >
+            <X size={20} />
+          </button>
+        )}
 
         <div className="flex flex-col items-center text-center">
-          <div className="w-16 h-16 bg-amber-50 dark:bg-amber-900/20 rounded-2xl flex items-center justify-center mb-6 text-amber-600">
-            <Lock size={32} />
+          <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 rounded-3xl flex items-center justify-center mb-6 text-red-600 shadow-inner">
+            <Lock size={36} />
           </div>
 
-          <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">
-            Ativação Necessária
+          <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
+            {hardBlock ? 'Acesso Suspenso' : 'Ativação Necessária'}
           </h3>
-          
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-            Seu período de teste expirou. Para continuar gerindo seus pedidos e catálogos, você precisa ativar sua assinatura.
+
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+            {reason ||
+              (hardBlock
+                ? 'Seu período de teste expirou e o prazo de tolerância terminou. Para continuar gerindo seus pedidos e catálogos, você precisa ativar sua assinatura.'
+                : 'Seu período de teste expirou. Ative sua assinatura para não perder o acesso aos seus catálogos e pedidos.')}
           </p>
-          
+
+          {daysOverdue !== undefined && daysOverdue > 0 && (
+            <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 text-xs font-semibold">
+              <AlertTriangle size={14} />
+              Vencido há {daysOverdue} dias
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 w-full">
-            <button 
-              onClick={handleAction} // <--- Alterado para handleAction
-              className="flex items-center justify-center gap-2 w-full bg-primary text-white py-4 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
+            <button
+              onClick={handleAction}
+              className="flex items-center justify-center gap-2 w-full bg-primary text-white py-4 px-6 rounded-2xl font-bold text-base hover:bg-primary/90 transition-all shadow-xl shadow-primary/25 active:scale-95"
             >
               <CreditCard size={18} />
-              Regularizar Agora
+              Regularizar Assinatura Agora
             </button>
-            
-            <button 
-              onClick={handleClose}
-              className="w-full py-3 text-slate-400 dark:text-slate-500 font-bold text-sm hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-            >
-              Lembrar mais tarde
-            </button>
+
+            {hardBlock ? (
+              <button
+                onClick={handleLogout}
+                className="w-full py-3 text-slate-400 hover:text-red-500 font-bold text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <LogOut size={16} /> Sair da conta
+              </button>
+            ) : (
+              <button
+                onClick={handleClose}
+                className="w-full py-3 text-slate-400 dark:text-slate-500 font-bold text-sm hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              >
+                Lembrar mais tarde
+              </button>
+            )}
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+        <p className="mt-8 text-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
           Pagamento Seguro • InfinitePay
         </p>
       </div>

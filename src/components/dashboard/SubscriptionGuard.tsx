@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { differenceInDays, parseISO, format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Lock, CreditCard, Loader2, LogOut, Zap } from 'lucide-react';
+import { AlertTriangle, Lock, Loader2, LogOut, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { gerarLinkPagamento } from '@/app/dashboard/fatura/actions';
+import { resolveSubscriptionAccess } from '@/lib/auth/subscription-rules';
 
 export default function SubscriptionGuard({
   children,
@@ -20,55 +19,49 @@ export default function SubscriptionGuard({
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [daysOverdue, setDaysOverdue] = useState(0);
   const [userData, setUserData] = useState<any>(null);
-  
+  const [blockReason, setBlockReason] = useState<string>('');
+
   const router = useRouter();
   const supabase = createClient();
 
   const checkSubscription = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       setLoading(false);
       router.push('/login');
       return;
     }
 
-    // Busca Perfil (com plan_id) e Assinatura em paralelo para performance
     const [profileRes, subRes] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, email, plan_id').eq('id', user.id).maybeSingle(),
-      supabase.from('subscriptions').select('current_period_end, status, plan_id').eq('user_id', user.id).maybeSingle()
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, status, trial_ends_at, role, company_id, can_manage_catalog, is_active, created_at, plan_id')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('subscriptions')
+        .select('status, price, plan_name, current_period_end')
+        .eq('user_id', user.id)
+        .maybeSingle(),
     ]);
 
     if (profileRes.data) setUserData(profileRes.data);
 
-    // Se não tiver assinatura (novo usuário), deixa passar ou define regra de bloqueio
-    if (!subRes.data || !subRes.data.current_period_end) {
-      setLoading(false);
-      return;
-    }
+    const access = resolveSubscriptionAccess(profileRes.data, subRes.data);
 
-    const expiryDate = parseISO(subRes.data.current_period_end);
-    const today = new Date();
-    const diff = differenceInDays(today, expiryDate);
-
-    // REGRA 1: BLOQUEIO TOTAL (Venceu há mais de 5 dias)
-    if (diff > 5 || subRes.data.status === 'blocked') {
+    if (access.isBlocked) {
       setIsBlocked(true);
-    }
-    // REGRA 2: PERÍODO DE GRAÇA (Venceu, mas está nos 5 dias de tolerância)
-    else if (diff > 0) {
-      setDaysOverdue(diff);
-      toast.error('Assinatura Vencida!', {
-        description: `Seu plano venceu há ${diff} dias. O acesso será bloqueado em breve.`,
+      setBlockReason(access.reason);
+      setDaysOverdue(Math.abs(access.daysRemainingOrOverdue));
+    } else if (access.inGracePeriod) {
+      setDaysOverdue(Math.abs(access.daysRemainingOrOverdue));
+      toast.error('Período de Teste Vencido!', {
+        description: `Seu teste expirou há ${Math.abs(access.daysRemainingOrOverdue)} dia(s). O acesso será bloqueado em breve.`,
         duration: 8000,
         icon: <AlertTriangle className="text-red-500" />,
-      });
-    }
-    // REGRA 3: AVISO PRÉVIO (Vai vencer nos próximos 5 dias)
-    else if (diff >= -5) {
-      toast.warning('Renovação Próxima', {
-        description: `Sua assinatura vence dia ${format(expiryDate, "dd 'de' MMMM", { locale: ptBR })}.`,
-        duration: 5000,
       });
     }
 
@@ -77,7 +70,7 @@ export default function SubscriptionGuard({
 
   const handleAutoPayment = async () => {
     if (!userData) {
-      toast.error("Erro ao carregar dados do usuário.");
+      toast.error('Erro ao carregar dados do usuário.');
       return;
     }
 
@@ -87,16 +80,17 @@ export default function SubscriptionGuard({
         id: userData.id,
         name: userData.full_name || 'Assinante RepVendas',
         email: userData.email,
-        plan_id: userData.plan_id // Passa o plan_id para a action buscar o preço correto
+        plan_id: userData.plan_id,
       });
 
       if (checkoutUrl) {
         window.location.href = checkoutUrl;
       } else {
-        throw new Error("Link não gerado");
+        router.push('/dashboard/fatura');
       }
     } catch (error) {
-      toast.error("Erro ao iniciar pagamento. Tente novamente.");
+      toast.error('Erro ao iniciar pagamento. Redirecionando para faturas...');
+      router.push('/dashboard/fatura');
       setIsRedirecting(false);
     }
   };
@@ -110,7 +104,6 @@ export default function SubscriptionGuard({
     void checkSubscription();
   }, []);
 
-  // TELA DE BLOQUEIO TOTAL
   if (isBlocked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
@@ -118,14 +111,14 @@ export default function SubscriptionGuard({
           <div className="w-20 h-20 bg-red-50 dark:bg-red-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-600 dark:text-red-400 shadow-inner">
             <Lock size={40} />
           </div>
-          
+
           <h1 className="text-3xl font-black text-slate-900 dark:text-white mb-3">
             Acesso Suspenso
           </h1>
-          
-          <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-            Sua assinatura expirou e o período de tolerância terminou. 
-            Para continuar acessando seus dados, ative seu plano agora.
+
+          <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed text-sm">
+            {blockReason ||
+              'Sua assinatura ou período de testes expirou e a carência terminou. Para continuar acessando seus dados e catálogos, ative seu plano agora.'}
           </p>
 
           <div className="space-y-3">
@@ -139,7 +132,7 @@ export default function SubscriptionGuard({
               ) : (
                 <>
                   <Zap size={20} className="fill-white" />
-                  Ativar Agora
+                  Ativar Assinatura Agora
                 </>
               )}
             </Button>
@@ -164,22 +157,19 @@ export default function SubscriptionGuard({
 
   return (
     <>
-      {/* Barra de aviso de período de graça (Tolerância) */}
       {daysOverdue > 0 && (
-        <div className="bg-red-600 text-white text-[10px] md:text-xs font-black text-center py-2 px-4 fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-2 shadow-lg">
+        <div className="bg-amber-600 text-white text-[10px] md:text-xs font-black text-center py-2 px-4 fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-2 shadow-lg">
           <AlertTriangle size={14} />
-          SUA ASSINATURA VENCEU HÁ {daysOverdue} DIAS. O SISTEMA SERÁ BLOQUEADO EM BREVE.
-          <button 
-            onClick={handleAutoPayment}
-            className="ml-2 bg-white text-red-600 px-2 py-0.5 rounded-md hover:bg-slate-100 transition-colors"
+          SEU PERÍODO DE TESTES EXPIROU HÁ {daysOverdue} DIA(S). REGULARIZE PARA NÃO PERDER O ACESSO.
+          <button
+            onClick={() => router.push('/dashboard/fatura')}
+            className="ml-2 bg-white text-amber-800 font-bold px-2 py-0.5 rounded-md hover:bg-slate-100 transition-colors"
           >
             PAGAR AGORA
           </button>
         </div>
       )}
-      <div className={daysOverdue > 0 ? "mt-8" : ""}>
-        {children}
-      </div>
+      <div className={daysOverdue > 0 ? 'mt-8' : ''}>{children}</div>
     </>
   );
 }

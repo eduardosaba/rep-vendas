@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  CreditCard,
   DollarSign,
   Download,
   Edit,
@@ -152,6 +153,12 @@ const MENU_ITEMS = [
     icon: SettingsIcon,
     label: 'Configurações',
     href: '/dashboard/settings',
+    exact: true,
+  },
+  {
+    icon: CreditCard,
+    label: 'Meu Plano',
+    href: '/dashboard/fatura',
     exact: true,
   },
   {

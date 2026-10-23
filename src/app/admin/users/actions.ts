@@ -1084,15 +1084,15 @@ export async function updateUserLicense(
 }
 
 // --- ACTION 6: RENOVAR ASSINATURA ---
-export async function addSubscriptionDays(userId: string, daysToAdd: number) {
+export async function addSubscriptionDays(userId: string, daysToAdd: number = 30) {
   try {
     await requireAdminPermission();
 
     const { data: currentSub } = await (supabaseAdmin as any)
       .from('subscriptions')
-      .select('current_period_end, status')
+      .select('id, current_period_end, status, plan_id, plan_name')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     let baseDate = new Date();
     if (currentSub?.current_period_end) {
@@ -1105,19 +1105,79 @@ export async function addSubscriptionDays(userId: string, daysToAdd: number) {
     baseDate.setDate(baseDate.getDate() + daysToAdd);
     const newDateIso = baseDate.toISOString();
 
-    const { error } = await (supabaseAdmin as any).from('subscriptions').upsert(
-      {
-        user_id: userId,
-        current_period_end: newDateIso,
-        status: 'active',
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
+    // Buscar plano padrão caso a subscription ainda não tenha plan_id
+    let planId = currentSub?.plan_id;
+    let planName = currentSub?.plan_name || 'Profissional';
+    if (!planId) {
+      const { data: profile } = await (supabaseAdmin as any)
+        .from('profiles')
+        .select('plan_id')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (error) throw error;
+      if (profile?.plan_id) {
+        planId = profile.plan_id;
+      } else {
+        const { data: defaultPlan } = await (supabaseAdmin as any)
+          .from('plans')
+          .select('id, name')
+          .order('price', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        planId = defaultPlan?.id;
+        planName = defaultPlan?.name || 'Profissional';
+      }
+    }
+
+    const upsertPayload: any = {
+      user_id: userId,
+      current_period_end: newDateIso,
+      status: 'active',
+      updated_at: new Date().toISOString(),
+    };
+    if (planId) upsertPayload.plan_id = planId;
+    if (planName) upsertPayload.plan_name = planName;
+
+    const { error: subError } = await (supabaseAdmin as any)
+      .from('subscriptions')
+      .upsert(upsertPayload, { onConflict: 'user_id' });
+
+    if (subError) throw subError;
+
+    // Sincronizar profiles para garantir liberação e reativação no SaaS
+    const profileUpdate: any = {
+      status: 'active',
+      is_active: true,
+      trial_ends_at: null,
+      disabled_at: null,
+      disabled_reason: null,
+      updated_at: new Date().toISOString(),
+    };
+    if (planId) profileUpdate.plan_id = planId;
+
+    const { error: profileError } = await (supabaseAdmin as any)
+      .from('profiles')
+      .update(profileUpdate)
+      .eq('id', userId);
+
+    if (profileError) {
+      logger.warn('Aviso: falha ao sincronizar profile na renovação', profileError);
+    }
+
+    // Sincronizar plan_type em settings se aplicável
+    try {
+      await (supabaseAdmin as any).from('settings').upsert({
+        user_id: userId,
+        plan_type: planName || null,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (sErr) {
+      // Ignorar caso settings falhe
+    }
 
     revalidatePath('/admin/users');
+    revalidatePath(`/admin/users/${userId}`);
+    revalidatePath('/dashboard');
     return { success: true, newDate: newDateIso };
   } catch (error: unknown) {
     logger.error('Erro addSubscriptionDays', error);

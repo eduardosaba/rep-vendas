@@ -9,6 +9,7 @@ import {
   saveOnboardingStep1,
   saveOnboardingStep2,
   saveOnboardingStep3,
+  uploadOnboardingLogo,
   finishOnboarding,
 } from '@/app/onboarding/actions';
 import {
@@ -24,8 +25,10 @@ import {
   Rocket,
   LogOut,
   Trash2,
+  Sparkles,
 } from 'lucide-react';
 import { SYSTEM_LOGO_URL } from '@/lib/constants';
+import { trackEvent } from '@/lib/analytics';
 
 interface OnboardingFormProps {
   userId: string;
@@ -95,6 +98,16 @@ export function OnboardingForm({
     }
     if (initialFullName && !storeName) {
       setStoreName(initialFullName);
+      if (!slug) {
+        const cleanSlug = initialFullName
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-');
+        setSlug(cleanSlug);
+      }
     }
   }, [initialFullName]);
 
@@ -184,34 +197,33 @@ export function OnboardingForm({
     }
     setLoading(true);
     try {
-      let logoUrl: string | null = null;
+      let logoUrl: string | null = initialLogoUrl || null;
       if (logoFile) {
-        const fileExt = logoFile.name.split('.').pop() || 'png';
-        const filePath = `public/${userId}/branding/logo-${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(filePath, logoFile, { upsert: true });
-
-        if (uploadError) {
-          console.error('[OnboardingStep3] Erro ao enviar logomarca:', uploadError);
-          toast.warning(`Aviso ao salvar logo: ${uploadError.message}. O catálogo continuará com a logo padrão.`);
+        const formData = new FormData();
+        formData.append('logo', logoFile);
+        const uploadRes = await uploadOnboardingLogo(formData);
+        if (uploadRes.success && uploadRes.publicUrl) {
+          logoUrl = uploadRes.publicUrl;
         } else {
-          const { data } = await supabase.storage
-            .from('product-images')
-            .getPublicUrl(filePath);
-          logoUrl = data?.publicUrl || null;
+          console.warn('[OnboardingStep3] Aviso ao enviar logomarca:', uploadRes.error);
+          toast.warning(`Aviso ao salvar logo: ${uploadRes.error || 'Falha no envio'}. Continuando.`);
         }
       }
 
-      await saveOnboardingStep3({
+      const effectiveSlug = slug || storeName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const res = await saveOnboardingStep3({
         storeName,
-        slug,
+        slug: effectiveSlug,
         primaryColor,
         logoUrl,
         phone,
         email,
         fullName,
       });
+
+      if (res?.slug) {
+        setSlug(res.slug);
+      }
       setStep(4);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao salvar configurações do catálogo');
@@ -225,11 +237,14 @@ export function OnboardingForm({
     setLoading(true);
     try {
       await finishOnboarding();
+      trackEvent('onboarding_completed', {
+        destination: targetRoute,
+        has_custom_logo: Boolean(logoFile || logoPreview),
+      });
       toast.success('Configuração concluída com sucesso!');
       window.location.href = targetRoute;
     } catch (err: any) {
       toast.error(err.message || 'Erro ao finalizar onboarding');
-    } finally {
       setLoading(false);
     }
   };
@@ -540,8 +555,15 @@ export function OnboardingForm({
           {step === 4 && (
             <div className="animate-in slide-in-from-right fade-in duration-300 py-2 space-y-5">
               <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3 shadow-inner">
-                  <Rocket size={36} />
+                <div className="mb-4 flex justify-center">
+                  <img
+                    src={SYSTEM_LOGO_URL}
+                    alt="Rep-Vendas"
+                    className="h-12 sm:h-14 w-auto object-contain"
+                  />
+                </div>
+                <div className="mx-auto w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3 shadow-inner">
+                  <Rocket size={28} />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900">Seu RepVendas está pronto!</h2>
                 <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
@@ -553,51 +575,77 @@ export function OnboardingForm({
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
                 <div className="font-bold text-slate-800 flex items-center justify-between">
                   <span>Seu Catálogo Digital está Ativo:</span>
-                  {slug && (
-                    <a
-                      href={`/catalogo/${slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 font-semibold hover:underline flex items-center gap-1 text-[11px]"
-                    >
-                      Abrir Catálogo ↗
-                    </a>
-                  )}
+                  <a
+                    href={`/catalogo/${slug || 'catalogo'}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 font-semibold hover:underline flex items-center gap-1 text-[11px]"
+                  >
+                    Abrir Catálogo ↗
+                  </a>
                 </div>
                 <div className="text-slate-600 font-mono bg-white p-2.5 rounded-xl border text-center break-all text-xs font-semibold text-indigo-700 shadow-2xs">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/catalogo/${slug}` : `repvendas.com/catalogo/${slug}`}
+                  {typeof window !== 'undefined'
+                    ? `${window.location.origin}/catalogo/${slug || 'catalogo'}`
+                    : `repvendas.com/catalogo/${slug || 'catalogo'}`}
                 </div>
               </div>
 
-              {/* Guia Rápido de Importação de Produtos */}
-              <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 text-xs space-y-3">
-                <h4 className="font-bold text-amber-900 flex items-center gap-2 text-sm">
-                  <UploadCloud size={18} className="text-amber-600" /> Guia Rápido: Como Importar seus Produtos
+              {/* Card de Time-to-Value: 16 Armações no Slug do Usuário */}
+              <div className="bg-gradient-to-br from-[#0D1B2C] to-[#1E3048] text-white rounded-2xl p-5 shadow-lg space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#A46431]/30 border border-[#A46431]/50 flex items-center justify-center text-[#A46431] shrink-0">
+                      <Sparkles size={20} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#A46431] block">
+                        Catálogo Ativo no Seu Link
+                      </span>
+                      <h4 className="font-extrabold text-sm sm:text-base text-white">
+                        16 Armações Demonstrativas Carregadas!
+                      </h4>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Para você começar a testar imediatamente, seu catálogo oficial em <strong className="text-white font-mono">/catalogo/{slug || 'catalogo'}</strong> já está ativo com 16 armações ópticas prontas (filtros, marcas, preços e carrinho com fechamento no seu WhatsApp).
+                </p>
+
+                <div className="pt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleFinishOnboarding(`/catalogo/${slug || 'catalogo'}`)}
+                    className="inline-flex items-center gap-2 bg-[#A46431] hover:bg-[#8e5427] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md cursor-pointer"
+                  >
+                    Abrir Meu Catálogo com 16 Armações <ArrowRight size={14} />
+                  </button>
+                  <a
+                    href="/catalogo/demo"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl transition-colors"
+                  >
+                    Ver Demonstração Global
+                  </a>
+                </div>
+              </div>
+
+              {/* Guia Rápido de Ativação de Produtos */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-3">
+                <h4 className="font-bold text-slate-800 flex items-center gap-2 text-xs uppercase tracking-wider">
+                  <UploadCloud size={16} className="text-[#A46431]" /> Próximos Passos para Ativar seu Mix
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px] text-amber-950">
-                  <div className="bg-white p-2.5 rounded-xl border border-amber-200/80 shadow-2xs">
-                    <div className="font-bold text-amber-700 mb-0.5">1. Preparar Lista ou Fotos</div>
-                    <span>Organize seus produtos em planilha Excel/CSV ou fotos.</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[11px] text-slate-700">
+                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                    <div className="font-bold text-[#0D1B2C] mb-1">Opção A: Planilha Excel</div>
+                    <span>Importe centenas de armações e referências de uma só vez pelo importador em massa.</span>
                   </div>
-                  <div className="bg-white p-2.5 rounded-xl border border-amber-200/80 shadow-2xs">
-                    <div className="font-bold text-amber-700 mb-0.5">2. Importador Visual</div>
-                    <span>Acesse <strong>Produtos &gt; Importação Visual</strong> no painel.</span>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                    <div className="font-bold text-[#0D1B2C] mb-1">Opção B: Cadastro Manual</div>
+                    <span>Adicione suas primeiras peças uma a uma com fotos e medidas técnicas.</span>
                   </div>
-                  <div className="bg-white p-2.5 rounded-xl border border-amber-200/80 shadow-2xs">
-                    <div className="font-bold text-amber-700 mb-0.5">3. Publicar Catálogo</div>
-                    <span>Seus itens ficam disponíveis para pedidos imediatamente.</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Informação sobre Mais Configurações */}
-              <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
-                <Store size={18} className="text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold block">Quer personalizar ainda mais?</span>
-                  <span className="text-[11px] text-blue-800">
-                    Você pode incluir banners promocionais, tabela de preços, senha para catálogo e dados de pagamento em <strong>Painel &gt; Configurações</strong>.
-                  </span>
                 </div>
               </div>
             </div>
@@ -661,32 +709,32 @@ export function OnboardingForm({
               <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full">
                 <button
                   type="button"
-                  onClick={() => handleFinishOnboarding('/dashboard/products/import-visual')}
+                  onClick={() => handleFinishOnboarding(`/catalogo/${slug}`)}
                   disabled={loading}
-                  className="w-full sm:flex-1 bg-amber-600 hover:bg-amber-700 text-white py-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
+                  className="w-full sm:flex-1 bg-[#0D1B2C] hover:bg-slate-800 text-white py-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
                 >
-                  {loading ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
-                  Importar Produtos
+                  {loading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} className="text-[#A46431]" />}
+                  Abrir Meu Catálogo (16 Armações)
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleFinishOnboarding('/dashboard/settings')}
+                  onClick={() => handleFinishOnboarding('/dashboard/products/import-massa')}
                   disabled={loading}
-                  className="w-full sm:flex-1 bg-slate-800 hover:bg-slate-900 text-white py-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
+                  className="w-full sm:flex-1 bg-[#A46431] hover:bg-[#8e5427] text-white py-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
                 >
-                  {loading ? <Loader2 size={15} className="animate-spin" /> : <Store size={15} />}
-                  Mais Configurações
+                  {loading ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
+                  Importar Meus Produtos
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleFinishOnboarding('/dashboard')}
                   disabled={loading}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
+                  className="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5"
                 >
                   {loading ? <Loader2 size={15} className="animate-spin" /> : null}
-                  Painel Geral <ArrowRight size={15} />
+                  Ir ao Painel <ArrowRight size={15} />
                 </button>
               </div>
             )}

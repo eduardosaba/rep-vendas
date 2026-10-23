@@ -86,14 +86,29 @@ function LogoImage({ src, alt }: { src?: any; alt?: string }) {
   const resolvedSrc = useMemo(() => {
     if (!src) return null;
     try {
+      let raw = '';
       if (typeof src === 'object' && src !== null) {
-        return src.variants?.desktop?.url || src.original || src.url || null;
+        raw = src.variants?.desktop?.url || src.original || src.url || '';
+      } else {
+        raw = String(src).trim();
       }
-      return String(src).trim() || null;
+      if (!raw) return null;
+      if (raw.startsWith('http') || raw.startsWith('data:') || raw.startsWith('/api/')) {
+        return raw;
+      }
+      if (raw.startsWith('/')) {
+        return raw;
+      }
+      // Se for caminho do storage (ex: userId/branding/... ou public/...)
+      return `/api/storage-image?path=${encodeURIComponent(raw)}`;
     } catch (e) {
       return null;
     }
   }, [src]);
+
+  useEffect(() => {
+    setErrored(false);
+  }, [resolvedSrc]);
 
   if (!resolvedSrc || errored) {
     const initials = String(alt || '')

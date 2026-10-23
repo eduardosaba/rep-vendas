@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { resolveSubscriptionAccess } from '@/lib/auth/subscription-rules';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,6 +19,16 @@ export async function GET() {
         {
           ok: false,
           profile: null,
+          subscription: null,
+          access: {
+            status: 'UNKNOWN',
+            isAllowed: false,
+            isBlocked: true,
+            inGracePeriod: false,
+            daysRemainingOrOverdue: 0,
+            reason: 'Usuário não autenticado.',
+            expiryDate: null,
+          },
           error: 'unauthenticated',
         },
         {
@@ -31,18 +42,27 @@ export async function GET() {
       );
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('status, trial_ends_at, role, company_id, can_manage_catalog')
-      .eq('id', user.id)
-      .maybeSingle();
+    const [profileRes, subRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, status, trial_ends_at, role, company_id, can_manage_catalog, is_active, created_at')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('subscriptions')
+        .select('status, price, plan_name, current_period_end')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+    ]);
 
-    if (profileError) {
+    if (profileRes.error) {
       return NextResponse.json(
         {
           ok: false,
           profile: null,
-          error: profileError.message,
+          subscription: null,
+          access: null,
+          error: profileRes.error.message,
         },
         {
           status: 500,
@@ -55,10 +75,16 @@ export async function GET() {
       );
     }
 
+    const profile = profileRes.data || null;
+    const subscription = subRes.data || null;
+    const access = resolveSubscriptionAccess(profile, subscription);
+
     return NextResponse.json(
       {
         ok: true,
-        profile: profile || null,
+        profile,
+        subscription,
+        access,
       },
       {
         headers: {
@@ -75,6 +101,8 @@ export async function GET() {
       {
         ok: false,
         profile: null,
+        subscription: null,
+        access: null,
         error: error?.message || 'internal',
       },
       {

@@ -1642,6 +1642,14 @@ export function StoreProvider({
       )
         return finalPath;
 
+      // Se for asset público local da aplicação (/repvendas.png, /logo.png, etc)
+      if (finalPath.startsWith('/') && !finalPath.startsWith('/api/storage-image')) {
+        return finalPath;
+      }
+      if (finalPath.startsWith('data:')) {
+        return finalPath;
+      }
+
       let path = finalPath;
       if (finalPath.includes('/storage/v1/object/public/')) {
         path = finalPath.split('/storage/v1/object/public/')[1];
@@ -1731,6 +1739,28 @@ export function StoreProvider({
       if (!plain || plain.length === 0) {
         toast.error('Digite uma senha válida');
         return false;
+      }
+
+      // Se for catálogo de demonstração, validação instantânea
+      const isDemoStore =
+        (store as any).user_id === 'demo-store' ||
+        (store as any).user_id === 'demo' ||
+        (store as any).catalog_slug === 'demo' ||
+        (store as any).price_password === '123456' ||
+        (store as any).price_password === 'demo';
+
+      if (isDemoStore) {
+        const allowed = ['demo', '123456', 'repvendas', 'admin'];
+        if (allowed.includes(plain.toLowerCase())) {
+          setShowPrices(true);
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('priceAccessGranted', 'true');
+            }
+          } catch { }
+          toast.success('Preços desbloqueados!');
+          return true;
+        }
       }
 
       const hasPasswordConfigured =

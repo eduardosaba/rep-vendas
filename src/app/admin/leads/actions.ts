@@ -104,6 +104,59 @@ export async function getAdminLeadsAction(
 
     const supabaseAdmin = createAdminClient();
 
+    // Sincronização idempotente: garante que perfis de representantes registrados sem lead (cadastros diretos) sejam indexados no CRM
+    try {
+      const { data: missingProfiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, full_name, email, phone, role, status, created_at')
+        .in('role', ['rep', 'representative'])
+        .not('email', 'is', null);
+
+      if (missingProfiles && missingProfiles.length > 0) {
+        const { data: existingLeads } = await supabaseAdmin
+          .from('leads')
+          .select('user_id, email');
+
+        const existingUserIds = new Set(
+          (existingLeads || []).map((l) => l.user_id).filter(Boolean)
+        );
+        const existingEmails = new Set(
+          (existingLeads || [])
+            .map((l) => l.email?.toLowerCase().trim())
+            .filter(Boolean)
+        );
+
+        const toInsert: any[] = [];
+        for (const p of missingProfiles) {
+          const normEmail = p.email?.toLowerCase().trim();
+          if (!normEmail) continue;
+          if (!existingUserIds.has(p.id) && !existingEmails.has(normEmail)) {
+            toInsert.push({
+              name: p.full_name || normEmail.split('@')[0],
+              email: normEmail,
+              whatsapp: p.phone || null,
+              status: p.status === 'active' ? 'converted' : 'account_created',
+              source: 'direct_signup',
+              user_id: p.id,
+              metadata: {
+                signup_channel: 'direct',
+                role: p.role,
+                auto_synced: true,
+              },
+              created_at: p.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }
+
+        if (toInsert.length > 0) {
+          await supabaseAdmin.from('leads').insert(toInsert);
+        }
+      }
+    } catch (syncErr) {
+      console.warn('[getAdminLeadsAction:sync-reps:warning]', syncErr);
+    }
+
     const page = Math.max(1, params.page || 1);
     const pageSize = Math.min(100, Math.max(10, params.pageSize || 20));
     const offset = (page - 1) * pageSize;
@@ -338,3 +391,255 @@ export async function deleteLeadAction(leadId: string): Promise<{ success: boole
     return { success: false, error: err?.message || 'Erro ao remover lead.' };
   }
 }
+
+export interface LeadDossierPayload {
+  notes?: string;
+  objection?: string;
+  lossReason?: string;
+  nextContactDate?: string;
+  nextAction?: string;
+  commercialStage?: 'novo' | 'em_contato' | 'demonstracao' | 'negociacao' | 'convertido' | 'perdido';
+}
+
+/**
+ * Atualiza anotações comerciais, objeções e planejamento de contato no prontuário do lead (armazena em metadata JSONB)
+ */
+export async function saveLeadDossierAction(
+  leadId: string,
+  payload: LeadDossierPayload
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { user } = await requireAdminPermission();
+
+    if (!leadId || typeof leadId !== 'string') {
+      return { success: false, error: 'ID de lead inválido.' };
+    }
+
+    const supabaseAdmin = createAdminClient();
+
+    // 1. Carrega metadata atual
+    const { data: lead, error: fetchErr } = await supabaseAdmin
+      .from('leads')
+      .select('id, metadata, status')
+      .eq('id', leadId)
+      .single();
+
+    if (fetchErr || !lead) {
+      return { success: false, error: 'Lead não encontrado.' };
+    }
+
+    const currentMeta = lead.metadata || {};
+    const notesHistory = Array.isArray(currentMeta.notesHistory) ? [...currentMeta.notesHistory] : [];
+
+    if (payload.notes && payload.notes.trim()) {
+      notesHistory.unshift({
+        id: `note-${Date.now()}`,
+        text: payload.notes.trim(),
+        author: user.email || 'Admin',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    const updatedMetadata = {
+      ...currentMeta,
+      notesHistory,
+      lastNote: payload.notes?.trim() || currentMeta.lastNote || null,
+      objection: payload.objection || currentMeta.objection || null,
+      lossReason: payload.lossReason || currentMeta.lossReason || null,
+      nextContactDate: payload.nextContactDate || currentMeta.nextContactDate || null,
+      nextAction: payload.nextAction || currentMeta.nextAction || null,
+      commercialStage: payload.commercialStage || currentMeta.commercialStage || 'novo',
+      lastDossierUpdate: new Date().toISOString(),
+      lastUpdatedBy: user.email || user.id,
+    };
+
+    // Mapeia stage comercial para o status do lead se aplicável
+    let mappedStatus = lead.status;
+    if (payload.commercialStage === 'convertido') {
+      mappedStatus = 'converted';
+    } else if (payload.commercialStage === 'perdido') {
+      mappedStatus = 'discarded';
+    } else if (['em_contato', 'demonstracao', 'negociacao'].includes(payload.commercialStage || '')) {
+      mappedStatus = 'in_contact';
+    }
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('leads')
+      .update({
+        metadata: updatedMetadata,
+        status: mappedStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', leadId);
+
+    if (updateErr) {
+      throw new Error(updateErr.message);
+    }
+
+    revalidatePath('/admin/leads');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao salvar prontuário do lead.' };
+  }
+}
+
+/**
+ * Extensão controlada de período de teste para recuperação de leads
+ * Segurança: Não toca em clientes pagantes ativos (com plano comercial pago)
+ */
+export async function extendLeadTrialAction(
+  leadId: string,
+  daysToAdd: number = 7,
+  reason: string = 'Recuperação de lead para teste assistido'
+): Promise<{ success: boolean; newExpiration?: string; error?: string }> {
+  try {
+    const { user } = await requireAdminPermission();
+
+    if (!leadId || typeof leadId !== 'string') {
+      return { success: false, error: 'ID de lead inválido.' };
+    }
+
+    if (daysToAdd < 1 || daysToAdd > 30) {
+      return { success: false, error: 'O período adicional deve ser entre 1 e 30 dias.' };
+    }
+
+    if (!reason || reason.trim().length < 5) {
+      return { success: false, error: 'Por favor, informe a justificativa da extensão do teste.' };
+    }
+
+    const supabaseAdmin = createAdminClient();
+
+    // 1. Busca o lead e o usuário vinculado
+    const { data: lead, error: leadErr } = await supabaseAdmin
+      .from('leads')
+      .select('id, user_id, email, metadata')
+      .eq('id', leadId)
+      .single();
+
+    if (leadErr || !lead) {
+      return { success: false, error: 'Lead não encontrado.' };
+    }
+
+    if (!lead.user_id) {
+      return {
+        success: false,
+        error: 'Este lead ainda não criou uma conta de usuário na plataforma. A extensão só pode ser aplicada a usuários cadastrados.',
+      };
+    }
+
+    // 2. Proteção Crítica: Verifica assinatura existente e perfil do usuário
+    const [{ data: sub }, { data: profile }] = await Promise.all([
+      supabaseAdmin
+        .from('subscriptions')
+        .select('id, status, price, plan_name, current_period_end')
+        .eq('user_id', lead.user_id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('profiles')
+        .select('id, status, role, company_id')
+        .eq('id', lead.user_id)
+        .maybeSingle(),
+    ]);
+
+    // Se o usuário já é um cliente pagante ativo ou membro de equipe corporativa, BLOQUEIA alteração!
+    if (
+      (sub && sub.status === 'active' && Number(sub.price) > 0) ||
+      (profile && profile.status === 'active') ||
+      (profile && Boolean(profile.company_id) && ['rep', 'representative', 'representante'].includes(String(profile.role || '').toLowerCase()))
+    ) {
+      return {
+        success: false,
+        error: 'Este usuário possui status de cliente ou membro corporativo ativo! A extensão de teste gratuito foi estritamente bloqueada para proteger o assinante.',
+      };
+    }
+
+    // 3. Calcula nova data de expiração (sempre a partir de HOJE se já expirou)
+    const now = new Date();
+    const currentEnd = sub?.current_period_end ? new Date(sub.current_period_end) : null;
+    let baseDate = now;
+
+    if (currentEnd && currentEnd > now) {
+      baseDate = currentEnd;
+    }
+
+    const newExpiration = new Date(baseDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+    const newExpirationIso = newExpiration.toISOString();
+
+    // 4. Atualiza subscription para status 'trial' com nova data
+    const { error: subErr } = await supabaseAdmin
+      .from('subscriptions')
+      .upsert(
+        {
+          user_id: lead.user_id,
+          status: 'trial',
+          plan_name: 'Trial (Estendido)',
+          current_period_end: newExpirationIso,
+          updated_at: now.toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (subErr) {
+      return { success: false, error: `Falha ao atualizar assinatura: ${subErr.message}` };
+    }
+
+    // 5. Atualiza profiles.status e profiles.trial_ends_at
+    const { error: profileErr } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        status: 'trial',
+        trial_ends_at: newExpirationIso,
+        updated_at: now.toISOString(),
+      })
+      .eq('id', lead.user_id);
+
+    if (profileErr) {
+      return { success: false, error: `Falha ao atualizar perfil: ${profileErr.message}` };
+    }
+
+    // 6. Registra trilha de auditoria no metadata do lead
+    const currentMeta = lead.metadata || {};
+    const trialExtensions = Array.isArray(currentMeta.trialExtensions)
+      ? [...currentMeta.trialExtensions]
+      : [];
+
+    trialExtensions.push({
+      extendedAt: now.toISOString(),
+      extendedBy: user.email || user.id,
+      daysAdded: daysToAdd,
+      reason: reason.trim(),
+      newExpiration: newExpirationIso,
+    });
+
+    const { error: leadUpdateErr } = await supabaseAdmin
+      .from('leads')
+      .update({
+        metadata: {
+          ...currentMeta,
+          trialExtensions,
+          lastTrialExtension: {
+            date: now.toISOString(),
+            by: user.email || user.id,
+            days: daysToAdd,
+          },
+        },
+        updated_at: now.toISOString(),
+      })
+      .eq('id', leadId);
+
+    if (leadUpdateErr) {
+      return { success: false, error: `Falha ao registrar auditoria de extensão: ${leadUpdateErr.message}` };
+    }
+
+    revalidatePath('/admin/leads');
+    revalidatePath('/admin/users');
+
+    return {
+      success: true,
+      newExpiration: newExpirationIso,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao estender período de teste.' };
+  }
+}
+

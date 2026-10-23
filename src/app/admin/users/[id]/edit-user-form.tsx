@@ -15,6 +15,7 @@ import {
   reactivateUser,
   getUserDeletionImpact,
   permanentlyDeleteUser,
+  addSubscriptionDays,
 } from '../actions';
 import {
   Save,
@@ -25,6 +26,7 @@ import {
   Loader2,
   UserX,
   UserCheck,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -171,6 +173,33 @@ export function EditUserForm({ userId, initialData, availablePlans, availableCom
       toast.error('Erro inesperado ao reativar.', { id: toastId });
     } finally {
       setIsReactivating(false);
+    }
+  };
+
+  // Handler Renovar 30 Dias Imediatamente
+  const [isRenewing, setIsRenewing] = useState(false);
+  const handleRenew30Days = async () => {
+    setIsRenewing(true);
+    const toastId = toast.loading('Renovando assinatura por 30 dias...');
+    try {
+      const res = await addSubscriptionDays(userId, 30);
+      if (res.success) {
+        toast.success('Assinatura renovada por +30 dias com sucesso!', { id: toastId });
+        if (res.newDate) {
+          const dateStr = res.newDate.split('T')[0];
+          const endsAtInput = licenseFormRef.current?.elements.namedItem('ends_at') as HTMLInputElement | null;
+          if (endsAtInput) endsAtInput.value = dateStr;
+          const statusSelect = licenseFormRef.current?.elements.namedItem('status') as HTMLSelectElement | null;
+          if (statusSelect) statusSelect.value = 'active';
+        }
+        router.refresh();
+      } else {
+        toast.error(res.error || 'Erro ao renovar assinatura', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error('Erro ao renovar: ' + (err.message || 'Erro inesperado'), { id: toastId });
+    } finally {
+      setIsRenewing(false);
     }
   };
 
@@ -386,11 +415,27 @@ export function EditUserForm({ userId, initialData, availablePlans, availableCom
 
       {/* CARD 2: PLANO & LICENÇA */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 flex items-center gap-2">
-          <CreditCard className="text-indigo-600" size={18} />
-          <h2 className="font-semibold text-gray-900 dark:text-white text-sm">
-            Plano & Licença
-          </h2>
+        <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CreditCard className="text-indigo-600" size={18} />
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm">
+              Plano & Licença
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={handleRenew30Days}
+            disabled={isRenewing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50"
+            title="Adicionar 30 dias de acesso e ativar plano imediatamente"
+          >
+            {isRenewing ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Sparkles size={13} className="text-emerald-600 dark:text-emerald-400" />
+            )}
+            <span>Renovar +30 Dias</span>
+          </button>
         </div>
         <form id="license-form" ref={licenseFormRef} action={licenseAction} className="p-6 grid gap-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -443,7 +488,20 @@ export function EditUserForm({ userId, initialData, availablePlans, availableCom
               />
             </div>
           </div>
-          <div className="flex justify-end pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleRenew30Days}
+              disabled={isRenewing}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 rounded-lg transition-all active:scale-95 disabled:opacity-50"
+            >
+              {isRenewing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Sparkles size={14} className="text-emerald-600 dark:text-emerald-400" />
+              )}
+              <span>⚡ Renovar 30 Dias Agora</span>
+            </button>
             <SubmitButton label="Salvar Assinatura" />
           </div>
         </form>

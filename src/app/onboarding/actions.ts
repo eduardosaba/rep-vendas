@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { syncPublicCatalog } from '@/lib/sync-public-catalog';
 import { revalidatePath } from 'next/cache';
 import { SlugService } from '@/shared/slug/SlugService';
+import { seedDemoProductsForUser } from '@/lib/demo-catalog-seeder';
 
 export type Step1Data = {
   fullName: string;
@@ -246,6 +247,47 @@ export async function saveOnboardingStep2(data: Step2Data) {
 }
 
 /**
+ * UPLOAD DE LOGOMARCA VIA SERVICE ROLE (Evita problemas de RLS no bucket product-images)
+ */
+export async function uploadOnboardingLogo(formData: FormData): Promise<{ success: boolean; publicUrl: string; error?: string }> {
+  try {
+    const file = formData.get('logo') as File | null;
+    if (!file) {
+      return { success: false, publicUrl: '', error: 'Nenhum arquivo enviado' };
+    }
+
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+    const adminDb = createAdminClient();
+
+    const fileExt = (file.name.split('.').pop() || 'png').toLowerCase();
+    const fileName = `logo-${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/branding/${fileName}`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const { error: uploadError } = await adminDb.storage
+      .from('product-images')
+      .upload(filePath, buffer, {
+        contentType: file.type || 'image/png',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('[uploadOnboardingLogo] Erro no upload:', uploadError);
+      return { success: false, publicUrl: '', error: uploadError.message };
+    }
+
+    const { data } = adminDb.storage.from('product-images').getPublicUrl(filePath);
+    return { success: true, publicUrl: data.publicUrl };
+  } catch (err: any) {
+    console.error('[uploadOnboardingLogo] Exceção:', err);
+    return { success: false, publicUrl: '', error: err.message || 'Erro ao processar envio da logomarca' };
+  }
+}
+
+/**
  * ETAPA 3 — Seu Catálogo (Configuração da Presença Comercial e Branding)
  */
 export async function saveOnboardingStep3(data: Step3Data) {
@@ -256,9 +298,9 @@ export async function saveOnboardingStep3(data: Step3Data) {
   const safeStoreName = (data.storeName || '').trim() || 'Minha Loja Digital';
   const rawSlug = (data.slug || '').trim() || SlugService.generate(safeStoreName);
 
-  // Garantir Slug Única checando tanto settings quanto public_catalogs
+  // Garantir Slug Única checando settings, public_catalogs e profiles
   const safeSlug = await SlugService.ensureUnique(rawSlug, async (candidate) => {
-    const [{ data: existingSettings }, { data: existingPub }] = await Promise.all([
+    const [{ data: existingSettings }, { data: existingPub }, { data: existingProfile }] = await Promise.all([
       adminDb
         .from('settings')
         .select('user_id')
@@ -269,22 +311,29 @@ export async function saveOnboardingStep3(data: Step3Data) {
         .select('user_id')
         .eq('catalog_slug', candidate)
         .maybeSingle(),
+      adminDb
+        .from('profiles')
+        .select('id')
+        .eq('slug', candidate)
+        .maybeSingle(),
     ]);
 
     const settingsTaken = Boolean(existingSettings && existingSettings.user_id !== user.id);
     const pubTaken = Boolean(existingPub && existingPub.user_id !== user.id);
-    return settingsTaken || pubTaken;
+    const profileTaken = Boolean(existingProfile && existingProfile.id !== user.id);
+    return settingsTaken || pubTaken || profileTaken;
   });
 
   const { data: profile } = await adminDb
     .from('profiles')
-    .select('phone, email, organization_id, company_id, role, full_name')
+    .select('phone, email, organization_id, company_id, role, full_name, avatar_url')
     .eq('id', user.id)
     .single();
 
   const { normalizePhone } = await import('@/lib/phone');
   const safePhone = normalizePhone(data.phone || profile?.phone || '');
   const safeEmail = (data.email || profile?.email || user.email || '').trim().toLowerCase();
+  const safeLogoUrl = data.logoUrl || profile?.avatar_url || null;
 
   // 1. Upsert em Settings com slug, phone, email, nome e branding
   const { error: settingsError } = await adminDb.from('settings').upsert(
@@ -295,7 +344,7 @@ export async function saveOnboardingStep3(data: Step3Data) {
       phone: safePhone || null,
       catalog_slug: safeSlug,
       primary_color: data.primaryColor || '#b9722e',
-      logo_url: data.logoUrl || null,
+      logo_url: safeLogoUrl,
       is_active: true,
       updated_at: new Date().toISOString(),
     },
@@ -306,44 +355,57 @@ export async function saveOnboardingStep3(data: Step3Data) {
     throw new Error(`Falha ao salvar configurações da loja: ${settingsError.message}`);
   }
 
-  // 2. Sincronizar profiles.slug, phone, whatsapp, email
+  // 2. Sincronizar profiles: slug, avatar_url, phone, whatsapp, email
+  const profileUpdatePayload: Record<string, any> = {
+    slug: safeSlug,
+    phone: safePhone || undefined,
+    whatsapp: safePhone || undefined,
+    email: safeEmail || undefined,
+    onboarding_step: 4,
+    updated_at: new Date().toISOString(),
+  };
+  if (safeLogoUrl) {
+    profileUpdatePayload.avatar_url = safeLogoUrl;
+  }
+
   const { error: profileError } = await adminDb
     .from('profiles')
-    .update({
-      slug: safeSlug,
-      phone: safePhone || undefined,
-      whatsapp: safePhone || undefined,
-      email: safeEmail || undefined,
-      onboarding_step: 4,
-      updated_at: new Date().toISOString(),
-    })
+    .update(profileUpdatePayload)
     .eq('id', user.id);
 
   if (profileError) {
     console.warn('[saveOnboardingStep3] Erro ao atualizar slug no perfil:', profileError.message);
   }
 
-  // 3. Se houver organização vinculada, atualizar o slug e nome da organização
+  // 3. Se houver organização vinculada, atualizar o slug, nome e logo
   if (profile?.organization_id) {
+    const orgUpdatePayload: Record<string, any> = {
+      slug: safeSlug,
+      name: safeStoreName,
+      updated_at: new Date().toISOString(),
+    };
+    if (safeLogoUrl) {
+      orgUpdatePayload.logo_url = safeLogoUrl;
+    }
     await adminDb
       .from('organizations')
-      .update({
-        slug: safeSlug,
-        name: safeStoreName,
-        updated_at: new Date().toISOString(),
-      })
+      .update(orgUpdatePayload)
       .eq('id', profile.organization_id);
   }
 
   // 4. Se houver empresa (companies) vinculada no perfil (apenas distribuidora), atualizar
   if (profile?.company_id && (profile?.role === 'admin_company' || profile?.role === 'distributor')) {
+    const compUpdatePayload: Record<string, any> = {
+      slug: safeSlug,
+      name: safeStoreName,
+      updated_at: new Date().toISOString(),
+    };
+    if (safeLogoUrl) {
+      compUpdatePayload.logo_url = safeLogoUrl;
+    }
     await adminDb
       .from('companies')
-      .update({
-        slug: safeSlug,
-        name: safeStoreName,
-        updated_at: new Date().toISOString(),
-      })
+      .update(compUpdatePayload)
       .eq('id', profile.company_id);
   }
 
@@ -351,12 +413,19 @@ export async function saveOnboardingStep3(data: Step3Data) {
   await syncPublicCatalog(user.id, {
     slug: safeSlug,
     store_name: safeStoreName,
-    logo_url: data.logoUrl || undefined,
+    logo_url: safeLogoUrl || undefined,
     primary_color: data.primaryColor || '#b9722e',
     phone: safePhone,
     email: safeEmail,
     is_active: true,
   });
+
+  // 6. Inicializar com as 16 armações de demonstração para que o catálogo já funcione imediatamente
+  try {
+    await seedDemoProductsForUser(user.id, profile?.organization_id, profile?.company_id);
+  } catch (seedErr) {
+    console.warn('[saveOnboardingStep3] Erro não-crítico ao inicializar produtos de demo:', seedErr);
+  }
 
   return { success: true, slug: safeSlug, nextStep: 4 };
 }

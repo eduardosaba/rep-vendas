@@ -6,6 +6,8 @@ import { getPublicCatalog } from '@/lib/catalog';
 import { normalizeCatalogSlug, resolvePublicCatalogContext } from '@/lib/resolve-context';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { headers } from 'next/headers';
+import BlockedCatalogModal from '@/components/catalogo/BlockedCatalogModal';
+import { checkCatalogAccessStatus } from '@/lib/auth/subscription-rules';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -178,6 +180,28 @@ export default async function Page({ params }: PageProps) {
 
   companyEffective.company_pages = companyPages || [];
   companyEffective.user_id = companyEffective.user_id || (companyBase as any).user_id || ownerUserId || (publicCatalogSettings as any)?.user_id || String((representative as any)?.id || companyBase.id);
+
+  const clientToUse = admin || supabase;
+  const accessCheck = await checkCatalogAccessStatus(
+    {
+      ownerUserId,
+      companyId: company.id,
+      representativeId: representative.id,
+      slug: normalizedCompanySlug,
+    },
+    clientToUse
+  );
+
+  if (accessCheck.isBlocked) {
+    return (
+      <div className="relative min-h-screen">
+        <BlockedCatalogModal
+          storeName={companyEffective.name || representative.full_name}
+          catalogSlug={`${normalizedCompanySlug}/${normalizedRepSlug}`}
+        />
+      </div>
+    );
+  }
 
   const isRichCatalog = companyEffective.type === 'distribuidora' || !!companyEffective.headline;
   const catalogData = await getPublicCatalog(String(company.id), String(representative.id));

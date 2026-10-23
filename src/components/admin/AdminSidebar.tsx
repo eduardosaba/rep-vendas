@@ -23,10 +23,14 @@ import {
   ToggleLeft,
   UserCheck,
   Users,
+  Sliders,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+
+import { SYSTEM_LOGO_URL } from '@/lib/constants';
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -94,6 +98,16 @@ export default function AdminSidebar({
       icon: ShoppingBag,
     },
     { label: 'Assinaturas', href: '/admin/licenses', icon: CreditCard },
+    {
+      label: 'Gateways de Pagamento',
+      href: '/admin/financeiro/integracoes',
+      icon: Sliders,
+    },
+    {
+      label: 'Testes de Integração',
+      href: '/admin/financeiro/testes',
+      icon: Zap,
+    },
     {
       label: 'Fechamento Mensal',
       href: '/admin/financeiro/fechamento',
@@ -304,15 +318,9 @@ export default function AdminSidebar({
           className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}
         >
           <img
-            src="https://aawghxjbipcqefmikwby.supabase.co/storage/v1/object/public/logos/logos/repvendas.svg"
+            src={SYSTEM_LOGO_URL}
             alt="RepVendas"
             className="h-6 w-auto object-contain"
-            onError={(e) => {
-              try {
-                (e.currentTarget as HTMLImageElement).src =
-                  '/images/default-logo.png';
-              } catch (err) {}
-            }}
           />
           {!isCollapsed && (
             <div className="flex flex-col text-[10px] font-bold uppercase text-slate-400">

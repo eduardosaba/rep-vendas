@@ -37,6 +37,7 @@ import {
   updateCompany,
   deleteCompany,
   toggleCompanyActive,
+  getCompanyRepresentatives,
 } from './actions';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';

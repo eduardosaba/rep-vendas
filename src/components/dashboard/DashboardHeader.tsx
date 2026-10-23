@@ -1,10 +1,10 @@
-﻿'use client';
+'use client';
 
 import ImpersonateBanner from '@/components/dashboard/ImpersonateBanner';
 import NotificationDropdown from '@/components/NotificationDropdown';
 import { OrganizationSelector } from '@/components/organization/OrganizationSelector';
 import { createClient } from '@/lib/supabase/client';
-import { ChevronDown, LogOut, Menu, Moon, Sun, User } from 'lucide-react';
+import { ChevronDown, CreditCard, LogOut, Menu, Moon, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -264,6 +264,14 @@ export default function DashboardHeader({
                 >
                   <User size={16} /> Meu Perfil
                 </Link>
+                <Link
+                  href="/dashboard/fatura"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <CreditCard size={16} className="text-primary" /> Meu Plano
+                </Link>
+                <div className="my-1 border-t border-gray-100 dark:border-slate-800" />
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors"

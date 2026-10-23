@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Lock, X, Loader2 } from 'lucide-react';
+import { Lock, X, Loader2, Eye, EyeOff } from 'lucide-react';
+import { useStore } from '../store-context';
 
 interface PasswordModalProps {
   isPasswordModalOpen: boolean;
@@ -19,6 +20,16 @@ export function PasswordModal({
   handleUnlockPrices,
 }: PasswordModalProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const storeContext = useStore();
+  const store = storeContext?.store;
+  const isDemoStore = Boolean(
+    store?.catalog_slug === 'demo' ||
+    store?.user_id === 'demo-store' ||
+    store?.user_id === 'demo' ||
+    store?.price_password === '123456' ||
+    store?.price_password === 'demo'
+  );
 
   // Body scroll-lock
   useEffect(() => {
@@ -59,6 +70,20 @@ export function PasswordModal({
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Digite a senha para ver os preços.
             </p>
+            {isDemoStore && (
+              <div className="mt-3.5 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-900 dark:text-amber-200 text-xs shadow-sm">
+                <div className="font-semibold flex items-center justify-center gap-1.5 text-amber-800 dark:text-amber-300 mb-1">
+                  <span>💡</span>
+                  <span>Modo Demonstração</span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Senha para desbloquear os preços:{' '}
+                  <span className="font-mono font-bold text-sm bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 inline-block mt-1">
+                    123456
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
           
           <form
@@ -81,17 +106,28 @@ export function PasswordModal({
               className="sr-only"
               aria-hidden="true"
             />
-            <input
-              type="password"
-              autoComplete="current-password"
-              autoFocus
-              placeholder="Senha"
-              required
-              disabled={isLoading}
-              className="w-full p-3 text-center text-lg border rounded-xl outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-slate-950 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white disabled:bg-gray-50 dark:disabled:bg-slate-900"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(String(e.target.value).trimStart())}
-            />
+            <div className="relative flex items-center">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                autoFocus
+                placeholder="Senha"
+                required
+                disabled={isLoading}
+                className="w-full p-3 pr-11 text-center text-lg border rounded-xl outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-slate-950 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white disabled:bg-gray-50 dark:disabled:bg-slate-900"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(String(e.target.value).trimStart())}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none transition-colors"
+                aria-label={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </form>
         </div>
 

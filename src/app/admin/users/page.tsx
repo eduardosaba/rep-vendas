@@ -205,31 +205,31 @@ export default function AdminUsersPage() {
     }
   };
 
-  const confirmAddTrial = (userId: string, email: string) => {
-    toast('Renovação de Assinatura', {
+  const handleQuickRenew = (userId: string, email: string) => {
+    toast('Renovação de Assinatura (+30 dias)', {
       description: `Deseja adicionar 30 dias de acesso para ${email}?`,
       action: {
         label: 'Confirmar',
-        onClick: () => executeAddTrial(userId),
+        onClick: () => executeRenew30Days(userId),
       },
       cancel: { label: 'Cancelar', onClick: () => toast.dismiss() },
       duration: 8000,
     });
   };
 
-  const executeAddTrial = async (userId: string) => {
+  const executeRenew30Days = async (userId: string) => {
     setUpdatingUser(userId);
     const toastId = toast.loading('Processando renovação...');
     try {
       const result = await addSubscriptionDays(userId, 30);
       if (result.success) {
-        toast.success(`Assinatura renovada!`, { id: toastId });
-        fetchUsers();
+        toast.success(`Assinatura renovada por 30 dias com sucesso!`, { id: toastId });
+        await fetchUsers();
       } else {
         throw new Error(result.error);
       }
     } catch (error: unknown) {
-      toast.error('Falha ao renovar', {
+      toast.error('Falha ao renovar assinatura', {
         id: toastId,
         description: getErrorMessage(error),
       });
@@ -244,56 +244,201 @@ export default function AdminUsersPage() {
     });
   };
 
+  const renderAccessStatusBadge = (user: UserData) => {
+    // 1) Bloqueio Administrativo / Desativado / Inativo
+    if (user.is_active === false || user.status === 'inactive' || user.status === 'blocked') {
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+            {user.status === 'blocked' ? 'Bloqueado' : user.subscriptions?.status === 'canceled' ? 'Cancelado' : 'Desativado'}
+          </span>
+          {user.disabled_reason && (
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[140px]" title={user.disabled_reason}>
+              {user.disabled_reason}
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    // 2) Assinatura Cancelada
+    if (user.subscriptions?.status === 'canceled') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 w-fit">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+          Cancelado
+        </span>
+      );
+    }
+
+    // 3) Assinatura Inadimplente
+    if (user.subscriptions?.status === 'past_due') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 w-fit">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          Inadimplente
+        </span>
+      );
+    }
+
+    // 4) Master / Admin (Acesso Permanente)
+    if (user.role === 'master' || user.role === 'admin') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800 w-fit">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+          Ativo (Master)
+        </span>
+      );
+    }
+
+    // 5) Membro Vinculado a Distribuidora (Acesso Coberto pela Empresa)
+    if (user.company_id && (user.role === 'representative' || user.role === 'rep')) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 w-fit">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+          Ativo (Distribuidora)
+        </span>
+      );
+    }
+
+    // 6) Verificação de Vencimento de Assinatura Paga
+    if (user.subscriptions?.current_period_end) {
+      const expDate = new Date(user.subscriptions.current_period_end);
+      const now = new Date();
+      if (expDate.getTime() < now.getTime()) {
+        const daysOverdue = Math.floor((now.getTime() - expDate.getTime()) / (1000 * 60 * 60 * 24));
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 w-fit" title={`Assinatura vencida há ${daysOverdue} dia(s)`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+            Vencido ({daysOverdue}d)
+          </span>
+        );
+      }
+
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900 w-fit">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          Ativo
+        </span>
+      );
+    }
+
+    // 7) Verificação de Usuário em Trial (Teste Gratuito)
+    const isTrial = user.status === 'trial' || !user.subscriptions || user.subscriptions?.status === 'trial';
+    if (isTrial) {
+      const trialEndIso = user.trial_ends_at || (user.created_at ? new Date(new Date(user.created_at).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() : null);
+      if (trialEndIso) {
+        const trialEndDate = new Date(trialEndIso);
+        const now = new Date();
+        if (trialEndDate.getTime() < now.getTime()) {
+          const daysOverdue = Math.floor((now.getTime() - trialEndDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysOverdue <= 5) {
+            return (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 w-fit" title={`Trial expirado há ${daysOverdue} dia(s) - Período de tolerância (5 dias)`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                Trial Vencido ({daysOverdue}d)
+              </span>
+            );
+          }
+          return (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 w-fit" title={`Trial expirado há ${daysOverdue} dia(s)`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+              Trial Expirado ({daysOverdue}d)
+            </span>
+          );
+        } else {
+          const daysRemaining = Math.max(0, Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+          return (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-50 text-cyan-800 border border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800 w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+              Trial ({daysRemaining}d)
+            </span>
+          );
+        }
+      }
+    }
+
+    // 8) Fallback para status do profile se explicitamente ativo
+    if (user.status === 'active') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900 w-fit">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          Ativo
+        </span>
+      );
+    }
+
+    // 9) Sem Plano
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 w-fit">
+        <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+        Sem Plano
+      </span>
+    );
+  };
+
   const renderExpirationDate = (user: UserData) => {
     // 1) Manual block
     if (user.status === 'blocked') {
       return <span className="text-red-600 font-bold">BLOQUEADO</span>;
     }
 
-    // 2) Trial logic
-    if (user.status === 'trial' && user.trial_ends_at) {
-      const trialDate = new Date(user.trial_ends_at);
-      const isExpired = trialDate < new Date();
+    // 2) Subscription based
+    if (user.subscriptions?.current_period_end) {
+      const isCanceled = user.subscriptions.status === 'canceled' || user.status === 'inactive';
+      const isPastDue = user.subscriptions.status === 'past_due';
+      const date = new Date(user.subscriptions.current_period_end);
+      const isExpired = date.getTime() < new Date().getTime();
+
       return (
-        <span className={isExpired ? 'text-red-500 font-bold' : 'text-amber-500 font-medium'}>
-          {isExpired ? 'Trial Expirado' : `Trial até ${trialDate.toLocaleDateString()}`}
-        </span>
+        <div className="flex flex-col">
+          <span className={`text-sm font-medium ${isCanceled || isExpired ? 'text-red-600 font-bold' : isPastDue ? 'text-amber-600 font-bold' : 'text-green-600'}`}>
+            {date.toLocaleDateString('pt-BR')}
+          </span>
+          <span className="text-[10px] text-gray-400 flex items-center gap-1">
+            {isCanceled ? (
+              <span className="font-bold text-red-600 dark:text-red-400">Cancelado</span>
+            ) : isPastDue ? (
+              <span className="font-bold text-amber-600 dark:text-amber-400">Inadimplente</span>
+            ) : isExpired ? (
+              <span className="font-bold text-red-500">Expirado</span>
+            ) : (
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">Ativo</span>
+            )}
+            <span>•</span>
+            <span>{user.subscriptions.plan_name || 'Plano'}</span>
+          </span>
+        </div>
       );
     }
 
-    // 3) Subscription based
-    if (!user.subscriptions || !user.subscriptions.current_period_end) {
+    // 3) Trial logic
+    const isTrial = user.status === 'trial' || !user.subscriptions;
+    const trialEndIso = user.trial_ends_at || (user.created_at ? new Date(new Date(user.created_at).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString() : null);
+    if (isTrial && trialEndIso) {
+      const trialDate = new Date(trialEndIso);
+      const isExpired = trialDate.getTime() < new Date().getTime();
       return (
-        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-          Sem plano
-        </span>
+        <div className="flex flex-col">
+          <span className={`text-sm font-medium ${isExpired ? 'text-red-500 font-bold' : 'text-amber-600 font-medium'}`}>
+            {trialDate.toLocaleDateString('pt-BR')}
+          </span>
+          <span className="text-[10px] text-gray-400">
+            {isExpired ? (
+              <span className="font-bold text-red-500">Trial Vencido</span>
+            ) : (
+              <span className="font-semibold text-cyan-600 dark:text-cyan-400">Trial (Teste)</span>
+            )}
+          </span>
+        </div>
       );
     }
-
-    const isCanceled = user.subscriptions.status === 'canceled' || user.status === 'inactive';
-    const isPastDue = user.subscriptions.status === 'past_due';
-    const date = new Date(user.subscriptions.current_period_end);
-    const isExpired = date.getTime() < new Date().getTime();
 
     return (
-      <div className="flex flex-col">
-        <span className={`text-sm font-medium ${isCanceled || isExpired ? 'text-red-600' : isPastDue ? 'text-amber-600' : 'text-green-600'}`}>
-          {date.toLocaleDateString('pt-BR')}
-        </span>
-        <span className="text-[10px] text-gray-400 flex items-center gap-1">
-          {isCanceled ? (
-            <span className="font-bold text-red-600 dark:text-red-400">Cancelado</span>
-          ) : isPastDue ? (
-            <span className="font-bold text-amber-600 dark:text-amber-400">Inadimplente</span>
-          ) : isExpired ? (
-            <span className="font-bold text-red-500">Expirado</span>
-          ) : (
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">Ativo</span>
-          )}
-          <span>•</span>
-          <span>{user.subscriptions.plan_name || 'Plano'}</span>
-        </span>
-      </div>
+      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+        Sem plano
+      </span>
     );
   };
 
@@ -414,32 +559,7 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4">
-                      {user.is_active === false || user.status === 'inactive' || user.subscriptions?.status === 'canceled' ? (
-                        <div className="flex flex-col gap-0.5">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900 w-fit">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                            {user.subscriptions?.status === 'canceled' || user.status === 'inactive' ? 'Cancelado' : 'Desativado'}
-                          </span>
-                          {(user.disabled_at || user.subscriptions?.current_period_end) && (
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                              {new Date(user.disabled_at || user.subscriptions!.current_period_end!).toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
-                          {(user.disabled_reason || (user.subscriptions?.status === 'canceled' ? 'Assinatura cancelada' : null)) && (
-                            <span
-                              className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[140px]"
-                              title={user.disabled_reason || 'Assinatura cancelada'}
-                            >
-                              Motivo: {user.disabled_reason || 'Assinatura cancelada'}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900 w-fit">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          Ativo
-                        </span>
-                      )}
+                      {renderAccessStatusBadge(user)}
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       {user.role === 'master' || user.role === 'admin' ? (
@@ -472,39 +592,40 @@ export default function AdminUsersPage() {
                       {renderExpirationDate(user)}
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-right sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.12)] transition-colors">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => handleQuickRenew(user.id, user.email)}
+                          disabled={updatingUser === user.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                          title="Renovar 30 dias de assinatura"
+                        >
+                          {updatingUser === user.id ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Sparkles size={13} className="text-emerald-600 dark:text-emerald-400" />
+                          )}
+                          <span>+30 dias</span>
+                        </button>
                         <a
                           href={`mailto:${user.email}?subject=Boas-vindas%20ao%20RepVendas&body=Ol%C3%A1!%20Vi%20que%20voc%C3%AA%20se%20cadastrou%20no%20RepVendas.%20Como%20posso%20te%20ajudar%20a%20configurar%20seu%20cat%C3%A1logo%3F`}
-                          className="p-2 text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-all"
+                          className="p-1.5 text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-all"
                           title="Enviar E-mail de Boas-Vindas"
                         >
-                          <Mail size={16} />
+                          <Mail size={15} />
                         </a>
                         <Link
                           href={`/admin/users/${user.id}`}
-                          className="p-2 text-indigo-600 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
-                          title="Editar Perfil"
+                          className="p-1.5 text-indigo-600 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
+                          title="Editar Perfil e Assinatura"
                         >
-                          <Edit size={16} />
+                          <Edit size={15} />
                         </Link>
                         <button
-                          onClick={() => confirmAddTrial(user.id, user.email)}
-                          disabled={updatingUser === user.id}
-                          className="p-2 text-green-600 bg-green-50 border border-green-200 hover:bg-green-100 rounded-lg transition-all disabled:opacity-50"
-                          title="Adicionar 30 dias de teste"
-                        >
-                          {updatingUser === user.id ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <CalendarPlus size={16} />
-                          )}
-                        </button>
-                        <button
                           onClick={() => handleImpersonate(user.email)}
-                          className="p-2 text-gray-400 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"
+                          className="p-1.5 text-gray-400 border border-transparent hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"
                           title="Acessar como usuário"
                         >
-                          <LogIn size={16} />
+                          <LogIn size={15} />
                         </button>
                       </div>
                     </td>
@@ -579,22 +700,7 @@ export default function AdminUsersPage() {
                   <span className="text-gray-500 dark:text-slate-400">
                     Status de Acesso:
                   </span>
-                  {user.is_active === false || user.status === 'inactive' || user.subscriptions?.status === 'canceled' ? (
-                    <div className="flex flex-col items-end">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900">
-                        {user.subscriptions?.status === 'canceled' || user.status === 'inactive' ? 'Cancelado' : 'Desativado'}
-                      </span>
-                      {(user.disabled_at || user.subscriptions?.current_period_end) && (
-                        <span className="text-[10px] text-gray-500">
-                          {new Date(user.disabled_at || user.subscriptions!.current_period_end!).toLocaleDateString('pt-BR')}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900">
-                      Ativo
-                    </span>
-                  )}
+                  {renderAccessStatusBadge(user)}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500 dark:text-slate-400">
@@ -615,27 +721,28 @@ export default function AdminUsersPage() {
               </div>
 
               <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-slate-800">
-                <Link
-                  href={`/admin/users/${user.id}`}
-                  className="flex-1 flex items-center justify-center gap-2 p-2 text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded-lg transition-all"
-                >
-                  <Edit size={16} />
-                  <span className="text-sm font-medium">Editar</span>
-                </Link>
                 <button
-                  onClick={() => confirmAddTrial(user.id, user.email)}
+                  onClick={() => handleQuickRenew(user.id, user.email)}
                   disabled={updatingUser === user.id}
-                  className="flex-1 flex items-center justify-center gap-2 p-2 text-green-600 bg-green-50 border border-green-200 hover:bg-green-100 rounded-lg transition-all disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-1.5 p-2 text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-lg transition-all font-bold text-xs disabled:opacity-50"
+                  title="Renovar assinatura por 30 dias"
                 >
                   {updatingUser === user.id ? (
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2 size={14} className="animate-spin" />
                   ) : (
                     <>
-                      <CalendarPlus size={16} />
-                      <span className="text-sm font-medium">Trial</span>
+                      <Sparkles size={14} className="text-emerald-600 dark:text-emerald-400" />
+                      <span>Renovar 30d</span>
                     </>
                   )}
                 </button>
+                <Link
+                  href={`/admin/users/${user.id}`}
+                  className="flex-1 flex items-center justify-center gap-1.5 p-2 text-indigo-600 border border-indigo-200 hover:bg-indigo-50 rounded-lg transition-all text-xs font-medium"
+                >
+                  <Edit size={14} />
+                  <span>Editar</span>
+                </Link>
                 <button
                   onClick={() => handleImpersonate(user.email)}
                   className="p-2 text-gray-400 border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"

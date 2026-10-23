@@ -164,7 +164,7 @@ export default function FooterDistribuidora({ company, primaryColor }: any) {
           </p>
           <div className="flex items-center gap-2">
              <span className="text-[10px] font-bold text-slate-300 uppercase">Powered by</span>
-             <img src="/repvendas.png" alt="RepVendas" className="h-4 opacity-30 grayscale" />
+             <img src="/logo.png" alt="RepVendas" className="h-4 opacity-30 grayscale" />
           </div>
         </div>
       </div>

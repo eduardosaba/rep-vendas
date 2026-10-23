@@ -60,29 +60,56 @@ export function DashboardChecklist({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm mb-8 space-y-6">
-      {/* EMPTY STATE AVISO SE 0 PRODUTOS */}
+      {/* EMPTY STATE AVISO SE 0 PRODUTOS COM CATÁLOGO DEMONSTRATIVO */}
       {productsCount === 0 && (
-        <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-amber-500 text-white rounded-2xl shrink-0 shadow-md">
+        <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800 rounded-3xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3.5 bg-[#A46431] text-white rounded-2xl shrink-0 shadow-md">
               <Store size={28} />
             </div>
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                Seu catálogo está pronto para começar
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-[#A46431]/20 text-[#A46431] text-[10px] font-bold uppercase tracking-wider">
+                  Primeiros Passos
+                </span>
+                <span className="text-xs font-semibold text-slate-500">
+                  Time-to-Value Imediato
+                </span>
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-base sm:text-lg">
+                Conheça a experiência de vendas antes de cadastrar seu catálogo
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                Adicione seus primeiros produtos para começar a compartilhar seu catálogo digital com seus clientes.
+              <p className="text-xs text-slate-600 dark:text-slate-300 max-w-xl leading-relaxed">
+                Você pode experimentar e apresentar o <strong>Catálogo Demonstrativo</strong> aos seus clientes para ver como os pedidos chegam no WhatsApp, ou já iniciar o cadastro dos seus produtos próprios por planilha ou manualmente.
               </p>
             </div>
           </div>
 
-          <Link
-            href="/dashboard/products/new"
-            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-3 rounded-xl transition-all shadow-md flex items-center gap-2 shrink-0"
-          >
-            <PlusCircle size={16} /> Adicionar Produtos
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 shrink-0 w-full lg:w-auto">
+            <Link
+              href="/demo/catalogo"
+              target="_blank"
+              className="flex-1 sm:flex-none bg-[#0D1B2C] hover:bg-slate-800 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              <ExternalLink size={15} className="text-[#A46431]" />
+              Ver Demonstração Pronta
+            </Link>
+
+            <Link
+              href="/dashboard/products/import-massa"
+              className="flex-1 sm:flex-none bg-[#A46431] hover:bg-[#8e5427] text-white font-bold text-xs px-4 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              <PlusCircle size={15} />
+              Importar Planilha Excel
+            </Link>
+
+            <Link
+              href="/dashboard/products/new"
+              className="flex-1 sm:flex-none bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 dark:border-slate-700 font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              Cadastro Manual
+            </Link>
+          </div>
         </div>
       )}
 

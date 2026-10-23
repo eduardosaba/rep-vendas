@@ -258,7 +258,7 @@ export function HeaderDistribuidora({ slug, repSlug, repName, companyLogo, compa
                   if (str.startsWith('/')) return str;
                   return `/${str}`;
                 };
-                const src = normalize(candidate) || '/repvendas.png';
+                const src = normalize(candidate) || '/logo.png';
                 // debug removed
                 return <img src={src} alt={companyName} className="h-10 hover:opacity-80 transition-opacity" />;
               })()

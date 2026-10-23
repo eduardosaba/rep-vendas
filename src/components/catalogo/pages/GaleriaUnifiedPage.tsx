@@ -3,6 +3,8 @@
 import React from 'react';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { resolveContext } from '@/lib/resolve-context';
+import BlockedCatalogModal from '@/components/catalogo/BlockedCatalogModal';
+import { checkCatalogAccessStatus } from '@/lib/auth/subscription-rules';
 
 const supabaseAdmin = createSupabaseAdmin(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,6 +41,27 @@ export default async function Page({
 
   if (!company) {
     return <div className="p-6">Galeria indisponível para este catálogo.</div>;
+  }
+
+  const accessCheck = await checkCatalogAccessStatus(
+    {
+      companyId: company.id,
+      representativeId: context.representative?.id,
+      ownerUserId: context.catalog?.user_id,
+      slug: Array.isArray(slug) ? slug[0] : slug,
+    },
+    supabaseAdmin
+  );
+
+  if (accessCheck.isBlocked) {
+    return (
+      <div className="relative min-h-screen">
+        <BlockedCatalogModal
+          storeName={company.name}
+          catalogSlug={Array.isArray(slug) ? slug.join('/') : slug}
+        />
+      </div>
+    );
   }
 
   const { data: images, error } = await supabaseAdmin.from('company_gallery').select('*').eq('company_id', company.id).order('order_index', { ascending: true }).limit(200);

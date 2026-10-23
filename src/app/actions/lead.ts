@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizePhone } from '@/lib/phone';
 import crypto from 'crypto';
+import { notifyLeadCaptured } from '@/lib/telegram';
 
 export interface CaptureLeadInput {
   name: string;
@@ -36,10 +37,7 @@ export async function captureLeadAction(
       return { success: true, lead_id: 'hp-filtered' };
     }
 
-    // 2. Server-side Rate Limiting — FAIL-CLOSED
-    //    Uses persistent RPC in Supabase (shared across all serverless instances).
-    //    If the RPC fails for any reason, the request is BLOCKED (fail-closed).
-    //    The in-memory fallback is intentionally absent to prevent bypass.
+    // 2. Server-side Rate Limiting — FAIL-OPEN on missing RPC, FAIL-CLOSED on exceeded limit
     {
       const headerStore = await headers();
       const clientIp =
@@ -52,21 +50,32 @@ export async function captureLeadAction(
 
       let rateLimitAllowed = true; // Graceful fallback
       try {
-        const supabaseAdmin = createAdminClient();
-        const { data: rpcAllowed, error: rpcErr } = await supabaseAdmin.rpc(
-          'check_and_increment_lead_rate_limit',
-          { p_ip_hash: ipHash, p_max_attempts: 5, p_window_seconds: 600 }
-        );
-        if (rpcErr) {
-          // Log warning and fail-open so missing RPC function does not block legitimate leads
-          console.warn('[lead-capture:rate-limit:warn]', {
-            message: rpcErr.message,
-            code: rpcErr.code,
-            hint: 'RPC function missing or unavailable — failing open for lead capture',
-          });
-          rateLimitAllowed = true;
-        } else if (typeof rpcAllowed === 'boolean') {
-          rateLimitAllowed = rpcAllowed;
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+        if (serviceKey && supabaseUrl) {
+          const supabaseAdmin = createAdminClient();
+          const { data: rpcAllowed, error: rpcErr } = await supabaseAdmin.rpc(
+            'check_and_increment_lead_rate_limit',
+            { p_ip_hash: ipHash, p_max_attempts: 5, p_window_seconds: 600 }
+          );
+          if (rpcErr) {
+            // Log informative message and fail-open so missing RPC function does not block legitimate leads
+            if (rpcErr.code === 'PGRST202') {
+              console.warn(
+                '[lead-capture:rate-limit:info] RPC check_and_increment_lead_rate_limit não encontrada no Supabase (PGRST202). Prosseguindo em modo aberto (fail-open).'
+              );
+            } else {
+              console.warn('[lead-capture:rate-limit:warn]', {
+                message: rpcErr.message,
+                code: rpcErr.code,
+                hint: 'RPC function unavailable — failing open for lead capture',
+              });
+            }
+            rateLimitAllowed = true;
+          } else if (typeof rpcAllowed === 'boolean') {
+            rateLimitAllowed = rpcAllowed;
+          }
         }
       } catch (rpcCatchErr: any) {
         console.warn('[lead-capture:rate-limit:warn]', {
@@ -145,18 +154,47 @@ export async function captureLeadAction(
     // 6. Application-level Deduplication: Check for recent un-converted lead (last 24 hours) with same email
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: existingLeads, error: searchError } = await supabaseAdmin
-      .from('leads')
-      .select('id, email, status, user_id')
-      .eq('email', rawEmail)
-      .is('user_id', null)
-      .eq('status', 'lead_captured')
-      .gte('created_at', twentyFourHoursAgo)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    let existingLeads: any[] | null = null;
+    let searchError: any = null;
+
+    try {
+      const searchRes = await supabaseAdmin
+        .from('leads')
+        .select('id, email, status, user_id')
+        .eq('email', rawEmail)
+        .is('user_id', null)
+        .eq('status', 'lead_captured')
+        .gte('created_at', twentyFourHoursAgo)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      existingLeads = searchRes.data;
+      searchError = searchRes.error;
+    } catch (e: any) {
+      searchError = e;
+    }
+
+    // Auto-retry once on transient network/fetch failure
+    if (searchError && (searchError.message?.includes('fetch failed') || searchError.code === 'ECONNRESET')) {
+      await new Promise((r) => setTimeout(r, 400));
+      try {
+        const retryRes = await supabaseAdmin
+          .from('leads')
+          .select('id, email, status, user_id')
+          .eq('email', rawEmail)
+          .is('user_id', null)
+          .eq('status', 'lead_captured')
+          .gte('created_at', twentyFourHoursAgo)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        existingLeads = retryRes.data;
+        searchError = retryRes.error;
+      } catch (retryE: any) {
+        searchError = retryE;
+      }
+    }
 
     if (searchError) {
-      console.error('[lead-capture:error]', { message: searchError.message, code: searchError.code });
+      console.warn('[lead-capture:dedup:warn]', { message: searchError.message, code: searchError.code });
     }
 
     let leadId: string | null = null;
@@ -193,15 +231,44 @@ export async function captureLeadAction(
 
     if (!leadId) {
       // Create new lead entry
-      const { data: insertedLead, error: insertErr } = await supabaseAdmin
-        .from('leads')
-        .insert({
-          ...leadDataPayload,
-          status: 'lead_captured',
-          created_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
+      let insertedLead: any = null;
+      let insertErr: any = null;
+
+      try {
+        const insertRes = await supabaseAdmin
+          .from('leads')
+          .insert({
+            ...leadDataPayload,
+            status: 'lead_captured',
+            created_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
+        insertedLead = insertRes.data;
+        insertErr = insertRes.error;
+      } catch (e: any) {
+        insertErr = e;
+      }
+
+      // Auto-retry once on transient network/fetch failure
+      if (insertErr && (insertErr.message?.includes('fetch failed') || insertErr.code === 'ECONNRESET')) {
+        await new Promise((r) => setTimeout(r, 400));
+        try {
+          const retryInsert = await supabaseAdmin
+            .from('leads')
+            .insert({
+              ...leadDataPayload,
+              status: 'lead_captured',
+              created_at: new Date().toISOString(),
+            })
+            .select('id')
+            .single();
+          insertedLead = retryInsert.data;
+          insertErr = retryInsert.error;
+        } catch (retryE: any) {
+          insertErr = retryE;
+        }
+      }
 
       if (insertErr) {
         // Handle Postgres error 23505 (unique constraint violation on submission_id during concurrent inserts)
@@ -246,6 +313,16 @@ export async function captureLeadAction(
       } catch (e) {
         // Non-blocking cookie setting fallback
       }
+
+      // Disparo em tempo real para o Telegram do administrador
+      void notifyLeadCaptured({
+        name,
+        email: rawEmail,
+        phone: normalizedPhone,
+        acting_type,
+        company_name: company_name || null,
+        source: input.utm_source || 'Landing Page',
+      });
 
       return { success: true, lead_id: leadId };
     }
